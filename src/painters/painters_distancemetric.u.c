@@ -452,8 +452,11 @@ painter_paint_distancemetric(
             tile_paint->near_wall_flags |= ~far_walls;
 
             struct SceneOccluders* occ = painter->occluders;
+            /* Occluders are optional; without them nothing is hidden. */
             int ground_hidden =
-                painter_tile_ground_hidden(occ, tile_paint, occlusion_level, tile_sx, tile_sz);
+                occ ? painter_tile_ground_hidden(
+                          occ, tile_paint, occlusion_level, tile_sx, tile_sz)
+                    : 0;
 
             if( tile->bridge_tile != -1 )
             {

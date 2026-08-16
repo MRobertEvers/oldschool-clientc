@@ -52,25 +52,51 @@ if( count == 0 )
 assert(items);
 ```
 
-### What is *not* a contract violation
+### "The data is optional" is the CALLER's condition, not the callee's
 
-`NULL` is a legitimate value — keep the guard, and say why in a comment — when:
+This is the trap. When a field is optional — an unrigged model's
+`vertex_bones`, an untextured model's `face_textures`, a widget with no label,
+a painter with no occluders — it is tempting to write the callee as
+"absent in, absent out" and call it legitimate. It is not: it makes every
+genuine caller bug silent for the sake of saving the caller an `if`.
+
+Put the existence test where the knowledge is, and assert in the callee:
+
+```c
+/* NO — now nobody can pass this a bad pointer by mistake and find out. */
+struct ToriDraw_Bones*
+ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
+{
+    if( !src || src->bones_count <= 0 || !src->bones )
+        return NULL;
+
+/* YES — "does this model have bones?" is answered once, by the caller. */
+ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
+{
+    assert(src);
+    assert(src->bones_count > 0);
+    assert(src->bones);
+    ...
+}
+/* call site */
+if( src->vertex_bones )
+    dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
+```
+
+Where the callee is reached through a macro or a dozen call sites, put the test
+in the macro — one place, still not the callee (`TORIDRAW_MODEL_COPY`).
+
+### What genuinely is not a contract violation
+
+Only two things:
 
 - **Deallocators.** `free(NULL)` is an idiom; `*Free`, `*Cleanup`, `*Destroy`,
   `*Release` must accept NULL.
-- **Absent optional data.** An unrigged model has no `vertex_bones`; an
-  untextured model has no `face_textures`; a checkbox may carry no label.
-  Absent in, absent out.
-- **A documented sentinel.** `dat2_id_wanted(NULL)` means "want every id";
-  `db_column_of()` returns NULL for "no such column", answered with `-1`.
-- **An optional subsystem.** `painter->occluders` is NULL-checked throughout;
-  no occluders means nothing is occluded.
-- **Total queries** whose every missing link already answers 0 — e.g. a
-  height lookup on a headless `World` with no scene attached.
+- **A sentinel that carries its own meaning**, distinct from "absent":
+  `dat2_id_wanted(NULL)` means *want every id*, not *no ids*.
 
-The test is whether a real caller can reach it with NULL as a *meaningful*
-value. "A caller might be buggy" is not such a reason — that is the case the
-assert exists to catch.
+Non-pointer parameters are not covered by any of this. `if( !wearable )` on an
+`int` flag is a plain boolean test — asserting it aborts on the common case.
 
 ## An allocation failure is an assertion, not an `if`
 

@@ -153,7 +153,7 @@ TS2_CAT(TS2_SPAN_FN, _block8)(
 
 /**
  * The per-pixel path: an exact divide per pixel, the mapping the reference
- * rasterizer uses for every pixel. Only blocks that fail tex_span_lerp8_v_fits
+ * rasterizer uses for every pixel. Only blocks that fail tex_span_lerp8_fits
  * reach it, so this is cold.
  */
 static inline void
@@ -190,7 +190,9 @@ TS2_CAT(TS2_SPAN_FN, _exact)(
              */
             int u_raw = au / w;
             int v_raw = bv / w;
-            int u = clamp(u_raw, 0, sampler->width - 1);
+            int u = (!sampler->clamp_s && getenv("TORIDRAW_WRAP_U"))
+                        ? (u_raw & (sampler->width - 1))
+                        : clamp(u_raw, 0, sampler->width - 1);
             int v = sampler->clamp_t ? clamp(v_raw, 0, sampler->width - 1)
                                      : (v_raw & (sampler->width - 1));
             TS2_EMIT(
@@ -267,7 +269,7 @@ TS2_SPAN_FN(
             {
                 float inv_w = 1.0f / (float)w;
                 cur_u = tex_span_u_quotient(au, inv_w, texture_width);
-                cur_v = tex_span_v_quotient(bv, w, inv_w);
+                cur_v = tex_span_wrapped_quotient(bv, w, inv_w);
             }
 
             int w_n = (cw + step_cw8) >> texture_shift;
@@ -277,7 +279,7 @@ TS2_SPAN_FN(
             {
                 float inv_w_n = 1.0f / (float)w_n;
                 nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
-                nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
+                nxt_v = tex_span_wrapped_quotient(bv + step_bv8, w_n, inv_w_n);
             }
             else
             {
@@ -288,7 +290,7 @@ TS2_SPAN_FN(
             /* w_n == 0 leaves nxt_* fabricated from cur_*, so the fit test sees
              * a flat gradient and believes it. The block has no far endpoint;
              * draw it per pixel rather than smearing one row across eight. */
-            if( w_n != 0 && tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+            if( w_n != 0 && tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
             {
                 int s_u = (nxt_u - cur_u) << (texture_shift - 3);
                 int s_v = (nxt_v - cur_v) << (texture_shift - 3);
@@ -298,7 +300,7 @@ TS2_SPAN_FN(
                     offset,
                     sampler,
                     cur_u << texture_shift,
-                    tex_span_v_scan_start(cur_v, texture_width, texture_shift),
+                    tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift),
                     s_u,
                     s_v,
                     shade8bit_ish8 >> 8);
@@ -341,7 +343,7 @@ TS2_SPAN_FN(
         {
             float inv_w = 1.0f / (float)w;
             cur_u = tex_span_u_quotient(au, inv_w, texture_width);
-            cur_v = tex_span_v_quotient(bv, w, inv_w);
+            cur_v = tex_span_wrapped_quotient(bv, w, inv_w);
         }
 
         int w_n = (cw + step_cw8) >> texture_shift;
@@ -351,12 +353,12 @@ TS2_SPAN_FN(
         {
             float inv_w_n = 1.0f / (float)w_n;
             nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
-            nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
+            nxt_v = tex_span_wrapped_quotient(bv + step_bv8, w_n, inv_w_n);
         }
 
         int shade = shade8bit_ish8 >> 8;
 
-        if( w_n == 0 || !tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+        if( w_n == 0 || !tex_span_lerp8_fits(cur_v, nxt_v, texture_width) )
         {
             TS2_CAT(TS2_SPAN_FN, _exact)(
                 pixel_buffer,
@@ -377,7 +379,7 @@ TS2_SPAN_FN(
         int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
         int u_scan = cur_u << texture_shift;
-        int v_scan = tex_span_v_scan_start(cur_v, texture_width, texture_shift);
+        int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
         for( int i = 0; i < remaining; i++ )
         {

@@ -2231,7 +2231,7 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
 .PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale \
-	test-droptable-versions
+	test-droptable-versions test-loc-var-audit check-loc-var-carriers
 
 # The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
 # asking for a marked-lane bake at all. It decides whether a lane's records are
@@ -2240,6 +2240,21 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # prerequisite of both bakes so it cannot rot alongside a lane's layout.
 test-cache-overlay-stale:
 	@cd $(REPO_ROOT) && python3 tools/test_cache_overlay_stale.py
+
+# tools/loc_var_audit.py's own tests. Hermetic and sub-second.
+test-loc-var-audit:
+	@cd $(REPO_ROOT) && python3 tools/test_loc_var_audit.py
+
+# A varbit is a bit range inside a varp, and only the varp goes on the wire: a
+# script that sets a loc's transform varbit whose carrier is not declared
+# `transmit=yes` updates the server and nothing else, and the multiloc never
+# moves for anybody. Nothing else in the build can see it — sscompile only
+# checks that the varbit resolves, and mock230_world_mark_varp drops the packet
+# without a word. 204 written varbits were in that state, over 1,811 loc
+# placements, before this ran.
+check-loc-var-carriers:
+	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(MOCK230_CONTENT_DIR) \
+		--check-carriers
 
 # The two drop-table invariants that shipped broken and that nothing else can
 # see: every roster npc must *state* `param=death_drop` rather than inherit the

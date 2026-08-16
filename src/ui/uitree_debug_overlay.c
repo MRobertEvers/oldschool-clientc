@@ -132,10 +132,7 @@ ToriDbgUI_MeasureText(int font_slot, char const* text)
     int w = 0;
     unsigned char const* p;
 
-    /* Widget text and labels are optional (a checkbox may carry no label), so
-     * "no string" is a width of 0 rather than a caller bug. */
-    if( !text )
-        return 0;
+    assert(text);
     for( p = (unsigned char const*)text; *p; p++ )
         w += adv[*p];
     return w;
@@ -512,20 +509,22 @@ dbg_widget_width(struct ToriDbgUI const* ui, struct ToriDbgWidget const* w)
     switch( w->kind )
     {
     case TORIDBG_W_LABEL:
-        return ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text);
+        return w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0;
     case TORIDBG_W_CHECKBOX:
         return DBG_CHECK_SIZE + DBG_CHECK_GAP +
-               ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+               (w->label ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0);
     case TORIDBG_W_TEXTINPUT:
     {
-        int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
-        int box_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text) + 2 * DBG_INPUT_PAD_X + 2;
+        int const label_w =
+            w->label ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
+        int box_w = (w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0) +
+                    2 * DBG_INPUT_PAD_X + 2;
         if( box_w < DBG_INPUT_MIN_W )
             box_w = DBG_INPUT_MIN_W;
         return label_w + (label_w > 0 ? DBG_CHECK_GAP : 0) + box_w;
     }
     case TORIDBG_W_MENUITEM:
-        return ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, w->text);
+        return w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, w->text) : 0;
     case TORIDBG_W_SEPARATOR:
     default:
         return 0;

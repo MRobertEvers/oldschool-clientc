@@ -333,9 +333,8 @@ ToriDraw_SceneElementOcclusionHeight(
     struct ToriDraw_Model* model;
     int h;
 
-    /* A total query: every missing link answers 0, including a World running
-     * headless with no scene attached. */
-    if( element_id < 0 || !scene )
+    assert(scene);
+    if( element_id < 0 )
         return 0;
     if( !ToriDraw_SceneElementIsLive(scene, element_id) )
         return 0;

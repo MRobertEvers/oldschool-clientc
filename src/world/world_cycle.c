@@ -1068,7 +1068,7 @@ world_dyn_register_mover(
         element_id,
         footprint.size_x,
         footprint.size_z,
-        ToriDraw_SceneElementOcclusionHeight(world->scene, element_id));
+        (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, element_id) : 0));
 }
 
 /* Register every player in the pool except the local one (registered first by
@@ -1208,7 +1208,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
                 sc->element_id,
                 sc->size_x > 0 ? sc->size_x : 1,
                 sc->size_z > 0 ? sc->size_z : 1,
-                ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id));
+                (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, sc->element_id) : 0));
     }
 
     /* Ground items render below entities (reference tile.groundObject draws in
@@ -1237,7 +1237,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
             stack->element_id,
             1,
             1,
-            ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id),
+            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id) : 0),
             World_ObjRaiseGet(world, grid_x, grid_z, local_level) > 0 ? (uint8_t)PNTR_SCENERY_RAISED
                                                                      : 0);
     }
@@ -1273,7 +1273,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
             p->element_id,
             footprint.size_x,
             footprint.size_z,
-            ToriDraw_SceneElementOcclusionHeight(world->scene, p->element_id));
+            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, p->element_id) : 0));
     }
 
     pool = &world->entities.spotanim;
@@ -1297,7 +1297,7 @@ World_CycleRegisterPainterDynamics(struct World* world)
             s->element_id,
             1,
             1,
-            ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id));
+            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id) : 0));
     }
 }
 
