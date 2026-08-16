@@ -28,6 +28,9 @@ let client = null;
 let output = null;
 let diagnostics = null;
 let disposables = [];
+let watchedBinary = null;
+let restartTimer = null;
+let restarting = false;
 
 /* ------------------------------------------------------------------ */
 /* Transport                                                           */
@@ -485,6 +488,60 @@ function currentSettings() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Picking up a rebuilt server                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The server binary usually lives inside the workspace it is serving —
+ * `tools/runescript-lsp/runescript-lsp` — so `make` replaces it while VS Code
+ * is holding the old process open. Nothing about that is visible from the
+ * editor: the answers just stay as they were, which reads as "the fix did not
+ * work" rather than "you are talking to yesterday's build".
+ *
+ * So the binary is watched, and a new one restarts the client. Polling one
+ * file every two seconds costs nothing, and unlike a workspace FileSystemWatcher
+ * it still fires for a path the user has excluded from watching or gitignored,
+ * which a build output usually is.
+ */
+function watchBinary(context, binary) {
+  unwatchBinary();
+  watchedBinary = binary;
+
+  fs.watchFile(binary, { interval: 2000 }, (current, previous) => {
+    if (current.mtimeMs === previous.mtimeMs && current.size === previous.size) return;
+    if (restarting) return;
+
+    // A link step writes the file in pieces; restarting mid-write launches a
+    // truncated binary. Wait for the writes to stop before acting.
+    if (restartTimer) clearTimeout(restartTimer);
+    restartTimer = setTimeout(async () => {
+      restartTimer = null;
+      restarting = true;
+      output.appendLine('server binary changed on disk — restarting');
+      try {
+        stop();
+        await start(context);
+      } finally {
+        restarting = false;
+      }
+    }, 750);
+  });
+
+  context.subscriptions.push({ dispose: unwatchBinary });
+}
+
+function unwatchBinary() {
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+  if (watchedBinary) {
+    fs.unwatchFile(watchedBinary);
+    watchedBinary = null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Lifecycle                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -493,7 +550,16 @@ async function start(context) {
   const workspaceRoot = folders.length ? folders[0].uri.fsPath : undefined;
   const binary = resolveServerPath(workspaceRoot);
 
-  output.appendLine(`starting ${binary}`);
+  // The exact path and its build time, so "am I running the build I just
+  // made?" is answerable from the output channel rather than by guessing.
+  let stamp = '';
+  try {
+    stamp = ` (built ${fs.statSync(binary).mtime.toISOString()})`;
+  } catch (error) {
+    stamp = ' (not on disk — will fall back to PATH)';
+  }
+  output.appendLine(`starting ${binary}${stamp}`);
+
   client = new Client(binary, [], workspaceRoot);
   client.trace =
     vscode.workspace.getConfiguration('runescript').get('trace.server', 'off') !== 'off';
@@ -565,10 +631,12 @@ async function start(context) {
 
   registerProviders(context, legend);
   registerSync(context);
+  watchBinary(context, binary);
   output.appendLine('language server ready');
 }
 
 function stop() {
+  unwatchBinary();
   for (const disposable of disposables) disposable.dispose();
   disposables = [];
   if (diagnostics) diagnostics.clear();

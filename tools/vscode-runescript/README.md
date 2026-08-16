@@ -57,6 +57,16 @@ CMake.
 Commands: **RuneScript: Restart Language Server**, **RuneScript: Show Language
 Server Output**.
 
+### When an answer looks stale
+
+The server binary lives inside the workspace it is serving, so `make` replaces
+it while VS Code is still holding the old process open — and the answers stay
+as they were, which reads as "the fix did not work" rather than "you are
+talking to yesterday's build". The extension watches the binary and restarts
+itself when it changes. If it ever does not, **RuneScript: Restart Language
+Server** does it by hand, and **Show Language Server Output** prints the path
+it launched and when that file was built.
+
 ---
 
 ## What you get

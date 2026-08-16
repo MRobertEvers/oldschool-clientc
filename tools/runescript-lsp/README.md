@@ -175,6 +175,21 @@ name the tree genuinely does not declare.
 
 ---
 
+## When an answer looks stale
+
+The server binary usually lives inside the workspace it is serving, so `make`
+replaces it while the editor is still holding the old process open — and the
+answers simply stay as they were, which reads as "the fix did not work".
+
+The extension watches the binary and restarts itself when it changes, so this
+should not happen. If it does:
+
+- **RuneScript: Restart Language Server** from the command palette;
+- **RuneScript: Show Language Server Output** prints the path it launched and
+  when that file was built, which answers "am I running the build I just made?"
+
+---
+
 ## Configuration
 
 Sent as `initializationOptions`, and again on `workspace/didChangeConfiguration`:
