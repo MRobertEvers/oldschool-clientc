@@ -19,6 +19,8 @@
 
 #include <tree_sitter/api.h>
 
+#include "cs2/cs2_types.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -366,7 +368,21 @@ resolve_ref(const struct RS_Doc* doc, TSNode node)
             TSNode name_field = ts_node_child_by_field_name(parent, "name", 4);
 
             if( ts_node_eq(name_field, node) )
+            {
                 ref.hint = RS_KIND_COMMAND;
+                /* `queue*` is a different opcode from `queue`, not a modifier
+                 * on it: the compiler resolves the star form by appending
+                 * "vararg" to the name (ssc_compile.c's parse_command), and so
+                 * must this — otherwise every `runclientscript*(...)` in the
+                 * corpus reads as a call to a command that does not exist. */
+                if( node_is(parent, "vararg_command_call") )
+                {
+                    size_t length = strlen(ref.name);
+
+                    if( length + 7 < sizeof(ref.name) )
+                        memcpy(ref.name + length, "vararg", 7);
+                }
+            }
         }
         else if( node_is(parent, "property") )
         {
@@ -1384,6 +1400,114 @@ finished:
 }
 
 /* ------------------------------------------------------------------ */
+/* The ClientScript dialect                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A `.cs2` addresses much of what it touches by id rather than by name, and a
+ * decompiled one addresses nearly all of it that way. Those spellings are not
+ * missing declarations — there is nothing for them to declare — so they are
+ * recognised here rather than reported.
+ *
+ *   $int0, $string1, $component2   a local whose NAME states its bank. CS2
+ *                                  locals start empty and may be read without
+ *                                  ever being written; the name is the only
+ *                                  thing that says which stack it lives on
+ *                                  (3rd/rscache/src/cs2/cs2_types.h).
+ *   %varbit6285, %varcint70        a variable named by its cache id.
+ *   ~script222, [clientscript,script7592]   a script named by its id.
+ */
+
+/** The trailing digit run's start, or NULL when the name does not end in one. */
+static const char*
+trailing_digits(const char* name)
+{
+    size_t length = strlen(name);
+    size_t digits = 0;
+
+    while( digits < length && isdigit((unsigned char)name[length - digits - 1]) )
+        digits++;
+    if( !digits || digits == length )
+        return NULL;
+    return name + length - digits;
+}
+
+/** `varbit6285` -> 1: a variable spelled as its own namespace plus an id. */
+static int
+is_id_addressed_variable(const char* name)
+{
+    static const char* const k_prefixes[] = {
+        "var",    "varbit",  "varp",          "varc", "varcint", "varcstring",
+        "varn",   "vars",    "varclan",       "varclansetting", NULL
+    };
+    const char* digits = trailing_digits(name);
+    size_t prefix_length;
+    int i;
+
+    if( !digits )
+        return 0;
+    prefix_length = (size_t)(digits - name);
+    for( i = 0; k_prefixes[i]; i++ )
+    {
+        if( strlen(k_prefixes[i]) == prefix_length &&
+            strncmp(name, k_prefixes[i], prefix_length) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/** `script222` -> 1: a clientscript named by its id. */
+static int
+is_id_addressed_script(const char* name)
+{
+    const char* digits = trailing_digits(name);
+
+    return digits && (size_t)(digits - name) == 6 && strncmp(name, "script", 6) == 0;
+}
+
+/**
+ * `$int0`, `$fontmetrics7` -> 1.
+ *
+ * The type half is checked against the cs2 library's own prototype table
+ * rather than a list typed here, which is the same lookup its compiler does
+ * to decide which bank an unassigned local belongs to.
+ */
+static int
+is_self_declaring_cs2_local(const char* name)
+{
+    const char* digits = trailing_digits(name);
+    char prefix[64];
+    size_t prefix_length;
+
+    if( !digits )
+        return 0;
+    prefix_length = (size_t)(digits - name);
+    if( prefix_length >= sizeof(prefix) )
+        return 0;
+    memcpy(prefix, name, prefix_length);
+    prefix[prefix_length] = '\0';
+
+    if( RSCache_CS2_TypeOfIdentifier(prefix) != RSCACHE_CS2_TYPE_NONE )
+        return 1;
+
+    /* An array local is the element type with `array` on the end —
+     * `$intarray0($i)`. The suffix is the decompiler's, not a type of its
+     * own, so it is stripped before the same lookup. */
+    if( prefix_length > 5 && strcmp(prefix + prefix_length - 5, "array") == 0 )
+    {
+        prefix[prefix_length - 5] = '\0';
+        return RSCache_CS2_TypeOfIdentifier(prefix) != RSCACHE_CS2_TYPE_NONE;
+    }
+    return 0;
+}
+
+static int
+doc_is_clientscript(const struct RS_Doc* doc)
+{
+    return strcmp(doc->extension, "cs2") == 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Diagnostics                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -1414,6 +1538,7 @@ publish_diagnostics(const struct RS_Doc* doc)
     TSTreeCursor cursor;
     int descend = 1;
     int written = 0;
+    int is_client = doc_is_clientscript(doc);
 
     begin_notification(&out, "textDocument/publishDiagnostics");
     Buf_AppendStr(&out, "{\"uri\":");
@@ -1459,7 +1584,8 @@ publish_diagnostics(const struct RS_Doc* doc)
             {
                 char* text = node_text(doc, node);
 
-                if( !locals_find(&locals, text + 1) )
+                if( !locals_find(&locals, text + 1) &&
+                    !(is_client && is_self_declaring_cs2_local(text + 1)) )
                 {
                     char message[256];
 
@@ -1478,22 +1604,43 @@ publish_diagnostics(const struct RS_Doc* doc)
                     switch( ref.hint )
                     {
                     case RS_KIND_CONSTANT:
-                        what = "constant";
+                        /* A client script's constants are the decompiler's
+                         * vocabulary (`^white`, `^setpos_abs_centre`), which
+                         * lives in the cs2 tables and not in this tree's
+                         * `.constant` files. Reporting them would flag every
+                         * line of a corpus that is correct as it stands. */
+                        if( !is_client )
+                            what = "constant";
                         break;
                     case RS_KIND_PROC:
-                        what = "proc";
+                        if( !is_id_addressed_script(ref.name) )
+                            what = "proc";
                         break;
                     case RS_KIND_LABEL:
-                        what = "label";
+                        if( !is_id_addressed_script(ref.name) )
+                            what = "label";
                         break;
                     case RS_KIND_TRIGGER:
-                        what = "trigger";
+                        /* Only the server's trigger words are enumerable: they
+                         * come from ss_trigger.h, which this binary links. The
+                         * client's are the cache's interface-hook vocabulary
+                         * (`worldmapelementmouserepeat` and 200-odd others),
+                         * and nothing here holds that list — so a `.cs2`
+                         * header's trigger is left unchecked rather than
+                         * checked against the wrong table. */
+                        if( !is_client )
+                            what = "trigger";
                         break;
                     default:
                         if( ref.hint == KIND_ANY_VARIABLE )
-                            what = "variable";
+                        {
+                            if( !is_id_addressed_variable(ref.name) )
+                                what = "variable";
+                        }
                         else if( ref.hint == RS_KIND_COMMAND && ref.name[0] != '_' )
+                        {
                             what = "command";
+                        }
                         break;
                     }
                 }

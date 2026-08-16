@@ -164,7 +164,12 @@ the natural-history display case's 1470 are the same rig.
 ## Caches
 
 The **Caches** panel lists every cache the viewer knows about and switches
-between them; each is reopened and re-indexed on the spot. The registry persists
+between them; each is reopened and re-indexed on the spot. It is collapsed by
+default and its summary names the active cache, so the question it answers most
+often needs no click — and it shares a bounded scroller with the model-file
+panel, because between them they used to push the subject list off the bottom of
+the window. The mode buttons, the part chips, the search box and the count sit
+outside that scroller and are on screen at every scroll position. The registry persists
 in `web/.ev_caches`, and `--cache-root DIR` (which `run.sh` points at the repo
 root) is scanned one level deep at startup so the repo's `cache.*` directories
 are there to click without typing a path.

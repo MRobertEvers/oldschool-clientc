@@ -34,7 +34,11 @@
      when the window is short, and the list below keeps a floor of its own so
      the two cannot squeeze each other to nothing.
   */
-  .chrome { flex: 0 1 auto; min-height: 0; max-height: 50%; overflow-y: auto; }
+  .chrome { flex: 0 1 auto; min-height: 0; max-height: 45%; overflow-y: auto;
+            border-bottom: 1px solid var(--line); }
+  /* Floors, so the two scrollers cannot squeeze each other to nothing when the
+     window is short: the chrome gives way first (flex-shrink above), and the
+     list keeps enough rows to be a list. */
   #npcList { min-height: 120px; }
   h2 { margin: 0; padding: 10px 12px; font-size: 11px; letter-spacing: .09em;
        text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
@@ -61,20 +65,37 @@
   .cachebox summary { cursor: pointer; user-select: none; font-size: 12px; }
   .cachebox summary .meta { border: 0; padding: 0 0 0 6px; }
   .cachelist { max-height: 190px; margin: 6px 0; }
-  .cachelist .row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; }
-  .cachelist .cname { flex: 0 0 auto; }
-  .cachelist .meta { border: 0; padding: 0; margin-left: auto; font-size: 11px; opacity: .7; }
+  /* Two lines on purpose: name, revision and the drop button on the first, the
+     counts on the second. All four on one line at 300px wide wrapped mid-phrase
+     and made every row a different height. */
+  .cachelist .row { display: flex; align-items: center; flex-wrap: wrap;
+                    gap: 2px 6px; padding: 3px 6px; }
+  .cachelist .cname { flex: 0 1 auto; overflow: hidden;
+                      text-overflow: ellipsis; white-space: nowrap; }
+  .cachelist .meta { border: 0; padding: 0; flex-basis: 100%;
+                     font-size: 11px; opacity: .7; }
   /* The revision reads as editable because it is a guess, not a fact. */
   .cachelist .crev { font-size: 11px; opacity: .8; border-bottom: 1px dotted currentColor; cursor: text; }
   .cachelist .crev:hover { opacity: 1; }
   .cacheactive { color: var(--accent); }
-  .cachelist .x { background: none; border: 0; color: var(--fg); opacity: .35; cursor: pointer; }
+  .cachelist .x { background: none; border: 0; color: var(--fg); opacity: .35;
+                  cursor: pointer; margin-left: auto; }
   .cachelist .x:hover { opacity: 1; }
   /* Wraps rather than crushing the path field to nothing: a cache path is long
      and the column is 300px. */
-  .cacheadd { display: flex; gap: 4px; flex-wrap: wrap; }
-  .cacheadd input[type=text] { flex: 1 1 120px; min-width: 0; }
-  .cacheadd input#cacheRev { flex: 0 1 60px; }
+  .cacheadd { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+  /* The path gets a row of its own — it is the only field here that is ever
+     long, and sharing a row with three controls left it 60px wide. */
+  .cacheadd input#cachePath { flex: 1 1 100%; min-width: 0; }
+  .cacheadd input#cacheRev { flex: 1 1 60px; min-width: 0; }
+  /* These were the browser's default white boxes in a dark panel: nothing
+     styled a bare text input, because every other one in the page is a
+     search or lives in .fx. */
+  .cacheadd input[type=text] {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px;
+    color: var(--text); font: inherit; padding: 4px 7px;
+  }
+  .cacheadd input[type=text]:focus { outline: none; border-color: var(--accent); }
   .row .id { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 11px; min-width: 44px; }
   .row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .gv { color: var(--dim); font-size: 11px; overflow: hidden;
@@ -136,18 +157,18 @@
 <body>
   <div class="col">
     <!--
-      Everything above the subject list, in one bounded scroller.
+      The two setup panels, in one bounded scroller.
 
-      These are all panels that grow with what is in them — sixteen caches, a
-      dozen worn objs, five model variants — and the column they share is a
-      fixed height. Without a bound, opening the cache registry pushed the list
-      it selects INTO off the bottom of the window, which is the one thing the
-      left column must never do: the picker is the point of the panel and the
-      chrome is what surrounds it.
+      Both grow with what is in them — sixteen caches, a fourteen-line routing
+      readout — and the column they share is a fixed height. Unbounded, opening
+      the cache registry pushed the list it selects INTO off the bottom of the
+      window, which is the one thing the left column must never do: the picker
+      is the point of the panel and this is what surrounds it.
 
-      So the chrome scrolls within at most half the column and the list keeps
-      the rest. The search box and the count stay outside it, always on screen,
-      because they are how a 62,000-row list is used at all.
+      Only these two are in here. The mode buttons and the part chips are not,
+      because they are used constantly and every scroll position must show them;
+      the search box and the count are not, because they are how a 62,000-row
+      list is used at all.
     -->
     <div class="chrome">
     <!--
@@ -179,26 +200,6 @@
            empty. -->
       <div class="meta" id="rigStatus"></div>
     </details>
-
-    <h2 id="subjectHead">Subject</h2>
-    <div class="modes">
-      <button id="modeNpc" class="on">NPC</button>
-      <button id="modeObj">Obj</button>
-      <button id="modeLoc">Loc</button>
-      <button id="modePlayer">Player</button>
-    </div>
-    <div class="worn hidden" id="wornBar"></div>
-    <!--
-      Which of the subject's meshes to draw.
-
-      An npc is one config with one model list; an obj and a loc are not. An obj
-      record carries the inventory/ground model, the male and female wear models
-      and two chatheads, and a loc carries one mesh per SHAPE — a wall, its
-      corner, its diagonal — chosen in the game by the map square rather than by
-      the record. Only the ones the record actually names appear here, so an
-      empty-looking choice is never offered.
-    -->
-    <div class="worn hidden" id="partBar"></div>
 
     <!--
       A model file off disk, drawn through the HD path.
@@ -244,6 +245,28 @@
       </div>
     </details>
     </div><!-- .chrome -->
+
+    <h2 id="subjectHead">Subject</h2>
+    <div class="modes">
+      <button id="modeNpc" class="on">NPC</button>
+      <button id="modeObj">Obj</button>
+      <button id="modeLoc">Loc</button>
+      <button id="modePlayer">Player</button>
+    </div>
+    <div class="worn hidden" id="wornBar"></div>
+    <!--
+      Which of the subject's meshes to draw.
+
+      An npc is one config with one model list; an obj and a loc are not. An obj
+      record carries the inventory/ground model, the male and female wear models
+      and two chatheads, and a loc carries one mesh per SHAPE — a wall, its
+      corner, its diagonal — chosen in the game by the map square rather than by
+      the record. Only the ones the record actually names appear here, so an
+      empty-looking choice is never offered.
+    -->
+    <div class="worn hidden" id="partBar"></div>
+
+
 
     <input type="search" id="npcSearch" placeholder="name, gameval or id" autocomplete="off">
     <div class="scroll" id="npcList"></div>

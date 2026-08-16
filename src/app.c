@@ -16284,6 +16284,14 @@ App_RunOnce(
      * (OPHELDT_START). Client-TS never sets selectedArea for Use. Drop those
      * click intents here; the machine runs the default row itself, and
      * OPHELD1-5 / INV_BUTTON / IF_BUTTON re-fire on_op from inv_action. */
+    if( getenv("TEMPDBG_HOOK") && out.intent_count > 0 )
+        for( int i = 0; i < out.intent_count; i++ )
+            fprintf(stderr,
+                    "TEMPDBG intent[%d] com=0x%08x is_click=%d op=%d script=%d drag=%d\n", i,
+                    (unsigned)out.intents[i].component_id, out.intents[i].is_click,
+                    out.intents[i].op_index,
+                    out.intents[i].hook ? out.intents[i].hook->script_id : -1,
+                    app->inv_drag_com_id);
     if( app->inv_drag_com_id >= 0 )
     {
         int kept = 0;

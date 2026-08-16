@@ -1199,9 +1199,17 @@ RS_IndexAddBuiltins(struct RS_Index* index)
 
     assert(index);
 
-    /* Server opcodes. The name table is sparse; an id with no name reports
-     * "OP_<n>", which is not a name content can write, so it is skipped. */
-    for( opcode = 0; opcode < SS_OPCODE_COUNT; opcode++ )
+    /* Server opcodes.
+     *
+     * The bound is SS_OPCODE_MAX, not SS_OPCODE_COUNT: COUNT is how many
+     * opcodes exist (449), MAX is the largest id one of them has (11045), and
+     * the table is indexed by id. Counting to COUNT stops at 448 and misses
+     * every command from `coordx` (1000) upward — which is nearly all of them,
+     * and showed up as "unknown command 'inv_del'" on a file that compiles.
+     *
+     * The name table is sparse; an id with no name reports "OP_<n>", which is
+     * not a name content can write, so it is skipped. */
+    for( opcode = 0; opcode <= SS_OPCODE_MAX; opcode++ )
     {
         const char* name = SSVM_OpcodeName(opcode);
         const struct SSVM_OpcodeMeta* meta = SSVM_OpcodeMeta(opcode);

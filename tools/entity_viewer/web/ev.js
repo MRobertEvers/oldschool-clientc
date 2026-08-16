@@ -1319,7 +1319,9 @@ async function renderCaches(data) {
       const res = await fetch(`/api/caches/remove?index=${c.index}`);
       renderCaches(await res.json());
     };
-    row.appendChild(drop);
+    /* Before the counts, not after: the row wraps to two lines and the drop
+     * button belongs on the first one, beside what it drops. */
+    row.insertBefore(drop, row.querySelector('.meta'));
     list.appendChild(row);
   });
 
