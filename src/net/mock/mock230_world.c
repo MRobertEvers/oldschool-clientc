@@ -36050,6 +36050,134 @@ mock230_world_selftest(void)
     }
 
     /*
+     * The make-menu — interface 270 `skillmulti`, driven end to end.
+     *
+     * `~skill_multi` is the one dialogue in this tree whose answer is two
+     * numbers rather than one: `last_com` names the product cell and
+     * `last_slot` carries the QUANTITY, because clientscript 2052 resumes with
+     * `cc_find($row, %varcint200)` — the sub-id it sends is what the player
+     * asked for. A test that only checked the panel opened would pass with the
+     * quantity dropped, which is the failure worth pinning.
+     *
+     * It also pins the two ceilings this pass moved, and both were chosen to
+     * be *exactly* reachable rather than comfortably large:
+     *
+     *   - eighteen rows, so `MOCK230_RESUME_BUTTON_MAX` at its old 8 leaves
+     *     rows `i`..`r` armed on screen and dead on click,
+     *   - sub 28 and an arming range of 0..28, so `MOCK230_RESUME_SUB_MAX` at
+     *     its old 15 arms a client that cannot answer with more than fifteen.
+     *
+     * Mutation check: drop either constant back and the assertions below go
+     * red — the first on the resume table, the second on the event range.
+     */
+    fprintf(stderr, "mock230 selftest: the make-menu answers with a product and a count\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture skillmulti_capture;
+            int row_a = mock230_content_symbol(MOCK230_PACK_COMPONENT, "skillmulti:a");
+            int row_r = mock230_content_symbol(MOCK230_PACK_COMPONENT, "skillmulti:r");
+            int run_opcode = mock230_wire_opcode(srv->wire, PKT_NAME_RUNCLIENTSCRIPT);
+            int armed_rows = 0;
+            int said_pick = 0;
+
+            SELFTEST_CHECK(row_a > 0 && row_r > 0,
+                           "skillmulti's product cells should resolve out of the pack");
+            /* The eighteen cells are consecutive children of one interface,
+             * which is what lets the arming loop below index them by offset. */
+            SELFTEST_CHECK(row_r - row_a == 17,
+                           "skillmulti:a..r should be eighteen consecutive children, span is %d",
+                           row_r - row_a);
+
+            mock230_capture_begin(srv, &skillmulti_capture);
+            mock230_scripts_run_debugproc(srv, "skillmultirun");
+            mock230_capture_end(srv);
+
+            SELFTEST_CHECK(player->active_script != NULL,
+                           "the make-menu should park the script on p_pausebutton");
+            SELFTEST_CHECK(player->resume_button_count == 18,
+                           "eighteen products should arm eighteen resume buttons, got %d",
+                           player->resume_button_count);
+            SELFTEST_CHECK(mock230_capture_find(&skillmulti_capture, run_opcode, 0) >= 0,
+                           "the make-menu should hand clientscript 2046 its product list");
+
+            /*
+             * The arming range, read out of the server's own interface table
+             * rather than off the wire — the encoding is per-wire, the
+             * authority is not.
+             */
+            for( int i = 0; i < player->interfaces.event_count; i++ )
+            {
+                struct Mock230IfEventRange const* range = &player->interfaces.events[i];
+
+                if( range->component_uid < row_a || range->component_uid > row_r )
+                    continue;
+                armed_rows++;
+                /* 0..28 spelled out rather than read back off
+                 * MOCK230_RESUME_SUB_MAX — restating the constant would assert
+                 * that it equals itself. 28 is clientscript 2054's number. */
+                SELFTEST_CHECK(range->start == 0 && range->end == 28,
+                               "row %d should be armed across the whole quantity range, got %d..%d",
+                               range->component_uid - row_a, range->start, range->end);
+            }
+            SELFTEST_CHECK(armed_rows == 18,
+                           "every product cell should be armed, %d were", armed_rows);
+
+            if( player->active_script != NULL )
+            {
+                /* `skillmulti:r` at quantity 28 — the last cell and the top of
+                 * the range, so an off-by-one on either ceiling shows up. */
+                uint8_t resume[6] = {
+                    (uint8_t)(row_r >> 24), (uint8_t)(row_r >> 16),
+                    (uint8_t)(row_r >> 8),  (uint8_t)row_r,
+                    0,                      (uint8_t)MOCK230_RESUME_SUB_MAX,
+                };
+                static struct Mock230Capture skillmulti_answer;
+
+                mock230_capture_begin(srv, &skillmulti_answer);
+                mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
+                                     sizeof(resume));
+                mock230_capture_end(srv);
+
+                SELFTEST_CHECK(player->active_script == NULL,
+                               "clicking a product should release the parked script");
+
+                for( int i = mock230_capture_find(&skillmulti_answer, 90 /* MESSAGE_GAME */, 0);
+                     i >= 0;
+                     i = mock230_capture_find(&skillmulti_answer, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &skillmulti_answer.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strncmp(text, "skillmultirun picked=", 21) != 0 )
+                        continue;
+                    said_pick = 1;
+                    /* The eighteenth cell is `nails_bronze`, and 28 is the
+                     * quantity the sub-id carried. Both halves, in one line. */
+                    SELFTEST_CHECK(
+                        strcmp(text, "skillmultirun picked=Bronze nails count=28") == 0,
+                        "the make-menu should answer with the clicked product and its "
+                        "quantity, got \"%s\"",
+                        text);
+                }
+                SELFTEST_CHECK(said_pick, "::skillmultirun should report what it picked");
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    /*
      * Farming: rake -> compost -> plant -> water, on a real allotment.
      *
      * This is a whole-loop test rather than a `[debugproc]` because the two

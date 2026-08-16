@@ -1,0 +1,12 @@
+[opheldu,bow_string]
+def_int $count = calc(1 + 2);
+def_boolean $ok = ~string_bow(bronze_bar);
+if ($ok = true) {
+    %bankpin_code = $count;
+    mes("strung <tostring($count)> of them");
+} else {
+    mes(^dm_default);
+}
+~missing_proc($count);
+mes(^no_such_constant);
+$undeclared = 1;

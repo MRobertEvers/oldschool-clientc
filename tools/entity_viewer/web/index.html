@@ -24,6 +24,18 @@
   }
   .col { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
   .col:last-child { border-right: 0; border-left: 1px solid var(--line); }
+
+  /*
+     The left column's chrome: bounded, and scrolling within its bound.
+
+     `max-height` is what stops an open panel from pushing the subject list off
+     the bottom — the failure this replaces, where opening the cache registry
+     hid the very list it selects into. `flex-shrink` lets it give way first
+     when the window is short, and the list below keeps a floor of its own so
+     the two cannot squeeze each other to nothing.
+  */
+  .chrome { flex: 0 1 auto; min-height: 0; max-height: 50%; overflow-y: auto; }
+  #npcList { min-height: 120px; }
   h2 { margin: 0; padding: 10px 12px; font-size: 11px; letter-spacing: .09em;
        text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
   .scroll { overflow-y: auto; flex: 1; min-height: 0; }
@@ -43,6 +55,9 @@
   /* The cache registry. Collapsed by default: it is a thing you set up once and
      then forget, and it must not push the npc list off the screen. */
   .cachebox { border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+  /* Two collapsible boxes stacked need a gutter, or their borders read as one
+     box with a line through it. */
+  .chrome > .cachebox { margin: 6px 8px; }
   .cachebox summary { cursor: pointer; user-select: none; font-size: 12px; }
   .cachebox summary .meta { border: 0; padding: 0 0 0 6px; }
   .cachelist { max-height: 190px; margin: 6px 0; }
@@ -55,8 +70,11 @@
   .cacheactive { color: var(--accent); }
   .cachelist .x { background: none; border: 0; color: var(--fg); opacity: .35; cursor: pointer; }
   .cachelist .x:hover { opacity: 1; }
-  .cacheadd { display: flex; gap: 4px; }
-  .cacheadd input[type=text] { flex: 1 1 auto; min-width: 0; }
+  /* Wraps rather than crushing the path field to nothing: a cache path is long
+     and the column is 300px. */
+  .cacheadd { display: flex; gap: 4px; flex-wrap: wrap; }
+  .cacheadd input[type=text] { flex: 1 1 120px; min-width: 0; }
+  .cacheadd input#cacheRev { flex: 0 1 60px; }
   .row .id { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 11px; min-width: 44px; }
   .row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .gv { color: var(--dim); font-size: 11px; overflow: hidden;
@@ -118,17 +136,33 @@
 <body>
   <div class="col">
     <!--
-      The cache registry, first in the column because it governs everything
-      below it: the npc list, the animations and the models are all this
-      cache's. Open by default, and the summary names the active cache, so
-      "which cache am I looking at" never needs a click to answer.
+      Everything above the subject list, in one bounded scroller.
+
+      These are all panels that grow with what is in them — sixteen caches, a
+      dozen worn objs, five model variants — and the column they share is a
+      fixed height. Without a bound, opening the cache registry pushed the list
+      it selects INTO off the bottom of the window, which is the one thing the
+      left column must never do: the picker is the point of the panel and the
+      chrome is what surrounds it.
+
+      So the chrome scrolls within at most half the column and the list keeps
+      the rest. The search box and the count stay outside it, always on screen,
+      because they are how a 62,000-row list is used at all.
+    -->
+    <div class="chrome">
+    <!--
+      The cache registry, first because it governs everything below it: the npc
+      list, the animations and the models are all this cache's. Collapsed by
+      default — the summary names the active cache, so "which cache am I looking
+      at" is answered without opening it, and the list of sixteen is only wanted
+      when switching.
 
       The revision is a detected GUESS and stays editable. Detection separates
       the families confidently, but cannot tell osrs184 from osrs239 — and the
       wrong profile does not fail loudly, it decodes at the wrong field widths
       and produces plausible nonsense.
     -->
-    <details class="cachebox" id="cacheBox" open>
+    <details class="cachebox" id="cacheBox">
       <summary>Cache: <span class="cacheactive" id="cacheActive">—</span></summary>
       <div class="scroll cachelist" id="cacheList"></div>
       <div class="cacheadd">
@@ -173,8 +207,16 @@
       those ask "what does this entity look like", this asks "what does this
       FILE contain, and how does the HD router treat it". The readout is the
       point as much as the image — a mis-routed face still draws.
+
+      Collapsed, because it is the largest block in the column and the rarest
+      one wanted: three buttons, three toggles and a fourteen-line readout, all
+      for a question nobody asks while browsing a cache. It opens itself when a
+      file is loaded, so the readout is never hidden at the moment it matters.
+      The render toggles inside apply to every subject, not only to a file.
     -->
-    <div class="hdfile">
+    <details class="cachebox" id="hdBox">
+      <summary>Model file <span class="meta">· render options</span></summary>
+      <div class="hdfile">
       <button id="hdPick">Select model file…</button>
       <button id="hdAnimPick">Select animation…</button>
       <button id="hdClear" disabled>Clear</button>
@@ -199,7 +241,10 @@
       <label class="hdopt" title="depth-test per pixel and skip the face sort entirely"><input type="checkbox" id="zbufKernels"> zbuffered kernels</label>
       <div class="meta" id="hdInfo">no file loaded</div>
       <div class="meta hdstats hidden" id="hdStats"></div>
-    </div>
+      </div>
+    </details>
+    </div><!-- .chrome -->
+
     <input type="search" id="npcSearch" placeholder="name, gameval or id" autocomplete="off">
     <div class="scroll" id="npcList"></div>
     <div class="meta" id="npcCount">loading…</div>

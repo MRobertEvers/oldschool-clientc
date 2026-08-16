@@ -259,7 +259,22 @@ function magicOf(bytes) {
   return String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
 }
 
+/*
+ * Open the model-file panel.
+ *
+ * It is collapsed by default because it is the biggest block in a column whose
+ * height the subject list needs — but everything it reports (which format the
+ * file was, which kernel each face reached, why a fallback fired) is written
+ * INTO it, so anything that loads a file has to open it. A readout nobody can
+ * see is the same as no readout.
+ */
+function hdReveal() {
+  const box = document.getElementById('hdBox');
+  if (box) box.open = true;
+}
+
 async function hdLoadAnimFile(file) {
+  hdReveal();
   const info = document.getElementById('hdInfo');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const magic = magicOf(bytes);
@@ -296,6 +311,7 @@ async function hdLoadAnimFile(file) {
 }
 
 async function hdLoadFile(file) {
+  hdReveal();
   const info = document.getElementById('hdInfo');
   info.textContent = `reading ${file.name}…`;
 
