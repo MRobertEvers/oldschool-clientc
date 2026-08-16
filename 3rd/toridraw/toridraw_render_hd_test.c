@@ -23,6 +23,7 @@
 #include "toridraw.h"
 #include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "graphics/raster/texture/texmap_common.h"
 
 #define W 160
 #define H 120
@@ -723,6 +724,242 @@ test_zbuffered_resolves_interpenetration(struct render_env* e)
     ToriDraw_ModelHDFree(hd);
 }
 
+/* -------------------------------------------- type 0 with a foreign frame */
+
+/*
+ * One type-0 quad whose P/M/N frame is NOT the face's own plane: tilted about
+ * y and sitting 100-220 units behind a 60-unit face, which is the RS727 regime
+ * (every one of TzTok-Jad's 2320 type-0 faces uses a frame like this).
+ *
+ * Vertices 0-3 are the quad, 4-6 the frame.
+ */
+static struct ToriDraw_ModelHD*
+build_foreign_frame_model(void)
+{
+    enum
+    {
+        NV = 7,
+        NF = 2
+    };
+    struct ToriDraw_ModelHD* hd =
+        (struct ToriDraw_ModelHD*)calloc(1, sizeof(struct ToriDraw_ModelHD));
+    struct ToriDraw_Model* m = &hd->base;
+
+    m->vertex_count = NV;
+    m->face_count = NF;
+    m->textured_face_count = 1;
+
+    m->vertices_x = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->vertices_y = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->vertices_z = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->original_vertices_x = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->original_vertices_y = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->original_vertices_z = (vertexint_t*)calloc(NV, sizeof(vertexint_t));
+    m->face_indices_a = (faceint_t*)calloc(NF, sizeof(faceint_t));
+    m->face_indices_b = (faceint_t*)calloc(NF, sizeof(faceint_t));
+    m->face_indices_c = (faceint_t*)calloc(NF, sizeof(faceint_t));
+    m->face_colors_a = (hsl16_t*)calloc(NF, sizeof(hsl16_t));
+    m->face_colors_b = (hsl16_t*)calloc(NF, sizeof(hsl16_t));
+    m->face_colors_c = (hsl16_t*)calloc(NF, sizeof(hsl16_t));
+    m->face_infos = (int*)calloc(NF, sizeof(int));
+    m->face_textures = (faceint_t*)calloc(NF, sizeof(faceint_t));
+    m->face_texture_coords = (faceint_t*)calloc(NF, sizeof(faceint_t));
+    m->face_alphas = (alphaint_t*)calloc(NF, sizeof(alphaint_t));
+    m->texture_render_types = (uint8_t*)calloc(1, sizeof(uint8_t));
+    m->textured_p_coordinate = (faceint_t*)calloc(1, sizeof(faceint_t));
+    m->textured_m_coordinate = (faceint_t*)calloc(1, sizeof(faceint_t));
+    m->textured_n_coordinate = (faceint_t*)calloc(1, sizeof(faceint_t));
+
+    /* The face: a 60x60 quad in the z == 0 plane, facing the camera. Every
+     * vertex at one depth, so screen-space interpolation is affine over it and
+     * the pixel at the screen centroid samples exactly the mean vertex uv. */
+    int const qx[4] = { -30, 30, 30, -30 };
+    int const qy[4] = { -30, -30, 30, 30 };
+    for( int i = 0; i < 4; i++ )
+    {
+        m->vertices_x[i] = (vertexint_t)qx[i];
+        m->vertices_y[i] = (vertexint_t)qy[i];
+        m->vertices_z[i] = 0;
+    }
+    /* The frame: U = (200, 0, 120) tilts it 31 degrees off the face; P sits
+     * 100 units behind the face, M 220. */
+    m->vertices_x[4] = -90;
+    m->vertices_y[4] = -90;
+    m->vertices_z[4] = 100;
+    m->vertices_x[5] = 110;
+    m->vertices_y[5] = -90;
+    m->vertices_z[5] = 220;
+    m->vertices_x[6] = -90;
+    m->vertices_y[6] = 110;
+    m->vertices_z[6] = 100;
+
+    m->face_indices_a[0] = 0;
+    m->face_indices_b[0] = 2;
+    m->face_indices_c[0] = 1;
+    m->face_indices_a[1] = 0;
+    m->face_indices_b[1] = 3;
+    m->face_indices_c[1] = 2;
+    for( int f = 0; f < NF; f++ )
+    {
+        /* Full lightness, so a texel channel comes back as (c * 254) >> 8 and
+         * decodes without knowing anything else about the shade path. */
+        m->face_colors_a[f] = 127;
+        m->face_colors_b[f] = 127;
+        m->face_colors_c[f] = 127;
+        m->face_textures[f] = 0;
+        m->face_texture_coords[f] = 0;
+    }
+    m->texture_render_types[0] = 0;
+    m->textured_p_coordinate[0] = 4;
+    m->textured_m_coordinate[0] = 5;
+    m->textured_n_coordinate[0] = 6;
+
+    memcpy(m->original_vertices_x, m->vertices_x, NV * sizeof(vertexint_t));
+    memcpy(m->original_vertices_y, m->vertices_y, NV * sizeof(vertexint_t));
+    memcpy(m->original_vertices_z, m->vertices_z, NV * sizeof(vertexint_t));
+    ToriDraw_ModelSetBoundsCylinder(m);
+    return hd;
+}
+
+/* Every texel names itself: R = 4u, G = 4v. Blue is a constant so an (0,0)
+ * texel is still a drawn pixel to `covered`. */
+static int g_texels_uv[TEX_W * TEX_W];
+
+/** Decode the texel a rendered pixel came from. Shade is 254 of 256. */
+static void
+decode_uv_texel(int px, int* out_u, int* out_v)
+{
+    int const r = (px >> 16) & 0xFF;
+    int const g = (px >> 8) & 0xFF;
+    *out_u = (int)((r * 256.0 / 254.0) / 4.0 + 0.5);
+    *out_v = (int)((g * 256.0 / 254.0) / 4.0 + 0.5);
+}
+
+/** |a - b| on a 64-texel repeat. */
+static int
+texel_dist(int a, int b)
+{
+    int d = a - b;
+    if( d < 0 )
+        d = -d;
+    d &= TEX_W - 1;
+    return d > TEX_W / 2 ? TEX_W - d : d;
+}
+
+/*
+ * A type-0 face whose frame is off its own plane must draw the SAME texel at a
+ * given point of the face from every viewpoint, and it must be the texel the
+ * frame projection names.
+ *
+ * This is the property the eye-ray plane walk lacks: intersecting each pixel's
+ * ray with a plane that is not the face's makes the texture a projector at the
+ * eye, and moving the model 60 units sideways at this depth slides its
+ * projection across the face by 3-7 texels. Under the frame kernel the uv is
+ * solved per vertex in model space, and moving the model changes nothing.
+ */
+static void
+test_foreign_frame_is_view_independent(struct render_env* e)
+{
+    printf("a type-0 face with an off-plane frame draws the same texel from every view\n");
+
+    for( int v = 0; v < TEX_W; v++ )
+        for( int u = 0; u < TEX_W; u++ )
+            g_texels_uv[v * TEX_W + u] =
+                (int)(0xFF000000u | ((unsigned)(u * 4) << 16) | ((unsigned)(v * 4) << 8) | 0x40u);
+
+    struct ToriDraw_ModelHD* hd = build_foreign_frame_model();
+    struct ToriDraw_Model* m = &hd->base;
+    struct ToriDraw_HDMaterial mat;
+    memset(&mat, 0, sizeof(mat));
+    mat.texels = g_texels_uv;
+    mat.width = TEX_W;
+    struct ToriDraw_HDMaterials table = { &mat, 1 };
+    struct ToriDraw_ModelHandle hnd = ToriDraw_ModelHandleFromHD(hd);
+
+    /* The fixture must actually be off-plane, or this proves nothing: the
+     * frame's furthest vertex is 220 units off a face 60 units wide. */
+    {
+        int off = m->vertices_z[5] - m->vertices_z[0];
+        char detail[64];
+        snprintf(detail, sizeof(detail), "frame is %d units off a 60-unit face", off);
+        check(off > 60, "the fixture's frame is genuinely off the face plane", detail);
+    }
+
+    /* What the frame projection says triangle 0's centroid samples. */
+    int want_u;
+    int want_v;
+    {
+        struct ToriDraw_TexPlaneFrame frame = {
+            m->vertices_x[4], m->vertices_y[4], m->vertices_z[4],
+            m->vertices_x[5], m->vertices_y[5], m->vertices_z[5],
+            m->vertices_x[6], m->vertices_y[6], m->vertices_z[6],
+        };
+        int a = m->face_indices_a[0], b = m->face_indices_b[0], c = m->face_indices_c[0];
+        float u[3];
+        float vv[3];
+        toridraw_texmap_project_plane(
+            &frame, m->vertices_x[a], m->vertices_y[a], m->vertices_z[a], m->vertices_x[b],
+            m->vertices_y[b], m->vertices_z[b], m->vertices_x[c], m->vertices_y[c],
+            m->vertices_z[c], u, vv);
+        float mu = (u[0] + u[1] + u[2]) / 3.0f;
+        float mv = (vv[0] + vv[1] + vv[2]) / 3.0f;
+        want_u = (int)(mu * TEX_W) & (TEX_W - 1);
+        want_v = (int)(mv * TEX_W) & (TEX_W - 1);
+    }
+
+    /* +-60 units at 600 deep is a 6 degree swing of every eye ray, which
+     * moves the old projector's hit on this frame by 3-7 texels — well past
+     * the tolerance below — while keeping the face inside the 160-px frame. */
+    int const offsets[3] = { -60, 0, 60 };
+    int got_u[3];
+    int got_v[3];
+    int saved_x = e->pos.x;
+
+    for( int i = 0; i < 3; i++ )
+    {
+        e->pos.x = offsets[i];
+        struct ToriDraw_HDRenderStats st = render(e, hnd, &table);
+        check_eq(st.drawn_plane, 2, "both faces routed as render type 0");
+
+        /* Triangle 0's screen centroid, from the projection the render used. */
+        int a = m->face_indices_a[0], b = m->face_indices_b[0], c = m->face_indices_c[0];
+        int cx = (e->scene->screen_vertices_x[a] + e->scene->screen_vertices_x[b] +
+                  e->scene->screen_vertices_x[c]) /
+                     3 +
+                 W / 2;
+        int cy = (e->scene->screen_vertices_y[a] + e->scene->screen_vertices_y[b] +
+                  e->scene->screen_vertices_y[c]) /
+                     3 +
+                 H / 2;
+        int px = e->pixels[cy * W + cx];
+        char detail[96];
+        snprintf(detail, sizeof(detail), "view %d: centroid (%d,%d) is background", i, cx, cy);
+        check((px & 0x00FFFFFF) != 0, "the face covers its own centroid", detail);
+        decode_uv_texel(px, &got_u[i], &got_v[i]);
+
+        snprintf(
+            detail, sizeof(detail), "view %d: got texel (%d,%d), frame projection says (%d,%d)",
+            i, got_u[i], got_v[i], want_u, want_v);
+        check(
+            texel_dist(got_u[i], want_u) <= 1 && texel_dist(got_v[i], want_v) <= 1,
+            "the centroid samples the texel the frame projection names", detail);
+    }
+    e->pos.x = saved_x;
+
+    for( int i = 1; i < 3; i++ )
+    {
+        char detail[96];
+        snprintf(
+            detail, sizeof(detail), "view 0 texel (%d,%d), view %d texel (%d,%d)", got_u[0],
+            got_v[0], i, got_u[i], got_v[i]);
+        check(
+            texel_dist(got_u[i], got_u[0]) <= 1 && texel_dist(got_v[i], got_v[0]) <= 1,
+            "moving the model does not move its texture", detail);
+    }
+
+    ToriDraw_ModelHDFree(hd);
+}
+
 int
 main(void)
 {
@@ -739,6 +976,7 @@ main(void)
     test_routing_changes_pixels(&e);
     test_zbuffered_matches_when_nothing_overlaps(&e);
     test_zbuffered_resolves_interpenetration(&e);
+    test_foreign_frame_is_view_independent(&e);
 
     env_free(&e);
 

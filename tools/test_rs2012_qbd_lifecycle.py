@@ -47,7 +47,7 @@ def main() -> None:
     for proc in (
         "proc,rs2012_qbd_coord",
         "proc,rs2012_qbd_reward_coord",
-        "proc,rs2012_qbd_lower_coord",
+        "proc,rs2012_qbd_floor_coord",
     ):
         body = block(session, proc)
         assert "%rs2012_qbd_handle" in body
@@ -96,13 +96,15 @@ def main() -> None:
     for queue in (
         "wake",
         "begin",
-        "wall_begin",
         "wall_step",
+        "wall_loop",
+        "wall_stop",
         "shadow_step",
         "time_channel",
         "time_end",
         "worm_spawn",
         "coffer_arrive",
+        "stairs_rise",
         "damage_player",
         "extreme_pulse",
     ):
@@ -141,7 +143,7 @@ def main() -> None:
     assert "softtimer(rs2012_qbd_lifecycle" in stairs
 
     leave = block(session, "proc,rs2012_qbd_leave")
-    assert leave.index("p_teleport(^rs2012_qbd_outside_safe);") < leave.index(
+    assert leave.index("p_teleport(^rs2012_qbd_outside_portal);") < leave.index(
         "~rs2012_qbd_release_handle($handle);"
     )
     logout = block(session, "proc,rs2012_qbd_on_logout")

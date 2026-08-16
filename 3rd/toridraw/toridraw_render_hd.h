@@ -19,7 +19,13 @@
  *
  *   projection   texture_render_types[coord]: 0 plane, 1 cylinder, 2 cube,
  *                3 sphere. Types 1-3 need a mapping, which is why they are only
- *                reachable from a TORIDRAWMK_MODEL_HD handle.
+ *                reachable from a TORIDRAWMK_MODEL_HD handle. Type 0 is drawn
+ *                by `texpmn` — the P/M/N frame projected along its own normal,
+ *                as the HD reference does — and NOT by the stock `texplane`
+ *                eye-ray walk, which is only right when the face lies in the
+ *                frame's plane. HD content routinely does not; the result was a
+ *                texture that slid across its face as the camera turned. See
+ *                toridraw_texmap_project_plane in texmap_common.h.
  *   gate         the material's: every texel / colour key / per-texel alpha.
  *   facealpha    the face's own alpha byte, when it has one.
  *   modulate     the material's: tint the shaded texel by the face colour.
@@ -96,6 +102,7 @@ struct ToriDraw_HDRenderStats
 {
     int faces;
     int drawn_untextured;
+    /** Render type 0 — the P/M/N frame, drawn by `texpmn`. */
     int drawn_plane;
     int drawn_cylinder;
     int drawn_cube;
@@ -103,7 +110,7 @@ struct ToriDraw_HDRenderStats
     /** Textured faces whose material had no texels; drawn as flat colour. */
     int fallback_no_texels;
     /** Faces a mapped render type named, on a model with no mappings; drawn
-     *  through the plane kernel, which is wrong but visible. */
+     *  through the frame kernel, which is wrong but visible. */
     int fallback_no_mapping;
     int skipped_hidden;
     int skipped_alpha;

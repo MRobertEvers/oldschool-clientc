@@ -1,9 +1,19 @@
 /*
- * ev_zbuf_probe — one-off: render an HD npc through ToriDraw_RenderHDZBuffered
- * (ev_set_zbuffer_kernels) at a sweep of yaws, one bmp per yaw, so the frames
- * can be eyeballed for texture/geometry decoupling as the camera orbits.
+ * ev_zbuf_probe — render an HD npc at a sweep of yaws, one bmp per yaw, so
+ * consecutive frames can be diffed or eyeballed for texture/geometry
+ * decoupling as the camera orbits. Through the depth-tested kernels by default
+ * (ev_set_zbuffer_kernels); --sorted uses the painter's sort instead.
  *
- * tools/entity_viewer/ev_zbuf_probe cache.rs727_preeoc rs727 2745 --out /tmp/probe
+ *   tools/entity_viewer/ev_zbuf_probe cache.rs727_preeoc rs727 2745 --out /tmp/probe
+ *   options: --tile N --zoom N --pitch N --start YAW --step N --count N --sorted
+ *
+ * EV_COPLANAR=1 skips the render and instead reports, for every type-0 face,
+ * how far its P/M/N texture frame sits from the face's own plane. This is the
+ * measurement that separated "the frame kernel is wrong" from "the frame is
+ * not the face's plane": on RS727 TzTok-Jad every one of 2320 type-0 faces
+ * uses a foreign frame and 1589 are more than an edge length off-plane, which
+ * is why the SD eye-ray plane walk slid its texture across the face as the
+ * view turned (see toridraw_texmap_project_plane).
  */
 
 #include "ev_build.h"
@@ -68,9 +78,6 @@ write_bmp(const char* path, const unsigned char* rgb, int w, int h)
     }
     fclose(f);
 }
-
-extern uint8_t*
-ev_wire_build_texture_blob(struct EV_TextureSet* set, size_t* out_len);
 
 int
 main(int argc, char** argv)
@@ -204,15 +211,10 @@ main(int argc, char** argv)
 
     ev_init();
     int faces = ev_set_model_hd(wb.data, (int)wb.len);
-    (void)faces;
 
-    /* build the texture blob the same way ev_hd_sheet's build_blob does, via
-     * the wire writer entry point ev_set_textures expects */
-    extern uint8_t* ev_wire_write_textures(struct EV_TextureSet*, size_t*);
+    /* Install the textures as the EVT1 bytes ev_set_textures expects — the
+     * same layout ev_hd_sheet's build_blob writes. */
     size_t blob_len = 0;
-    /* fall back: reuse ev_hd_sheet's approach isn't exported, so install
-     * textures the same way ev_set_textures expects raw EVT1 bytes -- build
-     * inline. */
     {
         int count = g_set.count;
         size_t cap = 16 + (size_t)count * (16 + 128 * 128 * 4);

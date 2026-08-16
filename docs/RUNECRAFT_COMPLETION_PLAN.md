@@ -208,32 +208,52 @@ the Abyss's three-location requirement (§7) already works today.
 ## 4. Slice #38 — Blood, Soul and Wrath altars
 
 Wiki: [Blood Altar](https://oldschool.runescape.wiki/w/Blood_Altar) ·
+[Blood Altar (Arceuus)](https://oldschool.runescape.wiki/w/Blood_Altar_(Arceuus)) ·
 [Soul Altar](https://oldschool.runescape.wiki/w/Soul_Altar) ·
 [Wrath Altar](https://oldschool.runescape.wiki/w/Wrath_Altar)
 
 LostCity has loc names for these and **no mechanics** — the rows come from the
-wiki. Two different shapes:
+wiki. Two different shapes, and they turned out to need very different amounts
+of new data once implemented.
 
-**Wrath** (95 Runecraft, 8 XP) and the **true blood altar** are ordinary
-`runecraft_table` rows: `wrath_altar` (`all.loc:402298`), `wrathtemple_ruined`
-(`:402770`, with `_0op`/`_1op` children), `wrathtemple_exit_portal` (`:402137`);
-`blood_altar` (`:518681`), `bloodtemple_ruined` (`:279515` / `:518634` /
-`:518650`), `bloodtemple_exit_portal` (`:518667`). Add rows 12–14, wire the
-category overlays, done — §1.1's param means no proc edits.
+**Wrath and the true Blood Altar** are ruins-teleport altars, same shape as
+the other 11 — `wrath_altar` (`all.loc:402298`), `wrathtemple_ruined`
+(`:402770`, `_0op`/`_1op` children, matching the `_old`/`_new` shape the other
+altars use), `wrathtemple_exit_portal` (`:402137`); `blood_altar` (`:518681`),
+`bloodtemple_ruined` (`_0op`/`_1op` at `:401984`/`:401991` for wrath,
+`:518634`/`:518650` for blood), `bloodtemple_exit_portal` (`:518667`). Both
+altars natively carry cache `category=2156` (Craft-rune) already. Landed: the
+`rune_type` params (14/13) and `rc_ruins`/`rc_exit_portal` category overlays
+on every block above (`runecraft.loc`).
 
-**Kourend blood/soul** is a different mechanic and needs its own script. It
-takes **dark essence fragments**, not talismans:
+**Blocked, not landed:** the actual `runecraft_table` rows (12, 14) need
+`altar_coord`/`enter_coord`/`exit_coord` — real in-world tile coordinates for
+the ruins-side and altar-side of the teleport. Neither the wiki nor the cache
+text configs carry tile coordinates (those live in the binary map region
+files, `configs/maps/*.jm2`, which nothing in this tree's tooling exports to
+text); LostCity's own reference has the same loc names and no dbrow rows
+either, confirming this isn't a missed port. Until a row exists, these locs
+answer with the same "you can't do that" message they gave before this plan —
+nothing regresses, the craft/tiara/talisman logic just isn't reachable yet.
+**Next step:** measure the four coordinate triples from a running client or a
+map-region export tool, then add rows 12 and 14 to `runecraft.dbrow` — at that
+point they're fully wired, since §1.1's param means no proc edits are needed.
+
+**Kourend blood/soul**, by contrast, needed no coordinates at all — landed in
+full. It is walk-up (Blood Altar (Arceuus): *"neither a blood talisman nor
+tiara is needed"*) and takes **dark essence fragments**, not talismans:
 
 | step | cache | wiki |
 |---|---|---|
 | Mine dense runestone (38 Mining) | `arceuus_runestone_base_mine` (`all.loc:99316`) + `_middle_`/`_top_` and `_depleted` pairs | [Dense runestone](https://oldschool.runescape.wiki/w/Dense_runestone) |
-| Infuse at the Dark Altar | `archeus_altar_dark` (`all.loc:308379`) | [Dark Altar](https://oldschool.runescape.wiki/w/Dark_Altar) |
-| Chisel into fragments (38 Crafting) | `arceuus_essence_block` → `_dark` (`all.obj:219777`) | [Dark essence fragments](https://oldschool.runescape.wiki/w/Dark_essence_fragments) |
-| Craft | `archeus_altar_blood` (`:308366`) 77 RC 23.8 XP; `archeus_altar_soul` (`:308392`) 90 RC 29.7 XP | as above |
+| Infuse at the Dark Altar — `[oploc1,archeus_altar_dark]` | `archeus_altar_dark` (`all.loc:308379`) | [Dark Altar](https://oldschool.runescape.wiki/w/Dark_Altar) |
+| Chisel into fragments — merged into `skill_crafting/scripts/gem/uncut_gem.rs2`'s shared `[opheldu,chisel]` | `arceuus_essence_block` → `_dark` (`all.obj:219777`) → `bigblankrune` (**cache name for "Dark essence fragments"** — a naming trap, not `dark_essence_fragments`) | [Dark essence fragments](https://oldschool.runescape.wiki/w/Dark_essence_fragments) |
+| Craft — `~runecraft_kourend_bind`, shared by both altars | `archeus_altar_blood` (`:308366`) 77 RC 23.8 XP, gated on `%myq5 = ^sf_complete` (Sins of the Father); `archeus_altar_soul` (`:308392`) 90 RC 29.7 XP, no quest gate per the wiki | as above |
 
-The mining half is Mining's `#49` lane — check `MINING_COMPLETION_PLAN.md`
-before adding `arceuus_runestone_*` here, and route it there if it is already
-scoped. Do **not** double-plan it.
+Files: `skill_runecraft/scripts/runecraft_kourend.rs2` (new).
+
+The mining half (`arceuus_runestone_*`) is Mining's `#49` lane and was **not**
+touched here — check `MINING_COMPLETION_PLAN.md` before adding it elsewhere.
 
 Blood essence (`blood_essence_inactive`/`_active`, `all.obj:350075`) hooks
 §1.2's XP/output proc.
