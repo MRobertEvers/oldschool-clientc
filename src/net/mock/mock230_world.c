@@ -12535,6 +12535,12 @@ mock230_world_selftest(void)
     const struct Mock230Ids* ids = mock230_ids();
 
     memset(srv, 0, sizeof(*srv));
+    /* The same switch the three socket entry points read, and for the same
+     * reason: `MOCK230_VERBOSE=1 mock230 --selftest` is how a failing stanza is
+     * read, and the trigger-rung trace is only printed under it. Silent here was
+     * an omission rather than a decision — the suite is the one caller that
+     * cannot be attached to with a client. */
+    srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
     srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
     /*
      * The revision under test, from the same selector the server uses.
@@ -31643,6 +31649,122 @@ mock230_world_selftest(void)
                                        "a cast nothing binds runs no script at all, got %d",
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                     }
+                }
+            }
+
+            /*
+             * ---- opheldu: trigger_decline and the fall-through -------------
+             *
+             * `[opheldu,bucket_empty]` declines; `[opheldu,vial_empty]` handles
+             * it. Neither obj carries a category, so the only rungs that can fire
+             * are the two type rungs and this file's own scripts own both. The
+             * varp is a running total, because "both ran, in this order" is the
+             * claim and a plain assignment could not tell it from "only the second
+             * ran".
+             */
+            {
+                int vial = mock230_content_symbol(MOCK230_PACK_OBJ, "vial_empty");
+                int empty_bucket = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_empty");
+
+                SELFTEST_CHECK(vial > 0 && empty_bucket > 0,
+                               "vial_empty and bucket_empty should resolve, got %d/%d", vial,
+                               empty_bucket);
+                if( vial > 0 && empty_bucket > 0 )
+                {
+                    /* Click the decliner, drag the handler: rung 1 declines and
+                     * rung 2 answers. 7 = 3 + 4, in that order. */
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    selftest_useon(srv, vial, 1, empty_bucket, 1, NULL, 0);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 7,
+                                   "a declining rung 1 falls to rung 2, which answers: "
+                                   "want 7 (3 then 4), got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    /*
+                     * The other way round, and it must NOT fall through: rung 1
+                     * is the handler and it does not decline, so the decliner
+                     * below it never runs. 4, not 7 — first match is still final
+                     * for a script that answers.
+                     */
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    selftest_useon(srv, empty_bucket, 1, vial, 1, NULL, 0);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                                   "a rung that ANSWERS still ends the dispatch: want 4, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    /*
+                     * Declined with nothing below it. The player is told the same
+                     * thing an unbound click tells them — but the engine must not
+                     * treat it as unbound: `mock230_scripts_fallback` is what
+                     * stands in for MISSING content, and standing in here is how a
+                     * door opens because content declined to open it.
+                     */
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    selftest_useon(srv, bucket, 1, empty_bucket, 1, NULL, 0);
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                                   "the decliner runs with no rung below it, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    SELFTEST_CHECK(mock230_scripts_fallback(srv, MOCK230_FALLBACK_OPNPC,
+                                                            MOCK230_TRIGGER_NONE) == 0,
+                                   "and a declined dispatch must NOT let an engine fallback run "
+                                   "in content's place");
+                    /* Consumed by the check above, so the next dispatch starts
+                     * clean whichever way that check went. */
+                    srv->dispatch_declined = 0;
+                }
+            }
+
+            /*
+             * ---- the CHAINED ladder falls through as well -------------------
+             *
+             * `[opheldu]` has a resolver of its own; every other op trigger walks
+             * the three-rung type → category → `_` ladder in `run_trigger_impl`.
+             * They share `run_rung`, and this is the proof the ladder honours a
+             * decline — which is what makes a name binding no longer able to
+             * silently kill the category binding under it.
+             *
+             * `[opheld1,bat_bones]` (this file's, declining) sits above
+             * `[opheld1,_bones]` (bury_bone.rs2, real). The bone must still be
+             * buried: behaviour unchanged, and the +3 proves the route.
+             */
+            {
+                int bat = mock230_content_symbol(MOCK230_PACK_OBJ, "bat_bones");
+                enum
+                {
+                    SLOT_BAT = 26
+                };
+
+                SELFTEST_CHECK(bat > 0, "bat_bones should resolve by name, got %d", bat);
+                if( bat > 0 )
+                {
+                    uint8_t held[8];
+                    struct RSAreaBuf out;
+
+                    player->active_script = NULL;
+                    player->delayed_until = 0;
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    inv_set(player, SLOT_BAT, bat, 1);
+                    rsab_wrap(&out, held, sizeof(held));
+                    rsab_p2(&out, bat);
+                    rsab_p2(&out, SLOT_BAT);
+                    rsab_p4(&out, 0);
+                    mock230_world_handle(player, PKTOUT_NAME_OPHELD1, held, (int)rsab_len(&out));
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                                   "the declining [opheld1,bat_bones] should run, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    /* `bury_bones` delays before it deletes, on purpose (the bones
+                     * stay in the backpack until the animation has played), so the
+                     * bone is gone only after the delay drains. */
+                    for( int t = 0; t < 12; t++ )
+                        mock230_world_tick(srv);
+                    SELFTEST_CHECK(selftest_count(player, bat) == 0,
+                                   "and the category rung below it still buries the bone, "
+                                   "got %d left",
+                                   selftest_count(player, bat));
+                    player->active_script = NULL;
+                    player->delayed_until = 0;
+                    inv_set(player, SLOT_BAT, -1, 0);
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 }
             }
 

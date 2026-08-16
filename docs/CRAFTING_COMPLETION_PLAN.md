@@ -22,6 +22,41 @@ tiara this plan learns to cast).
 
 ---
 
+## Status (2026-08-16)
+
+**S2–S15 landed** (§2's slice table has the per-slice detail). Queue rows
+**#43, #45–48** and the new rows **#154–159** are `done` in
+[`SKILLS_CONTENT_PORT_QUEUE.md`](SKILLS_CONTENT_PORT_QUEUE.md). Fletching's
+amethyst / gem-bolt-tip / toxic-blowpipe slices (§1.17, referenced from this
+plan's chisel-switch coordination note) had already landed from a separate
+session before this pass started; this pass's only touch there was the two
+missing onyx/zenyte gem-cutting rows those cases assumed existed (#160).
+
+**Not built:**
+
+- **S1 (`~skill_multi` on interface 270)** — every menu this pass added
+  instead extends the existing `~p_choice*` pagination convention (see
+  `leather.rs2`'s `craft_leather_menu` for the shape). This keeps every new
+  recipe reachable today; S1 remains the follow-up that would collapse the
+  now-numerous two-page menus into one real make-all interface. Queue #44
+  stays `pending` for this reason.
+- **S16 (the C selftest suite, §4)** — verification this pass was
+  `make -C src mock230-scripts` (0 errors) after every slice, not runtime
+  behavioural tests. §4's eleven C1–C11 cases are still open work.
+- Deferred by data gaps, not scope: lens mould → telescope disc and the
+  light-orb wire assembly (glass, §1.11 — no "filled" light-orb obj or
+  `bullseye_lantern_nolens` source in this cache); the guild's mould/tool
+  respawns and teleport perk (§1.20 — no verified in-world coordinate, the
+  same gap `RUNECRAFT_COMPLETION_PLAN.md` §4 already flags); birdhouses
+  (§1.18, routed to Hunter).
+
+`docs/TOOL_TRIGGER_ORGANISATION.md` was written alongside this pass and
+documents the `[opheldu]` dispatch rules this plan's recipes were wired
+against (one type-bound hub per tool, cross-file `@label`/`~proc` calls into
+it, category bindings only where genuinely useful).
+
+---
+
 ## Why this pass is more than six queue rows
 
 **1. Coverage is roughly half the product surface.** `skill_crafting/` is

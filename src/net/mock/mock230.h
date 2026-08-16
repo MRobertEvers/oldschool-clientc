@@ -574,17 +574,42 @@ enum
      */
     MOCK230_TIMER_MAX = 32,
     MOCK230_WORLD_QUEUE_MAX = 16,
-    MOCK230_RESUME_BUTTON_MAX = 8,
+    /*
+     * Distinct components one parked script may be resumed by.
+     *
+     * The chat dialogues need one (the container, or the continue prompt), and
+     * 8 was chosen for those. `skillmulti` (interface 270, the make-menu) needs
+     * eighteen: its product rows are eighteen *separate* static components
+     * `a`..`r`, not sub-ids of one container, so `~skill_multi` registers a
+     * resume button per row and which one came back is `last_com`. A table that
+     * silently stopped at 8 would leave rows `i`..`r` looking live and doing
+     * nothing — `if_addresumebutton` drops the overflow rather than failing.
+     *
+     * 20 is the eighteen rows plus room for the caller to arm a cancel/close
+     * beside them, at 4 bytes each.
+     */
+    MOCK230_RESUME_BUTTON_MAX = 20,
     /*
      * Highest sub-id `if_addresumebutton` arms on the component it registers.
      *
      * A resume button on a *container* is the multi-choice dialogue: its rows
      * are `cc_create`d children with sub-ids 1..5, and arming only slot 0 arms
-     * the empty container. 15 is comfortably past the five the reference's
-     * widest choice uses, and a plain component has no sub-ids for the extra
-     * range to reach.
+     * the empty container.
+     *
+     * 28 is `skillmulti`'s number and it is exact on both sides, which is why
+     * it is not rounded up. On the low side, `skillmulti_itembutton_triggered`
+     * (clientscript 2052) resumes with `cc_find($row, %varcint200)` — **the
+     * resume sub-id IS the chosen quantity** — and `skillmulti_itembutton_draw`
+     * creates hidden children 0..28 for exactly that lookup, 28 being the cap
+     * `skillmulti_quantitybutton_x_receive` clamps a typed amount to. On the
+     * high side, the *visible* children of a row (the beige button faces and
+     * the item model) are created at sub-ids 29 and up: arming those would make
+     * them interactive, and since they carry no op and no CS2 hook they would
+     * win the topmost hit and answer with a bare EVENT_CLICK resume — the row's
+     * "Make" op, and with it the quantity, would never run. The range must
+     * cover the quantity slots and stop before the decoration.
      */
-    MOCK230_RESUME_SUB_MAX = 15,
+    MOCK230_RESUME_SUB_MAX = 28,
 
     /*
      * Arguments `runclientscript*` will carry.

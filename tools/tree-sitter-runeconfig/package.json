@@ -1,0 +1,13 @@
+{
+  "name": "tree-sitter-runeconfig",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the RuneScript content tree's config, alloc, pack and constant files",
+  "private": true,
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.26.12"
+  }
+}

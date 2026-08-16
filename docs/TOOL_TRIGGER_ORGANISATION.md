@@ -11,11 +11,14 @@ Written while planning [`CRAFTING_COMPLETION_PLAN.md`](CRAFTING_COMPLETION_PLAN.
 and re-checked against `skill_fletching/scripts/bows.rs2`; applies to
 Fletching, Crafting, Herblore, Cooking, Firemaking alike.
 
-The rules in §4 are what *today's* engine forces. The engine-side fix that
-makes most of them unnecessary — a `trigger_decline` fall-through and one
-orientation for every rung — is planned in
-[`USEON_DISPATCH_ENGINE_PLAN.md`](USEON_DISPATCH_ENGINE_PLAN.md); its §3 says
-which rules survive it.
+> **Updated 2026-08-16.** The engine changed underneath this document. A rung
+> that does not recognise its pair can now `trigger_decline` and the resolver
+> walks to the next one, and every rung hands the script the same orientation
+> (`last_item` is the bound item). See
+> [`USEON_DISPATCH_ENGINE_PLAN.md`](USEON_DISPATCH_ENGINE_PLAN.md), which is
+> built, not planned. **R4, R5 and R9 below are retired and R3 is inverted;**
+> §4 marks each one. What survives is about coupling and about growth being
+> dbrow-shaped — R1, R2, R6, R7, R8 — not about correctness.
 
 ---
 
@@ -43,16 +46,16 @@ sees `last_useitem = <the bow>` whether the player used string on bow or bow
 on string. Binding the bow as well changes nothing — the bow's own script and
 the engine's no-trigger fallback both end in "Nothing interesting happens".
 
-**1b. Category scripts run inverted.** Rung 2's swap sits outside its null
-check, so by rung 3 the two are exchanged: in a `[opheldu,_cat]` script,
-`last_useitem` names the item the script is *bound to* and `last_item` the
-other. Rung 4 swaps back — to the same inversion. This is the reference's
-behaviour, asserted in both directions; "fixing" it goes red.
+**1b. ~~Category scripts run inverted.~~ Fixed 2026-08-16.** Every rung now
+hands the script the same pair: `last_item` is the item the script is bound to,
+`last_useitem` the other. (The reference does invert its category rungs, and
+nothing anywhere is written for that — see the engine plan's E2.)
 
 **1c. A category binding is reached only when NEITHER item has a type
-binding.** So a category binding on a family whose partner is a type-bound
-tool is dead code — and worse, it is a tripwire that catches *other* pairs
-touching that family (see §3).
+binding** — still true, and still the reason a category binding is a *default*
+that a name binding overrides. What is no longer true is that reaching it first
+means keeping it: a rung that does not recognise the pair declines and the
+resolver carries on (E1). The tripwire in §3 is gone.
 
 None of this is a compile-time property. Duplicate script names *are* a hard
 compile error (`ssc_compile.c:2845`, "declare it once and branch into a
@@ -148,9 +151,11 @@ no script edit at all. Content-allocatable: append to `pack/category.pack`
 Check the obj does not already carry a meaningful one first
 (`grep -a -A40 '^\[<name>\]$' configs/all.obj | grep -a '^category='`).
 
-**R3 — family × family gets ONE category binding, written inverted.** When
-neither side is a hub (bolts × bolt tips, potion × potion), bind one family's
-category and write the body knowing `last_useitem` is the bound item:
+**R3 — family × family: bind either side, in the NORMAL orientation.**
+~~written inverted~~ — *superseded 2026-08-16.* `last_item` is the item the
+script is bound to on every rung, category rungs included, so a family × family
+body reads exactly like a hub body. Binding both families is now harmless as
+well: whichever is reached first declines if it does not recognise the pair.
 
 ```
 [opheldu,_bolttips]
@@ -162,17 +167,15 @@ if (oc_category(last_item) = bolts) {          // last_item is the OTHER item
 
 Never bind both families — the second one is dead and a tripwire.
 
-**R4 — no defensive bindings.** Do not add a reverse type binding "to be
-safe" and do not add a category binding for a family whose partner is a hub.
-Both are unreachable for their own purpose (§1a, §1c) and the category form
-silently swallows other lanes' pairs (§3). If a category binding exists on a
-family, it *is* that family's only use-on handler — it must route every pair
-that family participates in, or not exist.
+**R4 — RETIRED.** *Was: no defensive bindings, because a binding that does not
+recognise a pair swallows it.* A binding that declines swallows nothing, so a
+redundant reverse or category binding is now untidy rather than dangerous. The
+tidying in §5 still pays in lines and coupling; nothing waits on it.
 
-**R5 — hub × hub is the only order-dependent case.** `rope × mith grapple
-tip`, `knife × chisel`, `hammer × …`: both type-bound, so rung 1 picks
-whichever the player clicked *second*. Both hubs must route the pair. Keep the
-hub set small; if an obj is only ever a target, it is not a hub.
+**R5 — RETIRED.** *Was: hub × hub is order-dependent, so both hubs must route
+the pair.* Only one needs to; the other declines. `rope × mith grapple tip` and
+`poison × bronze bolt` are this shape, and the second was broken in one click
+order until decline landed.
 
 **R6 — the trigger is a router; the skill owns the label.** The hub script
 carries no levels, XP, strings or inventory ops. It `switch_category`s, falls
@@ -203,10 +206,14 @@ if your objs carry a category this file already routes, add nothing here."*
 **R8 — never `[opheldu,_]`.** `mock230_scripts.c:2532`: it "would swallow
 every 'use A on B' in the game the moment somebody wrote one".
 
-**R9 — a name binding beats a category silently.** Category-ifying an obj that
-still carries a working name binding leaves the category case looking dead
-(`name-binding-silently-kills-category`; the `farming_crop` header). Delete
-the name binding in the same commit, or do not add the category.
+**R9 — RETIRED for anything that declines.** *Was: a name binding beats a
+category silently, so category-ifying a name-bound obj leaves the category case
+looking dead.* A name-bound script that declines now falls to the category rung
+— on `[oploc*]`/`[opnpc*]`/`[opobj*]` too, since the same ladder is walked there.
+The precedence is unchanged; what changed is that losing the race is no longer
+fatal. A name-bound script that does NOT decline still wins outright, so
+`farming_crop`'s "the weeded states are deliberately not in here" is still true
+of those scripts as written.
 
 ---
 

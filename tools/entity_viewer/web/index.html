@@ -100,6 +100,11 @@
           padding: 2px 9px; font-size: 11px; cursor: pointer; }
   .chip:hover { border-color: #c46; }
   .chip .x { color: var(--dim); margin-left: 5px; }
+  /* A worn chip's hover means "take this off" and is red; a part chip's means
+     "draw this one instead", so it borrows the selection colour. */
+  #partBar .chip:hover { border-color: var(--accent); }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  .chip .sub { color: var(--dim); margin-left: 6px; font-size: 10px; }
   .fx { display: flex; gap: 10px; align-items: center; padding: 8px 12px;
         border-top: 1px solid var(--line); flex-wrap: wrap; font-size: 11px; }
   .fx label { color: var(--dim); }
@@ -144,9 +149,22 @@
     <h2 id="subjectHead">Subject</h2>
     <div class="modes">
       <button id="modeNpc" class="on">NPC</button>
+      <button id="modeObj">Obj</button>
+      <button id="modeLoc">Loc</button>
       <button id="modePlayer">Player</button>
     </div>
     <div class="worn hidden" id="wornBar"></div>
+    <!--
+      Which of the subject's meshes to draw.
+
+      An npc is one config with one model list; an obj and a loc are not. An obj
+      record carries the inventory/ground model, the male and female wear models
+      and two chatheads, and a loc carries one mesh per SHAPE — a wall, its
+      corner, its diagonal — chosen in the game by the map square rather than by
+      the record. Only the ones the record actually names appear here, so an
+      empty-looking choice is never offered.
+    -->
+    <div class="worn hidden" id="partBar"></div>
 
     <!--
       A model file off disk, drawn through the HD path.

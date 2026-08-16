@@ -1,9 +1,10 @@
-# entity_viewer — which animations apply to an npc, and what they look like
+# entity_viewer — what a cache's entities look like, and what animates them
 
-Three things: a browser viewer that works out which animations apply to an npc
-in whichever cache is open and plays them, an offline catalog that adds the
-content team's names and the guesses those make possible, and a command-line
-harness that measures a weapon swing against the graphic attached to it.
+Three things: a browser viewer that draws any npc, item, loc or dressed player
+out of whichever cache is open — working out which animations apply to it and
+playing them — an offline catalog that adds the content team's names and the
+guesses those make possible, and a command-line harness that measures a weapon
+swing against the graphic attached to it.
 
 ```sh
 make -C tools/entity_viewer                     # ev_catalog + ev_server + ev_swing
@@ -23,7 +24,76 @@ tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
 the equipment and graphic pickers need, and it points at the content tree so an
 exported asset that has since been *edited* is drawn as the game draws it rather
 than as the cache still holds it. Without it the npc half works exactly as
-before.
+before, and the obj and loc pickers fall back to the cache's own names.
+
+## Four subjects, because four things are different questions
+
+The **NPC**, **Obj**, **Loc** and **Player** buttons pick what the left column
+lists. They exist separately because an npc is the only one of the four that is
+"one config with one model list on it":
+
+| | what one id names | what the picker adds |
+|---|---|---|
+| npc | one model list | the animations that share its rig |
+| obj | **five** meshes — the inventory/ground model, the male and female wear models, and two chatheads | which of them the record actually names |
+| loc | one mesh **per shape** — a wall, its corner, its diagonal — chosen in the game by the map square | the shapes this record carries |
+| player | identity kits plus the wear models of what is equipped | a merged attached graphic |
+
+So obj and loc both carry a **part** beside the id, shown as chips under the
+mode buttons, and the part is as much the subject as the id is:
+`#obj=4151&variant=1` and `#loc=1560&shape=9` are different models, not
+different views of one.
+
+Asking a loc for a shape it does not carry draws **nothing**, on purpose. The
+tempting alternative — fall back to another shape — produces a picture that
+looks like a correct answer to a question it did not answer.
+
+### What the build does to them
+
+Both follow the client, step for step, in the order the client uses:
+
+- **obj** — `bridge_rasterize_obj_icon`'s order: resize (opcodes 110–112), then
+  recolour, then scene lighting at the record's own ambient/contrast. The resize
+  is the *icon* build's; the world-drop path (`app_world_spawn_obj_stack`)
+  passes 128/128 and ignores those opcodes, so the same model is a scale apart
+  on the ground and in the inventory. A worn variant lights at 0/0 instead,
+  which is what the player build lights the whole assembled body at.
+- **loc** — `world_scenery.u.c`'s `apply_transforms`: recolour (pairs with both
+  endpoints ≤ 50 are *texture* swaps, not colours), retexture, mirror, resize,
+  offset, then scene lighting. The placed rotation is absent because nothing
+  here is placed on a tile; `mirrored` is *not*, because at orientation 0 the
+  scene builder applies it too and a mirrored loc built without it is handed the
+  wrong way round and looks fine.
+
+Two known disagreements with this client, both stated rather than reproduced:
+an obj's **retexture** pairs are applied here and dropped by `ToriRS_Objtype`,
+and a **sharelight** loc is lit per-loc here because the whole-scene normal
+merge needs neighbours a single model does not have — the same fallback the
+scene builder makes for a runtime loc spawn.
+
+An RS2-era loc goes out as an **HD model** for the same reason an RS2-era npc
+does: its faces are mostly cube- and cylinder-mapped, and the classic raster
+skips every face it cannot plane-map. 40 of 54 sampled rs727 locs take that
+path.
+
+A loc's animation list is seeded from the one sequence its record names, where
+an npc seeds from a handful — so the panel lists everything built on *that*
+sequence's rig, and a loc that names one plays it on selection. An obj has no
+animation at all and the panel says so rather than showing an empty list.
+
+```sh
+make -C tools/entity_viewer ev_objloc_probe
+tools/entity_viewer/ev_objloc_probe cache.osrs239 osrs239
+```
+
+The probe checks the things that fail *silently*: the absent shape must build
+nothing, the mirror must come out as the source model with z negated **and the
+face winding swapped**, and a variant must produce a different mesh from its
+neighbour where the record says the ids differ. It also samples both tables —
+sampling, because `ev_loc_load` decodes the archive a record lives in and every
+loc in an OldSchool cache lives in one archive of sixty thousand files, which is
+the same trap that made the npc pass take 537 seconds. What it samples is
+printed.
 
 ## The animation lists come from the open cache, in the background
 
@@ -107,11 +177,13 @@ the wrong profile does not fail loudly: it decodes records at the wrong field
 widths and produces plausible nonsense. So the field is editable, and the value
 is what the entry is stored with.
 
-Searching npcs, sequences and models runs against a per-cache **index** built
-directly from the cache in about a tenth of a second, not against the catalog.
+Searching npcs, objs, locs, sequences and models runs against a per-cache
+**index** built directly from the cache in about a tenth of a second, not
+against the catalog.
 That is the whole reason adding a cache is instant: requiring a catalog first
-would make it a five-minute wait. Without a catalog the npc list, the model and
-the animations all still work — the animations come from the rig walk above.
+would make it a five-minute wait. Without a catalog the npc, obj and loc lists, the models and the
+animations all still work — the names come from the cache records themselves and
+the animations from the rig walk above.
 What is missing is the gameval names and the name-similarity guesses, which are
 content rather than cache and have nowhere else to come from.
 
@@ -367,9 +439,10 @@ boxes to fill in:
 http://127.0.0.1:8099/#player&wear=22325&seq=8056&fx=1231&delay=16&height=100&orient=3&pitch=512&paused&cycle=44
 ```
 
-Recognised: `player`, `wear=` (comma-separated obj ids), `npc=`, `seq=`, `fx=`
-(spotanim id), `delay=`, `height=`, `orient=` (0–3 quarter turns, overriding the
-spotanim record), `pitch=`, `yaw=`, `zoom=`, `cycle=`, `paused`. It is also how
+Recognised: `player`, `wear=` (comma-separated obj ids), `npc=`, `obj=`,
+`variant=`, `loc=`, `shape=`, `seq=`, `fx=` (spotanim id), `delay=`, `height=`,
+`orient=` (0–3 quarter turns, overriding the spotanim record), `pitch=`, `yaw=`,
+`zoom=`, `cycle=`, `paused`. It is also how
 the page gets tested at all — a headless browser can open it already configured.
 
 ## ev_swing — the same thing, measured
@@ -508,8 +581,12 @@ An npc's rigging matches are `npc_rigs ⋈ framemap_seqs` on framemap id.
   │ ev.js│                     │           │        │                 │
   └──────┼─────────────────────┘           └────────┼─────────────────┘
          │  GET /api/npc/<id>.model  (ev_wire bytes)│
+         │  GET /api/obj/<id>.model?variant=         │
+         │  GET /api/loc/<id>.model?shape=           │
          │  GET /api/seq/<id>.anim   (ev_wire bytes)│
          │  GET /api/npc/<id>.json   (its two lists)│
+         │  GET /api/obj/<id>.json   (its variants) │
+         │  GET /api/loc/<id>.json   (shapes + rig) │
          │  GET /api/rigs.json       (walk progress)│
          └──────────────────────────────────────────┘
 ```
@@ -522,7 +599,9 @@ bug there can only ever be a rendering bug.
 
 `ev_wire.c` is compiled into both, so the format they speak has one definition.
 
-Both lists are searchable. The npc box matches display name, gameval or id; the
+Every subject list is searchable. The npc, obj and loc boxes match display name,
+gameval or id — for locs the gameval is the one that matters, because a cache
+name of "Door" describes several hundred of them; the
 animation box matches gameval name, a full sequence id, or the words `skeletal`
 / `classic`. The animation one is not a nicety — a human-rigged npc lists 3,905
 sequences, and typing `death` is the difference between that and the 46 worth

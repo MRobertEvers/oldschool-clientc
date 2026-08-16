@@ -1,0 +1,552 @@
+================================================================================
+Script header with arguments and named returns
+================================================================================
+
+[proc,farming_patch_find](loc $patch)(int $found, int $type)
+return(1, 2);
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (parameter_list
+      (parameter
+        (type
+          (identifier))
+        (local)))
+    (return_list
+      (return_value
+        (type
+          (identifier))
+        (local))
+      (return_value
+        (type
+          (identifier))
+        (local)))
+    (return_statement
+      (number)
+      (number))))
+
+================================================================================
+Global trigger, coord subject, and the vararg declaration form
+================================================================================
+
+[login,_]
+[mapzone,0_38_53]
+[zone,0_49_50_3_11]
+[command,queue*]
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier))))
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (coord))))
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (coord))))
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))))
+
+================================================================================
+Names the lexer has to work for
+================================================================================
+
+[opheldu,premade_cheese+tom_batta]
+mes(godwars_godsword_blade1+2);
+mes(antidote++);
+mes(3dose1strength);
+mes(0_41_53_compofishspot);
+if_setcolour(interface_774:48, multi2:com_1);
+_222;
+if_close;
+~.chatnpc;
+.npc_say("mind the pointer");
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (identifier))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (identifier))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (identifier))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (identifier))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (identifier)
+          (identifier))))
+    (expression_statement
+      (bare_command_call
+        (identifier)))
+    (expression_statement
+      (bare_command_call
+        (identifier)))
+    (expression_statement
+      (proc_call
+        (proc)))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (string
+            (string_text)))))))
+
+================================================================================
+Coords, integers and hex are three different tokens
+================================================================================
+
+[proc,literals]
+def_int $a = 0_49_50_3_11;
+def_int $b = 0xFFFFFFFF;
+def_int $c = -1;
+def_coord $d = 0_38_53;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (declaration
+      (def_keyword)
+      (local)
+      (coord))
+    (declaration
+      (def_keyword)
+      (local)
+      (number))
+    (declaration
+      (def_keyword)
+      (local)
+      (number))
+    (declaration
+      (def_keyword)
+      (local)
+      (coord))))
+
+================================================================================
+Strings carry interpolation, markup, nesting and quotes of their own
+================================================================================
+
+[proc,strings]
+mes("plain text");
+mes("<p,happy>you have <tostring($count)> of them<br>");
+mes("::pray <0-<calc(^prayer_count - 1)>>");
+mes("that <text_gender("man", "woman")> waves");
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (string
+            (string_text)))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (string
+            (string_interpolation
+              (interpolation_body))
+            (string_text)
+            (string_interpolation
+              (interpolation_body))
+            (string_text)
+            (string_interpolation
+              (interpolation_body))))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (string
+            (string_text)
+            (string_interpolation
+              (interpolation_body)
+              (string_interpolation
+                (interpolation_body)))))))
+    (expression_statement
+      (command_call
+        (identifier)
+        (argument_list
+          (string
+            (string_text)
+            (string_interpolation
+              (interpolation_body))
+            (string_text)))))))
+
+================================================================================
+Braces are optional around a single statement
+================================================================================
+
+[proc,branches]
+if (%if3 > 0) return(1);
+if ($a = 1) {
+  mes("one");
+} else if ($a = 2) {
+  mes("two");
+} else {
+  mes("many");
+}
+while ($n < 10) $n = calc($n + 1);
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (if_statement
+      (comparison
+        (variable_ref
+          (variable))
+        (number))
+      (return_statement
+        (number)))
+    (if_statement
+      (comparison
+        (local)
+        (number))
+      (block
+        (expression_statement
+          (command_call
+            (identifier)
+            (argument_list
+              (string
+                (string_text))))))
+      (if_statement
+        (comparison
+          (local)
+          (number))
+        (block
+          (expression_statement
+            (command_call
+              (identifier)
+              (argument_list
+                (string
+                  (string_text))))))
+        (block
+          (expression_statement
+            (command_call
+              (identifier)
+              (argument_list
+                (string
+                  (string_text))))))))
+    (while_statement
+      (comparison
+        (local)
+        (number))
+      (assignment
+        (local)
+        (calc
+          (binary_expression
+            (local)
+            (number)))))))
+
+================================================================================
+Conditions combine with & and |, and group with parentheses
+================================================================================
+
+[proc,conditions]
+if (($a = 1 | $a = 2) & $b ! 0 & ~ready = true) {
+  mes("go");
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (if_statement
+      (condition_and
+        (condition_and
+          (condition_group
+            (condition_or
+              (comparison
+                (local)
+                (number))
+              (comparison
+                (local)
+                (number))))
+          (comparison
+            (local)
+            (number)))
+        (comparison
+          (proc_call
+            (proc))
+          (boolean)))
+      (block
+        (expression_statement
+          (command_call
+            (identifier)
+            (argument_list
+              (string
+                (string_text)))))))))
+
+================================================================================
+switch with multi-value cases and a default
+================================================================================
+
+[proc,pick]
+switch_obj($item) {
+  case unstrung_shortbow, unstrung_longbow :
+    ~string_bow($item);
+  case ^quest_complete :
+    return;
+  case default :
+    ~displaymessage(^dm_default);
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (switch_statement
+      (switch_keyword)
+      (local)
+      (switch_case
+        (identifier)
+        (identifier)
+        (expression_statement
+          (proc_call
+            (proc)
+            (argument_list
+              (local)))))
+      (switch_case
+        (constant)
+        (return_statement))
+      (switch_case
+        (expression_statement
+          (proc_call
+            (proc)
+            (argument_list
+              (constant))))))))
+
+================================================================================
+calc is where arithmetic lives
+================================================================================
+
+[proc,arith]
+def_int $x = calc(($a + 1) * 2 - $b / 3 % 4);
+def_int $y = calc(random(1) + 9);
+def_int $z = calc($int10 - interpolate(0, $int5, $int10 - $int7));
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (declaration
+      (def_keyword)
+      (local)
+      (calc
+        (binary_expression
+          (binary_expression
+            (parenthesized_expression
+              (binary_expression
+                (local)
+                (number)))
+            (number))
+          (binary_expression
+            (binary_expression
+              (local)
+              (number))
+            (number)))))
+    (declaration
+      (def_keyword)
+      (local)
+      (calc
+        (binary_expression
+          (command_call
+            (identifier)
+            (argument_list
+              (number)))
+          (number))))
+    (declaration
+      (def_keyword)
+      (local)
+      (calc
+        (binary_expression
+          (local)
+          (command_call
+            (identifier)
+            (argument_list
+              (number)
+              (local)
+              (binary_expression
+                (local)
+                (local)))))))))
+
+================================================================================
+Arrays, multi-target assignment, and the secondary pointer
+================================================================================
+
+[clientscript,arrays](int $count)
+def_int $items($count);
+$items(0) = 5;
+$x, $z = ~door_coords();
+$string1, $string2 = "", "";
+%varbit542 = 1;
+.%inferno_glyph_dir = 2;
+queue*(combat_damage_player, 0)(npc_uid, $damage);
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (parameter_list
+      (parameter
+        (type
+          (identifier))
+        (local)))
+    (declaration
+      (def_keyword)
+      (local)
+      (local))
+    (assignment
+      (array_ref
+        (local)
+        (number))
+      (number))
+    (assignment
+      (local)
+      (local)
+      (proc_call
+        (proc)
+        (argument_list)))
+    (assignment
+      (local)
+      (local)
+      (string)
+      (string))
+    (assignment
+      (variable_ref
+        (variable))
+      (number))
+    (assignment
+      (variable_ref
+        (variable))
+      (number))
+    (expression_statement
+      (vararg_command_call
+        (identifier)
+        (argument_list
+          (identifier)
+          (number))
+        (argument_list
+          (identifier)
+          (local))))))
+
+================================================================================
+A braced script body
+================================================================================
+
+[proc,braced](loc $patch)(int $found)
+{
+  db_find(farming_patches:patch, $patch);
+  return(1);
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (script
+    (script_header
+      (trigger
+        (identifier))
+      (subject
+        (identifier)))
+    (parameter_list
+      (parameter
+        (type
+          (identifier))
+        (local)))
+    (return_list
+      (return_value
+        (type
+          (identifier))
+        (local)))
+    (block
+      (expression_statement
+        (command_call
+          (identifier)
+          (argument_list
+            (identifier)
+            (local))))
+      (return_statement
+        (number)))))

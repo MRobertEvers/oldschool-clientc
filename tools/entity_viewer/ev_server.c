@@ -10,7 +10,12 @@
  *   GET /api/npc/<id>.model     the built, merged, lit model in ev_wire format
  *   GET /api/seq/<id>.anim      one sequence as an animation in ev_wire format
  *   GET /api/player.model?wear=  a composited player, equipment and all
- *   GET /api/objs.json           every obj id, for the equipment picker
+ *   GET /api/objs.json           every obj, for the obj and equipment pickers
+ *   GET /api/obj/<id>.json       one obj's model variants (item, wear, heads)
+ *   GET /api/obj/<id>.model      one of those variants, built and lit
+ *   GET /api/locs.json           every loc, for the loc picker
+ *   GET /api/loc/<id>.json       one loc's shapes, its sequence and that rig
+ *   GET /api/loc/<id>.model      one shape's models, merged and transformed
  *   GET /api/spotanims.json      every graphic id, for the graphic picker
  *   GET /api/spot/<id>.model     one graphic's model in ev_wire format
  *   GET /api/spot/<id>.json      that graphic's own sequence id
@@ -35,6 +40,9 @@
 #include "ev_build.h"
 #include <assert.h>
 #include "ev_caches.h"
+/* The obj and loc records themselves, for the two detail endpoints: the shape
+ * list and the variant list are properties of the record, not of the model. */
+#include "ev_config.h"
 #include "ev_rigs.h"
 #include "ev_textures.h"
 
@@ -172,6 +180,9 @@ static int g_cache_open = 0;
  */
 static struct LC_Pack g_obj_names = { 0 };
 static struct LC_Pack g_spotanim_names = { 0 };
+/* And the loc picker's, for the same reason: a loc's cache name is "Door" four
+ * hundred times over, and the gameval is what tells them apart. */
+static struct LC_Pack g_loc_names = { 0 };
 static int g_have_names = 0;
 
 /* The content tree, when one is named: its `pack/7_models.pack` says which
@@ -1261,6 +1272,351 @@ handle_config_ids_json(int fd, enum RSCache_Type type, int kind, const struct LC
     free(s.p);
 }
 
+/* ---- the obj and loc halves ---------------------------------------------- */
+
+/*
+ * An npc is one config with a model list on it, and so — nearly — are these
+ * two. The differences are what these endpoints exist for:
+ *
+ *   an obj carries SEVERAL unrelated meshes — the inventory/ground model, the
+ *   male and female wear models, the two chatheads — and which one is "the
+ *   item's model" depends on who is asking, so the variant is a parameter;
+ *
+ *   a loc carries one mesh PER SHAPE — a wall, its corner, its diagonal — and
+ *   the shape is chosen by the map square, not by the record, so the viewer has
+ *   to offer the choice the map would have made.
+ *
+ * Both lists come from the per-cache index (ids and the cache record's own
+ * name) rather than from tool_dat2_config_ids, which returns bare ids: a picker
+ * over forty thousand unnamed locs is not a picker, and the gameval compacks
+ * only name the caches a content tree describes.
+ */
+
+/* The two detail endpoints read the record itself rather than looking the name
+ * up in the index: they need the shapes and the variants anyway, and the name
+ * comes back in the same decode. */
+
+/** Every id in one of the index's named lists, with its gameval name beside it
+ *  where a compack has one. */
+static void
+handle_index_rows_json(
+    int fd,
+    const struct EV_IndexRow* rows,
+    int count,
+    const struct LC_Pack* names)
+{
+    struct Str s = { 0 };
+    str_add(&s, "[");
+    for( int i = 0; i < count; i++ )
+    {
+        str_add(&s, i ? ",{" : "{");
+        str_add(&s, "\"id\":%d,\"name\":", rows[i].id);
+        str_add_json(&s, rows[i].name);
+        str_add(&s, ",\"gameval\":");
+        str_add_json(&s, pack_name(names, rows[i].id));
+        str_add(&s, "}");
+    }
+    str_add(&s, "]");
+    send_response(fd, "200 OK", "application/json", s.p ? s.p : "[]", s.len);
+    free(s.p);
+}
+
+/**
+ * `?variant=N`, defaulting to the item model.
+ *
+ * An unparseable or out-of-range value falls back rather than 404ing: the
+ * variant is a picker's index, and answering "here is the item model" beats
+ * leaving the canvas empty because a URL was hand-edited.
+ */
+static enum EV_ObjModelVariant
+obj_variant_param(const char* query)
+{
+    char v[16] = { 0 };
+    query_param(query, "variant", v, sizeof(v));
+    if( !v[0] )
+        return EV_OBJ_MODEL_ITEM;
+    int n = atoi(v);
+    if( n <= 0 || n >= EV_OBJ_MODEL_VARIANT_COUNT )
+        return EV_OBJ_MODEL_ITEM;
+    return (enum EV_ObjModelVariant)n;
+}
+
+/** A built model out to the wire, HD when the build produced one. Shared by the
+ *  obj and loc endpoints, which differ only in what they build. */
+static void
+send_built_model(int fd, struct ToriDraw_Model* model, struct ToriDraw_ModelHD* hd)
+{
+    struct EV_WireBuf buf = { 0 };
+    char tex_ids[1024];
+    int ok;
+
+    if( hd )
+    {
+        ok = ev_wire_write_model_hd(&buf, hd);
+        model_texture_ids(&hd->base, tex_ids, sizeof(tex_ids));
+        ToriDraw_ModelHDFree(hd);
+    }
+    else if( model )
+    {
+        ok = ev_wire_write_model(&buf, model);
+        model_texture_ids(model, tex_ids, sizeof(tex_ids));
+        ToriDraw_ModelFree(model);
+    }
+    else
+    {
+        send_404(fd);
+        return;
+    }
+
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+    send_model_with_textures(fd, buf.data, buf.len, tex_ids);
+    ev_wire_free(&buf);
+}
+
+static void
+handle_obj_model(int fd, int obj_id, const char* query)
+{
+    enum EV_ObjModelVariant variant = obj_variant_param(query);
+
+    /* HD first, for the same reason the npc endpoint does: an RS2-era model's
+     * mapped faces are skipped outright by the classic raster. NULL means "this
+     * one does not need it", which is every OldSchool obj. */
+    struct ToriDraw_ModelHD* hd = ev_build_obj_model_hd(&g_cache, obj_id, variant);
+    send_built_model(fd, hd ? NULL : ev_build_obj_model(&g_cache, obj_id, variant), hd);
+}
+
+static void
+handle_loc_model(int fd, int loc_id, const char* query)
+{
+    char v[16] = { 0 };
+    query_param(query, "shape", v, sizeof(v));
+    /* No shape given means "whichever the record lists first" — see
+     * ev_build_loc_model. `atoi` cannot express that, so the empty string does. */
+    int shape = v[0] ? atoi(v) : -1;
+
+    struct ToriDraw_ModelHD* hd = ev_build_loc_model_hd(&g_cache, loc_id, shape);
+    send_built_model(fd, hd ? NULL : ev_build_loc_model(&g_cache, loc_id, shape), hd);
+}
+
+static void
+handle_obj_json(int fd, int obj_id)
+{
+    struct RSCache_Dat2ConfigObj* obj = ev_obj_load(&g_cache, obj_id);
+    if( !obj )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct Str s = { 0 };
+    str_add(&s, "{\"id\":%d,\"name\":", obj_id);
+    str_add_json(&s, obj->name);
+    str_add(&s, ",\"gameval\":");
+    str_add_json(&s, pack_name(&g_obj_names, obj_id));
+    str_add(&s, ",\"examine\":");
+    str_add_json(&s, obj->examine);
+    str_add(
+        &s,
+        ",\"stackable\":%d,\"cost\":%d,\"members\":%s",
+        obj->stacking_behaviour,
+        obj->cost,
+        obj->is_members ? "true" : "false");
+
+    /*
+     * Which variants this record actually names, with their model ids.
+     *
+     * Reported rather than left to the page to guess: most objs have no wear
+     * models at all, and a picker offering "male" for a bucket would draw
+     * nothing and look broken. The ids are here because the model-file view is
+     * a click away and "which archive is this" is the next question.
+     */
+    static const int VARIANTS[] = { EV_OBJ_MODEL_ITEM,      EV_OBJ_MODEL_MALE,
+                                    EV_OBJ_MODEL_FEMALE,    EV_OBJ_MODEL_MALE_HEAD,
+                                    EV_OBJ_MODEL_FEMALE_HEAD };
+    const int VARIANT_MODELS[][3] = {
+        { obj->inventory_model_id, -1, -1 },
+        { obj->male_model_0, obj->male_model_1, obj->male_model_2 },
+        { obj->female_model_0, obj->female_model_1, obj->female_model_2 },
+        { obj->male_head_model, obj->male_head_model_2, -1 },
+        { obj->female_head_model, obj->female_head_model_2, -1 },
+    };
+
+    str_add(&s, ",\"variants\":[");
+    int first = 1;
+    for( size_t v = 0; v < sizeof(VARIANTS) / sizeof(VARIANTS[0]); v++ )
+    {
+        int present = 0;
+        for( int m = 0; m < 3; m++ )
+            if( VARIANT_MODELS[v][m] >= 0 )
+                present = 1;
+        if( !present )
+            continue;
+
+        str_add(&s, first ? "{" : ",{");
+        first = 0;
+        str_add(&s, "\"variant\":%d,\"label\":", VARIANTS[v]);
+        str_add_json(&s, ev_obj_model_variant_name((enum EV_ObjModelVariant)VARIANTS[v]));
+        str_add(&s, ",\"models\":[");
+        int wrote = 0;
+        for( int m = 0; m < 3; m++ )
+            if( VARIANT_MODELS[v][m] >= 0 )
+                str_add(&s, wrote++ ? ",%d" : "%d", VARIANT_MODELS[v][m]);
+        str_add(&s, "]}");
+    }
+    str_add(&s, "]}");
+
+    RSCache_Dat2ConfigObjFree(obj);
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+/** What a loc shape number means, for the picker. */
+static const char*
+loc_shape_label(int shape)
+{
+    switch( shape )
+    {
+    case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE: return "wall";
+    case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER: return "wall tri corner";
+    case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES: return "wall two sides";
+    case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER: return "wall rect corner";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_INSIDE: return "wall decor inside";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_OUTSIDE: return "wall decor outside";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE: return "wall decor diag outside";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE: return "wall decor diag inside";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE: return "wall decor diag double";
+    case RSCACHE_LOC_SHAPE_WALL_DIAGONAL: return "wall diagonal";
+    case RSCACHE_LOC_SHAPE_SCENERY: return "scenery";
+    case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL: return "scenery diagonal";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED: return "roof sloped";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER: return "roof sloped outer";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_INNER_CORNER: return "roof sloped inner";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER: return "roof hard inner";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER: return "roof hard outer";
+    case RSCACHE_LOC_SHAPE_ROOF_FLAT: return "roof flat";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG: return "roof overhang";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER: return "roof overhang outer";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER: return "roof overhang inner";
+    case RSCACHE_LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER: return "roof overhang hard";
+    case RSCACHE_LOC_SHAPE_FLOOR_DECORATION: return "floor decoration";
+    default: break;
+    }
+    return NULL;
+}
+
+/**
+ * The animation list for a subject that reaches a rig through ONE sequence.
+ *
+ * An npc seeds its rigs from a handful of sequences on its own record; a loc
+ * names exactly one, `seq_id`, and everything built on that sequence's rig is
+ * what could animate it. Written in the npc detail's shape — `rig`, `maybe`,
+ * `rigs_pending`, `skinned` — so the page's animation panel is one renderer and
+ * not three.
+ */
+static void
+str_add_seed_seq_rig(struct Str* s, int seed_seq)
+{
+    const struct EV_RigIndex* rigs = ev_rigs_current();
+    int framemap = seed_seq >= 0 ? ev_rigs_seq_framemap(rigs, seed_seq) : -1;
+
+    /* A loc has no Animaya skin: skeletal sequences pose through one, and the
+     * scene builder never gives scenery a skin to pose. */
+    str_add(s, ",\"skinned\":false,\"rigs_pending\":%s", rigs ? "false" : "true");
+    str_add(s, ",\"framemaps\":[");
+    if( framemap >= 0 )
+        str_add(s, "%d", framemap);
+    str_add(s, "],\"rig\":[");
+
+    int first = 1;
+    for( int i = 0; rigs && framemap >= 0 && i < rigs->seq_count; i++ )
+    {
+        if( rigs->seqs[i].framemap_id != framemap )
+            continue;
+        str_add(s, first ? "{" : ",{");
+        first = 0;
+        str_add(
+            s,
+            "\"seq\":%d,\"frames\":%d,\"framemap\":%d,\"skeletal\":%s,\"name\":",
+            rigs->seqs[i].seq_id,
+            rigs->seqs[i].frame_count,
+            rigs->seqs[i].framemap_id,
+            rigs->seqs[i].skeletal ? "true" : "false");
+        str_add_json(s, seq_name(rigs->seqs[i].seq_id));
+        str_add(s, "}");
+    }
+    /* No name guesses: those come from the catalog, which walks npcs only. */
+    str_add(s, "],\"maybe\":[]");
+}
+
+static void
+handle_loc_json(int fd, int loc_id)
+{
+    struct RSCache_Dat2ConfigLoc* loc = ev_loc_load(&g_cache, loc_id);
+    if( !loc )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct Str s = { 0 };
+    str_add(&s, "{\"id\":%d,\"name\":", loc_id);
+    str_add_json(&s, loc->name);
+    str_add(&s, ",\"gameval\":");
+    str_add_json(&s, pack_name(&g_loc_names, loc_id));
+    str_add(&s, ",\"examine\":");
+    str_add_json(&s, loc->desc);
+    str_add(
+        &s,
+        ",\"seq\":%d,\"size_x\":%d,\"size_z\":%d,\"mirrored\":%s,\"sharelight\":%s",
+        loc->seq_id,
+        loc->size_x,
+        loc->size_z,
+        loc->mirrored ? "true" : "false",
+        loc->sharelight ? "true" : "false");
+
+    /*
+     * The shapes this record carries, in the order it carries them.
+     *
+     * A loc encoded with opcode 5 is single-model: the decoder sets a count of
+     * 1 and leaves `shapes` NULL on purpose, because shape selection does not
+     * apply to it. That is reported as one entry with a shape of -1 rather than
+     * as shape 0 — shape 0 is `wall`, and a tree listed as a wall is a lie the
+     * page has no way to caveat.
+     */
+    str_add(&s, ",\"shapes\":[");
+    for( int g = 0; g < loc->shapes_and_model_count; g++ )
+    {
+        int shape = loc->shapes ? loc->shapes[g] : -1;
+        int count = loc->lengths ? loc->lengths[g] : 0;
+        str_add(&s, g ? ",{" : "{");
+        str_add(&s, "\"shape\":%d,\"label\":", shape);
+        str_add_json(&s, shape >= 0 ? loc_shape_label(shape) : "single model");
+        str_add(&s, ",\"models\":[");
+        for( int m = 0; m < count && loc->models; m++ )
+            str_add(&s, m ? ",%d" : "%d", loc->models[g][m]);
+        str_add(&s, "]}");
+
+        /* The single-model form has one group by definition; a record claiming
+         * more of them without a shape list would have every group answer to
+         * the same -1 and the picker would show duplicates. */
+        if( !loc->shapes )
+            break;
+    }
+    str_add(&s, "]");
+
+    str_add_seed_seq_rig(&s, loc->seq_id);
+    str_add(&s, "}");
+
+    RSCache_Dat2ConfigLocFree(loc);
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
 /*
  * Every sequence built on one rig.
  *
@@ -1775,11 +2131,24 @@ handle_request(int fd, const char* target, const char* query)
         handle_npc_model(fd, id);
     else if( route_id(target, "/api/seq/", ".anim", &id) )
         handle_seq_anim(fd, id);
+    /* The obj and loc halves. The lists come from the index — ids AND the cache
+     * record's name — where the spotanim list below is bare ids from the
+     * reference table, which is all a picker of four thousand needs. */
+    else if( strcmp(target, "/api/objs.json") == 0 )
+        handle_index_rows_json(fd, g_index.objs, g_index.obj_count, &g_obj_names);
+    else if( strcmp(target, "/api/locs.json") == 0 )
+        handle_index_rows_json(fd, g_index.locs, g_index.loc_count, &g_loc_names);
+    else if( route_id(target, "/api/obj/", ".json", &id) )
+        handle_obj_json(fd, id);
+    else if( route_id(target, "/api/obj/", ".model", &id) )
+        handle_obj_model(fd, id, query);
+    else if( route_id(target, "/api/loc/", ".json", &id) )
+        handle_loc_json(fd, id);
+    else if( route_id(target, "/api/loc/", ".model", &id) )
+        handle_loc_model(fd, id, query);
     /* The player half. */
     else if( strcmp(target, "/api/player.model") == 0 )
         handle_player_model(fd, query);
-    else if( strcmp(target, "/api/objs.json") == 0 )
-        handle_config_ids_json(fd, RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, &g_obj_names);
     else if( strcmp(target, "/api/spotanims.json") == 0 )
         handle_config_ids_json(
             fd, RSCACHE_TYPE_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, &g_spotanim_names);
@@ -2460,14 +2829,17 @@ main(int argc, char** argv)
         lc_pack_load(&g_obj_names, path, "obj", 1);
         snprintf(path, sizeof(path), "%s/configs/all.spotanim.compack", names_dir);
         lc_pack_load(&g_spotanim_names, path, "spotanim", 1);
+        snprintf(path, sizeof(path), "%s/configs/all.loc.compack", names_dir);
+        lc_pack_load(&g_loc_names, path, "loc", 1);
         /* Same directory: a content tree that names records also holds their
          * exported assets, so --names is what turns the override on. */
         g_content_dir = names_dir;
         snprintf(path, sizeof(path), "%s/pack/7_models.pack", names_dir);
         lc_pack_load(&g_model_paths, path, "models", 1);
         g_have_names = 1;
-        fprintf(stderr, "gameval names: %d obj, %d spotanim\n",
-                lc_pack_named_count(&g_obj_names), lc_pack_named_count(&g_spotanim_names));
+        fprintf(stderr, "gameval names: %d obj, %d loc, %d spotanim\n",
+                lc_pack_named_count(&g_obj_names), lc_pack_named_count(&g_loc_names),
+                lc_pack_named_count(&g_spotanim_names));
     }
 
     ToriDraw_Init();

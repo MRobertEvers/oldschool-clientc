@@ -21,7 +21,8 @@
  * which npc's rig, name-similarity scores) and takes about five minutes per
  * cache. Requiring one before a cache could be browsed would make "add a cache"
  * a coffee break, so this builds a much smaller index directly from the cache:
- * npc ids and names, and the id lists for sequences and models.
+ * npc, obj and loc ids with their names, and the id lists for sequences and
+ * models.
  *
  * That is enough to *find* things. Which animations apply to what is a third
  * thing again — ev_rigs.h, computed per cache in the background, because tying
@@ -133,7 +134,9 @@ ev_caches_discover(struct EV_CacheList* list, const char* root);
 
 /* ---- the per-cache index ------------------------------------------------- */
 
-struct EV_IndexNpc
+/** One named record. The three config types the pickers list — npc, obj, loc —
+ *  all need exactly this, so they share the row. */
+struct EV_IndexRow
 {
     int id;
     char* name; /* owned; may be NULL */
@@ -141,8 +144,22 @@ struct EV_IndexNpc
 
 struct EV_Index
 {
-    struct EV_IndexNpc* npcs;
+    struct EV_IndexRow* npcs;
     int npc_count;
+    /*
+     * Objs and locs carry their names for the same reason npcs do: a picker
+     * over forty thousand bare ids is not a picker. They cost a decode each,
+     * which is what the walk below is already paying for npcs — about a tenth
+     * of a second for all three types on cache.osrs239.
+     *
+     * The names come from the CACHE record, not from a compack, so they are
+     * there for every cache including the ones no content tree describes. The
+     * gameval name, where a compack has one, is a second column the server adds.
+     */
+    struct EV_IndexRow* objs;
+    int obj_count;
+    struct EV_IndexRow* locs;
+    int loc_count;
     int* seq_ids;
     int seq_count;
     int* model_ids;

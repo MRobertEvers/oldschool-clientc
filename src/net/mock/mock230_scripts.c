@@ -2084,6 +2084,17 @@ run_trigger_impl(
         result = run_rung(srv, script, npc_slot, loc_slot, player_slot, &declined);
         mock230_world_set_active(srv, saved_player);
 
+        if( srv->verbose && rung_count > 1 )
+        {
+            char label[192];
+
+            fprintf(stderr, "mock230:   %s rung %d/%d -> %s %s\n",
+                    trigger_label(trigger, type, label, sizeof(label)), i + 1, rung_count,
+                    script->name ? script->name : "?",
+                    result != MOCK230_TRIGGER_RAN ? "FAILED"
+                                                  : declined ? "declined" : "handled it");
+        }
+
         if( result != MOCK230_TRIGGER_RAN || !declined )
             return result;
         any_declined = 1;
@@ -2659,6 +2670,21 @@ opheldu_orient(
     }
 }
 
+/*
+ * What each `[opheldu]` rung is keyed on, for the trace.
+ *
+ * The trace is the whole reason a swallowed pair took this long to find: from
+ * outside, "the first rung that matched said nothing happened" and "nothing is
+ * bound at all" are one message. This says which script answered and whether it
+ * declined, which is the difference.
+ */
+static const char* const k_opheldu_rung_name[4] = {
+    "clicked type",
+    "dragged type",
+    "clicked category",
+    "dragged category",
+};
+
 int
 mock230_scripts_run_opheldu(
     struct Mock230Server* srv,
@@ -2722,10 +2748,20 @@ mock230_scripts_run_opheldu(
         script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU,
                                                    rungs[i].type, rungs[i].category);
         if( !script )
+        {
+            if( srv->verbose )
+                fprintf(stderr, "mock230:   opheldu rung %d (%s) — nothing bound\n", i + 1,
+                        k_opheldu_rung_name[i]);
             continue;
+        }
 
         opheldu_orient(player, &pair, rungs[i].bound_to_use_obj);
         result = run_rung(srv, script, -1, -1, -1, &declined);
+        if( srv->verbose )
+            fprintf(stderr, "mock230:   opheldu rung %d (%s) -> %s %s\n", i + 1,
+                    k_opheldu_rung_name[i], script->name ? script->name : "?",
+                    result != MOCK230_TRIGGER_RAN ? "FAILED"
+                                                  : declined ? "declined" : "handled it");
         if( result != MOCK230_TRIGGER_RAN || !declined )
             return result;
         any_declined = 1;
@@ -7230,8 +7266,15 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        if( player->resume_button_count < MOCK230_RESUME_BUTTON_MAX )
-            player->resume_buttons[player->resume_button_count++] = uid;
+        /*
+         * A full table is a content bug, and dropping the overflow is the one
+         * response that cannot be noticed: the row still draws, still lights up
+         * under the cursor, and answers nothing. `~skill_multi` arms eighteen
+         * of these in a row, so the ceiling is now reachable by ordinary
+         * content rather than only by a runaway loop.
+         */
+        assert(player->resume_button_count < MOCK230_RESUME_BUTTON_MAX);
+        player->resume_buttons[player->resume_button_count++] = uid;
         /*
          * Registering the button server-side is only half of it: at rev 230
          * nothing is clickable until the server says so, so the component's

@@ -44,11 +44,28 @@ const state = {
   spotDelays: [],
   spotTotal: 0,
 
-  /* 'npc' or 'player'. */
+  /* 'npc', 'obj', 'loc' or 'player'. */
   mode: 'npc',
   objs: [],
+  locs: [],
   spotanims: [],
   worn: [],
+
+  /*
+   * The obj and loc subjects.
+   *
+   * Each carries a *part* alongside its id, and the part is not cosmetic: an
+   * obj record holds several unrelated meshes (the item, the two wear sets, the
+   * chatheads) and a loc holds one per shape. "obj 4151" does not name a model
+   * on its own, so the variant and the shape are as much the subject as the id
+   * is — which is why both are in the URL.
+   */
+  objId: null,
+  objVariant: 0,
+  objDetail: null,
+  locId: null,
+  locShape: null,
+  locDetail: null,
   /* The attached graphic: `spotanim_pl`'s three arguments and the sequence the
    * record names. */
   fx: { id: null, seq: -1, height: 100, delay: 16, orient: -1 },
@@ -408,10 +425,23 @@ function hdInstall() {
   });
 }
 
-/* ---- npc list ------------------------------------------------------------ */
+/* ---- the subject list ---------------------------------------------------- */
 
+/*
+ * One column, four subjects. The list is the same widget every time — an id, a
+ * name, a badge — so the modes differ in what fills it and what a click does,
+ * not in how it is drawn.
+ */
 function renderNpcList() {
   if (state.mode === 'player') { renderObjList(); return; }
+  if (state.mode === 'obj') {
+    renderRecordList(state.objs, state.objId, selectObj, 'click to draw the item');
+    return;
+  }
+  if (state.mode === 'loc') {
+    renderRecordList(state.locs, state.locId, selectLoc, 'click to draw the loc');
+    return;
+  }
 
   const q = document.getElementById('npcSearch').value.trim().toLowerCase();
   const list = document.getElementById('npcList');
@@ -498,6 +528,52 @@ function renderObjList() {
     `${matches.length} of ${total} shown · click to equip or unequip`;
 }
 
+/*
+ * The obj and loc pickers.
+ *
+ * Both lists are the cache's own records — 30,000 objs and 62,000 locs on
+ * cache.osrs239 — so the search box is not a nicety, and the cap on rows built
+ * is what keeps typing from stuttering. The count line still reports the true
+ * total, so a search that matches 900 rows says so rather than looking like it
+ * matched 400.
+ *
+ * The gameval name is searched as well as shown, because a loc's cache name is
+ * "Door" several hundred times over and the gameval is the only thing that
+ * tells those apart.
+ */
+function renderRecordList(rows, selectedId, onPick, hint) {
+  const q = document.getElementById('npcSearch').value.trim().toLowerCase();
+  const list = document.getElementById('npcList');
+  const matches = [];
+  let total = 0;
+
+  for (const r of rows) {
+    if (q) {
+      const hay = `${r.id} ${(r.name || '').toLowerCase()} ${(r.gameval || '').toLowerCase()}`;
+      if (!hay.includes(q)) continue;
+    }
+    total++;
+    if (matches.length < 400) matches.push(r);
+  }
+
+  list.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const r of matches) {
+    const row = document.createElement('div');
+    row.className = 'row' + (r.id === selectedId ? ' sel' : '');
+    row.innerHTML =
+      `<span class="id">${r.id}</span>` +
+      `<span class="nm">${escapeHtml(r.name || '(unnamed)')}</span>` +
+      `<span class="gv" style="flex:0 1 auto">${escapeHtml(r.gameval || '')}</span>`;
+    row.title = r.gameval || '';
+    row.onclick = () => onPick(r.id);
+    frag.appendChild(row);
+  }
+  list.appendChild(frag);
+  document.getElementById('npcCount').textContent =
+    `${matches.length} of ${total} shown · ${hint}`;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -544,6 +620,160 @@ async function selectNpc(id) {
   renderAnimList();
 }
 
+/* ---- obj and loc --------------------------------------------------------- */
+
+/**
+ * Frame whatever was just loaded, and say what it is.
+ *
+ * The zoom is derived from the model's own height for the same reason the npc
+ * path derives it: these two subjects run from a coin to a castle wall, and one
+ * fixed distance shows one of those and not the other.
+ */
+function frameLoadedModel(faces, none, extra) {
+  const meta = document.getElementById('stageMeta');
+  if (!faces) {
+    meta.textContent = none;
+    return;
+  }
+  const h = state.wasm.modelHeight();
+  state.zoom = Math.max(260, Math.min(6000, Math.round(h * 1.6) || 900));
+  meta.textContent =
+    `${faces} faces` + (extra ? ` · ${extra}` : '') +
+    (state.textureCount ? ` · ${state.textureCount} textures` : '') +
+    ' · drag or arrows to orbit · wheel to zoom · WASD/RF to fly';
+}
+
+/** The part bar: an obj's model variants, or a loc's shapes. */
+function renderPartBar(parts, selected, onPick) {
+  const bar = document.getElementById('partBar');
+  bar.innerHTML = '';
+  bar.classList.toggle('hidden', !parts.length);
+  for (const p of parts) {
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (p.key === selected ? ' on' : '');
+    chip.innerHTML =
+      escapeHtml(p.label) + `<span class="sub">${escapeHtml(p.sub || '')}</span>`;
+    chip.title = p.title || '';
+    chip.onclick = () => onPick(p.key);
+    bar.appendChild(chip);
+  }
+}
+
+async function selectObj(id, variant) {
+  state.objId = id;
+  state.seqId = null;
+
+  if (!state.objDetail || state.objDetail.id !== id) {
+    state.objDetail = await (await fetch(`/api/obj/${id}.json`)).json();
+  }
+  const d = state.objDetail;
+  const have = d.variants.map((v) => v.variant);
+  /* Keep the variant across a change of subject when the new record has it —
+   * comparing two items' wear models means not re-picking "male" each time —
+   * and fall back to whatever the record does have. */
+  state.objVariant = have.includes(variant) ? variant
+    : have.includes(state.objVariant) ? state.objVariant
+      : have.length ? have[0] : 0;
+
+  renderNpcList();
+  renderPartBar(
+    d.variants.map((v) => ({
+      key: v.variant,
+      label: v.label,
+      sub: v.models.join(', '),
+      title: `model ${v.models.join(', ')}`,
+    })),
+    state.objVariant,
+    (v) => selectObj(id, v));
+
+  document.getElementById('stageTitle').textContent =
+    `${d.name || '(unnamed)'} — obj ${id}` + (d.gameval ? ` · ${d.gameval}` : '');
+
+  const faces = await loadModelWithTextures(
+    `/api/obj/${id}.model?variant=${state.objVariant}`);
+  frameLoadedModel(
+    faces,
+    d.variants.length
+      ? 'that variant’s models are not in this cache'
+      : 'this obj names no model at all',
+    d.variants.length ? `${ev_variantLabel(d, state.objVariant)} model` : '');
+
+  /*
+   * An obj has no animation of its own: nothing in the record names a sequence,
+   * and its models carry no rig the game ever poses them on. So the panel says
+   * that rather than showing an empty rig list, which would read as "the search
+   * has not finished".
+   */
+  state.detail = null;
+  clearAnimPlayback();
+  renderAnimList();
+}
+
+function ev_variantLabel(detail, variant) {
+  const hit = detail.variants.find((v) => v.variant === variant);
+  return hit ? hit.label : 'model';
+}
+
+async function selectLoc(id, shape) {
+  state.locId = id;
+
+  if (!state.locDetail || state.locDetail.id !== id) {
+    state.locDetail = await (await fetch(`/api/loc/${id}.json`)).json();
+    /* A fresh loc drops the previous one's shape: shape numbers are the same
+     * space for every loc, so keeping shape 9 across a click would silently ask
+     * a tree for its diagonal wall and draw nothing. */
+    state.locShape = null;
+  }
+  const d = state.locDetail;
+  const have = d.shapes.map((s) => s.shape);
+  state.locShape = have.includes(shape) ? shape
+    : have.includes(state.locShape) ? state.locShape
+      : have.length ? have[0] : null;
+
+  state.detail = d;
+  renderNpcList();
+  renderPartBar(
+    d.shapes.map((s) => ({
+      key: s.shape,
+      label: s.label,
+      sub: s.shape >= 0 ? `#${s.shape}` : '',
+      title: `models ${s.models.join(', ') || 'none'}`,
+    })),
+    state.locShape,
+    (s) => selectLoc(id, s));
+
+  document.getElementById('stageTitle').textContent =
+    `${d.name || '(unnamed)'} — loc ${id}` + (d.gameval ? ` · ${d.gameval}` : '');
+
+  const q = state.locShape === null ? '' : `?shape=${state.locShape}`;
+  const faces = await loadModelWithTextures(`/api/loc/${id}.model${q}`);
+  frameLoadedModel(
+    faces,
+    d.shapes.length
+      ? 'that shape’s models are not in this cache'
+      : 'this loc names no model at all',
+    `${d.size_x}x${d.size_z} tiles` + (d.mirrored ? ' · mirrored' : ''));
+
+  clearAnimPlayback();
+  renderAnimList();
+  /* A loc that names a sequence is nearly always animated by it — a fire, a
+   * wheel, a windmill — so play that one rather than making the rig list the
+   * place where "does this move" is answered. */
+  if (d.seq >= 0) await selectSeq(d.seq);
+}
+
+/** Drop whatever was playing. A new subject's frames are not the old one's. */
+function clearAnimPlayback() {
+  state.wasm.clearAnim();
+  state.seqId = null;
+  state.frameCount = 0;
+  state.frame = 0;
+  state.bodyDelays = [];
+  state.bodyTotal = 0;
+  state.cycle = 0;
+  updateFrameUi();
+}
+
 /**
  * Does this animation match the search box?
  *
@@ -561,21 +791,45 @@ function animMatches(a, q) {
   return kind.startsWith(q);
 }
 
+/* What the empty animation panel should say, which is different per mode: an
+ * obj genuinely has no animation to find, while the other three have one to
+ * pick. Saying "pick an npc" in obj mode would read as a page that has lost
+ * track of what it is showing. */
+const ANIM_EMPTY = {
+  npc: 'Pick an npc.',
+  obj: 'An obj names no sequence, and its models carry no rig the game poses ' +
+       'them on — there is nothing to animate.',
+  loc: 'Pick a loc.',
+  player: 'Pick an equipment set.',
+};
+
 function renderAnimList() {
   const el = document.getElementById('animList');
   const d = state.detail;
   el.innerHTML = '';
-  if (!d) { el.innerHTML = '<div class="note">Pick an npc.</div>'; return; }
+  if (!d) {
+    el.innerHTML = `<div class="note">${escapeHtml(ANIM_EMPTY[state.mode])}</div>`;
+    document.getElementById('animCount').textContent = '';
+    return;
+  }
 
   const q = document.getElementById('animSearch').value.trim().toLowerCase();
   const rig = d.rig.filter((a) => animMatches(a, q));
 
   const frag = document.createDocumentFragment();
 
+  /* A loc reaches its rig through the ONE sequence its record names, where an
+   * npc seeds from a handful. Both answer the same question — what else is
+   * built on this rig — so the note says which seed produced the list. */
   frag.appendChild(group(
     'rig', `Rigging matches (${countLabel(rig.length, d.rig.length)})`,
-    'Sequences built on this npc’s own rig. Concrete: sharing a rig is the ' +
-    'precondition for an animation applying at all.'));
+    (state.mode !== 'loc'
+      ? 'Sequences built on this npc’s own rig. '
+      : d.seq >= 0
+        ? `Sequences built on the rig of this loc’s own sequence (${d.seq}). `
+        : 'A loc reaches a rig only through the sequence its record names, and ' +
+          'this one names none. ') +
+    'Concrete: sharing a rig is the precondition for an animation applying at all.'));
 
   for (const a of rig) {
     /* A skeletal sequence poses through the model's Animaya skin. An npc
@@ -596,8 +850,24 @@ function renderAnimList() {
       ? 'Searching this cache for the animations that apply…'
       : d.rig.length
         ? 'No rigging matches match the search.'
-        : 'This npc names no animation, so nothing shares its rig.';
+        : state.mode === 'loc'
+          ? 'This loc names no sequence, so nothing shares its rig.'
+          : 'This npc names no animation, so nothing shares its rig.';
     frag.appendChild(n);
+  }
+
+  /*
+   * Name guesses are an npc-only idea and the section is left out entirely for
+   * anything else. They come from the catalog, which scores an npc's gameval
+   * name against every sequence's; nothing walks objs or locs that way, so the
+   * list would be empty for a reason the heading cannot express — and an empty
+   * "Name guesses (0)" reads as "none found" rather than "not asked".
+   */
+  if (state.mode !== 'npc') {
+    el.appendChild(frag);
+    document.getElementById('animCount').textContent =
+      `${countLabel(rig.length, d.rig.length)} rig`;
+    return;
   }
 
   const allMaybes = d.maybe.filter((m) => !m.in_rig);
@@ -895,29 +1165,74 @@ function parseSpotanimEntry(text) {
   return hit ? hit.id : null;
 }
 
+const MODE_HEADS = { npc: 'NPCs', obj: 'Objs', loc: 'Locs', player: 'Equipment' };
+const MODE_PLACEHOLDERS = {
+  npc: 'name, gameval or id',
+  obj: 'item name, gameval or id',
+  loc: 'loc name, gameval or id',
+  player: 'obj name or id',
+};
+
+/** Every obj in the cache, fetched once. 30,000 rows, so not per switch. */
+async function ensureObjs() {
+  if (!state.objs.length) state.objs = await (await fetch('/api/objs.json')).json();
+}
+
 async function setMode(mode) {
   state.mode = mode;
-  document.getElementById('modeNpc').classList.toggle('on', mode === 'npc');
-  document.getElementById('modePlayer').classList.toggle('on', mode === 'player');
+  for (const m of ['npc', 'obj', 'loc', 'player']) {
+    const btn = document.getElementById('mode' + m[0].toUpperCase() + m.slice(1));
+    btn.classList.toggle('on', mode === m);
+  }
   document.getElementById('wornBar').classList.toggle('hidden', mode !== 'player');
   document.getElementById('fxBar').classList.toggle('hidden', mode !== 'player');
-  document.getElementById('subjectHead').textContent = mode === 'player' ? 'Equipment' : 'NPCs';
-  document.getElementById('npcSearch').placeholder =
-    mode === 'player' ? 'obj name or id' : 'name, gameval or id';
+  /* The part bar belongs to whichever of the two carries parts, and it is
+   * rebuilt by the selection — hiding it here stops the previous subject's
+   * variants sitting above the new one's list. */
+  document.getElementById('partBar').classList.toggle(
+    'hidden', mode !== 'obj' && mode !== 'loc');
+  document.getElementById('subjectHead').textContent = MODE_HEADS[mode];
+  document.getElementById('npcSearch').placeholder = MODE_PLACEHOLDERS[mode];
 
-  if (mode === 'npc') {
+  if (mode !== 'player') {
     /* Leaving player mode drops the graphic and the pinned framing with it:
-     * both are player-half state, and an npc carrying a merged player graphic
-     * would be a lie about what the cache says. */
+     * both are player-half state, and any other subject carrying a merged
+     * player graphic would be a lie about what the cache says. */
     await selectSpotanim(null);
     state.wasm.setFrameHeight(0);
+  }
+
+  /* Nothing selected in the new mode means no animation list either. Leaving
+   * the previous subject's would put a loc's sequences under an npc heading,
+   * and the panel has no way to say they are not this subject's. */
+  if (mode === 'npc') {
     renderNpcList();
-    if (state.npcId !== null) await selectNpc(state.npcId);
+    if (state.npcId !== null) return await selectNpc(state.npcId);
+    state.detail = null;
+    renderAnimList();
     return;
   }
 
-  if (!state.objs.length) {
-    state.objs = await (await fetch('/api/objs.json')).json();
+  if (mode === 'obj') {
+    await ensureObjs();
+    renderNpcList();
+    if (state.objId !== null) return await selectObj(state.objId, state.objVariant);
+    state.detail = null;
+    renderAnimList();
+    return;
+  }
+
+  if (mode === 'loc') {
+    if (!state.locs.length) state.locs = await (await fetch('/api/locs.json')).json();
+    renderNpcList();
+    if (state.locId !== null) return await selectLoc(state.locId, state.locShape);
+    state.detail = null;
+    renderAnimList();
+    return;
+  }
+
+  await ensureObjs();
+  if (!state.spotanims.length) {
     state.spotanims = await (await fetch('/api/spotanims.json')).json();
     fillSpotanimList();
   }
@@ -1002,6 +1317,18 @@ async function renderCaches(data) {
 async function reloadForCache() {
   const res = await fetch('/api/npcs.json');
   state.npcs = await res.json();
+
+  /*
+   * The obj and loc lists are the new cache's too, and they are dropped rather
+   * than refetched: each is tens of thousands of rows, and neither is needed
+   * until its mode is entered. Emptying them is what makes setMode refetch —
+   * keeping the old cache's rows would list ids that mean something else here.
+   */
+  state.objs = [];
+  state.locs = [];
+  state.objDetail = null;
+  state.locDetail = null;
+
   renderNpcList();
   document.getElementById('npcCount').textContent = `${state.npcs.length} npcs`;
 
@@ -1020,6 +1347,10 @@ async function reloadForCache() {
     state.detail = await (await fetch('/api/rig/0.json')).json();
     renderAnimList();
     await rebuildPlayer();
+  } else if (state.mode === 'obj' || state.mode === 'loc') {
+    /* setMode refetches the list this mode needs and re-selects the subject
+     * against the new cache, which is exactly the reload wanted here. */
+    await setMode(state.mode);
   }
 
   watchRigs();
@@ -1306,6 +1637,8 @@ function wireInput() {
   };
 
   document.getElementById('modeNpc').onclick = () => setMode('npc');
+  document.getElementById('modeObj').onclick = () => setMode('obj');
+  document.getElementById('modeLoc').onclick = () => setMode('loc');
   document.getElementById('modePlayer').onclick = () => setMode('player');
 
   document.getElementById('fxPick').addEventListener('change', (e) => {
@@ -1345,9 +1678,12 @@ function wireInput() {
  * what lets a headless browser open the viewer already configured, which is how
  * this page is tested at all.
  *
- * Recognised: `player`, `wear=` (comma separated obj ids), `npc=`, `seq=`,
- * `fx=` (spotanim id), `delay=`, `height=`, `orient=`, `pitch=`, `yaw=`,
- * `zoom=`, `paused`, `cycle=`.
+ * Recognised: `player`, `wear=` (comma separated obj ids), `npc=`, `obj=`,
+ * `variant=`, `loc=`, `shape=`, `seq=`, `fx=` (spotanim id), `delay=`,
+ * `height=`, `orient=`, `pitch=`, `yaw=`, `zoom=`, `paused`, `cycle=`.
+ *
+ * `obj=` and `loc=` carry a part with them — `variant=` and `shape=` — because
+ * neither id names a single mesh on its own.
  */
 function hashParams() {
   const out = {};
@@ -1373,6 +1709,16 @@ async function applyHash(p) {
     await setMode('player');
   }
   if (p.npc !== undefined) await selectNpc(Number(p.npc));
+  if (p.obj !== undefined) {
+    await setMode('obj');
+    await selectObj(Number(p.obj), p.variant !== undefined ? Number(p.variant) : 0);
+  }
+  if (p.loc !== undefined) {
+    await setMode('loc');
+    await selectLoc(Number(p.loc), p.shape !== undefined ? Number(p.shape) : null);
+  }
+  /* After the subject: selecting a loc plays the sequence its record names, and
+   * an explicit `seq=` is the one the link meant. */
   if (p.seq !== undefined) await selectSeq(Number(p.seq));
 
   if (p.height !== undefined) {

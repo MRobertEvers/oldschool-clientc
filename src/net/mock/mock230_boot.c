@@ -33,6 +33,31 @@
 #define DEFAULT_HOME_Z 3218
 
 /*
+ * A boolean server flag that is ON unless the environment turns it off.
+ *
+ * The ordinary `getenv(...) != NULL` idiom cannot express this: a flag that
+ * defaults on needs a way to say "no", and "unset the variable" is not
+ * available to a launcher that sets its whole environment from a config. `0`,
+ * `no`, `off` and `false` all disable; anything else, including unset, leaves
+ * it on.
+ *
+ * It lives here rather than beside the other env reads in mock230_main.c
+ * because main.c is the standalone server binary only -- the embed, the
+ * selftest and embed_test link MOCK230_CORE_SRCS without it, and all three
+ * call this.
+ */
+int
+mock230_flag_default_on(const char* name)
+{
+    const char* value = getenv(name);
+
+    if( !value || !*value )
+        return 1;
+    return !(strcmp(value, "0") == 0 || strcmp(value, "no") == 0 ||
+             strcmp(value, "off") == 0 || strcmp(value, "false") == 0);
+}
+
+/*
  * The ../ fallback: the server is run both from the repo root and from src/,
  * and having it work either way is worth more than insisting on one.
  */

@@ -206,21 +206,96 @@ in lines and coupling, but nothing waits on it.
 
 ---
 
-## 4. Slices
+## 4. Slices — as built
 
-| # | Slice | Files | Proof |
+All five landed on 2026-08-16. Deltas from the plan above are marked **CHANGED**
+and explained; the plan text in §1–§3 is what was designed, this is what exists.
+
+| # | Slice | Where | Proof it works |
 |---|---|---|---|
-| **S0** | E3: `::useon` cheat + `[debugproc,useonrun]` with the seven pairs, both orders. Land it against today's engine so the defects are on record. | `mock230_world.c` (cheat table), `selftest_useon.rs2` | `useonrun` red on runite bolts × onyx tips both orders; green on string × shortbow both orders. |
-| **S1** | E2 orientation. Flip the C stanza (`mock230_world.c:30962-31000`, "inverted, as the reference leaves it") and `selftest_useon.rs2 [opheldu,_bones]` to the new invariant; update the rung comments in `mock230_scripts_run_opheldu` (`:2531-2563`) and `selftest_useon.rs2:44-60` — they currently document the inversion as deliberate. | `mock230_scripts.c`, `mock230_world.c`, `selftest_useon.rs2` | Mutate first (`verify-blocker-and-failing-test`): with E2 in and the stanza *not* flipped, `--selftest` must go red on exactly the four "inverted" checks. Then flip; green. `useonrun`: bolts-on-tips still red (D1), tips-on-bolts still red. |
-| **S2** | E1 decline: opcode in `gen_opcode_meta.py` (+ regenerate `ss_opcode.h`/`ss_meta.gen.h`), handler, `trigger_declined` field, loop in `run_opheldu`, loop in `run_trigger_impl` chained path, `MOCK230_TRIGGER_DECLINED`, the eight `nothing_interesting_message` call sites. Audit content for `~displaymessage(^dm_default)` reached *after* a state change (grep for it not at a `case default` / not the last statement; expect a handful). Then the one-file `displaymessage.rs2` change. | `src/serverscript/gen_opcode_meta.py`, `ss_opcode.h`, `ss_meta.gen.h`, `mock230_scripts.c`, `mock230_world.c`, `displaymessage.rs2` | `useonrun` fully green — runite bolts × onyx tips both orders, with `weapon_poison.rs2` **untouched**. `--selftest` unchanged. Mutation: comment out the fall-through `continue` → bolts probe red again. |
-| **S3** | E4 rung trace. | `mock230_scripts.c` | Verbose run of the bolts pair prints `r3 [opheldu,_bolts] declined, r4 [opheldu,_bolttips] ran`. |
-| **S4** | Docs + memory: rewrite `TOOL_TRIGGER_ORGANISATION.md` §1 and §4 per §3 above; retire `name-binding-silently-kills-category` and the R3 "write inverted" rule; note the divergence from reference in `PORTING_GUIDE.md`'s engine-vs-content section. | docs | — |
+| **S0** | The driver: `::useon <a> <b>` cheat (`mock230_world.c`, `handle_cheat`) plus `selftest_useon()` / `selftest_useon_both()` and a five-pair stanza in the use-on selftest. **CHANGED**: no `[debugproc,useonrun]` — the assertions are C, alongside the existing rung probes, so `--selftest` covers them with nothing to remember to run. | `mock230_world.c` | A/B over 3+3 runs: baseline 6 failures, with the probe 8, and the delta is exactly the two real defects. Nothing else shifted. |
+| **S1** | E2 orientation: `opheldu_orient()` replaces `opheldu_swap()`; the pair is re-stated per rung from the values `handle_opheldu` latched. | `mock230_scripts.c` | Mutation first: with E2 in and the old assertions untouched, `--selftest` went red on exactly the 5 checks that pinned the inversion, each printing the new orientation. Then the assertions and `selftest_useon.rs2`'s `[opheldu,_bones]` were flipped; green. |
+| **S2** | E1 decline: `trigger_decline` (opcode 11044), `run_rung()`, rung loops in `mock230_scripts_run_opheldu` and in `run_trigger_impl`'s chained path. **CHANGED**: no `MOCK230_TRIGGER_DECLINED` enum value — see below. | `gen_opcode_meta.py`, `ss_opcode.h`, `ss_meta.gen.h`, `mock230_scripts.c`, `mock230.h` | Three new selftest checks: rung 1 declines → rung 2 answers (total 7); a rung that *answers* still ends the dispatch (4, not 7); declined with nothing below it runs the decliner and the engine fallback refuses. Poison-on-bronze-bolts went green with `[opheldu,weapon_poison]` untouched. |
+| **S3** | E4 rung trace, under `srv->verbose`, for both resolvers. **ADDED**: `mock230_world_selftest` now reads `MOCK230_VERBOSE` like the three socket entry points — it was the one caller that could not be attached to with a client, and the trace was unreachable from it. | `mock230_scripts.c`, `mock230_world.c` | It is what found the third defect below, in one run. |
+| **S4** | This document, `TOOL_TRIGGER_ORGANISATION.md` §1/§4, and the content edits. | docs, content | — |
 
-S1 before S2 on purpose: with orientation fixed first, the moment decline
-lands, every category script in the tree is *correct and reachable*
-simultaneously, and `useonrun` measures exactly that.
+### CHANGED: no `MOCK230_TRIGGER_DECLINED` enum value
 
----
+The plan proposed a fourth `Mock230TriggerResult` and said the ~20 sites that
+branch on `== MOCK230_TRIGGER_NONE` would treat it as NONE for the message and
+not for the fallback. Reading those sites, the enum turned out to be the more
+dangerous of the two designs: every one of them would have had to be edited
+correctly, and a missed one fails silently in whichever direction the author of
+that line happened to write it.
+
+What is built instead: an all-declined dispatch returns `MOCK230_TRIGGER_NONE`
+— which is *true* from the player's side, where "content looked and said no" and
+"content binds nothing" are the same event and get the same message — and sets
+`srv->dispatch_declined`. `mock230_scripts_fallback()` consumes that flag and
+answers 0. That function's entire job is already "may C stand in for content
+here?", it is the single gate every fallback passes through, and it already
+distinguishes two other cases for the same reason. One edit, no call-site audit,
+and the door still does not open because content declined to open it.
+
+### CHANGED: `trigger_decline` ends the script
+
+Not in the plan, and it is what makes the command safe to give to content. The
+plan's contract was "call it before doing anything", enforced by review. But the
+shape it replaces is *`if (...) { ...work... } ~displaymessage(^dm_default);`
+with no `return`* — `bows.rs2` strings a bow and then falls through to the
+message, and so do the other eleven unstrung bows, `[opheldu,weapon_poison]`,
+and much of Herblore. Had `~displaymessage(^dm_default)` simply been redefined to
+decline, as the plan's first option suggested, a successful stringing would have
+declined and the next rung would have strung a second bow.
+
+So `trigger_decline` sets `state->execution = SSVM_FINISHED`: a script that
+declines does nothing further, by construction rather than by promise. And
+`displaymessage.rs2` was left alone — declining is a per-site decision the
+author makes, not a change of meaning for a proc 799 scripts already call.
+`run_rung()` additionally refuses to honour a decline from a script that
+*parked*, which `trigger_decline` now makes impossible but which is a cheap
+check for a claim worth keeping true.
+
+### The third defect, found by S3's trace
+
+Fixing dispatch was not enough to make gem-tipped bolts work, and the trace said
+why in one line: after `[opheldu,_bolt_ammo]` correctly declined, the rung below
+it declined too, because its own guard `oc_category(last_useitem) = bolts` was
+false.
+
+**`bolts` was both a category (63) and an obj** — a dragon drop, used as
+`obj_add(npc_coord, bolts, ...)` in three drop tables. `parse_case_value` and
+expression symbols resolve with `SSC_SYM_UNKNOWN`, so a bare name takes whichever
+namespace is found first; this one took the obj, and the guard compared category
+63 against an obj id for ever. `switch_category` does not help — the
+`switch_<type>` prefix is not used for symbol resolution.
+
+`pack/category.pack`'s own header documents this trap and calls the previous one
+"its fifth instance". This was the sixth, and it got past the check that note
+prescribes (`grep -rn "=<name>$" configs/*.compack pack/*`) because an obj name
+is never written `=bolts` — it is a `[bolts]` section header in `configs/all.obj`.
+The header now says to grep the section headers too.
+
+Category 63 is renamed `bolt_ammo`, which fixed a second live consumer nobody was
+looking for: `combat_stats.rs2:214`'s quiver check
+(`oc_category($obj) = bolts & (... weapon_crossbow ...)`) was equally false, so
+**no crossbow was granting its ammo's rangebonus**. That one has nothing to do
+with use-on dispatch and would not have been found by this work except through
+the rename.
+
+### Content edited
+
+Deliberately small — the point of the engine change is that content stops having
+to be arranged around the resolver:
+
+- `selftest_useon.rs2` — `[opheldu,_bones]` flipped to the one orientation, and
+  two new probe scripts (`bucket_empty` declines, `vial_empty` answers).
+- `weapon_poison.rs2` — the five category bindings' `case default` arms now
+  `trigger_decline`. Their header records that E2 also fixed them: they pass
+  `last_slot` as the weapon slot, which under the old inverted category rungs was
+  the *poison's* slot.
+- `bolts.rs2` — the two `else` arms decline; the guard names `bolt_ammo`.
+- `combat_stats.rs2`, `pack/category.pack` — the rename.
 
 ## 5. Considered and rejected
 

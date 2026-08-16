@@ -1,0 +1,23 @@
+{
+  "name": "tree-sitter-runescript",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for RuneScript (.rs2 ServerScript and .cs2 ClientScript)",
+  "private": true,
+  "main": "bindings/node",
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.26.12"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.runescript",
+      "file-types": ["rs2", "cs2"],
+      "highlights": "queries/highlights.scm",
+      "locals": "queries/locals.scm",
+      "injections": "queries/injections.scm"
+    }
+  ]
+}

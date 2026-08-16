@@ -1,0 +1,1308 @@
+#include "index.h"
+
+#include "platform.h"
+#include "util.h"
+
+#include <tree_sitter/api.h>
+
+#include <assert.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* The engine's own tables, linked straight out of the tree they document. */
+#include "serverscript/ss_meta.h"
+#include "serverscript/ss_opcode.h"
+#include "serverscript/ss_trigger.h"
+
+#include "cs2/cs2_command.h"
+#include "cs2/cs2_types.h"
+
+const TSLanguage*
+tree_sitter_runescript(void);
+
+/* ------------------------------------------------------------------ */
+/* Kind tables                                                         */
+/* ------------------------------------------------------------------ */
+
+static const char* const k_kind_names[RS_KIND_COUNT] = {
+    [RS_KIND_UNKNOWN] = "unknown",       [RS_KIND_PROC] = "proc",
+    [RS_KIND_LABEL] = "label",           [RS_KIND_TRIGGER_SCRIPT] = "script",
+    [RS_KIND_CLIENTSCRIPT] = "clientscript", [RS_KIND_COMMAND] = "command",
+    [RS_KIND_CONSTANT] = "constant",     [RS_KIND_LOCAL] = "local",
+    [RS_KIND_TRIGGER] = "trigger",       [RS_KIND_TYPE] = "type",
+    [RS_KIND_NPC] = "npc",               [RS_KIND_OBJ] = "obj",
+    [RS_KIND_LOC] = "loc",               [RS_KIND_INV] = "inv",
+    [RS_KIND_ENUM] = "enum",             [RS_KIND_STRUCT] = "struct",
+    [RS_KIND_PARAM] = "param",           [RS_KIND_SEQ] = "seq",
+    [RS_KIND_SPOTANIM] = "spotanim",     [RS_KIND_VARP] = "varp",
+    [RS_KIND_VARBIT] = "varbit",         [RS_KIND_VARC] = "varc",
+    [RS_KIND_VARN] = "varn",             [RS_KIND_VARS] = "vars",
+    [RS_KIND_DBTABLE] = "dbtable",       [RS_KIND_DBROW] = "dbrow",
+    [RS_KIND_INTERFACE] = "interface",   [RS_KIND_COMPONENT] = "component",
+    [RS_KIND_CATEGORY] = "category",     [RS_KIND_STAT] = "stat",
+    [RS_KIND_SYNTH] = "synth",           [RS_KIND_JINGLE] = "jingle",
+    [RS_KIND_IDK] = "idk",               [RS_KIND_MESANIM] = "mesanim",
+    [RS_KIND_HITSPLAT] = "hitsplat",     [RS_KIND_HEALTHBAR] = "healthbar",
+    [RS_KIND_MAPELEMENT] = "mapelement", [RS_KIND_OVERLAY] = "overlay",
+    [RS_KIND_UNDERLAY] = "underlay",     [RS_KIND_MODEL] = "model",
+    [RS_KIND_ANIM] = "anim",             [RS_KIND_SPRITE] = "sprite",
+    [RS_KIND_TEXTURE] = "texture",       [RS_KIND_FONT] = "font",
+    [RS_KIND_MAP] = "map",               [RS_KIND_SPAWN] = "spawn",
+};
+
+const char*
+RS_KindName(enum RS_Kind kind)
+{
+    if( kind < 0 || kind >= RS_KIND_COUNT || !k_kind_names[kind] )
+        return "unknown";
+    return k_kind_names[kind];
+}
+
+const char*
+RS_OriginName(enum RS_Origin origin)
+{
+    switch( origin )
+    {
+    case RS_ORIGIN_RECORD:
+        return "record";
+    case RS_ORIGIN_ALLOC:
+        return "allocation";
+    case RS_ORIGIN_NAMEINDEX:
+        return "name index";
+    case RS_ORIGIN_MEMBERSHIP:
+        return "membership";
+    case RS_ORIGIN_SCRIPT:
+        return "script";
+    case RS_ORIGIN_CONSTANT:
+        return "constant";
+    case RS_ORIGIN_SPAWN:
+        return "spawn";
+    case RS_ORIGIN_BUILTIN:
+        return "engine";
+    }
+    return "?";
+}
+
+int
+RS_KindIsVariable(enum RS_Kind kind)
+{
+    return kind == RS_KIND_VARP || kind == RS_KIND_VARBIT || kind == RS_KIND_VARC ||
+           kind == RS_KIND_VARN || kind == RS_KIND_VARS;
+}
+
+enum RS_Kind
+RS_KindForNamespace(const char* stem)
+{
+    int i;
+
+    assert(stem);
+    for( i = 0; i < RS_KIND_COUNT; i++ )
+    {
+        if( k_kind_names[i] && strcmp(k_kind_names[i], stem) == 0 )
+            return (enum RS_Kind)i;
+    }
+    /* The archive-level packs name themselves in the plural, and a couple use
+     * a word the language does not: `pack/7_models.pack`, `0_animations.pack`,
+     * `12_clientscripts.pack`, `4_soundeffects.pack`. */
+    if( strcmp(stem, "models") == 0 )
+        return RS_KIND_MODEL;
+    if( strcmp(stem, "animations") == 0 || strcmp(stem, "anims") == 0 )
+        return RS_KIND_ANIM;
+    if( strcmp(stem, "clientscripts") == 0 )
+        return RS_KIND_CLIENTSCRIPT;
+    if( strcmp(stem, "soundeffects") == 0 || strcmp(stem, "synths") == 0 )
+        return RS_KIND_SYNTH;
+    if( strcmp(stem, "sprites") == 0 )
+        return RS_KIND_SPRITE;
+    if( strcmp(stem, "textures") == 0 )
+        return RS_KIND_TEXTURE;
+    if( strcmp(stem, "fonts") == 0 )
+        return RS_KIND_FONT;
+    if( strcmp(stem, "interfaces") == 0 )
+        return RS_KIND_INTERFACE;
+    if( strcmp(stem, "maps") == 0 )
+        return RS_KIND_MAP;
+    if( strcmp(stem, "musicjingles") == 0 || strcmp(stem, "jingles") == 0 )
+        return RS_KIND_JINGLE;
+    return RS_KIND_UNKNOWN;
+}
+
+enum RS_Kind
+RS_KindForExtension(const char* extension)
+{
+    assert(extension);
+    /* `.if` files hold one record per COMPONENT; the interface is the file. */
+    if( strcmp(extension, "if") == 0 )
+        return RS_KIND_COMPONENT;
+    if( strcmp(extension, "varc") == 0 )
+        return RS_KIND_VARC;
+    return RS_KindForNamespace(extension);
+}
+
+/* ------------------------------------------------------------------ */
+/* Property-key sets                                                   */
+/* ------------------------------------------------------------------ */
+
+struct RS_KeySet
+{
+    char extension[16];
+    char** keys;
+    int count;
+    int capacity;
+};
+
+static void
+keyset_add(struct RS_Index* index, const char* extension, const char* key)
+{
+    struct RS_KeySet* set = NULL;
+    int i;
+
+    for( i = 0; i < index->keyset_count; i++ )
+    {
+        if( strcmp(index->keysets[i].extension, extension) == 0 )
+        {
+            set = &index->keysets[i];
+            break;
+        }
+    }
+    if( !set )
+    {
+        if( index->keyset_count == index->keyset_capacity )
+        {
+            index->keyset_capacity = index->keyset_capacity ? index->keyset_capacity * 2 : 16;
+            index->keysets = (struct RS_KeySet*)realloc(
+                index->keysets, (size_t)index->keyset_capacity * sizeof(*index->keysets));
+            assert(index->keysets);
+        }
+        set = &index->keysets[index->keyset_count++];
+        memset(set, 0, sizeof(*set));
+        snprintf(set->extension, sizeof(set->extension), "%.15s", extension);
+    }
+
+    for( i = 0; i < set->count; i++ )
+    {
+        if( strcmp(set->keys[i], key) == 0 )
+            return;
+    }
+    if( set->count == set->capacity )
+    {
+        set->capacity = set->capacity ? set->capacity * 2 : 32;
+        set->keys = (char**)realloc(set->keys, (size_t)set->capacity * sizeof(*set->keys));
+        assert(set->keys);
+    }
+    set->keys[set->count++] = Str_Dup(key);
+}
+
+int
+RS_IndexKeys(
+    struct RS_Index* index,
+    const char* extension,
+    const char* const** out_keys)
+{
+    int i;
+
+    assert(index);
+    assert(extension);
+    assert(out_keys);
+    for( i = 0; i < index->keyset_count; i++ )
+    {
+        if( strcmp(index->keysets[i].extension, extension) == 0 )
+        {
+            *out_keys = (const char* const*)index->keysets[i].keys;
+            return index->keysets[i].count;
+        }
+    }
+    *out_keys = NULL;
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Symbol storage                                                      */
+/* ------------------------------------------------------------------ */
+
+void
+RS_IndexInit(struct RS_Index* index)
+{
+    assert(index);
+    memset(index, 0, sizeof(*index));
+}
+
+static void
+symbol_free(struct RS_Symbol* symbol)
+{
+    free(symbol->name);
+    free(symbol->file);
+    free(symbol->detail);
+    free(symbol->doc);
+    memset(symbol, 0, sizeof(*symbol));
+}
+
+void
+RS_IndexFree(struct RS_Index* index)
+{
+    int i;
+    int j;
+
+    if( !index )
+        return;
+
+    for( i = 0; i < index->count; i++ )
+        symbol_free(&index->symbols[i]);
+    free(index->symbols);
+    free(index->order);
+
+    for( i = 0; i < index->file_count; i++ )
+        free(index->files[i]);
+    free(index->files);
+
+    for( i = 0; i < index->root_count; i++ )
+        free(index->roots[i]);
+    free(index->roots);
+
+    for( i = 0; i < index->keyset_count; i++ )
+    {
+        for( j = 0; j < index->keysets[i].count; j++ )
+            free(index->keysets[i].keys[j]);
+        free(index->keysets[i].keys);
+    }
+    free(index->keysets);
+
+    memset(index, 0, sizeof(*index));
+}
+
+static struct RS_Symbol*
+symbol_add(struct RS_Index* index, const char* name, enum RS_Kind kind)
+{
+    struct RS_Symbol* symbol;
+
+    assert(index);
+    assert(name);
+    if( !*name )
+        return NULL;
+
+    if( index->count == index->capacity )
+    {
+        index->capacity = index->capacity ? index->capacity * 2 : 4096;
+        index->symbols = (struct RS_Symbol*)realloc(
+            index->symbols, (size_t)index->capacity * sizeof(*index->symbols));
+        assert(index->symbols);
+    }
+
+    symbol = &index->symbols[index->count++];
+    memset(symbol, 0, sizeof(*symbol));
+    symbol->name = Str_Dup(name);
+    symbol->kind = kind;
+    symbol->id = -1;
+    index->sorted = 0;
+    return symbol;
+}
+
+static void
+file_add(struct RS_Index* index, const char* path)
+{
+    if( index->file_count == index->file_capacity )
+    {
+        index->file_capacity = index->file_capacity ? index->file_capacity * 2 : 1024;
+        index->files =
+            (char**)realloc(index->files, (size_t)index->file_capacity * sizeof(*index->files));
+        assert(index->files);
+    }
+    index->files[index->file_count++] = Str_Dup(path);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sorting and lookup                                                  */
+/* ------------------------------------------------------------------ */
+
+static struct RS_Index* g_sort_index;
+
+static int
+compare_order(const void* a, const void* b)
+{
+    const struct RS_Symbol* x = &g_sort_index->symbols[*(const int32_t*)a];
+    const struct RS_Symbol* y = &g_sort_index->symbols[*(const int32_t*)b];
+    int order = strcmp(x->name, y->name);
+
+    if( order )
+        return order;
+    if( x->kind != y->kind )
+        return (int)x->kind - (int)y->kind;
+    return (int)x->origin - (int)y->origin;
+}
+
+static void
+ensure_sorted(struct RS_Index* index)
+{
+    int i;
+
+    if( index->sorted )
+        return;
+
+    index->order = (int32_t*)realloc(index->order, (size_t)index->count * sizeof(*index->order));
+    assert(index->order || index->count == 0);
+    for( i = 0; i < index->count; i++ )
+        index->order[i] = i;
+
+    g_sort_index = index;
+    qsort(index->order, (size_t)index->count, sizeof(*index->order), compare_order);
+    g_sort_index = NULL;
+    index->sorted = 1;
+}
+
+/** The first ordered position whose name is >= `name`. */
+static int
+lower_bound(struct RS_Index* index, const char* name)
+{
+    int low = 0;
+    int high = index->count;
+
+    while( low < high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( strcmp(index->symbols[index->order[mid]].name, name) < 0 )
+            low = mid + 1;
+        else
+            high = mid;
+    }
+    return low;
+}
+
+int
+RS_IndexFind(struct RS_Index* index, const char* name, int* out_first)
+{
+    int first;
+    int last;
+
+    assert(index);
+    assert(name);
+    assert(out_first);
+
+    ensure_sorted(index);
+    first = lower_bound(index, name);
+    last = first;
+    while( last < index->count && strcmp(index->symbols[index->order[last]].name, name) == 0 )
+        last++;
+
+    *out_first = first;
+    return last - first;
+}
+
+const struct RS_Symbol*
+RS_IndexFindKind(struct RS_Index* index, const char* name, enum RS_Kind kind)
+{
+    int first = 0;
+    int count;
+    int i;
+
+    count = RS_IndexFind(index, name, &first);
+    for( i = 0; i < count; i++ )
+    {
+        const struct RS_Symbol* symbol = &index->symbols[index->order[first + i]];
+
+        if( symbol->kind == kind )
+            return symbol;
+    }
+    return NULL;
+}
+
+int
+RS_IndexPrefix(
+    struct RS_Index* index,
+    const char* prefix,
+    int32_t* out,
+    int out_capacity)
+{
+    size_t prefix_length;
+    int position;
+    int written = 0;
+
+    assert(index);
+    assert(prefix);
+    assert(out);
+
+    ensure_sorted(index);
+    prefix_length = strlen(prefix);
+    position = lower_bound(index, prefix);
+
+    while( position < index->count && written < out_capacity )
+    {
+        const struct RS_Symbol* symbol = &index->symbols[index->order[position]];
+
+        if( strncmp(symbol->name, prefix, prefix_length) != 0 )
+            break;
+        out[written++] = index->order[position];
+        position++;
+    }
+    return written;
+}
+
+/* ------------------------------------------------------------------ */
+/* Doc comments                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The run of `//` lines immediately above `line`, as one string.
+ *
+ * A blank line ends the run: this tree writes long explanatory blocks above a
+ * definition and a separate file banner above those, and joining the two would
+ * put a file's whole rationale into every hover in it.
+ */
+static char*
+doc_above(const char* text, const uint32_t* line_starts, uint32_t line_count, uint32_t line)
+{
+    struct Buf out = { 0 };
+    uint32_t first = line;
+    uint32_t i;
+
+    while( first > 0 )
+    {
+        const char* start = text + line_starts[first - 1];
+        const char* p = start;
+
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( p[0] != '/' || p[1] != '/' )
+            break;
+        first--;
+    }
+
+    if( first == line )
+        return NULL;
+
+    for( i = first; i < line && i < line_count; i++ )
+    {
+        const char* start = text + line_starts[i];
+        const char* end = start;
+        const char* p = start;
+
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        p += 2; /* the // */
+        if( *p == ' ' )
+            p++;
+
+        end = p;
+        while( *end && *end != '\n' && *end != '\r' )
+            end++;
+
+        if( out.length )
+            Buf_AppendChar(&out, '\n');
+        Buf_Append(&out, p, (size_t)(end - p));
+    }
+    return out.data;
+}
+
+/** Byte offsets of every line start. Caller frees. */
+static uint32_t*
+line_starts_of(const char* text, size_t length, uint32_t* out_count)
+{
+    uint32_t capacity = 256;
+    uint32_t count = 0;
+    uint32_t* starts = (uint32_t*)malloc(capacity * sizeof(*starts));
+    size_t i;
+
+    assert(starts);
+    starts[count++] = 0;
+    for( i = 0; i < length; i++ )
+    {
+        if( text[i] != '\n' )
+            continue;
+        if( count == capacity )
+        {
+            capacity *= 2;
+            starts = (uint32_t*)realloc(starts, capacity * sizeof(*starts));
+            assert(starts);
+        }
+        starts[count++] = (uint32_t)(i + 1);
+    }
+    *out_count = count;
+    return starts;
+}
+
+/* ------------------------------------------------------------------ */
+/* Config-family scanning                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The config family is scanned line by line rather than parsed.
+ *
+ * Not for want of a grammar — tools/tree-sitter-runeconfig parses every one of
+ * these files, and drives every editor feature once one is open. It is that the
+ * index reads ~55 MB of them at startup, most of it `configs/all.*` and 1,151
+ * `.compack` name indexes whose entire content is `id=name`. Building a syntax
+ * tree to read a line's first field costs about ten times what reading it does,
+ * and nothing downstream looks at the shape.
+ */
+
+struct ScanContext
+{
+    struct RS_Index* index;
+    const char* path;
+    const char* text;
+    const uint32_t* line_starts;
+    uint32_t line_count;
+};
+
+static int
+is_name_char(int c)
+{
+    return isalnum((unsigned char)c) || c == '_' || c == '+' || c == '-' || c == ':' ||
+           c == '.' || c == '/';
+}
+
+static void
+scan_config_file(
+    struct RS_Index* index,
+    const char* path,
+    const char* extension,
+    enum RS_Kind record_kind)
+{
+    char* text;
+    size_t length = 0;
+    uint32_t* line_starts;
+    uint32_t line_count = 0;
+    uint32_t line;
+    struct RS_Symbol* pending_record = NULL;
+
+    text = File_Read(path, &length);
+    if( !text )
+        return;
+
+    line_starts = line_starts_of(text, length, &line_count);
+
+    for( line = 0; line < line_count; line++ )
+    {
+        const char* start = text + line_starts[line];
+        const char* end = start;
+        const char* p;
+
+        while( *end && *end != '\n' )
+            end++;
+
+        p = start;
+        while( p < end && (*p == ' ' || *p == '\t') )
+            p++;
+        if( p >= end || (p[0] == '/' && p[1] == '/') )
+            continue;
+
+        if( *p == '[' )
+        {
+            const char* name_start = p + 1;
+            const char* name_end = name_start;
+            char* name;
+            struct RS_Symbol* symbol;
+
+            while( name_end < end && *name_end != ']' )
+                name_end++;
+            if( name_end >= end )
+                continue;
+
+            name = Str_DupN(name_start, (size_t)(name_end - name_start));
+            symbol = symbol_add(index, name, record_kind);
+            free(name);
+            if( symbol )
+            {
+                symbol->origin = RS_ORIGIN_RECORD;
+                symbol->file = Str_Dup(path);
+                symbol->line = line;
+                symbol->character = (uint32_t)(name_start - start);
+                symbol->end_line = line;
+                symbol->end_character = (uint32_t)(name_end - start);
+                symbol->doc = doc_above(text, line_starts, line_count, line);
+            }
+            pending_record = symbol;
+            continue;
+        }
+
+        /* `^name = value` */
+        if( *p == '^' )
+        {
+            const char* name_start = p + 1;
+            const char* name_end = name_start;
+            char* name;
+            struct RS_Symbol* symbol;
+
+            while( name_end < end && is_name_char(*name_end) )
+                name_end++;
+            name = Str_DupN(name_start, (size_t)(name_end - name_start));
+            symbol = symbol_add(index, name, RS_KIND_CONSTANT);
+            free(name);
+            if( symbol )
+            {
+                const char* value = name_end;
+
+                while( value < end && (*value == ' ' || *value == '\t' || *value == '=') )
+                    value++;
+                symbol->origin = RS_ORIGIN_CONSTANT;
+                symbol->file = Str_Dup(path);
+                symbol->line = line;
+                symbol->character = (uint32_t)(name_start - start);
+                symbol->end_line = line;
+                symbol->end_character = (uint32_t)(name_end - start);
+                symbol->detail = Str_DupN(value, (size_t)(end - value));
+                symbol->doc = doc_above(text, line_starts, line_count, line);
+            }
+            continue;
+        }
+
+        /* `id=name` (an allocation or a name index) or `key=value` (a field). */
+        {
+            const char* left_end = p;
+            int all_digits = 1;
+
+            while( left_end < end && *left_end != '=' )
+            {
+                if( !isdigit((unsigned char)*left_end) )
+                    all_digits = 0;
+                left_end++;
+            }
+
+            if( left_end < end && left_end > p && all_digits )
+            {
+                const char* name_start = left_end + 1;
+                const char* name_end = end;
+                char* name;
+                struct RS_Symbol* symbol;
+                enum RS_Kind kind = record_kind;
+
+                while( name_end > name_start &&
+                       (name_end[-1] == '\r' || name_end[-1] == ' ' || name_end[-1] == '\t') )
+                    name_end--;
+                if( name_end <= name_start )
+                    continue;
+
+                name = Str_DupN(name_start, (size_t)(name_end - name_start));
+                symbol = symbol_add(index, name, kind);
+                free(name);
+                if( symbol )
+                {
+                    symbol->origin = strcmp(extension, "alloc") == 0 ? RS_ORIGIN_ALLOC
+                                                                    : RS_ORIGIN_NAMEINDEX;
+                    symbol->file = Str_Dup(path);
+                    symbol->line = line;
+                    symbol->character = (uint32_t)(name_start - start);
+                    symbol->end_line = line;
+                    symbol->end_character = (uint32_t)(name_end - start);
+                    symbol->id = (int32_t)strtol(p, NULL, 10);
+                }
+                continue;
+            }
+
+            if( left_end < end && left_end > p )
+            {
+                char* key = Str_DupN(p, (size_t)(left_end - p));
+
+                keyset_add(index, extension, key);
+                /* A record's `name=` is what a human calls it; carrying it as
+                 * the symbol's detail is what makes hovering `molanisk` say
+                 * "Molanisk" rather than repeating the id. */
+                if( pending_record && strcmp(key, "name") == 0 && !pending_record->detail )
+                {
+                    const char* value = left_end + 1;
+                    const char* value_end = end;
+
+                    while( value_end > value && value_end[-1] == '\r' )
+                        value_end--;
+                    pending_record->detail = Str_DupN(value, (size_t)(value_end - value));
+                }
+                free(key);
+                continue;
+            }
+        }
+
+        /* A bare name line: `pack/varp.server` states membership that way, and
+         * a `.spawn` row leads with the name of what is being spawned. */
+        {
+            const char* name_end = p;
+
+            while( name_end < end && is_name_char(*name_end) )
+                name_end++;
+            if( name_end > p && record_kind != RS_KIND_UNKNOWN )
+            {
+                char* name = Str_DupN(p, (size_t)(name_end - p));
+                struct RS_Symbol* symbol = symbol_add(index, name, record_kind);
+
+                free(name);
+                if( symbol )
+                {
+                    symbol->origin = strcmp(extension, "spawn") == 0 ? RS_ORIGIN_SPAWN
+                                                                    : RS_ORIGIN_MEMBERSHIP;
+                    symbol->file = Str_Dup(path);
+                    symbol->line = line;
+                    symbol->character = (uint32_t)(p - start);
+                    symbol->end_line = line;
+                    symbol->end_character = (uint32_t)(name_end - start);
+                }
+            }
+        }
+    }
+
+    free(line_starts);
+    free(text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Script scanning                                                     */
+/* ------------------------------------------------------------------ */
+
+static TSParser* g_script_parser;
+
+static char*
+node_text(const char* source, TSNode node)
+{
+    uint32_t start = ts_node_start_byte(node);
+    uint32_t end = ts_node_end_byte(node);
+
+    return Str_DupN(source + start, end - start);
+}
+
+/**
+ * Index one `.rs2` or `.cs2`.
+ *
+ * This one really is parsed: a header carries a trigger, a subject, an
+ * argument list and a return list, all of which the hover and the signature
+ * help quote back, and picking them out of the text with a scanner would be
+ * re-implementing the grammar one regex at a time.
+ */
+static void
+scan_script_file(struct RS_Index* index, const char* path, int is_client)
+{
+    char* text;
+    size_t length = 0;
+    uint32_t* line_starts;
+    uint32_t line_count = 0;
+    TSTree* tree;
+    TSNode root;
+    uint32_t i;
+    uint32_t child_count;
+
+    text = File_Read(path, &length);
+    if( !text )
+        return;
+
+    if( !g_script_parser )
+    {
+        g_script_parser = ts_parser_new();
+        assert(g_script_parser);
+        ts_parser_set_language(g_script_parser, tree_sitter_runescript());
+    }
+
+    tree = ts_parser_parse_string(g_script_parser, NULL, text, (uint32_t)length);
+    if( !tree )
+    {
+        free(text);
+        return;
+    }
+    line_starts = line_starts_of(text, length, &line_count);
+
+    root = ts_tree_root_node(tree);
+    child_count = ts_node_child_count(root);
+    for( i = 0; i < child_count; i++ )
+    {
+        TSNode script = ts_node_child(root, i);
+        TSNode header;
+        TSNode trigger_node;
+        TSNode subject_node;
+        TSNode parameters;
+        TSNode returns;
+        TSPoint point;
+        char* trigger;
+        char* subject;
+        struct RS_Symbol* symbol;
+        enum RS_Kind kind;
+        struct Buf detail = { 0 };
+
+        if( strcmp(ts_node_type(script), "script") != 0 )
+            continue;
+
+        header = ts_node_child_by_field_name(script, "header", 6);
+        if( ts_node_is_null(header) )
+            continue;
+        trigger_node = ts_node_child_by_field_name(header, "trigger", 7);
+        subject_node = ts_node_child_by_field_name(header, "subject", 7);
+        if( ts_node_is_null(trigger_node) || ts_node_is_null(subject_node) )
+            continue;
+
+        trigger = node_text(text, trigger_node);
+        subject = node_text(text, subject_node);
+
+        if( strcmp(trigger, "proc") == 0 )
+            kind = RS_KIND_PROC;
+        else if( strcmp(trigger, "label") == 0 )
+            kind = RS_KIND_LABEL;
+        else if( strcmp(trigger, "command") == 0 )
+            kind = RS_KIND_COMMAND;
+        else if( strcmp(trigger, "clientscript") == 0 )
+            kind = RS_KIND_CLIENTSCRIPT;
+        else
+            kind = RS_KIND_TRIGGER_SCRIPT;
+
+        symbol = symbol_add(index, subject, kind);
+        if( symbol )
+        {
+            point = ts_node_start_point(subject_node);
+            symbol->origin = kind == RS_KIND_COMMAND ? RS_ORIGIN_BUILTIN : RS_ORIGIN_SCRIPT;
+            symbol->file = Str_Dup(path);
+            symbol->line = point.row;
+            symbol->character = point.column;
+            point = ts_node_end_point(subject_node);
+            symbol->end_line = point.row;
+            symbol->end_character = point.column;
+
+            Buf_Printf(&detail, "[%s,%s]", trigger, subject);
+            parameters = ts_node_child_by_field_name(script, "parameters", 10);
+            if( !ts_node_is_null(parameters) )
+            {
+                char* args = node_text(text, parameters);
+
+                Buf_AppendStr(&detail, args);
+                free(args);
+            }
+            returns = ts_node_child_by_field_name(script, "returns", 7);
+            if( !ts_node_is_null(returns) )
+            {
+                char* rets = node_text(text, returns);
+
+                Buf_AppendStr(&detail, rets);
+                free(rets);
+            }
+            symbol->detail = detail.data;
+            symbol->doc =
+                doc_above(text, line_starts, line_count, ts_node_start_point(header).row);
+        }
+        else
+        {
+            Buf_Free(&detail);
+        }
+
+        /* A trigger script is reachable two ways: by its bracketed name, which
+         * is what the container indexes, and by its subject, which is what a
+         * reader is looking at when they want "who handles this obj". Both are
+         * recorded; the second is what makes go-to-definition on `bow_string`
+         * offer the [opheldu] that binds it as well as the obj record. */
+        if( kind == RS_KIND_TRIGGER_SCRIPT || kind == RS_KIND_CLIENTSCRIPT )
+        {
+            char bracketed[512];
+            struct RS_Symbol* alias;
+
+            snprintf(bracketed, sizeof(bracketed), "[%s,%s]", trigger, subject);
+            alias = symbol_add(index, bracketed, kind);
+            if( alias )
+            {
+                point = ts_node_start_point(header);
+                alias->origin = RS_ORIGIN_SCRIPT;
+                alias->file = Str_Dup(path);
+                alias->line = point.row;
+                alias->character = point.column;
+                point = ts_node_end_point(header);
+                alias->end_line = point.row;
+                alias->end_character = point.column;
+                alias->detail = symbol ? (symbol->detail ? Str_Dup(symbol->detail) : NULL) : NULL;
+            }
+        }
+
+        free(trigger);
+        free(subject);
+    }
+
+    (void)is_client;
+    free(line_starts);
+    ts_tree_delete(tree);
+    free(text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Walking a root                                                      */
+/* ------------------------------------------------------------------ */
+
+/** The namespace a `pack/<stem>.<ext>` file describes. */
+static enum RS_Kind
+kind_for_pack_stem(const char* basename)
+{
+    char stem[128];
+    const char* dot;
+    const char* start = basename;
+    size_t length;
+
+    /* `7_models.pack` and `12_clientscripts.pack` lead with the cache index
+     * number; `all.varp.compack` leads with `all.`. */
+    while( isdigit((unsigned char)*start) )
+        start++;
+    if( start != basename && *start == '_' )
+        start++;
+    else
+        start = basename;
+
+    if( strncmp(start, "all.", 4) == 0 )
+        start += 4;
+
+    dot = strchr(start, '.');
+    length = dot ? (size_t)(dot - start) : strlen(start);
+    if( length >= sizeof(stem) )
+        length = sizeof(stem) - 1;
+    memcpy(stem, start, length);
+    stem[length] = '\0';
+
+    return RS_KindForNamespace(stem);
+}
+
+static int
+should_skip_directory(const char* name)
+{
+    /* Build outputs and vendored caches hold copies of the same content; two
+     * definitions of every name would make go-to-definition a coin flip. */
+    static const char* const k_skip[] = {
+        ".git", "node_modules", "build", "build-web", "out", "bin", "obj", "dist", NULL
+    };
+    int i;
+
+    if( name[0] == '.' )
+        return 1;
+    for( i = 0; k_skip[i]; i++ )
+    {
+        if( strcmp(name, k_skip[i]) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * The text formats this index reads.
+ *
+ * An allowlist rather than "anything whose extension names a namespace":
+ * `.model` and `.anim` name namespaces too, and there are 73,000 of them in a
+ * content tree — all binary. Reading those as text produced three quarters of
+ * a million junk symbols and most of the index's runtime.
+ */
+static const char* const k_config_extensions[] = {
+    "npc",      "obj",     "loc",       "inv",     "enum",      "struct",
+    "param",    "seq",     "spotanim",  "varp",    "varc",      "varbit",
+    "dbtable",  "dbrow",   "if",        "constant", "alloc",    "pack",
+    "compack",  "spawn",   "dbi",       "mesanim", "idk",       "flo",
+    "flu",      "hitsplat", "healthbar", "mapelement", "overlay", "underlay",
+    "client",   "server",  NULL
+};
+
+int
+RS_IsConfigExtension(const char* extension)
+{
+    int i;
+
+    assert(extension);
+    for( i = 0; k_config_extensions[i]; i++ )
+    {
+        if( strcmp(extension, k_config_extensions[i]) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+index_file(struct RS_Index* index, const char* path)
+{
+    const char* extension = Str_Extension(path);
+    const char* basename = Str_Basename(path);
+    enum RS_Kind kind;
+
+    if( strcmp(extension, "rs2") == 0 )
+    {
+        file_add(index, path);
+        scan_script_file(index, path, 0);
+        return;
+    }
+    if( strcmp(extension, "cs2") == 0 )
+    {
+        file_add(index, path);
+        scan_script_file(index, path, 1);
+        return;
+    }
+
+    if( !RS_IsConfigExtension(extension) )
+        return;
+
+    kind = RS_KindForExtension(extension);
+
+    /* `pack/varp.alloc`, `configs/all.npc.compack`, `pack/varp.server`: the
+     * namespace is in the name, not the extension. */
+    if( strcmp(extension, "alloc") == 0 || strcmp(extension, "pack") == 0 ||
+        strcmp(extension, "compack") == 0 || strcmp(extension, "client") == 0 ||
+        strcmp(extension, "server") == 0 )
+        kind = kind_for_pack_stem(basename);
+
+    if( strcmp(extension, "constant") == 0 )
+    {
+        file_add(index, path);
+        scan_config_file(index, path, extension, RS_KIND_CONSTANT);
+        return;
+    }
+
+    if( strcmp(extension, "spawn") == 0 )
+    {
+        file_add(index, path);
+        scan_config_file(index, path, extension, RS_KIND_SPAWN);
+        return;
+    }
+
+    if( kind == RS_KIND_UNKNOWN )
+        return;
+
+    file_add(index, path);
+    scan_config_file(index, path, extension, kind);
+
+    /* A `.if` file's own name is the interface its components belong to. */
+    if( strcmp(extension, "if") == 0 )
+    {
+        char stem[256];
+        const char* dot = strrchr(basename, '.');
+        size_t length = dot ? (size_t)(dot - basename) : strlen(basename);
+        struct RS_Symbol* symbol;
+
+        if( length >= sizeof(stem) )
+            length = sizeof(stem) - 1;
+        memcpy(stem, basename, length);
+        stem[length] = '\0';
+
+        symbol = symbol_add(index, stem, RS_KIND_INTERFACE);
+        if( symbol )
+        {
+            symbol->origin = RS_ORIGIN_RECORD;
+            symbol->file = Str_Dup(path);
+            symbol->line = 0;
+            symbol->character = 0;
+            symbol->end_line = 0;
+            symbol->end_character = 0;
+        }
+    }
+}
+
+static void
+walk_entry(void* context, const char* path, int is_directory)
+{
+    struct RS_Index* index = (struct RS_Index*)context;
+
+    if( is_directory )
+    {
+        if( !should_skip_directory(Str_Basename(path)) )
+            Plat_ListDirectory(path, index, walk_entry);
+        return;
+    }
+    index_file(index, path);
+}
+
+static void
+walk_directory(struct RS_Index* index, const char* directory)
+{
+    Plat_ListDirectory(directory, index, walk_entry);
+}
+
+void
+RS_IndexAddRoot(struct RS_Index* index, const char* root)
+{
+    assert(index);
+    assert(root);
+
+    index->roots =
+        (char**)realloc(index->roots, (size_t)(index->root_count + 1) * sizeof(*index->roots));
+    assert(index->roots);
+    index->roots[index->root_count++] = Str_Dup(root);
+
+    walk_directory(index, root);
+    index->sorted = 0;
+}
+
+void
+RS_IndexReloadFile(struct RS_Index* index, const char* path)
+{
+    int read = 0;
+    int write = 0;
+
+    assert(index);
+    assert(path);
+
+    /* Drop what this file said last time. The symbols move within the array,
+     * so the order index is invalidated wholesale rather than patched. */
+    for( read = 0; read < index->count; read++ )
+    {
+        if( index->symbols[read].file && strcmp(index->symbols[read].file, path) == 0 )
+        {
+            symbol_free(&index->symbols[read]);
+            continue;
+        }
+        if( write != read )
+            index->symbols[write] = index->symbols[read];
+        write++;
+    }
+    index->count = write;
+    index->sorted = 0;
+
+    index_file(index, path);
+}
+
+/* ------------------------------------------------------------------ */
+/* Built-in vocabulary                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The engine's own names, taken from the tables that define them rather than
+ * from a list typed here:
+ *
+ *   src/serverscript/ss_meta.c   server opcodes and every trigger word
+ *   3rd/rscache/src/cs2          client opcodes, with typed prototypes
+ *
+ * Content's own `[command,...]` declarations in engine.rs2 are indexed from the
+ * workspace as well, and carry argument names; they sort ahead of these because
+ * a declaration with names beats an arity.
+ */
+
+/**
+ * A prototype's spelling, tolerating the ids that carry none.
+ *
+ * RSCACHE_CS2_PROTO_NONE is -1 and means "this argument constrains nothing" —
+ * a real answer for the commands whose stack shape the data decides. Passing
+ * it to ProtoGet trips that function's own assert, so the range test belongs
+ * here, at the one call site that can legitimately see it.
+ */
+static const struct RSCache_CS2_Prototype*
+proto_or_null(enum RSCache_CS2_ProtoId id)
+{
+    if( id < 0 || id >= RSCACHE_CS2_PROTO_COUNT_ )
+        return NULL;
+    return RSCache_CS2_ProtoGet(id);
+}
+
+static void
+add_builtin_command(
+    struct RS_Index* index,
+    const char* name,
+    const char* detail,
+    const char* doc)
+{
+    struct RS_Symbol* symbol = symbol_add(index, name, RS_KIND_COMMAND);
+
+    if( !symbol )
+        return;
+    symbol->origin = RS_ORIGIN_BUILTIN;
+    if( detail )
+        symbol->detail = Str_Dup(detail);
+    if( doc )
+        symbol->doc = Str_Dup(doc);
+}
+
+void
+RS_IndexAddBuiltins(struct RS_Index* index)
+{
+    int opcode;
+    int i;
+
+    assert(index);
+
+    /* Server opcodes. The name table is sparse; an id with no name reports
+     * "OP_<n>", which is not a name content can write, so it is skipped. */
+    for( opcode = 0; opcode < SS_OPCODE_COUNT; opcode++ )
+    {
+        const char* name = SSVM_OpcodeName(opcode);
+        const struct SSVM_OpcodeMeta* meta = SSVM_OpcodeMeta(opcode);
+        char detail[160];
+        char lowered[128];
+        size_t j;
+
+        if( !name || strncmp(name, "OP_", 3) == 0 )
+            continue;
+
+        snprintf(lowered, sizeof(lowered), "%.127s", name);
+        for( j = 0; lowered[j]; j++ )
+            lowered[j] = (char)tolower((unsigned char)lowered[j]);
+
+        if( meta && meta->known )
+            snprintf(detail, sizeof(detail),
+                     "server opcode %d — pops %d int / %d string, pushes %d int / %d string",
+                     opcode, meta->int_in, meta->str_in, meta->int_out, meta->str_out);
+        else
+            snprintf(detail, sizeof(detail), "server opcode %d — signature unknown", opcode);
+
+        add_builtin_command(index, lowered, detail, NULL);
+    }
+
+    /* Client opcodes, with the prototype list the decompiler prints. */
+    for( opcode = 0; opcode < 8192; opcode++ )
+    {
+        const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+        struct Buf detail = { 0 };
+
+        if( !info || !info->name || info->name[0] == '_' )
+            continue;
+        if( RS_IndexFindKind(index, info->name, RS_KIND_COMMAND) )
+            continue;
+
+        /* `arg_offset` indexes the shared prototype POOL, not the prototype
+         * enum; RSCache_CS2_CommandArg is the accessor that reads through it. */
+        Buf_Printf(&detail, "%s(", info->name);
+        for( i = 0; i < info->arg_count; i++ )
+        {
+            const struct RSCache_CS2_Prototype* proto =
+                proto_or_null(RSCache_CS2_CommandArg(info, i));
+
+            if( i )
+                Buf_AppendStr(&detail, ", ");
+            Buf_AppendStr(&detail, proto && proto->identifier ? proto->identifier : "int");
+        }
+        Buf_AppendChar(&detail, ')');
+        for( i = 0; i < info->def_count; i++ )
+        {
+            const struct RSCache_CS2_Prototype* proto =
+                proto_or_null(RSCache_CS2_CommandDef(info, i));
+
+            Buf_AppendStr(&detail, i ? ", " : "(");
+            Buf_AppendStr(&detail, proto && proto->identifier ? proto->identifier : "int");
+        }
+        if( info->def_count )
+            Buf_AppendChar(&detail, ')');
+        Buf_Printf(&detail, "  — client opcode %d", opcode);
+
+        add_builtin_command(index, info->name, detail.data, NULL);
+        Buf_Free(&detail);
+    }
+
+    /* Trigger words. `[opheldu,...]` is only a script header if `opheldu` is
+     * one of these, so they are what a header's completion offers and what its
+     * diagnostic checks against. */
+    for( i = 0; i <= SS_TRIGGER_MAX; i++ )
+    {
+        const char* name = SSVM_TriggerName(i);
+        struct RS_Symbol* symbol;
+
+        if( !name || !*name )
+            continue;
+        symbol = symbol_add(index, name, RS_KIND_TRIGGER);
+        if( !symbol )
+            continue;
+        symbol->origin = RS_ORIGIN_BUILTIN;
+        symbol->id = i;
+    }
+
+    /* The type words an argument list and a `def_`/`switch_` suffix can use.
+     * These have no `.pack` of their own — ssc_symbols.c seeds them the same
+     * way, for the same reason. */
+    {
+        static const char* const k_types[] = {
+            "int",       "string",    "boolean",  "coord",     "npc",      "obj",
+            "namedobj",  "loc",       "seq",      "spotanim",  "inv",      "enum",
+            "struct",    "param",     "stat",     "category",  "npc_uid",  "player_uid",
+            "npc_stat",  "interface", "component", "dbtable",  "dbrow",    "dbcolumn",
+            "varp",      "synth",     "fontmetrics", "idkit",  "mesanim",  "locshape",
+            "npc_mode",  "moveSpeed", "hitmark",  "healthbar", "char",     "maparea",
+            NULL
+        };
+
+        for( i = 0; k_types[i]; i++ )
+        {
+            struct RS_Symbol* symbol = symbol_add(index, k_types[i], RS_KIND_TYPE);
+
+            if( symbol )
+                symbol->origin = RS_ORIGIN_BUILTIN;
+        }
+    }
+}

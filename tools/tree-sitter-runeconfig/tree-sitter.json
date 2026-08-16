@@ -1,0 +1,22 @@
+{
+  "grammars": [
+    {
+      "name": "runeconfig",
+      "camelcase": "RuneConfig",
+      "scope": "source.runeconfig",
+      "path": ".",
+      "file-types": [
+        "npc", "obj", "loc", "inv", "enum", "struct", "param", "seq",
+        "spotanim", "varp", "dbtable", "dbrow", "if", "constant", "alloc",
+        "pack", "compack", "memberpack", "filepack", "spawn", "dbi",
+        "mesanim", "idk", "flo", "flu", "stats", "combat"
+      ],
+      "highlights": ["queries/highlights.scm"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Grammar for the RuneScript content tree's declaration files"
+  }
+}

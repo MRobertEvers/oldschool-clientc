@@ -193,13 +193,18 @@ $(BUILD)/toridraw_animation_from_rscache.o: $(REPO)/src/engine/toridraw_animatio
 $(BUILD)/ev_player.o: ev_player.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# One config record out of a cache, for the types asset_access.c has no loader
+# for (idk, obj, loc, spotanim). Native only — it links rscache.
+$(BUILD)/ev_config.o: ev_config.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Everything both native binaries need. ev_player.c is here and not in the wasm
 # list because it links rscache; the merge it would otherwise own lives in
 # ev_render.c precisely so the browser can do it too.
-NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
+NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_config.o $(BUILD)/ev_wire.o \
 	$(BUILD)/ev_render.o $(BUILD)/ev_caches.o $(BUILD)/ev_rigs.o \
 	$(BUILD)/ev_textures.o $(BUILD)/proctex_generator.o \
 	$(BUILD)/texture_palette_bake.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
@@ -323,6 +328,19 @@ $(BUILD)/ev_rig_probe.o: test/ev_rig_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 
 ev_rig_probe: $(BUILD)/ev_rig_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_objloc_probe: do obj and loc models come out right ----------------
+#
+# The failures it covers all draw something: a shape the record does not carry
+# answered with another shape's mesh, a mirrored loc built the wrong way round,
+# a variant parameter that is ignored. Each is checked as geometry rather than
+# as "did a model come back".
+$(BUILD)/ev_objloc_probe.o: test/ev_objloc_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_objloc_probe: $(BUILD)/ev_objloc_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
