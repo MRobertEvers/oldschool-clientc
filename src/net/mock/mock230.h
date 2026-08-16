@@ -3574,6 +3574,41 @@ struct Mock230Server
     int pending_active_npc2;
 
     /**
+     * `trigger_decline`: the script that just ran said the interaction is not
+     * its business.
+     *
+     * Set by the opcode, cleared by the resolver immediately BEFORE it runs each
+     * rung and read immediately after, so a script that itself fires another
+     * trigger cannot leak a decline outward and a stale one cannot survive into
+     * the next dispatch.
+     */
+    int trigger_declined;
+
+    /**
+     * How many chained resolvers are on the stack.
+     *
+     * `trigger_decline` needs to know whether there is a rung below it to fall
+     * to. Called from a `[proc]`, a queue entry or a `[debugproc]` there is no
+     * chain at all, so the opcode answers with the message itself rather than
+     * leaving the click silently unhandled.
+     */
+    int trigger_dispatch_depth;
+
+    /**
+     * Every rung of the dispatch that just finished declined.
+     *
+     * The dispatch answers its caller with `MOCK230_TRIGGER_NONE`, because from
+     * the player's side "content looked and said no" and "content binds nothing"
+     * are the same event and get the same message. They are NOT the same to
+     * `mock230_scripts_fallback`, which is the whole reason this is a separate
+     * field: an engine fallback stands in for content that is *missing*, and
+     * running one here would open a door because content declined to.
+     * Set by the resolver, consumed and cleared by `mock230_scripts_fallback`,
+     * and cleared at the head of every dispatch so it cannot leak.
+     */
+    int dispatch_declined;
+
+    /**
      * The `find-all then iterate` cursor.
      *
      * `npc_findallany` / `loc_findallzone` / `huntall` fill it and the matching

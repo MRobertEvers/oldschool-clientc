@@ -31190,14 +31190,18 @@ mock230_world_selftest(void)
                            player->last_useslot);
 
             /*
-             * ---- opheldu, rungs 3 and 4, and the inversion -----------------
+             * ---- opheldu, rungs 3 and 4, in the SAME orientation -----------
              *
-             * `[opheldu,_bones]` is a *category* binding. Rung 2's swap happens
-             * whether or not rung 2 matched, so a category hit runs with the two
-             * items the other way round from an id hit — `last_item` names the
-             * item the script is NOT bound to. That is the reference's behaviour
-             * and content is written against it; both directions are asserted
-             * because rung 3 and rung 4 reach it by different routes.
+             * `[opheldu,_bones]` is a *category* binding, and it sees exactly what
+             * an id binding sees: `last_item` is the item it is bound to, whichever
+             * way round the player dragged them. Both directions are asserted
+             * because rung 3 and rung 4 reach it by different routes and it is
+             * their agreement that is the claim.
+             *
+             * The reference disagrees here on purpose — its rung-2 swap fires even
+             * when rung 2 missed, so its category rungs run inverted. Nothing is
+             * written for that, including in the reference's own tree; see
+             * docs/USEON_DISPATCH_ENGINE_PLAN.md E2 and `opheldu_orient`.
              */
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             rsab_wrap(&out, payload, sizeof(payload));
@@ -31211,11 +31215,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                            "bucket on bones reaches [opheldu,_bones] by rung 3, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            SELFTEST_CHECK(player->last_item == bucket && player->last_useitem == bones,
-                           "inverted, as the reference leaves it: last_item %d, last_useitem %d",
+            SELFTEST_CHECK(player->last_item == bones && player->last_useitem == bucket,
+                           "with the pair the same way round an id rung leaves it: last_item %d, "
+                           "last_useitem %d",
                            player->last_item, player->last_useitem);
-            SELFTEST_CHECK(player->last_slot == SLOT_BUCKET && player->last_useslot == SLOT_BONES,
-                           "slots inverted with them: %d / %d", player->last_slot,
+            SELFTEST_CHECK(player->last_slot == SLOT_BONES && player->last_useslot == SLOT_BUCKET,
+                           "slots following their items: %d / %d", player->last_slot,
                            player->last_useslot);
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -31230,8 +31235,8 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                            "bones on bucket reaches it by rung 4 instead, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            SELFTEST_CHECK(player->last_item == bucket && player->last_useitem == bones,
-                           "and rung 4's second swap lands on the same inversion: %d / %d",
+            SELFTEST_CHECK(player->last_item == bones && player->last_useitem == bucket,
+                           "and rung 4 lands on the same orientation rung 3 did: %d / %d",
                            player->last_item, player->last_useitem);
 
             /*
@@ -31712,19 +31717,21 @@ mock230_world_selftest(void)
                       "xbows_crossbow_bolts_runite_tipped_onyx", 3, "tipping runite bolts with onyx" },
 
                     /*
-                     * The guard on the fix: `[opheldu,_bolts]` must keep
-                     * answering the pair it was written for. Bronze `bolt` is the
+                     * The same defect one rung higher, and the sharper form of
+                     * it: both objs here ARE type-bound, so this never reaches a
+                     * category at all. `[opheldu,bolt]` is Fletching's
+                     * bolt-tipping hub and knows nothing about poison, so it
+                     * consumes poison-dropped-onto-bolts and answers "Nothing
+                     * interesting happens" while `[opheldu,weapon_poison]` — one
+                     * rung below, and correct — never runs. Bronze `bolt` is the
                      * one bolt the poison table maps.
                      */
                     { "weapon_poison", 1, "bolt", 10, "poison_bolt", 3, "poisoning bronze bolts" },
                 };
 
-                int saved_verbose = srv->verbose;
                 struct Mock230Item saved_inv_useon[MOCK230_INV_SLOTS];
 
                 memcpy(saved_inv_useon, player->inv, sizeof(saved_inv_useon));
-                if( getenv("MOCK230_USEON_TRACE") )
-                    srv->verbose = 1;
                 SELFTEST_CHECK(fletching >= 0 && crafting >= 0,
                                "fletching and crafting should resolve in pack/stat.pack, got %d/%d",
                                fletching, crafting);
@@ -31735,9 +31742,7 @@ mock230_world_selftest(void)
                         saved_xp[i] = player->stat_xp_tenths[stats[i]];
                     }
 
-                for( size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]) &&
-                                       !getenv("MOCK230_NO_USEON_PROBE");
-                     i++ )
+                for( size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++ )
                 {
                     int a = mock230_content_symbol(MOCK230_PACK_OBJ, pairs[i].a);
                     int b = mock230_content_symbol(MOCK230_PACK_OBJ, pairs[i].b);
@@ -31773,7 +31778,6 @@ mock230_world_selftest(void)
                         player->stat_xp_tenths[stats[i]] = saved_xp[i];
                     }
                 player->active_script = NULL;
-                srv->verbose = saved_verbose;
                 memcpy(player->inv, saved_inv_useon, sizeof(saved_inv_useon));
             }
 

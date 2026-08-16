@@ -511,6 +511,29 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # NPC_SETFOLLOWER). Prefer this one where the intent is the follower.
     "NPC_FINDFOLLOWER": (11043, 0, 0, 1, 0),
 
+    # trigger_decline()
+    #
+    # "This script does not handle the current interaction — try the next rung."
+    #
+    # The reference's dispatch stops at the FIRST binding it finds, so a script
+    # bound to one family consumes a click even when it does not recognise the
+    # other half of it, and the binding that WOULD have answered never runs. That
+    # is not a hypothetical: gem-tipped bolts above bronze were dead in both click
+    # orders because `[opheldu,_bolts]` (weapon poison) and `[opheldu,bolt]`
+    # (bronze bolt tipping) each swallowed one order. There is no way for content
+    # to fix that inside a single script — the two halves belong to different
+    # lanes, and a lane cannot enumerate every family it might meet.
+    #
+    # So the resolver keeps walking when a script says it declined, and stops at
+    # the first one that does not. Outside a chained dispatch there is no rung
+    # below, so it degrades to exactly what `~displaymessage(^dm_default)` did:
+    # the engine says "Nothing interesting happens".
+    #
+    # Contract: call it INSTEAD of doing anything, not after. A script that has
+    # already changed the world and then declines has handed a half-finished
+    # interaction to the next rung.
+    "TRIGGER_DECLINE": (11044, 0, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

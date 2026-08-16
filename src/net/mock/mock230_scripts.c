@@ -1928,10 +1928,61 @@ run_trigger_script_inner(
 }
 
 /*
- * `chain` selects getByTrigger (type -> category -> `_`) over
- * getByTriggerSpecific (one rung, no fallback). `report` is off only for the
- * keyed half of the if_button pair, which is not a miss until the name-addressed
- * half has also missed.
+ * Run one rung, and say whether the dispatch should keep walking.
+ *
+ * Returns the rung's `MOCK230_TRIGGER_*`, with `*declined` set when the script
+ * finished by calling `trigger_decline`. The flag is cleared immediately before
+ * the run and read immediately after, so a script that fires another trigger
+ * internally cannot leak a decline outward.
+ *
+ * A PARKED script cannot decline. `run_or_park` answers "ran" for parked as well
+ * as finished, and a script that has opened a dialogue and then declines has
+ * already taken over the player's screen — falling to the next rung would run a
+ * second interaction underneath it. `trigger_decline` ends the script outright so
+ * this cannot happen by accident; the check is here because "cannot happen" and
+ * "is not checked" are different claims, and this one is cheap.
+ */
+static int
+run_rung(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    int npc_slot,
+    int loc_slot,
+    int player_slot,
+    int* declined)
+{
+    int result;
+
+    srv->trigger_declined = 0;
+    srv->trigger_dispatch_depth++;
+    result = run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
+    srv->trigger_dispatch_depth--;
+
+    *declined = srv->trigger_declined && result == MOCK230_TRIGGER_RAN;
+    srv->trigger_declined = 0;
+
+    if( *declined && srv->active_player && srv->active_player->active_script )
+    {
+        fprintf(stderr, "mock230: %s declined after parking; treating it as handled\n",
+                script->name ? script->name : "?");
+        *declined = 0;
+    }
+    return result;
+}
+
+/*
+ * `chain` walks the reference's getByTrigger ladder — type, then category, then
+ * `_` — where `chain == 0` looks up the single key the arguments name, the way
+ * getByTriggerSpecific does. `report` is off only for the keyed half of the
+ * if_button pair, which is not a miss until the name-addressed half has also
+ * missed.
+ *
+ * The ladder is walked here rather than inside the provider because a rung that
+ * DECLINES has to fall to the next one, and only the caller of the script knows
+ * that it did. That is the whole of `trigger_decline`: the reference stops at the
+ * first binding it finds, so a name-bound script that does not recognise its
+ * partner consumes the interaction and the category binding that would have
+ * answered never runs. See docs/USEON_DISPATCH_ENGINE_PLAN.md E1.
  */
 static int
 run_trigger_impl(
@@ -1945,67 +1996,123 @@ run_trigger_impl(
     int chain,
     int report)
 {
-    const struct SSVM_Script* script;
-    struct Mock230Player* saved_player;
-    struct Mock230Player* context_player;
-    int result;
+    struct
+    {
+        int32_t type;
+        int32_t category;
+    } rungs[3];
+    int rung_count = 0;
+    int any_declined = 0;
 
     if( !srv->scripts_ok )
         return MOCK230_TRIGGER_NONE;
 
-    script = chain ? SSVM_ProviderGetByTrigger(srv->scripts, trigger, type, category)
-                   : SSVM_ProviderGetByTriggerSpecific(srv->scripts, trigger, type, category);
-    if( !script )
-    {
-        if( report && srv->verbose && trigger_is_player_initiated(trigger) )
-        {
-            char label[192];
+    srv->dispatch_declined = 0;
 
-            /* The reference's own wording, from `Player.defaultOp`, and its own
-             * condition: a debug build says so, a production one is silent.
-             * Nothing else distinguishes a trigger that deliberately does
-             * nothing from a packet that never arrived. */
-            fprintf(stderr, "mock230: no trigger for %s\n",
-                    trigger_label(trigger, type, label, sizeof(label)));
+    /*
+     * Each rung is one `getByTriggerSpecific` key, in the order `getByTrigger`
+     * would have tried them. A `-1` key is skipped rather than looked up, because
+     * `getByTriggerSpecific(-1, -1)` means the `_` wildcard: without the skip, a
+     * dispatch with no type and no category would try the wildcard three times
+     * and run it three times if it declined.
+     */
+    if( chain )
+    {
+        if( type != -1 )
+        {
+            rungs[rung_count].type = type;
+            rungs[rung_count++].category = -1;
         }
+        if( category != -1 )
+        {
+            rungs[rung_count].type = -1;
+            rungs[rung_count++].category = category;
+        }
+        rungs[rung_count].type = -1;
+        rungs[rung_count++].category = -1;
+    }
+    else
+    {
+        rungs[rung_count].type = type;
+        rungs[rung_count++].category = category;
+    }
+
+    for( int i = 0; i < rung_count; i++ )
+    {
+        const struct SSVM_Script* script = SSVM_ProviderGetByTriggerSpecific(
+            srv->scripts, trigger, rungs[i].type, rungs[i].category);
+        struct Mock230Player* saved_player;
+        struct Mock230Player* context_player;
+        int declined = 0;
+        int result;
+
+        if( !script )
+            continue;
+
+        if( trigger_requires_active_npc(trigger) )
+        {
+            int live = npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+                       srv->npcs[npc_slot].active;
+
+            if( !live )
+            {
+                char label[192];
+
+                fprintf(
+                    stderr,
+                    "mock230: %s refused — no live npc (slot=%d script=%s)\n",
+                    trigger_label(trigger, type, label, sizeof(label)),
+                    npc_slot,
+                    script->name ? script->name : "?");
+                return MOCK230_TRIGGER_FAILED;
+            }
+        }
+
+        context_player = srv->active_player;
+        if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+            srv->npcs[npc_slot].owner_gen != 0 )
+        {
+            /* A dead generation produces no player context. Falling back here
+             * would hand the familiar's timer/queue script to a replacement login
+             * or to whichever player happened to run the preceding phase. */
+            context_player = mock230_world_npc_owner(srv, &srv->npcs[npc_slot]);
+            if( !context_player )
+                return MOCK230_TRIGGER_FAILED;
+        }
+        saved_player = srv->active_player;
+        mock230_world_set_active(srv, context_player);
+        result = run_rung(srv, script, npc_slot, loc_slot, player_slot, &declined);
+        mock230_world_set_active(srv, saved_player);
+
+        if( result != MOCK230_TRIGGER_RAN || !declined )
+            return result;
+        any_declined = 1;
+    }
+
+    /*
+     * Nothing bound, or everything that bound declined. The caller is told the
+     * same thing either way — from the player's side both are "nothing
+     * interesting happens" — and `dispatch_declined` is what keeps them apart for
+     * `mock230_scripts_fallback`, whose answer must be no.
+     */
+    if( any_declined )
+    {
+        srv->dispatch_declined = 1;
         return MOCK230_TRIGGER_NONE;
     }
 
-    if( trigger_requires_active_npc(trigger) )
+    if( report && srv->verbose && trigger_is_player_initiated(trigger) )
     {
-        int live = npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
-                   srv->npcs[npc_slot].active;
+        char label[192];
 
-        if( !live )
-        {
-            char label[192];
-
-            fprintf(
-                stderr,
-                "mock230: %s refused — no live npc (slot=%d script=%s)\n",
-                trigger_label(trigger, type, label, sizeof(label)),
-                npc_slot,
-                script->name ? script->name : "?");
-            return MOCK230_TRIGGER_FAILED;
-        }
+        /* The reference's own wording, from `Player.defaultOp`, and its own
+         * condition: a debug build says so, a production one is silent. Nothing
+         * else distinguishes a trigger that deliberately does nothing from a
+         * packet that never arrived. */
+        fprintf(stderr, "mock230: no trigger for %s\n",
+                trigger_label(trigger, type, label, sizeof(label)));
     }
-
-    context_player = srv->active_player;
-    if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
-        srv->npcs[npc_slot].owner_gen != 0 )
-    {
-        /* A dead generation produces no player context. Falling back here
-         * would hand the familiar's timer/queue script to a replacement login
-         * or to whichever player happened to run the preceding phase. */
-        context_player = mock230_world_npc_owner(srv, &srv->npcs[npc_slot]);
-        if( !context_player )
-            return MOCK230_TRIGGER_FAILED;
-    }
-    saved_player = srv->active_player;
-    mock230_world_set_active(srv, context_player);
-    result = run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
-    mock230_world_set_active(srv, saved_player);
-    return result;
+    return MOCK230_TRIGGER_NONE;
 }
 
 int
@@ -2496,23 +2603,60 @@ mock230_scripts_process_engine_queue(struct Mock230Server* srv)
 }
 
 /*
- * Exchange the clicked item with the dragged one.
+ * The two halves of a use-on, as they were latched before dispatch.
  *
- * Both halves move together — item *and* slot — because a script that reads
+ * `obj` is the item that was clicked (the target) and `use_obj` the one that was
+ * dragged onto it. The slots travel with them because a script that reads
  * `last_slot` to consume what it just used would otherwise address the wrong
- * backpack cell. The reference swaps them as two destructuring assignments back
- * to back for the same reason.
+ * backpack cell.
+ */
+struct OpHeldUPair
+{
+    int obj;
+    int obj_slot;
+    int use_obj;
+    int use_slot;
+};
+
+/*
+ * Point `last_item` at whichever half the rung that matched is bound to.
+ *
+ * ONE INVARIANT, for every rung: **`last_item` is the item the script is bound
+ * to, and `last_useitem` is the other one.** A script never has to know which
+ * rung reached it, and a reader of either field never has to ask.
+ *
+ * This is a deliberate divergence from the reference, which toggles a swap
+ * instead (`OpHeldUHandler.ts:98-113`): its rung-2 swap sits outside its own null
+ * check, so the two *category* rungs run with the pair exchanged and a category
+ * script sees its own subject in `last_useitem`. That inversion is observable
+ * only when neither item is type-bound, and the content written against it is
+ * exactly nobody: every category `[opheldu]` script in the reference tree and in
+ * ours is written `switch_obj(last_useitem) { case <the tool> : ... }`, which is
+ * the *type*-rung orientation. So the reference's own content assumes the
+ * invariant above and its engine does not provide it. Setting the pair from the
+ * originals rather than toggling also makes the class of bug structurally
+ * impossible: there is no state to leave half-exchanged.
  */
 static void
-opheldu_swap(struct Mock230Player* player)
+opheldu_orient(
+    struct Mock230Player* player,
+    const struct OpHeldUPair* pair,
+    int bound_to_use_obj)
 {
-    int item = player->last_item;
-    int slot = player->last_slot;
-
-    player->last_item = player->last_useitem;
-    player->last_useitem = item;
-    player->last_slot = player->last_useslot;
-    player->last_useslot = slot;
+    if( bound_to_use_obj )
+    {
+        player->last_item = pair->use_obj;
+        player->last_slot = pair->use_slot;
+        player->last_useitem = pair->obj;
+        player->last_useslot = pair->obj_slot;
+    }
+    else
+    {
+        player->last_item = pair->obj;
+        player->last_slot = pair->obj_slot;
+        player->last_useitem = pair->use_obj;
+        player->last_useslot = pair->use_slot;
+    }
 }
 
 int
@@ -2524,59 +2668,93 @@ mock230_scripts_run_opheldu(
     int use_obj_category)
 {
     struct Mock230Player* player = srv->active_player;
-    const struct SSVM_Script* script;
-
-    if( !srv->scripts_ok )
-        return MOCK230_TRIGGER_NONE;
+    struct OpHeldUPair pair;
+    int any_declined = 0;
 
     /*
      * Four rungs, `getByTriggerSpecific` throughout: `OpHeldUHandler` never asks
      * for `[opheldu,_]`, and the reference tree has none — a wildcard here would
      * swallow every "use A on B" in the game the moment somebody wrote one.
+     *
+     * Rung ORDER is the reference's: both types before either category, so a tool
+     * with a type binding answers whichever way round the player dragged it, and a
+     * category binding is reached only when neither item is named.
+     *
+     * `bound_to_use_obj` is what makes the orientation right per rung rather than
+     * accumulated: see `opheldu_orient`.
      */
-
-    /* 1 — the item that was clicked. */
-    script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, obj_type, -1);
-
-    /* 2 — the item that was dragged. The swap is *outside* the null check, in
-     * the reference and here: rungs 3 and 4 then run against swapped state, and
-     * the category rungs' orientation depends on it. See the header comment. */
-    if( !script )
+    const struct
     {
-        script =
-            SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, use_obj_type, -1);
-        opheldu_swap(player);
+        int32_t type;
+        int32_t category;
+        int bound_to_use_obj;
+    } rungs[4] = {
+        { obj_type, -1, 0 },          /* 1 — the item that was clicked */
+        { use_obj_type, -1, 1 },      /* 2 — the item that was dragged */
+        { -1, obj_category, 0 },      /* 3 — the clicked item's category */
+        { -1, use_obj_category, 1 },  /* 4 — the dragged item's category */
+    };
+
+    if( !srv->scripts_ok )
+        return MOCK230_TRIGGER_NONE;
+
+    srv->dispatch_declined = 0;
+
+    /* `handle_opheldu` latched the pair in its clicked/dragged orientation; every
+     * rung below re-states it from these rather than toggling. */
+    pair.obj = player->last_item;
+    pair.obj_slot = player->last_slot;
+    pair.use_obj = player->last_useitem;
+    pair.use_slot = player->last_useslot;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        const struct SSVM_Script* script;
+        int declined = 0;
+        int result;
+
+        /* A category of -1 is "this obj has none", not a key to look up — and
+         * `getByTriggerSpecific(-1, -1)` would ask for the wildcard this dispatch
+         * deliberately does not have. */
+        if( rungs[i].type == -1 && rungs[i].category == -1 )
+            continue;
+
+        script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU,
+                                                   rungs[i].type, rungs[i].category);
+        if( !script )
+            continue;
+
+        opheldu_orient(player, &pair, rungs[i].bound_to_use_obj);
+        result = run_rung(srv, script, -1, -1, -1, &declined);
+        if( result != MOCK230_TRIGGER_RAN || !declined )
+            return result;
+        any_declined = 1;
     }
 
-    /* 3 — the clicked item's category. */
-    if( !script && obj_category != -1 )
-        script =
-            SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, -1, obj_category);
+    /*
+     * The pair goes back the way the packet described it before the caller answers
+     * "nothing interesting happens". A declining rung has already moved
+     * `last_item`, and leaving it moved would mean a later reader of `last_item`
+     * saw whichever rung happened to decline last.
+     */
+    opheldu_orient(player, &pair, 0);
 
-    /* 4 — the dragged item's category, and back the other way. */
-    if( !script && use_obj_category != -1 )
+    if( any_declined )
     {
-        script = SSVM_ProviderGetByTriggerSpecific(srv->scripts, SS_TRIGGER_OPHELDU, -1,
-                                                   use_obj_category);
-        opheldu_swap(player);
-    }
-
-    if( !script )
-    {
-        if( srv->verbose )
-        {
-            char label[192];
-
-            /* The *clicked* item names the miss, which is what the reference
-             * prints (`No trigger for [opheldu,${objType.debugname}]`) — and by
-             * this point the swap may have moved it, so it comes from the
-             * argument rather than from the player. */
-            fprintf(stderr, "mock230: no trigger for %s\n",
-                    trigger_label(SS_TRIGGER_OPHELDU, obj_type, label, sizeof(label)));
-        }
+        srv->dispatch_declined = 1;
         return MOCK230_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, -1, -1, -1);
+
+    if( srv->verbose )
+    {
+        char label[192];
+
+        /* The *clicked* item names the miss, which is what the reference prints
+         * (`No trigger for [opheldu,${objType.debugname}]`). */
+        fprintf(stderr, "mock230: no trigger for %s\n",
+                trigger_label(SS_TRIGGER_OPHELDU, obj_type, label, sizeof(label)));
+    }
+    return MOCK230_TRIGGER_NONE;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3172,6 +3350,25 @@ mock230_scripts_fallback(
     {
         if( srv->verbose )
             fprintf(stderr, "mock230: no script pack — `%s` does nothing\n", name);
+        return 0;
+    }
+
+    /*
+     * Content looked at this and said it was not its business.
+     *
+     * `trigger_decline` answers the caller with NONE, because the player sees the
+     * same "nothing interesting happens" either way — but an engine fallback
+     * stands in for content that is MISSING, and this is content that is present
+     * and declined. Standing in here is how a door opens because somebody used a
+     * bucket on it. Consumed rather than merely read: one dispatch, one answer.
+     */
+    if( srv->dispatch_declined )
+    {
+        srv->dispatch_declined = 0;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: content declined; the `%s` engine fallback is NOT "
+                            "running in its place\n",
+                    name);
         return 0;
     }
 
@@ -9631,6 +9828,29 @@ mock230_script_command(
      * EXTRA_OPCODES entry); -1 means the op carried no submenu, which is every
      * ordinary `opheldN`.
      */
+    /*
+     * "Not mine — try the next rung."
+     *
+     * Two effects, and both are the point. It raises the flag the resolver reads
+     * to keep walking, and it ENDS the script: a decline is the last thing a
+     * script does, and making that structural rather than a documented promise is
+     * what keeps a half-finished interaction from being handed to the next rung.
+     * `~displaymessage(^dm_default)` is the shape this replaces, and that one is
+     * commonly reached after work has already happened (`bows.rs2` strings a bow
+     * and then falls through to it), which is exactly why declining is a separate
+     * command a script opts into rather than a change of meaning for that proc.
+     *
+     * With no chained resolver above — a `[proc]`, a queue entry, a
+     * `[debugproc]` — there is no rung to fall to, so it degrades to what the
+     * default message did: the engine says nothing interesting happened.
+     */
+    case SS_OP_TRIGGER_DECLINE:
+        srv->trigger_declined = 1;
+        state->execution = SSVM_FINISHED;
+        if( srv->trigger_dispatch_depth == 0 )
+            mock230_say(srv, "nothing_interesting_message", NULL);
+        return 1;
+
     case SS_OP_LAST_SUBOP:
         SSVM_PushInt(state, player->last_subop);
         return 1;
