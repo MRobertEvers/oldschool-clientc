@@ -23606,6 +23606,7 @@ mock230_world_selftest(void)
              * the loc occupies, and a wall shape would let the player stand
              * inside it. */
             const int tree_shape = 10;
+            struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
             int saved_level = -1;
             int swings = 0;
 
@@ -23622,6 +23623,12 @@ mock230_world_selftest(void)
                 int placed;
 
                 selftest_park_player(srv, tree_x - 1, tree_z);
+                /* Saved wholesale rather than cleared: the starting kit is
+                 * world state the sections after this one assert on, and
+                 * `selftest_clear_inv` here left them running a naked player —
+                 * seven reds about a missing helm and a run tick that had
+                 * nothing to weigh. */
+                memcpy(saved_inv, player->inv, sizeof(saved_inv));
                 selftest_clear_inv(player);
                 selftest_give(player, axe, 1);
                 saved_level = player->stat_level[woodcutting];
@@ -23668,14 +23675,15 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(player->interaction.kind != MOCK230_INTERACT_NONE,
                                "and the player should still be chopping six ticks in");
 
-                {
-                    int slot = mock230_scene_find_loc_exact(tree_x, tree_z, 0, tree_shape);
-
-                    if( slot >= 0 )
-                        mock230_scene_remove_loc(slot);
-                }
+                /* Through the same seam it was added by, so the ZoneMap
+                 * forgets it too: a scene rebuild reapplies every record it
+                 * still holds, and a willow left standing in the middle of
+                 * Lumbridge is one more section's blocked tile. */
+                mock230_world_loc_set(srv, tree_x, tree_z, 0, tree_shape, -1, 0,
+                                      MOCK230_LOC_SET_CHANGE);
                 mock230_world_interaction_clear(srv);
-                selftest_clear_inv(player);
+                memcpy(player->inv, saved_inv, sizeof(saved_inv));
+                player->inv_dirty = 0xfffffffu;
                 player->stat_level[woodcutting] = saved_level;
                 player->stat_boosted[woodcutting] = saved_level;
             }

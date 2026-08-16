@@ -364,7 +364,7 @@ TMAP_FN(
         au += uv.step_au_dy;                                                                       \
         bv += uv.step_bv_dy;                                                                       \
         cw += uv.step_cw_dy;                                                                       \
-        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);        \
+        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);         \
         offset += stride;                                                                          \
         TMAP_ZADVANCE();                                                                           \
     } while( 0 )

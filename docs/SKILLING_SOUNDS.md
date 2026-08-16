@@ -141,16 +141,34 @@ labels at `:95`/`:120` for success.
 
 | sound | id | when | layer | source |
 |---|---|---|---|---|
-| `woodchop` | 2735 | **on the first chop**, alongside the axe anim | L | `woodcut.rs2:72` |
+| `woodchop` | 2735 | every swing — **played by the seq, not by the script** | L | `all.seq`, `human_woodcutting_*` |
 | `woodchop_quick` / `woodchop_4` | 2730/2736 | subsequent chop variants | W | block position |
 | `tree_fall` | 2734 | the tree depletes | W | name |
 | `remove_axe` | 2733 | axe stuck / retrieved | W | name |
 | `woodcutting_birdsnest` | 1516 | a bird's nest drops | W | name |
 | `build_canoe` / `canoe_paddle_loop` / `canoe_roll` / `canoe_sink` | 2729/2728/2731/2732 | canoe content (not ported) | W | name |
 
-LostCity plays `woodchop` **once**, at the start, and its comment cites a video
-(`youtu.be/T3IRz4hZcjc`). Do the same; do not loop it per tick. Our anchor is
-`woodcut.rs2:50`/`:56`.
+LostCity plays `woodchop` **once**, at the start, from `sound_synth`, and its
+comment cites a video (`youtu.be/T3IRz4hZcjc`).
+
+**Do not copy that here.** Every `human_woodcutting_*` seq in the osrs239 cache
+already carries `sound=3,2735,1,1,0,100` — woodchop on frame 3, the frame the
+axe reaches the trunk — and `app_play_frame_sounds` (`src/app.c`) fires it off
+the entity's own animation. LostCity's 2004 seqs have no frame-sound field, so
+its port has to say it out loud; ours does not, and a `sound_synth(woodchop)`
+in `woodcut.rs2` is a *second* chop at frame 0, i.e. audibly ahead of the swing
+it is supposed to be. That is what "the audio doesn't match the animation"
+was. `tree_fall` stays in the script: a deplete animates nothing.
+
+The same reading applies to §4.1 — the pickaxe seqs carry `sound=11,3220` — so
+treat `mining.rs2`'s own `sound_synth(mine_quick)` as suspect for the same
+reason. Before adding *any* skilling sound from a script, check whether the
+seq already states it:
+
+```
+awk '/^\[human_mining_bronze_pickaxe\]/,/^$/' \
+    OSRS-Content/osrs239-content/configs/all.seq | grep '^sound='
+```
 
 ### 4.3 Fishing — `skill_fishing/`
 

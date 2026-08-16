@@ -240,7 +240,7 @@ TSFA_ORDERED(
         au += vOVPlane_normal_yhat;                                                                \
         bv += vUOPlane_normal_yhat;                                                                \
         cw += vUVPlane_normal_yhat;                                                                \
-        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);        \
+        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);         \
         offset += stride;                                                                          \
         TSFA_ZADVANCE();                                                                           \
     } while( 0 )
