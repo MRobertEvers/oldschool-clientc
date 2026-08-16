@@ -342,12 +342,13 @@ ToriDraw_BonesFree(struct ToriDraw_Bones* bones)
 struct ToriDraw_Bones*
 ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
 {
-    /* Absent in, absent out. An unrigged model has no vertex_bones and no
-     * face_bones — that is most models — and both call sites in
-     * toridraw_model_transform.c copy the field unconditionally. NULL here is
-     * the ordinary case, not a caller's bug. */
-    if( !src || src->bones_count <= 0 || !src->bones || !src->bones_sizes )
-        return NULL;
+    /* Whether a model HAS bones is the caller's question to answer -- an
+     * unrigged model simply does not call this. Once called, a bone set that
+     * is absent, empty, or half-built is a broken one. */
+    assert(src);
+    assert(src->bones_count > 0);
+    assert(src->bones);
+    assert(src->bones_sizes);
 
     struct ToriDraw_Bones* dst = calloc(1, sizeof(struct ToriDraw_Bones));
     assert(dst);

@@ -43,24 +43,34 @@
 #define TEX_SPAN_V_LERP_MAGNITUDE_LIMIT (1 << 29)
 
 /**
- * v is unbounded and wraps, so the caller needs the true quotient's low bits.
- * The float reciprocal stands only where it still carries them.
+ * A wrapping axis is unbounded, so the caller needs the true quotient's low
+ * bits. The float reciprocal stands only where it still carries them.
+ *
+ * v always wraps. u wraps only where the sampler says the material repeats -
+ * see tex_span_u_quotient.
  */
 static inline int
-tex_span_v_quotient(int bv, int w, float inv_w)
+tex_span_wrapped_quotient(int n, int w, float inv_w)
 {
-    float quotient = (float)bv * inv_w;
+    float quotient = (float)n * inv_w;
     if( quotient > -TEX_SPAN_RECIPROCAL_EXACT_LIMIT &&
         quotient < TEX_SPAN_RECIPROCAL_EXACT_LIMIT )
         return (int)quotient;
-    return bv / w;
+    return n / w;
 }
 
 /**
- * u is clamped into the texture, so the reciprocal only has to place the value
+ * u under CLAMP addressing, which is what the reference does and what every
+ * span without a sampler does.
+ *
+ * The value is bounded into the texture, so the reciprocal only has to place it
  * on the correct side of each bound, which relative error cannot change. The
  * clamp is applied in float so an out-of-range quotient is never converted -
  * that conversion is undefined, and on x86 it yields INT_MIN.
+ *
+ * A repeat-addressed material wants tex_span_wrapped_quotient instead. Only the
+ * sampler kernels can tell the difference, because only they carry the address
+ * mode; the plain spans have no sampler and clamp unconditionally.
  */
 static inline int
 tex_span_u_quotient(int au, float inv_w, int texture_width)
@@ -74,38 +84,41 @@ tex_span_u_quotient(int au, float inv_w, int texture_width)
 }
 
 /**
- * True when an 8-pixel linear fit between cur_v and nxt_v is worth drawing.
- * Because a passing fit is bounded by one tile, it also guarantees the step and
- * scan arithmetic that draws it stays inside int.
+ * True when an 8-pixel linear fit between a block's two endpoints is worth
+ * drawing. Because a passing fit is bounded by one tile, it also guarantees the
+ * step and scan arithmetic that draws it stays inside int.
+ *
+ * Applied to every axis that can leave the texture. That is v always, and u
+ * whenever the material repeats: a clamped u is bounded by construction and
+ * passes trivially, a wrapped one is as unbounded as v and breaks the fit the
+ * same way.
  */
 static inline int
-tex_span_lerp8_v_fits(int cur_v, int nxt_v, int texture_width)
+tex_span_lerp8_fits(int cur, int nxt, int texture_width)
 {
-    if( cur_v < -TEX_SPAN_V_LERP_MAGNITUDE_LIMIT ||
-        cur_v > TEX_SPAN_V_LERP_MAGNITUDE_LIMIT ||
-        nxt_v < -TEX_SPAN_V_LERP_MAGNITUDE_LIMIT ||
-        nxt_v > TEX_SPAN_V_LERP_MAGNITUDE_LIMIT )
+    if( cur < -TEX_SPAN_V_LERP_MAGNITUDE_LIMIT || cur > TEX_SPAN_V_LERP_MAGNITUDE_LIMIT ||
+        nxt < -TEX_SPAN_V_LERP_MAGNITUDE_LIMIT || nxt > TEX_SPAN_V_LERP_MAGNITUDE_LIMIT )
         return 0;
 
-    int delta = nxt_v - cur_v;
+    int delta = nxt - cur;
     return delta >= -texture_width && delta <= texture_width;
 }
 
 /**
- * Only the low log2(texture_width) bits of a row index survive v_mask, so the
- * scan can start from the folded row: `(cur_v << shift) & v_mask` equals
- * `(cur_v & (texture_width - 1)) << shift` without the overflowing shift.
+ * Only the low log2(texture_width) bits of an index survive the repeat mask, so
+ * the scan can start from the folded value: `(cur << shift) & mask` equals
+ * `(cur & (texture_width - 1)) << shift` without the overflowing shift.
  */
 static inline int
-tex_span_v_scan_start(int cur_v, int texture_width, int texture_shift)
+tex_span_wrapped_scan_start(int cur, int texture_width, int texture_shift)
 {
-    return (cur_v & (texture_width - 1)) << texture_shift;
+    return (cur & (texture_width - 1)) << texture_shift;
 }
 
 /**
  * The per-pixel path: an exact divide per pixel, the same mapping the reference
  * rasterizer uses for the whole span. Only blocks that fail
- * tex_span_lerp8_v_fits come here, so this is cold.
+ * tex_span_lerp8_fits come here, so this is cold.
  */
 static inline void
 tex_span_exact_block(

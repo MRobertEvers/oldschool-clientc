@@ -438,8 +438,12 @@ function renderNpcList() {
         return hay.includes(q);
       }).length
     : state.npcs.length;
+  /* While the npc pass is still running every badge reads 0/0, which looks
+   * exactly like a cache whose npcs share no rigs. Say which it is. */
+  const counting = state.rigs && !state.rigs.npcs && state.rigs.state !== 'failed';
   document.getElementById('npcCount').textContent =
-    `${matches.length} of ${total} shown · badge is rig/maybe counts`;
+    `${matches.length} of ${total} shown · ` +
+    (counting ? 'still matching rigs — badges fill in' : 'badge is rig/maybe counts');
 }
 
 /*

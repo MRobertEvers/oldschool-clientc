@@ -260,7 +260,7 @@ mock230_ops_npc(
          * which lets a param declared a string over an authored int abort here
          * rather than desynchronise the stacks downstream.
          */
-        if( mock230_content_npc_param(npc->def, param_id, &authored) )
+        if( npc->def && mock230_content_npc_param(npc->def, param_id, &authored) )
         {
             mock230_push_typed_param(state, param_id, NULL, authored, 1, "npc", npc->type);
             return 1;

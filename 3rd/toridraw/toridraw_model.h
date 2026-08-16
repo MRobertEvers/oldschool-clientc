@@ -17,20 +17,23 @@ ToriDraw_BufCopy(
     size_t count,
     size_t elem_size)
 {
-    /* Optional model arrays (face_alphas, face_textures, ...) are copied with
-     * the model's face_count, so a NULL src with a non-zero count means "this
-     * array is absent" -- absent in, absent out. Not a caller bug. */
-    if( count == 0 || !src )
-        return NULL;
+    assert(src);
+    assert(count > 0);
     void* dst = malloc(count * elem_size);
     assert(dst);
     memcpy(dst, src, count * elem_size);
     return dst;
 }
 
+/* Whether an optional array (face_alphas, face_textures, ...) is present is
+ * decided HERE, once, rather than inside the copy: a model carries a face_count
+ * for arrays it does not have. Absent stays absent; present is copied, and a
+ * failed copy asserts. */
 #define TORIDRAW_MODEL_COPY(model, field, src, count)                                               \
-    ((model)->field = (typeof((model)->field))ToriDraw_BufCopy(                                     \
-        (src), (size_t)(count), sizeof(*(model)->field)))
+    ((model)->field = ((src) && (count) > 0)                                                        \
+                          ? (typeof((model)->field))ToriDraw_BufCopy(                               \
+                                (src), (size_t)(count), sizeof(*(model)->field))                    \
+                          : NULL)
 
 #define TORIDRAW_MODEL_MOVE(model, field, src)                                                     \
     do                                                                                             \

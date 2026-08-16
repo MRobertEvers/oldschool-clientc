@@ -128,8 +128,9 @@ painter_w3d_emit_ground_pass(
     /* Occlusion uses mesh_level = reference originalLevel (survives push-down). */
     int occlusion_level = painters_tile_get_mesh_level(tile);
     struct SceneOccluders* occ = painter->occluders;
+    /* Occluders are an optional subsystem; without them nothing is hidden. */
     int ground_hidden =
-        painter_tile_ground_hidden(occ, tile_paint, occlusion_level, tile_sx, tile_sz);
+        occ ? painter_tile_ground_hidden(occ, tile_paint, occlusion_level, tile_sx, tile_sz) : 0;
 
     if( tile->bridge_tile != -1 )
     {

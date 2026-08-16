@@ -1630,14 +1630,6 @@ select_cache(int index)
      */
     g_catalog_active = (index == g_catalog_cache);
 
-    /*
-     * The rig walk, on a worker thread: which animations apply to which npc,
-     * computed from this cache rather than from a catalog that may describe
-     * another one. Two to nine seconds depending on the cache, which is why it
-     * is not done here — the switch has to answer now.
-     */
-    ev_rigs_start(e->path, e->rev);
-
     ev_index_free(&g_index);
     clock_t index_t0 = clock();
     ev_index_build(&g_cache, &profile, e->path, e->rev, &g_index);
@@ -1653,6 +1645,19 @@ select_cache(int index)
     g_caches.active = index;
     fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models [index %d ms]\n",
             e->label, e->rev, e->npc_count, e->seq_count, e->model_count, index_ms);
+
+    /*
+     * The rig walk, on a worker thread: which animations apply to which npc,
+     * computed from this cache rather than from a catalog that may describe
+     * another one. Two to nine seconds depending on the cache, which is why it
+     * is not done here — the switch has to answer now.
+     *
+     * Last, and after the index build, on purpose. The decode path has a few
+     * lazily built lookup tables (the CRC tables, for one) shared by every
+     * cache handle in the process; letting the main thread reach them first
+     * means the worker never races their initialisation.
+     */
+    ev_rigs_start(e->path, e->rev);
     return 1;
 }
 

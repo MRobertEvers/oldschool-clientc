@@ -332,7 +332,25 @@ toridraw_raster_coord_is_plane_mapped(
         return true;
     if( texture_face < 0 || texture_face >= ctx->num_textured_faces )
         return true;
-    return ctx->texture_render_types_nullable[texture_face] == 0;
+    if( ctx->texture_render_types_nullable[texture_face] == 0 )
+        return true;
+
+    /* TORIRS_RASTER_TEX_MODE_DEBUG also covers this gate, not just the gouraud
+     * branch's print: a complex coord that arrives on the flat-shade path is
+     * otherwise invisible, and "which model still carries one" is the question
+     * that decides whether a backport actually stripped them. */
+    if( getenv("TORIRS_RASTER_TEX_MODE_DEBUG") )
+    {
+        static int noted;
+        if( noted++ < 24 )
+            fprintf(stderr,
+                    "raster_tex_mode: NON-PLANE coord=%d type=%u  model vc=%d fc=%d "
+                    "textured_faces=%d\n",
+                    texture_face,
+                    (unsigned)ctx->texture_render_types_nullable[texture_face],
+                    ctx->num_vertices, ctx->num_faces, ctx->num_textured_faces);
+    }
+    return false;
 }
 
 static inline void

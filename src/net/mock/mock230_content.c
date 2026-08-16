@@ -965,10 +965,7 @@ mock230_content_npc_param(
     int param_id,
     int32_t* out)
 {
-    /* An npc without a content def has no params -- callers pass npc->def
-     * straight through, and "no def" is a normal state, not a caller bug. */
-    if( !def )
-        return 0;
+    assert(def);
     for( int i = 0; i < def->param_count; i++ )
     {
         if( def->params[i].key != param_id )

@@ -155,7 +155,11 @@ painter_tile_ground_hidden(
     int sx,
     int sz)
 {
-    if( !occ || occ->active_count == 0 )
+    /* Whether the painter HAS occluders is the caller's question; this one
+     * needs a set to test against. */
+    assert(occ);
+    assert(tp);
+    if( occ->active_count == 0 )
         return 0;
     if( tp->occlusion == TILE_OCCLUSION_HIDDEN )
         return 1;

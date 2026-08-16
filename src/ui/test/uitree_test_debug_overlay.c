@@ -126,7 +126,6 @@ test_debug_overlay_measure(void)
         TEST_ASSERT(ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, cases[i]) == menu, "measure menu");
     }
 
-    TEST_ASSERT(ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, NULL) == 0, "measure NULL is 0");
     TEST_ASSERT(
         ToriDbgUI_FontLineHeight(TORIDBG_FONT_SMALL) == ToriDbgFont_Small_LINE_HEIGHT,
         "small ascent");
