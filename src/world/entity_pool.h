@@ -1,0 +1,91 @@
+#ifndef WORLD_ENTITY_POOL_H
+#define WORLD_ENTITY_POOL_H
+
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+#define WORLD_ENTITY_NIL (-1)
+
+struct World_EntityPoolNode
+{
+    int prev;
+    int next;
+    bool active;
+};
+
+struct World_EntityPool
+{
+    void* items;
+    struct World_EntityPoolNode* nodes;
+    int element_size;
+    int capacity;
+    int count;
+    int active_count;
+    int head;
+    int tail;
+    int free_head;
+};
+
+void
+World_EntityPoolInit(
+    struct World_EntityPool* pool,
+    int element_size);
+
+void
+World_EntityPoolFree(struct World_EntityPool* pool);
+
+int
+World_EntityPoolAlloc(struct World_EntityPool* pool);
+
+void
+World_EntityPoolRelease(
+    struct World_EntityPool* pool,
+    int index);
+
+bool
+World_EntityPoolEnsureSlot(
+    struct World_EntityPool* pool,
+    int index);
+
+bool
+World_EntityPoolReserve(
+    struct World_EntityPool* pool,
+    int slot_count);
+
+void
+World_EntityPoolReset(struct World_EntityPool* pool);
+
+void*
+World_EntityPoolGet(
+    const struct World_EntityPool* pool,
+    int index);
+
+static inline bool
+World_EntityPoolIsActive(
+    const struct World_EntityPool* pool,
+    int index)
+{
+    assert(pool);
+    assert(index >= 0 && index < pool->count);
+    return pool->nodes[index].active;
+}
+
+static inline int
+World_EntityPoolHead(const struct World_EntityPool* pool)
+{
+    assert(pool);
+    return pool->head;
+}
+
+static inline int
+World_EntityPoolNext(
+    const struct World_EntityPool* pool,
+    int index)
+{
+    assert(pool);
+    assert(index >= 0 && index < pool->count);
+    return pool->nodes[index].next;
+}
+
+#endif

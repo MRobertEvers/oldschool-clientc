@@ -1,0 +1,6 @@
+-std=c11
+-I.
+-I../../src2/toridraw
+-I../../src2/toriauxlib/td
+-I../../src2
+-I../../src

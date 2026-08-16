@@ -1,0 +1,636 @@
+#include "platform_sdl2_renderer_soft3d.h"
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+#include "platform_sdl2_lvgl_hud.h"
+#endif
+
+#include "libtorirs.h"
+#include "libtorirs_internal.h"
+#include "render/libtorirs_render.h"
+#include "toridraw/toridraw.h"
+#include "toridraw/toridraw_font.h"
+#include "toridraw/toridraw_sprite.h"
+#include <SDL_render.h>
+
+#include <SDL.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void
+soft3d_fill_rect(
+    int* pixels,
+    int stride,
+    int width,
+    int height,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int argb)
+{
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
+    if( x1 > width )
+        x1 = width;
+    if( y1 > height )
+        y1 = height;
+
+    int const sa = (argb >> 24) & 0xFF;
+    int const sr = (argb >> 16) & 0xFF;
+    int const sg = (argb >> 8) & 0xFF;
+    int const sb = argb & 0xFF;
+
+    for( int y = y0; y < y1; y++ )
+    {
+        for( int x = x0; x < x1; x++ )
+        {
+            int* dst = &pixels[y * stride + x];
+            if( sa >= 255 )
+            {
+                *dst = argb;
+                continue;
+            }
+            if( sa <= 0 )
+                continue;
+
+            int const da = (*dst >> 24) & 0xFF;
+            int const dr = (*dst >> 16) & 0xFF;
+            int const dg = (*dst >> 8) & 0xFF;
+            int const db = *dst & 0xFF;
+            int const inv = 255 - sa;
+            int const or = (sr * sa + dr * inv) / 255;
+            int const og = (sg * sa + dg * inv) / 255;
+            int const ob = (sb * sa + db * inv) / 255;
+            int const oa = sa + (da * inv) / 255;
+            *dst = (oa << 24) | (or << 16) | (og << 8) | ob;
+        }
+    }
+}
+
+#define SOFT3D_SPRITE_ELEMENT_CAP 256
+#define SOFT3D_FONT_CAP 8
+
+struct LibToriPlatformSDL2_RendererSoft3D
+{
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    SDL_Texture* texture;
+    int* pixel_buffer;
+    int width;
+    int height;
+
+    struct ToriDraw_Sprite** sprite_arrays[SOFT3D_SPRITE_ELEMENT_CAP];
+    int sprite_counts[SOFT3D_SPRITE_ELEMENT_CAP];
+
+    struct ToriDraw_Font* fonts[SOFT3D_FONT_CAP];
+
+    struct ToriDraw_ViewPort iface_view_port;
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    struct LibToriHud* hud;
+#endif
+};
+
+static void
+soft3d_resolve_sprite_array(
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer,
+    struct ToriDraw_Scene* draw_context,
+    int element_id,
+    struct ToriDraw_Sprite*** out_sprites,
+    int* out_count)
+{
+    assert(out_sprites && out_count);
+    *out_sprites = NULL;
+    *out_count = 0;
+    if( element_id < 0 )
+        return;
+
+    if( element_id < SOFT3D_SPRITE_ELEMENT_CAP )
+    {
+        *out_sprites = renderer->sprite_arrays[element_id];
+        *out_count = renderer->sprite_counts[element_id];
+    }
+
+    if( draw_context )
+    {
+        int scene_count = 0;
+        struct ToriDraw_Sprite** scene_sprites =
+            ToriDraw_SceneSpriteGet(draw_context, element_id, &scene_count);
+        if( scene_sprites && scene_count > 0 )
+        {
+            *out_sprites = scene_sprites;
+            *out_count = scene_count;
+        }
+    }
+}
+
+struct LibToriPlatformSDL2_RendererSoft3D*
+LibToriPlatformSDL2_RendererSoft3D_New(
+    int width,
+    int height)
+{
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer =
+        malloc(sizeof(struct LibToriPlatformSDL2_RendererSoft3D));
+    if( !renderer )
+        return NULL;
+    memset(renderer, 0, sizeof(struct LibToriPlatformSDL2_RendererSoft3D));
+    renderer->width = width;
+    renderer->height = height;
+    return renderer;
+}
+
+void
+LibToriPlatformSDL2_RendererSoft3D_Free(struct LibToriPlatformSDL2_RendererSoft3D* renderer)
+{
+    if( !renderer )
+        return;
+    if( renderer->pixel_buffer )
+    {
+        free(renderer->pixel_buffer);
+        renderer->pixel_buffer = NULL;
+    }
+    if( renderer->texture )
+    {
+        SDL_DestroyTexture(renderer->texture);
+        renderer->texture = NULL;
+    }
+    if( renderer->renderer )
+    {
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+    }
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud )
+    {
+        LibToriHud_Free(renderer->hud);
+        renderer->hud = NULL;
+    }
+#endif
+    free(renderer);
+}
+
+bool
+LibToriPlatformSDL2_RendererSoft3D_Init(
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer,
+    SDL_Window* window)
+{
+    assert(renderer);
+    assert(window);
+
+    renderer->window = window;
+
+    renderer->renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if( !renderer->renderer )
+    {
+        printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
+    renderer->pixel_buffer = (int*)malloc(pixel_count * sizeof(int));
+    if( !renderer->pixel_buffer )
+    {
+        printf("Failed to allocate pixel buffer\n");
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+        return false;
+    }
+    memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
+
+    renderer->texture = SDL_CreateTexture(
+        renderer->renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        renderer->width,
+        renderer->height);
+    if( !renderer->texture )
+    {
+        printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+        free(renderer->pixel_buffer);
+        renderer->pixel_buffer = NULL;
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+        return false;
+    }
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    renderer->hud = LibToriHud_New();
+#endif
+
+    return true;
+}
+
+void
+LibToriPlatformSDL2_RendererSoft3D_Render(
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriPlatformSDL2_RendererSoft3D_Stats* stats)
+{
+    int track_element_id = -1;
+    int draw_model_count = 0;
+    bool track_element_drawn = false;
+    if( stats )
+    {
+        track_element_id = stats->track_element_id;
+        stats->draw_model_count = 0;
+        stats->track_element_drawn = false;
+    }
+
+    size_t const pixel_count = (size_t)renderer->width * (size_t)renderer->height;
+    memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
+
+    struct ToriDraw_Scene* draw_context = LibToriRS_GetCurrentToriDrawScene(instance);
+
+    bool has_3d = false;
+    struct LibToriRS_RenderCommand_Begin3D cur_3d;
+
+    LibToriRS_FrameBegin(instance);
+    struct LibToriRS_RenderCommand command;
+    while( LibToriRS_FrameNextCommand(instance, &command) )
+    {
+        switch( command.kind )
+        {
+        case TORIRSRC_BEGIN_3D:
+            cur_3d = command.u.begin_3d;
+            has_3d = true;
+            break;
+        case TORIRSRC_END_3D:
+            has_3d = false;
+            break;
+        case TORIRSRC_DRAW_MODEL:
+            if( !draw_context || !has_3d )
+                break;
+            {
+                draw_model_count++;
+                if( track_element_id >= 0 && command.u.model.element_id == track_element_id )
+                    track_element_drawn = true;
+                struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
+                struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
+                struct ToriDraw_Camera tmp_cam = cur_3d.camera;
+                int wx = tmp_vp.x_center - tmp_vp.width / 2;
+                int wy = tmp_vp.y_center - tmp_vp.height / 2;
+                tmp_vp.stride = renderer->width;
+                int* base = renderer->pixel_buffer + wy * tmp_vp.stride + wx;
+                (void)tmp_pos;
+                ToriDraw_RenderModel3Raster(draw_context, &tmp_vp, &tmp_cam, base, false);
+            }
+            break;
+        case TORIRSRC_BEGIN_2D:
+            memset(&renderer->iface_view_port, 0, sizeof(renderer->iface_view_port));
+            renderer->iface_view_port.stride = renderer->width;
+            renderer->iface_view_port.clip_left = 0;
+            renderer->iface_view_port.clip_top = 0;
+            renderer->iface_view_port.clip_right = renderer->width;
+            renderer->iface_view_port.clip_bottom = renderer->height;
+            break;
+        case TORIRSRC_END_2D:
+            break;
+        case TORIRSRC_SPRITE_LOAD:
+        {
+            const int element_id = command.u.sprite_load.element_id;
+            if( element_id < 0 || element_id >= SOFT3D_SPRITE_ELEMENT_CAP )
+                break;
+            renderer->sprite_arrays[element_id] = command.u.sprite_load.sprites;
+            renderer->sprite_counts[element_id] = command.u.sprite_load.count;
+            break;
+        }
+        case TORIRSRC_FONT_LOAD:
+        {
+            const int font_id = command.u.font_load.font_id;
+            if( font_id < 0 || font_id >= SOFT3D_FONT_CAP )
+                break;
+            renderer->fonts[font_id] = command.u.font_load.font;
+            break;
+        }
+        case TORIRSRC_FONT_UNLOAD:
+        {
+            const int font_id = command.u.font_load.font_id;
+            if( font_id >= 0 && font_id < SOFT3D_FONT_CAP )
+                renderer->fonts[font_id] = NULL;
+            break;
+        }
+        case TORIRSRC_SPRITE:
+        {
+            const int element_id = command.u.sprite.element_id;
+            const int atlas_index = command.u.sprite.atlas_index;
+            if( element_id < 0 )
+                break;
+
+            struct ToriDraw_Sprite** sprites = NULL;
+            int count = 0;
+            soft3d_resolve_sprite_array(renderer, draw_context, element_id, &sprites, &count);
+            if( !sprites || atlas_index < 0 || atlas_index >= count )
+            {
+                fprintf(
+                    stderr,
+                    "TORIRSRC_SPRITE: missing sprite array element_id=%d atlas_index=%d "
+                    "count=%d\n",
+                    element_id,
+                    atlas_index,
+                    count);
+                assert(sprites && atlas_index >= 0 && atlas_index < count);
+                break;
+            }
+            struct ToriDraw_Sprite* sp = sprites[atlas_index];
+            if( !sp || !sp->pixels_argb )
+            {
+                fprintf(
+                    stderr,
+                    "TORIRSRC_SPRITE: missing sprite pixels element_id=%d atlas_index=%d\n",
+                    element_id,
+                    atlas_index);
+                assert(sp && sp->pixels_argb);
+                break;
+            }
+
+            struct ToriDraw_ViewPort vp = renderer->iface_view_port;
+            if( command.u.sprite.scissor_w > 0 && command.u.sprite.scissor_h > 0 )
+            {
+                vp.clip_left = command.u.sprite.scissor_x;
+                vp.clip_top = command.u.sprite.scissor_y;
+                vp.clip_right = command.u.sprite.scissor_x + command.u.sprite.scissor_w;
+                vp.clip_bottom = command.u.sprite.scissor_y + command.u.sprite.scissor_h;
+            }
+
+            if( command.u.sprite.mask_element_id >= 0 )
+            {
+                struct ToriDraw_Sprite** mask_sprites = NULL;
+                int mask_count = 0;
+                soft3d_resolve_sprite_array(
+                    renderer,
+                    draw_context,
+                    command.u.sprite.mask_element_id,
+                    &mask_sprites,
+                    &mask_count);
+                int mask_idx = command.u.sprite.mask_atlas_index;
+                if( mask_sprites && mask_idx >= 0 && mask_idx < mask_count &&
+                    mask_sprites[mask_idx] )
+                {
+                    ToriDraw2D_BlitSpriteMasked(
+                        sp,
+                        mask_sprites[mask_idx],
+                        &vp,
+                        command.u.sprite.x,
+                        command.u.sprite.y,
+                        renderer->pixel_buffer);
+                    break;
+                }
+            }
+
+            if( command.u.sprite.rotated )
+            {
+                ToriDraw2D_BlitSpriteRotatedEx(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.dst_anchor_x,
+                    command.u.sprite.dst_anchor_y,
+                    command.u.sprite.src_anchor_x,
+                    command.u.sprite.src_anchor_y,
+                    command.u.sprite.rotation,
+                    renderer->pixel_buffer);
+            }
+            else if( command.u.sprite.rotation != 0 )
+            {
+                ToriDraw2D_BlitSpriteRotated(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w / 2,
+                    command.u.sprite.h / 2,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.rotation,
+                    renderer->pixel_buffer);
+            }
+            else if( command.u.sprite.tiled )
+            {
+                ToriDraw2D_BlitSpriteTiled(
+                    sp,
+                    &vp,
+                    command.u.sprite.x,
+                    command.u.sprite.y,
+                    command.u.sprite.w,
+                    command.u.sprite.h,
+                    command.u.sprite.x + sp->crop_x,
+                    command.u.sprite.y + sp->crop_y,
+                    renderer->pixel_buffer);
+            }
+            else
+            {
+                int const alpha = command.u.sprite.alpha;
+                if( alpha <= 0 )
+                {
+                    /* fully transparent */
+                }
+                else if( alpha < 255 )
+                {
+                    ToriDraw2D_BlitSpriteAlpha(
+                        sp, &vp, command.u.sprite.x, command.u.sprite.y, alpha, renderer->pixel_buffer);
+                }
+                else
+                {
+                    ToriDraw2D_BlitSprite(
+                        sp, &vp, command.u.sprite.x, command.u.sprite.y, renderer->pixel_buffer);
+                }
+            }
+            break;
+        }
+        case TORIRSRC_FILL_RECT:
+        {
+            int x0 = command.u.fill_rect.x;
+            int y0 = command.u.fill_rect.y;
+            int x1 = command.u.fill_rect.x + command.u.fill_rect.w;
+            int y1 = command.u.fill_rect.y + command.u.fill_rect.h;
+            if( command.u.fill_rect.scissor_w > 0 && command.u.fill_rect.scissor_h > 0 )
+            {
+                int sx0 = command.u.fill_rect.scissor_x;
+                int sy0 = command.u.fill_rect.scissor_y;
+                int sx1 = sx0 + command.u.fill_rect.scissor_w;
+                int sy1 = sy0 + command.u.fill_rect.scissor_h;
+                if( x0 < sx0 )
+                    x0 = sx0;
+                if( y0 < sy0 )
+                    y0 = sy0;
+                if( x1 > sx1 )
+                    x1 = sx1;
+                if( y1 > sy1 )
+                    y1 = sy1;
+            }
+            soft3d_fill_rect(
+                renderer->pixel_buffer,
+                renderer->width,
+                renderer->width,
+                renderer->height,
+                x0,
+                y0,
+                x1,
+                y1,
+                command.u.fill_rect.argb);
+            break;
+        }
+        case TORIRSRC_FONT:
+        {
+            const int font_id = command.u.font.font_id;
+            if( font_id < 0 || !command.u.font.text )
+            {
+                fprintf(
+                    stderr,
+                    "TORIRSRC_FONT: invalid font_id=%d text=%p\n",
+                    font_id,
+                    (void*)command.u.font.text);
+                assert(font_id >= 0 && command.u.font.text);
+                break;
+            }
+            struct ToriDraw_Font* font = NULL;
+            if( draw_context )
+                font = ToriDraw_SceneFontGet(draw_context, font_id);
+            if( !font && font_id < SOFT3D_FONT_CAP )
+                font = renderer->fonts[font_id];
+            if( !font || !ToriDraw_FontValidate(font) )
+            {
+                assert(!"TORIRSRC_FONT: font missing or failed ToriDraw_FontValidate");
+                break;
+            }
+            struct ToriDraw_ViewPort vp = renderer->iface_view_port;
+            if( command.u.font.scissor_w > 0 && command.u.font.scissor_h > 0 )
+            {
+                vp.clip_left = command.u.font.scissor_x;
+                vp.clip_top = command.u.font.scissor_y;
+                vp.clip_right = command.u.font.scissor_x + command.u.font.scissor_w;
+                vp.clip_bottom = command.u.font.scissor_y + command.u.font.scissor_h;
+            }
+            if( command.u.font.width > 0 && command.u.font.height > 0 )
+            {
+                (void)ToriDraw2D_DrawStringBox(
+                    font,
+                    &vp,
+                    command.u.font.x,
+                    command.u.font.y,
+                    command.u.font.width,
+                    command.u.font.height,
+                    command.u.font.text,
+                    command.u.font.color,
+                    command.u.font.center,
+                    command.u.font.y_align,
+                    command.u.font.line_height,
+                    command.u.font.shadowed != 0,
+                    renderer->pixel_buffer);
+            }
+            else
+            {
+                (void)ToriDraw2D_DrawString(
+                    font,
+                    &vp,
+                    command.u.font.x,
+                    command.u.font.y,
+                    command.u.font.text,
+                    command.u.font.color,
+                    command.u.font.center != 0,
+                    command.u.font.shadowed != 0,
+                    renderer->pixel_buffer);
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    LibToriRS_FrameEnd(instance);
+
+#if defined(TORIRS_ENABLE_LVGL_HUD)
+    if( renderer->hud )
+    {
+        LibToriHud_Update(renderer->hud, instance);
+        LibToriHud_CompositeOverARGB8888(
+            renderer->hud,
+            (uint32_t*)renderer->pixel_buffer,
+            renderer->width,
+            renderer->width,
+            renderer->height);
+    }
+#endif
+
+    if( stats )
+    {
+        stats->draw_model_count = draw_model_count;
+        stats->track_element_drawn = track_element_drawn;
+    }
+
+    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
+        renderer->pixel_buffer,
+        renderer->width,
+        renderer->height,
+        32,
+        renderer->width * (int)sizeof(int),
+        0x00FF0000,
+        0x0000FF00,
+        0x000000FF,
+        0xFF000000);
+    assert(surface && "SDL_CreateRGBSurfaceFrom failed");
+
+    int* pix_write = NULL;
+    int texture_pitch = 0;
+    if( SDL_LockTexture(renderer->texture, NULL, (void**)&pix_write, &texture_pitch) < 0 )
+    {
+        SDL_FreeSurface(surface);
+        return;
+    }
+
+    int* src_pixels = (int*)surface->pixels;
+    int texture_w = texture_pitch / (int)sizeof(int);
+
+    memset(pix_write, 0, (size_t)texture_pitch * (size_t)renderer->height);
+
+    for( int src_y = 0; src_y < renderer->height; src_y++ )
+    {
+        int* row = &pix_write[src_y * texture_w];
+        memcpy(row, &src_pixels[src_y * renderer->width], (size_t)renderer->width * sizeof(int));
+    }
+
+    SDL_UnlockTexture(renderer->texture);
+    SDL_FreeSurface(surface);
+
+    int window_width = 0;
+    int window_height = 0;
+    SDL_GetWindowSize(renderer->window, &window_width, &window_height);
+
+    SDL_Rect dst_rect;
+    dst_rect.x = 0;
+    dst_rect.y = 0;
+    dst_rect.w = renderer->width;
+    dst_rect.h = renderer->height;
+
+    if( window_width > 0 && window_height > 0 )
+    {
+        float src_aspect = (float)renderer->width / (float)renderer->height;
+        float window_aspect = (float)window_width / (float)window_height;
+
+        if( src_aspect > window_aspect )
+        {
+            dst_rect.w = window_width;
+            dst_rect.h = (int)(window_width / src_aspect);
+            dst_rect.x = 0;
+            dst_rect.y = (window_height - dst_rect.h) / 2;
+        }
+        else
+        {
+            dst_rect.h = window_height;
+            dst_rect.w = (int)(window_height * src_aspect);
+            dst_rect.y = 0;
+            dst_rect.x = (window_width - dst_rect.w) / 2;
+        }
+    }
+
+    SDL_RenderClear(renderer->renderer);
+    SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
+    SDL_RenderPresent(renderer->renderer);
+}

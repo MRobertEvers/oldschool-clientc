@@ -55,11 +55,11 @@ struct Game
 
     struct SceneTextures* scene_textures;
 
-    struct CacheTexture* textures;
+    struct RSCacheDat2A_Texture* textures;
 
-    struct CacheSpritePack* sprite_packs;
+    struct RSCacheDat2A_SpritePack* sprite_packs;
 
-    struct CacheMapLocs* map_locs;
+    struct RSCacheDat2A_MapLocs* map_locs;
 
     struct SceneLocs* scene_locs;
 
@@ -121,7 +121,7 @@ private:
     struct Game* m_game;
 
     // Cache and scene data
-    struct Cache* m_cache;
+    struct RSCacheDat2Disk* m_cache;
     struct Scene* m_scene;
     struct TexturesCache* m_textures_cache;
 

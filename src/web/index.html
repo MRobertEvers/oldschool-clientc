@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>torirs (web)</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: #14100c;
+    color: #c8bda4;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #3a2f22;
+  }
+  header h1 { font-size: 13px; margin: 0; font-weight: 600; color: #e0d5b8; }
+  #status { color: #8f8367; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Pushed to the right so the heap controls never crowd the status line. They
+     stay hidden unless the module was built with MEMTRACE=1. */
+  #memtrace { display: flex; gap: 0.4rem; white-space: nowrap; }
+  #memtrace[hidden] { display: none; }
+  /* Pushed to the right so neither control group crowds the status line. */
+  #viewctl { margin-left: auto; display: flex; gap: 0.4rem; white-space: nowrap; }
+  header button {
+    font: inherit;
+    color: #c8bda4;
+    background: #241c14;
+    border: 1px solid #3a2f22;
+    padding: 0.15rem 0.5rem;
+    cursor: pointer;
+  }
+  header button:hover:enabled { background: #32271b; color: #e0d5b8; }
+  header button:disabled { opacity: 0.45; cursor: default; }
+  /* A toggle that is currently on. */
+  header button[aria-pressed="true"] {
+    background: #4a3a1e;
+    border-color: #6b5426;
+    color: #e8dcb8;
+  }
+  main { display: flex; flex: 1; min-height: 0; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; }
+  #stage { flex: 0 0 auto; min-width: 0; min-height: 0; }
+  /* The client renders at a fixed 765x503; scale it without smoothing so the
+     software rasterizer's pixels stay the pixels it drew. */
+  canvas#canvas {
+    display: block;
+    background: #000;
+    border: 1px solid #3a2f22;
+    image-rendering: pixelated;
+    width: 765px;
+    height: 503px;
+  }
+
+  /* --- Scaled modes -----------------------------------------------------
+     `fit` is on whenever the canvas should grow past its 1:1 size: full
+     canvas, fullscreen, or both. The canvas leaves the flow and is centred
+     absolutely inside the stage, so its size can never feed back into the
+     box being measured; the script sizes it to the largest rectangle of the
+     backbuffer's aspect that fits, which is what the native window does when
+     it letterboxes a fixed frame. */
+  body.fit main { flex-wrap: nowrap; }
+  body.fit #stage { position: relative; flex: 1 1 auto; align-self: stretch; }
+  /* The panels are capped at the fixed frame's height; once the canvas is
+     taller than that, they should be too. */
+  body.fit .panel { max-height: none; align-self: stretch; }
+  body.fit canvas#canvas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Full canvas: the log panels go away and the header shrinks to a corner
+     strip, faded until pointed at, so the toggles stay reachable without
+     taking a row from the picture. */
+  body.fullcanvas { height: 100vh; overflow: hidden; }
+  body.fullcanvas main { padding: 0; gap: 0; }
+  body.fullcanvas .panel { display: none; }
+  body.fullcanvas canvas#canvas { border: 0; }
+  body.fullcanvas header {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 10;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #3a2f22;
+    border-top: 0;
+    border-right: 0;
+    background: rgba(20, 16, 12, 0.85);
+    opacity: 0.2;
+    transition: opacity 0.12s ease-out;
+  }
+  body.fullcanvas header:hover,
+  body.fullcanvas header:focus-within { opacity: 1; }
+  body.fullcanvas header h1,
+  body.fullcanvas header #status { display: none; }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid #3a2f22;
+    background: #0d0a07;
+    max-height: 503px;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7d7157;
+    border-bottom: 1px solid #241c14;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  #iolog-panel { width: 220px; flex: 0 0 auto; }
+  #log-panel { flex: 1; min-width: 320px; }
+  #log {
+    margin: 0;
+    padding: 0.5rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    color: #93876a;
+  }
+  /* One row per IO round trip, newest first: which client frame asked, how
+     long the answer took, and how much came back. */
+  #iolog { overflow: auto; padding: 0.25rem 0; font-size: 11px; }
+  #iolog div {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 0.5rem;
+    color: #7f7458;
+    white-space: nowrap;
+  }
+  #iolog .f { width: 3.6em; color: #5f563f; }
+  #iolog .t { width: 4.6em; text-align: right; }
+  #iolog .b { width: 4.6em; text-align: right; }
+  #iolog .s { color: #b08b3a; }
+  /* A round trip that outlived its frame — a stalled main thread when the pump
+     is synchronous, a read the frame could not use when it is not. */
+  #iolog .slow { color: #d0a24a; }
+  #iolog .bad { color: #cf6a5a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>torirs — wasm</h1>
+  <span id="status">loading…</span>
+  <!-- MEMTRACE=1 builds only; torirs_host.js unhides this once it sees the
+       tracer's exports. Flushing closes the trace, so both actions end
+       recording for the session — see tools/memtrace/README.md. -->
+  <span id="memtrace" hidden>
+    <button type="button" id="btn-memtrace-view"
+            title="Flush the heap trace and open it in the viewer. Ends recording.">
+      heap profile
+    </button>
+    <button type="button" id="btn-memtrace-download"
+            title="Flush and save memtrace.bin for tools/memtrace/summarize.py. Ends recording.">
+      save .bin
+    </button>
+  </span>
+  <span id="viewctl">
+    <button type="button" id="btn-fullcanvas" aria-pressed="false"
+            title="Hide the log panels and scale the canvas to the window. Remembered across reloads (?fullcanvas=1).">
+      full canvas
+    </button>
+    <button type="button" id="btn-fullscreen" aria-pressed="false"
+            title="Take the page fullscreen and scale the canvas to the screen.">
+      fullscreen
+    </button>
+  </span>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="canvas" width="765" height="503" tabindex="-1"
+            oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+  <section class="panel" id="iolog-panel">
+    <h2>IO log — frame · time · size</h2>
+    <div id="iolog"></div>
+  </section>
+  <section class="panel" id="log-panel">
+    <h2>client</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<!--
+  View controls. Page chrome only — deliberately ahead of the module scripts
+  and independent of Module, so the toggles still work on a page whose wasm
+  never loaded.
+
+  Scaling is CSS-only: the backbuffer keeps whatever size the client gave it
+  (765x503 fixed, or the size it picked in resizable window mode) and the
+  element is stretched over it. Input needs no adjustment for that — the
+  runtime converts a page coordinate with canvas.width / boundingRect.width,
+  so a scaled canvas reports backbuffer pixels either way.
+-->
+<script>
+(function () {
+  'use strict';
+
+  var body = document.body;
+  var canvas = document.getElementById('canvas');
+  var stage = document.getElementById('stage');
+  var btnCanvas = document.getElementById('btn-fullcanvas');
+  var btnFull = document.getElementById('btn-fullscreen');
+  var STORE_KEY = 'torirs.fullcanvas';
+
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function requestFullscreen(el) {
+    var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (fn) { return fn.call(el); }
+    return null;
+  }
+
+  function exitFullscreen() {
+    var fn = document.exitFullscreen || document.webkitExitFullscreen;
+    if (fn) { return fn.call(document); }
+    return null;
+  }
+
+  // The largest rectangle of the backbuffer's aspect that fits the stage.
+  // Cleared, not recomputed, outside fit mode: the stylesheet's 1:1 size is
+  // then the one that applies.
+  function fit() {
+    var fullCanvas = body.classList.contains('fullcanvas');
+    var fitting = fullCanvas || !!fullscreenElement();
+    body.classList.toggle('fit', fitting);
+    if (!fitting) {
+      canvas.style.width = '';
+      canvas.style.height = '';
+      return;
+    }
+    var availW = stage.clientWidth;
+    var availH = stage.clientHeight;
+    var srcW = canvas.width || 1;
+    var srcH = canvas.height || 1;
+    if (availW <= 0 || availH <= 0) { return; }
+    var scale = Math.min(availW / srcW, availH / srcH);
+    canvas.style.width = Math.max(1, Math.floor(srcW * scale)) + 'px';
+    canvas.style.height = Math.max(1, Math.floor(srcH * scale)) + 'px';
+  }
+
+  function setFullCanvas(on) {
+    body.classList.toggle('fullcanvas', on);
+    btnCanvas.setAttribute('aria-pressed', on ? 'true' : 'false');
+    try { window.localStorage.setItem(STORE_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+    fit();
+  }
+
+  btnCanvas.onclick = function () {
+    setFullCanvas(!body.classList.contains('fullcanvas'));
+  };
+
+  btnFull.onclick = function () {
+    // The page, not the canvas: fullscreening the canvas element alone would
+    // take the header — and with it the way back out of full canvas — off
+    // screen, and hand sizing to the browser's own letterbox.
+    var p = fullscreenElement() ? exitFullscreen() : requestFullscreen(document.documentElement);
+    if (p && p.catch) { p.catch(function () { /* denied or unsupported */ }); }
+  };
+
+  function syncFullscreenButton() {
+    btnFull.setAttribute('aria-pressed', fullscreenElement() ? 'true' : 'false');
+    fit();
+  }
+
+  document.addEventListener('fullscreenchange', syncFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+  if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+    btnFull.disabled = true;
+    btnFull.title = 'Fullscreen is not available in this browser or frame.';
+  }
+
+  // Three things move the fit: the window, the stage (a panel appearing or
+  // going away), and the backbuffer itself — the client reallocs it when the
+  // in-game Display mode is resizable, and canvas.width/height are reflected
+  // attributes, so a mutation observer sees that.
+  window.addEventListener('resize', fit);
+  if (window.ResizeObserver) { new window.ResizeObserver(fit).observe(stage); }
+  if (window.MutationObserver) {
+    new window.MutationObserver(fit).observe(
+      canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+  }
+
+  var stored = null;
+  try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
+  var forced = new URLSearchParams(window.location.search).get('fullcanvas');
+  setFullCanvas(forced !== null ? forced !== '0' : stored === '1');
+})();
+</script>
+
+<!-- Order matters: the harness defines Module, which the runtime reads on load. -->
+<script src="torirs_host.js"></script>
+<script src="torirs.js"></script>
+</body>
+</html>

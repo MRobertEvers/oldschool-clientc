@@ -63,7 +63,7 @@ typedef struct
     uint32_t archive_num;
 
     // Response data
-    struct CacheArchive* archive;
+    struct RSCacheDat2Disk_Archive* archive;
     int status_value;
     uint32_t status_network;
     uint32_t data_size_network;
@@ -97,7 +97,7 @@ typedef struct
 static thread_pool_t pool;
 static int server_fd = -1;
 static volatile int running = 1;
-static struct Cache* cache = NULL;
+static struct RSCacheDat2Disk* cache = NULL;
 
 // Function prototypes
 void* worker_thread(void* arg);
@@ -200,7 +200,7 @@ worker_remove_client(worker_data_t* worker, int index)
 
     if( client->archive )
     {
-        cache_archive_free(client->archive);
+        RSCacheDat2Disk_ArchiveFree(client->archive);
         client->archive = NULL;
     }
 
@@ -319,11 +319,11 @@ worker_handle_client_io(worker_data_t* worker, int client_index)
         // Load archive from cache
         if( client->table_num == 255 )
         {
-            client->archive = cache_archive_new_reference_table_load(cache, client->archive_num);
+            client->archive = RSCacheDat2Disk_ArchiveNewReferenceTableLoad(cache, client->archive_num);
         }
         else
         {
-            if( !cache_is_valid_table_id(client->table_num) )
+            if( !RSCacheDat2Disk_IsValidTableId(client->table_num) )
             {
                 fprintf(
                     stderr,
@@ -335,12 +335,12 @@ worker_handle_client_io(worker_data_t* worker, int client_index)
             else
             {
                 int32_t* xtea_key = NULL;
-                if( client->table_num == CACHE_MAPS )
+                if( client->table_num == RSCacheDat2Disk_Table_Maps )
                 {
                     xtea_key =
-                        cache_archive_xtea_key(cache, client->table_num, client->archive_num);
+                        RSCacheDat2Disk_ArchiveXteaKey(cache, client->table_num, client->archive_num);
                 }
-                client->archive = cache_archive_new_load_decrypted(
+                client->archive = RSCacheDat2Disk_ArchiveNewLoadDecrypted(
                     cache, client->table_num, client->archive_num, xtea_key);
             }
         }
@@ -443,7 +443,7 @@ worker_handle_client_io(worker_data_t* worker, int client_index)
         {
             if( client->archive )
             {
-                cache_archive_free(client->archive);
+                RSCacheDat2Disk_ArchiveFree(client->archive);
                 client->archive = NULL;
             }
             client->state = CLIENT_STATE_READING_REQUEST_CODE;
@@ -492,7 +492,7 @@ worker_handle_client_io(worker_data_t* worker, int client_index)
                 client->table_num,
                 client->archive_num);
 
-            cache_archive_free(client->archive);
+            RSCacheDat2Disk_ArchiveFree(client->archive);
             client->archive = NULL;
 
             // Go back to reading next request
@@ -676,7 +676,7 @@ thread_pool_destroy(thread_pool_t* pool)
             client_conn_t* client = &pool->workers[i].clients[j];
             if( client->archive )
             {
-                cache_archive_free(client->archive);
+                RSCacheDat2Disk_ArchiveFree(client->archive);
             }
             close(client->fd);
         }
@@ -766,7 +766,7 @@ cleanup_server(void)
 
     if( cache )
     {
-        cache_free(cache);
+        RSCacheDat2Disk_Free(cache);
         cache = NULL;
     }
 }
@@ -779,7 +779,7 @@ main(int argc, char* argv[])
     socklen_t client_addr_len;
     int client_fd;
 
-    int xtea_keys_count = xtea_config_load_keys("../cache/xteas.json");
+    int xtea_keys_count = RSCacheShared_XteaConfigLoadKeys("../cache/xteas.json");
     if( xtea_keys_count == -1 )
     {
         fprintf(stderr, "Failed to load xtea keys from: ../cache/xteas.json\n");
@@ -808,7 +808,7 @@ main(int argc, char* argv[])
 
     // Initialize cache
     printf("Loading cache...\n");
-    cache = cache_new_from_directory(cache_dir);
+    cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
     if( !cache )
     {
         fprintf(stderr, "Failed to initialize cache from directory: %s\n", cache_dir);

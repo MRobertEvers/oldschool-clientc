@@ -1,0 +1,11 @@
+{
+  "caseId": "equip_slot_onload_3282",
+  "scriptId": 3282,
+  "status": 0,
+  "opcount": 1,
+  "intStack": [],
+  "stringStack": [],
+  "trace": [
+    {"step":0,"pc":0,"opcode":21,"intSp":0,"strSp":0,"topInt":0}
+  ]
+}

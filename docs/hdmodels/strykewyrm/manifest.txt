@@ -1,0 +1,30 @@
+Strykewyrms (ice / desert / jungle)
+exported by ev_export from cache.rs727_preeoc (profile rs727)
+
+Models are RAW cache archives: the viewer decodes them itself, so these
+exercise format detection and the complex-texture decode. Animations are
+ev_wire blobs (.eva) because a sequence is not self-contained - it names
+frames which name a framemap - so a raw export would need the cache back.
+
+An animation only moves a model that shares its rig; the rig id is below.
+
+npc 9463 "Ice strykewyrm"
+  model 51847  OB3    25392 bytes  verts   962  faces  1824  texcoords   70  [plane 16 cyl 36 cube 18 sph 0]  alpha faces 130
+  model 51849  OB3      190 bytes  verts    18  faces     6  texcoords    0  [plane 0 cyl 0 cube 0 sph 0]  alpha faces 6
+  bas   1696   (idle 12790 walk 12790 back -1 left -1 right -1)
+  anim  12790  bas idle               rig 2716  frames  20   20692 bytes
+  anim  12790  bas walk               (already exported)
+
+npc 9465 "Desert strykewyrm"
+  model 51848  OB3    21156 bytes  verts   895  faces  1740  texcoords   36  [plane 6 cyl 28 cube 2 sph 0]  alpha faces 154
+  model 51850  OB3      190 bytes  verts    18  faces     6  texcoords    0  [plane 0 cyl 0 cube 0 sph 0]  alpha faces 6
+  bas   1696   (idle 12790 walk 12790 back -1 left -1 right -1)
+  anim  12790  bas idle               (already exported)
+  anim  12790  bas walk               (already exported)
+
+npc 9467 "Jungle strykewyrm"
+  model 51852  OB3    22780 bytes  verts   992  faces  1846  texcoords   51  [plane 24 cyl 22 cube 5 sph 0]  alpha faces 150
+  model 51853  OB3      190 bytes  verts    18  faces     6  texcoords    0  [plane 0 cyl 0 cube 0 sph 0]  alpha faces 6
+  bas   1696   (idle 12790 walk 12790 back -1 left -1 right -1)
+  anim  12790  bas idle               (already exported)
+  anim  12790  bas walk               (already exported)

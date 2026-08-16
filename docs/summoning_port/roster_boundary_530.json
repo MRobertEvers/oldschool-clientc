@@ -1,0 +1,5632 @@
+{
+ "schema": 1,
+ "phase": "5b",
+ "source_manifest": "pouches_530.json",
+ "source_inventory": {
+  "pouch_records": 82,
+  "active_familiar_pairs": 78,
+  "deferred_sacred_clay_pairs": 4,
+  "deferred_slot": -1
+ },
+ "candidate_entity_kinds": [
+  "familiar",
+  "pouch"
+ ],
+ "admitted_pet_prefixes": [
+  "summoning_pet_clockwork_cat"
+ ],
+ "admitted_review_references": [
+  "summoning_roster_530_abyssal_lukrer_attack",
+  "summoning_roster_530_abyssal_lukrer_death",
+  "summoning_roster_530_abyssal_parasite_attack",
+  "summoning_roster_530_abyssal_parasite_death",
+  "summoning_roster_530_abyssal_titan_attack",
+  "summoning_roster_530_abyssal_titan_death",
+  "summoning_roster_530_animset_1287",
+  "summoning_roster_530_animset_1289",
+  "summoning_roster_530_animset_1345",
+  "summoning_roster_530_animset_1390",
+  "summoning_roster_530_animset_1399",
+  "summoning_roster_530_animset_1490",
+  "summoning_roster_530_animset_1528",
+  "summoning_roster_530_animset_1586",
+  "summoning_roster_530_animset_1590",
+  "summoning_roster_530_animset_1639",
+  "summoning_roster_530_animset_1662",
+  "summoning_roster_530_animset_1711",
+  "summoning_roster_530_animset_1833",
+  "summoning_roster_530_animset_1868",
+  "summoning_roster_530_animset_1916",
+  "summoning_roster_530_animset_1917",
+  "summoning_roster_530_animset_1918",
+  "summoning_roster_530_animset_1919",
+  "summoning_roster_530_animset_1920",
+  "summoning_roster_530_animset_1921",
+  "summoning_roster_530_animset_1922",
+  "summoning_roster_530_animset_1923",
+  "summoning_roster_530_animset_1925",
+  "summoning_roster_530_animset_1926",
+  "summoning_roster_530_animset_1927",
+  "summoning_roster_530_animset_1928",
+  "summoning_roster_530_animset_1929",
+  "summoning_roster_530_animset_1930",
+  "summoning_roster_530_animset_1931",
+  "summoning_roster_530_animset_1933",
+  "summoning_roster_530_animset_1934",
+  "summoning_roster_530_animset_1935",
+  "summoning_roster_530_animset_1936",
+  "summoning_roster_530_animset_1937",
+  "summoning_roster_530_animset_1938",
+  "summoning_roster_530_animset_1939",
+  "summoning_roster_530_animset_1940",
+  "summoning_roster_530_animset_1941",
+  "summoning_roster_530_animset_1942",
+  "summoning_roster_530_animset_1943",
+  "summoning_roster_530_animset_1944",
+  "summoning_roster_530_animset_1945",
+  "summoning_roster_530_animset_1946",
+  "summoning_roster_530_animset_1949",
+  "summoning_roster_530_animset_1951",
+  "summoning_roster_530_animset_1952",
+  "summoning_roster_530_animset_1953",
+  "summoning_roster_530_animset_1954",
+  "summoning_roster_530_animset_1955",
+  "summoning_roster_530_animset_1956",
+  "summoning_roster_530_animset_1957",
+  "summoning_roster_530_animset_2068",
+  "summoning_roster_530_animset_2111",
+  "summoning_roster_530_animset_2260",
+  "summoning_roster_530_animset_2710",
+  "summoning_roster_530_animset_671",
+  "summoning_roster_530_arctic_bear_attack",
+  "summoning_roster_530_arctic_bear_death",
+  "summoning_roster_530_arctic_bear_defend",
+  "summoning_roster_530_barker_toad_death",
+  "summoning_roster_530_bloated_leech_attack",
+  "summoning_roster_530_bloated_leech_death",
+  "summoning_roster_530_bronze_minotaur_attack",
+  "summoning_roster_530_bronze_minotaur_death",
+  "summoning_roster_530_bronze_minotaur_defend",
+  "summoning_roster_530_bull_ant_attack",
+  "summoning_roster_530_bull_ant_death",
+  "summoning_roster_530_bunyip_attack",
+  "summoning_roster_530_bunyip_death",
+  "summoning_roster_530_bunyip_defend",
+  "summoning_roster_530_compost_mound_attack",
+  "summoning_roster_530_compost_mound_death",
+  "summoning_roster_530_desert_wyrm_death",
+  "summoning_roster_530_dreadfowl_attack",
+  "summoning_roster_530_dreadfowl_death",
+  "summoning_roster_530_dreadfowl_defend",
+  "summoning_roster_530_evil_turnip_attack",
+  "summoning_roster_530_evil_turnip_death",
+  "summoning_roster_530_fire_titan_attack",
+  "summoning_roster_530_fire_titan_death",
+  "summoning_roster_530_fire_titan_defend",
+  "summoning_roster_530_forge_regent_beast_attack",
+  "summoning_roster_530_forge_regent_beast_death",
+  "summoning_roster_530_framemap_0",
+  "summoning_roster_530_framemap_1151",
+  "summoning_roster_530_framemap_1153",
+  "summoning_roster_530_framemap_1206",
+  "summoning_roster_530_framemap_1248",
+  "summoning_roster_530_framemap_1255",
+  "summoning_roster_530_framemap_1338",
+  "summoning_roster_530_framemap_1372",
+  "summoning_roster_530_framemap_1422",
+  "summoning_roster_530_framemap_1426",
+  "summoning_roster_530_framemap_1472",
+  "summoning_roster_530_framemap_1491",
+  "summoning_roster_530_framemap_1533",
+  "summoning_roster_530_framemap_1537",
+  "summoning_roster_530_framemap_1643",
+  "summoning_roster_530_framemap_1714",
+  "summoning_roster_530_framemap_1716",
+  "summoning_roster_530_framemap_1717",
+  "summoning_roster_530_framemap_1718",
+  "summoning_roster_530_framemap_1719",
+  "summoning_roster_530_framemap_1720",
+  "summoning_roster_530_framemap_1722",
+  "summoning_roster_530_framemap_1723",
+  "summoning_roster_530_framemap_1724",
+  "summoning_roster_530_framemap_1725",
+  "summoning_roster_530_framemap_1726",
+  "summoning_roster_530_framemap_1727",
+  "summoning_roster_530_framemap_1728",
+  "summoning_roster_530_framemap_1729",
+  "summoning_roster_530_framemap_1730",
+  "summoning_roster_530_framemap_1731",
+  "summoning_roster_530_framemap_1732",
+  "summoning_roster_530_framemap_1733",
+  "summoning_roster_530_framemap_1734",
+  "summoning_roster_530_framemap_1735",
+  "summoning_roster_530_framemap_1736",
+  "summoning_roster_530_framemap_1737",
+  "summoning_roster_530_framemap_1739",
+  "summoning_roster_530_framemap_1740",
+  "summoning_roster_530_framemap_1741",
+  "summoning_roster_530_framemap_1742",
+  "summoning_roster_530_framemap_1743",
+  "summoning_roster_530_framemap_1744",
+  "summoning_roster_530_framemap_1745",
+  "summoning_roster_530_framemap_1746",
+  "summoning_roster_530_framemap_1747",
+  "summoning_roster_530_framemap_1749",
+  "summoning_roster_530_framemap_1751",
+  "summoning_roster_530_framemap_1752",
+  "summoning_roster_530_framemap_1753",
+  "summoning_roster_530_framemap_1755",
+  "summoning_roster_530_framemap_1868",
+  "summoning_roster_530_framemap_1903",
+  "summoning_roster_530_framemap_2035",
+  "summoning_roster_530_framemap_2430",
+  "summoning_roster_530_framemap_559",
+  "summoning_roster_530_geyser_titan_death",
+  "summoning_roster_530_geyser_titan_defend",
+  "summoning_roster_530_geyser_titan_magic",
+  "summoning_roster_530_giant_chinchompa_attack",
+  "summoning_roster_530_giant_ent_attack",
+  "summoning_roster_530_giant_ent_death",
+  "summoning_roster_530_granite_crab_attack",
+  "summoning_roster_530_granite_crab_death",
+  "summoning_roster_530_granite_crab_defend",
+  "summoning_roster_530_granite_lobster_attack",
+  "summoning_roster_530_granite_lobster_death",
+  "summoning_roster_530_granite_lobster_defend",
+  "summoning_roster_530_honey_badger_death",
+  "summoning_roster_530_hydra_attack",
+  "summoning_roster_530_hydra_death",
+  "summoning_roster_530_hydra_defend",
+  "summoning_roster_530_ice_titan_attack",
+  "summoning_roster_530_ice_titan_death",
+  "summoning_roster_530_iron_titan_attack",
+  "summoning_roster_530_iron_titan_death",
+  "summoning_roster_530_iron_titan_defend",
+  "summoning_roster_530_karamthulhu_death",
+  "summoning_roster_530_lava_titan_attack",
+  "summoning_roster_530_lava_titan_death",
+  "summoning_roster_530_macaw_death",
+  "summoning_roster_530_model_34024",
+  "summoning_roster_530_model_34040",
+  "summoning_roster_530_model_34083",
+  "summoning_roster_530_moss_titan_attack",
+  "summoning_roster_530_moss_titan_death",
+  "summoning_roster_530_obsidian_golem_attack",
+  "summoning_roster_530_obsidian_golem_death",
+  "summoning_roster_530_obsidian_golem_defend",
+  "summoning_roster_530_pack_yak_attack",
+  "summoning_roster_530_pack_yak_death",
+  "summoning_roster_530_pack_yak_defend",
+  "summoning_roster_530_phoenix_attack",
+  "summoning_roster_530_phoenix_death",
+  "summoning_roster_530_praying_mantis_death",
+  "summoning_roster_530_pyrelord_attack",
+  "summoning_roster_530_pyrelord_death",
+  "summoning_roster_530_ravenous_locust_attack",
+  "summoning_roster_530_ravenous_locust_death",
+  "summoning_roster_530_smoke_devil_attack",
+  "summoning_roster_530_smoke_devil_death",
+  "summoning_roster_530_spirit_cobra_attack",
+  "summoning_roster_530_spirit_cobra_death",
+  "summoning_roster_530_spirit_cockatrice_death",
+  "summoning_roster_530_spirit_dagannoth_death",
+  "summoning_roster_530_spirit_jelly_attack",
+  "summoning_roster_530_spirit_jelly_death",
+  "summoning_roster_530_spirit_kalphite_attack",
+  "summoning_roster_530_spirit_kalphite_death",
+  "summoning_roster_530_spirit_kyatt_attack",
+  "summoning_roster_530_spirit_kyatt_death",
+  "summoning_roster_530_spirit_mosquito_death",
+  "summoning_roster_530_spirit_mosquito_defend",
+  "summoning_roster_530_spirit_scorpion_attack",
+  "summoning_roster_530_spirit_scorpion_death",
+  "summoning_roster_530_spirit_spider_attack",
+  "summoning_roster_530_spirit_spider_death",
+  "summoning_roster_530_spirit_terrorbird_attack",
+  "summoning_roster_530_spirit_terrorbird_death",
+  "summoning_roster_530_spirit_tz_kih_death",
+  "summoning_roster_530_spirit_wolf_attack",
+  "summoning_roster_530_spirit_wolf_death",
+  "summoning_roster_530_spirit_wolf_defend",
+  "summoning_roster_530_steel_titan_death",
+  "summoning_roster_530_steel_titan_defend",
+  "summoning_roster_530_stranger_plant_attack",
+  "summoning_roster_530_stranger_plant_death",
+  "summoning_roster_530_swamp_titan_attack",
+  "summoning_roster_530_swamp_titan_death",
+  "summoning_roster_530_swamp_titan_defend",
+  "summoning_roster_530_talon_beast_death",
+  "summoning_roster_530_thorny_snail_attack",
+  "summoning_roster_530_thorny_snail_death",
+  "summoning_roster_530_unicorn_stallion_attack",
+  "summoning_roster_530_unicorn_stallion_death",
+  "summoning_roster_530_unicorn_stallion_defend",
+  "summoning_roster_530_vampire_bat_death",
+  "summoning_roster_530_void_ravager_attack",
+  "summoning_roster_530_void_ravager_death",
+  "summoning_roster_530_void_shifter_attack",
+  "summoning_roster_530_void_shifter_death",
+  "summoning_roster_530_void_spinner_attack",
+  "summoning_roster_530_void_spinner_death",
+  "summoning_roster_530_void_torcher_attack",
+  "summoning_roster_530_void_torcher_death",
+  "summoning_roster_530_war_tortoise_attack",
+  "summoning_roster_530_war_tortoise_death",
+  "summoning_roster_530_wolpertinger_attack",
+  "summoning_roster_530_wolpertinger_death",
+  "summoning_roster_530_wolpertinger_defend"
+ ],
+ "admitted_review_pack_lines": [
+  "11300=ported/scape2009_summoning/summoning_roster_530_framemap_2035",
+  "123000=ported/scape2009_summoning/summoning_roster_530_model_34024",
+  "123001=ported/scape2009_summoning/summoning_roster_530_model_34040",
+  "123002=ported/scape2009_summoning/summoning_roster_530_model_34083",
+  "20000=ported/scape2009_summoning/summoning_roster_530_animset_1662",
+  "20004=ported/scape2009_summoning/summoning_roster_530_animset_1399",
+  "20005=ported/scape2009_summoning/summoning_roster_530_animset_1390",
+  "20005=summoning_roster_530_spirit_wolf_attack",
+  "20006=ported/scape2009_summoning/summoning_roster_530_animset_1938",
+  "20006=summoning_roster_530_spirit_wolf_defend",
+  "20007=ported/scape2009_summoning/summoning_roster_530_animset_671",
+  "20007=summoning_roster_530_spirit_wolf_death",
+  "20008=ported/scape2009_summoning/summoning_roster_530_animset_1944",
+  "20008=summoning_roster_530_dreadfowl_attack",
+  "20009=ported/scape2009_summoning/summoning_roster_530_animset_1952",
+  "20009=summoning_roster_530_dreadfowl_defend",
+  "20010=ported/scape2009_summoning/summoning_roster_530_animset_1590",
+  "20011=ported/scape2009_summoning/summoning_roster_530_animset_1956",
+  "20011=summoning_roster_530_spirit_spider_attack",
+  "20012=ported/scape2009_summoning/summoning_roster_530_animset_1586",
+  "20013=ported/scape2009_summoning/summoning_roster_530_animset_1941",
+  "20013=summoning_roster_530_spirit_spider_death",
+  "20014=ported/scape2009_summoning/summoning_roster_530_animset_1937",
+  "20014=summoning_roster_530_thorny_snail_attack",
+  "20015=ported/scape2009_summoning/summoning_roster_530_animset_1289",
+  "20016=ported/scape2009_summoning/summoning_roster_530_animset_1940",
+  "20016=summoning_roster_530_granite_crab_attack",
+  "20017=ported/scape2009_summoning/summoning_roster_530_animset_1929",
+  "20017=summoning_roster_530_granite_crab_defend",
+  "20018=ported/scape2009_summoning/summoning_roster_530_animset_1951",
+  "20018=summoning_roster_530_granite_crab_death",
+  "20019=ported/scape2009_summoning/summoning_roster_530_animset_1955",
+  "20020=ported/scape2009_summoning/summoning_roster_530_animset_1919",
+  "20020=summoning_roster_530_spirit_mosquito_defend",
+  "20021=ported/scape2009_summoning/summoning_roster_530_animset_1945",
+  "20021=summoning_roster_530_spirit_mosquito_death",
+  "20022=ported/scape2009_summoning/summoning_roster_530_animset_1918",
+  "20023=ported/scape2009_summoning/summoning_roster_530_animset_1957",
+  "20023=summoning_roster_530_desert_wyrm_death",
+  "20024=ported/scape2009_summoning/summoning_roster_530_animset_1920",
+  "20024=summoning_roster_530_spirit_scorpion_attack",
+  "20025=ported/scape2009_summoning/summoning_roster_530_animset_1946",
+  "20025=summoning_roster_530_spirit_scorpion_death",
+  "20026=ported/scape2009_summoning/summoning_roster_530_animset_1934",
+  "20027=ported/scape2009_summoning/summoning_roster_530_animset_1711",
+  "20027=summoning_roster_530_spirit_tz_kih_death",
+  "20028=ported/scape2009_summoning/summoning_roster_530_animset_1942",
+  "20028=summoning_roster_530_spirit_kalphite_attack",
+  "20029=ported/scape2009_summoning/summoning_roster_530_animset_2111",
+  "20029=summoning_roster_530_spirit_kalphite_death",
+  "20030=ported/scape2009_summoning/summoning_roster_530_animset_1345",
+  "20030=summoning_roster_530_compost_mound_attack",
+  "20031=ported/scape2009_summoning/summoning_roster_530_animset_1949",
+  "20031=summoning_roster_530_compost_mound_death",
+  "20032=ported/scape2009_summoning/summoning_roster_530_animset_1921",
+  "20032=summoning_roster_530_giant_chinchompa_attack",
+  "20033=ported/scape2009_summoning/summoning_roster_530_animset_1943",
+  "20034=ported/scape2009_summoning/summoning_roster_530_animset_1935",
+  "20035=ported/scape2009_summoning/summoning_roster_530_animset_1833",
+  "20035=summoning_roster_530_vampire_bat_death",
+  "20036=ported/scape2009_summoning/summoning_roster_530_animset_1922",
+  "20037=ported/scape2009_summoning/summoning_roster_530_animset_1928",
+  "20037=summoning_roster_530_honey_badger_death",
+  "20038=ported/scape2009_summoning/summoning_roster_530_animset_2068",
+  "20038=summoning_roster_530_void_ravager_attack",
+  "20039=ported/scape2009_summoning/summoning_roster_530_animset_1287",
+  "20039=summoning_roster_530_void_ravager_death",
+  "20040=ported/scape2009_summoning/summoning_roster_530_animset_1936",
+  "20040=summoning_roster_530_void_spinner_attack",
+  "20041=ported/scape2009_summoning/summoning_roster_530_animset_1939",
+  "20041=summoning_roster_530_void_spinner_death",
+  "20042=ported/scape2009_summoning/summoning_roster_530_animset_1923",
+  "20042=summoning_roster_530_void_torcher_attack",
+  "20043=ported/scape2009_summoning/summoning_roster_530_animset_1528",
+  "20043=summoning_roster_530_void_torcher_death",
+  "20044=ported/scape2009_summoning/summoning_roster_530_animset_1931",
+  "20044=summoning_roster_530_void_shifter_attack",
+  "20045=ported/scape2009_summoning/summoning_roster_530_animset_1926",
+  "20045=summoning_roster_530_void_shifter_death",
+  "20046=ported/scape2009_summoning/summoning_roster_530_animset_1930",
+  "20046=summoning_roster_530_bronze_minotaur_attack",
+  "20047=ported/scape2009_summoning/summoning_roster_530_animset_1639",
+  "20047=summoning_roster_530_bronze_minotaur_defend",
+  "20048=ported/scape2009_summoning/summoning_roster_530_animset_1933",
+  "20048=summoning_roster_530_bronze_minotaur_death",
+  "20049=ported/scape2009_summoning/summoning_roster_530_animset_1490",
+  "20049=summoning_roster_530_bull_ant_attack",
+  "20050=ported/scape2009_summoning/summoning_roster_530_animset_1916",
+  "20050=summoning_roster_530_bull_ant_death",
+  "20051=ported/scape2009_summoning/summoning_roster_530_animset_1954",
+  "20051=summoning_roster_530_macaw_death",
+  "20052=ported/scape2009_summoning/summoning_roster_530_animset_1953",
+  "20052=summoning_roster_530_evil_turnip_attack",
+  "20053=ported/scape2009_summoning/summoning_roster_530_animset_1925",
+  "20053=summoning_roster_530_evil_turnip_death",
+  "20054=ported/scape2009_summoning/summoning_roster_530_animset_1927",
+  "20055=ported/scape2009_summoning/summoning_roster_530_animset_1868",
+  "20055=summoning_roster_530_spirit_cockatrice_death",
+  "20056=summoning_roster_530_pyrelord_attack",
+  "20057=summoning_roster_530_pyrelord_death",
+  "20058=ported/scape2009_summoning/summoning_roster_530_animset_1917",
+  "20058=summoning_roster_530_bloated_leech_attack",
+  "20059=ported/scape2009_summoning/summoning_roster_530_animset_2710",
+  "20059=summoning_roster_530_bloated_leech_death",
+  "20060=summoning_roster_530_spirit_terrorbird_attack",
+  "20061=summoning_roster_530_spirit_terrorbird_death",
+  "20062=summoning_roster_530_abyssal_parasite_attack",
+  "20063=summoning_roster_530_abyssal_parasite_death",
+  "20064=summoning_roster_530_spirit_jelly_attack",
+  "20065=summoning_roster_530_spirit_jelly_death",
+  "20066=summoning_roster_530_spirit_kyatt_attack",
+  "20067=summoning_roster_530_spirit_kyatt_death",
+  "20070=summoning_roster_530_karamthulhu_death",
+  "20071=summoning_roster_530_smoke_devil_attack",
+  "20072=summoning_roster_530_smoke_devil_death",
+  "20073=summoning_roster_530_abyssal_lukrer_attack",
+  "20074=summoning_roster_530_abyssal_lukrer_death",
+  "20075=summoning_roster_530_spirit_cobra_attack",
+  "20076=summoning_roster_530_spirit_cobra_death",
+  "20077=summoning_roster_530_stranger_plant_attack",
+  "20078=summoning_roster_530_stranger_plant_death",
+  "20080=summoning_roster_530_barker_toad_death",
+  "20081=summoning_roster_530_war_tortoise_attack",
+  "20082=summoning_roster_530_war_tortoise_death",
+  "20083=summoning_roster_530_bunyip_attack",
+  "20084=summoning_roster_530_bunyip_defend",
+  "20085=summoning_roster_530_bunyip_death",
+  "20086=summoning_roster_530_arctic_bear_attack",
+  "20087=summoning_roster_530_arctic_bear_defend",
+  "20088=summoning_roster_530_arctic_bear_death",
+  "20089=summoning_roster_530_obsidian_golem_attack",
+  "20090=summoning_roster_530_obsidian_golem_defend",
+  "20091=summoning_roster_530_obsidian_golem_death",
+  "20092=summoning_roster_530_granite_lobster_attack",
+  "20093=summoning_roster_530_granite_lobster_defend",
+  "20094=summoning_roster_530_granite_lobster_death",
+  "20096=summoning_roster_530_praying_mantis_death",
+  "20097=summoning_roster_530_forge_regent_beast_attack",
+  "20098=summoning_roster_530_forge_regent_beast_death",
+  "20100=summoning_roster_530_talon_beast_death",
+  "20101=summoning_roster_530_giant_ent_attack",
+  "20102=summoning_roster_530_giant_ent_death",
+  "20103=summoning_roster_530_hydra_attack",
+  "20104=summoning_roster_530_hydra_defend",
+  "20105=summoning_roster_530_hydra_death",
+  "20107=summoning_roster_530_spirit_dagannoth_death",
+  "20108=summoning_roster_530_unicorn_stallion_attack",
+  "20109=summoning_roster_530_unicorn_stallion_defend",
+  "20110=summoning_roster_530_unicorn_stallion_death",
+  "20111=summoning_roster_530_wolpertinger_attack",
+  "20112=summoning_roster_530_wolpertinger_defend",
+  "20113=summoning_roster_530_wolpertinger_death",
+  "20114=summoning_roster_530_pack_yak_attack",
+  "20115=summoning_roster_530_pack_yak_defend",
+  "20116=summoning_roster_530_pack_yak_death",
+  "20117=summoning_roster_530_fire_titan_attack",
+  "20118=summoning_roster_530_fire_titan_defend",
+  "20119=summoning_roster_530_fire_titan_death",
+  "20120=summoning_roster_530_moss_titan_attack",
+  "20121=summoning_roster_530_moss_titan_death",
+  "20122=summoning_roster_530_ice_titan_attack",
+  "20123=summoning_roster_530_ice_titan_death",
+  "20124=summoning_roster_530_lava_titan_attack",
+  "20125=summoning_roster_530_lava_titan_death",
+  "20126=summoning_roster_530_swamp_titan_attack",
+  "20127=summoning_roster_530_swamp_titan_defend",
+  "20128=summoning_roster_530_swamp_titan_death",
+  "20130=summoning_roster_530_geyser_titan_magic",
+  "20131=summoning_roster_530_geyser_titan_defend",
+  "20132=summoning_roster_530_geyser_titan_death",
+  "20133=summoning_roster_530_abyssal_titan_attack",
+  "20134=summoning_roster_530_abyssal_titan_death",
+  "20135=summoning_roster_530_iron_titan_attack",
+  "20136=summoning_roster_530_iron_titan_defend",
+  "20137=summoning_roster_530_iron_titan_death",
+  "20139=summoning_roster_530_steel_titan_defend",
+  "20140=summoning_roster_530_steel_titan_death",
+  "20313=summoning_roster_530_dreadfowl_death",
+  "20314=summoning_roster_530_thorny_snail_death",
+  "20315=summoning_roster_530_ravenous_locust_attack",
+  "20316=summoning_roster_530_ravenous_locust_death",
+  "20317=summoning_roster_530_phoenix_attack",
+  "20318=summoning_roster_530_phoenix_death",
+  "25300=ported/scape2009_summoning/summoning_roster_530_animset_2260",
+  "8000=ported/scape2009_summoning/summoning_roster_530_framemap_1491",
+  "8002=ported/scape2009_summoning/summoning_roster_530_framemap_0",
+  "8004=ported/scape2009_summoning/summoning_roster_530_framemap_1255",
+  "8005=ported/scape2009_summoning/summoning_roster_530_framemap_1248",
+  "8006=ported/scape2009_summoning/summoning_roster_530_framemap_1730",
+  "8007=ported/scape2009_summoning/summoning_roster_530_framemap_559",
+  "8008=ported/scape2009_summoning/summoning_roster_530_framemap_1745",
+  "8009=ported/scape2009_summoning/summoning_roster_530_framemap_1725",
+  "8010=ported/scape2009_summoning/summoning_roster_530_framemap_1426",
+  "8011=ported/scape2009_summoning/summoning_roster_530_framemap_1722",
+  "8012=ported/scape2009_summoning/summoning_roster_530_framemap_1422",
+  "8013=ported/scape2009_summoning/summoning_roster_530_framemap_1728",
+  "8014=ported/scape2009_summoning/summoning_roster_530_framemap_1749",
+  "8015=ported/scape2009_summoning/summoning_roster_530_framemap_1153",
+  "8016=ported/scape2009_summoning/summoning_roster_530_framemap_1724",
+  "8017=ported/scape2009_summoning/summoning_roster_530_framemap_1747",
+  "8018=ported/scape2009_summoning/summoning_roster_530_framemap_1744",
+  "8019=ported/scape2009_summoning/summoning_roster_530_framemap_1735",
+  "8020=ported/scape2009_summoning/summoning_roster_530_framemap_1742",
+  "8021=ported/scape2009_summoning/summoning_roster_530_framemap_1718",
+  "8022=ported/scape2009_summoning/summoning_roster_530_framemap_1537",
+  "8023=ported/scape2009_summoning/summoning_roster_530_framemap_1717",
+  "8024=ported/scape2009_summoning/summoning_roster_530_framemap_1755",
+  "8025=ported/scape2009_summoning/summoning_roster_530_framemap_1727",
+  "8026=ported/scape2009_summoning/summoning_roster_530_framemap_1726",
+  "8027=ported/scape2009_summoning/summoning_roster_530_framemap_1533",
+  "8028=ported/scape2009_summoning/summoning_roster_530_framemap_1732",
+  "8029=ported/scape2009_summoning/summoning_roster_530_framemap_1903",
+  "8030=ported/scape2009_summoning/summoning_roster_530_framemap_1206",
+  "8031=ported/scape2009_summoning/summoning_roster_530_framemap_1723",
+  "8032=ported/scape2009_summoning/summoning_roster_530_framemap_1741",
+  "8033=ported/scape2009_summoning/summoning_roster_530_framemap_1743",
+  "8034=ported/scape2009_summoning/summoning_roster_530_framemap_1719",
+  "8035=ported/scape2009_summoning/summoning_roster_530_framemap_1643",
+  "8036=ported/scape2009_summoning/summoning_roster_530_framemap_1720",
+  "8037=ported/scape2009_summoning/summoning_roster_530_framemap_1733",
+  "8038=ported/scape2009_summoning/summoning_roster_530_framemap_1868",
+  "8039=ported/scape2009_summoning/summoning_roster_530_framemap_1151",
+  "8040=ported/scape2009_summoning/summoning_roster_530_framemap_1729",
+  "8041=ported/scape2009_summoning/summoning_roster_530_framemap_1736",
+  "8042=ported/scape2009_summoning/summoning_roster_530_framemap_1739",
+  "8043=ported/scape2009_summoning/summoning_roster_530_framemap_1372",
+  "8044=ported/scape2009_summoning/summoning_roster_530_framemap_1731",
+  "8045=ported/scape2009_summoning/summoning_roster_530_framemap_1746",
+  "8046=ported/scape2009_summoning/summoning_roster_530_framemap_1737",
+  "8047=ported/scape2009_summoning/summoning_roster_530_framemap_1472",
+  "8048=ported/scape2009_summoning/summoning_roster_530_framemap_1716",
+  "8049=ported/scape2009_summoning/summoning_roster_530_framemap_1338",
+  "8050=ported/scape2009_summoning/summoning_roster_530_framemap_1751",
+  "8051=ported/scape2009_summoning/summoning_roster_530_framemap_1740",
+  "8052=ported/scape2009_summoning/summoning_roster_530_framemap_1734",
+  "8053=ported/scape2009_summoning/summoning_roster_530_framemap_1753",
+  "8054=ported/scape2009_summoning/summoning_roster_530_framemap_1714",
+  "8057=ported/scape2009_summoning/summoning_roster_530_framemap_1752",
+  "8058=ported/scape2009_summoning/summoning_roster_530_framemap_2430",
+  "summoning_roster_530_abyssal_lukrer_attack",
+  "summoning_roster_530_abyssal_lukrer_death",
+  "summoning_roster_530_abyssal_parasite_attack",
+  "summoning_roster_530_abyssal_parasite_death",
+  "summoning_roster_530_abyssal_titan_attack",
+  "summoning_roster_530_abyssal_titan_death",
+  "summoning_roster_530_arctic_bear_attack",
+  "summoning_roster_530_arctic_bear_death",
+  "summoning_roster_530_arctic_bear_defend",
+  "summoning_roster_530_barker_toad_death",
+  "summoning_roster_530_bloated_leech_attack",
+  "summoning_roster_530_bloated_leech_death",
+  "summoning_roster_530_bronze_minotaur_attack",
+  "summoning_roster_530_bronze_minotaur_death",
+  "summoning_roster_530_bronze_minotaur_defend",
+  "summoning_roster_530_bull_ant_attack",
+  "summoning_roster_530_bull_ant_death",
+  "summoning_roster_530_bunyip_attack",
+  "summoning_roster_530_bunyip_death",
+  "summoning_roster_530_bunyip_defend",
+  "summoning_roster_530_compost_mound_attack",
+  "summoning_roster_530_compost_mound_death",
+  "summoning_roster_530_desert_wyrm_death",
+  "summoning_roster_530_dreadfowl_attack",
+  "summoning_roster_530_dreadfowl_death",
+  "summoning_roster_530_dreadfowl_defend",
+  "summoning_roster_530_evil_turnip_attack",
+  "summoning_roster_530_evil_turnip_death",
+  "summoning_roster_530_fire_titan_attack",
+  "summoning_roster_530_fire_titan_death",
+  "summoning_roster_530_fire_titan_defend",
+  "summoning_roster_530_forge_regent_beast_attack",
+  "summoning_roster_530_forge_regent_beast_death",
+  "summoning_roster_530_geyser_titan_death",
+  "summoning_roster_530_geyser_titan_defend",
+  "summoning_roster_530_geyser_titan_magic",
+  "summoning_roster_530_giant_chinchompa_attack",
+  "summoning_roster_530_giant_ent_attack",
+  "summoning_roster_530_giant_ent_death",
+  "summoning_roster_530_granite_crab_attack",
+  "summoning_roster_530_granite_crab_death",
+  "summoning_roster_530_granite_crab_defend",
+  "summoning_roster_530_granite_lobster_attack",
+  "summoning_roster_530_granite_lobster_death",
+  "summoning_roster_530_granite_lobster_defend",
+  "summoning_roster_530_honey_badger_death",
+  "summoning_roster_530_hydra_attack",
+  "summoning_roster_530_hydra_death",
+  "summoning_roster_530_hydra_defend",
+  "summoning_roster_530_ice_titan_attack",
+  "summoning_roster_530_ice_titan_death",
+  "summoning_roster_530_iron_titan_attack",
+  "summoning_roster_530_iron_titan_death",
+  "summoning_roster_530_iron_titan_defend",
+  "summoning_roster_530_karamthulhu_death",
+  "summoning_roster_530_lava_titan_attack",
+  "summoning_roster_530_lava_titan_death",
+  "summoning_roster_530_macaw_death",
+  "summoning_roster_530_moss_titan_attack",
+  "summoning_roster_530_moss_titan_death",
+  "summoning_roster_530_obsidian_golem_attack",
+  "summoning_roster_530_obsidian_golem_death",
+  "summoning_roster_530_obsidian_golem_defend",
+  "summoning_roster_530_pack_yak_attack",
+  "summoning_roster_530_pack_yak_death",
+  "summoning_roster_530_pack_yak_defend",
+  "summoning_roster_530_phoenix_attack",
+  "summoning_roster_530_phoenix_death",
+  "summoning_roster_530_praying_mantis_death",
+  "summoning_roster_530_pyrelord_attack",
+  "summoning_roster_530_pyrelord_death",
+  "summoning_roster_530_ravenous_locust_attack",
+  "summoning_roster_530_ravenous_locust_death",
+  "summoning_roster_530_smoke_devil_attack",
+  "summoning_roster_530_smoke_devil_death",
+  "summoning_roster_530_spirit_cobra_attack",
+  "summoning_roster_530_spirit_cobra_death",
+  "summoning_roster_530_spirit_cockatrice_death",
+  "summoning_roster_530_spirit_dagannoth_death",
+  "summoning_roster_530_spirit_jelly_attack",
+  "summoning_roster_530_spirit_jelly_death",
+  "summoning_roster_530_spirit_kalphite_attack",
+  "summoning_roster_530_spirit_kalphite_death",
+  "summoning_roster_530_spirit_kyatt_attack",
+  "summoning_roster_530_spirit_kyatt_death",
+  "summoning_roster_530_spirit_mosquito_death",
+  "summoning_roster_530_spirit_mosquito_defend",
+  "summoning_roster_530_spirit_scorpion_attack",
+  "summoning_roster_530_spirit_scorpion_death",
+  "summoning_roster_530_spirit_spider_attack",
+  "summoning_roster_530_spirit_spider_death",
+  "summoning_roster_530_spirit_terrorbird_attack",
+  "summoning_roster_530_spirit_terrorbird_death",
+  "summoning_roster_530_spirit_tz_kih_death",
+  "summoning_roster_530_spirit_wolf_attack",
+  "summoning_roster_530_spirit_wolf_death",
+  "summoning_roster_530_spirit_wolf_defend",
+  "summoning_roster_530_steel_titan_death",
+  "summoning_roster_530_steel_titan_defend",
+  "summoning_roster_530_stranger_plant_attack",
+  "summoning_roster_530_stranger_plant_death",
+  "summoning_roster_530_swamp_titan_attack",
+  "summoning_roster_530_swamp_titan_death",
+  "summoning_roster_530_swamp_titan_defend",
+  "summoning_roster_530_talon_beast_death",
+  "summoning_roster_530_thorny_snail_attack",
+  "summoning_roster_530_thorny_snail_death",
+  "summoning_roster_530_unicorn_stallion_attack",
+  "summoning_roster_530_unicorn_stallion_death",
+  "summoning_roster_530_unicorn_stallion_defend",
+  "summoning_roster_530_vampire_bat_death",
+  "summoning_roster_530_void_ravager_attack",
+  "summoning_roster_530_void_ravager_death",
+  "summoning_roster_530_void_shifter_attack",
+  "summoning_roster_530_void_shifter_death",
+  "summoning_roster_530_void_spinner_attack",
+  "summoning_roster_530_void_spinner_death",
+  "summoning_roster_530_void_torcher_attack",
+  "summoning_roster_530_void_torcher_death",
+  "summoning_roster_530_war_tortoise_attack",
+  "summoning_roster_530_war_tortoise_death",
+  "summoning_roster_530_wolpertinger_attack",
+  "summoning_roster_530_wolpertinger_death",
+  "summoning_roster_530_wolpertinger_defend"
+ ],
+ "deferred_entity_kinds": {
+  "pet": "Phase 7 lifecycle/save work",
+  "scroll": "later Phase 5 special-move slice",
+  "tertiary": "later Phase 5 source-name-resolution slice",
+  "potion": "later Phase 5 consumables slice"
+ },
+ "safe_synth_sources": [
+  188
+ ],
+ "admitted_synth_sources": [],
+ "admitted_root_sources": {
+  "npc": [
+   6829,
+   6825,
+   6794,
+   6841,
+   6806,
+   6796,
+   7331,
+   6831,
+   6837,
+   7361,
+   6847,
+   6994,
+   6871,
+   7353,
+   6835,
+   6845,
+   6808,
+   7370,
+   7333,
+   7351,
+   6853,
+   6855,
+   6857,
+   6859,
+   6861,
+   6863,
+   6867,
+   6851,
+   6833,
+   6875,
+   6877,
+   6879,
+   6881,
+   6883,
+   6885,
+   6887,
+   7377,
+   6824,
+   6843,
+   6818,
+   6992,
+   6991,
+   7365,
+   7337,
+   7363,
+   6809,
+   6865,
+   6820,
+   6802,
+   6827,
+   6889,
+   6815,
+   6813,
+   6817,
+   7372,
+   6839,
+   7345,
+   6849,
+   6798,
+   7335,
+   7347,
+   6800,
+   6811,
+   6804,
+   6822,
+   6869,
+   6873,
+   7355,
+   7357,
+   7359,
+   7341,
+   7329,
+   7339,
+   7349,
+   7375,
+   7343,
+   7367,
+   8575
+  ],
+  "obj": [
+   12047,
+   12043,
+   12007,
+   12059,
+   12019,
+   12009,
+   12778,
+   12049,
+   12055,
+   12808,
+   12067,
+   12063,
+   12091,
+   12800,
+   12053,
+   12065,
+   12021,
+   12818,
+   12780,
+   12798,
+   12073,
+   12075,
+   12077,
+   12079,
+   12081,
+   12083,
+   12087,
+   12071,
+   12051,
+   12095,
+   12097,
+   12099,
+   12101,
+   12103,
+   12105,
+   12107,
+   12816,
+   12041,
+   12061,
+   12035,
+   12027,
+   12531,
+   12812,
+   12784,
+   12810,
+   12023,
+   12085,
+   12037,
+   12015,
+   12045,
+   12123,
+   12031,
+   12029,
+   12033,
+   12820,
+   12057,
+   12792,
+   12069,
+   12011,
+   12782,
+   12794,
+   12013,
+   12025,
+   12017,
+   12039,
+   12089,
+   12093,
+   12802,
+   12804,
+   12806,
+   12788,
+   12776,
+   12786,
+   12796,
+   12822,
+   12790,
+   12814,
+   14623
+  ]
+ },
+ "vertical_support_sources": {
+  "obj": [
+   12155,
+   12158,
+   12183
+  ],
+  "loc": [
+   28716
+  ]
+ },
+ "admitted_cohorts": [
+  "summoning_cohort_dreadfowl",
+  "summoning_cohort_spirit_terrorbird",
+  "summoning_cohort_spirit_spider",
+  "summoning_cohort_thorny_snail",
+  "summoning_cohort_granite_crab",
+  "summoning_cohort_spirit_mosquito",
+  "summoning_cohort_desert_wyrm",
+  "summoning_cohort_spirit_scorpion",
+  "summoning_cohort_spirit_tz_kih",
+  "summoning_cohort_albino_rat",
+  "summoning_cohort_spirit_kalphite",
+  "summoning_cohort_compost_mound",
+  "summoning_cohort_giant_chinchompa",
+  "summoning_cohort_vampire_bat",
+  "summoning_cohort_honey_badger",
+  "summoning_cohort_beaver",
+  "summoning_cohort_void_ravager",
+  "summoning_cohort_void_spinner",
+  "summoning_cohort_void_torcher",
+  "summoning_cohort_bronze_minotaur",
+  "summoning_cohort_iron_minotaur",
+  "summoning_cohort_steel_minotaur",
+  "summoning_cohort_mithril_minotaur",
+  "summoning_cohort_adamant_minotaur",
+  "summoning_cohort_rune_minotaur",
+  "summoning_cohort_bull_ant",
+  "summoning_cohort_macaw",
+  "summoning_cohort_evil_turnip",
+  "summoning_cohort_spirit_cockatrice",
+  "summoning_cohort_spirit_guthatrice",
+  "summoning_cohort_spirit_saratrice",
+  "summoning_cohort_spirit_zamatrice",
+  "summoning_cohort_spirit_pengatrice",
+  "summoning_cohort_spirit_coraxatrice",
+  "summoning_cohort_spirit_vulatrice",
+  "summoning_cohort_pyrelord",
+  "summoning_cohort_magpie",
+  "summoning_cohort_bloated_leech",
+  "summoning_cohort_abyssal_parasite",
+  "summoning_cohort_spirit_jelly",
+  "summoning_cohort_ibis",
+  "summoning_cohort_spirit_kyatt",
+  "summoning_cohort_spirit_larupia",
+  "summoning_cohort_spirit_graahk",
+  "summoning_cohort_karamthulhu",
+  "summoning_cohort_smoke_devil",
+  "summoning_cohort_abyssal_lurker",
+  "summoning_cohort_spirit_cobra",
+  "summoning_cohort_stranger_plant",
+  "summoning_cohort_barker_toad",
+  "summoning_cohort_war_tortoise",
+  "summoning_cohort_bunyip",
+  "summoning_cohort_fruit_bat",
+  "summoning_cohort_ravenous_locust",
+  "summoning_cohort_arctic_bear",
+  "summoning_cohort_obsidian_golem",
+  "summoning_cohort_granite_lobster",
+  "summoning_cohort_praying_mantis",
+  "summoning_cohort_forge_regent",
+  "summoning_cohort_talon_beast",
+  "summoning_cohort_giant_ent",
+  "summoning_cohort_hydra",
+  "summoning_cohort_spirit_dagannoth",
+  "summoning_cohort_unicorn_stallion",
+  "summoning_cohort_wolpertinger",
+  "summoning_cohort_pack_yak",
+  "summoning_cohort_fire_titan",
+  "summoning_cohort_moss_titan",
+  "summoning_cohort_ice_titan",
+  "summoning_cohort_lava_titan",
+  "summoning_cohort_swamp_titan",
+  "summoning_cohort_geyser_titan",
+  "summoning_cohort_abyssal_titan",
+  "summoning_cohort_iron_titan",
+  "summoning_cohort_steel_titan",
+  "summoning_cohort_void_shifter",
+  "summoning_cohort_phoenix"
+ ],
+ "cohort_ledgers": [
+  {
+   "prefix": "summoning_cohort_dreadfowl",
+   "ledger": "port/summoning_dreadfowl_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6825
+    ],
+    "obj": [
+     12043
+    ],
+    "model": [
+     30429,
+     31147,
+     30664
+    ],
+    "seq": [
+     5386,
+     7808
+    ],
+    "frame_archive": [
+     1399
+    ],
+    "framemap": [
+     1255
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26000,
+     26015
+    ],
+    "obj": [
+     46000,
+     46015
+    ],
+    "model": [
+     120000,
+     120031
+    ],
+    "seq": [
+     23000,
+     23031
+    ],
+    "frame_archive": [
+     23000,
+     23031
+    ],
+    "framemap": [
+     10000,
+     10031
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_terrorbird",
+   "ledger": "port/summoning_spirit_terrorbird_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6794
+    ],
+    "obj": [
+     12007
+    ],
+    "model": [
+     31096,
+     31146,
+     30651
+    ],
+    "seq": [
+     1008,
+     1007
+    ],
+    "frame_archive": [
+     1711
+    ],
+    "framemap": [
+     1533
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26016,
+     26031
+    ],
+    "obj": [
+     46016,
+     46031
+    ],
+    "model": [
+     120032,
+     120063
+    ],
+    "seq": [
+     23032,
+     23063
+    ],
+    "frame_archive": [
+     23032,
+     23063
+    ],
+    "framemap": [
+     10032,
+     10063
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_spider",
+   "ledger": "port/summoning_spirit_spider_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6841
+    ],
+    "obj": [
+     12059
+    ],
+    "model": [
+     31098,
+     31276,
+     30764
+    ],
+    "seq": [
+     5326,
+     5325
+    ],
+    "frame_archive": [
+     1390
+    ],
+    "framemap": [
+     1248
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26032,
+     26047
+    ],
+    "obj": [
+     46032,
+     46047
+    ],
+    "model": [
+     120064,
+     120095
+    ],
+    "seq": [
+     23064,
+     23095
+    ],
+    "frame_archive": [
+     23064,
+     23095
+    ],
+    "framemap": [
+     10064,
+     10095
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_thorny_snail",
+   "ledger": "port/summoning_thorny_snail_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6806
+    ],
+    "obj": [
+     12019
+    ],
+    "model": [
+     30435,
+     31168,
+     30670
+    ],
+    "seq": [
+     8146,
+     8145
+    ],
+    "frame_archive": [
+     1938
+    ],
+    "framemap": [
+     1730
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26048,
+     26063
+    ],
+    "obj": [
+     46048,
+     46063
+    ],
+    "model": [
+     120096,
+     120127
+    ],
+    "seq": [
+     23096,
+     23127
+    ],
+    "frame_archive": [
+     23096,
+     23127
+    ],
+    "framemap": [
+     10096,
+     10127
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_granite_crab",
+   "ledger": "port/summoning_granite_crab_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6796
+    ],
+    "obj": [
+     12009
+    ],
+    "model": [
+     31133,
+     31251,
+     30676
+    ],
+    "seq": [
+     8098,
+     8100
+    ],
+    "frame_archive": [
+     671
+    ],
+    "framemap": [
+     559
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26064,
+     26079
+    ],
+    "obj": [
+     46064,
+     46079
+    ],
+    "model": [
+     120128,
+     120159
+    ],
+    "seq": [
+     23128,
+     23159
+    ],
+    "frame_archive": [
+     23128,
+     23159
+    ],
+    "framemap": [
+     10128,
+     10159
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_mosquito",
+   "ledger": "port/summoning_spirit_mosquito_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7331
+    ],
+    "obj": [
+     12778
+    ],
+    "model": [
+     30430,
+     31277,
+     30840
+    ],
+    "seq": [
+     8035,
+     8038
+    ],
+    "frame_archive": [
+     1944
+    ],
+    "framemap": [
+     1745
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26080,
+     26095
+    ],
+    "obj": [
+     46080,
+     46095
+    ],
+    "model": [
+     120160,
+     120191
+    ],
+    "seq": [
+     23160,
+     23191
+    ],
+    "frame_archive": [
+     23160,
+     23191
+    ],
+    "framemap": [
+     10160,
+     10191
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_desert_wyrm",
+   "ledger": "port/summoning_desert_wyrm_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6831
+    ],
+    "obj": [
+     12049
+    ],
+    "model": [
+     30456,
+     31217,
+     30735
+    ],
+    "seq": [
+     7793,
+     7792
+    ],
+    "frame_archive": [
+     1952
+    ],
+    "framemap": [
+     1725
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26096,
+     26111
+    ],
+    "obj": [
+     46096,
+     46111
+    ],
+    "model": [
+     120192,
+     120223
+    ],
+    "seq": [
+     23192,
+     23223
+    ],
+    "frame_archive": [
+     23192,
+     23223
+    ],
+    "framemap": [
+     10192,
+     10223
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_scorpion",
+   "ledger": "port/summoning_spirit_scorpion_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6837
+    ],
+    "obj": [
+     12055
+    ],
+    "model": [
+     31095,
+     31273,
+     30807
+    ],
+    "seq": [
+     6252,
+     6253
+    ],
+    "frame_archive": [
+     1590
+    ],
+    "framemap": [
+     1426
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26112,
+     26127
+    ],
+    "obj": [
+     46112,
+     46127
+    ],
+    "model": [
+     120224,
+     120255
+    ],
+    "seq": [
+     23224,
+     23255
+    ],
+    "frame_archive": [
+     23224,
+     23255
+    ],
+    "framemap": [
+     10224,
+     10255
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_tz_kih",
+   "ledger": "port/summoning_spirit_tz_kih_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7361
+    ],
+    "obj": [
+     12808
+    ],
+    "model": [
+     30503,
+     31157,
+     30844
+    ],
+    "seq": [
+     8255,
+     8256
+    ],
+    "frame_archive": [
+     1956
+    ],
+    "framemap": [
+     1722
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26128,
+     26143
+    ],
+    "obj": [
+     46128,
+     46143
+    ],
+    "model": [
+     120256,
+     120287
+    ],
+    "seq": [
+     23256,
+     23287
+    ],
+    "frame_archive": [
+     23256,
+     23287
+    ],
+    "framemap": [
+     10256,
+     10287
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_albino_rat",
+   "ledger": "port/summoning_albino_rat_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6847
+    ],
+    "obj": [
+     12067
+    ],
+    "model": [
+     31102,
+     31220,
+     30588
+    ],
+    "seq": [
+     4932,
+     4931
+    ],
+    "frame_archive": [
+     1288
+    ],
+    "framemap": [
+     1152
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26144,
+     26159
+    ],
+    "obj": [
+     46144,
+     46159
+    ],
+    "model": [
+     120288,
+     120319
+    ],
+    "seq": [
+     23288,
+     23319
+    ],
+    "frame_archive": [
+     23288,
+     23319
+    ],
+    "framemap": [
+     10288,
+     10319
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_kalphite",
+   "ledger": "port/summoning_spirit_kalphite_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6994
+    ],
+    "obj": [
+     12063
+    ],
+    "model": [
+     31693,
+     24574,
+     30800
+    ],
+    "seq": [
+     8518,
+     6220
+    ],
+    "frame_archive": [
+     1586
+    ],
+    "framemap": [
+     1422
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26160,
+     26175
+    ],
+    "obj": [
+     46160,
+     46175
+    ],
+    "model": [
+     120320,
+     120351
+    ],
+    "seq": [
+     23320,
+     23351
+    ],
+    "frame_archive": [
+     23320,
+     23351
+    ],
+    "framemap": [
+     10320,
+     10351
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_compost_mound",
+   "ledger": "port/summoning_compost_mound_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6871
+    ],
+    "obj": [
+     12091
+    ],
+    "model": [
+     30442,
+     31169,
+     30648
+    ],
+    "seq": [
+     7772,
+     7768
+    ],
+    "frame_archive": [
+     1941
+    ],
+    "framemap": [
+     1728
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26176,
+     26191
+    ],
+    "obj": [
+     46176,
+     46191
+    ],
+    "model": [
+     120352,
+     120383
+    ],
+    "seq": [
+     23352,
+     23383
+    ],
+    "frame_archive": [
+     23352,
+     23383
+    ],
+    "framemap": [
+     10352,
+     10383
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_giant_chinchompa",
+   "ledger": "port/summoning_giant_chinchompa_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7353
+    ],
+    "obj": [
+     12800
+    ],
+    "model": [
+     30441,
+     31198,
+     30598
+    ],
+    "seq": [
+     7751,
+     7750
+    ],
+    "frame_archive": [
+     1937
+    ],
+    "framemap": [
+     1749
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26192,
+     26207
+    ],
+    "obj": [
+     46192,
+     46207
+    ],
+    "model": [
+     120384,
+     120415
+    ],
+    "seq": [
+     23384,
+     23415
+    ],
+    "frame_archive": [
+     23384,
+     23415
+    ],
+    "framemap": [
+     10384,
+     10415
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_vampire_bat",
+   "ledger": "port/summoning_vampire_bat_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6835
+    ],
+    "obj": [
+     12053
+    ],
+    "model": [
+     31105,
+     31209,
+     30640
+    ],
+    "seq": [
+     8271,
+     8273
+    ],
+    "frame_archive": [
+     1289
+    ],
+    "framemap": [
+     1153
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26208,
+     26223
+    ],
+    "obj": [
+     46208,
+     46223
+    ],
+    "model": [
+     120416,
+     120447
+    ],
+    "seq": [
+     23416,
+     23447
+    ],
+    "frame_archive": [
+     23416,
+     23447
+    ],
+    "framemap": [
+     10416,
+     10447
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_honey_badger",
+   "ledger": "port/summoning_honey_badger_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6845
+    ],
+    "obj": [
+     12065
+    ],
+    "model": [
+     30476,
+     31194,
+     30597
+    ],
+    "seq": [
+     7924,
+     7923
+    ],
+    "frame_archive": [
+     1940
+    ],
+    "framemap": [
+     1724
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26224,
+     26239
+    ],
+    "obj": [
+     46224,
+     46239
+    ],
+    "model": [
+     120448,
+     120479
+    ],
+    "seq": [
+     23448,
+     23479
+    ],
+    "frame_archive": [
+     23448,
+     23479
+    ],
+    "framemap": [
+     10448,
+     10479
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_beaver",
+   "ledger": "port/summoning_beaver_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6808
+    ],
+    "obj": [
+     12021
+    ],
+    "model": [
+     30482,
+     31207,
+     30812
+    ],
+    "seq": [
+     7718,
+     7719
+    ],
+    "frame_archive": [
+     1950
+    ],
+    "framemap": [
+     1748
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26240,
+     26255
+    ],
+    "obj": [
+     46240,
+     46255
+    ],
+    "model": [
+     120480,
+     120511
+    ],
+    "seq": [
+     23480,
+     23511
+    ],
+    "frame_archive": [
+     23480,
+     23511
+    ],
+    "framemap": [
+     10480,
+     10511
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_void_ravager",
+   "ledger": "port/summoning_void_ravager_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7370
+    ],
+    "obj": [
+     12818
+    ],
+    "model": [
+     30501,
+     31228,
+     30703
+    ],
+    "seq": [
+     8089,
+     8092
+    ],
+    "frame_archive": [
+     1929
+    ],
+    "framemap": [
+     1747
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26256,
+     26271
+    ],
+    "obj": [
+     46256,
+     46271
+    ],
+    "model": [
+     120512,
+     120543
+    ],
+    "seq": [
+     23512,
+     23543
+    ],
+    "frame_archive": [
+     23512,
+     23543
+    ],
+    "framemap": [
+     10512,
+     10543
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_void_spinner",
+   "ledger": "port/summoning_void_spinner_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7333
+    ],
+    "obj": [
+     12780
+    ],
+    "model": [
+     30496,
+     31235,
+     30786
+    ],
+    "seq": [
+     8171,
+     8175
+    ],
+    "frame_archive": [
+     1951
+    ],
+    "framemap": [
+     1744
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26272,
+     26287
+    ],
+    "obj": [
+     46272,
+     46287
+    ],
+    "model": [
+     120544,
+     120575
+    ],
+    "seq": [
+     23544,
+     23575
+    ],
+    "frame_archive": [
+     23544,
+     23575
+    ],
+    "framemap": [
+     10544,
+     10575
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_void_torcher",
+   "ledger": "port/summoning_void_torcher_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7351
+    ],
+    "obj": [
+     12798
+    ],
+    "model": [
+     30477,
+     31150,
+     30671
+    ],
+    "seq": [
+     8233,
+     8234
+    ],
+    "frame_archive": [
+     1955
+    ],
+    "framemap": [
+     1735
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26288,
+     26303
+    ],
+    "obj": [
+     46288,
+     46303
+    ],
+    "model": [
+     120576,
+     120607
+    ],
+    "seq": [
+     23576,
+     23607
+    ],
+    "frame_archive": [
+     23576,
+     23607
+    ],
+    "framemap": [
+     10576,
+     10607
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_bronze_minotaur",
+   "ledger": "port/summoning_bronze_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6853
+    ],
+    "obj": [
+     12073
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26304,
+     26319
+    ],
+    "obj": [
+     46304,
+     46319
+    ],
+    "model": [
+     120608,
+     120639
+    ],
+    "seq": [
+     23608,
+     23639
+    ],
+    "frame_archive": [
+     23608,
+     23639
+    ],
+    "framemap": [
+     10608,
+     10639
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_iron_minotaur",
+   "ledger": "port/summoning_iron_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6855
+    ],
+    "obj": [
+     12075
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26320,
+     26335
+    ],
+    "obj": [
+     46320,
+     46335
+    ],
+    "model": [
+     120640,
+     120671
+    ],
+    "seq": [
+     23640,
+     23671
+    ],
+    "frame_archive": [
+     23640,
+     23671
+    ],
+    "framemap": [
+     10640,
+     10671
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_steel_minotaur",
+   "ledger": "port/summoning_steel_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6857
+    ],
+    "obj": [
+     12077
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26336,
+     26351
+    ],
+    "obj": [
+     46336,
+     46351
+    ],
+    "model": [
+     120672,
+     120703
+    ],
+    "seq": [
+     23672,
+     23703
+    ],
+    "frame_archive": [
+     23672,
+     23703
+    ],
+    "framemap": [
+     10672,
+     10703
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_mithril_minotaur",
+   "ledger": "port/summoning_mithril_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6859
+    ],
+    "obj": [
+     12079
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26352,
+     26367
+    ],
+    "obj": [
+     46352,
+     46367
+    ],
+    "model": [
+     120704,
+     120735
+    ],
+    "seq": [
+     23704,
+     23735
+    ],
+    "frame_archive": [
+     23704,
+     23735
+    ],
+    "framemap": [
+     10704,
+     10735
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_adamant_minotaur",
+   "ledger": "port/summoning_adamant_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6861
+    ],
+    "obj": [
+     12081
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26368,
+     26383
+    ],
+    "obj": [
+     46368,
+     46383
+    ],
+    "model": [
+     120736,
+     120767
+    ],
+    "seq": [
+     23736,
+     23767
+    ],
+    "frame_archive": [
+     23736,
+     23767
+    ],
+    "framemap": [
+     10736,
+     10767
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_rune_minotaur",
+   "ledger": "port/summoning_rune_minotaur_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6863
+    ],
+    "obj": [
+     12083
+    ],
+    "model": [
+     30520,
+     31193,
+     30780
+    ],
+    "seq": [
+     8021,
+     8022
+    ],
+    "frame_archive": [
+     1945
+    ],
+    "framemap": [
+     1718
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26384,
+     26399
+    ],
+    "obj": [
+     46384,
+     46399
+    ],
+    "model": [
+     120768,
+     120799
+    ],
+    "seq": [
+     23768,
+     23799
+    ],
+    "frame_archive": [
+     23768,
+     23799
+    ],
+    "framemap": [
+     10768,
+     10799
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_bull_ant",
+   "ledger": "port/summoning_bull_ant_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6867
+    ],
+    "obj": [
+     12087
+    ],
+    "model": [
+     30431,
+     24573,
+     30827
+    ],
+    "seq": [
+     7893,
+     7899
+    ],
+    "frame_archive": [
+     1944
+    ],
+    "framemap": [
+     1745
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26400,
+     26415
+    ],
+    "obj": [
+     46400,
+     46415
+    ],
+    "model": [
+     120800,
+     120831
+    ],
+    "seq": [
+     23800,
+     23831
+    ],
+    "frame_archive": [
+     23800,
+     23831
+    ],
+    "framemap": [
+     10800,
+     10831
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_macaw",
+   "ledger": "port/summoning_macaw_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6851
+    ],
+    "obj": [
+     12071
+    ],
+    "model": [
+     30495,
+     31137,
+     30610
+    ],
+    "seq": [
+     8008,
+     8007
+    ],
+    "frame_archive": [
+     1918
+    ],
+    "framemap": [
+     1537
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26416,
+     26431
+    ],
+    "obj": [
+     46416,
+     46431
+    ],
+    "model": [
+     120832,
+     120863
+    ],
+    "seq": [
+     23832,
+     23863
+    ],
+    "frame_archive": [
+     23832,
+     23863
+    ],
+    "framemap": [
+     10832,
+     10863
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_evil_turnip",
+   "ledger": "port/summoning_evil_turnip_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6833
+    ],
+    "obj": [
+     12051
+    ],
+    "model": [
+     30524,
+     31197,
+     30739
+    ],
+    "seq": [
+     8246,
+     8245
+    ],
+    "frame_archive": [
+     1957
+    ],
+    "framemap": [
+     1717
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26432,
+     26447
+    ],
+    "obj": [
+     46432,
+     46447
+    ],
+    "model": [
+     120864,
+     120895
+    ],
+    "seq": [
+     23864,
+     23895
+    ],
+    "frame_archive": [
+     23864,
+     23895
+    ],
+    "framemap": [
+     10864,
+     10895
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_cockatrice",
+   "ledger": "port/summoning_spirit_cockatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6875
+    ],
+    "obj": [
+     12095
+    ],
+    "model": [
+     30463,
+     31264,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26448,
+     26463
+    ],
+    "obj": [
+     46448,
+     46463
+    ],
+    "model": [
+     120896,
+     120927
+    ],
+    "seq": [
+     23896,
+     23927
+    ],
+    "frame_archive": [
+     23896,
+     23927
+    ],
+    "framemap": [
+     10896,
+     10927
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_guthatrice",
+   "ledger": "port/summoning_spirit_guthatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6877
+    ],
+    "obj": [
+     12097
+    ],
+    "model": [
+     30464,
+     31263,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26464,
+     26479
+    ],
+    "obj": [
+     46464,
+     46479
+    ],
+    "model": [
+     120928,
+     120959
+    ],
+    "seq": [
+     23928,
+     23959
+    ],
+    "frame_archive": [
+     23928,
+     23959
+    ],
+    "framemap": [
+     10928,
+     10959
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_saratrice",
+   "ledger": "port/summoning_spirit_saratrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6879
+    ],
+    "obj": [
+     12099
+    ],
+    "model": [
+     30462,
+     31267,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26480,
+     26495
+    ],
+    "obj": [
+     46480,
+     46495
+    ],
+    "model": [
+     120960,
+     120991
+    ],
+    "seq": [
+     23960,
+     23991
+    ],
+    "frame_archive": [
+     23960,
+     23991
+    ],
+    "framemap": [
+     10960,
+     10991
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_zamatrice",
+   "ledger": "port/summoning_spirit_zamatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6881
+    ],
+    "obj": [
+     12101
+    ],
+    "model": [
+     30468,
+     31269,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26496,
+     26511
+    ],
+    "obj": [
+     46496,
+     46511
+    ],
+    "model": [
+     120992,
+     121023
+    ],
+    "seq": [
+     23992,
+     24023
+    ],
+    "frame_archive": [
+     23992,
+     24023
+    ],
+    "framemap": [
+     10992,
+     11023
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_pengatrice",
+   "ledger": "port/summoning_spirit_pengatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6883
+    ],
+    "obj": [
+     12103
+    ],
+    "model": [
+     30466,
+     31266,
+     30623
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26512,
+     26527
+    ],
+    "obj": [
+     46512,
+     46527
+    ],
+    "model": [
+     121024,
+     121055
+    ],
+    "seq": [
+     24024,
+     24055
+    ],
+    "frame_archive": [
+     24024,
+     24055
+    ],
+    "framemap": [
+     11024,
+     11055
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_coraxatrice",
+   "ledger": "port/summoning_spirit_coraxatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6885
+    ],
+    "obj": [
+     12105
+    ],
+    "model": [
+     30465,
+     31260,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26528,
+     26543
+    ],
+    "obj": [
+     46528,
+     46543
+    ],
+    "model": [
+     121056,
+     121087
+    ],
+    "seq": [
+     24056,
+     24087
+    ],
+    "frame_archive": [
+     24056,
+     24087
+    ],
+    "framemap": [
+     11056,
+     11087
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_vulatrice",
+   "ledger": "port/summoning_spirit_vulatrice_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6887
+    ],
+    "obj": [
+     12107
+    ],
+    "model": [
+     30467,
+     31262,
+     30787
+    ],
+    "seq": [
+     7760,
+     7759
+    ],
+    "frame_archive": [
+     1920
+    ],
+    "framemap": [
+     1755
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26544,
+     26559
+    ],
+    "obj": [
+     46544,
+     46559
+    ],
+    "model": [
+     121088,
+     121119
+    ],
+    "seq": [
+     24088,
+     24119
+    ],
+    "frame_archive": [
+     24088,
+     24119
+    ],
+    "framemap": [
+     11088,
+     11119
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_pyrelord",
+   "ledger": "port/summoning_pyrelord_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7377
+    ],
+    "obj": [
+     12816
+    ],
+    "model": [
+     32695,
+     31254,
+     30776
+    ],
+    "seq": [
+     8077,
+     8076
+    ],
+    "frame_archive": [
+     1946
+    ],
+    "framemap": [
+     1727
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26560,
+     26575
+    ],
+    "obj": [
+     46560,
+     46575
+    ],
+    "model": [
+     121120,
+     121151
+    ],
+    "seq": [
+     24120,
+     24151
+    ],
+    "frame_archive": [
+     24120,
+     24151
+    ],
+    "framemap": [
+     11120,
+     11151
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_magpie",
+   "ledger": "port/summoning_magpie_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6824
+    ],
+    "obj": [
+     12041
+    ],
+    "model": [
+     30488,
+     31152,
+     30711
+    ],
+    "seq": [
+     8008,
+     8007
+    ],
+    "frame_archive": [
+     1918
+    ],
+    "framemap": [
+     1537
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26576,
+     26591
+    ],
+    "obj": [
+     46576,
+     46591
+    ],
+    "model": [
+     121152,
+     121183
+    ],
+    "seq": [
+     24152,
+     24183
+    ],
+    "frame_archive": [
+     24152,
+     24183
+    ],
+    "framemap": [
+     11152,
+     11183
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_bloated_leech",
+   "ledger": "port/summoning_bloated_leech_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6843
+    ],
+    "obj": [
+     12061
+    ],
+    "model": [
+     30499,
+     31232,
+     30644
+    ],
+    "seq": [
+     7654,
+     7653
+    ],
+    "frame_archive": [
+     1934
+    ],
+    "framemap": [
+     1726
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26592,
+     26607
+    ],
+    "obj": [
+     46592,
+     46607
+    ],
+    "model": [
+     121184,
+     121215
+    ],
+    "seq": [
+     24184,
+     24215
+    ],
+    "frame_archive": [
+     24184,
+     24215
+    ],
+    "framemap": [
+     11184,
+     11215
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_abyssal_parasite",
+   "ledger": "port/summoning_abyssal_parasite_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6818
+    ],
+    "obj": [
+     12035
+    ],
+    "model": [
+     30458,
+     31167,
+     30699
+    ],
+    "seq": [
+     7668,
+     7667
+    ],
+    "frame_archive": [
+     1942
+    ],
+    "framemap": [
+     1732
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26608,
+     26623
+    ],
+    "obj": [
+     46608,
+     46623
+    ],
+    "model": [
+     121216,
+     121247
+    ],
+    "seq": [
+     24216,
+     24247
+    ],
+    "frame_archive": [
+     24216,
+     24247
+    ],
+    "framemap": [
+     11216,
+     11247
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_jelly",
+   "ledger": "port/summoning_spirit_jelly_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6992
+    ],
+    "obj": [
+     12027
+    ],
+    "model": [
+     31695,
+     31256,
+     30847
+    ],
+    "seq": [
+     8572,
+     8575
+    ],
+    "frame_archive": [
+     2111
+    ],
+    "framemap": [
+     1903
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26624,
+     26639
+    ],
+    "obj": [
+     46624,
+     46639
+    ],
+    "model": [
+     121248,
+     121279
+    ],
+    "seq": [
+     24248,
+     24279
+    ],
+    "frame_archive": [
+     24248,
+     24279
+    ],
+    "framemap": [
+     11248,
+     11279
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_ibis",
+   "ledger": "port/summoning_ibis_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6991
+    ],
+    "obj": [
+     12531
+    ],
+    "model": [
+     30437,
+     31155,
+     30700
+    ],
+    "seq": [
+     8197,
+     8198
+    ],
+    "frame_archive": [
+     1943
+    ],
+    "framemap": [
+     1743
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26640,
+     26655
+    ],
+    "obj": [
+     46640,
+     46655
+    ],
+    "model": [
+     121280,
+     121311
+    ],
+    "seq": [
+     24280,
+     24311
+    ],
+    "frame_archive": [
+     24280,
+     24311
+    ],
+    "framemap": [
+     11280,
+     11311
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_kyatt",
+   "ledger": "port/summoning_spirit_kyatt_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7365
+    ],
+    "obj": [
+     12812
+    ],
+    "model": [
+     31127,
+     31195,
+     30717
+    ],
+    "seq": [
+     5225,
+     5226
+    ],
+    "frame_archive": [
+     1345
+    ],
+    "framemap": [
+     1206
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26656,
+     26671
+    ],
+    "obj": [
+     46656,
+     46671
+    ],
+    "model": [
+     121312,
+     121343
+    ],
+    "seq": [
+     24312,
+     24343
+    ],
+    "frame_archive": [
+     24312,
+     24343
+    ],
+    "framemap": [
+     11312,
+     11343
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_larupia",
+   "ledger": "port/summoning_spirit_larupia_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7337
+    ],
+    "obj": [
+     12784
+    ],
+    "model": [
+     31126,
+     31212,
+     30693
+    ],
+    "seq": [
+     5225,
+     5226
+    ],
+    "frame_archive": [
+     1345
+    ],
+    "framemap": [
+     1206
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26672,
+     26687
+    ],
+    "obj": [
+     46672,
+     46687
+    ],
+    "model": [
+     121344,
+     121375
+    ],
+    "seq": [
+     24344,
+     24375
+    ],
+    "frame_archive": [
+     24344,
+     24375
+    ],
+    "framemap": [
+     11344,
+     11375
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_graahk",
+   "ledger": "port/summoning_spirit_graahk_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7363
+    ],
+    "obj": [
+     12810
+    ],
+    "model": [
+     31132,
+     31210,
+     30642
+    ],
+    "seq": [
+     5225,
+     5226
+    ],
+    "frame_archive": [
+     1345
+    ],
+    "framemap": [
+     1206
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26688,
+     26703
+    ],
+    "obj": [
+     46688,
+     46703
+    ],
+    "model": [
+     121376,
+     121407
+    ],
+    "seq": [
+     24376,
+     24407
+    ],
+    "frame_archive": [
+     24376,
+     24407
+    ],
+    "framemap": [
+     11376,
+     11407
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_karamthulhu",
+   "ledger": "port/summoning_karamthulhu_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6809
+    ],
+    "obj": [
+     12023
+    ],
+    "model": [
+     30485,
+     31158,
+     30842
+    ],
+    "seq": [
+     7968,
+     7961
+    ],
+    "frame_archive": [
+     1949
+    ],
+    "framemap": [
+     1723
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26704,
+     26719
+    ],
+    "obj": [
+     46704,
+     46719
+    ],
+    "model": [
+     121408,
+     121439
+    ],
+    "seq": [
+     24408,
+     24439
+    ],
+    "frame_archive": [
+     24408,
+     24439
+    ],
+    "framemap": [
+     11408,
+     11439
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_smoke_devil",
+   "ledger": "port/summoning_smoke_devil_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6865
+    ],
+    "obj": [
+     12085
+    ],
+    "model": [
+     30459,
+     31192,
+     30582
+    ],
+    "seq": [
+     7815,
+     7814
+    ],
+    "frame_archive": [
+     1921
+    ],
+    "framemap": [
+     1741
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26720,
+     26735
+    ],
+    "obj": [
+     46720,
+     46735
+    ],
+    "model": [
+     121440,
+     121471
+    ],
+    "seq": [
+     24440,
+     24471
+    ],
+    "frame_archive": [
+     24440,
+     24471
+    ],
+    "framemap": [
+     11440,
+     11471
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_abyssal_lurker",
+   "ledger": "port/summoning_abyssal_lurker_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6820
+    ],
+    "obj": [
+     12037
+    ],
+    "model": [
+     30439,
+     31153,
+     30692
+    ],
+    "seq": [
+     7677,
+     7678
+    ],
+    "frame_archive": [
+     1943
+    ],
+    "framemap": [
+     1743
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26736,
+     26751
+    ],
+    "obj": [
+     46736,
+     46751
+    ],
+    "model": [
+     121472,
+     121503
+    ],
+    "seq": [
+     24472,
+     24503
+    ],
+    "frame_archive": [
+     24472,
+     24503
+    ],
+    "framemap": [
+     11472,
+     11503
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_cobra",
+   "ledger": "port/summoning_spirit_cobra_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6802
+    ],
+    "obj": [
+     12015
+    ],
+    "model": [
+     30457,
+     31270,
+     30779
+    ],
+    "seq": [
+     8155,
+     8158
+    ],
+    "frame_archive": [
+     1952
+    ],
+    "framemap": [
+     1725
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26752,
+     26767
+    ],
+    "obj": [
+     46752,
+     46767
+    ],
+    "model": [
+     121504,
+     121535
+    ],
+    "seq": [
+     24504,
+     24535
+    ],
+    "frame_archive": [
+     24504,
+     24535
+    ],
+    "framemap": [
+     11504,
+     11535
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_stranger_plant",
+   "ledger": "port/summoning_stranger_plant_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6827
+    ],
+    "obj": [
+     12045
+    ],
+    "model": [
+     30455,
+     31156,
+     30718
+    ],
+    "seq": [
+     8204,
+     8207
+    ],
+    "frame_archive": [
+     1935
+    ],
+    "framemap": [
+     1719
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26768,
+     26783
+    ],
+    "obj": [
+     46768,
+     46783
+    ],
+    "model": [
+     121536,
+     121567
+    ],
+    "seq": [
+     24536,
+     24567
+    ],
+    "frame_archive": [
+     24536,
+     24567
+    ],
+    "framemap": [
+     11536,
+     11567
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_barker_toad",
+   "ledger": "port/summoning_barker_toad_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 4,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6889
+    ],
+    "obj": [
+     12123
+    ],
+    "model": [
+     29123,
+     29124,
+     31258,
+     30715
+    ],
+    "seq": [
+     7258,
+     7259
+    ],
+    "frame_archive": [
+     1833
+    ],
+    "framemap": [
+     1643
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26784,
+     26799
+    ],
+    "obj": [
+     46784,
+     46799
+    ],
+    "model": [
+     121568,
+     121599
+    ],
+    "seq": [
+     24568,
+     24599
+    ],
+    "frame_archive": [
+     24568,
+     24599
+    ],
+    "framemap": [
+     11568,
+     11599
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_war_tortoise",
+   "ledger": "port/summoning_war_tortoise_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6815
+    ],
+    "obj": [
+     12031
+    ],
+    "model": [
+     30460,
+     31144,
+     30819
+    ],
+    "seq": [
+     8284,
+     8281
+    ],
+    "frame_archive": [
+     1922
+    ],
+    "framemap": [
+     1720
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26800,
+     26815
+    ],
+    "obj": [
+     46800,
+     46815
+    ],
+    "model": [
+     121600,
+     121631
+    ],
+    "seq": [
+     24600,
+     24631
+    ],
+    "frame_archive": [
+     24600,
+     24631
+    ],
+    "framemap": [
+     11600,
+     11631
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_bunyip",
+   "ledger": "port/summoning_bunyip_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6813
+    ],
+    "obj": [
+     12029
+    ],
+    "model": [
+     30434,
+     31201,
+     30635
+    ],
+    "seq": [
+     7738,
+     7735
+    ],
+    "frame_archive": [
+     1928
+    ],
+    "framemap": [
+     1733
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26816,
+     26831
+    ],
+    "obj": [
+     46816,
+     46831
+    ],
+    "model": [
+     121632,
+     121663
+    ],
+    "seq": [
+     24632,
+     24663
+    ],
+    "frame_archive": [
+     24632,
+     24663
+    ],
+    "framemap": [
+     11632,
+     11663
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_fruit_bat",
+   "ledger": "port/summoning_fruit_bat_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6817
+    ],
+    "obj": [
+     12033
+    ],
+    "model": [
+     31106,
+     31225,
+     30586
+    ],
+    "seq": [
+     8271,
+     8273
+    ],
+    "frame_archive": [
+     1289
+    ],
+    "framemap": [
+     1153
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26832,
+     26847
+    ],
+    "obj": [
+     46832,
+     46847
+    ],
+    "model": [
+     121664,
+     121695
+    ],
+    "seq": [
+     24664,
+     24695
+    ],
+    "frame_archive": [
+     24664,
+     24695
+    ],
+    "framemap": [
+     11664,
+     11695
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_ravenous_locust",
+   "ledger": "port/summoning_ravenous_locust_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7372
+    ],
+    "obj": [
+     12820
+    ],
+    "model": [
+     30478,
+     31278,
+     30695
+    ],
+    "seq": [
+     7992,
+     7991
+    ],
+    "frame_archive": [
+     1917
+    ],
+    "framemap": [
+     1752
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26848,
+     26863
+    ],
+    "obj": [
+     46848,
+     46863
+    ],
+    "model": [
+     121696,
+     121727
+    ],
+    "seq": [
+     24696,
+     24727
+    ],
+    "frame_archive": [
+     24696,
+     24727
+    ],
+    "framemap": [
+     11696,
+     11727
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_arctic_bear",
+   "ledger": "port/summoning_arctic_bear_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6839
+    ],
+    "obj": [
+     12057
+    ],
+    "model": [
+     31645,
+     31205,
+     30777
+    ],
+    "seq": [
+     4919,
+     4923
+    ],
+    "frame_archive": [
+     1287
+    ],
+    "framemap": [
+     1151
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26864,
+     26879
+    ],
+    "obj": [
+     46864,
+     46879
+    ],
+    "model": [
+     121728,
+     121759
+    ],
+    "seq": [
+     24728,
+     24759
+    ],
+    "frame_archive": [
+     24728,
+     24759
+    ],
+    "framemap": [
+     11728,
+     11759
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_obsidian_golem",
+   "ledger": "port/summoning_obsidian_golem_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7345
+    ],
+    "obj": [
+     12792
+    ],
+    "model": [
+     30502,
+     30286,
+     30681
+    ],
+    "seq": [
+     8047,
+     8046
+    ],
+    "frame_archive": [
+     1936
+    ],
+    "framemap": [
+     1729
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26896,
+     26911
+    ],
+    "obj": [
+     46896,
+     46911
+    ],
+    "model": [
+     121792,
+     121823
+    ],
+    "seq": [
+     24792,
+     24823
+    ],
+    "frame_archive": [
+     24792,
+     24823
+    ],
+    "framemap": [
+     11792,
+     11823
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_granite_lobster",
+   "ledger": "port/summoning_granite_lobster_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6849
+    ],
+    "obj": [
+     12069
+    ],
+    "model": [
+     30537,
+     31275,
+     30794
+    ],
+    "seq": [
+     8116,
+     8115
+    ],
+    "frame_archive": [
+     1939
+    ],
+    "framemap": [
+     1736
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26912,
+     26927
+    ],
+    "obj": [
+     46912,
+     46927
+    ],
+    "model": [
+     121824,
+     121855
+    ],
+    "seq": [
+     24824,
+     24855
+    ],
+    "frame_archive": [
+     24824,
+     24855
+    ],
+    "framemap": [
+     11824,
+     11855
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_praying_mantis",
+   "ledger": "port/summoning_praying_mantis_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6798
+    ],
+    "obj": [
+     12011
+    ],
+    "model": [
+     30498,
+     31274,
+     30716
+    ],
+    "seq": [
+     8067,
+     8072
+    ],
+    "frame_archive": [
+     1923
+    ],
+    "framemap": [
+     1739
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26928,
+     26943
+    ],
+    "obj": [
+     46928,
+     46943
+    ],
+    "model": [
+     121856,
+     121887
+    ],
+    "seq": [
+     24856,
+     24887
+    ],
+    "frame_archive": [
+     24856,
+     24887
+    ],
+    "framemap": [
+     11856,
+     11887
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_forge_regent",
+   "ledger": "port/summoning_forge_regent_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7335
+    ],
+    "obj": [
+     12782
+    ],
+    "model": [
+     30504,
+     31166,
+     30810
+    ],
+    "seq": [
+     7867,
+     7868
+    ],
+    "frame_archive": [
+     1956
+    ],
+    "framemap": [
+     1722
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26944,
+     26959
+    ],
+    "obj": [
+     46944,
+     46959
+    ],
+    "model": [
+     121888,
+     121919
+    ],
+    "seq": [
+     24888,
+     24919
+    ],
+    "frame_archive": [
+     24888,
+     24919
+    ],
+    "framemap": [
+     11888,
+     11919
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_talon_beast",
+   "ledger": "port/summoning_talon_beast_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7347
+    ],
+    "obj": [
+     12794
+    ],
+    "model": [
+     31636,
+     31204,
+     30602
+    ],
+    "seq": [
+     5986,
+     5987
+    ],
+    "frame_archive": [
+     1528
+    ],
+    "framemap": [
+     1372
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26960,
+     26975
+    ],
+    "obj": [
+     46960,
+     46975
+    ],
+    "model": [
+     121920,
+     121951
+    ],
+    "seq": [
+     24920,
+     24951
+    ],
+    "frame_archive": [
+     24920,
+     24951
+    ],
+    "framemap": [
+     11920,
+     11951
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_giant_ent",
+   "ledger": "port/summoning_giant_ent_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6800
+    ],
+    "obj": [
+     12013
+    ],
+    "model": [
+     30500,
+     31272,
+     30622
+    ],
+    "seq": [
+     7849,
+     7848
+    ],
+    "frame_archive": [
+     1931
+    ],
+    "framemap": [
+     1731
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26976,
+     26991
+    ],
+    "obj": [
+     46976,
+     46991
+    ],
+    "model": [
+     121952,
+     121983
+    ],
+    "seq": [
+     24952,
+     24983
+    ],
+    "frame_archive": [
+     24952,
+     24983
+    ],
+    "framemap": [
+     11952,
+     11983
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_hydra",
+   "ledger": "port/summoning_hydra_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6811
+    ],
+    "obj": [
+     12025
+    ],
+    "model": [
+     30497,
+     31250,
+     30625
+    ],
+    "seq": [
+     7938,
+     7941
+    ],
+    "frame_archive": [
+     1926
+    ],
+    "framemap": [
+     1746
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     26992,
+     27007
+    ],
+    "obj": [
+     46992,
+     47007
+    ],
+    "model": [
+     121984,
+     122015
+    ],
+    "seq": [
+     24984,
+     25015
+    ],
+    "frame_archive": [
+     24984,
+     25015
+    ],
+    "framemap": [
+     11984,
+     12015
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_spirit_dagannoth",
+   "ledger": "port/summoning_spirit_dagannoth_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6804
+    ],
+    "obj": [
+     12017
+    ],
+    "model": [
+     30528,
+     31213,
+     30604
+    ],
+    "seq": [
+     7781,
+     7784
+    ],
+    "frame_archive": [
+     1930
+    ],
+    "framemap": [
+     1737
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27008,
+     27023
+    ],
+    "obj": [
+     47008,
+     47023
+    ],
+    "model": [
+     122016,
+     122047
+    ],
+    "seq": [
+     25016,
+     25047
+    ],
+    "frame_archive": [
+     25016,
+     25047
+    ],
+    "framemap": [
+     12016,
+     12047
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_unicorn_stallion",
+   "ledger": "port/summoning_unicorn_stallion_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6822
+    ],
+    "obj": [
+     12039
+    ],
+    "model": [
+     31101,
+     31223,
+     30811
+    ],
+    "seq": [
+     6374,
+     6373
+    ],
+    "frame_archive": [
+     1639
+    ],
+    "framemap": [
+     1472
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27024,
+     27039
+    ],
+    "obj": [
+     47024,
+     47039
+    ],
+    "model": [
+     122048,
+     122079
+    ],
+    "seq": [
+     25048,
+     25079
+    ],
+    "frame_archive": [
+     25048,
+     25079
+    ],
+    "framemap": [
+     12048,
+     12079
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_wolpertinger",
+   "ledger": "port/summoning_wolpertinger_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6869
+    ],
+    "obj": [
+     12089
+    ],
+    "model": [
+     30475,
+     31221,
+     30758
+    ],
+    "seq": [
+     8301,
+     8302
+    ],
+    "frame_archive": [
+     1933
+    ],
+    "framemap": [
+     1716
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27040,
+     27055
+    ],
+    "obj": [
+     47040,
+     47055
+    ],
+    "model": [
+     122080,
+     122111
+    ],
+    "seq": [
+     25080,
+     25111
+    ],
+    "frame_archive": [
+     25080,
+     25111
+    ],
+    "framemap": [
+     12080,
+     12111
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_pack_yak",
+   "ledger": "port/summoning_pack_yak_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     6873
+    ],
+    "obj": [
+     12093
+    ],
+    "model": [
+     23892,
+     31230,
+     30837
+    ],
+    "seq": [
+     5785,
+     5781
+    ],
+    "frame_archive": [
+     1490
+    ],
+    "framemap": [
+     1338
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27056,
+     27071
+    ],
+    "obj": [
+     47056,
+     47071
+    ],
+    "model": [
+     122112,
+     122143
+    ],
+    "seq": [
+     25112,
+     25143
+    ],
+    "frame_archive": [
+     25112,
+     25143
+    ],
+    "framemap": [
+     12112,
+     12143
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_fire_titan",
+   "ledger": "port/summoning_fire_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7355
+    ],
+    "obj": [
+     12802
+    ],
+    "model": [
+     30536,
+     31255,
+     30743
+    ],
+    "seq": [
+     7831,
+     7828
+    ],
+    "frame_archive": [
+     1916
+    ],
+    "framemap": [
+     1751
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27072,
+     27087
+    ],
+    "obj": [
+     47072,
+     47087
+    ],
+    "model": [
+     122144,
+     122175
+    ],
+    "seq": [
+     25144,
+     25175
+    ],
+    "frame_archive": [
+     25144,
+     25175
+    ],
+    "framemap": [
+     12144,
+     12175
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_moss_titan",
+   "ledger": "port/summoning_moss_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7357
+    ],
+    "obj": [
+     12804
+    ],
+    "model": [
+     30472,
+     31163,
+     30846
+    ],
+    "seq": [
+     7841,
+     7838
+    ],
+    "frame_archive": [
+     1954
+    ],
+    "framemap": [
+     1740
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27088,
+     27103
+    ],
+    "obj": [
+     47088,
+     47103
+    ],
+    "model": [
+     122176,
+     122207
+    ],
+    "seq": [
+     25176,
+     25207
+    ],
+    "frame_archive": [
+     25176,
+     25207
+    ],
+    "framemap": [
+     12176,
+     12207
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_ice_titan",
+   "ledger": "port/summoning_ice_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7359
+    ],
+    "obj": [
+     12806
+    ],
+    "model": [
+     30470,
+     45462,
+     30836
+    ],
+    "seq": [
+     8186,
+     7847
+    ],
+    "frame_archive": [
+     1954
+    ],
+    "framemap": [
+     1740
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27104,
+     27119
+    ],
+    "obj": [
+     47104,
+     47119
+    ],
+    "model": [
+     122208,
+     122239
+    ],
+    "seq": [
+     25208,
+     25239
+    ],
+    "frame_archive": [
+     25208,
+     25239
+    ],
+    "framemap": [
+     12208,
+     12239
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_lava_titan",
+   "ledger": "port/summoning_lava_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7341
+    ],
+    "obj": [
+     12788
+    ],
+    "model": [
+     30481,
+     31234,
+     30697
+    ],
+    "seq": [
+     7978,
+     7977
+    ],
+    "frame_archive": [
+     1953
+    ],
+    "framemap": [
+     1734
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27120,
+     27135
+    ],
+    "obj": [
+     47120,
+     47135
+    ],
+    "model": [
+     122240,
+     122271
+    ],
+    "seq": [
+     25240,
+     25271
+    ],
+    "frame_archive": [
+     25240,
+     25271
+    ],
+    "framemap": [
+     12240,
+     12271
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_swamp_titan",
+   "ledger": "port/summoning_swamp_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7329
+    ],
+    "obj": [
+     12776
+    ],
+    "model": [
+     30539,
+     31165,
+     30589
+    ],
+    "seq": [
+     8220,
+     8219
+    ],
+    "frame_archive": [
+     1925
+    ],
+    "framemap": [
+     1753
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27136,
+     27151
+    ],
+    "obj": [
+     47136,
+     47151
+    ],
+    "model": [
+     122272,
+     122303
+    ],
+    "seq": [
+     25272,
+     25303
+    ],
+    "frame_archive": [
+     25272,
+     25303
+    ],
+    "framemap": [
+     12272,
+     12303
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_geyser_titan",
+   "ledger": "port/summoning_geyser_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7339
+    ],
+    "obj": [
+     12786
+    ],
+    "model": [
+     30538,
+     31164,
+     30769
+    ],
+    "seq": [
+     7876,
+     7877
+    ],
+    "frame_archive": [
+     1927
+    ],
+    "framemap": [
+     1714
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27152,
+     27167
+    ],
+    "obj": [
+     47152,
+     47167
+    ],
+    "model": [
+     122304,
+     122335
+    ],
+    "seq": [
+     25304,
+     25335
+    ],
+    "frame_archive": [
+     25304,
+     25335
+    ],
+    "framemap": [
+     12304,
+     12335
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_abyssal_titan",
+   "ledger": "port/summoning_abyssal_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7349
+    ],
+    "obj": [
+     12796
+    ],
+    "model": [
+     30474,
+     31162,
+     30830
+    ],
+    "seq": [
+     7690,
+     7687
+    ],
+    "frame_archive": [
+     1954
+    ],
+    "framemap": [
+     1740
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27168,
+     27183
+    ],
+    "obj": [
+     47168,
+     47183
+    ],
+    "model": [
+     122336,
+     122367
+    ],
+    "seq": [
+     25336,
+     25367
+    ],
+    "frame_archive": [
+     25336,
+     25367
+    ],
+    "framemap": [
+     12336,
+     12367
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_iron_titan",
+   "ledger": "port/summoning_iron_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7375
+    ],
+    "obj": [
+     12822
+    ],
+    "model": [
+     30473,
+     31159,
+     30754
+    ],
+    "seq": [
+     7949,
+     7952
+    ],
+    "frame_archive": [
+     1954
+    ],
+    "framemap": [
+     1740
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27184,
+     27199
+    ],
+    "obj": [
+     47184,
+     47199
+    ],
+    "model": [
+     122368,
+     122399
+    ],
+    "seq": [
+     25368,
+     25399
+    ],
+    "frame_archive": [
+     25368,
+     25399
+    ],
+    "framemap": [
+     12368,
+     12399
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_steel_titan",
+   "ledger": "port/summoning_steel_titan_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7343
+    ],
+    "obj": [
+     12790
+    ],
+    "model": [
+     30469,
+     31161,
+     30737
+    ],
+    "seq": [
+     8186,
+     8189
+    ],
+    "frame_archive": [
+     1954
+    ],
+    "framemap": [
+     1740
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27200,
+     27215
+    ],
+    "obj": [
+     47200,
+     47215
+    ],
+    "model": [
+     122400,
+     122431
+    ],
+    "seq": [
+     25400,
+     25431
+    ],
+    "frame_archive": [
+     25400,
+     25431
+    ],
+    "framemap": [
+     12400,
+     12431
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_void_shifter",
+   "ledger": "port/summoning_void_shifter_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     7367
+    ],
+    "obj": [
+     12814
+    ],
+    "model": [
+     30436,
+     31233,
+     30799
+    ],
+    "seq": [
+     8129,
+     8128
+    ],
+    "frame_archive": [
+     1919
+    ],
+    "framemap": [
+     1742
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27216,
+     27231
+    ],
+    "obj": [
+     47216,
+     47231
+    ],
+    "model": [
+     122432,
+     122463
+    ],
+    "seq": [
+     25432,
+     25463
+    ],
+    "frame_archive": [
+     25432,
+     25463
+    ],
+    "framemap": [
+     12432,
+     12463
+    ]
+   }
+  },
+  {
+   "prefix": "summoning_cohort_phoenix",
+   "ledger": "port/summoning_phoenix_530.map",
+   "expected_ledger_rows": {
+    "npc": 1,
+    "obj": 1,
+    "model": 3,
+    "seq": 2,
+    "frame_archive": 1,
+    "framemap": 1
+   },
+   "expected_sources": {
+    "npc": [
+     8575
+    ],
+    "obj": [
+     14623
+    ],
+    "model": [
+     45411,
+     45305,
+     45437
+    ],
+    "seq": [
+     11092,
+     11094
+    ],
+    "frame_archive": [
+     2710
+    ],
+    "framemap": [
+     2430
+    ]
+   },
+   "destination_ranges": {
+    "npc": [
+     27232,
+     27247
+    ],
+    "obj": [
+     47232,
+     47247
+    ],
+    "model": [
+     122464,
+     122495
+    ],
+    "seq": [
+     25464,
+     25495
+    ],
+    "frame_archive": [
+     25464,
+     25495
+    ],
+    "framemap": [
+     12464,
+     12495
+    ]
+   }
+  }
+ ],
+ "review_only_cohorts": [
+  {
+   "prefix": "summoning_roster_530",
+   "status": "preserved_experiment",
+   "entity_kind": "mixed_unreviewed",
+   "expected_ledger_rows": {
+    "npc": 253,
+    "obj": 252,
+    "seq": 311,
+    "model": 416,
+    "frame_archive": 66,
+    "framemap": 65,
+    "synth": 21
+   },
+   "expected_pet_npc_rows": 176,
+   "expected_source_files": 643,
+   "expected_pack_references": 1844,
+   "source_fingerprint_sha256": "911e6113f3afba6fe5e59b4ac7211dd06772d0c7693f33a3af61405653b6eda5",
+   "legacy_synth_sources": [
+    188,
+    4161,
+    4265,
+    4372,
+    5753,
+    5764,
+    5770,
+    5774,
+    5776,
+    5777,
+    5779,
+    5782,
+    5787,
+    5792,
+    5796,
+    5801,
+    5808,
+    5814,
+    5826,
+    5834,
+    5839
+   ],
+   "note": "Preserved another agent's generated import experiment. It is evidence only and is withheld from the feature-on stage until a Phase-5b cohort is admitted. Re-pinned after commit aab11db4d5 ('summoning based on Nocturne') deliberately widened the experiment: seq 305->311, synth 8->21, source files 630->643, pack references 1833->1844. Nothing was admitted by that re-pin: admitted_synth_sources is still empty and status is still preserved_experiment, so the widened set stays withheld from the feature-on stage. --repin could not do it, because it refuses when the source FILE count moves - which is correct. A moved file count is an edit to the experiment rather than an admission, and an edit has to be restated deliberately instead of absorbed."
+  }
+ ],
+ "reserved_generated_prefixes": [
+  "summoning_roster_530"
+ ]
+}

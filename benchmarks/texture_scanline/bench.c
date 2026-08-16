@@ -3,7 +3,7 @@
 #include <time.h>
 
 int g_sin_table[2048];
-int g_cos_table[2048];
+int RSCacheDat2A_NoiseCosTable[2048];
 int g_tan_table[2048];
 uint16_t g_reciprocal16_simd[256 * 1024];
 uint32_t g_reciprocal_norm30[1 << 15];

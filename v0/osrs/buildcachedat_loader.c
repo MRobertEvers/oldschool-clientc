@@ -1,0 +1,1325 @@
+#include "buildcachedat_loader.h"
+
+#include "datastruct/vec.h"
+#include "graphics/dash.h"
+#include "osrs/dash_utils.h"
+#include "osrs/minimap.h"
+#include "osrs/painters.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/rscache/shared/shared_archive.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/shared/shared_rs_buffer.h"
+#include "osrs/rscache/dat2a/dat2a_config_floortype.h"
+#include "osrs/rscache/dat2a/dat2a_config_locs.h"
+#include "osrs/rscache/dat2a/dat2a_config_sequence.h"
+#include "osrs/rscache/dat2a/dat2a_maps.h"
+#include "osrs/rscache/dat2a/dat2a_model.h"
+#include "osrs/rscache/dat1a/dat1a_anim_frame.h"
+#include "osrs/rscache/dat1a/dat1a_config_component.h"
+#include "osrs/rscache/dat1a/dat1a_config_idk.h"
+#include "osrs/rscache/dat1a/dat1a_config_npc.h"
+#include "osrs/rscache/dat1a/dat1a_config_obj.h"
+#include "osrs/rscache/dat1a/dat1a_config_spotanim.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
+#include "osrs/rscache/dat1a/dat1a_pix32.h"
+#include "osrs/rscache/dat1a/dat1a_pix8.h"
+#include "osrs/rscache/dat1a/dat1a_pix_font.h"
+#include "osrs/scene2.h"
+#include "osrs/texture.h"
+#include "osrs/varp_varbit_manager.h"
+#include "osrs/world.h"
+
+#include <assert.h>
+
+void
+LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
+#include <stdlib.h>
+#include <string.h>
+
+static int
+int_cmp(
+    const void* a,
+    const void* b)
+{
+    int x = *(const int*)a;
+    int y = *(const int*)b;
+    if( x < y )
+        return -1;
+    if( x > y )
+        return 1;
+    return 0;
+}
+
+/** In-place unique on sorted [0..n); returns new length. */
+static int
+unique_sorted_int(
+    int* arr,
+    int n)
+{
+    if( n <= 0 )
+        return 0;
+    int w = 0;
+    for( int r = 1; r < n; r++ )
+    {
+        if( arr[r] != arr[w] )
+            arr[++w] = arr[r];
+    }
+    return w + 1;
+}
+
+static int
+loader_uiscene_attach_single_sprite_owned(
+    struct UIScene* ui,
+    struct DashSprite* sprite)
+{
+    if( !ui || !sprite )
+        return -1;
+    int eid = uiscene_element_acquire(ui, -1);
+    if( eid < 0 )
+        return -1;
+    struct UISceneElement* el = uiscene_element_at(ui, eid);
+    if( !el )
+        return -1;
+    struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+    if( !row )
+        return -1;
+    row[0] = sprite;
+    el->dash_sprites = row;
+    el->dash_sprites_count = 1;
+    el->dash_sprites_borrowed = false;
+    return eid;
+}
+
+void
+buildcachedat_loader_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int data_size,
+    void* data)
+{
+    struct RSCacheShared_FileListDat* jagfile = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+    buildcachedat_set_2d_media_jagfile(buildcachedat, jagfile);
+}
+
+void
+buildcachedat_loader_set_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int data_size,
+    void* data)
+{
+    struct RSCacheShared_FileListDat* jagfile = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+    buildcachedat_set_config_jagfile(buildcachedat, jagfile);
+}
+
+void
+buildcachedat_loader_init_varp_varbit(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game)
+{
+    struct RSCacheShared_FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    if( config_jagfile )
+        varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
+}
+
+void
+buildcachedat_loader_set_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int data_size,
+    void* data)
+{
+    struct RSCacheShared_FileListDat* jagfile = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+    buildcachedat_set_versionlist_jagfile(buildcachedat, jagfile);
+}
+
+void
+buildcachedat_loader_map_terrain_cache_add_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
+    int data_size,
+    void* data)
+{
+    int map_x = (map_id >> 16) & 0xFFFF;
+    int map_z = map_id & 0xFFFF;
+
+    struct RSCacheDat2A_MapTerrain* terrain =
+        RSCacheDat2A_MapTerrainNewFromDecodeFlags(data, data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+
+    buildcachedat_add_map_terrain(buildcachedat, map_x, map_z, terrain);
+}
+
+void
+buildcachedat_loader_map_terrain_cache_add(
+    struct BuildCacheDat* buildcachedat,
+    int param_a,
+    int param_b,
+    int data_size,
+    void* data)
+{
+    int map_x = param_b >> 16;
+    int map_z = param_b & 0xFFFF;
+
+    struct RSCacheDat2A_MapTerrain* terrain =
+        RSCacheDat2A_MapTerrainNewFromDecodeFlags(data, data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+
+    buildcachedat_add_map_terrain(buildcachedat, map_x, map_z, terrain);
+}
+
+void
+buildcachedat_loader_map_scenery_cache_add_mapid(
+    struct BuildCacheDat* buildcachedat,
+    int map_id,
+    int data_size,
+    void* data)
+{
+    int mapx = map_id >> 16;
+    int mapz = map_id & 0xFFFF;
+    struct RSCacheDat2A_MapLocs* locs = map_locs_new_from_decode(data, data_size);
+    locs->_chunk_mapx = mapx;
+    locs->_chunk_mapz = mapz;
+    buildcachedat_add_scenery(buildcachedat, mapx, mapz, locs);
+}
+
+void
+buildcachedat_loader_map_scenery_cache_add(
+    struct BuildCacheDat* buildcachedat,
+    int param_a,
+    int param_b,
+    int data_size,
+    void* data)
+{
+    int mapx = param_b >> 16;
+    int mapz = param_b & 0xFFFF;
+    struct RSCacheDat2A_MapLocs* locs = map_locs_new_from_decode(data, data_size);
+    locs->_chunk_mapx = mapx;
+    locs->_chunk_mapz = mapz;
+    buildcachedat_add_scenery(buildcachedat, mapx, mapz, locs);
+}
+
+void
+buildcachedat_loader_floortypes_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "flo.dat");
+    assert(data_file_idx != -1 && "Data file must be found");
+
+    struct RSCacheShared_RSBuffer buffer = {
+        .data = config_jagfile->files[data_file_idx],
+        .size = config_jagfile->file_sizes[data_file_idx],
+        .position = 0,
+    };
+
+    int count = g2(&buffer);
+    for( int i = 0; i < count; i++ )
+    {
+        struct RSCacheDat2A_ConfigOverlay* flotype = malloc(sizeof(struct RSCacheDat2A_ConfigOverlay));
+        memset(flotype, 0, sizeof(struct RSCacheDat2A_ConfigOverlay));
+        flotype->_id = i;
+
+        buffer.position += config_floortype_overlay_decode_inplace(
+            flotype, buffer.data + buffer.position, buffer.size - buffer.position);
+
+        buildcachedat_add_flotype(buildcachedat, i, flotype);
+    }
+}
+
+void
+buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.idx");
+
+    assert(data_file_idx != -1 && "Data file must be found");
+    assert(index_file_idx != -1 && "Index file must be found");
+
+    struct RSCacheShared_FileListDatIndexed* filelist_indexed = RSCacheShared_FileListDatIndexedNewFromDecode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+
+    struct DashMapIter* iter = buildcachedat_iter_new_scenery(buildcachedat);
+    struct RSCacheDat2A_MapLocs* locs = NULL;
+    while( (locs = buildcachedat_iter_next_scenery(iter)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+            assert(loc->loc_id != -1 && "Loc id must be valid");
+            assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
+
+            if( buildcachedat_get_config_loc(buildcachedat, loc->loc_id) )
+                continue;
+
+            struct RSCacheDat2A_ConfigLocation* config_loc = malloc(sizeof(struct RSCacheDat2A_ConfigLocation));
+            memset(config_loc, 0, sizeof(struct RSCacheDat2A_ConfigLocation));
+
+            int offset = filelist_indexed->offsets[loc->loc_id];
+
+            config_locs_decode_inplace(
+                config_loc,
+                filelist_indexed->data + offset,
+                filelist_indexed->data_size - offset,
+                CONFIG_LOC_DECODE_DAT);
+
+            config_loc->_id = loc->loc_id;
+
+            buildcachedat_add_config_loc(buildcachedat, loc->loc_id, config_loc);
+        }
+    }
+    dashmap_iter_free(iter);
+    RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+}
+
+void
+buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz)
+{
+    struct RSCacheShared_FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "loc.idx");
+
+    assert(data_file_idx != -1 && "Data file must be found");
+    assert(index_file_idx != -1 && "Index file must be found");
+
+    struct RSCacheShared_FileListDatIndexed* filelist_indexed = RSCacheShared_FileListDatIndexedNewFromDecode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+
+    struct RSCacheDat2A_MapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    if( !locs )
+    {
+        RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+        return;
+    }
+
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+        assert(loc->loc_id != -1 && "Loc id must be valid");
+        assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
+
+        if( buildcachedat_get_config_loc(buildcachedat, loc->loc_id) )
+            continue;
+
+        struct RSCacheDat2A_ConfigLocation* config_loc = malloc(sizeof(struct RSCacheDat2A_ConfigLocation));
+        memset(config_loc, 0, sizeof(struct RSCacheDat2A_ConfigLocation));
+
+        int offset = filelist_indexed->offsets[loc->loc_id];
+
+        config_locs_decode_inplace(
+            config_loc,
+            filelist_indexed->data + offset,
+            filelist_indexed->data_size - offset,
+            CONFIG_LOC_DECODE_DAT);
+
+        config_loc->_id = loc->loc_id;
+
+        buildcachedat_add_config_loc(buildcachedat, loc->loc_id, config_loc);
+    }
+
+    RSCacheShared_FileListDatIndexedFree(filelist_indexed);
+}
+
+int
+buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** model_ids_out)
+{
+    *model_ids_out = NULL;
+    struct RSCacheDat2A_MapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    assert(locs != NULL && "Scenery chunk must be loaded");
+
+    struct Vec* model_ids = vec_new(sizeof(int), 32);
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+        assert(loc->loc_id != -1 && "Loc id must be valid");
+        assert(
+            buildcachedat_get_config_loc(buildcachedat, loc->loc_id) != NULL &&
+            "Loc config must be decoded");
+
+        int* mids = NULL;
+        int n = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc->loc_id, &mids);
+        for( int j = 0; j < n; j++ )
+            vec_push(model_ids, &mids[j]);
+        free(mids);
+    }
+
+    int count = vec_size(model_ids);
+    if( count == 0 )
+    {
+        vec_free(model_ids);
+        return 0;
+    }
+
+    qsort(vec_data(model_ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(model_ids), count);
+
+    *model_ids_out = malloc((size_t)count * sizeof(int));
+    if( !*model_ids_out )
+    {
+        vec_free(model_ids);
+        return 0;
+    }
+    memcpy(*model_ids_out, vec_data(model_ids), (size_t)count * sizeof(int));
+    vec_free(model_ids);
+    return count;
+}
+
+int
+buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** frame_ids_out)
+{
+    *frame_ids_out = NULL;
+    struct RSCacheDat2A_MapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    assert(locs != NULL && "Scenery chunk must be loaded");
+
+    struct Vec* frame_ids = vec_new(sizeof(int), 32);
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+        struct RSCacheDat2A_ConfigLocation* config_loc =
+            buildcachedat_get_config_loc(buildcachedat, loc->loc_id);
+        assert(config_loc != NULL && "Loc config must be decoded");
+        if( config_loc->seq_id == -1 )
+            continue;
+        struct RSCacheDat1A_ConfigSequence* sequence =
+            buildcachedat_get_sequence(buildcachedat, config_loc->seq_id);
+        assert(sequence != NULL && "Sequence must be decoded");
+        for( int j = 0; j < sequence->frame_count; j++ )
+        {
+            int sequence_frame_id = sequence->frames[j];
+            // int frame_archive_id = (sequence_frame_id >> 16) & 0xFFFF;
+            // int frame_file_id = sequence_frame_id & 0xFFFF;
+            vec_push(frame_ids, &sequence_frame_id);
+        }
+    }
+
+    int count = vec_size(frame_ids);
+    if( count == 0 )
+    {
+        vec_free(frame_ids);
+        return 0;
+    }
+
+    qsort(vec_data(frame_ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(frame_ids), count);
+
+    *frame_ids_out = malloc((size_t)count * sizeof(int));
+    if( !*frame_ids_out )
+    {
+        vec_free(frame_ids);
+        return 0;
+    }
+    memcpy(*frame_ids_out, vec_data(frame_ids), (size_t)count * sizeof(int));
+    vec_free(frame_ids);
+    return count;
+}
+
+int
+buildcachedat_loader_get_sequence_animbaseframes_ids(
+    struct BuildCacheDat* buildcachedat,
+    int seq_id,
+    int** ids_out)
+{
+    *ids_out = NULL;
+    struct RSCacheDat1A_ConfigSequence* sequence = buildcachedat_get_sequence(buildcachedat, seq_id);
+    if( !sequence || !sequence->frames )
+        return 0;
+
+    struct Vec* ids = vec_new(sizeof(int), sequence->frame_count);
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        int animbaseframes_id = (sequence->frames[i] >> 16) & 0xFFFF;
+        vec_push(ids, &animbaseframes_id);
+    }
+
+    int count = vec_size(ids);
+    if( count == 0 )
+    {
+        vec_free(ids);
+        return 0;
+    }
+
+    qsort(vec_data(ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(ids), count);
+
+    *ids_out = malloc((size_t)count * sizeof(int));
+    if( !*ids_out )
+    {
+        vec_free(ids);
+        return 0;
+    }
+    memcpy(*ids_out, vec_data(ids), (size_t)count * sizeof(int));
+    vec_free(ids);
+    return count;
+}
+
+int
+buildcachedat_loader_get_all_scenery_locs(
+    struct BuildCacheDat* buildcachedat,
+    int** loc_ids_out,
+    int** chunk_x_out,
+    int** chunk_z_out)
+{
+    struct Vec* loc_ids = vec_new(sizeof(int), 512);
+    struct Vec* chunk_x = vec_new(sizeof(int), 512);
+    struct Vec* chunk_z = vec_new(sizeof(int), 512);
+
+    struct DashMapIter* iter = buildcachedat_iter_new_scenery(buildcachedat);
+    struct RSCacheDat2A_MapLocs* locs = NULL;
+    while( (locs = buildcachedat_iter_next_scenery(iter)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+            vec_push(loc_ids, &loc->loc_id);
+            vec_push(chunk_x, &locs->_chunk_mapx);
+            vec_push(chunk_z, &locs->_chunk_mapz);
+        }
+    }
+    dashmap_iter_free(iter);
+
+    int count = vec_size(loc_ids);
+    *loc_ids_out = malloc(count * sizeof(int));
+    *chunk_x_out = malloc(count * sizeof(int));
+    *chunk_z_out = malloc(count * sizeof(int));
+
+    memcpy(*loc_ids_out, vec_data(loc_ids), count * sizeof(int));
+    memcpy(*chunk_x_out, vec_data(chunk_x), count * sizeof(int));
+    memcpy(*chunk_z_out, vec_data(chunk_z), count * sizeof(int));
+
+    vec_free(loc_ids);
+    vec_free(chunk_x);
+    vec_free(chunk_z);
+
+    return count;
+}
+
+int
+buildcachedat_loader_get_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    int loc_id,
+    int** model_ids_out)
+{
+    struct RSCacheDat2A_ConfigLocation* config_loc = buildcachedat_get_config_loc(buildcachedat, loc_id);
+    if( !config_loc || !config_loc->models )
+    {
+        *model_ids_out = NULL;
+        return 0;
+    }
+
+    struct Vec* model_ids = vec_new(sizeof(int), 16);
+
+    int** model_id_sets = config_loc->models;
+    int* lengths = config_loc->lengths;
+    int* shapes = config_loc->shapes;
+    int shapes_and_model_count = config_loc->shapes_and_model_count;
+
+    if( !shapes )
+    {
+        int count = lengths[0];
+        for( int i = 0; i < count; i++ )
+        {
+            int model_id = model_id_sets[0][i];
+            if( model_id )
+                vec_push(model_ids, &model_id);
+        }
+    }
+    else
+    {
+        for( int i = 0; i < shapes_and_model_count; i++ )
+        {
+            int count_inner = lengths[i];
+            for( int j = 0; j < count_inner; j++ )
+            {
+                int model_id = model_id_sets[i][j];
+                if( model_id )
+                    vec_push(model_ids, &model_id);
+            }
+        }
+    }
+
+    int count = vec_size(model_ids);
+    *model_ids_out = malloc(count * sizeof(int));
+    memcpy(*model_ids_out, vec_data(model_ids), count * sizeof(int));
+    vec_free(model_ids);
+
+    return count;
+}
+
+int
+buildcachedat_loader_get_all_unique_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    int** model_ids_out)
+{
+    *model_ids_out = NULL;
+    if( !buildcachedat )
+        return 0;
+
+    struct Vec* locs_vec = vec_new(sizeof(int), 512);
+    struct DashMapIter* iter = buildcachedat_iter_new_scenery(buildcachedat);
+    struct RSCacheDat2A_MapLocs* locs = NULL;
+    while( (locs = buildcachedat_iter_next_scenery(iter)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct RSCacheDat2A_MapLoc* loc = &locs->locs[i];
+            vec_push(locs_vec, &loc->loc_id);
+        }
+    }
+    dashmap_iter_free(iter);
+
+    int nloc = vec_size(locs_vec);
+    if( nloc == 0 )
+    {
+        vec_free(locs_vec);
+        return 0;
+    }
+
+    int* loc_arr = malloc((size_t)nloc * sizeof(int));
+    if( !loc_arr )
+    {
+        vec_free(locs_vec);
+        return 0;
+    }
+    memcpy(loc_arr, vec_data(locs_vec), (size_t)nloc * sizeof(int));
+    vec_free(locs_vec);
+
+    qsort(loc_arr, (size_t)nloc, sizeof(int), int_cmp);
+    int nunique_loc = unique_sorted_int(loc_arr, nloc);
+
+    struct Vec* models = vec_new(sizeof(int), 1024);
+    for( int li = 0; li < nunique_loc; li++ )
+    {
+        int* mids = NULL;
+        int nm = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc_arr[li], &mids);
+        for( int mi = 0; mi < nm; mi++ )
+            vec_push(models, &mids[mi]);
+        free(mids);
+    }
+    free(loc_arr);
+
+    int nm_total = vec_size(models);
+    if( nm_total == 0 )
+    {
+        vec_free(models);
+        return 0;
+    }
+
+    int* marr = malloc((size_t)nm_total * sizeof(int));
+    if( !marr )
+    {
+        vec_free(models);
+        return 0;
+    }
+    memcpy(marr, vec_data(models), (size_t)nm_total * sizeof(int));
+    vec_free(models);
+
+    qsort(marr, (size_t)nm_total, sizeof(int), int_cmp);
+    int nunique_m = unique_sorted_int(marr, nm_total);
+
+    if( nunique_m < nm_total )
+    {
+        int* shrink = realloc(marr, (size_t)nunique_m * sizeof(int));
+        if( shrink )
+            marr = shrink;
+    }
+    *model_ids_out = marr;
+    return nunique_m;
+}
+
+void
+buildcachedat_loader_model_cache_add(
+    struct BuildCacheDat* buildcachedat,
+    int model_id,
+    int data_size,
+    void* data)
+{
+    struct RSCacheDat2A_Model* model = RSCacheDat2A_ModelNewDecode(data, data_size);
+    buildcachedat_add_model(buildcachedat, model_id, model);
+}
+
+void
+buildcachedat_loader_cache_textures(
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2,
+    int data_size,
+    void* data)
+{
+    assert(scene2 != NULL && "Textures must load into Scene2");
+
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+
+    scene2_texture_batch_begin(scene2, 1);
+
+    // Hardcoded to 50 in the deob. Not sure why.
+    for( int i = 0; i < 50; i++ )
+    {
+        struct RSCacheDat1A_ConfigTexture* texture = RSCacheDat1A_ConfigTextureNewFromFilelistDat(filelist, i, 0);
+
+        int animation_direction = TEXANIM_DIRECTION_NONE;
+        int animation_speed = 0;
+
+        // In old revisions (e.g. 245.2) the animated textures were hardcoded.
+        if( i == 17 || i == 24 )
+        {
+            animation_direction = TEXANIM_DIRECTION_V_DOWN;
+            animation_speed = 2;
+        }
+
+        struct DashTexture* dash_texture =
+            texture_new_from_texture_sprite(
+                texture, animation_direction, animation_speed, false, false);
+        assert(dash_texture != NULL);
+
+        scene2_texture_add(scene2, i, dash_texture);
+        buildcachedat_add_texture_ref(buildcachedat, i);
+        RSCacheDat1A_ConfigTextureFree(texture);
+    }
+
+    scene2_texture_batch_end(scene2);
+
+    RSCacheShared_FileListDatFree(filelist);
+}
+
+void
+buildcachedat_loader_sequences_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(config_jagfile, "seq.dat");
+    assert(data_file_idx != -1 && "Data file must be found");
+
+    struct RSCacheShared_RSBuffer buffer = { .data = config_jagfile->files[data_file_idx],
+                               .size = config_jagfile->file_sizes[data_file_idx],
+                               .position = 0 };
+
+    int count = g2(&buffer);
+    buildcachedat_reserve_hmap(buildcachedat->sequences_hmap, (size_t)count);
+    for( int i = 0; i < count; i++ )
+    {
+        struct RSCacheDat1A_ConfigSequence* sequence = malloc(sizeof(struct RSCacheDat1A_ConfigSequence));
+        memset(sequence, 0, sizeof(struct RSCacheDat1A_ConfigSequence));
+
+        buffer.position += RSCacheDat1A_ConfigSequenceDecodeInplace(
+            sequence, buffer.data + buffer.position, buffer.size - buffer.position);
+
+        buildcachedat_add_sequence(buildcachedat, i, sequence);
+    }
+}
+
+int
+buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* versionlist_jagfile = buildcachedat_versionlist_jagfile(buildcachedat);
+    assert(versionlist_jagfile != NULL && "Versionlist jagfile must be loaded");
+
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(versionlist_jagfile, "anim_index");
+    if( index_file_idx == -1 )
+        return 264; // Fallback default
+
+    return 264; // Hardcoded for now
+}
+
+void
+buildcachedat_loader_animbaseframes_cache_add(
+    struct BuildCacheDat* buildcachedat,
+    int animbaseframes_id,
+    int data_size,
+    void* data)
+{
+    struct RSCacheDat1A_AnimBaseFrames* animbaseframes =
+        RSCacheDat1A_AnimBaseFramesNewDecode(data, data_size);
+
+    buildcachedat_add_animbaseframes(buildcachedat, animbaseframes_id, animbaseframes);
+
+    for( int i = 0; i < animbaseframes->frame_count; i++ )
+    {
+        struct RSCacheDat1A_AnimFrame* animframe = &animbaseframes->frames[i];
+        buildcachedat_add_animframe_ref(buildcachedat, animframe->id, animbaseframes_id, i);
+    }
+}
+
+static struct DashSprite*
+load_sprite_pix8(
+    struct RSCacheShared_FileListDat* filelist,
+    const char* filename,
+    int index_file_idx,
+    int sprite_idx)
+{
+    struct RSCacheDat1A_Pix8Palette* pix8_palette = NULL;
+    struct DashSprite* sprite = NULL;
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, filename);
+    if( data_file_idx == -1 )
+    {
+        return NULL;
+    }
+
+    pix8_palette = RSCacheDat1A_Pix8PaletteNew(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+
+    sprite = dashsprite_new_from_cache_pix8_palette(pix8_palette);
+    RSCacheDat1A_Pix8PaletteFree(pix8_palette);
+
+    return sprite;
+}
+
+static struct DashSprite*
+load_sprite_pix32(
+    struct RSCacheShared_FileListDat* filelist,
+    const char* filename,
+    int index_file_idx,
+    int sprite_idx)
+{
+    struct RSCacheDat1A_Pix32* pix32 = NULL;
+    struct DashSprite* sprite = NULL;
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, filename);
+    if( data_file_idx == -1 )
+    {
+        return NULL;
+    }
+
+    pix32 = RSCacheDat1A_Pix32New(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        sprite_idx);
+    if( !pix32 )
+    {
+        return NULL;
+    }
+    sprite = dashsprite_new_from_cache_pix32(pix32);
+    RSCacheDat1A_Pix32Free(pix32);
+    return sprite;
+}
+
+void
+buildcachedat_loader_cache_media(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    int data_size,
+    void* data)
+{
+    // struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+
+    // int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
+    // assert(index_file_idx != -1 && "Failed to find index.dat in filelist");
+
+    // game->sprite_invback = load_sprite_pix8(filelist, "invback.dat", index_file_idx, 0);
+    // game->sprite_chatback = load_sprite_pix8(filelist, "chatback.dat", index_file_idx, 0);
+    // game->sprite_mapback = load_sprite_pix8(filelist, "mapback.dat", index_file_idx, 0);
+    // game->sprite_backbase1 = load_sprite_pix8(filelist, "backbase1.dat", index_file_idx, 0);
+    // game->sprite_backbase2 = load_sprite_pix8(filelist, "backbase2.dat", index_file_idx, 0);
+    // game->sprite_backhmid1 = load_sprite_pix8(filelist, "backhmid1.dat", index_file_idx, 0);
+
+    // for( int i = 0; i < 13; i++ )
+    // {
+    //     game->sprite_sideicons[i] = load_sprite_pix8(filelist, "sideicons.dat", index_file_idx,
+    //     i);
+    // }
+
+    // game->sprite_compass = load_sprite_pix32(filelist, "compass.dat", index_file_idx, 0);
+    // game->sprite_mapedge = load_sprite_pix32(filelist, "mapedge.dat", index_file_idx, 0);
+
+    // for( int i = 0; i < 50; i++ )
+    // {
+    //     game->sprite_mapscene[i] = load_sprite_pix8(filelist, "mapscene.dat", index_file_idx, i);
+    // }
+
+    // for( int i = 0; i < 50; i++ )
+    // {
+    //     game->sprite_mapfunction[i] =
+    //         load_sprite_pix32(filelist, "mapfunction.dat", index_file_idx, i);
+    // }
+
+    // for( int i = 0; i < 20; i++ )
+    // {
+    //     game->sprite_hitmarks[i] = load_sprite_pix32(filelist, "hitmarks.dat", index_file_idx,
+    //     i); game->sprite_headicons[i] = load_sprite_pix32(filelist, "headicons.dat",
+    //     index_file_idx, i);
+    // }
+
+    // game->sprite_mapmarker0 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 0);
+    // game->sprite_mapmarker1 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 1);
+
+    // for( int i = 0; i < 8; i++ )
+    // {
+    //     game->sprite_cross[i] = load_sprite_pix32(filelist, "cross.dat", index_file_idx, i);
+    // }
+
+    // game->sprite_mapdot0 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 0);
+    // game->sprite_mapdot1 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 1);
+    // game->sprite_mapdot2 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 2);
+    // game->sprite_mapdot3 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 3);
+
+    // game->sprite_scrollbar0 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 0);
+    // game->sprite_scrollbar1 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 1);
+
+    // game->sprite_redstone1 = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2 = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone3 = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+    // game->sprite_redstone1h = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2h = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone1v = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2v = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone3v = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+    // game->sprite_redstone1hv = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2hv = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // /* Client.ts: h = flipHorizontally, v = flipVertically, hv = both */
+    // if( game->sprite_redstone1h )
+    //     dashsprite_flip_horizontal(game->sprite_redstone1h);
+    // if( game->sprite_redstone2h )
+    //     dashsprite_flip_horizontal(game->sprite_redstone2h);
+    // if( game->sprite_redstone1v )
+    //     dashsprite_flip_vertical(game->sprite_redstone1v);
+    // if( game->sprite_redstone2v )
+    //     dashsprite_flip_vertical(game->sprite_redstone2v);
+    // if( game->sprite_redstone3v )
+    //     dashsprite_flip_vertical(game->sprite_redstone3v);
+    // if( game->sprite_redstone1hv )
+    // {
+    //     dashsprite_flip_horizontal(game->sprite_redstone1hv);
+    //     dashsprite_flip_vertical(game->sprite_redstone1hv);
+    // }
+    // if( game->sprite_redstone2hv )
+    // {
+    //     dashsprite_flip_horizontal(game->sprite_redstone2hv);
+    //     dashsprite_flip_vertical(game->sprite_redstone2hv);
+    // }
+
+    // for( int i = 0; i < 2; i++ )
+    // {
+    //     game->sprite_modicons[i] = load_sprite_pix8(filelist, "mod_icons.dat", index_file_idx,
+    //     i);
+    // }
+
+    // game->sprite_backleft1 = load_sprite_pix32(filelist, "backleft1.dat", index_file_idx, 0);
+    // game->sprite_backleft2 = load_sprite_pix8(filelist, "backleft2.dat", index_file_idx, 0);
+    // game->sprite_backright1 = load_sprite_pix8(filelist, "backright1.dat", index_file_idx, 0);
+    // game->sprite_backright2 = load_sprite_pix8(filelist, "backright2.dat", index_file_idx, 0);
+    // game->sprite_backtop1 = load_sprite_pix8(filelist, "backtop1.dat", index_file_idx, 0);
+    // game->sprite_backvmid1 = load_sprite_pix8(filelist, "backvmid1.dat", index_file_idx, 0);
+    // game->sprite_backvmid2 = load_sprite_pix8(filelist, "backvmid2.dat", index_file_idx, 0);
+    // game->sprite_backvmid3 = load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
+    // game->sprite_backhmid2 = load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
+
+    // game->media_filelist = filelist;
+}
+
+/** Try to load a single component sprite by name (e.g. "miscgraphics,0") from media filelist.
+ */
+static void
+load_one_component_sprite(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct RSCacheShared_FileListDat* filelist,
+    int index_file_idx,
+    const char* sprite_name)
+{
+    char filename_buf[256];
+    int sprite_idx = 0;
+    if( !sprite_name || !sprite_name[0] || !ui_scene )
+        return;
+    if( buildcachedat_get_component_sprite_element_id(buildcachedat, sprite_name) >= 0 )
+        return; /* already loaded */
+    if( sscanf(sprite_name, "%255[^,],%d", filename_buf, &sprite_idx) != 2 )
+    {
+        snprintf(filename_buf, sizeof(filename_buf), "%s", sprite_name);
+        sprite_idx = 0;
+    }
+    size_t len = strlen(filename_buf);
+    if( len + 5 > sizeof(filename_buf) )
+        return;
+    if( len < 4 || strcmp(filename_buf + len - 4, ".dat") != 0 )
+    {
+        memcpy(filename_buf + len, ".dat", 4);
+        filename_buf[len + 4] = '\0';
+    }
+    struct DashSprite* sprite =
+        load_sprite_pix32(filelist, filename_buf, index_file_idx, sprite_idx);
+    if( !sprite )
+        sprite = load_sprite_pix8(filelist, filename_buf, index_file_idx, sprite_idx);
+    if( sprite )
+    {
+        int eid = loader_uiscene_attach_single_sprite_owned(ui_scene, sprite);
+        if( eid >= 0 )
+            buildcachedat_add_component_sprite_ref(buildcachedat, sprite_name, eid);
+        else
+            dashsprite_free(sprite);
+    }
+}
+
+void
+buildcachedat_loader_load_component_sprites_from_media(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game)
+{
+    struct RSCacheShared_FileListDat* filelist = buildcachedat->cfg_media_jagfile;
+    if( !filelist || !game || !game->ui_scene )
+        return;
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
+    if( index_file_idx == -1 )
+        return;
+
+    struct DashMapIter* iter = buildcachedat_component_iter_new(buildcachedat);
+    int id;
+    struct RSCacheDat1A_ConfigComponent* component;
+    while( (component = buildcachedat_component_iter_next(iter, &id)) != NULL )
+    {
+        load_one_component_sprite(
+            buildcachedat, game->ui_scene, filelist, index_file_idx, component->graphic);
+        load_one_component_sprite(
+            buildcachedat, game->ui_scene, filelist, index_file_idx, component->activeGraphic);
+        if( component->invSlotGraphic )
+        {
+            for( int i = 0; i < 20; i++ )
+            {
+                if( component->invSlotGraphic[i] )
+                    load_one_component_sprite(
+                        buildcachedat,
+                        game->ui_scene,
+                        filelist,
+                        index_file_idx,
+                        component->invSlotGraphic[i]);
+            }
+        }
+    }
+    dashmap_iter_free(iter);
+}
+
+void
+buildcachedat_loader_cache_title(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    int data_size,
+    void* data)
+{
+    assert(ui_scene != NULL && "Fonts load into UIScene");
+
+    struct DashPixFont* font = NULL;
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromDecode(data, data_size);
+
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "index.dat");
+    assert(index_file_idx != -1 && "Failed to find index.dat in filelist");
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "b12.dat");
+    assert(data_file_idx != -1 && "Failed to find b12.dat in filelist");
+    struct RSCacheDat1A_PixFont* pixfont = RSCacheDat1A_PixFontNewDecode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font_ref(buildcachedat, "b12", uiscene_font_add(ui_scene, "b12", font));
+    RSCacheDat1A_PixFontFree(pixfont);
+
+    data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "p12.dat");
+    assert(data_file_idx != -1);
+    pixfont = RSCacheDat1A_PixFontNewDecode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font_ref(buildcachedat, "p12", uiscene_font_add(ui_scene, "p12", font));
+    RSCacheDat1A_PixFontFree(pixfont);
+
+    data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "p11.dat");
+    assert(data_file_idx != -1);
+    pixfont = RSCacheDat1A_PixFontNewDecode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font_ref(buildcachedat, "p11", uiscene_font_add(ui_scene, "p11", font));
+    RSCacheDat1A_PixFontFree(pixfont);
+
+    data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "q8.dat");
+    assert(data_file_idx != -1);
+    pixfont = RSCacheDat1A_PixFontNewDecode(
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx],
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx]);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font_ref(buildcachedat, "q8", uiscene_font_add(ui_scene, "q8", font));
+    RSCacheDat1A_PixFontFree(pixfont);
+
+    RSCacheShared_FileListDatFree(filelist);
+}
+
+void
+buildcachedat_loader_idkits_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "idk.dat");
+    assert(data_file_idx != -1 && "Failed to find idk.dat in filelist");
+
+    struct RSCacheDat1A_ConfigIdkList* idk_list = RSCacheDat1A_ConfigIdkListNewDecode(
+        filelist->files[data_file_idx], filelist->file_sizes[data_file_idx]);
+
+    buildcachedat_reserve_hmap(buildcachedat->idk_hmap, (size_t)idk_list->idks_count);
+
+    for( int i = 0; i < idk_list->idks_count; i++ )
+    {
+        buildcachedat_add_idk(buildcachedat, i, idk_list->idks[i]);
+    }
+    free(idk_list->idks);
+    free(idk_list);
+
+    data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "npc.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "npc.idx");
+
+    assert(data_file_idx != -1 && index_file_idx != -1);
+
+    struct RSCacheShared_FileListDatIndexed* npc_fi = RSCacheShared_FileListDatIndexedNewFromDecode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    buildcachedat_reserve_hmap(buildcachedat->npc_hmap, (size_t)npc_fi->offset_count);
+
+    for( int i = 0; i < npc_fi->offset_count; i++ )
+    {
+        struct RSCacheShared_RSBuffer npc_buf;
+        RSCacheShared_RSBufferInit(
+            &npc_buf, npc_fi->data + npc_fi->offsets[i], npc_fi->data_size - npc_fi->offsets[i]);
+        struct RSCacheDat1A_ConfigNpc* npc = RSCacheDat1A_ConfigNpcDecodeOne(&npc_buf);
+        assert(npc != NULL && "Failed to decode npc");
+        buildcachedat_add_npc(buildcachedat, i, npc);
+    }
+    RSCacheShared_FileListDatIndexedFree(npc_fi);
+}
+
+void
+buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
+
+    int data_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "obj.dat");
+    assert(data_file_idx != -1 && "Failed to find obj.dat in filelist");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "obj.idx");
+    assert(index_file_idx != -1 && "Failed to find obj.idx in filelist");
+
+    struct RSCacheShared_FileListDatIndexed* fi = RSCacheShared_FileListDatIndexedNewFromDecode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    buildcachedat_reserve_hmap(buildcachedat->obj_hmap, (size_t)fi->offset_count);
+
+    for( int i = 0; i < fi->offset_count; i++ )
+    {
+        struct RSCacheDat1A_ConfigObj* obj = RSCacheDat1A_ConfigObjDecodeOne(
+            fi->data + fi->offsets[i], fi->data_size - fi->offsets[i]);
+        assert(obj != NULL && "Failed to decode obj");
+        buildcachedat_add_obj(buildcachedat, i, obj);
+    }
+
+    RSCacheShared_FileListDatIndexedFree(fi);
+}
+
+void
+buildcachedat_loader_spotanims_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct RSCacheShared_FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
+
+    int data_file_idx  = RSCacheShared_FileListDatFindFileByName(filelist, "spotanim.dat");
+    int index_file_idx = RSCacheShared_FileListDatFindFileByName(filelist, "spotanim.idx");
+
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return; /* Spotanim tables absent in this cache */
+
+    struct RSCacheShared_FileListDatIndexed* fi = RSCacheShared_FileListDatIndexedNewFromDecode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    if( !fi )
+        return;
+
+    buildcachedat_reserve_hmap(buildcachedat->spotanim_hmap, (size_t)fi->offset_count);
+
+    for( int i = 0; i < fi->offset_count; i++ )
+    {
+        struct RSCacheDat1A_ConfigSpotanim* s = RSCacheDat1A_ConfigSpotanimDecodeOne(
+            fi->data + fi->offsets[i], fi->data_size - fi->offsets[i]);
+        if( s )
+            buildcachedat_add_spotanim(buildcachedat, i, s);
+    }
+
+    RSCacheShared_FileListDatIndexedFree(fi);
+}
+
+void
+buildcachedat_loader_load_interfaces(
+    struct BuildCacheDat* buildcachedat,
+    void* archive_data,
+    int archive_data_size)
+{
+    if( !archive_data || archive_data_size == 0 )
+    {
+        printf("buildcachedat_loader_load_interfaces: No data provided\n");
+        return;
+    }
+
+    // Create a temporary archive structure to extract the filelist
+    struct RSCacheDat1Disk_Archive archive;
+    archive.data = archive_data;
+    archive.data_size = archive_data_size;
+
+    struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(&archive);
+    if( !filelist )
+    {
+        printf("buildcachedat_loader_load_interfaces: Failed to create filelist from archive\n");
+        return;
+    }
+
+    // Find the "data" file in the archive
+    int idx = -1;
+    int name_hash = RSCacheShared_ArchiveNameHashDat("data");
+    for( int i = 0; i < filelist->file_count; i++ )
+    {
+        if( filelist->file_name_hashes[i] == name_hash )
+        {
+            idx = i;
+            break;
+        }
+    }
+
+    if( idx == -1 )
+    {
+        printf("buildcachedat_loader_load_interfaces: 'data' file not found in archive\n");
+        RSCacheShared_FileListDatFree(filelist);
+        return;
+    }
+
+    char* file_data = filelist->files[idx];
+    int file_data_size = filelist->file_sizes[idx];
+
+    // Decode the component list from the "data" file
+    struct RSCacheDat1A_ConfigComponentList* component_list =
+        RSCacheDat1A_ConfigComponentListNewDecode(file_data, file_data_size);
+
+    if( !component_list )
+    {
+        printf("buildcachedat_loader_load_interfaces: Failed to decode component list\n");
+        RSCacheShared_FileListDatFree(filelist);
+        return;
+    }
+
+    printf(
+        "buildcachedat_loader_load_interfaces: Loaded %d components\n",
+        component_list->components_count);
+
+    for( int i = 0; i < component_list->components_count; i++ )
+    {
+        struct RSCacheDat1A_ConfigComponent* component = component_list->components[i];
+        if( component )
+        {
+            buildcachedat_add_component(buildcachedat, component->id, component);
+        }
+    }
+
+    // Don't free components, they're owned by buildcachedat now
+    free(component_list->components);
+    free(component_list);
+    RSCacheShared_FileListDatFree(filelist);
+}
+
+// Update all the dash loading and API's to use DashVertexInt* instead of int* for vertices of
+// models. Loading from the cache
+void
+buildcachedat_loader_finalize_scene(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    int map_sw_x,
+    int map_sw_z,
+    int map_ne_x,
+    int map_ne_z)
+{
+    /* varp/varbit loaded in init_varp_varbit (called right after config in load_scene_dat) */
+    if( game->world )
+        world_free(game->world);
+
+    game->world = world_new(buildcachedat, game->scene2);
+
+    buildcachedat_clear_jagfiles(buildcachedat);
+
+    world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
+
+    buildcachedat_clear(buildcachedat);
+}
+
+void
+buildcachedat_loader_finalize_scene_centerzone(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    int zonex,
+    int zonez,
+    int size)
+{
+    if( game->world )
+        world_free(game->world);
+
+    game->world = world_new(buildcachedat, game->scene2);
+
+    buildcachedat_clear_jagfiles(buildcachedat);
+
+    world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
+
+    buildcachedat_clear(buildcachedat);
+}
+
+void
+buildcachedat_loader_prepare_scene_centerzone(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game)
+{
+    if( game->world )
+        world_free(game->world);
+
+    game->world = world_new(buildcachedat, game->scene2);
+    /* Jagfile lifecycle is managed by the caller (Lua).  The config jagfile must
+     * remain valid through the chunk loop so per-chunk init_scenery_configs calls
+     * can decode loc configs.  Do NOT clear jagfiles here. */
+}

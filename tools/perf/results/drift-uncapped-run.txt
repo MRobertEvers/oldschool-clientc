@@ -1,0 +1,182 @@
+run_perf: building EMBED_SERVER=1 TORIDRAW_OPT=1 PLATFORM_OBJ_BASE=build_perf
+makefile:433: warning: overriding commands for target `build_perf_tdo/features.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/features.o'
+makefile:433: warning: overriding commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:476: warning: overriding commands for target `build_perf_tdo/collision_map.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/collision_map.o'
+makefile:573: warning: overriding commands for target `build_perf_tdo/rsareabuf.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/rsareabuf.o'
+makefile:582: warning: overriding commands for target `build_perf_tdo/ini.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/ini.o'
+make: `torirs' is up to date.
+run_perf: scenario=drift frames=45000 window=500 csv=/Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift.csv
+run_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift.csv
+run_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift.csv.windows.csv
+=== torirs_perf report ===
+frames=45000 ring=2048 over_20ms=25 (0.1%) eff_fps=245.8
+frame_ns mean=4068102 p50=4012000 p95=4588000 max=7724000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async             55464       1000     222000     554000
+logic            212139     182000     374000     630000
+cs2               51095          0     223000     407000
+layout               57          0       1000       1000
+interact          17091      16000      26000      89000
+emit             117618     107000     192000     336000
+paint            332557     328000     370000     551000
+build            332672     328000     370000     551000
+render          2998413    2966000    3313000    4075000
+present          137526     135000     151000     247000
+server             2259       1000       3000     150000
+residual        -188789  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                        1143955       558.57
+uitree_find_id_probes                 2020610       986.63
+uitree_find_child                       11920         5.82
+uitree_find_child_hit                    3520         1.72
+uitree_find_child_ceil_miss              8400         4.10
+uitree_walk_emit                      5885952      2874.00
+uitree_walk_hit                       1454080       710.00
+uitree_walk_hover                      212992       104.00
+uitree_emit_skip                      5578752      2724.00
+uitree_layout_resolve                    1092         0.53
+uitree_layout_skip                        546         0.27
+uitree_layout_nodes                   3872232      1890.74
+uitree_layout_node_skip               3870322      1889.81
+uitree_layout_depth_recompute             546         0.27
+uitree_ensure_layout                    31421        15.34
+uitree_cc_deleteall                       546         0.27
+uitree_apply_geo                        17343         8.47
+uitree_apply_content                    13313         6.50
+uitree_apply_hook                        1036         0.51
+uitree_apply_other                    1027764       501.84
+uitree_components                    14524416      7092.00
+uitree_capacity                      16777216      8192.00
+uitree_free_list                         6144         3.00
+uitree_node_bytes                 28856811520  14090240.00
+cs2_scripts                             16380         8.00
+cs2_opcodes                           1488578       726.84
+cs2_host_ops                           199078        97.21
+cs2_cycles                            1488578       726.84
+cs2_vm_acquire                          16380         8.00
+cs2_vm_pool_hit                         16380         8.00
+cs2_vm_init_ns                       12066000      5891.60
+cs2_frame_pool_hit                      32086        15.67
+cache_sprite_hit                            6         0.00
+painter_pops                         17199104      8398.00
+painter_gate_rejects                  7505920      3665.00
+painter_pushes                       17199104      8398.00
+painter_push_dedup                    7532544      3678.00
+painter_drain_events                     8192         4.00
+painter_commands                     11145216      5442.00
+painter_tiles_remaining_set           8857600      4325.00
+scene_elements                       32634966     15935.04
+scene_anim_list                        168714        82.38
+zone_map_count                         129024        63.00
+zone_map_capacity                      524288       256.00
+npc_slot_max                           133120        65.00
+cache_model_size                       621894       303.66
+cache_sprite_size                      303576       148.23
+
+torirs_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=8 mounts=0
+--- window frame_p95 ---
+torirs_perf: window=500 writing /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/52e742d8-drift.csv.windows.csv
+torirs_perf: window=0 frame_p95=4.50ms
+torirs_perf: window=1 frame_p95=5.87ms
+torirs_perf: window=2 frame_p95=4.58ms
+torirs_perf: window=3 frame_p95=4.67ms
+torirs_perf: window=4 frame_p95=4.60ms
+torirs_perf: window=5 frame_p95=4.80ms
+torirs_perf: window=6 frame_p95=5.18ms
+torirs_perf: window=7 frame_p95=4.81ms
+torirs_perf: window=8 frame_p95=4.37ms
+torirs_perf: window=9 frame_p95=4.75ms
+torirs_perf: window=10 frame_p95=4.30ms
+torirs_perf: window=11 frame_p95=4.32ms
+torirs_perf: window=12 frame_p95=4.62ms
+torirs_perf: window=13 frame_p95=5.03ms
+torirs_perf: window=14 frame_p95=4.12ms
+torirs_perf: window=15 frame_p95=4.67ms
+torirs_perf: window=16 frame_p95=4.60ms
+torirs_perf: window=17 frame_p95=4.64ms
+torirs_perf: window=18 frame_p95=5.14ms
+torirs_perf: window=19 frame_p95=4.54ms
+torirs_perf: window=20 frame_p95=7.28ms
+torirs_perf: window=21 frame_p95=5.40ms
+torirs_perf: window=22 frame_p95=5.43ms
+torirs_perf: window=23 frame_p95=4.56ms
+torirs_perf: window=24 frame_p95=4.46ms
+torirs_perf: window=25 frame_p95=4.32ms
+torirs_perf: window=26 frame_p95=4.63ms
+torirs_perf: window=27 frame_p95=4.86ms
+torirs_perf: window=28 frame_p95=4.68ms
+torirs_perf: window=29 frame_p95=4.23ms
+torirs_perf: window=30 frame_p95=4.32ms
+torirs_perf: window=31 frame_p95=4.87ms
+torirs_perf: window=32 frame_p95=5.72ms
+torirs_perf: window=33 frame_p95=4.23ms
+torirs_perf: window=34 frame_p95=4.79ms
+torirs_perf: window=35 frame_p95=4.93ms
+torirs_perf: window=36 frame_p95=5.96ms
+torirs_perf: window=37 frame_p95=4.46ms
+torirs_perf: window=38 frame_p95=4.96ms
+torirs_perf: window=39 frame_p95=6.28ms
+torirs_perf: window=40 frame_p95=4.99ms
+torirs_perf: window=41 frame_p95=4.80ms
+torirs_perf: window=42 frame_p95=4.92ms
+torirs_perf: window=43 frame_p95=4.72ms
+torirs_perf: window=44 frame_p95=4.52ms
+torirs_perf: window=45 frame_p95=4.85ms
+torirs_perf: window=46 frame_p95=4.34ms
+torirs_perf: window=47 frame_p95=4.69ms
+torirs_perf: window=48 frame_p95=4.22ms
+torirs_perf: window=49 frame_p95=7.13ms
+torirs_perf: window=50 frame_p95=4.98ms
+torirs_perf: window=51 frame_p95=5.56ms
+torirs_perf: window=52 frame_p95=5.69ms
+torirs_perf: window=53 frame_p95=5.16ms
+torirs_perf: window=54 frame_p95=4.50ms
+torirs_perf: window=55 frame_p95=4.87ms
+torirs_perf: window=56 frame_p95=4.46ms
+torirs_perf: window=57 frame_p95=4.48ms
+torirs_perf: window=58 frame_p95=4.36ms
+torirs_perf: window=59 frame_p95=4.47ms
+torirs_perf: window=60 frame_p95=4.20ms
+torirs_perf: window=61 frame_p95=4.78ms
+torirs_perf: window=62 frame_p95=4.44ms
+torirs_perf: window=63 frame_p95=4.11ms
+torirs_perf: window=64 frame_p95=4.08ms
+torirs_perf: window=65 frame_p95=4.62ms
+torirs_perf: window=66 frame_p95=5.18ms
+torirs_perf: window=67 frame_p95=4.18ms
+torirs_perf: window=68 frame_p95=4.13ms
+torirs_perf: window=69 frame_p95=4.63ms
+torirs_perf: window=70 frame_p95=4.60ms
+torirs_perf: window=71 frame_p95=5.03ms
+torirs_perf: window=72 frame_p95=4.33ms
+torirs_perf: window=73 frame_p95=5.52ms
+torirs_perf: window=74 frame_p95=4.42ms
+torirs_perf: window=75 frame_p95=4.12ms
+torirs_perf: window=76 frame_p95=4.09ms
+torirs_perf: window=77 frame_p95=4.11ms
+torirs_perf: window=78 frame_p95=5.24ms
+torirs_perf: window=79 frame_p95=4.71ms
+torirs_perf: window=80 frame_p95=4.32ms
+torirs_perf: window=81 frame_p95=7.57ms
+torirs_perf: window=82 frame_p95=4.39ms
+torirs_perf: window=83 frame_p95=5.44ms
+torirs_perf: window=84 frame_p95=4.62ms
+torirs_perf: window=85 frame_p95=4.56ms
+torirs_perf: window=86 frame_p95=4.85ms
+torirs_perf: window=87 frame_p95=4.66ms
+torirs_perf: window=88 frame_p95=4.26ms
+torirs_perf: window=89 frame_p95=4.43ms

@@ -58,7 +58,7 @@ static Uint64 s_scene_tile_nk_prev_ticks;
 
 // External variables from scene_tile_test.cpp
 extern "C" int g_sin_table[2048];
-extern "C" int g_cos_table[2048];
+extern "C" int RSCacheDat2A_NoiseCosTable[2048];
 extern "C" int g_tan_table[2048];
 extern "C" int g_hsl16_to_rgb_table[65536];
 
@@ -96,7 +96,7 @@ game_free(struct Game* game)
     if( game->ops )
         free(game->ops);
     if( game->textures_cache )
-        textures_cache_free(game->textures_cache);
+        textures_RSCacheDat2Disk_Free(game->textures_cache);
     if( game->scene )
         scene_free(game->scene);
     if( game->scene_locs )
@@ -106,7 +106,7 @@ game_free(struct Game* game)
     if( game->map_locs )
         free(game->map_locs);
     if( game->sprite_packs )
-        sprite_pack_free(game->sprite_packs);
+        RSCacheDat2A_SpritePackFree(game->sprite_packs);
     if( game->textures )
         free(game->textures);
     if( game->tiles )
@@ -587,7 +587,7 @@ game_render_sdl2(
                 continue;
 
             // Advance animations
-            struct CacheConfigSequence* sequence = iter.value.model_nullable_->sequence;
+            struct RSCacheDat2A_ConfigSequence* sequence = iter.value.model_nullable_->sequence;
             if( sequence )
             {
                 for( int i = 0; i < deltas; i++ )
@@ -980,26 +980,26 @@ AndroidPlatform::loadSpritePacks()
         return false;
     }
 
-    int sprite_count = m_cache->tables[CACHE_SPRITES]->archive_count;
+    int sprite_count = m_cache->tables[RSCacheDat2Disk_Table_Sprites]->archive_count;
     m_game->sprite_packs =
-        (struct CacheSpritePack*)malloc(sprite_count * sizeof(struct CacheSpritePack));
+        (struct RSCacheDat2A_SpritePack*)malloc(sprite_count * sizeof(struct RSCacheDat2A_SpritePack));
     m_game->sprite_ids = (int*)malloc(sprite_count * sizeof(int));
     m_game->sprite_count = sprite_count;
 
     for( int sprite_index = 0; sprite_index < sprite_count; sprite_index++ )
     {
-        struct CacheArchive* archive = cache_archive_new_load(m_cache, CACHE_SPRITES, sprite_index);
+        struct RSCacheDat2Disk_Archive* archive = RSCacheDat2Disk_ArchiveNewLoad(m_cache, RSCacheDat2Disk_Table_Sprites, sprite_index);
         if( !archive )
         {
             LOGI("Failed to load sprite archive %d", sprite_index);
             continue;
         }
 
-        struct ArchiveReference* archives = m_cache->tables[CACHE_SPRITES]->archives;
+        struct RSCacheDat2Disk_ArchiveReference* archives = m_cache->tables[RSCacheDat2Disk_Table_Sprites]->archives;
 
         if( sprite_index == 299 )
         {
-            struct CacheSpritePack* sprite_pack = sprite_pack_new_decode(
+            struct RSCacheDat2A_SpritePack* sprite_pack = RSCacheDat2A_SpritePackNewDecode(
                 (const unsigned char*)archive->data, archive->data_size, SPRITELOAD_FLAG_NORMALIZE);
             if( sprite_pack )
             {
@@ -1008,16 +1008,16 @@ AndroidPlatform::loadSpritePacks()
                 for( int i = 0; i < 8; i++ )
                 {
                     int* pixels =
-                        sprite_get_pixels(&sprite_pack->sprites[i], sprite_pack->palette, 1);
+                        RSCacheDat2A_SpriteGetPixels(&sprite_pack->sprites[i], sprite_pack->palette, 1);
                     m_game->image_cross_pixels[i] = pixels;
                 }
             }
         }
 
-        int file_id = archives[m_cache->tables[CACHE_SPRITES]->ids[sprite_index]].index;
+        int file_id = archives[m_cache->tables[RSCacheDat2Disk_Table_Sprites]->ids[sprite_index]].index;
         m_game->sprite_ids[sprite_index] = file_id;
 
-        cache_archive_free(archive);
+        RSCacheDat2Disk_ArchiveFree(archive);
     }
 
     LOGI("Sprite packs loaded successfully");
@@ -1062,16 +1062,16 @@ void
 init_reciprocal16();
 
 int
-xtea_config_load_keys(const char* path);
-struct Cache*
-cache_new_from_directory(const char* path);
+RSCacheShared_XteaConfigLoadKeys(const char* path);
+struct RSCacheDat2Disk*
+RSCacheDat2Disk_NewFromDirectory(const char* path);
 struct Scene*
 scene_new_from_map(
-    struct Cache* cache,
+    struct RSCacheDat2Disk* cache,
     int x,
     int y);
 struct TexturesCache*
-textures_cache_new(struct Cache* cache);
+textures_cache_new(struct RSCacheDat2Disk* cache);
 struct BuildCacheDat;
 struct Scene2;
 struct World*
@@ -1181,7 +1181,7 @@ AndroidPlatform::cleanup()
     if( m_textures_cache )
     {
         // Free textures cache
-        // textures_cache_free(m_textures_cache);
+        // textures_RSCacheDat2Disk_Free(m_textures_cache);
         m_textures_cache = nullptr;
     }
 
@@ -1195,7 +1195,7 @@ AndroidPlatform::cleanup()
     if( m_cache )
     {
         // Free cache
-        // cache_free(m_cache);
+        // RSCacheDat2Disk_Free(m_cache);
         m_cache = nullptr;
     }
 
@@ -1270,7 +1270,7 @@ AndroidPlatform::initCache()
 
     // Load XTEA keys
     std::string xtea_path = m_cache_path + "/xteas.json";
-    int xtea_count = xtea_config_load_keys(xtea_path.c_str());
+    int xtea_count = RSCacheShared_XteaConfigLoadKeys(xtea_path.c_str());
     if( xtea_count == -1 )
     {
         LOGI("No XTEA keys found, continuing without them");
@@ -1281,7 +1281,7 @@ AndroidPlatform::initCache()
     }
 
     // Create cache
-    m_cache = cache_new_from_directory(m_cache_path.c_str());
+    m_cache = RSCacheDat2Disk_NewFromDirectory(m_cache_path.c_str());
     if( !m_cache )
     {
         LOGE("Failed to create cache from directory: %s", m_cache_path.c_str());
@@ -1485,23 +1485,23 @@ AndroidPlatform::processEvents()
                     m_game->camera_x +=
                         (g_sin_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     m_game->camera_y -=
-                        (g_cos_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
+                        (RSCacheDat2A_NoiseCosTable[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     break;
                 case SDLK_s:
                     m_game->camera_x -=
                         (g_sin_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     m_game->camera_y +=
-                        (g_cos_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
+                        (RSCacheDat2A_NoiseCosTable[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     break;
                 case SDLK_a:
                     m_game->camera_x +=
-                        (g_cos_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
+                        (RSCacheDat2A_NoiseCosTable[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     m_game->camera_y +=
                         (g_sin_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     break;
                 case SDLK_d:
                     m_game->camera_x -=
-                        (g_cos_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
+                        (RSCacheDat2A_NoiseCosTable[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     m_game->camera_y -=
                         (g_sin_table[m_game->camera_yaw] * m_game->camera_speed) >> 16;
                     break;

@@ -1,0 +1,1440 @@
+#ifndef PROJECTION_U_C
+#define PROJECTION_U_C
+
+#include <stdint.h>
+#include "projection.h"
+
+#include "graphics/tori_compat.h"
+#include "graphics/shared_tables.h"
+
+#include <assert.h>
+#include <limits.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ *
+ * z points into the screen.
+ * x points to the right.
+ * y points up
+ */
+static inline struct ProjectedVertex
+project_orthographic(
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll)
+{
+    struct ProjectedVertex projected_vertex = { 0 };
+
+    assert(camera_pitch >= 0 && camera_pitch < 2048);
+    assert(camera_yaw >= 0 && camera_yaw < 2048);
+    assert(camera_roll >= 0 && camera_roll < 2048);
+    assert(yaw >= 0 && yaw < 2048);
+    assert(pitch >= 0 && pitch < 2048);
+    assert(roll >= 0 && roll < 2048);
+
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int cos_camera_roll = ToriDraw_ReadCosTable(camera_roll);
+    int sin_camera_roll = ToriDraw_ReadSinTable(camera_roll);
+
+    // Apply model rotation — Jagex/Client-TS objRender order: roll (Z), pitch (X), yaw (Y).
+    int sin_pitch = ToriDraw_ReadSinTable(pitch);
+    int cos_pitch = ToriDraw_ReadCosTable(pitch);
+    int sin_yaw = ToriDraw_ReadSinTable(yaw);
+    int cos_yaw = ToriDraw_ReadCosTable(yaw);
+    int sin_roll = ToriDraw_ReadSinTable(roll);
+    int cos_roll = ToriDraw_ReadCosTable(roll);
+
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
+
+    // Rotate around Z-axis (roll)
+    if( roll != 0 )
+    {
+        int tmp = (y_rotated * sin_roll + x_rotated * cos_roll) >> 16;
+        y_rotated = (y_rotated * cos_roll - x_rotated * sin_roll) >> 16;
+        x_rotated = tmp;
+    }
+
+    // Rotate around X-axis (pitch)
+    if( pitch != 0 )
+    {
+        int tmp = (y_rotated * cos_pitch - z_rotated * sin_pitch) >> 16;
+        z_rotated = (y_rotated * sin_pitch + z_rotated * cos_pitch) >> 16;
+        y_rotated = tmp;
+    }
+
+    // Rotate around Y-axis (yaw)
+    if( yaw != 0 )
+    {
+        int tmp = (z_rotated * sin_yaw + x_rotated * cos_yaw) >> 16;
+        z_rotated = (z_rotated * cos_yaw - x_rotated * sin_yaw) >> 16;
+        x_rotated = tmp;
+    }
+
+    // Translate points relative to camera position
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
+
+    // Apply perspective rotation
+    // First rotate around Y-axis (scene yaw)
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    // Then rotate around X-axis (scene pitch)
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    // Finally rotate around Z-axis (scene roll)
+    int x_final_scene = x_scene * cos_camera_roll + y_scene * sin_camera_roll;
+    x_final_scene >>= 16;
+    int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
+    y_final_scene >>= 16;
+
+    projected_vertex.x = x_final_scene;
+    projected_vertex.y = y_final_scene;
+    projected_vertex.z = z_final_scene;
+
+    return projected_vertex;
+}
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ */
+static inline struct ProjectedVertex
+project_perspective(
+    int x,
+    int y,
+    int z,
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int near_clip)
+{
+    struct ProjectedVertex projected_vertex = { 0 };
+
+    // Perspective projection with FOV
+
+    // z is the distance from the camera.
+    // It is a judgement call to say when to cull the triangle, but
+    // things you can consider are the average size of models.
+    // It is up to the caller to cull the triangle if it is too close or behind the camera.
+    // e.g. z <= 50
+    // 1024 value is 2^10, so z must be > 5 bits.
+    static const int z_clip_bits = 7;
+    static const int clip_bits = 13;
+    // clip_bits - z_clip_bits < 7; see math below
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
+    // clip_bits) || y > (1 << clip_bits)  )
+    // {
+    //     projected_vertex.z = z;
+    //     projected_vertex.clipped = 1;
+    //     return projected_vertex;
+    // }
+
+    /*
+     * The near clip is also what bounds how large a projected coordinate can
+     * get, and the raster kernels have a hard ceiling on that.
+     *
+     * A scanline kernel's first act is `edge_x_ish16 = x << 16`, so a projected
+     * x past +/-32,768 px overflows before a single pixel is walked -- and the
+     * off-screen edge pre-steps below it have the same ceiling. 16.16 is the
+     * representation; there is no wider path, and widening it would only turn a
+     * meaningless coordinate into a meaningless coordinate without UB.
+     *
+     * Projection is `x_screen = x_camera * 512 / z`, so |x_screen| passes 32,768
+     * exactly when a vertex is more than 64x further sideways than it is deep:
+     *
+     *     z =  50 (the client's near plane)  ->  needs |x_camera| > 3,200  (25 tiles)
+     *     z = 100                            ->  needs |x_camera| > 6,400  (50 tiles)
+     *     z = 200                            ->  needs |x_camera| > 12,800 (100 tiles)
+     *
+     * Both coordinates have to belong to ONE triangle, so an ordinary model
+     * cannot reach it -- a 128-unit npc has no vertex 3,200 units from another.
+     * It takes a model whose own extent is thousands of units. The Queen Black
+     * Dragon (bounds radius ~3,000) is the largest thing in the game here, and
+     * even she would need a vertex at z < ~47 while the near plane sits at 50:
+     * right at the edge of the envelope, and just outside it.
+     *
+     * So this is currently unreachable, BY THE NEAR PLANE -- not by any check in
+     * the kernels. Three changes put it in range: lowering near_plane_z
+     * (TORIRS_NEAR_PLANE overrides it), raising the projection scale / narrowing
+     * the FOV, or importing a model larger than the QBD. If any of those happen,
+     * the fix is a domain check on the projected vertices -- clamp, or route to a
+     * kernel that can represent them -- not wider arithmetic downstream.
+     * TORIDRAW_PROJECTED_COORD_LIMIT (8192) is that domain, at a 4x margin; it is
+     * measured per model as fixed16_vertices/fixed16_faces, but only under
+     * TORIDRAW_SORT_DEBUG, and nothing acts on it today.
+     */
+    if( z < near_clip )
+    {
+        projected_vertex.z = z;
+        projected_vertex.clipped = 1;
+        return projected_vertex;
+    }
+
+    assert(z != 0);
+
+    /* Same arithmetic as the fast path (project_perspective_fast_trig): the
+     * multiplier is applied here rather than assumed. This used to drop
+     * camera_cot16 on the floor and project everything at UNIT_SCALE, i.e. a
+     * silent scale of exactly 512 no matter what the caller asked for. */
+    {
+        int cot_scaled = camera_cot16 >> 1;
+        x *= cot_scaled;
+        y *= cot_scaled;
+        x >>= 15;
+        y >>= 15;
+    }
+
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
+
+    // Set the projected triangle
+    projected_vertex.x = screen_x;
+    projected_vertex.y = screen_y;
+    projected_vertex.z = z;
+    projected_vertex.clipped = 0;
+
+    return projected_vertex;
+}
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ *
+ */
+static inline struct ProjectedVertex
+project(
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    struct ProjectedVertex projected_vertex;
+
+    projected_vertex = project_orthographic(
+        x,
+        y,
+        z,
+        pitch,
+        yaw,
+        roll,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw,
+        camera_roll);
+
+    projected_vertex = project_perspective(
+        projected_vertex.x, projected_vertex.y, projected_vertex.z, camera_cot16, near_clip);
+
+    return projected_vertex;
+}
+
+static inline int
+ToriDraw_TrigSinFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return ToriDraw_ReadSinTable(angle_r2pi2048);
+}
+
+static inline int
+ToriDraw_TrigCosFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return ToriDraw_ReadCosTable(angle_r2pi2048);
+}
+
+static inline int
+ToriDraw_TrigTanFromShared(
+    int angle_r2pi2048,
+    void* user)
+{
+    (void)user;
+    return ToriDraw_ReadTanTable(angle_r2pi2048);
+}
+
+static inline void
+ToriDraw_TrigFnsFromShared(struct ToriDrawTrigFns* out)
+{
+    out->sin = ToriDraw_TrigSinFromShared;
+    out->cos = ToriDraw_TrigCosFromShared;
+    out->tan = ToriDraw_TrigTanFromShared;
+    out->user = NULL;
+}
+
+static inline void
+project_orthographic_fast_trig(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    const struct ToriDrawTrigFns* trig)
+{
+    assert(trig && trig->sin && trig->cos);
+
+    int cos_camera_pitch = trig->cos(camera_pitch, trig->user);
+    int sin_camera_pitch = trig->sin(camera_pitch, trig->user);
+    int cos_camera_yaw = trig->cos(camera_yaw, trig->user);
+    int sin_camera_yaw = trig->sin(camera_yaw, trig->user);
+
+    /* 32-bit hazard: sin/cos are 16.16, so each product is a coordinate scaled
+     * by 65536 and the sum overflows past coordinates of roughly +/-32,000. No
+     * legitimate pose gets near that -- the case that did was a model whose
+     * frames were accumulating (see ToriDraw_ModelCopy). Guard by range, once
+     * per model, not by widening every vertex here. */
+    int x_rotated = x;
+    int z_rotated = z;
+    if( yaw != 0 )
+    {
+        int sin_yaw = trig->sin(yaw, trig->user);
+        int cos_yaw = trig->cos(yaw, trig->user);
+        x_rotated = (x * cos_yaw + z * sin_yaw) >> 16;
+        z_rotated = (z * cos_yaw - x * sin_yaw) >> 16;
+    }
+
+    // Translate points relative to camera position
+    x_rotated += scene_x;
+    int y_rotated = y + scene_y;
+    z_rotated += scene_z;
+
+    // Apply perspective rotation
+    // First rotate around Y-axis (scene yaw)
+    int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
+    int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+
+    // Then rotate around X-axis (scene pitch)
+    int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+    int z_final_scene = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+
+    projected_vertex->x = x_scene;
+    projected_vertex->y = y_scene;
+    projected_vertex->z = z_final_scene;
+}
+
+static inline void
+project_orthographic_fast(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw)
+{
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_orthographic_fast_trig(
+        projected_vertex,
+        x,
+        y,
+        z,
+        yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw,
+        &trig);
+}
+
+static inline void
+project_orthographic_fast_pitchyaw(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
+
+    if( pitch != 0 )
+    {
+        int sin_pitch = ToriDraw_ReadSinTable(pitch);
+        int cos_pitch = ToriDraw_ReadCosTable(pitch);
+        y_rotated = y * cos_pitch - z * sin_pitch;
+        y_rotated >>= 16;
+        z_rotated = y * sin_pitch + z * cos_pitch;
+        z_rotated >>= 16;
+    }
+
+    if( yaw != 0 )
+    {
+        int sin_yaw = ToriDraw_ReadSinTable(yaw);
+        int cos_yaw = ToriDraw_ReadCosTable(yaw);
+        int x_yaw = x_rotated * cos_yaw + z_rotated * sin_yaw;
+        x_yaw >>= 16;
+        z_rotated = z_rotated * cos_yaw - x_rotated * sin_yaw;
+        z_rotated >>= 16;
+        x_rotated = x_yaw;
+    }
+
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    projected_vertex->x = x_scene;
+    projected_vertex->y = y_scene;
+    projected_vertex->z = z_final_scene;
+}
+
+/*
+ * Return floor(p * (camera_cot16 >> 6) / 1024) * 512 without forming the
+ * potentially overflowing product.  Splitting p at 10 bits keeps both
+ * multiplies in 32 bits for every value accepted by the texture-plane range
+ * gate below.  This function is triangle setup, but it deliberately remains
+ * 32-bit as the software renderer also targets i686.
+ */
+static inline bool
+project_scale_unit_try(
+    int p,
+    int camera_cot16,
+    int* out)
+{
+    int const cot_scaled = camera_cot16 >> 6;
+    int const p_hi = p >> 10;
+    int const p_lo = p - p_hi * 1024;
+    int hi_product;
+    int lo_product;
+    int scaled;
+
+    if( cot_scaled <= 0 )
+        return false;
+    if( p_hi > INT_MAX / cot_scaled || p_hi < INT_MIN / cot_scaled )
+        return false;
+    if( p_lo > INT_MAX / cot_scaled )
+        return false;
+
+    hi_product = p_hi * cot_scaled;
+    lo_product = (p_lo * cot_scaled) >> 10;
+    if( hi_product > INT_MAX - lo_product )
+        return false;
+    scaled = hi_product + lo_product;
+
+    if( scaled > INT_MAX / UNIT_SCALE || scaled < INT_MIN / UNIT_SCALE )
+        return false;
+    *out = scaled * UNIT_SCALE;
+    return true;
+}
+
+static inline int
+project_scale_unit(
+    int p,
+    int camera_cot16)
+{
+    int scaled;
+    bool const ok = project_scale_unit_try(p, camera_cot16, &scaled);
+
+    assert(ok);
+    return ok ? scaled : 0;
+}
+
+/* One numerator plane (A, B, or C) for perspective texture coordinates.
+ * `z` is the camera-space normal until prepare succeeds; `base` is then its
+ * projected screen-centre term. */
+struct ToriDraw_TexturePlaneTerm32
+{
+    int x;
+    int y;
+    int z;
+    int base;
+};
+
+struct ToriDraw_TexturePlane32
+{
+    struct ToriDraw_TexturePlaneTerm32 term[3];
+    int shift;
+};
+
+static inline int
+toridraw_sar1(int value)
+{
+    /* Symmetric and convergent: unlike arithmetic -1 >> 1, this reaches zero. */
+    return value / 2;
+}
+
+static inline unsigned
+toridraw_abs_u32(int value)
+{
+    return value < 0 ? 0u - (unsigned)value : (unsigned)value;
+}
+
+static inline bool
+toridraw_magnitude_add_product(unsigned* magnitude, unsigned value, unsigned extent)
+{
+    unsigned product;
+    unsigned sum;
+
+#if defined(__GNUC__) || defined(__clang__)
+    if( __builtin_mul_overflow(value, extent, &product) ||
+        __builtin_add_overflow(*magnitude, product, &sum) )
+        return false;
+#else
+    if( value != 0 && extent > UINT_MAX / value )
+        return false;
+    product = value * extent;
+    if( *magnitude > UINT_MAX - product )
+        return false;
+    sum = *magnitude + product;
+#endif
+
+    if( sum > (unsigned)INT_MAX )
+        return false;
+    *magnitude = sum;
+    return true;
+}
+
+static inline bool
+ToriDraw_TexturePlaneTermFits32(
+    const struct ToriDraw_TexturePlaneTerm32* term,
+    unsigned half_width,
+    unsigned half_height)
+{
+    unsigned magnitude = toridraw_abs_u32(term->base);
+
+    if( magnitude > (unsigned)INT_MAX )
+        return false;
+    return toridraw_magnitude_add_product(
+               &magnitude, toridraw_abs_u32(term->x), half_width) &&
+           toridraw_magnitude_add_product(
+               &magnitude, toridraw_abs_u32(term->y), half_height);
+}
+
+/* Add a product modulo 2^32 without signed-overflow UB, then decode the result
+ * as a signed value.  TexturePlaneTermFits32 proves the mathematical endpoint
+ * is representable; this helper only avoids an oversized intermediate such as
+ * step_x * full_span_width in the affine path. */
+static inline int
+toridraw_add_mul32(int base, int step, int distance)
+{
+    unsigned const bits =
+        (unsigned)base + (unsigned)step * (unsigned)distance;
+
+    if( bits <= (unsigned)INT_MAX )
+        return (int)bits;
+    return -1 - (int)(UINT_MAX - bits);
+}
+
+/*
+ * A, B, and C are homogeneous: texture coordinates are A/C and B/C.  Dividing
+ * all nine plane terms by the same power of two therefore preserves the map,
+ * apart from discarded low precision, while bounding every hot-loop value.
+ *
+ * Each screen evaluation is base + x*dx + y*dy.  Testing that expression at
+ * the viewport's maximum centered extents proves that every row/span value is
+ * representable.  Affine's potentially wider step*count intermediate uses
+ * toridraw_add_mul32.  This work happens once per triangle; all scanline and
+ * span arithmetic remains 32-bit.
+ */
+/* #region agent log */
+/** Largest normalization shift ToriDraw_TexturePlanePrepare32 has needed, and
+ *  how many triangles it refused outright. Reported per model by the raster
+ *  debug line: every bit of shift is a bit of uv precision discarded, so a
+ *  large value here is a striped/banded texture rather than a lost face. */
+static int g_toridraw_tex_plane_max_shift = 0;
+static int g_toridraw_tex_plane_rejected = 0;
+/* #endregion */
+
+static inline bool
+ToriDraw_TexturePlanePrepare32(
+    struct ToriDraw_TexturePlane32* plane,
+    int screen_width,
+    int screen_height,
+    int camera_cot16)
+{
+    unsigned half_width;
+    unsigned half_height;
+    int pre_shift = 0;
+
+    if( screen_width <= 0 || screen_height <= 0 )
+        return false;
+    /* Perspective spans inspect the coordinate eight pixels ahead even for a
+     * short tail, so retain that small amount of horizontal headroom. */
+    half_width =
+        (unsigned)screen_width / 2u + (unsigned)(screen_width & 1) + 8u;
+    half_height = (unsigned)screen_height / 2u + (unsigned)(screen_height & 1);
+
+    /* First make the projection-scale result itself representable.  This is
+     * normally zero iterations; very large imported coordinates take the same
+     * common shift on all three planes. */
+    for( ;; )
+    {
+        bool projected = true;
+        for( int i = 0; i < 3; i++ )
+        {
+            if( !project_scale_unit_try(
+                    plane->term[i].z, camera_cot16, &plane->term[i].base) )
+            {
+                projected = false;
+                break;
+            }
+        }
+        if( projected )
+            break;
+        if( pre_shift++ >= 30 )
+        {
+            /* #region agent log */
+            g_toridraw_tex_plane_rejected++;
+            /* #endregion */
+            return false;
+        }
+        for( int i = 0; i < 3; i++ )
+        {
+            plane->term[i].x = toridraw_sar1(plane->term[i].x);
+            plane->term[i].y = toridraw_sar1(plane->term[i].y);
+            plane->term[i].z = toridraw_sar1(plane->term[i].z);
+        }
+    }
+
+    plane->shift = pre_shift;
+    for( ;; )
+    {
+        bool fits = true;
+        for( int i = 0; i < 3; i++ )
+        {
+            if( !ToriDraw_TexturePlaneTermFits32(
+                    &plane->term[i], half_width, half_height) )
+            {
+                fits = false;
+                break;
+            }
+        }
+        if( fits )
+            break;
+        if( plane->shift++ >= 30 )
+        {
+            /* #region agent log */
+            g_toridraw_tex_plane_rejected++;
+            /* #endregion */
+            return false;
+        }
+        for( int i = 0; i < 3; i++ )
+        {
+            plane->term[i].x = toridraw_sar1(plane->term[i].x);
+            plane->term[i].y = toridraw_sar1(plane->term[i].y);
+            plane->term[i].base = toridraw_sar1(plane->term[i].base);
+        }
+    }
+
+    /* #region agent log */
+    if( plane->shift > g_toridraw_tex_plane_max_shift )
+        g_toridraw_tex_plane_max_shift = plane->shift;
+    /* #endregion */
+
+    return plane->term[2].x != 0 || plane->term[2].y != 0 || plane->term[2].base != 0;
+}
+
+static inline int
+project_divide(
+    int p,
+    int z,
+    int camera_cot16)
+{
+    int cot_fov_half_ish16 = camera_cot16;
+
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    p *= cot_fov_half_ish_scaled;
+    p >>= 16 - scale_angle;
+
+    assert(z > 0);
+    return SCALE_UNIT(p) / z;
+}
+
+/**
+ * Treats the camera as if it is at the origin (0, 0, 0)
+ *
+ * scene_x, scene_y, scene_z is the coordinates of the models origin relative to the camera.
+ */
+static inline void
+project_perspective_fast_trig(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int near_clip,
+    const struct ToriDrawTrigFns* trig)
+{
+
+    // Perspective projection with FOV
+
+    // z is the distance from the camera.
+    // It is a judgement call to say when to cull the triangle, but
+    // things you can consider are the average size of models.
+    // It is up to the caller to cull the triangle if it is too close or behind the camera.
+    // e.g. z <= 50
+    // We have to check that x and y are within a reasonable range (see math below)
+    // to avoid overflow.
+    // static const int z_clip_bits = 5;
+    // static const int clip_bits = 11;
+    // // clip_bits - z_clip_bits < 7; see math below
+    // // TODO: Frustrum culling should clip the inputs x's and y's.
+    // if( z < (1 << z_clip_bits)  || x < -(1 << clip_bits) || x > (1 << clip_bits) || y < -(1 <<
+    // clip_bits) || y > (1 << clip_bits)  )
+    // {
+    //     memset(projected_vertex, 0x00, sizeof(*projected_vertex));
+    //     projected_vertex->z = z;
+    //     projected_vertex->clipped = 1;
+    //     return;
+    // }
+
+    if( z < near_clip )
+    {
+        // memset(projected_vertex, 0x00, sizeof(*projected_vertex));
+        projected_vertex->z = z;
+        projected_vertex->clipped = 1;
+        return;
+    }
+
+    assert(z != 0);
+
+    /* Already resolved by the caller (toridraw_proj_cot16), so an exact linear
+     * scale reaches this path too and not just an angle. trig->tan is no longer
+     * consulted here; trig still supplies sin/cos above. */
+    int cot_fov_half_ish16 = camera_cot16;
+    (void)trig;
+
+    static const int scale_angle = 1;
+    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    x *= cot_fov_half_ish_scaled;
+    y *= cot_fov_half_ish_scaled;
+    x >>= 16 - scale_angle;
+    y >>= 16 - scale_angle;
+
+    // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
+    // screen_x *= cot_fov_half_ish_scaled;
+    // screen_y *= cot_fov_half_ish_scaled;
+    // screen_x >>= 16 - scale_angle;
+    // screen_y >>= 16 - scale_angle;
+
+    // Set the projected triangle
+    projected_vertex->x = screen_x;
+    projected_vertex->y = screen_y;
+    projected_vertex->z = z;
+    projected_vertex->clipped = 0;
+}
+
+static inline void
+project_perspective_fast(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int camera_cot16, // resolved projection multiplier, see toridraw_proj_cot16
+    int near_clip)
+{
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_perspective_fast_trig(
+        projected_vertex, x, y, z, camera_cot16, near_clip, &trig);
+}
+
+static inline void
+project_perspective_fast_fov2(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int cot_fov_half_ish15,
+    int near_clip)
+{
+    if( z < near_clip )
+    {
+        projected_vertex->z = z;
+        projected_vertex->clipped = 1;
+        return;
+    }
+
+    assert(z != 0);
+
+    // Apply FOV scaling to x and y coordinates
+
+    // unit scale 9, angle scale 16
+    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+
+    // if valid x is -Screen_width/2 to Screen_width/2
+    // And the max resolution we allow is 1600 (either dimension)
+    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+
+    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
+    // i.e. x/z < 2^6 or x/z < 64
+
+    // Suppose we allow z > 16, so z_clip_bits = 4
+    // then x_bits_max < 10, so 2^9, which is 512
+
+    x *= cot_fov_half_ish15;
+    y *= cot_fov_half_ish15;
+    x >>= 15;
+    y >>= 15;
+
+    // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
+    int screen_x = SCALE_UNIT(x) / z;
+    int screen_y = SCALE_UNIT(y) / z;
+    // screen_x *= cot_fov_half_ish_scaled;
+    // screen_y *= cot_fov_half_ish_scaled;
+    // screen_x >>= 16 - scale_angle;
+    // screen_y >>= 16 - scale_angle;
+
+    // Set the projected triangle
+    projected_vertex->x = screen_x;
+    projected_vertex->y = screen_y;
+    projected_vertex->z = z;
+    projected_vertex->clipped = 0;
+}
+
+static inline void
+project_fast_trig(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int camera_cot16,
+    int near_clip,
+    int screen_width,
+    int screen_height,
+    const struct ToriDrawTrigFns* trig)
+{
+    (void)screen_width;
+    (void)screen_height;
+    project_orthographic_fast_trig(
+        projected_vertex,
+        x,
+        y,
+        z,
+        yaw_r2pi2048,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch_r2pi2048,
+        camera_yaw_r2pi2048,
+        trig);
+
+    project_perspective_fast_trig(
+        projected_vertex,
+        projected_vertex->x,
+        projected_vertex->y,
+        projected_vertex->z,
+        camera_cot16,
+        near_clip,
+        trig);
+}
+
+static inline void
+project_fast(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int camera_cot16,
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    struct ToriDrawTrigFns trig;
+    ToriDraw_TrigFnsFromShared(&trig);
+    project_fast_trig(
+        projected_vertex,
+        x,
+        y,
+        z,
+        yaw_r2pi2048,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch_r2pi2048,
+        camera_yaw_r2pi2048,
+        camera_cot16,
+        near_clip,
+        screen_width,
+        screen_height,
+        &trig);
+}
+
+static inline void
+project_fast_notex(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int camera_cot16,
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch_r2pi2048);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch_r2pi2048);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw_r2pi2048);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw_r2pi2048);
+
+    int x_rotated = x;
+    int z_rotated = z;
+    if( yaw_r2pi2048 != 0 )
+    {
+        int sin_yaw = ToriDraw_ReadSinTable(yaw_r2pi2048);
+        int cos_yaw = ToriDraw_ReadCosTable(yaw_r2pi2048);
+        x_rotated = x * cos_yaw + z * sin_yaw;
+        x_rotated >>= 16;
+        z_rotated = z * cos_yaw - x * sin_yaw;
+        z_rotated >>= 16;
+    }
+
+    x_rotated += scene_x;
+    int y_rotated = y + scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    project_perspective_fast(
+        projected_vertex, x_scene, y_scene, z_final_scene, camera_cot16, near_clip);
+}
+
+static inline struct ProjectedVertex
+project_notex(
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int camera_cot16,
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+    int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+    int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+    int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+    int cos_camera_roll = ToriDraw_ReadCosTable(camera_roll);
+    int sin_camera_roll = ToriDraw_ReadSinTable(camera_roll);
+
+    int sin_pitch = ToriDraw_ReadSinTable(pitch);
+    int cos_pitch = ToriDraw_ReadCosTable(pitch);
+    int sin_yaw = ToriDraw_ReadSinTable(yaw);
+    int cos_yaw = ToriDraw_ReadCosTable(yaw);
+    int sin_roll = ToriDraw_ReadSinTable(roll);
+    int cos_roll = ToriDraw_ReadCosTable(roll);
+
+    /* Model rotation: roll → pitch → yaw (matches project_orthographic / objRender). */
+    int x_rotated = x;
+    int y_rotated = y;
+    int z_rotated = z;
+
+    if( roll != 0 )
+    {
+        int tmp = (y_rotated * sin_roll + x_rotated * cos_roll) >> 16;
+        y_rotated = (y_rotated * cos_roll - x_rotated * sin_roll) >> 16;
+        x_rotated = tmp;
+    }
+
+    if( pitch != 0 )
+    {
+        int tmp = (y_rotated * cos_pitch - z_rotated * sin_pitch) >> 16;
+        z_rotated = (y_rotated * sin_pitch + z_rotated * cos_pitch) >> 16;
+        y_rotated = tmp;
+    }
+
+    if( yaw != 0 )
+    {
+        int tmp = (z_rotated * sin_yaw + x_rotated * cos_yaw) >> 16;
+        z_rotated = (z_rotated * cos_yaw - x_rotated * sin_yaw) >> 16;
+        x_rotated = tmp;
+    }
+
+    x_rotated += scene_x;
+    y_rotated += scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    int x_final_scene = x_scene * cos_camera_roll + y_scene * sin_camera_roll;
+    x_final_scene >>= 16;
+    int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
+    y_final_scene >>= 16;
+
+    return project_perspective(
+        x_final_scene, y_final_scene, z_final_scene, camera_cot16, near_clip);
+}
+
+// #include <arm_neon.h>
+// /**
+//  * I checked this on 09/15/2025, the normal code does get vectorized on Mac, using arm neon.
+//  *
+//  * Clang vectorizes the code better than this.
+//  */
+// static inline void
+// project_orthographic_fast_array(
+//     // struct ProjectedVertex* restrict out __attribute__((aligned(16))),
+//     int* restrict out_x __attribute__((aligned(16))),
+//     int* restrict out_y __attribute__((aligned(16))),
+//     int* restrict out_z __attribute__((aligned(16))),
+//     int* restrict xs __attribute__((aligned(16))),
+//     int* restrict ys __attribute__((aligned(16))),
+//     int* restrict zs __attribute__((aligned(16))),
+//     int count,
+//     int yaw,
+//     int scene_x,
+//     int scene_y,
+//     int scene_z,
+//     int camera_pitch,
+//     int camera_yaw)
+// {
+//     int offset = 0;
+
+//     int cos_camera_pitch = ToriDraw_ReadCosTable(camera_pitch);
+//     int sin_camera_pitch = ToriDraw_ReadSinTable(camera_pitch);
+//     int cos_camera_yaw = ToriDraw_ReadCosTable(camera_yaw);
+//     int sin_camera_yaw = ToriDraw_ReadSinTable(camera_yaw);
+
+// #if defined(__ARM_NEON) || defined(__ARM_NEON__)
+
+//     int step4 = count >> 2;
+//     count = count & 0x3;
+//     while( step4 > 0 )
+//     {
+//         step4--;
+//         // int x_channel[4];
+//         // int y_channel[4];
+//         // int z_channel[4];
+
+//         //     // Load camera angles
+
+//         // Create constant vectors for camera angles
+//         int32x4_t vcos_camera_pitch = vdupq_n_s32(cos_camera_pitch);
+//         int32x4_t vsin_camera_pitch = vdupq_n_s32(sin_camera_pitch);
+//         int32x4_t vcos_camera_yaw = vdupq_n_s32(cos_camera_yaw);
+//         int32x4_t vsin_camera_yaw = vdupq_n_s32(sin_camera_yaw);
+
+//         // Model yaw rotation constants
+//         int32x4_t vscene_x = vdupq_n_s32(scene_x);
+//         int32x4_t vscene_y = vdupq_n_s32(scene_y);
+//         int32x4_t vscene_z = vdupq_n_s32(scene_z);
+
+//         // Pre-compute yaw vectors if needed
+//         int32x4_t vsin_yaw, vcos_yaw;
+//         if( yaw != 0 )
+//         {
+//             int sin_yaw = ToriDraw_ReadSinTable(yaw);
+//             int cos_yaw = ToriDraw_ReadCosTable(yaw);
+//             vsin_yaw = vdupq_n_s32(sin_yaw);
+//             vcos_yaw = vdupq_n_s32(cos_yaw);
+//         }
+
+//         // Process 16 vertices at a time
+//         // Load all 16 vertices upfront to maximize cache line usage
+//         int32x4_t vx1 = vld1q_s32(xs + offset);
+//         int32x4_t vy1 = vld1q_s32(ys + offset);
+//         int32x4_t vz1 = vld1q_s32(zs + offset);
+
+//         int32x4_t vx_rotated1 = vx1;
+//         int32x4_t vz_rotated1 = vz1;
+
+//         if( yaw != 0 )
+//         {
+//             // Process all 16 vertices in parallel for yaw rotation
+//             // First set of 4
+//             int32x4_t vx_temp1 = vaddq_s32(
+//                 vshrq_n_s32(vmulq_s32(vx1, vcos_yaw), 16),
+//                 vshrq_n_s32(vmulq_s32(vz1, vsin_yaw), 16));
+//             vz_rotated1 = vsubq_s32(
+//                 vshrq_n_s32(vmulq_s32(vz1, vcos_yaw), 16),
+//                 vshrq_n_s32(vmulq_s32(vx1, vsin_yaw), 16));
+//             vx_rotated1 = vx_temp1;
+//         }
+
+//         // Translate all points relative to camera position
+//         vx_rotated1 = vaddq_s32(vx_rotated1, vscene_x);
+
+//         int32x4_t vy_rotated1 = vaddq_s32(vy1, vscene_y);
+
+//         vz_rotated1 = vaddq_s32(vz_rotated1, vscene_z);
+
+//         // Rotate all points around Y-axis (scene yaw)
+//         int32x4_t vx_scene1 = vaddq_s32(
+//             vshrq_n_s32(vmulq_s32(vx_rotated1, vcos_camera_yaw), 16),
+//             vshrq_n_s32(vmulq_s32(vz_rotated1, vsin_camera_yaw), 16));
+
+//         int32x4_t vz_scene1 = vsubq_s32(
+//             vshrq_n_s32(vmulq_s32(vz_rotated1, vcos_camera_yaw), 16),
+//             vshrq_n_s32(vmulq_s32(vx_rotated1, vsin_camera_yaw), 16));
+
+//         // Rotate all points around X-axis (scene pitch)
+//         int32x4_t vy_scene1 = vsubq_s32(
+//             vshrq_n_s32(vmulq_s32(vy_rotated1, vcos_camera_pitch), 16),
+//             vshrq_n_s32(vmulq_s32(vz_scene1, vsin_camera_pitch), 16));
+
+//         int32x4_t vz_final1 = vaddq_s32(
+//             vshrq_n_s32(vmulq_s32(vy_rotated1, vsin_camera_pitch), 16),
+//             vshrq_n_s32(vmulq_s32(vz_scene1, vcos_camera_pitch), 16));
+
+//         // Store all results
+//         vst1q_s32(out_x + offset, vx_scene1);
+//         vst1q_s32(out_y + offset, vy_scene1);
+//         vst1q_s32(out_z + offset, vz_final1);
+
+//         offset += 4;
+//     }
+
+// #endif
+
+//     while( count > 0 )
+//     {
+//         count--;
+
+//         int x = xs[offset];
+//         int y = ys[offset];
+//         int z = zs[offset];
+
+//         int x_rotated = x;
+//         int z_rotated = z;
+
+//         if( yaw != 0 )
+//         {
+//             int sin_yaw = ToriDraw_ReadSinTable(yaw);
+//             int cos_yaw = ToriDraw_ReadCosTable(yaw);
+
+//             x_rotated = (x * cos_yaw + z * sin_yaw) >> 16;
+//             z_rotated = (z * cos_yaw - x * sin_yaw) >> 16;
+//         }
+
+//         // Translate points relative to camera position
+//         x_rotated += scene_x;
+//         int y_rotated = y + scene_y;
+//         z_rotated += scene_z;
+
+//         // Apply perspective rotation
+//         // First rotate around Y-axis (scene yaw)
+//         int x_scene = (x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw) >> 16;
+//         int z_scene = (z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw) >> 16;
+
+//         // Then rotate around X-axis (scene pitch)
+//         int y_scene = (y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch) >> 16;
+//         int z_final = (y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch) >> 16;
+
+//         out_x[offset] = x_scene;
+//         out_y[offset] = y_scene;
+//         out_z[offset] = z_final;
+
+//         offset++;
+//     }
+// }
+
+// static inline void
+// project_perspective_fast_array(
+//     int* out_x,
+//     int* out_y,
+//     int* out_z,
+//     int* out_clipped,
+//     int* x,
+//     int* y,
+//     int* z,
+//     int count,
+//     int fov, // FOV in units of (2π/2048) radians
+//     int near_clip)
+// {
+//     int i = 0;
+
+// #if defined(__ARM_NEON) || defined(__ARM_NEON__)
+//     // Calculate FOV scale based on the angle using sin/cos tables
+//     int fov_half = fov >> 1;
+//     int cot_fov_half_ish16 = ToriDraw_ReadTanTable(1536 - fov_half);
+//     static const int scale_angle = 1;
+//     int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+//     int32x4_t vcot = vdupq_n_s32(cot_fov_half_ish_scaled);
+//     int32x4_t vshift = vdupq_n_s32(16 - scale_angle);
+//     int32x4_t vnear_clip = vdupq_n_s32(near_clip);
+//     int32x4_t vscale_unit = vdupq_n_s32(UNIT_SCALE);
+
+//     // Process 4 vertices at a time
+//     for( ; i + 4 <= count; i += 4 )
+//     {
+//         // Load 4 vertices
+//         int32x4_t vx = vld1q_s32(x + i);
+//         int32x4_t vy = vld1q_s32(y + i);
+//         int32x4_t vz = vld1q_s32(z + i);
+
+//         // Check for near clip and z == 0
+//         uint32x4_t vz_mask = vcgtq_s32(vz, vnear_clip);
+//         uint32x4_t vz_nonzero = vtstq_s32(vz, vz);
+//         uint32x4_t valid_mask = vandq_u32(vz_mask, vz_nonzero);
+
+//         // Apply FOV scaling
+//         int32x4_t vx_scaled = vmulq_s32(vx, vcot);
+//         int32x4_t vy_scaled = vmulq_s32(vy, vcot);
+
+//         // Shift right by (16 - scale_angle)
+//         vx_scaled = vshrq_n_s32(vx_scaled, 16 - 1);
+//         vy_scaled = vshrq_n_s32(vy_scaled, 16 - 1);
+
+//         // Scale and divide by z
+//         int32x4_t vx_unit = vmulq_s32(vx_scaled, vscale_unit);
+//         int32x4_t vy_unit = vmulq_s32(vy_scaled, vscale_unit);
+
+//         // Use reciprocal lookup table for division
+//         int32x4_t vz_recip;
+//         // Load reciprocal values from the table
+//         vz_recip = vsetq_lane_s32(g_reciprocal16_simd[vgetq_lane_s32(vz, 0)], vz_recip, 0);
+//         vz_recip = vsetq_lane_s32(g_reciprocal16_simd[vgetq_lane_s32(vz, 1)], vz_recip, 1);
+//         vz_recip = vsetq_lane_s32(g_reciprocal16_simd[vgetq_lane_s32(vz, 2)], vz_recip, 2);
+//         vz_recip = vsetq_lane_s32(g_reciprocal16_simd[vgetq_lane_s32(vz, 3)], vz_recip, 3);
+
+//         // Multiply by reciprocal instead of dividing
+//         int32x4_t vx_result = vshrq_n_s32(vmulq_s32(vx_unit, vz_recip), 16);
+//         int32x4_t vy_result = vshrq_n_s32(vmulq_s32(vy_unit, vz_recip), 16);
+
+//         // Store results based on valid mask - unrolled for constant indices
+//         // Lane 0
+//         if( vgetq_lane_u32(valid_mask, 0) )
+//         {
+//             out_x[i] = vgetq_lane_s32(vx_result, 0);
+//             if( out_x[i] == -5000 )
+//                 out_x[i] = -5001;
+//             out_y[i] = vgetq_lane_s32(vy_result, 0);
+//             out_z[i] = vgetq_lane_s32(vz, 0);
+//             // out_clipped[i] = 0;
+//         }
+//         else
+//         {
+//             // out_x[i] = 0;
+//             // out_y[i] = 0;
+//             out_z[i] = vgetq_lane_s32(vz, 0);
+//             // out_clipped[i] = 1;
+//         }
+
+//         // Lane 1
+//         if( vgetq_lane_u32(valid_mask, 1) )
+//         {
+//             out_x[i + 1] = vgetq_lane_s32(vx_result, 1);
+//             if( out_x[i + 1] == -5000 )
+//                 out_x[i + 1] = -5001;
+//             out_y[i + 1] = vgetq_lane_s32(vy_result, 1);
+//             out_z[i + 1] = vgetq_lane_s32(vz, 1);
+//             // out_clipped[i + 1] = 0;
+//         }
+//         else
+//         {
+//             // out_x[i + 1] = 0;
+//             // out_y[i + 1] = 0;
+//             out_z[i + 1] = vgetq_lane_s32(vz, 1);
+//             // out_clipped[i + 1] = 1;
+//         }
+
+//         // Lane 2
+//         if( vgetq_lane_u32(valid_mask, 2) )
+//         {
+//             out_x[i + 2] = vgetq_lane_s32(vx_result, 2);
+//             if( out_x[i + 2] == -5000 )
+//                 out_x[i + 2] = -5001;
+//             out_y[i + 2] = vgetq_lane_s32(vy_result, 2);
+//             out_z[i + 2] = vgetq_lane_s32(vz, 2);
+//             // out_clipped[i + 2] = 0;
+//         }
+//         else
+//         {
+//             // out_x[i + 2] = 0;
+//             // out_y[i + 2] = 0;
+//             out_z[i + 2] = vgetq_lane_s32(vz, 2);
+//             // out_clipped[i + 2] = 1;
+//         }
+
+//         // Lane 3
+//         if( vgetq_lane_u32(valid_mask, 3) )
+//         {
+//             out_x[i + 3] = vgetq_lane_s32(vx_result, 3);
+//             if( out_x[i + 3] == -5000 )
+//                 out_x[i + 3] = -5001;
+//             out_y[i + 3] = vgetq_lane_s32(vy_result, 3);
+//             out_z[i + 3] = vgetq_lane_s32(vz, 3);
+//             // out_clipped[i + 3] = 0;
+//         }
+//         else
+//         {
+//             // out_x[i + 3] = 0;
+//             // out_y[i + 3] = 0;
+//             out_z[i + 3] = vgetq_lane_s32(vz, 3);
+//             // out_clipped[i + 3] = 1;
+//         }
+//     }
+// #endif
+
+//     // Scalar fallback for remaining vertices
+//     for( ; i < count; i++ )
+//     {
+//         if( z[i] < near_clip )
+//         {
+//             // out_x[i] = 0;
+//             // out_y[i] = 0;
+//             out_z[i] = z[i];
+//             // out_clipped[i] = 1;
+//             continue;
+//         }
+
+//         assert(z[i] != 0);
+
+//         int fov_half = fov >> 1;
+//         int cot_fov_half_ish16 = ToriDraw_ReadTanTable(1536 - fov_half);
+//         static const int scale_angle = 1;
+//         int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+
+//         int x_scaled = x[i] * cot_fov_half_ish_scaled;
+//         int y_scaled = y[i] * cot_fov_half_ish_scaled;
+//         x_scaled >>= 16 - scale_angle;
+//         y_scaled >>= 16 - scale_angle;
+
+//         int recip = g_reciprocal16_simd[z[i]];
+//         out_x[i] = (SCALE_UNIT(x_scaled) * recip) >> 16;
+//         out_y[i] = (SCALE_UNIT(y_scaled) * recip) >> 16;
+//         out_z[i] = z[i];
+//         // out_clipped[i] = 0;
+//     }
+// }
+
+#endif

@@ -1,0 +1,51 @@
+// Telekinetic Grab. From LostCity skill_magic/scripts/spells/telegrab.rs2.
+//
+// IF: magic:telekinetic_grab → magic_spellbook:telegrab.
+// Era: drop sound_synth / afk_event / clue+trail category gates / legends
+// coords / ~coord_projectile (no opcode; same deferral as runecraft
+// projanim_pl). Keep display_tea + telegrab_disabled param.
+// MTA Telekinetic Theatre: slide statue instead of pickup.
+
+[opobjt,magic_spellbook:telegrab] @magic_spell_telegrab;
+[apobjt,magic_spellbook:telegrab] @magic_spell_telegrab;
+
+[label,magic_spell_telegrab]
+def_dbrow $spell_data = ~get_spell_data(^telekinetic_grab);
+if (~check_spell_requirements($spell_data) = false) {
+    return;
+}
+// Mage Training Arena Telekinetic Theatre — slide statue instead of pickup.
+if (%mta_room = ^mta_room_tele & obj_type = magictraining_guardianstatue) {
+    anim(human_casttelegrab, 0);
+    spotanim_pl(telegrab_casting, 92, 0);
+    ~delete_spell_runes($spell_data);
+    p_stopaction;
+    p_delay(2);
+    ~give_spell_xp($spell_data);
+    ~mta_tele_slide;
+    return;
+}
+if (obj_type = display_tea) {
+    ~chatnpc_specific_anim("Tea seller", tea_seller, ^chat_angry, "Hey! Put that back! Those are for display only!");
+    return;
+}
+if (oc_param(obj_type, telegrab_disabled) = true) {
+    mes("You can't cast this spell on that object.");
+    return;
+}
+if (~pickup_obj_check_for_space(obj_type, obj_count) = false) {
+    return;
+}
+anim(human_casttelegrab, 0);
+spotanim_pl(telegrab_casting, 92, 0);
+~delete_spell_runes($spell_data);
+spotanim_map(telegrab_impact, obj_coord, 0, 0);
+p_stopaction;
+p_delay(2);
+~give_spell_xp($spell_data);
+if (obj_count < 1) {
+    mes("Too late - it's gone!");
+} else {
+    obj_takeitem(inv);
+}
+p_delay(1);

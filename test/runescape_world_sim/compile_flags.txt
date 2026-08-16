@@ -1,0 +1,5 @@
+-I../../src
+-I../../src2
+-I../../src2/toridraw
+-I../../src2/scripting
+-I../..

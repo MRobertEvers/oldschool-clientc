@@ -1,0 +1,60 @@
+// Jewellery enchant (sapphire..dragonstone). From LostCity
+// skill_magic/scripts/spells/enchant.rs2.
+//
+// IF: magic:enchant_lvlN → magic_spellbook:enchant_N. Era: drop sound_synth /
+// afk_event / if_settabactive. convertobj no longer returns synth.
+
+[opheldt,magic_spellbook:enchant_1] @magic_spell_enchant(^enchant_lvl1, last_slot);
+[opheldt,magic_spellbook:enchant_2] @magic_spell_enchant(^enchant_lvl2, last_slot);
+[opheldt,magic_spellbook:enchant_3] @magic_spell_enchant(^enchant_lvl3, last_slot);
+[opheldt,magic_spellbook:enchant_4] @magic_spell_enchant(^enchant_lvl4, last_slot);
+[opheldt,magic_spellbook:enchant_5] @magic_spell_enchant(^enchant_lvl5, last_slot);
+
+[label,magic_spell_enchant](int $spell, int $slot)
+def_obj $initial_obj = inv_getobj(inv, $slot);
+if (inv_total(inv, $initial_obj) < 1) {
+    return;
+}
+def_dbrow $spell_data = ~get_spell_data($spell);
+if (~check_spell_requirements($spell_data) = false) {
+    return;
+}
+// Mage Training Arena shapes / dragonstone → orb + pizazz.
+// Policy: 2009scape EnchantSpell MTA block (chamber XP is 75%).
+if (%mta_room = ^mta_room_enchant & ~mta_enchant_is_shape($initial_obj) = 1) {
+    ~delete_spell_runes($spell_data);
+    def_int $xp = db_getfield($spell_data, magic_spell_table:experience, 0);
+    stat_advance(magic, scale(75, 100, $xp));
+    anim(human_cast_enchantring, 0);
+    spotanim_pl(enchant_ring, 92, 0);
+    inv_setslot(inv, $slot, magictraining_enchan_shapeorb, 1);
+    ~mta_enchant_score($initial_obj, $spell);
+    p_delay(1);
+    return;
+}
+def_namedobj $final_obj;
+def_seq $anim;
+def_spotanim $spotanim;
+$final_obj, $anim, $spotanim = ~magic_spell_search_convertobj($spell_data, $initial_obj);
+if ($final_obj = null) {
+    if (~magic_spell_amulet_reqmessage($spell_data, $initial_obj) = true) {
+        return;
+    }
+    mes(db_getfield($spell_data, magic_spell_table:additional_reqmessage, 0));
+    return;
+}
+if (oc_members($final_obj) = true & map_members = ^false) {
+    mes("You can only make that on a members' server.");
+    return;
+}
+inv_setslot(inv, $slot, $final_obj, 1);
+~delete_spell_runes($spell_data);
+~give_spell_xp($spell_data);
+anim($anim, 0);
+spotanim_pl($spotanim, 92, 0);
+if ($initial_obj = strung_dragonstone_amulet) {
+    mes("You successfully enchant the dragonstone amulet.");
+} else {
+    mes("You successfully enchant the <lowercase(oc_name($initial_obj))>.");
+}
+p_delay(1);

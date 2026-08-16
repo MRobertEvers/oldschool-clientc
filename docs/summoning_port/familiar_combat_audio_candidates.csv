@@ -1,0 +1,79 @@
+entry,source_npc,source_name,grade,attack,defend,death,stem,layer,evidence
+abyssal_lukrer,6820,Abyssal lurker,confirmed,276,278,277,abyssal,L3+L4,L3 name:abyssal demon; L4 stem:abyssal
+abyssal_parasite,6818,Abyssal parasite,confirmed,276,278,277,abyssal,L3+L4,L3 name:abyssal demon; L4 stem:abyssal
+abyssal_titan,7349,Abyssal titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+adamant_minotaur,6861,Adamant minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+albino_rat,6847,Albino rat,source,703,705,704,anger_rat,L0,2009scape combat_audio on the familiar's own record
+arctic_bear,6839,Arctic bear,source,498,500,499,jungle_horror,L0,2009scape combat_audio on the familiar's own record
+barker_toad,6889,Barker toad,weak,838,840,839,giant_toad,L4,L4 stem:giant_toad
+beaver,6808,Beaver,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+bloated_leech,6843,Bloated leech,incoherent,232,231,230,MIXED,L3,L3 name:abyssal leech
+bronze_minotaur,6853,Bronze minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+bull_ant,6867,Bull ant,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+bunyip,6813,Bunyip,weak,4721,4654,4669,lore_bunyip,L4,L4 stem:lore_bunyip
+compost_mound,6871,Compost mound,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+desert_wyrm,6831,Desert wyrm,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+dreadfowl,6825,Dreadfowl,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+evil_turnip,6833,Evil turnip,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+fire_titan,7355,Fire titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+forge_regent_beast,7335,Forge regent,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+fruit_bat,6817,Fruit bat,confirmed,292,294,293,bat,L3+L4,L3 name:giant bat; L4 stem:bat
+geyser_titan,7339,Geyser titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+giant_chinchompa,7353,Giant chinchompa,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+giant_ent,6800,Giant ent,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+granite_crab,6796,Granite crab,weak,717,723,722,small_rock_crab,L3+L4,L3 name:giant rock crab; L3 name:rock crab
+granite_lobster,6849,Granite lobster,weak,726,728,727,rock_lobster,L3+L4,L3 name:rock lobster
+honey_badger,6845,Honey badger,weak,4722,4498,4613,lore_badger,L4,L4 stem:lore_badger
+hydra,6811,Hydra,weak,4573,4645,4672,lore_hydra,L4,L4 stem:lore_hydra
+ibis,6991,Ibis,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+ice_titan,7359,Ice titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+iron_minotaur,6855,Iron minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+iron_titan,7375,Iron titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+karamthulhu,6809,Karamthulhu overlord,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+lava_titan,7341,Lava titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+macaw,6851,Macaw,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+magpie,6824,Magpie,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+mithril_minotaur,6859,Mithril minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+moss_titan,7357,Moss titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+obsidian_golem,7345,Obsidian golem,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+pack_yak,6873,Pack yak,confirmed,3378,3380,3379,yak,L1+L3+L4,L1 rig:Yak; L3 name:yak
+phoenix,8575,Phoenix,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+praying_mantis,6798,Praying mantis,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+pyrelord,7377,Pyrelord,probable,531,533,532,icefiend,L1,L1 rig:Icefiend
+ravenous_locust,7372,Ravenous locust,weak,614,617,616,locust,L4,L4 stem:locust
+rune_minotaur,6863,Rune minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+smoke_devil,6865,Smoke devil,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+spirit_cobra,6802,Spirit cobra,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+spirit_cockatrice,6875,Spirit cockatrice,confirmed,363,365,364,cockatrice,L1+L3+L4,L1 rig:Cockatrice; L3 name:cockatrice; L4 stem:cockatrice
+spirit_coraxatrice,6885,Spirit coraxatrice,probable,363,365,364,cockatrice,L1,L1 rig:Cockatrice
+spirit_dagannoth,6804,Spirit dagannoth,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+spirit_graahk,7363,Spirit graahk,weak,4753,4746,4637,lore_graahk,L4,L4 stem:lore_graahk
+spirit_guthatrice,6877,Spirit guthatrice,probable,363,365,364,cockatrice,L1,L1 rig:Cockatrice
+spirit_jelly,6992,Spirit jelly,confirmed,547,550,549,jelly,L1+L3+L4,L1 rig:Jelly; L3 name:jelly; L4 stem:jelly
+spirit_kalphite,6994,Spirit kalphite,weak,551,554,553,kalphite_flyingqueen,L3+L4,L4 stem:kalphite_flyingqueen
+spirit_kyatt,7365,Spirit kyatt,weak,4477,4622,4566,lore_kyatt,L4,L4 stem:lore_kyatt
+spirit_larupia,7337,Spirit larupia,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+spirit_mosquito,7331,Spirit mosquito,weak,4699,4496,4484,lore_mosquito,L4,L4 stem:lore_mosquito
+spirit_pengatrice,6883,Spirit pengatrice,probable,363,365,364,cockatrice,L1,L1 rig:Cockatrice
+spirit_saratrice,6879,Spirit saratrice,source,703,705,704,anger_rat,L0,2009scape combat_audio on the familiar's own record
+spirit_scorpion,6837,Spirit scorpion,source,3611,3612,3610,scorpion,L0,2009scape combat_audio on the familiar's own record
+spirit_spider,6841,Spirit spider,source,537,539,538,insect,L0,2009scape combat_audio on the familiar's own record
+spirit_terrorbird,6794,Spirit terrorbird,confirmed,832,834,833,terrorbird,L1+L3+L4,L1 rig:Terrorbird; L3 name:terrorbird; L4 stem:terrorbird
+spirit_tz_kih,7361,Spirit Tz-Kih,none,,,,,,"no rig or model kin with combat audio, no name kin, no stem"
+spirit_vulatrice,6887,Spirit vulatrice,probable,363,365,364,cockatrice,L1,L1 rig:Cockatrice
+spirit_wolf,6829,Spirit wolf,confirmed,909,912,911,wolf,L3+L4,L3 name:big wolf; L3 name:white wolf; L3 name:wolf; L4 stem:wolf
+spirit_zamatrice,6881,Spirit zamatrice,probable,363,365,364,cockatrice,L1,L1 rig:Cockatrice
+steel_minotaur,6857,Steel minotaur,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+steel_titan,7343,Steel titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+stranger_plant,6827,Stranger plant,weak,4761,4716,4681,lore_stranger_plant,L4,L4 stem:lore_stranger_plant
+swamp_titan,7329,Swamp titan,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+talon_beast,7347,Talon beast,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+thorny_snail,6806,Thorny snail,weak,4770,4789,4505,lore_snail,L4,L4 stem:lore_snail
+unicorn_stallion,6822,Unicorn stallion,source,4135,4196,4195,,L0,2009scape combat_audio on the familiar's own record
+vampire_bat,6835,Vampire bat,confirmed,292,294,293,bat,L3+L4,L3 name:giant bat; L4 stem:bat
+void_ravager,7370,Void ravager,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+void_shifter,7367,Void shifter,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+void_spinner,7333,Void spinner,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+void_torcher,7351,Void torcher,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"
+war_tortoise,6815,War tortoise,weak,457,459,458,gnome_tortoise,L4,L4 stem:gnome_tortoise
+wolpertinger,6869,Wolpertinger,none,,,,,invented species,"no rig or model kin with combat audio, no name kin, no stem"

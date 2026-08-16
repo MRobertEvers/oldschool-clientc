@@ -36,16 +36,16 @@
 #include "graphics/raster/flat/flat.screen.opaque.sort.s4.u.c"
 
 /* Gouraud — span must precede gouraud.screen.alpha.edge.sort.s4.u.c */
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.sort.s1.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.sort.s4.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.edge.sort.s4.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.sort.s1.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.sort.s4.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.edge.branching.s4.u.c"
-#include "graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.sort.s1.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.sort.s4.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.edge.sort.s4.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.sort.s1.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.sort.s4.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.sort.s4.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.branching.s4.u.c"
+#include "graphics/raster/gouraudhsllightness/span/gouraudhsllightness.screen.alpha.span.u.c"
 
 /* Texture dependencies — replicate include chain from texture.u.c */
 #include "graphics/raster/texture/span/tex.span.u.c"
@@ -100,13 +100,13 @@
 #include "graphics/raster/texture/texture.deob2.u.c"
 
 /* Texture loading from cache */
-#include "osrs/rscache/cache_dat.h"
-#include "osrs/rscache/filelist.h"
-#include "osrs/rscache/tables_dat/config_textures.h"
+#include "osrs/rscache/dat1disk/dat1disk.h"
+#include "osrs/rscache/shared/shared_file_list.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
 #include "osrs/texture.h"
 
 /* Config table texture archive ID */
-#define CONFIG_DAT_TEXTURES 6
+#define RSCacheDat1A_ConfigKind_Textures 6
 
 /* ---------- Configuration ---------- */
 
@@ -388,7 +388,7 @@ load_textures_from_cache(void)
     /* Load textures archive from cache_dat.
      * Table 0 = CONFIG, Archive 6 = TEXTURES. */
     {
-        struct CacheDat* cache_dat = cache_dat_new_from_directory(found_cache);
+        struct RSCacheDat1Disk* cache_dat = RSCacheDat1Disk_NewFromDirectory(found_cache);
         if( !cache_dat )
         {
             printf("[benchmark] Failed to open cache_dat; using synthetic textures.\n");
@@ -396,21 +396,21 @@ load_textures_from_cache(void)
         }
 
         /* Load the textures archive: table CONFIGS(0), archive TEXTURES(6) */
-        struct CacheDatArchive* archive =
-            cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_TEXTURES);
+        struct RSCacheDat1Disk_Archive* archive =
+            RSCacheDat1Disk_ArchiveNewLoad(cache_dat, RSCacheDat1Disk_Table_Configs, RSCacheDat1A_ConfigKind_Textures);
         if( !archive || !archive->data || archive->data_size <= 0 )
         {
             printf("[benchmark] Failed to load texture archive; using synthetic textures.\n");
-            cache_dat_free(cache_dat);
+            RSCacheDat1Disk_Free(cache_dat);
             goto fallback;
         }
 
-        struct FileListDat* filelist = filelist_dat_new_from_cache_dat_archive(archive);
-        cache_dat_archive_free(archive);
+        struct RSCacheShared_FileListDat* filelist = RSCacheShared_FileListDatNewFromCacheDatArchive(archive);
+        RSCacheDat1Disk_ArchiveFree(archive);
         if( !filelist )
         {
             printf("[benchmark] Failed to decode texture filelist; using synthetic textures.\n");
-            cache_dat_free(cache_dat);
+            RSCacheDat1Disk_Free(cache_dat);
             goto fallback;
         }
 
@@ -419,13 +419,14 @@ load_textures_from_cache(void)
 
         for( int tex_id = 0; tex_id < 50 && (!found_opaque || !found_trans); tex_id++ )
         {
-            struct CacheDatTexture* ct =
-                cache_dat_texture_new_from_filelist_dat(filelist, tex_id, 0);
+            struct RSCacheDat1A_ConfigTexture* ct =
+                RSCacheDat1A_ConfigTextureNewFromFilelistDat(filelist, tex_id, 0);
             if( !ct )
                 continue;
 
-            struct DashTexture* dtex = texture_new_from_texture_sprite(ct, 0 /* no animation */, 0);
-            cache_dat_texture_free(ct);
+            struct DashTexture* dtex =
+                texture_new_from_texture_sprite(ct, 0 /* no animation */, 0, false, false);
+            RSCacheDat1A_ConfigTextureFree(ct);
 
             if( !dtex )
                 continue;
@@ -461,8 +462,8 @@ load_textures_from_cache(void)
             texture_free(dtex);
         }
 
-        filelist_dat_free(filelist);
-        cache_dat_free(cache_dat);
+        RSCacheShared_FileListDatFree(filelist);
+        RSCacheDat1Disk_Free(cache_dat);
 
         if( found_opaque && found_trans )
         {
@@ -572,7 +573,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4:
-                raster_gouraud_screen_opaque_edge_sort_s4(
+                raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -588,7 +589,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4:
-                raster_gouraud_screen_opaque_bary_branching_s4(
+                raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -604,7 +605,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_SORT_S4:
-                raster_gouraud_screen_opaque_bary_sort_s4(
+                raster_gouraudhsllightness_screen_opaque_bary_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -620,7 +621,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_SORT_S1:
-                raster_gouraud_screen_opaque_bary_sort_s1(
+                raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -636,7 +637,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_ALPHA_EDGE_SORT_S4:
-                raster_gouraud_screen_alpha_edge_sort_s4(
+                raster_gouraudhsllightness_screen_alpha_edge_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -653,7 +654,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S4:
-                raster_gouraud_screen_alpha_bary_branching_s4(
+                raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -670,7 +671,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_SORT_S4:
-                raster_gouraud_screen_alpha_bary_sort_s4(
+                raster_gouraudhsllightness_screen_alpha_bary_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -687,7 +688,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_SORT_S1:
-                raster_gouraud_screen_alpha_bary_sort_s1(
+                raster_gouraudhsllightness_screen_alpha_bary_sort_s1(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1331,7 +1332,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4:
-                raster_gouraud_screen_opaque_edge_sort_s4(
+                raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1347,7 +1348,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4:
-                raster_gouraud_screen_opaque_bary_branching_s4(
+                raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1363,7 +1364,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_SORT_S4:
-                raster_gouraud_screen_opaque_bary_sort_s4(
+                raster_gouraudhsllightness_screen_opaque_bary_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1379,7 +1380,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_OPAQUE_BARY_SORT_S1:
-                raster_gouraud_screen_opaque_bary_sort_s1(
+                raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1395,7 +1396,7 @@ run_benchmark_variant(
                     tri_color2[i]);
                 break;
             case BENCH_GOURAUD_ALPHA_EDGE_SORT_S4:
-                raster_gouraud_screen_alpha_edge_sort_s4(
+                raster_gouraudhsllightness_screen_alpha_edge_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1412,7 +1413,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S4:
-                raster_gouraud_screen_alpha_bary_branching_s4(
+                raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1429,7 +1430,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_SORT_S4:
-                raster_gouraud_screen_alpha_bary_sort_s4(
+                raster_gouraudhsllightness_screen_alpha_bary_sort_s4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1446,7 +1447,7 @@ run_benchmark_variant(
                     BENCH_ALPHA7);
                 break;
             case BENCH_GOURAUD_ALPHA_BARY_SORT_S1:
-                raster_gouraud_screen_alpha_bary_sort_s1(
+                raster_gouraudhsllightness_screen_alpha_bary_sort_s1(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,

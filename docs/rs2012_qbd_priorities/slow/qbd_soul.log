@@ -1,0 +1,32 @@
+
+candidates, ranked by pixels left behind the z-buffer:
+strategy                            wrong  of drawn  bands
+depth sort (no bands)                2780    0.880%      1   <- chosen
+climb, floor 150                     2780    0.880%      1
+climb, floor 400                     2780    0.880%      1
+as shipped (inherited)               9348    2.960%      2
+climb, floor 10                     12313    3.899%      3
+climb, floor 40                     12355    3.913%      3
+
+no band assignment beat the plain depth sort; writing it unbanded.
+That is the result, not a failure: this model's remaining error is not
+reachable by priorities.
+
+slow search: 3000 iters, 18 views @ 128 px, 8 thread(s), seed 0x51f0d5
+slow start:  108 wrong px (the fast winner under this objective)
+slow   200/3000: current 73, best 73 (-32.4%), accepted 21
+slow   400/3000: current 66, best 66 (-38.9%), accepted 40
+slow   600/3000: current 66, best 66 (-38.9%), accepted 48
+slow   800/3000: current 63, best 63 (-41.7%), accepted 60
+slow  1000/3000: current 61, best 61 (-43.5%), accepted 72
+slow  1200/3000: current 57, best 57 (-47.2%), accepted 90
+slow  1400/3000: current 55, best 55 (-49.1%), accepted 111
+slow  1800/3000: current 54, best 54 (-50.0%), accepted 148
+slow  2000/3000: current 54, best 54 (-50.0%), accepted 165
+slow  2200/3000: current 54, best 54 (-50.0%), accepted 173
+slow  2400/3000: current 54, best 54 (-50.0%), accepted 193
+slow  2600/3000: current 54, best 54 (-50.0%), accepted 206
+slow  2800/3000: current 54, best 54 (-50.0%), accepted 218
+slow  3000/3000: current 54, best 54 (-50.0%), accepted 233
+slow result: 108 -> 54 wrong px (-50.0%), 17 improvements, 14 feature(s) moved
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70761.ob3 -> docs/rs2012_qbd_priorities/slow/rs2012_model_70761.ob3 (26172 bytes)

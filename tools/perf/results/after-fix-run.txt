@@ -1,0 +1,116 @@
+run_perf: building EMBED_SERVER=1 TORIDRAW_OPT=1 PLATFORM_OBJ_BASE=build_perf
+makefile:433: warning: overriding commands for target `build_perf_tdo/features.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/features.o'
+makefile:433: warning: overriding commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/net_transport_ws_frame.o'
+makefile:476: warning: overriding commands for target `build_perf_tdo/collision_map.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/collision_map.o'
+makefile:573: warning: overriding commands for target `build_perf_tdo/rsareabuf.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/rsareabuf.o'
+makefile:582: warning: overriding commands for target `build_perf_tdo/ini.o'
+makefile:433: warning: ignoring old commands for target `build_perf_tdo/ini.o'
+make: `torirs' is up to date.
+run_perf: scenario=drift frames=12000 window=500 csv=tools/perf/results/after-fix-drift.csv
+run_perf: wrote tools/perf/results/after-fix-drift.csv
+run_perf: wrote tools/perf/results/after-fix-drift.csv.windows.csv
+=== torirs_perf report ===
+frames=12000 ring=2048 over_20ms=24 (0.2%) eff_fps=250.8
+frame_ns mean=3987833 p50=3750000 p95=4576000 max=72860000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async             56983       1000     221000    2548000
+logic            220021     179000     376000    3767000
+cs2               56700          0     223000    3523000
+layout               64          0       1000       3000
+interact          17752      16000      27000     667000
+emit             121658     105000     209000    2697000
+paint            338104     321000     374000    4858000
+build            338222     321000     374000    4859000
+render          2889324    2733000    3206000   62508000
+present          139830     135000     151000    2259000
+server             2747       1000       3000    1250000
+residual        -193572  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                        1142438       557.83
+uitree_find_id_probes                 2007670       980.31
+uitree_find_child                       11720         5.72
+uitree_find_child_hit                    3440         1.68
+uitree_find_child_ceil_miss              8280         4.04
+uitree_walk_emit                      5885952      2874.00
+uitree_walk_hit                       1454080       710.00
+uitree_walk_hover                      212992       104.00
+uitree_emit_skip                      5578752      2724.00
+uitree_layout_resolve                    1069         0.52
+uitree_layout_skip                        534         0.26
+uitree_layout_nodes                   3794220      1852.65
+uitree_layout_node_skip               3792362      1851.74
+uitree_layout_depth_recompute             535         0.26
+uitree_ensure_layout                    31025        15.15
+uitree_cc_deleteall                       539         0.26
+uitree_apply_geo                        17258         8.43
+uitree_apply_content                    13261         6.48
+uitree_apply_hook                         996         0.49
+uitree_apply_other                    1027694       501.80
+uitree_components                    14524416      7092.00
+uitree_capacity                      16777216      8192.00
+uitree_free_list                         6144         3.00
+uitree_node_bytes                 28856811520  14090240.00
+cs2_scripts                             16170         7.90
+cs2_opcodes                           1463197       714.45
+cs2_host_ops                           196119        95.76
+cs2_cycles                            1463197       714.45
+cs2_vm_acquire                          16170         7.90
+cs2_vm_pool_hit                         16170         7.90
+cs2_vm_init_ns                       12857000      6277.83
+cs2_frame_pool_hit                      31660        15.46
+cache_sprite_hit                            5         0.00
+painter_pops                         17198040      8397.48
+painter_gate_rejects                  7506781      3665.42
+painter_pushes                       17198040      8397.48
+painter_push_dedup                    7531806      3677.64
+painter_drain_events                     8192         4.00
+painter_commands                     11143168      5441.00
+painter_tiles_remaining_set           8857600      4325.00
+scene_elements                       31917714     15584.82
+scene_anim_list                        165006        80.57
+zone_map_count                         119163        58.19
+zone_map_capacity                      524288       256.00
+npc_slot_max                           133120        65.00
+cache_model_size                       608226       296.99
+cache_sprite_size                      296904       144.97
+
+torirs_perf: wrote tools/perf/results/after-fix-drift.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=8 mounts=0
+--- window frame_p95 ---
+torirs_perf: window=500 writing tools/perf/results/after-fix-drift.csv.windows.csv
+torirs_perf: window=0 frame_p95=4.37ms
+torirs_perf: window=1 frame_p95=6.18ms
+torirs_perf: window=2 frame_p95=5.00ms
+torirs_perf: window=3 frame_p95=7.41ms
+torirs_perf: window=4 frame_p95=4.80ms
+torirs_perf: window=5 frame_p95=4.33ms
+torirs_perf: window=6 frame_p95=4.41ms
+torirs_perf: window=7 frame_p95=4.36ms
+torirs_perf: window=8 frame_p95=4.51ms
+torirs_perf: window=9 frame_p95=4.74ms
+torirs_perf: window=10 frame_p95=4.12ms
+torirs_perf: window=11 frame_p95=4.66ms
+torirs_perf: window=12 frame_p95=4.41ms
+torirs_perf: window=13 frame_p95=4.97ms
+torirs_perf: window=14 frame_p95=5.78ms
+torirs_perf: window=15 frame_p95=4.30ms
+torirs_perf: window=16 frame_p95=5.50ms
+torirs_perf: window=17 frame_p95=4.37ms
+torirs_perf: window=18 frame_p95=4.25ms
+torirs_perf: window=19 frame_p95=4.14ms
+torirs_perf: window=20 frame_p95=4.13ms
+torirs_perf: window=21 frame_p95=4.56ms
+torirs_perf: window=22 frame_p95=8.02ms
+torirs_perf: window=23 frame_p95=4.29ms

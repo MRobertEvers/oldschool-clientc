@@ -1,0 +1,75 @@
+failed to resolve script: 24248339
+running onVarTransmit script 1310 for component 24248321
+running cache onInvTransmit script 24248339 for component 24248334
+failed to read index record err: 0
+Failed to read dat2 index entry for table 12 archive 24248339
+uitreex: 68 nodes
+[0] kind=text trans=0 fill_mode=0 user_id=0x01720000 (370<<16|0) static font=496 color=0xff981f text="House Options" abs=0,3 190x18 hidden=0
+[1] kind=layer trans=0 fill_mode=0 user_id=0x01720001 (370<<16|1) static
+  [27] kind=graphic trans=0 fill_mode=0 user_id=0x01728000 (370<<16|32768) dynamic graphic=1141 angle=0 tiling=0 if3=1 abs=11,25 6x6 hidden=0
+  [28] kind=graphic trans=0 fill_mode=0 user_id=0x01728001 (370<<16|32769) dynamic graphic=1142 angle=0 tiling=1 if3=1 abs=17,25 93x6 hidden=0
+  [29] kind=graphic trans=0 fill_mode=0 user_id=0x01728002 (370<<16|32770) dynamic graphic=1143 angle=0 tiling=0 if3=1 abs=110,25 6x6 hidden=0
+  [30] kind=graphic trans=0 fill_mode=0 user_id=0x01728003 (370<<16|32771) dynamic graphic=1144 angle=0 tiling=1 if3=1 abs=11,31 6x28 hidden=0
+  [31] kind=graphic trans=0 fill_mode=0 user_id=0x01728004 (370<<16|32772) dynamic graphic=1145 angle=0 tiling=1 if3=1 abs=17,31 93x28 hidden=0
+  [32] kind=graphic trans=0 fill_mode=0 user_id=0x01728005 (370<<16|32773) dynamic graphic=1146 angle=0 tiling=1 if3=1 abs=110,31 6x28 hidden=0
+  [33] kind=graphic trans=0 fill_mode=0 user_id=0x01728006 (370<<16|32774) dynamic graphic=1147 angle=0 tiling=0 if3=1 abs=11,59 6x6 hidden=0
+  [34] kind=graphic trans=0 fill_mode=0 user_id=0x01728007 (370<<16|32775) dynamic graphic=1148 angle=0 tiling=1 if3=1 abs=17,59 93x6 hidden=0
+  [35] kind=graphic trans=0 fill_mode=0 user_id=0x01728008 (370<<16|32776) dynamic graphic=1149 angle=0 tiling=0 if3=1 abs=110,59 6x6 hidden=0
+  [36] kind=graphic trans=120 fill_mode=0 user_id=0x01728009 (370<<16|32777) dynamic graphic=678 angle=0 tiling=0 if3=1 abs=9,29 64x32 hidden=0
+  [37] kind=text trans=0 fill_mode=0 user_id=0x0172800a (370<<16|32778) dynamic font=495 color=0x9f9f9f text="" abs=67,25 49x40 hidden=0
+[2] kind=text trans=0 fill_mode=0 user_id=0x01720002 (370<<16|2) static font=494 color=0xff981f text="On" abs=970,53 20x15 hidden=0
+[3] kind=text trans=0 fill_mode=0 user_id=0x01720003 (370<<16|3) static font=494 color=0xff981f text="Off" abs=990,53 30x15 hidden=0
+[4] kind=text trans=0 fill_mode=0 user_id=0x01720004 (370<<16|4) static font=495 color=0xff981f text="Building Mode" abs=10,68 1004x17 hidden=0
+[5] kind=graphic trans=0 fill_mode=0 user_id=0x01720005 (370<<16|5) static graphic=699 angle=0 tiling=0 if3=1 abs=138,68 17x17 hidden=0
+[6] kind=graphic trans=0 fill_mode=0 user_id=0x01720006 (370<<16|6) static graphic=697 angle=0 tiling=0 if3=1 abs=997,68 17x17 hidden=0
+[7] kind=text trans=0 fill_mode=0 user_id=0x01720007 (370<<16|7) static font=495 color=0xff981f text="Teleport Inside" abs=10,87 1004x17 hidden=0
+[8] kind=graphic trans=0 fill_mode=0 user_id=0x01720008 (370<<16|8) static graphic=699 angle=0 tiling=0 if3=1 abs=138,87 17x17 hidden=0
+[9] kind=graphic trans=0 fill_mode=0 user_id=0x01720009 (370<<16|9) static graphic=697 angle=0 tiling=0 if3=1 abs=997,87 17x17 hidden=0
+[10] kind=text trans=0 fill_mode=0 user_id=0x0172000a (370<<16|10) static font=495 color=0xff981f text="Default Building Mode" abs=10,106 1004x17 hidden=0
+[11] kind=graphic trans=0 fill_mode=0 user_id=0x0172000b (370<<16|11) static graphic=699 angle=0 tiling=0 if3=1 abs=138,106 17x17 hidden=0
+[12] kind=graphic trans=0 fill_mode=0 user_id=0x0172000c (370<<16|12) static graphic=697 angle=0 tiling=0 if3=1 abs=997,106 17x17 hidden=0
+[13] kind=text trans=0 fill_mode=0 user_id=0x0172000d (370<<16|13) static font=495 color=0xff981f text="Doors" abs=10,128 1004x17 hidden=0
+[14] kind=graphic trans=0 fill_mode=0 user_id=0x0172000e (370<<16|14) static graphic=699 angle=0 tiling=0 if3=1 abs=70,131 17x17 hidden=0
+[15] kind=graphic trans=0 fill_mode=0 user_id=0x0172000f (370<<16|15) static graphic=1576 angle=0 tiling=0 if3=1 abs=50,123 19x30 hidden=0
+[16] kind=graphic trans=0 fill_mode=0 user_id=0x01720010 (370<<16|16) static graphic=1577 angle=0 tiling=0 if3=1 abs=97,123 19x30 hidden=0
+[17] kind=graphic trans=0 fill_mode=0 user_id=0x01720011 (370<<16|17) static graphic=697 angle=0 tiling=0 if3=1 abs=117,131 17x17 hidden=0
+[18] kind=graphic trans=0 fill_mode=0 user_id=0x01720012 (370<<16|18) static graphic=1578 angle=0 tiling=0 if3=1 abs=143,123 19x30 hidden=0
+[19] kind=graphic trans=0 fill_mode=0 user_id=0x01720013 (370<<16|19) static graphic=697 angle=0 tiling=0 if3=1 abs=163,131 17x17 hidden=0
+[20] kind=layer trans=0 fill_mode=0 user_id=0x01720014 (370<<16|20) static
+  [38] kind=graphic trans=0 fill_mode=0 user_id=0x0172800b (370<<16|32779) dynamic graphic=1141 angle=0 tiling=0 if3=1 abs=11,155 6x6 hidden=0
+  [39] kind=graphic trans=0 fill_mode=0 user_id=0x0172800c (370<<16|32780) dynamic graphic=1142 angle=0 tiling=1 if3=1 abs=17,155 992x6 hidden=0
+  [40] kind=graphic trans=0 fill_mode=0 user_id=0x0172800d (370<<16|32781) dynamic graphic=1143 angle=0 tiling=0 if3=1 abs=1009,155 6x6 hidden=0
+  [41] kind=graphic trans=0 fill_mode=0 user_id=0x0172800e (370<<16|32782) dynamic graphic=1144 angle=0 tiling=1 if3=1 abs=11,161 6x15 hidden=0
+  [42] kind=graphic trans=0 fill_mode=0 user_id=0x0172800f (370<<16|32783) dynamic graphic=1145 angle=0 tiling=1 if3=1 abs=17,161 992x15 hidden=0
+  [43] kind=graphic trans=0 fill_mode=0 user_id=0x01728010 (370<<16|32784) dynamic graphic=1146 angle=0 tiling=1 if3=1 abs=1009,161 6x15 hidden=0
+  [44] kind=graphic trans=0 fill_mode=0 user_id=0x01728011 (370<<16|32785) dynamic graphic=1147 angle=0 tiling=0 if3=1 abs=11,176 6x6 hidden=0
+  [45] kind=graphic trans=0 fill_mode=0 user_id=0x01728012 (370<<16|32786) dynamic graphic=1148 angle=0 tiling=1 if3=1 abs=17,176 992x6 hidden=0
+  [46] kind=graphic trans=0 fill_mode=0 user_id=0x01728013 (370<<16|32787) dynamic graphic=1149 angle=0 tiling=0 if3=1 abs=1009,176 6x6 hidden=0
+  [47] kind=text trans=0 fill_mode=0 user_id=0x01728014 (370<<16|32788) dynamic font=495 color=0xff981f text="" abs=11,155 1004x27 hidden=0
+[21] kind=layer trans=0 fill_mode=0 user_id=0x01720015 (370<<16|21) static
+  [48] kind=graphic trans=0 fill_mode=0 user_id=0x01728015 (370<<16|32789) dynamic graphic=1141 angle=0 tiling=0 if3=1 abs=11,213 6x6 hidden=0
+  [49] kind=graphic trans=0 fill_mode=0 user_id=0x01728016 (370<<16|32790) dynamic graphic=1142 angle=0 tiling=1 if3=1 abs=17,213 992x6 hidden=0
+  [50] kind=graphic trans=0 fill_mode=0 user_id=0x01728017 (370<<16|32791) dynamic graphic=1143 angle=0 tiling=0 if3=1 abs=1009,213 6x6 hidden=0
+  [51] kind=graphic trans=0 fill_mode=0 user_id=0x01728018 (370<<16|32792) dynamic graphic=1144 angle=0 tiling=1 if3=1 abs=11,219 6x15 hidden=0
+  [52] kind=graphic trans=0 fill_mode=0 user_id=0x01728019 (370<<16|32793) dynamic graphic=1145 angle=0 tiling=1 if3=1 abs=17,219 992x15 hidden=0
+  [53] kind=graphic trans=0 fill_mode=0 user_id=0x0172801a (370<<16|32794) dynamic graphic=1146 angle=0 tiling=1 if3=1 abs=1009,219 6x15 hidden=0
+  [54] kind=graphic trans=0 fill_mode=0 user_id=0x0172801b (370<<16|32795) dynamic graphic=1147 angle=0 tiling=0 if3=1 abs=11,234 6x6 hidden=0
+  [55] kind=graphic trans=0 fill_mode=0 user_id=0x0172801c (370<<16|32796) dynamic graphic=1148 angle=0 tiling=1 if3=1 abs=17,234 992x6 hidden=0
+  [56] kind=graphic trans=0 fill_mode=0 user_id=0x0172801d (370<<16|32797) dynamic graphic=1149 angle=0 tiling=0 if3=1 abs=1009,234 6x6 hidden=0
+  [57] kind=text trans=0 fill_mode=0 user_id=0x0172801e (370<<16|32798) dynamic font=495 color=0xff981f text="" abs=11,213 1004x27 hidden=0
+[22] kind=layer trans=0 fill_mode=0 user_id=0x01720016 (370<<16|22) static
+  [58] kind=graphic trans=0 fill_mode=0 user_id=0x0172801f (370<<16|32799) dynamic graphic=1141 angle=0 tiling=0 if3=1 abs=11,184 6x6 hidden=0
+  [59] kind=graphic trans=0 fill_mode=0 user_id=0x01728020 (370<<16|32800) dynamic graphic=1142 angle=0 tiling=1 if3=1 abs=17,184 992x6 hidden=0
+  [60] kind=graphic trans=0 fill_mode=0 user_id=0x01728021 (370<<16|32801) dynamic graphic=1143 angle=0 tiling=0 if3=1 abs=1009,184 6x6 hidden=0
+  [61] kind=graphic trans=0 fill_mode=0 user_id=0x01728022 (370<<16|32802) dynamic graphic=1144 angle=0 tiling=1 if3=1 abs=11,190 6x15 hidden=0
+  [62] kind=graphic trans=0 fill_mode=0 user_id=0x01728023 (370<<16|32803) dynamic graphic=1145 angle=0 tiling=1 if3=1 abs=17,190 992x15 hidden=0
+  [63] kind=graphic trans=0 fill_mode=0 user_id=0x01728024 (370<<16|32804) dynamic graphic=1146 angle=0 tiling=1 if3=1 abs=1009,190 6x15 hidden=0
+  [64] kind=graphic trans=0 fill_mode=0 user_id=0x01728025 (370<<16|32805) dynamic graphic=1147 angle=0 tiling=0 if3=1 abs=11,205 6x6 hidden=0
+  [65] kind=graphic trans=0 fill_mode=0 user_id=0x01728026 (370<<16|32806) dynamic graphic=1148 angle=0 tiling=1 if3=1 abs=17,205 992x6 hidden=0
+  [66] kind=graphic trans=0 fill_mode=0 user_id=0x01728027 (370<<16|32807) dynamic graphic=1149 angle=0 tiling=0 if3=1 abs=1009,205 6x6 hidden=0
+  [67] kind=text trans=0 fill_mode=0 user_id=0x01728028 (370<<16|32808) dynamic font=495 color=0xff981f text="" abs=11,184 1004x27 hidden=0
+[23] kind=text trans=0 fill_mode=0 user_id=0x01720017 (370<<16|23) static font=495 color=0xff981f text="" abs=0,241 190x16 hidden=0
+[24] kind=graphic trans=0 fill_mode=0 user_id=0x01720018 (370<<16|24) static graphic=535 angle=0 tiling=0 if3=1 abs=163,7 26x23 hidden=0
+[25] kind=layer trans=0 fill_mode=0 user_id=0x01720019 (370<<16|25) static
+  [26] kind=layer trans=0 fill_mode=0 user_id=0x0172001a (370<<16|26) static
+rendered interface 370 (1024x768, no bmp)

@@ -1,0 +1,235 @@
+// Mage Training Arena — Enchanting Chamber.
+// Authority: OSRS wiki Mage_Training_Arena/Enchanting_Chamber (May 2024).
+// Cache overlay: magictraining_encha (IF 195); bonus shape children hidden via if_sethide.
+
+[proc,mta_enchant_bonus_hide]
+if_sethide(magictraining_encha:magictrain_encha_laycube, true);
+if_sethide(magictraining_encha:magictrain_encha_laycyl, true);
+if_sethide(magictraining_encha:magictrain_encha_layico, true);
+if_sethide(magictraining_encha:magictrain_encha_laypent, true);
+if (%mta_ench_bonus = 1) {
+    if_sethide(magictraining_encha:magictrain_encha_laycube, false);
+} else if (%mta_ench_bonus = 2) {
+    if_sethide(magictraining_encha:magictrain_encha_laycyl, false);
+} else if (%mta_ench_bonus = 3) {
+    if_sethide(magictraining_encha:magictrain_encha_layico, false);
+} else if (%mta_ench_bonus = 4) {
+    if_sethide(magictraining_encha:magictrain_encha_laypent, false);
+}
+
+[proc,mta_enchant_on_enter]
+%mta_ench_bonus = calc(1 + random(4));
+%magictraining_ench_convcount = 0;
+%magictraining_enchan_orbtotal = 0;
+%mta_ench_rune_pending = 0;
+softtimer(mta_enchant_bonus, ^mta_enchant_pulse_ticks);
+~mta_enchant_bonus_hide;
+// Seed dragonstones at fixed tiles (2009scape EnchantingZone.STONES).
+obj_add(0_52_150_26_45, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_25_35, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_31_32, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_47_33, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_46_43, magictraining_dragonstone, 1, 800);
+obj_add(0_52_150_45_51, magictraining_dragonstone, 1, 800);
+
+[softtimer,mta_enchant_bonus]
+if (%mta_room ! ^mta_room_enchant) {
+    return;
+}
+def_int $next = calc(1 + random(4));
+if ($next = %mta_ench_bonus) {
+    $next = calc(1 + modulo($next, 4));
+}
+%mta_ench_bonus = $next;
+def_string $name = "cube";
+if ($next = 2) {
+    $name = "cylinder";
+} else if ($next = 3) {
+    $name = "icosahedron";
+} else if ($next = 4) {
+    $name = "pentamid";
+}
+mes("The bonus shape has changed to the <$name>.");
+~mta_enchant_bonus_hide;
+softtimer(mta_enchant_bonus, ^mta_enchant_pulse_ticks);
+
+[proc,mta_enchant_shape_for_pile](loc $type)(namedobj)
+if ($type = magictraining_enchan_shapepile1) {
+    return(magictraining_enchan_cube);
+}
+if ($type = magictraining_enchan_shapepile2) {
+    return(magictraining_enchan_cylinder);
+}
+if ($type = magictraining_enchan_shapepile3) {
+    return(magictraining_enchan_icosahendron);
+}
+if ($type = magictraining_enchan_shapepile4) {
+    return(magictraining_enchan_pentamid);
+}
+return(null);
+
+[proc,mta_enchant_shape_bonus_id](obj $item)(int)
+if ($item = magictraining_enchan_cube) {
+    return(1);
+}
+if ($item = magictraining_enchan_cylinder) {
+    return(2);
+}
+if ($item = magictraining_enchan_icosahendron) {
+    return(3);
+}
+if ($item = magictraining_enchan_pentamid) {
+    return(4);
+}
+return(0);
+
+[proc,mta_enchant_take](loc $type)
+def_namedobj $shape = ~mta_enchant_shape_for_pile($type);
+if ($shape = null) {
+    return;
+}
+if (inv_freespace(inv) < 1) {
+    mes("You have no free space!");
+    return;
+}
+anim(human_pickupfloor, 0);
+// Wiki May 2024: 1/32 chance of dragonstone while searching piles.
+if (random(32) = 0) {
+    inv_add(inv, magictraining_dragonstone, 1);
+    mes("You find a dragonstone!");
+    return;
+}
+inv_add(inv, $shape, 1);
+
+[oploc1,magictraining_enchan_shapepile1]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile2]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile3]
+~mta_enchant_take(loc_type);
+
+[oploc1,magictraining_enchan_shapepile4]
+~mta_enchant_take(loc_type);
+
+[proc,mta_enchant_spell_tier](int $spell)(int)
+if ($spell = ^enchant_lvl1) {
+    return(1);
+}
+if ($spell = ^enchant_lvl2) {
+    return(2);
+}
+if ($spell = ^enchant_lvl3) {
+    return(3);
+}
+if ($spell = ^enchant_lvl4) {
+    return(4);
+}
+if ($spell = ^enchant_lvl5) {
+    return(5);
+}
+return(6);
+
+[proc,mta_enchant_is_shape](obj $item)(int)
+if ($item = magictraining_enchan_cube | $item = magictraining_enchan_cylinder | $item = magictraining_enchan_icosahendron | $item = magictraining_enchan_pentamid | $item = magictraining_dragonstone) {
+    return(1);
+}
+return(0);
+
+// Wiki: base = spell level; every 10th shape doubles; bonus shape +2; dragonstone = 2x base.
+[proc,mta_enchant_score](obj $item, int $spell)
+def_int $tier = ~mta_enchant_spell_tier($spell);
+def_int $pizazz = $tier;
+if ($item = magictraining_dragonstone) {
+    $pizazz = calc($tier * 2);
+} else {
+    %magictraining_ench_convcount = calc(%magictraining_ench_convcount + 1);
+    if (%magictraining_ench_convcount >= 10) {
+        $pizazz = calc($tier * 2);
+        %magictraining_ench_convcount = 0;
+    }
+    if (~mta_enchant_shape_bonus_id($item) = %mta_ench_bonus) {
+        $pizazz = calc($pizazz + 2);
+    }
+}
+~mta_add_points(^mta_room_enchant, $pizazz);
+
+[oploc1,magictraining_encha_hole]
+if (%mta_room ! ^mta_room_enchant) {
+    return;
+}
+def_int $amount = inv_total(inv, magictraining_enchan_shapeorb);
+if ($amount < 1) {
+    mes("You don't have any orbs to deposit.");
+    return;
+}
+anim(human_pickupfloor, 0);
+inv_del(inv, magictraining_enchan_shapeorb, $amount);
+// 20 Magic XP per orb (wiki May 2024).
+stat_advance(magic, calc($amount * ^mta_enchant_orb_xp));
+def_int $prev = %magictraining_enchan_orbtotal;
+if ($prev >= ^mta_enchant_orb_cap) {
+    mes("You've deposited the maximum number of orbs for rune rewards.");
+    return;
+}
+def_int $add = $amount;
+if (calc($prev + $add) > ^mta_enchant_orb_cap) {
+    $add = calc(^mta_enchant_orb_cap - $prev);
+}
+$prev = calc($prev + $add);
+%magictraining_enchan_orbtotal = $prev;
+// Store rune packs for leave (1 pack per 20 orbs).
+def_int $packs = divide($prev, ^mta_enchant_orb_need);
+%mta_ench_rune_pending = $packs;
+mes("You deposit the orbs. Rewards will be claimed when you leave.");
+
+[proc,mta_enchant_claim_runes]
+def_int $packs = %mta_ench_rune_pending;
+if ($packs < 1) {
+    return;
+}
+%mta_ench_rune_pending = 0;
+def_int $i = 0;
+while ($i < $packs) {
+    def_int $roll = random(3);
+    if ($roll = 0) {
+        inv_add(inv, deathrune, 3);
+    } else if ($roll = 1) {
+        inv_add(inv, bloodrune, 3);
+    } else {
+        inv_add(inv, cosmicrune, 3);
+    }
+    $i = calc($i + 1);
+}
+~mesbox("You claim your Enchanting Chamber rune rewards.");
+
+// --- Enchantment Guardian ---
+
+[opnpc1,magictraining_guard_encha]
+~chatnpc("Greetings young one. How can I enlighten you?");
+@mta_encha_menu;
+
+[label,mta_encha_menu]
+def_int $c = ~p_choice4("What do I have to do in this room?", 1, "What are the rewards?", 2, "Got any tips that may help me?", 3, "Thanks, bye!", 4);
+if ($c = 4) {
+    return;
+}
+if ($c = 1) {
+    ~chatplayer("What do I have to do in this room?");
+    ~chatnpc("In this chamber you will see various piles of shapes. Pick them up and enchant them with jewellery enchant spells to convert them into orbs.");
+    ~chatnpc("Place the orbs in the hole in the centre. You get Enchantment Pizazz Points equal to the enchantment spell level, doubled every tenth shape.");
+    ~chatnpc("You'll get a bonus two points for enchanting the indicated shape, and dragonstones are worth double.");
+    @mta_encha_menu;
+    return;
+}
+if ($c = 2) {
+    ~chatplayer("What are the rewards?");
+    ~chatnpc("Besides Magic experience, you earn Enchantment Pizazz Points for each shape you convert. Depositing orbs grants extra Magic experience, and every twenty orbs stores rune rewards claimed when you leave.");
+    @mta_encha_menu;
+    return;
+}
+~chatplayer("Got any tips that may help me?");
+~chatnpc("Watch the bonus shape indicator and be ready when it changes. Look out for dragonstones — they award more Pizazz Points!");
+~chatplayer("I see.");
+@mta_encha_menu;

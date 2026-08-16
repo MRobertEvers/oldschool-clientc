@@ -1,0 +1,34 @@
+
+candidates, ranked by pixels left behind the z-buffer:
+strategy                            wrong  of drawn  bands
+depth sort (no bands)               14568    5.584%      1   <- chosen
+climb, floor 400                    15437    5.917%      2
+climb, floor 150                    35909   13.763%      3
+climb, floor 10                     36422   13.960%      5
+climb, floor 40                     37526   14.383%      3
+as shipped (inherited)              48841   18.720%      8
+
+no band assignment beat the plain depth sort; writing it unbanded.
+That is the result, not a failure: this model's remaining error is not
+reachable by priorities.
+
+slow search: 3000 iters, 18 views @ 128 px, 8 thread(s), seed 0x51f0d5
+slow start:  1749 wrong px (the fast winner under this objective)
+slow   200/3000: current 1728, best 1719 (-1.7%), accepted 79
+slow   400/3000: current 1714, best 1707 (-2.4%), accepted 149
+slow   600/3000: current 1701, best 1701 (-2.7%), accepted 224
+slow   800/3000: current 1691, best 1691 (-3.3%), accepted 291
+slow  1000/3000: current 1668, best 1668 (-4.6%), accepted 342
+slow  1200/3000: current 1634, best 1634 (-6.6%), accepted 405
+slow  1400/3000: current 1623, best 1623 (-7.2%), accepted 457
+slow  1600/3000: current 1584, best 1584 (-9.4%), accepted 508
+slow  1800/3000: current 1574, best 1574 (-10.0%), accepted 560
+slow  2000/3000: current 1563, best 1563 (-10.6%), accepted 626
+slow  2200/3000: current 1560, best 1560 (-10.8%), accepted 680
+slow  2400/3000: current 1550, best 1550 (-11.4%), accepted 728
+slow  2600/3000: current 1543, best 1543 (-11.8%), accepted 782
+slow  2800/3000: current 1529, best 1529 (-12.6%), accepted 834
+slow  3000/3000: current 1525, best 1525 (-12.8%), accepted 894
+slow result: 1749 -> 1525 wrong px (-12.8%), 90 improvements, 153 feature(s) moved
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 -> docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 (100920 bytes)
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 -> docs/rs2012_qbd_priorities/slow/rs2012_model_69766.ob3 (32226 bytes)

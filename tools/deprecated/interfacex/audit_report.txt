@@ -1,0 +1,18 @@
+interfacex interface audit
+date: Wed Jul  8 20:04:19 CDT 2026
+total: 917
+
+FAIL id=370 category=host-error exit=0: failed to resolve script: 24248339
+FAIL id=673 category=host-error exit=0: failed to resolve node in CC_SetObjectOnNode: -1
+FAIL id=769 category=host-error exit=0: failed to resolve node in CC_SetObjectOnNode: -1
+
+summary:
+  pass: 914
+  fail: 3
+  unknown-opcode: 0
+  script-error: 0
+  host-error: 3
+  decode-error: 0
+  crash: 0
+  timeout: 0
+  other: 0

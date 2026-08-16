@@ -1,0 +1,201 @@
+torirs: dat2 cache=/Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.baked iface=161
+torirs_perf: enabled (ring=2048 window=1000 budget=20ms) csv=tools/perf/results/collection-ui-after.csv
+audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
+audio: no device; running silent
+mock230: features era=osrs approach=rect op_nearest=10
+mock230: obj metadata loaded (33747 records from cache.osrs239.baked, 53853 params in 1262 KB)
+mock230: npc metadata loaded (16292 records from cache.osrs239.baked, 29869 params in 700 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+mock230: loc configs loaded (62194 records from cache.osrs239.baked; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+mock230: struct params loaded (3988 records from cache.osrs239.baked, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19008 records from cache.osrs239.baked)
+mock230: 1117 param types from configs/all.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (214190 symbols, 731 constants, 112 npc defs, 2295 loc defs, 245 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: 3 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+mock230: server band: npc.attack stays text-loaded on 41 record(s) — the band has no wire for it
+mock230: server band: npc.defence stays text-loaded on 41 record(s) — the band has no wire for it
+mock230: server band: npc.strength stays text-loaded on 41 record(s) — the band has no wire for it
+mock230: server band: npc.hitpoints stays text-loaded on 41 record(s) — the band has no wire for it
+mock230: server band: npc.magic stays text-loaded on 21 record(s) — the band has no wire for it
+mock230: server band: npc.attackrate stays text-loaded on 4 record(s) — the band has no wire for it
+mock230: server band: npc.death_drop stays text-loaded on 22 record(s) — the band has no wire for it
+mock230: server band: npc.attack_anim stays text-loaded on 56 record(s) — the band has no wire for it
+mock230: server band: npc.defend_anim stays text-loaded on 56 record(s) — the band has no wire for it
+mock230: server band: npc.death_anim stays text-loaded on 26 record(s) — the band has no wire for it
+mock230: server band: npc.wanderrange stays text-loaded on 38 record(s) — the band has no wire for it
+mock230: server band: npc.maxrange stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntrange stays text-loaded on 32 record(s) — the band has no wire for it
+mock230: server band: npc.respawnrate stays text-loaded on 43 record(s) — the band has no wire for it
+mock230: server band: npc.moverestrict stays text-loaded on 13 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 46 record(s) — the band has no wire for it
+mock230: server band: loc.next_loc_stage stays text-loaded on 51 record(s) — the band has no wire for it
+mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (841 overlay authored defs, 596 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+mock230: db tables loaded (273 tables, 15944 rows from cache.osrs239.baked; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+boot: 5537ms  frames=1 steps=242 capped=0
+mock230: login user='testc' session=ok
+mock230: 2928 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 8 opcode(s) this content uses are not implemented:
+  SPOTANIM_MAP                 first wanted by [label,pray_at_statue]
+  BUSY                         first wanted by [proc,dark_wizard_earth_attack]
+  CAM_RESET                    first wanted by [proc,p_telejump_safe]
+  P_EXACTMOVE                  first wanted by [proc,agility_exactmove]
+  STAT_ADD                     first wanted by [proc,npc_stat_change_effect]
+  NPC_WALK                     first wanted by [ai_queue13,_shade]
+  OC_COST                      first wanted by [label,open_shade_chest]
+  OC_MEMBERS                   first wanted by [proc,dragon_melee]
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+net: no decoder for wire opcode 108 (osrs230) — dropped
+textures: sprite-backed system (no materials table)
+Failed to load dat2 texture 65535
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Failed to load dat2 idk 307
+spawn_player: element=19359 tile=52,52 level=0
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+spawn_npc: npc=3106 element=19360 tile=58,52 level=0 size=1 recolors=4 retextures=0
+spawn_npc: npc=3105 element=19361 tile=58,52 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3108 element=19362 tile=58,52 level=0 size=1 recolors=2 retextures=0
+spawn_npc: npc=5007 element=19363 tile=58,52 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=10619 element=19364 tile=58,52 level=0 size=1 recolors=5 retextures=0
+spawn_npc: npc=13618 element=19365 tile=58,52 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=0 element=19366 tile=58,52 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=6773 element=19367 tile=58,52 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3254 element=19368 tile=58,52 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=3254 element=19369 tile=58,52 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=6816 element=19370 tile=58,52 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=2854 element=19378 tile=58,52 level=0 size=1 recolors=1 retextures=0
+spawn_npc: npc=3106 element=19379 tile=58,52 level=0 size=1 recolors=4 retextures=0
+torirs_perf: window=1000 writing tools/perf/results/collection-ui-after.csv.windows.csv
+torirs_perf: window=0 frame_p95=5.41ms
+post-boot: busy_frames=3 busy_steps=96 (frames that used the whole budget with work still queued)
+torirs_perf: window=1 frame_p95=5.00ms
+
+=== torirs_perf report ===
+frames=1200 ring=1200 over_20ms=15 (1.2%) eff_fps=105.0
+frame_ns mean=9524818 p50=4633000 p95=5213000 max=5535361000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async            281490       1000     155000   85867000
+logic            610480      69000     440000  118470000
+cs2              542997          0     337000  118296000
+layout              362          0       1000     158000
+interact          17803      17000      24000     621000
+emit             159930     162000     275000     889000
+paint            550584     618000     665000    2042000
+build            550770     618000     666000    2042000
+render          2988416    3317000    3601000   13735000
+present          139791     137000     150000     596000
+server            83593       1000       2000   94325000
+residual        3598602  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                         813854       678.21
+uitree_find_id_probes                 1952474      1627.06
+uitree_id_rebuild                         606         0.51
+uitree_find_child                       26162        21.80
+uitree_find_child_hit                   15861        13.22
+uitree_find_child_ceil_miss              9667         8.06
+uitree_walk_emit                      3300510      2750.43
+uitree_walk_hit                        679210       566.01
+uitree_walk_hover                      108535        90.45
+uitree_emit_skip                      2971196      2476.00
+uitree_layout_resolve                     893         0.74
+uitree_layout_skip                        435         0.36
+uitree_layout_nodes                   3112481      2593.73
+uitree_layout_node_skip               2995601      2496.33
+uitree_layout_depth_recompute             444         0.37
+uitree_ensure_layout                    20860        17.38
+uitree_cc_create                        10183         8.49
+uitree_cc_deleteall                       691         0.58
+uitree_cc_deleteall_rows                 4020         3.35
+uitree_apply_geo                        25639        21.37
+uitree_apply_content                    29867        24.89
+uitree_apply_hook                        7450         6.21
+uitree_apply_other                     570401       475.33
+uitree_components                     7816930      6514.11
+uitree_capacity                       8722432      7268.69
+uitree_node_bytes                 18142658560  15118882.13
+cs2_scripts                             10574         8.81
+cs2_opcodes                           2261986      1884.99
+cs2_host_ops                           313271       261.06
+cs2_cycles                            2261986      1884.99
+cs2_vm_acquire                           8380         6.98
+cs2_vm_pool_hit                          8378         6.98
+cs2_vm_pool_miss                            2         0.00
+cs2_vm_init_ns                        5760000      4800.00
+cs2_frame_pool_hit                      18659        15.55
+cs2_frame_pool_miss                        15         0.01
+cache_model_hit                         12122        10.10
+cache_model_miss                         2213         1.84
+cache_sprite_hit                        47871        39.89
+cache_sprite_miss                        1033         0.86
+painter_pops                          8820198      7350.16
+painter_gate_rejects                  3855421      3212.85
+painter_pushes                        8820198      7350.16
+painter_push_dedup                    3844735      3203.95
+painter_drain_events                     4187         3.49
+painter_commands                      5469992      4558.33
+painter_tiles_remaining_set           4531675      3776.40
+scene_elements                        6375297      5312.75
+scene_anim_list                         49350        41.12
+zone_map_count                          52922        44.10
+zone_map_capacity                      306944       255.79
+npc_slot_max                            77935        64.95
+cache_model_size                       375108       312.59
+cache_sprite_size                      193896       161.58
+iface_open                                 26         0.02
+iface_close                                 2         0.00
+iface_bake                                 22         0.02
+iface_bake_reuse                            4         0.00
+iface_mount_ns                        8001000      6667.50
+iface_groups_resident                    9253         7.71
+uitree_hidden                         1433728      1194.77
+uitree_unmounted                           52         0.04
+uitree_hook_blocks                     308278       256.90
+uitree_hook_bytes                  3144435600   2620363.00
+host_inv_hooks                           6217         5.18
+host_var_hooks                          53466        44.55
+host_stat_hooks                         20974        17.48
+bridge_sprite_map                      178959       149.13
+bridge_obj_icon_map                     18088        15.07
+cache_clientscript_size                175060       145.88
+uitree_anim_scan                          744         0.62
+iface_group_scan_nodes                   2501         2.08
+
+torirs_perf: wrote tools/perf/results/collection-ui-after.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=6 mounts=0

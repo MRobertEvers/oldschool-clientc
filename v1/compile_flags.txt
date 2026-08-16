@@ -1,0 +1,14 @@
+-std=gnu11
+-I.
+-I..
+-I../src
+-I../src2/scripting
+-I../src/platforms/ToriRSPlatformKit/include
+-I../src/platforms/ToriRSPlatformKit/src
+-D_CRT_SECURE_NO_WARNINGS
+-D_WINSOCK_DEPRECATED_NO_WARNINGS
+-D_WIN32_WINNT=0x0501
+-DWINVER=0x0501
+-Wno-unused-function
+-Wno-unused-variable
+-Wno-unused-parameter

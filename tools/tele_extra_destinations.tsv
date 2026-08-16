@@ -1,0 +1,100 @@
+# Curated `::tele` destinations -- the rooms nothing else in the tree names.
+#
+# `tools/gen_tele_table.py` builds the destination table from three automatic
+# sources: the world map's surface labels, the world map's per-map origins, and
+# the npc spawn roster. Between them they cover every town, landmark and named
+# npc. What they cannot cover is a room with no label, no map of its own and no
+# static npc -- which is most of the interesting content: an instanced boss lair
+# has no roster spawn because its npc is created by a script, and a raid has no
+# world-map label because it is not on the world map.
+#
+# Format, tab-separated:
+#
+#     name<TAB>coord<TAB>note
+#
+# `coord` is either a coord literal (`0_50_50_22_18`) or, preferably, `^name` --
+# a coord constant the server's own content already declares. Naming the
+# constant means this file cannot drift from the room it points at, and it is
+# the provenance too: `^cerberus_north_spawn` is a tile the Cerberus scripts
+# already stand a player on, which is a far better warrant for "Cerberus is
+# here" than a number recalled from the live game. The generator hard-fails on a
+# constant it cannot resolve, so a renamed constant is a build error rather than
+# a teleport into the void.
+#
+# Rows here take precedence over the automatic sources, and the automatic
+# sources are large -- check `::telefind <name>` before adding a row, because a
+# name that is already correct does not need to be restated.
+#
+# Bosses deliberately absent: Nex, the Corporeal Beast, Zalcano, Wintertodt,
+# Tempoross, Theatre of Blood and Tombs of Amascut have no coord constant in
+# this tree, and a guessed coord is worse than no entry -- it teleports you
+# somewhere confidently wrong. Add them when the content that needs them lands.
+
+# --- the tile a fresh login stands on -------------------------------------
+home	^respawn_coord	Lumbridge respawn
+respawn	^respawn_coord	alias of home
+
+# --- TzHaar -----------------------------------------------------------------
+fight_caves	^fightcave_centre	middle of the cave floor
+fight_caves_entry	^fightcave_entry	just inside the entrance
+inferno	^inferno_entrance_walk	the surface tile outside
+inferno_template	^inferno_template	the static map the instance is built from
+
+# --- Gauntlet ---------------------------------------------------------------
+gauntlet	^gauntlet_portal	Prifddinas side, at the portal
+gauntlet_lobby	^gauntlet_lobby_land	inside the lobby
+gauntlet_template	^gauntlet_template	the static map, normal mode
+gauntlet_template_hard	^gauntlet_template_hm	the static map, corrupted
+
+# --- Slayer / dungeon bosses ------------------------------------------------
+cerberus	^cerberus_north_spawn	north arena
+cerberus_lobby	^cerberus_lobby	shared lobby below Taverley
+kraken	^kraken_boss_room	the boss pool
+kraken_cave	^kraken_cave	cave entrance
+abyssal_sire	^sire_spawn	the sire's chamber
+sire_nexus	^sire_nexus	the abyssal nexus above
+alchemical_hydra_lair	^hydra_spawn	Karuulm lair
+skotizo	^skotizo_spawn	Catacombs of Kourend altar
+sarachnis	^sarachnis_spawn	Forthos ruin
+zulrah	^zulrah_spawn	the shrine island
+zulrah_shrine	^zulrah_shrine	the boat landing
+
+# --- Wilderness -------------------------------------------------------------
+callisto	^callisto_den_spawn	the den
+venenatis	^venenatis_den_spawn	the den
+vetion	^vetion_den_spawn	the den
+scorpia	^scorpia_spawn	the pit
+kbd	^kbd_lair_coord	King Black Dragon lair
+kbd_lair	^kbd_lair_coord	alias of kbd
+
+# --- God Wars Dungeon -------------------------------------------------------
+gwd	^gwd_entrance_stand	surface entrance
+gwd_dungeon	^gwd_dungeon_entry	bottom of the rope
+armadyl_chamber	^gwd_boss_armadyl	Kree'arra's eyrie
+bandos_chamber	^gwd_boss_bandos	General Graardor's stronghold
+saradomin_chamber	^gwd_boss_saradomin	Commander Zilyana's encampment
+zamorak_chamber	^gwd_boss_zamorak	K'ril Tsutsaroth's fortress
+
+# --- Raids ------------------------------------------------------------------
+cox	^cox_staging	Chambers of Xeric, outside the entrance
+chambers_of_xeric	^cox_staging	alias of cox
+tekton	^cox_tekton_spawn	the Tekton room
+
+# --- Low-level bosses -------------------------------------------------------
+obor	^obor_spawn	Hill Giant cave
+bryophyta	^bryophyta_spawn	Varrock sewers moss cave
+hespori	^hespori_spawn	Farming Guild cave
+
+# --- Barrows crypts ---------------------------------------------------------
+ahrim_crypt	^barrows_ahrim_crypt	Ahrim's tomb
+dharok_crypt	^barrows_dharok_crypt	Dharok's tomb
+guthan_crypt	^barrows_guthan_crypt	Guthan's tomb
+karil_crypt	^barrows_karil_crypt	Karil's tomb
+torag_crypt	^barrows_torag_crypt	Torag's tomb
+verac_crypt	^barrows_verac_crypt	Verac's tomb
+
+# --- Kalphite ---------------------------------------------------------------
+kalphite_lair	^kalphite_chamber_entrance_coord	the chamber entrance
+
+# --- Minigames --------------------------------------------------------------
+puro_puro	^puro_maze	the wheat maze

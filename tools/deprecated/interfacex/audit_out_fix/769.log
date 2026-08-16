@@ -1,0 +1,40 @@
+unexpected node kind in CC_SetObjectOnNode: 6
+script 6342 failed at opcode 1200 pc 127 (invoked as script 6336 for component 0x3010000)
+unexpected node kind in CC_SetObjectOnNode: 1
+script 6342 failed at opcode 1200 pc 127 (invoked as script 6340 for component 0x3010000)
+unexpected node kind in CC_SetObjectOnNode: 6
+script 6342 failed at opcode 1200 pc 127 (invoked as script 6340 for component 0x3010000)
+failed to resolve node in CC_SetObjectOnNode: -1
+script 6342 failed at opcode 1200 pc 127 (invoked as script 6340 for component 0x0)
+running onVarTransmit script 6337 for component 50397190
+running onVarTransmit script 6340 for component 50397184
+running onInvTransmit script 6340 for component 50397184 (args: -1 50397184 50397187 50397191 50397192)
+running onInvTransmit script 6340 for component 0 (args: 0 0 0 0 0)
+uitreex: 28 nodes
+[0] kind=layer trans=255 fill_mode=0 user_id=0x03010000 (769<<16|0) static
+  [1] kind=layer trans=0 fill_mode=0 user_id=0x03010001 (769<<16|1) static
+    [12] kind=graphic trans=0 fill_mode=0 user_id=0x03018002 (769<<16|32770) dynamic graphic=297 angle=0 tiling=1 if3=1 abs=3,3 58x45 hidden=0
+    [13] kind=text trans=0 fill_mode=0 user_id=0x03018003 (769<<16|32771) dynamic font=496 color=0xff981f text="PvP Arena Rewards" abs=8,8 48x24 hidden=0
+    [14] kind=graphic trans=0 fill_mode=0 user_id=0x03018004 (769<<16|32772) dynamic graphic=310 angle=0 tiling=1 if3=1 abs=2,2 25x30 hidden=0
+    [15] kind=graphic trans=0 fill_mode=0 user_id=0x03018005 (769<<16|32773) dynamic graphic=311 angle=0 tiling=1 if3=1 abs=37,2 25x30 hidden=0
+    [16] kind=graphic trans=0 fill_mode=0 user_id=0x03018006 (769<<16|32774) dynamic graphic=312 angle=0 tiling=1 if3=1 abs=2,19 25x30 hidden=0
+    [17] kind=graphic trans=0 fill_mode=0 user_id=0x03018007 (769<<16|32775) dynamic graphic=313 angle=0 tiling=1 if3=1 abs=37,19 25x30 hidden=0
+    [18] kind=graphic trans=0 fill_mode=0 user_id=0x03018008 (769<<16|32776) dynamic graphic=172 angle=0 tiling=1 if3=1 abs=-13,25 36x0 hidden=0
+    [19] kind=graphic trans=0 fill_mode=0 user_id=0x03018009 (769<<16|32777) dynamic graphic=315 angle=0 tiling=1 if3=1 abs=41,25 36x0 hidden=0
+    [20] kind=graphic trans=0 fill_mode=0 user_id=0x0301800a (769<<16|32778) dynamic graphic=314 angle=0 tiling=1 if3=1 abs=27,-13 10x36 hidden=0
+    [21] kind=graphic trans=0 fill_mode=0 user_id=0x0301800b (769<<16|32779) dynamic graphic=173 angle=0 tiling=1 if3=1 abs=27,28 10x36 hidden=0
+    [22] kind=graphic trans=0 fill_mode=0 user_id=0x0301800c (769<<16|32780) dynamic graphic=2546 angle=0 tiling=1 if3=1 abs=7,16 50x26 hidden=0
+    [23] kind=graphic trans=0 fill_mode=0 user_id=0x0301800d (769<<16|32781) dynamic graphic=535 angle=0 tiling=1 if3=1 abs=33,8 26x23 hidden=0
+  [2] kind=layer trans=0 fill_mode=0 user_id=0x03010002 (769<<16|2) static
+    [3] kind=layer trans=0 fill_mode=0 user_id=0x03010003 (769<<16|3) static
+      [26] kind=rect trans=255 fill_mode=0 user_id=0x03018010 (769<<16|32784) dynamic color=0xffffff color2=0x0 filled=1 abs=15,1 20x47 hidden=0
+      [27] kind=model trans=0 fill_mode=0 user_id=0x03018011 (769<<16|32785) dynamic model=-1 kind=0 zoom=2000 xan=0 yan=0 zan=0 abs=15,1 60x47 hidden=0
+    [4] kind=layer trans=0 fill_mode=0 user_id=0x03010004 (769<<16|4) static
+    [24] kind=rect trans=0 fill_mode=0 user_id=0x0301800e (769<<16|32782) dynamic color=0xe0e0c color2=0x0 filled=0 abs=12,-1 40x0 hidden=0
+    [25] kind=rect trans=0 fill_mode=0 user_id=0x0301800f (769<<16|32783) dynamic color=0x474745 color2=0x0 filled=0 abs=13,-1 38x0 hidden=0
+  [5] kind=layer trans=0 fill_mode=0 user_id=0x03010005 (769<<16|5) static
+    [6] kind=text trans=0 fill_mode=0 user_id=0x03010006 (769<<16|6) static font=495 color=0xff981f text="0</col>" abs=12,4 150x35 hidden=0
+    [7] kind=layer trans=0 fill_mode=0 user_id=0x03010007 (769<<16|7) static
+      [8] kind=layer trans=0 fill_mode=0 user_id=0x03010008 (769<<16|8) static
+  [9] kind=layer trans=0 fill_mode=0 user_id=0x03010009 (769<<16|9) static
+rendered interface 769 (1024x768, no bmp)

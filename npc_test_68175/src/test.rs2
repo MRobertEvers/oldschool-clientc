@@ -1,0 +1,54 @@
+[proc,t_category]()(int)
+return(npc_category);
+
+[proc,t_nc_category]()(int)
+return(nc_category(t_nameless_npc));
+
+[proc,t_hasop1]()(int)
+return(npc_hasop(1));
+
+[proc,t_hasop2]()(int)
+return(npc_hasop(2));
+
+[proc,t_hasop5]()(int)
+return(npc_hasop(5));
+
+[proc,t_param_int]()(int)
+return(npc_param(t_int_param));
+
+[proc,t_param_str]()(string)
+def_string $s = npc_param(t_str_param);
+return($s);
+
+[proc,t_param_default]()(int)
+return(npc_param(t_default_param));
+
+[proc,t_param_authored]()(int)
+return(npc_param(t_authored_param));
+
+[proc,t_param_override]()(int)
+return(npc_param(t_override_param));
+
+[proc,t_hunt]()(int)
+return(npc_hunt(0_50_50_20_20, 8, 0));
+
+[proc,t_hunt_narrow]()(int)
+return(npc_hunt(0_50_50_20_20, 0, 0));
+
+[proc,t_findcat]()(int)
+return(npc_findcat(0_50_50_20_20, t_hunt_cat, 8, 0));
+
+[proc,t_findcat_miss]()(int)
+return(npc_findcat(0_50_50_20_20, t_nameless_cat, 8, 0));
+
+[proc,t_huntall]()(int)
+npc_huntall(0_50_50_20_20, 8, 0);
+return(1);
+
+[proc,t_huntall_narrow]()(int)
+npc_huntall(0_50_50_20_20, 0, 0);
+return(1);
+
+[proc,t_findallzone]()(int)
+npc_findallzone(0_50_50_20_20);
+return(1);

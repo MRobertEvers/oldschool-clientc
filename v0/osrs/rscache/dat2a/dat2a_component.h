@@ -1,0 +1,276 @@
+#ifndef RSCACHE_RSCACHEDAT2A_COMPONENT_H
+#define RSCACHE_RSCACHEDAT2A_COMPONENT_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+struct RSCacheShared_RSBuffer;
+
+typedef struct Model Model;
+typedef struct SeqType SeqType;
+typedef struct PlayerAppearance PlayerAppearance;
+
+typedef enum
+{
+    SCRIPT_VAR_INT,
+    SCRIPT_VAR_STRING
+} ComponentScriptVarType;
+
+typedef struct
+{
+    ComponentScriptVarType type;
+    union
+    {
+        int32_t i;
+        char* s;
+    } value;
+} ComponentScriptVar;
+
+typedef struct
+{
+    int32_t events;
+    int32_t targetMask;
+} ServerActiveProperties;
+
+/**
+ * IF1 / IF3 interface widget. Decode layout follows InterfaceLoader.java (RuneLite cache).
+ */
+typedef struct RSCacheDat2A_Component
+{
+    int32_t id;
+    int32_t type;
+    int32_t layer;
+
+    int32_t x;
+    int32_t y;
+    int32_t width;
+    int32_t height;
+    int32_t baseX;
+    int32_t baseY;
+    int32_t baseWidth;
+    int32_t baseHeight;
+    int8_t xMode;
+    int8_t yMode;
+    int8_t widthMode;
+    int8_t heightMode;
+
+    bool hidden;
+    int32_t transparency;
+    int32_t color;
+    bool fill;
+    bool alpha;
+    bool tiled;
+    int32_t outline;
+    int32_t graphic;
+    int32_t graphicShadow;
+    bool horizontalFlip;
+    bool verticalFlip;
+    int32_t angle;
+
+    char* text;
+    char* pauseText;
+    int32_t textFont;
+    int32_t textHorizontalAlignment;
+    int32_t textVerticalAlignment;
+    int32_t textLineHeight;
+    bool textShadow;
+
+    /** MODEL widget only. Selects model archive + meaning of modelId:
+     *  0=none, 1=widget obj, 2=NPC head, 3=player head, 4=item, 5=local player. */
+    int32_t modelType;
+    int32_t modelId;
+    int32_t modelZoom;
+    int32_t modelXAngle;
+    int32_t modelYAngle;
+    int32_t modelZAngle;
+    int32_t modelXOffset;
+    int32_t modelYOffset;
+    int32_t modelSeqId;
+    /** IF3 type-6: first byte after sequence id.
+     *  Rev ~233: selects orthographic draw (method5172) vs perspective (method5228).
+     *  RuneLite cache tools label this "orthogonal"; do not confuse with aBoolean411 below. */
+    bool modelOrthographic;
+
+    int32_t objId;
+    int32_t objCount;
+    bool showObjCount;
+    int32_t* objTypes;
+    int32_t* objCounts;
+    char** objOps;
+
+    int32_t scrollWidth;
+    int32_t scrollHeight;
+    int32_t scrollX;
+    int32_t scrollY;
+    bool noClickThrough;
+
+    /** IF1/IF3 packed click/target bits (InterfaceDefinition.clickMask). */
+    int32_t clickMask;
+    /** IF3 only; component name after type blocks. */
+    char* name;
+    /** IF3 type 5: texture id (unsigned short in stream). */
+    int32_t textureId;
+
+    char* opBase;
+    char* targetVerb;
+
+    int32_t lineWidth;
+    bool lineDirection;
+
+    int32_t buttonType;
+    // AKA ContentType
+    // The client will assign special functionality to these.
+    // 1337 = CONTENT_WORLD
+    // 1338 = CONTENT_MINIMAP
+    // 1339 = CONTENT_COMPASS
+    // 1400 = CONTENT_WORLDMAP
+    int32_t clientCode;
+    int32_t linkedComponentId;
+    char* option;
+    char* activeText;
+    char* targetText;
+    int32_t activeGraphic;
+    int32_t activeColour;
+    int32_t overColour;
+    int32_t activeOverColour;
+    int32_t activeModelId;
+    int32_t activeAnimId;
+    int32_t marginX;
+    int32_t marginY;
+    int32_t* invSlotOffsetX;
+    int32_t* invSlotOffsetY;
+    int32_t* invSlotGraphicId;
+
+    int32_t anInt5907;
+    int32_t anInt5921;
+    int16_t aShort50;
+    int16_t aShort49;
+    /** IF3 type-6: byte after aShort49.
+     *  Deobfuscator Widget.useFixedZoom / drawModel2DAtZoom vs drawModel2D when IF3.
+     *  Engine: model_fixed_zoom → zoom3d = widget zoom (true) or 512 (false). */
+    bool aBoolean411;
+    int32_t anInt5957;
+    /** IF3 aspect ratio numerator/denominator (Kronos field2688/field2662). */
+    int32_t aspect_ratio_w;
+    int32_t aspect_ratio_h;
+    int32_t anInt5920;
+    int32_t anInt5930;
+    int32_t anInt5890;
+    int32_t anInt5909;
+
+    int8_t if3SlotPackedA[10];
+    int8_t if3SlotPackedB[10];
+    int32_t if3SlotCursorOrKey[10];
+
+    uint8_t dragDeadZone;
+    uint8_t dragDeadTime;
+    bool dragRender;
+
+    ComponentScriptVar* onLoad;
+    int32_t onLoadLen;
+    ComponentScriptVar* onMouseOver;
+    int32_t onMouseOverLen;
+    ComponentScriptVar* onMouseLeave;
+    int32_t onMouseLeaveLen;
+    ComponentScriptVar* onTargetLeave;
+    int32_t onTargetLeaveLen;
+    ComponentScriptVar* onTargetEnter;
+    int32_t onTargetEnterLen;
+    ComponentScriptVar* onVarpTransmit;
+    int32_t onVarpTransmitLen;
+    ComponentScriptVar* onInvTransmit;
+    int32_t onInvTransmitLen;
+    ComponentScriptVar* onStatTransmit;
+    int32_t onStatTransmitLen;
+    ComponentScriptVar* onTimer;
+    int32_t onTimerLen;
+    ComponentScriptVar* onOp;
+    int32_t onOpLen;
+    ComponentScriptVar* onMouseRepeat;
+    int32_t onMouseRepeatLen;
+    ComponentScriptVar* onClick;
+    int32_t onClickLen;
+    ComponentScriptVar* onClickRepeat;
+    int32_t onClickRepeatLen;
+    ComponentScriptVar* onRelease;
+    int32_t onReleaseLen;
+    ComponentScriptVar* onHold;
+    int32_t onHoldLen;
+    ComponentScriptVar* onDrag;
+    int32_t onDragLen;
+    ComponentScriptVar* onDragComplete;
+    int32_t onDragCompleteLen;
+    ComponentScriptVar* onScrollWheel;
+    int32_t onScrollWheelLen;
+    ComponentScriptVar* onVarcTransmit;
+    int32_t onVarcTransmitLen;
+    ComponentScriptVar* onVarcstrTransmit;
+    int32_t onVarcstrTransmitLen;
+
+    int32_t* varpTriggers;
+    int32_t varpTriggersLen;
+    int32_t* inventoryTriggers;
+    int32_t inventoryTriggersLen;
+    int32_t* statTriggers;
+    int32_t statTriggersLen;
+    int32_t* varcTriggers;
+    int32_t varcTriggersLen;
+    int32_t* varcstrTriggers;
+    int32_t varcstrTriggersLen;
+
+    int32_t** cs1Scripts;
+    int32_t* cs1ScriptsLengths;
+    int32_t cs1ScriptsLen;
+    int32_t* cs1ComparisonOpcodes;
+    int32_t* cs1ComparisonOperands;
+    int32_t cs1ComparisonLen;
+
+    struct RSCacheDat2A_Component** createdComponents;
+    int32_t createdComponentsLen;
+    int32_t createdComponentId;
+
+    ServerActiveProperties serverActiveProperties;
+    bool if3;
+    bool hasHook;
+    char** ops;
+    int32_t opsLen;
+    int32_t* opCursors;
+    int32_t opCursorsLen;
+} RSCacheDat2A_Component;
+
+void
+RSCacheDat2A_ComponentInit(RSCacheDat2A_Component* c);
+
+void
+RSCacheDat2A_ComponentFree(RSCacheDat2A_Component* c);
+
+void
+RSCacheDat2A_ComponentClearStaticCaches(void);
+
+void
+RSCacheDat2A_ComponentDecodeIf1(
+    RSCacheDat2A_Component* self,
+    struct RSCacheShared_RSBuffer* buffer);
+
+void
+RSCacheDat2A_ComponentDecodeIf3(
+    RSCacheDat2A_Component* self,
+    struct RSCacheShared_RSBuffer* buffer);
+
+void
+RSCacheDat2A_ComponentSetOp(
+    RSCacheDat2A_Component* self,
+    int32_t i,
+    const char* op);
+
+Model*
+RSCacheDat2A_ComponentGetModel(
+    RSCacheDat2A_Component* self,
+    SeqType* seq,
+    PlayerAppearance* appearance,
+    int32_t frame,
+    int32_t arg3,
+    int32_t arg4,
+    bool arg5);
+
+#endif

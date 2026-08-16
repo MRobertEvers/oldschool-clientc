@@ -1,0 +1,5727 @@
+torirs: dat2 cache=cache.osrs239 iface=161
+app: features era=osrs
+net: -> 1 bytes (first 0x0e)
+audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
+audio: no device; running silent
+mock230: features era=osrs approach=rect op_nearest=10
+mock230: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
+mock230: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+mock230: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+mock230: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19008 records from cache.osrs239)
+mock230: 1117 param types from configs/all.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (213790 symbols, 530 constants, 44 npc defs, 2218 loc defs, 209 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
+mock230: server band: loc.next_loc_stage stays text-loaded on 14 record(s) — the band has no wire for it
+mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (817 overlay authored defs, 38 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+mock230: db tables loaded (258 tables, 15614 rows from cache.osrs239; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+net: -> 144 bytes (first 0x10)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+mock230: login user='testloot' session=ok
+mock230: 1232 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 2 opcode(s) this content uses are not implemented:
+  LINEOFWALK                   first wanted by [opheld1,mithril_seed]
+  OC_MEMBERS                   first wanted by [label,attempt_cut_tree]
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+net: <- wire=68 name=57 size=152
+pkt_rebuild_normal: zoneX=402 zoneZ=402 keys=9
+net: <- wire=60 name=9 size=2
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=47 name=15 size=12
+net: <- wire=84 name=56 size=20
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=6 name=10 size=7
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=127 name=50 size=3
+net: <- wire=77 name=48 size=2
+net: <- wire=27 name=44 size=2
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=10 name=27 size=8
+net: <- wire=10 name=27 size=8
+net: <- wire=82 name=59 size=6
+net: <- wire=15 name=42 size=1
+net: <- wire=21 name=38 size=0
+net: <- wire=3 name=39 size=3
+net: <- wire=23 name=34 size=56
+net: <- wire=104 name=33 size=3
+net: <- wire=108 name=0 size=0
+net: no decoder for wire opcode 108 (osrs230) — dropped
+textures: sprite-backed system (no materials table)
+net: -> 1 bytes (first 0x7e)
+net: -> 8 bytes (first 0x29)
+net: -> 12 bytes (first 0x0e)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x8b)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=82 name=59 size=6
+net: <- wire=84 name=56 size=5
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xbc)
+Failed to load dat2 texture 65535
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x43)
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+net: -> 1 bytes (first 0x20)
+if-opensub: iface=162 target=0x00a10060 (161<<16|96) type=1
+if-opensub: mount iface=162 under uid=0x00a10060 (161<<16|96) type=1
+net: -> 1 bytes (first 0x43)
+painter_paint_bucket: draw box 25x25 has 0 visible tiles (cullspan=1 cullmap_radius=0) — world will be blank; set TORIRS_PAINTER_NOCULL=1 to recover
+net: <- wire=35 name=58 size=3
+net: <- wire=82 name=59 size=6
+net: <- wire=90 name=37 size=32
+net: <- wire=90 name=37 size=44
+net: <- wire=90 name=37 size=23
+net: <- wire=90 name=37 size=58
+net: <- wire=90 name=37 size=69
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=82 name=59 size=6
+net: <- wire=90 name=37 size=37
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=47 name=15 size=12
+net: <- wire=84 name=56 size=14
+net: <- wire=84 name=56 size=15
+net: <- wire=82 name=59 size=6
+net: <- wire=82 name=59 size=6
+net: <- wire=82 name=59 size=6
+net: <- wire=35 name=58 size=3
+net: <- wire=82 name=59 size=6
+net: <- wire=82 name=59 size=6
+net: <- wire=82 name=59 size=6
+net: <- wire=82 name=59 size=6
+net: <- wire=35 name=58 size=3
+net: <- wire=82 name=59 size=6
+net: <- wire=23 name=34 size=61
+net: <- wire=104 name=33 size=81
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=120 name=77 size=5
+net: <- wire=120 name=77 size=5
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=120 name=77 size=5
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=120 name=77 size=5
+net: <- wire=120 name=77 size=5
+net: <- wire=120 name=77 size=5
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=120 name=77 size=5
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=41 name=66 size=2
+net: <- wire=27 name=44 size=2
+net: <- wire=37 name=28 size=66
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=651 target=0x00a10006 (161<<16|6) type=1
+if-opensub: mount iface=651 under uid=0x00a10006 (161<<16|6) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=708 target=0x00a10005 (161<<16|5) type=1
+if-opensub: mount iface=708 under uid=0x00a10005 (161<<16|5) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=163 target=0x00a1005d (161<<16|93) type=1
+if-opensub: mount iface=163 under uid=0x00a1005d (161<<16|93) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 163 already baked; reusing it
+if-opensub: iface=303 target=0x00a10002 (161<<16|2) type=1
+if-opensub: mount iface=303 under uid=0x00a10002 (161<<16|2) type=1
+net: -> 1 bytes (first 0x0f)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=90 target=0x00a10003 (161<<16|3) type=1
+if-opensub: mount iface=90 under uid=0x00a10003 (161<<16|3) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=160 target=0x00a10021 (161<<16|33) type=1
+if-opensub: mount iface=160 under uid=0x00a10021 (161<<16|33) type=1
+net: -> 1 bytes (first 0x19)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=122 target=0x00a10009 (161<<16|9) type=1
+if-opensub: mount iface=122 under uid=0x00a10009 (161<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=728 target=0x00a10023 (161<<16|35) type=1
+if-opensub: mount iface=728 under uid=0x00a10023 (161<<16|35) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 728 already baked; reusing it
+if-opensub: iface=896 target=0x00a10024 (161<<16|36) type=1
+if-opensub: mount iface=896 under uid=0x00a10024 (161<<16|36) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 896 already baked; reusing it
+if-opensub: iface=593 target=0x00a1004c (161<<16|76) type=1
+if-opensub: mount iface=593 under uid=0x00a1004c (161<<16|76) type=1
+net: -> 1 bytes (first 0xe8)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=320 target=0x00a1004d (161<<16|77) type=1
+if-opensub: mount iface=320 under uid=0x00a1004d (161<<16|77) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x03)
+if-opensub: iface=629 target=0x00a1004e (161<<16|78) type=1
+if-opensub: mount iface=629 under uid=0x00a1004e (161<<16|78) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=712 target=0x0275002b (629<<16|43) type=1
+if-opensub: mount iface=712 under uid=0x0275002b (629<<16|43) type=1
+net: -> 1 bytes (first 0xc2)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if_setevents: com=46661635 (712:3) slots=0..7 events=0x1e
+runclientscript: script=3954 argc=3 str_mask=0x0
+if-opensub: iface=149 target=0x00a1004f (161<<16|79) type=1
+if-opensub: mount iface=149 under uid=0x00a1004f (161<<16|79) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 149 already baked; reusing it
+if-opensub: iface=387 target=0x00a10050 (161<<16|80) type=1
+if-opensub: mount iface=387 under uid=0x00a10050 (161<<16|80) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x51)
+if-opensub: iface=541 target=0x00a10051 (161<<16|81) type=1
+if-opensub: mount iface=541 under uid=0x00a10051 (161<<16|81) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x22)
+if-opensub: iface=218 target=0x00a10052 (161<<16|82) type=1
+if-opensub: mount iface=218 under uid=0x00a10052 (161<<16|82) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0xd1)
+if-opensub: iface=707 target=0x00a10053 (161<<16|83) type=1
+if-opensub: mount iface=707 under uid=0x00a10053 (161<<16|83) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x5a)
+if-opensub: iface=109 target=0x00a10054 (161<<16|84) type=1
+if-opensub: mount iface=109 under uid=0x00a10054 (161<<16|84) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=429 target=0x00a10055 (161<<16|85) type=1
+if-opensub: mount iface=429 under uid=0x00a10055 (161<<16|85) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+if-opensub: iface=182 target=0x00a10056 (161<<16|86) type=1
+if-opensub: mount iface=182 under uid=0x00a10056 (161<<16|86) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x5c)
+if-opensub: iface=116 target=0x00a10057 (161<<16|87) type=1
+if-opensub: mount iface=116 under uid=0x00a10057 (161<<16|87) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0xe7)
+if-opensub: iface=216 target=0x00a10058 (161<<16|88) type=1
+if-opensub: mount iface=216 under uid=0x00a10058 (161<<16|88) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0x1c)
+if-opensub: iface=239 target=0x00a10059 (161<<16|89) type=1
+if-opensub: mount iface=239 under uid=0x00a10059 (161<<16|89) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+net: -> 1 bytes (first 0xd9)
+if_setevents: com=10485815 (160:55) slots=65535..65535 events=0xe
+if_setevents: com=38993924 (595:4) slots=65535..65535 events=0x3
+if_setevents: com=38993958 (595:38) slots=65535..65535 events=0x3
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x5b)
+Failed to load dat2 idk 307
+spawn_player: element=59751 tile=84,84 level=0
+entity_sync: player 0 spawned (world idx 0)
+net: -> 1 bytes (first 0x82)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+runclientscript: script=5354 argc=0 str_mask=0x0
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+net: -> 1 bytes (first 0x44)
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: You feel yourself getting stronger.
+if_setevents: com=10485788 (160:28) slots=0..0 events=0x2
+if_setevents: com=10485796 (160:36) slots=0..0 events=0x2
+if_setevents: com=10485766 (160:6) slots=0..0 events=0x4
+net: -> 1 bytes (first 0xd0)
+if_setevents: com=41222146 (629:2) slots=0..0 events=0x2
+if_setevents: com=41222154 (629:10) slots=0..0 events=0x2
+if_setevents: com=41222162 (629:18) slots=0..0 events=0x2
+if_setevents: com=41222170 (629:26) slots=0..0 events=0x2
+if_setevents: com=26148871 (399:7) slots=1..213 events=0x4
+if_setevents: com=7798792 (119:8) slots=0..0 events=0x2
+if_setevents: com=38862854 (593:6) slots=0..0 events=0x2
+if_setevents: com=38862858 (593:10) slots=0..0 events=0x2
+if_setevents: com=38862862 (593:14) slots=0..0 events=0x2
+if_setevents: com=38862866 (593:18) slots=0..0 events=0x2
+net: -> 1 bytes (first 0xbc)
+if_setevents: com=38862880 (593:32) slots=0..0 events=0x2
+if_setevents: com=35454985 (541:9) slots=65535..65535 events=0x2
+if_setevents: com=35454986 (541:10) slots=65535..65535 events=0x2
+if_setevents: com=35454987 (541:11) slots=65535..65535 events=0x2
+if_setevents: com=35454988 (541:12) slots=65535..65535 events=0x2
+if_setevents: com=35454989 (541:13) slots=65535..65535 events=0x2
+if_setevents: com=35454990 (541:14) slots=65535..65535 events=0x2
+if_setevents: com=35454991 (541:15) slots=65535..65535 events=0x2
+if_setevents: com=35454992 (541:16) slots=65535..65535 events=0x2
+if_setevents: com=35454993 (541:17) slots=65535..65535 events=0x2
+net: -> 1 bytes (first 0xf3)
+if_setevents: com=35454994 (541:18) slots=65535..65535 events=0x2
+if_setevents: com=35454995 (541:19) slots=65535..65535 events=0x2
+if_setevents: com=35454996 (541:20) slots=65535..65535 events=0x2
+if_setevents: com=35454997 (541:21) slots=65535..65535 events=0x2
+if_setevents: com=35454998 (541:22) slots=65535..65535 events=0x2
+if_setevents: com=35454999 (541:23) slots=65535..65535 events=0x2
+if_setevents: com=35455000 (541:24) slots=65535..65535 events=0x2
+if_setevents: com=35455001 (541:25) slots=65535..65535 events=0x2
+if_setevents: com=35455002 (541:26) slots=65535..65535 events=0x2
+if_setevents: com=35455003 (541:27) slots=65535..65535 events=0x2
+net: -> 1 bytes (first 0x6a)
+if_setevents: com=35455004 (541:28) slots=65535..65535 events=0x2
+if_setevents: com=35455005 (541:29) slots=65535..65535 events=0x2
+if_setevents: com=35455006 (541:30) slots=65535..65535 events=0x2
+if_setevents: com=35455007 (541:31) slots=65535..65535 events=0x2
+if_setevents: com=35455008 (541:32) slots=65535..65535 events=0x2
+if_setevents: com=35455009 (541:33) slots=65535..65535 events=0x2
+if_setevents: com=35455010 (541:34) slots=65535..65535 events=0x2
+if_setevents: com=35455011 (541:35) slots=65535..65535 events=0x2
+if_setevents: com=35455012 (541:36) slots=65535..65535 events=0x2
+if_setevents: com=35455013 (541:37) slots=65535..65535 events=0x2
+net: -> 1 bytes (first 0x11)
+if_setevents: com=10485780 (160:20) slots=65535..65535 events=0x6
+if_setevents: com=5046276 (77:4) slots=0..28 events=0x2
+if_setevents: com=5046277 (77:5) slots=65535..65535 events=0x2
+if_setevents: com=9764864 (149:0) slots=0..27 events=0x120000
+if_setevents: com=25362447 (387:15) slots=0..13 events=0x120000
+if_setevents: com=25362433 (387:1) slots=65535..65535 events=0x2
+if_setevents: com=25362447 (387:15) slots=65535..65535 events=0x402
+if_setevents: com=25362448 (387:16) slots=65535..65535 events=0x402
+if_setevents: com=25362449 (387:17) slots=65535..65535 events=0x402
+if_setevents: com=25362450 (387:18) slots=65535..65535 events=0x402
+net: -> 1 bytes (first 0xb6)
+if_setevents: com=25362451 (387:19) slots=65535..65535 events=0x402
+if_setevents: com=25362452 (387:20) slots=65535..65535 events=0x402
+if_setevents: com=25362453 (387:21) slots=65535..65535 events=0x402
+if_setevents: com=25362454 (387:22) slots=65535..65535 events=0x402
+if_setevents: com=25362455 (387:23) slots=65535..65535 events=0x402
+if_setevents: com=25362456 (387:24) slots=65535..65535 events=0x402
+if_setevents: com=25362457 (387:25) slots=65535..65535 events=0x402
+if_setevents: com=14155778 (216:2) slots=0..55 events=0x2
+if_setevents: com=28114945 (429:1) slots=0..0 events=0x2
+if_setevents: com=28311553 (432:1) slots=0..0 events=0x2
+net: -> 1 bytes (first 0x48)
+if_setevents: com=20971521 (320:1) slots=0..0 events=0x4
+if_setevents: com=20971522 (320:2) slots=0..0 events=0x4
+if_setevents: com=20971523 (320:3) slots=0..0 events=0x4
+if_setevents: com=20971524 (320:4) slots=0..0 events=0x4
+if_setevents: com=20971525 (320:5) slots=0..0 events=0x4
+if_setevents: com=20971526 (320:6) slots=0..0 events=0x4
+if_setevents: com=20971527 (320:7) slots=0..0 events=0x4
+if_setevents: com=20971528 (320:8) slots=0..0 events=0x4
+if_setevents: com=20971529 (320:9) slots=0..0 events=0x4
+if_setevents: com=20971530 (320:10) slots=0..0 events=0x4
+net: -> 1 bytes (first 0xb9)
+if_setevents: com=20971531 (320:11) slots=0..0 events=0x4
+if_setevents: com=20971532 (320:12) slots=0..0 events=0x4
+if_setevents: com=20971533 (320:13) slots=0..0 events=0x4
+if_setevents: com=20971534 (320:14) slots=0..0 events=0x4
+if_setevents: com=20971535 (320:15) slots=0..0 events=0x4
+if_setevents: com=20971536 (320:16) slots=0..0 events=0x4
+if_setevents: com=20971537 (320:17) slots=0..0 events=0x4
+if_setevents: com=20971538 (320:18) slots=0..0 events=0x4
+if_setevents: com=20971539 (320:19) slots=0..0 events=0x4
+if_setevents: com=20971540 (320:20) slots=0..0 events=0x4
+net: -> 1 bytes (first 0xf8)
+if_setevents: com=20971541 (320:21) slots=0..0 events=0x4
+if_setevents: com=20971542 (320:22) slots=0..0 events=0x4
+if_setevents: com=20971543 (320:23) slots=0..0 events=0x4
+if_setevents: com=20971544 (320:24) slots=0..0 events=0x4
+if_setevents: com=56360964 (860:4) slots=0..0 events=0x2
+if_setevents: com=27918346 (426:10) slots=0..78 events=0x2
+if_setevents: com=27918365 (426:29) slots=0..1 events=0x2
+if_setevents: com=47710214 (728:6) slots=0..2 events=0x2
+runclientscript: script=5450 argc=3 str_mask=0x6
+runclientscript: script=5455 argc=2 str_mask=0x0
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x66)
+spawn_npc: npc=2854 element=59752 tile=85,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 14 spawned (world idx 0)
+spawn_npc: npc=2854 element=59753 tile=85,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 15 spawned (world idx 1)
+spawn_npc: npc=3106 element=59754 tile=85,82 level=0 size=1 recolors=4 retextures=0
+entity_sync: npc 16 spawned (world idx 2)
+spawn_npc: npc=4626 element=59755 tile=85,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 18 spawned (world idx 3)
+spawn_npc: npc=3111 element=59756 tile=85,82 level=0 size=1 recolors=3 retextures=0
+entity_sync: npc 22 spawned (world idx 4)
+spawn_npc: npc=3106 element=59757 tile=85,82 level=0 size=1 recolors=4 retextures=0
+entity_sync: npc 21 spawned (world idx 5)
+spawn_npc: npc=3105 element=59758 tile=85,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 24 spawned (world idx 6)
+spawn_npc: npc=3108 element=59759 tile=85,82 level=0 size=1 recolors=2 retextures=0
+entity_sync: npc 25 spawned (world idx 7)
+net: -> 1 bytes (first 0xeb)
+spawn_npc: npc=5007 element=59760 tile=85,82 level=0 size=1 recolors=0 retextures=0
+entity_sync: npc 23 spawned (world idx 8)
+spawn_npc: npc=10619 element=59761 tile=85,82 level=0 size=1 recolors=5 retextures=0
+entity_sync: npc 32 spawned (world idx 9)
+spawn_npc: npc=13618 element=59762 tile=85,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 63 spawned (world idx 10)
+net: -> 1 bytes (first 0xa9)
+spawn_npc: npc=0 element=59763 tile=85,82 level=0 size=1 recolors=0 retextures=0
+entity_sync: npc 64 spawned (world idx 11)
+spawn_npc: npc=6773 element=59764 tile=85,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 28 spawned (world idx 12)
+spawn_npc: npc=3254 element=59765 tile=85,82 level=0 size=1 recolors=3 retextures=0
+entity_sync: npc 36 spawned (world idx 13)
+entity_sync: npc 25 faces entity 32768
+net: -> 1 bytes (first 0x67)
+objstack: obj=946 tile=69,76,0 element=59766
+objstack: obj=558 tile=70,72,0 element=59767
+objstack: obj=882 tile=69,91,0 element=59768
+net: -> 1 bytes (first 0xce)
+objstack: obj=1923 tile=72,78,0 element=59769
+objstack: obj=1931 tile=73,78,0 element=59770
+objstack: obj=1935 tile=75,76,0 element=59771
+net: -> 1 bytes (first 0x0c)
+objstack: obj=946 tile=88,66,0 element=59772
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x94)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xc5)
+net: <- wire=35 name=58 size=3
+net: <- wire=90 name=37 size=24
+net: <- wire=23 name=34 size=13
+net: <- wire=104 name=33 size=12
+net: <- wire=114 name=47 size=7
+net: <- wire=108 name=0 size=0
+message_game: Oh dear, you are dead!
+entity_sync: npc 25 faces entity -1
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x7a)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x76)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x5c)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xf8)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=90 name=37 size=27
+net: <- wire=23 name=34 size=5
+net: <- wire=104 name=33 size=6
+net: <- wire=114 name=47 size=7
+net: <- wire=108 name=0 size=0
+message_game: You wake up in Lumbridge.
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xdf)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x1f)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x6e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x76)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x38)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x34)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xb4)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x7b)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x3e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xef)
+net: -> 8 bytes (first 0x7f)
+net: -> 12 bytes (first 0x0a)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 0 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0xe5)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=10
+net: <- wire=104 name=33 size=16
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+entity_sync: npc 25 faces entity 32768
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xfb)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=11
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=2854 element=59773 tile=85,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 9 spawned (world idx 14)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x78)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x54)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x91)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x06)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x7d)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x00)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0xe6)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=15
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x50)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x8a)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x7c)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0xd1)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x80)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x2d)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xb4)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0xe3)
+net: -> 8 bytes (first 0xcf)
+net: -> 12 bytes (first 0x2b)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xea)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=7
+net: <- wire=104 name=33 size=14
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0xd8)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x1f)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0x57)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x7d)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xdc)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xaf)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x15)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0xca)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0xea)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x77)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x6a)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x1e)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=13
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x0a)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x25)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xb8)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=10
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=2854 element=59773 tile=85,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 10 spawned (world idx 14)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x5b)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x5b)
+net: -> 8 bytes (first 0xc8)
+net: -> 12 bytes (first 0xce)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x66)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xda)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=13
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xaf)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xa5)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x92)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x81)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x0f)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x20)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x60)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x17)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x50)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xbb)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xa1)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xff)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0xa0)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x36)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x7a)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xb8)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0xb9)
+net: -> 8 bytes (first 0x7b)
+net: -> 12 bytes (first 0x2e)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x65)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=7
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x0c)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x76)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0xf1)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x34)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xb1)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xe7)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x4c)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x92)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x6f)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xdf)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x53)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x93)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0xbd)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=15
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x21)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x95)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x75)
+net: -> 8 bytes (first 0x49)
+net: -> 12 bytes (first 0xe3)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0xf2)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=7
+net: <- wire=104 name=33 size=14
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xc6)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x0e)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xb7)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x92)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x25)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x14)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x2d)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x59)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=13
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0xc9)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x47)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x55)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x58)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xe8)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=13
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xa2)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xca)
+net: -> 1 bytes (first 0x4e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x3f)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xeb)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x74)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=10
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=3254 element=59758 tile=85,82 level=0 size=1 recolors=3 retextures=0
+entity_sync: npc 40 spawned (world idx 6)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x2b)
+net: -> 8 bytes (first 0xb4)
+net: -> 12 bytes (first 0x68)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 25, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x24)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=13
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xd4)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0xb1)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x8e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x7e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x36)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x3a)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=84 name=56 size=25
+net: <- wire=84 name=56 size=25
+net: <- wire=23 name=34 size=13
+net: <- wire=104 name=33 size=15
+net: <- wire=38 name=67 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+runclientscript: script=7192 argc=4 str_mask=0x0
+runclientscript: script=7192 argc=4 str_mask=0x0
+entity_sync: npc 25 faces entity -1
+objstack: obj=526 tile=86,82,0 element=59752
+objstack: obj=995 tile=86,82,0 element=59774
+net: -> 1 bytes (first 0x8e)
+loot-add: "Man" obj=526 qty=1 event=1
+loot-add: "Man" obj=995 qty=10 event=1
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x73)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xdc)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x99)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xb0)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x97)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x74)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xca)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x2b)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0xc6)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x4a)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xd7)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0xe0)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x17)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xc6)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=10
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=2854 element=59759 tile=85,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 14 spawned (world idx 7)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0xe8)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0xea)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xff)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x81)
+net: -> 8 bytes (first 0xfd)
+net: -> 12 bytes (first 0x8d)
+net: -> 1 bytes (first 0x1b)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 21, 6 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+cs2-stub: opcode 3931 has an inherited signature (0,0,0,0) but no implementation — stack balanced, results faked (script 7178 pc 18)
+cs2-stub: opcode 1610 has an inherited signature (0,0,1,0) but no implementation — stack balanced, results faked (script 7173 pc 29)
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x74)
+net: <- wire=23 name=34 size=7
+net: <- wire=104 name=33 size=10
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=2854 element=59775 tile=84,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 13 spawned (world idx 6)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xe8)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xe7)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x6d)
+net: <- wire=23 name=34 size=4
+net: <- wire=104 name=33 size=15
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=2854 element=59758 tile=83,82 level=0 size=1 recolors=1 retextures=0
+entity_sync: npc 11 spawned (world idx 0)
+spawn_npc: npc=3220 element=59776 tile=83,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 8 spawned (world idx 15)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xe0)
+net: <- wire=23 name=34 size=4
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x16)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x37)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x18)
+net: <- wire=23 name=34 size=4
+net: <- wire=104 name=33 size=10
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=3105 element=59777 tile=81,82 level=0 size=1 recolors=6 retextures=0
+entity_sync: npc 24 spawned (world idx 13)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xeb)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0x84)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0xa8)
+net: -> 1 bytes (first 0xfb)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=8
+net: <- wire=104 name=33 size=16
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+entity_sync: npc 21 faces entity 32768
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x23)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0xa7)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xd6)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x95)
+net: -> 1 bytes (first 0xb0)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9d)
+net: -> 1 bytes (first 0x7d)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0xad)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=15
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0x75)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x62)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xde)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x3f)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x21)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x7f)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0xd1)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x49)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xb9)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xdf)
+net: -> 1 bytes (first 0xbf)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0x57)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x9e)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x0f)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xad)
+net: -> 1 bytes (first 0xb7)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x0b)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0x7e)
+net: -> 1 bytes (first 0x62)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0xd9)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0x68)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x89)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0xdd)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x6a)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x14)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xa9)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xcf)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0xe9)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xaa)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xb1)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xe5)
+net: -> 1 bytes (first 0x3f)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x8e)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x15)
+net: -> 1 bytes (first 0x15)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xd3)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0x59)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x0d)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0xb4)
+net: -> 8 bytes (first 0x31)
+net: -> 12 bytes (first 0x1b)
+net: -> 1 bytes (first 0xc9)
+net: <- wire=90 name=37 size=35
+net: <- wire=6 name=10 size=7
+net: <- wire=84 name=56 size=5
+message_game: Attacking Man (slot 21, 1 tiles).
+if-opensub: iface=650 target=0x02d80009 (728<<16|9) type=1
+if-opensub: mount iface=650 under uid=0x02d80009 (728<<16|9) type=1
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+interface open: group 650 already baked; reusing it
+runclientscript: script=5354 argc=0 str_mask=0x0
+net: -> 1 bytes (first 0x43)
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=7
+net: <- wire=104 name=33 size=14
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x08)
+net: -> 1 bytes (first 0xd1)
+net: -> 1 bytes (first 0x18)
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0x66)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xd0)
+net: -> 1 bytes (first 0x48)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x4d)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0xda)
+net: -> 1 bytes (first 0x2f)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x12)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=15
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xfe)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x40)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0x7a)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xbe)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x17)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x8a)
+net: -> 1 bytes (first 0xc8)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x91)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x88)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xde)
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x72)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x94)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xff)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xb5)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0xef)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0xa3)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x5b)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0xcb)
+net: -> 1 bytes (first 0xab)
+net: -> 1 bytes (first 0x4f)
+net: -> 1 bytes (first 0x1f)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xd0)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x4c)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0x36)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x69)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0xbc)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xc2)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x4b)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x0d)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=11
+net: <- wire=108 name=0 size=0
+spawn_npc: npc=3108 element=59765 tile=80,82 level=0 size=1 recolors=2 retextures=0
+entity_sync: npc 25 spawned (world idx 16)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x43)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0xe6)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0xfb)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x61)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0x42)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0xf0)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0x90)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x0a)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x8c)
+net: -> 1 bytes (first 0x04)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x1a)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x86)
+net: -> 1 bytes (first 0x71)
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0xa1)
+net: -> 1 bytes (first 0xf3)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x6b)
+net: -> 1 bytes (first 0x55)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0xbe)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x2c)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0xba)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0xb6)
+net: -> 1 bytes (first 0x6f)
+net: -> 1 bytes (first 0x22)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x76)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0x29)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0xd2)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0x93)
+net: -> 1 bytes (first 0x9b)
+net: -> 1 bytes (first 0x60)
+net: -> 1 bytes (first 0x53)
+net: -> 1 bytes (first 0x65)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x81)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x14)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x83)
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x41)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x0e)
+net: -> 1 bytes (first 0xbb)
+net: -> 1 bytes (first 0x3e)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0x54)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0xe4)
+net: -> 1 bytes (first 0x45)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0xc0)
+net: -> 1 bytes (first 0x09)
+net: -> 1 bytes (first 0x6d)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0x3b)
+net: -> 1 bytes (first 0x33)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x01)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0x3c)
+net: -> 1 bytes (first 0x4e)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x24)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x20)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x77)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0xf9)
+net: -> 1 bytes (first 0xdd)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0x3d)
+net: -> 1 bytes (first 0xf1)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0xfa)
+net: -> 1 bytes (first 0xce)
+net: -> 1 bytes (first 0x58)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x0c)
+net: -> 1 bytes (first 0xc9)
+net: -> 1 bytes (first 0xd5)
+net: -> 1 bytes (first 0x2a)
+net: -> 1 bytes (first 0x12)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0xf7)
+net: -> 1 bytes (first 0x26)
+net: -> 1 bytes (first 0x96)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xee)
+net: -> 1 bytes (first 0x00)
+net: -> 1 bytes (first 0x97)
+net: -> 1 bytes (first 0x38)
+net: -> 1 bytes (first 0xb2)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x50)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x31)
+net: -> 1 bytes (first 0x34)
+net: -> 1 bytes (first 0xb3)
+net: -> 1 bytes (first 0x2d)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0x4a)
+net: -> 1 bytes (first 0x6e)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xac)
+net: -> 1 bytes (first 0xa4)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0x99)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x13)
+net: <- wire=35 name=58 size=3
+net: <- wire=35 name=58 size=3
+net: <- wire=23 name=34 size=11
+net: <- wire=104 name=33 size=14
+net: <- wire=114 name=47 size=7
+net: <- wire=2 name=43 size=2
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xea)
+net: -> 1 bytes (first 0xc5)
+net: -> 1 bytes (first 0x4e)
+net: -> 1 bytes (first 0x94)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x2b)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x1b)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xc7)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x5f)
+net: -> 1 bytes (first 0xf4)
+net: -> 1 bytes (first 0x5e)
+net: -> 1 bytes (first 0x07)
+net: -> 1 bytes (first 0xf8)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0x9a)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0xa5)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0xe5)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=7
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x80)
+net: -> 1 bytes (first 0xd8)
+net: -> 1 bytes (first 0x5c)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0x57)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x0a)
+net: -> 1 bytes (first 0xfd)
+net: -> 1 bytes (first 0x8b)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xa0)
+net: -> 1 bytes (first 0xae)
+net: -> 1 bytes (first 0x19)
+net: -> 1 bytes (first 0xf5)
+net: -> 1 bytes (first 0x63)
+net: -> 1 bytes (first 0x1e)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xcd)
+net: -> 1 bytes (first 0x7c)
+net: -> 1 bytes (first 0xf6)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0xec)
+net: -> 1 bytes (first 0x39)
+net: -> 1 bytes (first 0x27)
+net: -> 1 bytes (first 0x87)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x11)
+net: -> 1 bytes (first 0x6c)
+net: -> 1 bytes (first 0x59)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0x02)
+net: -> 1 bytes (first 0x5d)
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0xfc)
+net: -> 1 bytes (first 0xa9)
+net: -> 1 bytes (first 0x03)
+net: -> 1 bytes (first 0x3a)
+net: -> 1 bytes (first 0xc3)
+net: -> 1 bytes (first 0x96)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x28)
+net: -> 1 bytes (first 0x64)
+net: -> 1 bytes (first 0x9c)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x46)
+net: -> 1 bytes (first 0x8d)
+net: -> 1 bytes (first 0x8f)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xbd)
+net: -> 1 bytes (first 0xc1)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x52)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xe1)
+net: -> 1 bytes (first 0x30)
+net: -> 1 bytes (first 0x7b)
+net: -> 1 bytes (first 0x70)
+net: -> 1 bytes (first 0xed)
+net: -> 1 bytes (first 0x32)
+net: -> 1 bytes (first 0x96)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=6
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xb8)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0xe2)
+net: -> 1 bytes (first 0x44)
+net: -> 1 bytes (first 0xe3)
+net: -> 1 bytes (first 0x51)
+net: -> 1 bytes (first 0x82)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0xa7)
+net: -> 1 bytes (first 0x05)
+net: -> 1 bytes (first 0xcc)
+net: -> 1 bytes (first 0xc8)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0x78)
+net: -> 1 bytes (first 0x74)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0x67)
+net: -> 1 bytes (first 0x06)
+net: -> 1 bytes (first 0xa6)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x1c)
+net: -> 1 bytes (first 0xf2)
+net: -> 1 bytes (first 0x25)
+net: -> 1 bytes (first 0x47)
+net: -> 1 bytes (first 0x10)
+net: -> 1 bytes (first 0x13)
+net: -> 1 bytes (first 0x35)
+net: -> 1 bytes (first 0xaf)
+net: -> 1 bytes (first 0x02)
+net: <- wire=23 name=34 size=3
+net: <- wire=104 name=33 size=5
+net: <- wire=108 name=0 size=0
+net: -> 1 bytes (first 0xdb)
+net: -> 1 bytes (first 0x2e)
+net: -> 1 bytes (first 0x5a)
+net: -> 1 bytes (first 0x98)
+net: -> 1 bytes (first 0x56)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x1d)
+net: -> 1 bytes (first 0x85)
+net: -> 1 bytes (first 0xb4)
+net: -> 1 bytes (first 0x9f)
+net: -> 1 bytes (first 0xc4)
+net: -> 1 bytes (first 0x79)
+net: -> 1 bytes (first 0xa0)
+exit: tab 0 overlay=-1 owner=-1
+exit: tab 1 overlay=-1 owner=-1
+exit: tab 2 overlay=-1 owner=-1
+exit: tab 3 overlay=-1 owner=-1
+exit: tab 4 overlay=-1 owner=-1
+exit: tab 5 overlay=-1 owner=-1
+exit: tab 6 overlay=-1 owner=-1
+exit: tab 7 overlay=-1 owner=-1
+exit: tab 8 overlay=-1 owner=-1
+exit: tab 9 overlay=-1 owner=-1
+exit: tab 10 overlay=-1 owner=-1
+exit: tab 11 overlay=-1 owner=-1
+exit: tab 12 overlay=-1 owner=-1
+exit: tab 13 overlay=-1 owner=-1
+exit: scene_font 0 has=0
+exit: scene_font 1 has=0
+exit: scene_font 2 has=0
+exit: scene_font 3 has=0
+exit: scene_font 4 has=0
+exit: scene_font 5 has=0
+exit: hover_com_id=-1
+exit: minimap_view valid=1 box=295,8 152x152 com=10551326

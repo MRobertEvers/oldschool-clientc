@@ -1,36 +1,74 @@
 # `tools/` — developer utilities
 
-Scripts and small subprojects used during development and content generation. **Release zip packaging** is under [`tools/ci/`](ci/README.md).
+Scripts and small subprojects used during development and content generation.
+
+Everything documented below builds and runs against the current tree. Tools that
+were tied to the retired CMake lane, to `src2/`, or to the parts of `src/` that
+moved into `v0/` now live under [`deprecated/`](deprecated/README.md) — including
+the old `tools/ci/` release packaging.
+
+---
+
+## `memtrace/` — heap allocation tracing
+
+Records malloc/calloc/realloc/free with call stacks to `memtrace.bin`, with a browser viewer for WASM traces and a Python decoder for native symbolization.
+
+**Full documentation:** [`memtrace/README.md`](memtrace/README.md)  
+**Cursor AI analysis:** [`memtrace/AI_ANALYSIS.md`](memtrace/AI_ANALYSIS.md) · prompt template [`memtrace/ai_analysis_prompt.md`](memtrace/ai_analysis_prompt.md)
+
+**Quick start (browser):**
+
+```bash
+make -C src MEMTRACE=1 web          # -> build-web/torirs.js
+python3 -m http.server -d build-web 8080
+# Open http://localhost:8080/ → click Memtrace
+```
+
+**Quick start (native):**
+
+```bash
+make -C src MEMTRACE=1              # -> src/torirs
+TORIRS_MEMTRACE_OUT=tools/memtrace/bins/memtrace.bin src/torirs
+python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
+# Load bins/decoded/events.jsonl in viewer.html
+```
+
+> `memtrace/sizes.c` and a few paths in `memtrace/README.md` /
+> `memtrace/AI_ANALYSIS.md` still name `src2/`. The tracer itself is live at
+> [`src/platform/torirs_memtrace.c`](../src/platform/torirs_memtrace.c).
 
 ---
 
 ## Python scripts
 
-### `gen_lua_api_ht.py`
+### `check_crystal_set_contract.py`
 
-**What it does:** Code generator. Scans `src/osrs/lua_sidecar/*.inc` for `LUA_API_X(...)` lines and emits `src/osrs/lua_sidecar/lua_api_ht.c` and `src/platforms/browser2/luajs_api_maps.js`.
+**What it does:** Enforces the complete client/server contract behind
+`::~crystal_set`: the pristine-cache `::~name` server escape, exact local-emote
+matching, chat fallthrough to rev-239 `CLIENT_CHEAT` opcode 34, one canonical
+debugproc, required equipment semantics, runtime diagnostics, and semantic
+self-test coverage. Its negative controls prove that the original Cry prefix
+match and a duplicate command fail the gate.
 
-**When to run:** After changing the Lua API registry in the `.inc` files.
-
-```bash
-python3 tools/gen_lua_api_ht.py
-```
-
-**Requirements:** Python 3.10+.
-
----
-
-### `patch_interface_remaining.py`
-
-**What it does:** One-shot maintenance script that applies a large structured edit to `src/osrs/interface.c` (includes, layer wrapper, hover/scrollbar helpers). Uses fixed patterns; re-running on an already-patched tree may fail.
+It runs automatically before both `mock230-scripts` and `mock230-cache`:
 
 ```bash
-python3 tools/patch_interface_remaining.py
+make -C src check-crystal-set-contract
 ```
 
-Run from repo root. Review the diff before committing.
+Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).
 
----
+### `gen_dbindex.py`
+
+Re-derives table-21 inverted indexes from `configs/all.dbrow` and
+`configs/all.dbtable`. Existing binary entry order is retained only as an
+encoding hint; row membership is always regenerated. The check is byte-exact
+across all 147 index archives and is part of `test-port`.
+
+```bash
+python3 tools/gen_dbindex.py --check
+make -C src test-dbindex  # includes omitted/misordered-row mutation controls
+```
 
 ### `win_window_screenshot.py`
 
@@ -46,40 +84,64 @@ python3 tools/win_window_screenshot.py
 
 ---
 
-## `gen_painters_cullmap/`
+## `dump_interface/`
 
-Host **C** tool plus **Node** batch driver for painters frustum cullmap blobs.
-
-**Build:**
-
-```bash
-cd tools/gen_painters_cullmap && make
-```
-
-**Batch regenerate** (from repo root):
-
-```bash
-node tools/gen_painters_cullmap/batch_cullmaps.mjs
-```
-
-See `src/osrs/revconfig/configs/cullmaps/README.md` for options. Keep `BAKE_*` / `DEFAULT_NEAR` in `batch_cullmaps.mjs` aligned with `PCULL_BAKE_*` in `src/osrs/painters_cullmap_baked_path.c`.
-
----
-
-## `interface161_test/`
-
-CMake target `interface161_test` (see root `CMakeLists.txt`) plus a **Makefile** wrapper and **`run_interfaces_1_500.mjs`** to export interface BMPs from a cache.
+Human-readable dump of dat1/dat2 interface widgets (types, layout, INV slot graphics, ops).
 
 **Build:**
 
 ```bash
-cmake --build build --target interface161_test
-# or:
-make -C tools/interface161_test
+make -C tools/dump_interface
+# binary: tools/dump_interface/dump_interface
 ```
 
-**Export:**
+> The CMake target is gone with the rest of the CMake lane. The standalone
+> Makefile still compiles `v0/osrs/rscache/unity.c` rather than the live
+> [`3rd/rscache`](../3rd/rscache), so it decodes with the archived copy of the
+> cache library — fine for dat1/dat2 interfaces, but it will not learn anything
+> `3rd/rscache` has gained since the split. Same for `dump_interface_layout`.
+
+**Usage:**
 
 ```bash
-node tools/interface161_test/run_interfaces_1_500.mjs /path/to/cache [--out-dir DIR] [--binary PATH]
+# dat2 (auto-detected from main_file_cache.dat2)
+tools/dump_interface/dump_interface cache --iface 387
+tools/dump_interface/dump_interface cache --iface 387 --child 3
+tools/dump_interface/dump_interface cache --iface 387 --json --out iface387.json
+
+# dat1 (auto-detected from main_file_cache.dat, or --dat1)
+tools/dump_interface/dump_interface cache.dat1 --componentno 1644
+tools/dump_interface/dump_interface cache.dat1 --dat1 --iface 1644
 ```
+
+Layout-only list: `make -C tools/dump_interface_layout` → `tools/dump_interface_layout/dump_interface_layout`
+
+## `dump_npc/` and `dump_stats/`
+
+Standalone dumps built against the live [`3rd/rscache`](../3rd/rscache) — this is
+the pattern to copy for a new cache tool.
+
+```bash
+make -C tools/dump_npc     # binary: tools/dump_npc/dump_npc
+make -C tools/dump_stats   # binary: tools/dump_stats/dump_stats
+```
+
+`dump_stats` writes npc/obj records to CSV for any dat2 cache; see
+[`dump_stats/README.md`](dump_stats/README.md).
+
+## `entity_viewer/`
+
+npc → animation catalog plus a wasm/toridraw viewer.
+See [`entity_viewer/README.md`](entity_viewer/README.md).
+
+```bash
+make -C tools/entity_viewer   # -> ev_catalog, ev_server
+```
+
+## Cache porting (`3rd/rscache/tools/`)
+
+Asset discovery and cross-revision NPC porting live next to the cache library,
+not under this top-level `tools/` tree:
+
+- [`3rd/rscache/tools/README.md`](../3rd/rscache/tools/README.md) — `find_anims`, `port_npc`
+- Build: `make -C 3rd/rscache tools`

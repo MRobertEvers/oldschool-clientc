@@ -1,0 +1,17 @@
+// Mage Training Arena lobby NPCs.
+//
+// LostCity: none (post-2004). Policy: OSRS wiki Infobox NPC map coords
+// (cache wins on names — ids 5978/5984 resolve to magictraining_guard_*).
+//
+// Entrance Guardian — https://oldschool.runescape.wiki/w/Entrance_Guardian
+//   map x=3363 y=3305 plane=0
+// Rewards Guardian — https://oldschool.runescape.wiki/w/Rewards_Guardian_(Mage_Training_Arena)
+//   map x=3363 y=3318 plane=1
+//
+// Bank chest upstairs is map loc `magictraining_bankchest` (jl2 m52_51 level 1
+// at 3366,3318) — op Use bound in interface_bank/scripts/bank_booths.rs2
+// (added 8 May 2024 per wiki history; present in this cache).
+
+==== NPC ====
+magictraining_guard_entrance 3363 3305 0
+magictraining_guard_rewards   3363 3318 1

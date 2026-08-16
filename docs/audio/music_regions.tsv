@@ -1,0 +1,1081 @@
+region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
+1154	4	130	256	8320	Jungly 1	jungly1
+4883	19	19	1216	1216	Maws, Jaws & Claws	maws_jaws_claws
+5139	20	19	1280	1216	That Sullen Hall	that_sullen_hall
+5140	20	20	1280	1280	Maws, Jaws & Claws	maws_jaws_claws
+5395	21	19	1344	1216	Maws, Jaws & Claws	maws_jaws_claws
+6234	24	90	1536	5760	Close Quarters	close quarters
+6454	25	54	1600	3456	Country Jig	unknown
+6461	25	61	1600	3904	The Doors of Dinh	477
+6462	25	62	1600	3968	Ice and Fire	483
+6475	25	75	1600	4800	Grimly Fiendish	grimly_fiendish
+6731	26	75	1664	4800	Grimly Fiendish	grimly_fiendish
+6992	27	80	1728	5120	The Mad Mole	the mad mole
+7236	28	68	1792	4352	Dagannoth Dawn	dagannoth dawn
+7492	29	68	1856	4352	Xenophobe	xenophobe
+7496	29	72	1856	4608	Temple of Light	temple of light
+7499	29	75	1856	4800	Trawler	trawler
+7504	29	80	1856	5120	Head to Head	head to head
+7507	29	83	1856	5312	Chef Surprise	chef surprize
+7748	30	68	1920	4352	Dagannoth Dawn	dagannoth dawn
+7752	30	72	1920	4608	Fight or Flight	fight or flight
+7753	30	73	1920	4672	Bubble and Squeak	bubble and squeak
+7754	30	74	1920	4736	The Quizmaster	the quizmaster
+7755	30	75	1920	4800	Trawler Minor	trawler minor
+7757	30	77	1920	4928	Have a Blast	have a blast
+8005	31	69	1984	4416	Diango's Little Helpers	diango's little helpers
+8010	31	74	1984	4736	Artistry	artistry
+8014	31	78	1984	4992	Waterlogged	waterlogged
+8261	32	69	2048	4416	In the Clink	in the clink
+8396	32	204	2048	13056	Riverside	riverside
+8497	33	49	2112	3136	Meridian	meridian
+8498	33	50	2112	3200	Woodland	woodland
+8499	33	51	2112	3264	Everywhere	everywhere
+8519	33	71	2112	4544	Iban	iban
+8523	33	75	2112	4800	Stratosphere	stratosphere
+8526	33	78	2112	4992	Shadowland	shadowland
+8527	33	79	2112	5056	Aye Car Rum Ba	aye car rum ba
+8528	33	80	2112	5120	Blistering Barnacles	blistering barnacles
+8751	34	47	2176	3008	Thrall of the Serpent	thrall_of_the_serpent
+8752	34	48	2176	3072	Exposed	exposed
+8779	34	75	2176	4800	La Mort	la mort
+8781	34	77	2176	4928	Competition	competition
+8782	34	78	2176	4992	Stagnant	stagnant
+9007	35	47	2240	3008	Coil	coil
+9008	35	48	2240	3072	Lost Soul	lost soul
+9009	35	49	2240	3136	Forest	forest
+9010	35	50	2240	3200	Breeze	breeze
+9011	35	51	2240	3264	Creature Cruelty	creature cruelty
+9033	35	73	2240	4672	Attack 5	attack5
+9034	35	74	2240	4736	Hermit	hermit
+9035	35	75	2240	4800	Complication	complication
+9038	35	78	2240	4992	Natural	natural
+9263	36	47	2304	3008	Romper Chomper	romper chomper
+9265	36	49	2304	3136	Far Away	far away
+9266	36	50	2304	3200	Elven Mist	elven mist
+9267	36	51	2304	3264	Overpass	overpass
+9268	36	52	2304	3328	Tree Spirits	tree spirits
+9269	36	53	2304	3392	Gnome Village 2	gnome village2
+9270	36	54	2304	3456	Gnomeball	gnomeball
+9272	36	56	2304	3584	Making Waves	making waves
+9273	36	57	2304	3648	Making Waves	making waves
+9275	36	59	2304	3776	Volcanic Vikings	volcanic vikings
+9293	36	77	2304	4928	Claustrophobia	claustrophobia
+9294	36	78	2304	4992	Dead Quiet	dead quiet
+9366	36	150	2304	9600	Well Of Voyage	well of voyage
+9369	36	153	2304	9792	Intrepid	intrepid
+9520	37	48	2368	3072	Castle Wars	castlewars
+9521	37	49	2368	3136	Serenade	serenade
+9523	37	51	2368	3264	Moody	moody
+9540	37	68	2368	4352	Faerie	faerie
+9545	37	73	2368	4672	Voodoo Cult	voodoo cult
+9547	37	75	2368	4800	Understanding	understanding
+9551	37	79	2368	5056	TzHaar!	tzhaar
+9552	37	80	2368	5120	Fire and Brimstone	fire and brimstone
+9620	37	148	2368	9472	Ready for Battle	ready for battle
+9621	37	149	2368	9536	Underground Pass	upass
+9623	37	151	2368	9664	Cursed	cursed
+9774	38	46	2432	2944	Soundscape	soundscape
+9775	38	47	2432	3008	Zogre Dance	zogre dance
+9776	38	48	2432	3072	Melodrama	melodrama
+9778	38	50	2432	3200	Expecting	expecting
+9780	38	52	2432	3328	Neverland	neverland
+9781	38	53	2432	3392	Gnome Village	gnome village
+9782	38	54	2432	3456	Gnome King	gnome king
+9796	38	68	2432	4352	Chickened Out	chickened out
+9797	38	69	2432	4416	Crystal Castle	crystal castle
+9802	38	74	2432	4736	Frogland	frogland
+9803	38	75	2432	4800	Righteousness	righteousness
+9805	38	77	2432	4928	The Chosen	the chosen
+9808	38	80	2432	5120	In The Pits	in the pits
+9810	38	82	2432	5248	Funny Bunnies	funny bunnies
+9875	38	147	2432	9408	Wayward	wayward
+9878	38	150	2432	9600	Expecting	expecting
+9882	38	154	2432	9856	Narnode's Theme	narnode's theme
+9886	38	158	2432	10112	The Monsters Below	the monsters below
+10031	39	47	2496	3008	Gaol	gaol
+10032	39	48	2496	3072	Big Chords	big chords
+10033	39	49	2496	3136	Emotion	emotion
+10034	39	50	2496	3200	Attack 1	attack1
+10035	39	51	2496	3264	Sad Meadow	sad meadow
+10036	39	52	2496	3328	March	march
+10037	39	53	2496	3392	Waterfall	waterfall
+10038	39	54	2496	3456	Voyage	voyage
+10039	39	55	2496	3520	Legion	legion
+10040	39	56	2496	3584	Lighthouse	lighthouse
+10042	39	58	2496	3712	The Desolate Isle	the desolate isle
+10044	39	60	2496	3840	Miscellania	miscellania
+10057	39	73	2496	4672	Mage Arena	mage arena
+10058	39	74	2496	4736	Evil Bob's Island	evil bobs island
+10059	39	75	2496	4800	Heart and Mind	heart and mind
+10061	39	77	2496	4928	In Between	in between
+10131	39	147	2496	9408	Gaol	gaol
+10133	39	149	2496	9536	Emotion	emotion
+10134	39	150	2496	9600	Alone	alone
+10135	39	151	2496	9664	The Cellar Dwellers	the cellar dwellers
+10136	39	152	2496	9728	The Tower	the tower
+10137	39	153	2496	9792	Waterfall	waterfall
+10138	39	154	2496	9856	Theme	theme
+10140	39	156	2496	9984	Out of the Deep	out of the deep
+10142	39	158	2496	10112	Subterranea	subterranea
+10286	40	46	2560	2944	Grumpy	grumpy
+10287	40	47	2560	3008	In The Manor	in the manor
+10288	40	48	2560	3072	Magic Dance	magic dance
+10289	40	49	2560	3136	Attack 4	attack4
+10290	40	50	2560	3200	Ballad Of Enchantment	ballad of enchantment
+10291	40	51	2560	3264	Knightly	knightly
+10292	40	52	2560	3328	The Tower	the tower
+10293	40	53	2560	3392	Mellow	mellow
+10294	40	54	2560	3456	Theme	theme
+10296	40	56	2560	3584	Saga	saga
+10297	40	57	2560	3648	Rellekka	rellekka
+10300	40	60	2560	3840	Etceteria	etcetera
+10309	40	69	2560	4416	Emotion	emotion
+10310	40	70	2560	4480	Technology	technology
+10314	40	74	2560	4736	Pheasant Peasant	pheasant peasant
+10315	40	75	2560	4800	Quest	quest
+10387	40	147	2560	9408	Attack 6	attack6
+10388	40	148	2560	9472	Cavern	cavern
+10389	40	149	2560	9536	Attack 4	attack4
+10393	40	153	2560	9792	Goblin Game	goblin game
+10536	41	40	2624	2560	Pest Control	pest control
+10537	41	41	2624	2624	Null and Void	null and void
+10542	41	46	2624	2944	Chompy Hunt	chompy hunt
+10544	41	48	2624	3072	Long Ago	long ago
+10545	41	49	2624	3136	Fanfare 3	fanfare3
+10546	41	50	2624	3200	Upcoming	upcoming
+10547	41	51	2624	3264	Baroque	baroque
+10548	41	52	2624	3328	Wonderous	wonderous
+10549	41	53	2624	3392	Lasting	lasting
+10550	41	54	2624	3456	Talking Forest	talking forest
+10551	41	55	2624	3520	Lullaby	lullaby
+10569	41	73	2624	4672	Miles Away	miles away
+10571	41	75	2624	4800	Down To Earth	down to earth
+10575	41	79	2624	5056	Path of Peril	path of peril
+10642	41	146	2624	9344	Chompy Hunt	chompy hunt
+10644	41	148	2624	9472	7th Realm	7th realm
+10645	41	149	2624	9536	7th Realm	7th realm
+10646	41	150	2624	9600	Catch me if you can	catch me if you can
+10647	41	151	2624	9664	Crystal Sword	crystal sword
+10648	41	152	2624	9728	Chain Of Command	chain of command
+10652	41	156	2624	9984	The Navigator	the navigator
+10653	41	157	2624	10048	Warrior	warrior
+10794	42	42	2688	2688	Island Life	island life
+10795	42	43	2688	2752	Anywhere	anywhere
+10801	42	49	2688	3136	Landlubber	landlubber
+10802	42	50	2688	3200	Jungly 2	jungly2
+10803	42	51	2688	3264	Riverside	riverside
+10804	42	52	2688	3328	Trinity	trinity
+10805	42	53	2688	3392	Magical Journey	magical journey
+10806	42	54	2688	3456	Overture	overture
+10807	42	55	2688	3520	Monarch Waltz	monarch waltz
+10808	42	56	2688	3584	Legend	legend
+10809	42	57	2688	3648	Borderland	borderland
+10821	42	69	2688	4416	Chamber	chamber
+10822	42	70	2688	4480	Deep Down	deep down
+10823	42	71	2688	4544	Deep Down	deep down
+10827	42	75	2688	4800	Zealot	zealot
+10894	42	142	2688	9088	Find My Way	find my way
+10895	42	143	2688	9152	Showdown	showdown
+10899	42	147	2688	9408	Karamja Jam	karamja jam
+10900	42	148	2688	9472	Karamja Jam	karamja jam
+10901	42	149	2688	9536	Pathways	pathways
+10903	42	151	2688	9664	Escape	escape
+10904	42	152	2688	9728	Trinity	trinity
+10905	42	153	2688	9792	Chain Of Command	chain of command
+10906	42	154	2688	9856	Twilight	twilight
+10908	42	156	2688	9984	Masquerade	masquerade
+11051	43	43	2752	2752	Monkey Badness	monkey badness
+11053	43	45	2752	2880	Spooky Jungle	spookyjungle
+11054	43	46	2752	2944	Jungly 1	jungly1
+11055	43	47	2752	3008	Jungly 3	jungly3
+11056	43	48	2752	3072	Nomad	nomad
+11057	43	49	2752	3136	High Seas	high seas
+11058	43	50	2752	3200	Jolly R	jollyr
+11059	43	51	2752	3264	Fruits de Mer	fruits de mer
+11060	43	52	2752	3328	Background	background
+11061	43	53	2752	3392	Lightwalk	lightwalk
+11065	43	57	2752	3648	Settlement	settlement
+11066	43	58	2752	3712	Hells Bells	hells bells
+11068	43	60	2752	3840	Romancing the Crone	romancing the crone
+11077	43	69	2752	4416	Haunted Mine	haunted mine
+11078	43	70	2752	4480	Chamber	chamber
+11081	43	73	2752	4672	Sad Meadow	sad meadow
+11083	43	75	2752	4800	Miracle Dance	miracle dance
+11151	43	143	2752	9152	Temple	temple
+11153	43	145	2752	9280	Superstition	superstition
+11157	43	149	2752	9536	Aztec	aztec
+11164	43	156	2752	9984	The Slayer	the slayer
+11165	43	157	2752	10048	Cave of Beasts	cave of beasts
+11166	43	158	2752	10112	Marzipan	marzipan
+11309	44	45	2816	2880	Jungle Island	jungle island
+11310	44	46	2816	2944	Ambient Jungle	ambient jungle
+11311	44	47	2816	3008	Tribal	tribal
+11312	44	48	2816	3072	Tribal Background	tribal background
+11313	44	49	2816	3136	Jungle Island	jungle island
+11314	44	50	2816	3200	The Shadow	the shadow
+11316	44	52	2816	3328	Background	background
+11317	44	53	2816	3392	Fishing	fishing
+11318	44	54	2816	3456	Ice Melody	ice melody
+11319	44	55	2816	3520	Kingdom	kingdom
+11319	44	55	2816	3520	Warriors' Guild	warriors guild
+11320	44	56	2816	3584	Tremble	tremble
+11321	44	57	2816	3648	Sojourn	sojourn
+11322	44	58	2816	3712	Stranded	stranded
+11323	44	59	2816	3776	Frostbite	frostbite
+11339	44	75	2816	4800	Serene	serene
+11343	44	79	2816	5056	Rat Hunt	rat hunt
+11412	44	148	2816	9472	Tribal Background	tribal background
+11413	44	149	2816	9536	Dangerous Road	dangerous road
+11414	44	150	2816	9600	Attack 2	attack2
+11416	44	152	2816	9728	Underground	underground
+11417	44	153	2816	9792	Arabique	arabique
+11418	44	154	2816	9856	Beyond	beyond
+11419	44	155	2816	9920	Beyond	beyond
+11421	44	157	2816	10048	Marzipan	marzipan
+11422	44	158	2816	10112	Time to Mine	time to mine
+11423	44	159	2816	10176	Land of the Dwarves	land of the dwarves
+11562	45	42	2880	2688	Marooned	marooned
+11565	45	45	2880	2880	Reggae	reggae
+11566	45	46	2880	2944	Tribal 2	tribal2
+11567	45	47	2880	3008	Reggae 2	reggae2
+11568	45	48	2880	3072	Jungle Troubles	jungle troubles
+11569	45	49	2880	3136	Sea Shanty	sea shanty
+11570	45	50	2880	3200	Emperor	emperor
+11571	45	51	2880	3264	Miles Away	miles away
+11572	45	52	2880	3328	Arrival	arrival
+11573	45	53	2880	3392	Horizon	horizon
+11574	45	54	2880	3456	Splendour	splendour
+11575	45	55	2880	3520	Principality	principality
+11576	45	56	2880	3584	Contest	contest
+11578	45	58	2880	3712	Stranded	stranded
+11589	45	69	2880	4416	Xenophobe	xenophobe
+11591	45	71	2880	4544	Time Out	time out
+11595	45	75	2880	4800	Rune Essence	rune essence
+11599	45	79	2880	5056	Rat a Tat Tat	rat a tat tat
+11602	45	82	2880	5248	Camelot	camelot
+11665	45	145	2880	9280	Voodoo Cult	voodoo cult
+11666	45	146	2880	9344	Oriental	oriental
+11668	45	148	2880	9472	Spooky Jungle	spookyjungle
+11670	45	150	2880	9600	Emperor	emperor
+11671	45	151	2880	9664	Royale	royale
+11672	45	152	2880	9728	Dunjun	dunjun
+11676	45	156	2880	9984	Expedition	expedition
+11677	45	157	2880	10048	Mad Eadgar	mad eadgar
+11678	45	158	2880	10112	Tale of Keldagrim	tale of keldagrim
+11823	46	47	2944	3008	Fanfare 2	fanfare2
+11824	46	48	2944	3072	Mudskipper Melody	mudskipper melody
+11825	46	49	2944	3136	Attention	attention
+11826	46	50	2944	3200	Courage	courage
+11826	46	50	2944	3200	Long Way Home	long way home
+11827	46	51	2944	3264	Nightfall	nightfall
+11828	46	52	2944	3328	Fanfare	fanfare
+11829	46	53	2944	3392	Scape Soft	scape soft
+11831	46	55	2944	3520	Wonder	wonder
+11832	46	56	2944	3584	Wilderness	wilderness
+11833	46	57	2944	3648	Troubled	troubled
+11834	46	58	2944	3712	Wilderness 3	wilderness3
+11835	46	59	2944	3776	Deep Wildy	deep wildy
+11837	46	61	2944	3904	Serene	serene
+11853	46	77	2944	4928	The Rogues' Den	the rogues den
+11924	46	148	2944	9472	Davy Jones' Locker	davy jones locker
+11925	46	149	2944	9536	Starlight	starlight
+11926	46	150	2944	9600	Sarim's Vermin	sarim's vermin
+11929	46	153	2944	9792	Cave Background	cave background
+11930	46	154	2944	9856	Too Many Cooks...	too many cooks
+11936	46	160	2944	10240	Serene	serene
+12081	47	49	3008	3136	Tomorrow	tomorrow
+12082	47	50	3008	3200	Sea Shanty 2	sea shanty2
+12083	47	51	3008	3264	Wander	wander
+12084	47	52	3008	3328	Workshop	workshop
+12085	47	53	3008	3392	Dwarf Theme	dwarf theme
+12086	47	54	3008	3456	Alone	alone
+12087	47	55	3008	3520	Inspiration	inspiration
+12088	47	56	3008	3584	Army Of Darkness	army of darkness
+12089	47	57	3008	3648	Legion	legion
+12090	47	58	3008	3712	Gaol	gaol
+12091	47	59	3008	3776	Wilderness 2	wilderness2
+12092	47	60	3008	3840	Wild Side	wild side
+12093	47	61	3008	3904	Pirates of Peril	pirates of peril
+12105	47	73	3008	4672	Pharaoh's Tomb	pharoah's tomb
+12107	47	75	3008	4800	Into the Abyss	into the abyss
+12109	47	77	3008	4928	The Rogues' Den	the rogues den
+12111	47	79	3008	5056	The Far Side	the far side
+12113	47	81	3008	5184	No Way Out	no way out
+12117	47	85	3008	5440	Marooned	marooned
+12181	47	149	3008	9536	Woe of the Wyvern	woe of the wyvern
+12184	47	152	3008	9728	Cave Background	cave background
+12192	47	160	3008	10240	Attack 3	attack3
+12193	47	161	3008	10304	Cavern	cavern
+12337	48	49	3072	3136	Vision	vision
+12338	48	50	3072	3200	Unknown Land	unknown land
+12339	48	51	3072	3264	Start	start
+12340	48	52	3072	3328	Spooky	spooky
+12341	48	53	3072	3392	Barbarianism	barbarianism
+12342	48	54	3072	3456	Forever	forever
+12343	48	55	3072	3520	Dangerous	dangerous
+12343	48	55	3072	3520	Lightness	lightness
+12344	48	56	3072	3584	Wildwood	wildwood
+12345	48	57	3072	3648	Undercurrent	undercurrent
+12346	48	58	3072	3712	Wilderness	wilderness
+12349	48	61	3072	3904	Mage Arena	mage arena
+12369	48	81	3072	5184	No Way Out	no way out
+12433	48	145	3072	9280	Lament	lament
+12436	48	148	3072	9472	Vision	vision
+12437	48	149	3072	9536	Scape Ape	scape_ape
+12438	48	150	3072	9600	Down Below	down below
+12440	48	152	3072	9728	Tiptoe	tiptoe
+12441	48	153	3072	9792	Barbarianism	barbarianism
+12589	49	45	3136	2880	Scarab	scarab
+12590	49	46	3136	2944	Bandit Camp	bandit camp
+12591	49	47	3136	3008	The Desert	the desert
+12593	49	49	3136	3136	Book Of Spells	book of spells
+12594	49	50	3136	3200	Dream	dream
+12595	49	51	3136	3264	Flute Salad	flute salad
+12596	49	52	3136	3328	Greatness	greatness
+12597	49	53	3136	3392	Spirit	spirit
+12598	49	54	3136	3456	The Trade Parade	the trade parade
+12599	49	55	3136	3520	Doorways	doorways
+12599	49	55	3136	3520	Lightness	lightness
+12600	49	56	3136	3584	Moody	moody
+12601	49	57	3136	3648	Dead Can Dance	dead can dance
+12602	49	58	3136	3712	Close Quarters	close quarters
+12604	49	60	3136	3840	Scape Wild	scape wild
+12619	49	75	3136	4800	Corporal Punishment	corporal punishment
+12693	49	149	3136	9536	Cave of the Goblins	cave of the goblins
+12694	49	150	3136	9600	Monster Melee	monster melee
+12696	49	152	3136	9728	Victory is Mine	victory is mine
+12697	49	153	3136	9792	Cellar Song	cellar song
+12698	49	154	3136	9856	Scape Ape	scape_ape
+12843	50	43	3200	2752	City of the Dead	city of the dead
+12846	50	46	3200	2944	Sunburn	sunburn
+12848	50	48	3200	3072	Arabian 3	arabian3
+12849	50	49	3200	3136	Yesteryear	yesteryear
+12850	50	50	3200	3200	Harmony	harmony
+12851	50	51	3200	3264	Autumn Voyage	autumn voyage
+12852	50	52	3200	3328	Expanse	expanse
+12853	50	53	3200	3392	Garden	garden
+12854	50	54	3200	3456	Adventure	adventure
+12855	50	55	3200	3520	Crystal Sword	crystal sword
+12856	50	56	3200	3584	Faithless	faithless
+12857	50	57	3200	3648	Scape Wild	scape wild
+12858	50	58	3200	3712	Shining	shining
+12861	50	61	3200	3904	Nightfall	nightfall
+12945	50	145	3200	9280	Sarcophagus	sarcophagus
+12946	50	146	3200	9344	Bone Dry	bone dry
+12948	50	148	3200	9472	Tears of Guthix	tears of guthix
+12949	50	149	3200	9536	Starlight	starlight
+12950	50	150	3200	9600	Harmony 2	harmony2
+12952	50	152	3200	9728	Expanse	expanse
+13099	51	43	3264	2752	City of the Dead	city of the dead
+13100	51	44	3264	2816	Sphinx	sphinx
+13102	51	46	3264	2944	Desert Voyage	desert voyage
+13104	51	48	3264	3072	Egypt	egypt
+13105	51	49	3264	3136	Al Kharid	al kharid
+13106	51	50	3264	3200	Arabian	arabian
+13107	51	51	3264	3264	Arabian 2	arabian2
+13108	51	52	3264	3328	Still Night	still night
+13109	51	53	3264	3392	Medieval	medieval
+13110	51	54	3264	3456	Doorways	doorways
+13111	51	55	3264	3520	Forbidden	forbidden
+13113	51	57	3264	3648	Witching	witching
+13116	51	60	3264	3840	Scape Sad	scape sad
+13117	51	61	3264	3904	Regal	regal
+13131	51	75	3264	4800	Altar Ego	altar_ego
+13199	51	143	3264	9152	Mirage	mirage
+13203	51	147	3264	9408	Lonesome	lonesome
+13206	51	150	3264	9600	The Lost Melody	the lost melody
+13209	51	153	3264	9792	No Way Out	no way out
+13356	52	44	3328	2816	Pharaoh's Tomb	pharoah's tomb
+13357	52	45	3328	2880	Sunburn	sunburn
+13358	52	46	3328	2944	Dynasty	dynasty
+13359	52	47	3328	3008	Desert Voyage	desert voyage
+13362	52	50	3328	3200	Emir's Arena, The	duel arena
+13363	52	51	3328	3264	Shine	shine
+13364	52	52	3328	3328	Venture	venture
+13365	52	53	3328	3392	Lullaby	lullaby
+13366	52	54	3328	3456	Parade	parade
+13368	52	56	3328	3584	Underground	underground
+13369	52	57	3328	3648	Dark	dark
+13373	52	61	3328	3904	Everlasting Fire	everlasting fire
+13457	52	145	3328	9280	The Genie	the genie
+13461	52	149	3328	9536	Spirits of the Elid	spirits of elid
+13464	52	152	3328	9728	Venture 2	venture2
+13613	53	45	3392	2880	Over to Nardah	over to nardah
+13614	53	46	3392	2944	Desert Heat	desert heat
+13616	53	48	3392	3072	The Golem	the golem
+13617	53	49	3392	3136	Arabian	arabian
+13618	53	50	3392	3200	Shadowland	shadowland
+13619	53	51	3392	3264	Bone Dance	bone dance
+13620	53	52	3392	3328	Natural	natural
+13621	53	53	3392	3392	Dead Quiet	dead quiet
+13622	53	54	3392	3456	Morytania	morytania
+13623	53	55	3392	3520	The Terrible Tower	the terrible tower
+13718	53	150	3392	9600	Spooky 2	spooky2
+13720	53	152	3392	9728	Grotto	grotto
+13722	53	154	3392	9856	Mausoleum	mausoleum
+13872	54	48	3456	3072	The Golem	the golem
+13873	54	49	3456	3136	Distant Land	distant land
+13875	54	51	3456	3264	Shadowland	shadowland
+13876	54	52	3456	3328	Stagnant	stagnant
+13877	54	53	3456	3392	Waterlogged	waterlogged
+13878	54	54	3456	3456	Village	village
+13879	54	55	3456	3520	Fenkenstrain's Refrain	fenkenstrain's refrain
+13972	54	148	3456	9472	Insect Queen	insect queen
+13975	54	151	3456	9664	Lair	lair
+13977	54	153	3456	9792	Stillness	stillness
+13979	54	155	3456	9920	Body Parts	body parts
+14131	55	51	3520	3264	Dance of Death	dance of death
+14131	55	51	3520	3264	Dance of the Undead	dance of the undead
+14134	55	54	3520	3456	Deadlands	deadlands
+14135	55	55	3520	3520	Fenkenstrain's Refrain	fenkenstrain's refrain
+14231	55	151	3520	9664	Dangerous Way	dangerous way
+14234	55	154	3520	9856	Barking Mad	barking mad
+14390	56	54	3584	3456	Deadlands	deadlands
+14391	56	55	3584	3520	Shipwrecked	shipwrecked
+14638	57	46	3648	2944	In the Brine	in the brine
+14646	57	54	3648	3456	The Other Side	the other side
+14647	57	55	3648	3520	The Other Side	the other side
+14746	57	154	3648	9856	Phasmatys	phasmatys
+14747	57	155	3648	9920	Brew Hoo Hoo!	brew hoo hoo
+15159	59	55	3776	3520	Dragontooth Island	dragontooth island
+# ---------------------------------------------------------------------------
+# Rows below this line are NOT from the Kronos MusicPlayer.java extraction that
+# produced everything above. Each says where it came from.
+#
+# 9043 -- the Inferno. Kronos has no row for it because the Inferno is
+# instanced there too, and its music player keys off the live map square, which
+# an instance never occupies. The square is the Inferno's TEMPLATE, which is
+# what mock230_world.c now resolves an instanced player's music through (see
+# docs/INFERNO_SOUNDS.md section 6):
+#
+#   ^inferno_template = 0_35_83_0_0   (inferno.constant), world base 2240,5312
+#   region id         = (35 << 8) | 83 = 9043
+#
+# The track is DBTable 44 row 2811 in this cache -- display name "Inferno",
+# js5 index-6 archive 500, unlock varp 17 bit 13 -- and its own unlock hint
+# reads "in the Inferno.", which is the game stating this mapping itself.
+# `docs/audio/music_track_names.tsv` independently recovers archive 500's name
+# from its reference-table hash as `inferno`.
+9043	35	83	2240	5312	Inferno	inferno
+# ---------------------------------------------------------------------------
+# Rows below this line (region 9043 excepted, added earlier) are from the OSRS
+# Wiki's Bucket API -- Module:Music map's underlying data store, which backs the
+# wiki's interactive music-track map layer with exact GeoJSON polygons in real
+# world-tile coordinates (not rendered-map pixel positions). Sourced 2026-08-13
+# via `bucket('music').select('map.features','page_name',...).join('map', ...)`
+# against oldschool.runescape.wiki/api.php?action=bucket. Each track's polygon
+# was point-sampled (100 pts) per candidate 64x64 map square; a square counts as
+# claimed when every sample point falls inside the polygon. Matched against
+# music_tracks_osrs239.tsv with the same case-insensitive display/sort-name join
+# tools/gen_music_regions.py already uses. Two existing rows above (region 9520
+# `Castlewars`, region 13362 `Duel Arena`) had their track_name corrected in
+# place to `Castle Wars` / `Emir's Arena, The` -- the real track names in
+# music_tracks_osrs239.tsv; those two squares were previously unmatched dead rows.
+#
+# Excluded from this import: `Watch Your Step`'s polygon (33 squares, region ids
+# 8794-10334) was drawn at a coarse zoom level and spans a landmass-scale area for
+# what is actually one building (the Hallowed Sepulchre) -- almost certainly
+# overshoots the real footprint, so it is left unmapped rather than imported wrong.
+# Also excluded (not attempted): OSRS's ambient-rotation areas, where one square
+# plays a random pick from several tracks rather than one fixed track -- the
+# Wilderness (27 tracks), the Kharidian Desert (8 tracks), and sailing routes (10
+# tracks, and the wiki's own page disclaims their boundaries as unreliable) -- and
+# ~100 two-track pairs (mostly Theatre of Blood / Chambers of Xeric boss-phase
+# alternates, e.g. Verzik's phases) where picking one arbitrary winner seemed worse
+# than omitting. None of these fit this repo's one-track-per-square model.
+#
+# 24 squares below are NOT included because the wiki's current-era (osrs239) data
+# names a different track than the existing 2016/osrs184 row above for the same
+# square. These are plausible real content changes over the years, not extraction
+# noise, so the existing (already spot-validated) row is kept; listed here for the
+# record, `region: old-track -> wiki-current-track`:
+#   10389: Attack 4 -> Cavern
+#   12437: Scape Ape -> Vision
+#   12441: Barbarianism -> Forever
+#   11309: Jungle Island -> Spooky Jungle
+#   11565: Reggae -> Spooky Jungle
+#   12436: Vision -> Scape Cave
+#   12698: Scape Ape -> Scape Cave
+#   11081: Sad Meadow -> Emotion
+#   13618: Shadowland -> Bone Dance
+#   8014: Waterlogged -> Natural
+#   8782: Stagnant -> Natural
+#   9294: Dead Quiet -> Natural
+#   8752: Exposed -> Lost Soul
+#   11670: Emperor -> The Maze
+#   14131: Dance of Death -> Dance of the Undead
+#   12949: Starlight -> Cave of the Goblins
+#   10134: Alone -> The Cellar Dwellers
+#   12113: No Way Out -> Fear and Loathing
+#   13209: No Way Out -> Fear and Loathing
+#   11602: Camelot -> Strength of Saradomin
+#   12950: Harmony 2 -> The Lost Tribe
+#   11319: Kingdom -> Warriors' Guild
+#   9270: Gnomeball -> Eagles' Peak
+#   6454: Country Jig -> A Walk in the Woods
+#
+# Mor Ul Rek (TzHaar City, internal name tzhaar_area) is 8 map squares; regions
+# 9551/9552/9808 were already mapped. Of the remaining 5:
+#   9807, 10063, 10064 -- geometrically confirmed, 100/100 sample points inside
+#   the wiki's `Mor Ul Rek` track polygon.
+#   9806, 10062 -- NOT geometrically confirmed; the polygon's own bounding box
+#   stops exactly at the 78/79 square boundary. Added anyway as `Mor Ul Rek` by
+#   elimination: the location's own wiki infobox lists only two tracks for the
+#   whole area (`In the Pits`, `Mor Ul Rek`), both neighbouring squares already
+#   confirmed play `Mor Ul Rek`, and `In the Pits` is confirmed absent here. This
+#   pair is inferred, not directly sourced -- revisit if a tighter polygon shows up.
+9807	38	79	2432	5056	Mor Ul Rek	mor_ul_rek
+10063	39	79	2496	5056	Mor Ul Rek	mor_ul_rek
+10064	39	80	2496	5120	Mor Ul Rek	mor_ul_rek
+9806	38	78	2432	4992	Mor Ul Rek	mor_ul_rek
+10062	39	78	2496	4992	Mor Ul Rek	mor_ul_rek
+#
+# Remaining sourced rows, sorted by region id.
+4403	17	51	1088	3264	Strangled	strangled
+4404	17	52	1088	3328	Strangled	strangled
+4405	17	53	1088	3392	Strangled	strangled
+4659	18	51	1152	3264	Strangled	strangled
+4660	18	52	1152	3328	Strangled	strangled
+4661	18	53	1152	3392	Strangled	strangled
+4664	18	56	1152	3584	Stuck in the Mire	stuck_in_the_mire
+4665	18	57	1152	3648	Newbie Farming	newbie_farming
+4763	18	155	1152	9920	Lower Depths	lower_depths
+4768	18	160	1152	10240	Rose	rose
+4911	19	47	1216	3008	Call of the Tlati	call_of_the_tlati
+4912	19	48	1216	3072	Call of the Tlati	call_of_the_tlati
+4913	19	49	1216	3136	Call of the Tlati	call_of_the_tlati
+4916	19	52	1216	3328	Over the Mountains	over_the_mountains
+4918	19	54	1216	3456	Ascent	ascent
+4919	19	55	1216	3520	Desolate Mage, The	desolate_mage_the
+4920	19	56	1216	3584	Stuck in the Mire	stuck_in_the_mire
+4921	19	57	1216	3648	Newbie Farming	newbie_farming
+4923	19	59	1216	3776	Burning Desire	burning_desire
+5012	19	148	1216	9472	Call of the Tlati	call_of_the_tlati
+5016	19	152	1216	9728	Stalkers	stalkers
+5021	19	157	1216	10048	Creeping Vines	creeping_vines
+5167	20	47	1280	3008	Call of the Tlati	call_of_the_tlati
+5168	20	48	1280	3072	Call of the Tlati	call_of_the_tlati
+5169	20	49	1280	3136	Call of the Tlati	call_of_the_tlati
+5172	20	52	1280	3328	Over the Mountains	over_the_mountains
+5174	20	54	1280	3456	Rugged Terrain	rugged_terrain
+5175	20	55	1280	3520	March of the Shayzien	march_of_the_shayzien
+5176	20	56	1280	3584	Stuck in the Mire	stuck_in_the_mire
+5177	20	57	1280	3648	Servants of Strife	servants_of_strife
+5179	20	59	1280	3776	Burning Desire	burning_desire
+5266	20	146	1280	9344	Call of the Tlati	call_of_the_tlati
+5267	20	147	1280	9408	Desolate Past, A	desolate_past_a
+5268	20	148	1280	9472	Desolate Past, A	desolate_past_a
+5269	20	149	1280	9536	Doom, The	doom_the
+5272	20	152	1280	9728	Stalkers	stalkers
+5273	20	153	1280	9792	Stalkers	stalkers
+5275	20	155	1280	9920	March of the Shayzien	march_of_the_shayzien
+5277	20	157	1280	10048	Servants of Strife	servants_of_strife
+5423	21	47	1344	3008	Talkasti People, The	talkasti_people_the
+5425	21	49	1344	3136	Call of the Tlati	call_of_the_tlati
+5430	21	54	1344	3456	Rugged Terrain	rugged_terrain
+5431	21	55	1344	3520	March of the Shayzien	march_of_the_shayzien
+5433	21	57	1344	3648	On the Frontline	on_the_frontline
+5434	21	58	1344	3712	On the Frontline	on_the_frontline
+5435	21	59	1344	3776	Rugged Terrain	rugged_terrain
+5446	21	70	1344	4480	Guardian of Tapoyauik, The	guardian_of_tapoyauik_the
+5524	21	148	1344	9472	Lost to Time	lost_to_time
+5525	21	149	1344	9536	Lost to Time	lost_to_time
+5526	21	150	1344	9600	Moons of Ruin, The	moons_of_ruin_the
+5527	21	151	1344	9664	Lost to Time	lost_to_time
+5535	21	159	1344	10176	Forsaken Tower, The	forsaken_tower_the
+5681	22	49	1408	3136	Guidance of Ralos, The	guidance_of_ralos_the
+5687	22	55	1408	3520	Forests of Shayzien, The	forests_of_shayzien_the
+5688	22	56	1408	3584	Forests of Shayzien, The	forests_of_shayzien_the
+5689	22	57	1408	3648	Forests of Shayzien, The	forests_of_shayzien_the
+5690	22	58	1408	3712	Dwarven Domain	dwarven_domain
+5691	22	59	1408	3776	Dwarven Domain	dwarven_domain
+5692	22	60	1408	3840	Out at the Mines	out_at_the_mines
+5780	22	148	1408	9472	Under the Mountain	under_the_mountain
+5781	22	149	1408	9536	Under the Mountain	under_the_mountain
+5782	22	150	1408	9600	Lost to Time	lost_to_time
+5783	22	151	1408	9664	Moons of Ruin, The	moons_of_ruin_the
+5786	22	154	1408	9856	Beneath the Kingdom	beneath_the_kingdom
+5789	22	157	1408	10048	Darkness in the Depths	darkness_in_the_depths
+5938	23	50	1472	3200	Stones of Old	stones_of_old
+5941	23	53	1472	3392	Walk in the Woods, A	walk_in_the_woods_a
+5942	23	54	1472	3456	Walk in the Woods, A	walk_in_the_woods_a
+5944	23	56	1472	3584	Forests of Shayzien, The	forests_of_shayzien_the
+5945	23	57	1472	3648	Military Life	military_life
+5946	23	58	1472	3712	Dwarven Domain	dwarven_domain
+5947	23	59	1472	3776	Dwarven Domain	dwarven_domain
+5948	23	60	1472	3840	Out at the Mines	out_at_the_mines
+5949	23	61	1472	3904	Doors of Dinh, The	doors_of_dinh_the
+5954	23	66	1472	4224	Waste Defaced	waste_defaced
+5955	23	67	1472	4288	Waste Defaced	waste_defaced
+6036	23	148	1472	9472	Under the Mountain	under_the_mountain
+6037	23	149	1472	9536	Lost to Time	lost_to_time
+6038	23	150	1472	9600	Moons of Ruin, The	moons_of_ruin_the
+6039	23	151	1472	9664	Lost to Time	lost_to_time
+6043	23	155	1472	9920	Walking Dead, The	walking_dead_the
+6045	23	157	1472	10048	Sign Here	sign_here
+6197	24	53	1536	3392	Walk in the Woods, A	walk_in_the_woods_a
+6198	24	54	1536	3456	Walk in the Woods, A	walk_in_the_woods_a
+6200	24	56	1536	3584	Forests of Shayzien, The	forests_of_shayzien_the
+6201	24	57	1536	3648	Rugged Terrain	rugged_terrain
+6202	24	58	1536	3712	Dwarven Domain	dwarven_domain
+6203	24	59	1536	3776	Arcane	arcane
+6204	24	60	1536	3840	Doors of Dinh, The	doors_of_dinh_the
+6205	24	61	1536	3904	Doors of Dinh, The	doors_of_dinh_the
+6220	24	76	1536	4864	Barb Wire	barb_wire
+6223	24	79	1536	5056	Forsaken, The	forsaken_the
+6294	24	150	1536	9600	Lost to Time	lost_to_time
+6297	24	153	1536	9792	Walk in the Woods, A	walk_in_the_woods_a
+6298	24	154	1536	9856	Scape Cave	scape_cave
+6303	24	159	1536	10176	Superstition	superstition
+6455	25	55	1600	3520	Beyond the Meadow	beyond_the_meadow
+6456	25	56	1600	3584	Beyond the Meadow	beyond_the_meadow
+6457	25	57	1600	3648	Kourend the Magnificent	kourend_the_magnificent
+6458	25	58	1600	3712	Arcane	arcane
+6459	25	59	1600	3776	Arcane	arcane
+6460	25	60	1600	3840	Not a Moment of Relief	not_a_moment_of_relief
+6486	25	86	1600	5504	Pest Control	pest_control
+6487	25	87	1600	5568	Pest Control	pest_control
+6488	25	88	1600	5632	Scape Main	scape_main
+6489	25	89	1600	5696	Scape Main	scape_main
+6492	25	92	1600	5888	Judgement of the Depths	judgement_of_the_depths
+6550	25	150	1600	9600	Lost to Time	lost_to_time
+6552	25	152	1600	9728	Subterranea	subterranea
+6553	25	153	1600	9792	Subterranea	subterranea
+6556	25	156	1600	9984	Beneath the Kingdom	beneath_the_kingdom
+6557	25	157	1600	10048	Beneath the Kingdom	beneath_the_kingdom
+6711	26	55	1664	3520	Beyond the Meadow	beyond_the_meadow
+6712	26	56	1664	3584	Beyond the Meadow	beyond_the_meadow
+6713	26	57	1664	3648	Kourend the Magnificent	kourend_the_magnificent
+6714	26	58	1664	3712	Arcane	arcane
+6715	26	59	1664	3776	Arcane	arcane
+6716	26	60	1664	3840	Not a Moment of Relief	not_a_moment_of_relief
+6717	26	61	1664	3904	Doors of Dinh, The	doors_of_dinh_the
+6727	26	71	1664	4544	Tempest	tempest
+6742	26	86	1664	5504	Pest Control	pest_control
+6743	26	87	1664	5568	Pest Control	pest_control
+6744	26	88	1664	5632	Scape Main	scape_main
+6745	26	89	1664	5696	Scape Main	scape_main
+6748	26	92	1664	5888	Judgement of the Depths	judgement_of_the_depths
+6806	26	150	1664	9600	Lost to Time	lost_to_time
+6808	26	152	1664	9728	Subterranea	subterranea
+6809	26	153	1664	9792	Subterranea	subterranea
+6812	26	156	1664	9984	Beneath the Kingdom	beneath_the_kingdom
+6813	26	157	1664	10048	Beneath the Kingdom	beneath_the_kingdom
+6967	27	55	1728	3520	Forlorn Homestead, The	forlorn_homestead_the
+6968	27	56	1728	3584	Forlorn Homestead, The	forlorn_homestead_the
+6969	27	57	1728	3648	Kourend the Magnificent	kourend_the_magnificent
+6970	27	58	1728	3712	Down by the Docks	down_by_the_docks
+6972	27	60	1728	3840	Not a Moment of Relief	not_a_moment_of_relief
+6989	27	77	1728	4928	Looking Back	looking_back
+6993	27	81	1728	5184	Mad Mole, The	mad_mole_the
+6994	27	82	1728	5248	Barb Wire	barb_wire
+6995	27	83	1728	5312	Barb Wire	barb_wire
+6997	27	85	1728	5440	Clanliness	clanliness
+7068	27	156	1728	9984	Beneath the Kingdom	beneath_the_kingdom
+7070	27	158	1728	10112	What Happens Below...	what_happens_below
+7226	28	58	1792	3712	Down by the Docks	down_by_the_docks
+7228	28	60	1792	3840	Soul Fall	soul_fall
+7234	28	66	1792	4224	Lore and Order	lore_and_order
+7243	28	75	1792	4800	Cabin Fever	cabin_fever
+7249	28	81	1792	5184	Lucid Nightmare	lucid_nightmare
+7257	28	89	1792	5696	Home Sweet Home	home_sweet_home
+7258	28	90	1792	5760	Home Sweet Home	home_sweet_home
+7322	28	154	1792	9856	Sarachnis	sarachnis
+7323	28	155	1792	9920	Forgotten Religion, A	forgotten_religion_a
+7326	28	158	1792	10112	What Happens Below...	what_happens_below
+7490	29	66	1856	4224	Knightmare	knightmare
+7494	29	70	1856	4480	Strange Place	strange_place
+7500	29	76	1856	4864	My Arm's Journey	my_arm_s_journey
+7502	29	78	1856	4992	School's Out	school_s_out
+7505	29	81	1856	5184	Dogs of War	dogs_of_war
+7508	29	84	1856	5376	Pirates of Penance	pirates_of_penance
+7509	29	85	1856	5440	Assault and Battery	assault_and_battery
+7512	29	88	1856	5632	Gauntlet, The	gauntlet_the
+7513	29	89	1856	5696	Home Sweet Home	home_sweet_home
+7514	29	90	1856	5760	Home Sweet Home	home_sweet_home
+7749	30	69	1920	4416	Tomb Raider	tomb_raider
+7756	30	76	1920	4864	Where Eagles Lair	where_eagles_lair
+7758	30	78	1920	4992	Pinball Wizard	pinball_wizard
+7760	30	80	1920	5120	Prime Time	prime_time
+7768	30	88	1920	5632	Gauntlet, The	gauntlet_the
+7769	30	89	1920	5696	Home Sweet Home	home_sweet_home
+7770	30	90	1920	5760	Home Sweet Home	home_sweet_home
+7827	30	147	1920	9408	Spooky 2	spooky_2
+7828	30	148	1920	9472	Tranquillity	tranquillity
+8006	31	70	1984	4480	Consortium, The	consortium_the
+8008	31	72	1984	4608	Fight or Flight	fight_or_flight
+8009	31	73	1984	4672	Well of Voyage	well_of_voyage
+8011	31	75	1984	4800	Trawler Minor	trawler_minor
+8013	31	77	1984	4928	Where Eagles Lair	where_eagles_lair
+8015	31	79	1984	5056	Sigmund's Showdown	sigmund_s_showdown
+8017	31	81	1984	5184	Food for Thought	food_for_thought
+8025	31	89	1984	5696	Home Sweet Home	home_sweet_home
+8026	31	90	1984	5760	Home Sweet Home	home_sweet_home
+8267	32	75	2048	4800	We are the Fairies	we_are_the_fairies
+8268	32	76	2048	4864	Taste Of Hope, A	taste_of_hope_a
+8280	32	88	2048	5632	Monkey Business	monkey_business
+8288	32	96	2048	6144	Regal Pomp	regal_pomp
+8349	32	157	2048	10048	Lurking Threats	lurking_threats
+8501	33	53	2112	3392	Everywhere	everywhere
+8520	33	72	2112	4608	Iban	iban
+8521	33	73	2112	4672	Iban	iban
+8530	33	82	2112	5248	Malady	malady
+8534	33	86	2112	5504	Fe Fi Fo Fum	fe_fi_fo_fum
+8536	33	88	2112	5632	Monkey Business	monkey_business
+8593	33	145	2112	9280	Spooky 2	spooky_2
+8757	34	53	2176	3392	Elven Seed	elven_seed
+8763	34	59	2176	3776	Galleon, The	galleon_the
+8789	34	85	2176	5440	Monkey Sadness	monkey_sadness
+9013	35	53	2240	3392	Everywhere	everywhere
+9027	35	67	2240	4288	Beetle Juice	beetle_juice
+9046	35	86	2240	5504	Mouse Trap	mouse_trap
+9048	35	88	2240	5632	Darkly Altared	darkly_altared
+9113	35	153	2240	9792	Subterranea	subterranea
+9114	35	154	2240	9856	Subterranea	subterranea
+9116	35	156	2240	9984	Troubled Waters	troubled_waters
+9123	35	163	2240	10432	Relics	relics
+9264	36	48	2304	3072	Longramble Scramble, The	longramble_scramble_the
+9285	36	69	2304	4416	All's Fairy in Love & War	all_s_fairy_in_love_war
+9291	36	75	2304	4800	Cursed	cursed
+9295	36	79	2304	5056	Slug a Bug Ball	slug_a_bug_ball
+9297	36	81	2304	5184	Dance of Death	dance_of_death
+9357	36	141	2304	9024	Monkey Trouble	monkey_trouble
+9358	36	142	2304	9088	Monkey Trouble	monkey_trouble
+9359	36	143	2304	9152	Monkey Trouble	monkey_trouble
+9360	36	144	2304	9216	Monkey Trouble	monkey_trouble
+9362	36	146	2304	9344	Expedition	expedition
+9363	36	147	2304	9408	Devils May Care	devils_may_care
+9365	36	149	2304	9536	Well of Voyage	well_of_voyage
+9370	36	154	2304	9856	Intrepid	intrepid
+9377	36	161	2304	10304	Way of the Enchanter	way_of_the_enchanter
+9519	37	47	2368	3008	Romper Chomper	romper_chomper
+9549	37	77	2368	4928	Claustrophobia	claustrophobia
+9558	37	86	2368	5504	H.A.M. and Seek	h_a_m_and_seek
+9565	37	93	2368	5952	Well Hallowed Air	well_hallowed_air
+9613	37	141	2368	9024	Monkey Trouble	monkey_trouble
+9614	37	142	2368	9088	Monkey Trouble	monkey_trouble
+9615	37	143	2368	9152	Monkey Trouble	monkey_trouble
+9616	37	144	2368	9216	Monkey Trouble	monkey_trouble
+9619	37	147	2368	9408	Devils May Care	devils_may_care
+9622	37	150	2368	9600	Underground Pass	underground_pass
+9624	37	152	2368	9728	Beneath the Stronghold	beneath_the_stronghold
+9625	37	153	2368	9792	Brimstail's Scales	brimstail_s_scales
+9626	37	154	2368	9856	Technology	technology
+9631	37	159	2368	10176	Major Miner	major_miner
+9632	37	160	2368	10240	Ogre the Top	ogre_the_top
+9634	37	162	2368	10368	Lair of the Basilisk	lair_of_the_basilisk
+9635	37	163	2368	10432	Lair of the Basilisk	lair_of_the_basilisk
+9772	38	44	2432	2816	Mythical	mythical
+9779	38	51	2432	3264	Sad Meadow	sad_meadow
+9812	38	84	2432	5376	H.A.M. Attack	h_a_m_attack
+9814	38	86	2432	5504	Slice of Station	slice_of_station
+9823	38	95	2432	6080	No Pasaran	no_pasaran
+9824	38	96	2432	6144	No Pasaran	no_pasaran
+9850	38	122	2432	7808	Remnants	remnants
+9869	38	141	2432	9024	Monkey Trouble	monkey_trouble
+9870	38	142	2432	9088	Monkey Trouble	monkey_trouble
+9871	38	143	2432	9152	Monkey Trouble	monkey_trouble
+9872	38	144	2432	9216	Monkey Trouble	monkey_trouble
+9874	38	146	2432	9344	Wayward	wayward
+9879	38	151	2432	9664	Cursed	cursed
+9880	38	152	2432	9728	Beneath the Stronghold	beneath_the_stronghold
+9881	38	153	2432	9792	Beneath the Stronghold	beneath_the_stronghold
+9890	38	162	2432	10368	Lair of the Basilisk	lair_of_the_basilisk
+9891	38	163	2432	10432	Lair of the Basilisk	lair_of_the_basilisk
+10055	39	71	2496	4544	Spooky Jungle	spooky_jungle
+10056	39	72	2496	4608	Out of the Deep	out_of_the_deep
+10070	39	86	2496	5504	Slice of Silent Movie	slice_of_silent_movie
+10104	39	120	2496	7680	Remnants	remnants
+10105	39	121	2496	7744	Remnants	remnants
+10106	39	122	2496	7808	Remnants	remnants
+10125	39	141	2496	9024	Monkey Trouble	monkey_trouble
+10126	39	142	2496	9088	Monkey Trouble	monkey_trouble
+10127	39	143	2496	9152	Monkey Trouble	monkey_trouble
+10128	39	144	2496	9216	Monkey Trouble	monkey_trouble
+10139	39	155	2496	9920	Legion	legion
+10144	39	160	2496	10240	Land Down Under	land_down_under
+10284	40	44	2560	2816	On the Shore	on_the_shore
+10307	40	67	2560	4288	Impetuous	impetuous
+10311	40	71	2560	4544	Suspicious	suspicious
+10317	40	77	2560	4928	In Between	in_between
+10321	40	81	2560	5184	H.A.M. Fisted	h_a_m_fisted
+10322	40	82	2560	5248	Legion	legion
+10335	40	95	2560	6080	Song of the Elves	song_of_the_elves
+10336	40	96	2560	6144	Song of the Elves	song_of_the_elves
+10338	40	98	2560	6272	Fallen Empire, The	fallen_empire_the
+10339	40	99	2560	6336	Fallen Empire, The	fallen_empire_the
+10340	40	100	2560	6400	Fallen Empire, The	fallen_empire_the
+10361	40	121	2560	7744	Remnants	remnants
+10362	40	122	2560	7808	Remnants	remnants
+10374	40	134	2560	8576	Lurking Threats	lurking_threats
+10381	40	141	2560	9024	Monkey Trouble	monkey_trouble
+10382	40	142	2560	9088	Monkey Trouble	monkey_trouble
+10383	40	143	2560	9152	Monkey Trouble	monkey_trouble
+10384	40	144	2560	9216	Monkey Trouble	monkey_trouble
+10390	40	150	2560	9600	Alone	alone
+10391	40	151	2560	9664	Cellar Dwellers, The	cellar_dwellers_the
+10394	40	154	2560	9856	Theme	theme
+10400	40	160	2560	10240	Corridors of Power	corridors_of_power
+10553	41	57	2624	3648	Rellekka	rellekka
+10567	41	71	2624	4544	Suspicious	suspicious
+10577	41	81	2624	5184	Storm Brew	storm_brew
+10591	41	95	2624	6080	Song of the Elves	song_of_the_elves
+10592	41	96	2624	6144	Song of the Elves	song_of_the_elves
+10594	41	98	2624	6272	Fallen Empire, The	fallen_empire_the
+10595	41	99	2624	6336	Fallen Empire, The	fallen_empire_the
+10596	41	100	2624	6400	Fallen Empire, The	fallen_empire_the
+10617	41	121	2624	7744	Remnants	remnants
+10618	41	122	2624	7808	Remnants	remnants
+10634	41	138	2624	8832	Lurking Threats	lurking_threats
+10637	41	141	2624	9024	Monkey Trouble	monkey_trouble
+10638	41	142	2624	9088	Monkey Trouble	monkey_trouble
+10639	41	143	2624	9152	Monkey Trouble	monkey_trouble
+10640	41	144	2624	9216	Monkey Trouble	monkey_trouble
+10649	41	153	2624	9792	Chain of Command	chain_of_command
+10650	41	154	2624	9856	Chain of Command	chain_of_command
+10658	41	162	2624	10368	Espionage	espionage
+10811	42	59	2688	3776	Poles Apart	poles_apart
+10819	42	67	2688	4288	Box of Delights	box_of_delights
+10831	42	79	2688	5056	Path of Peril	path_of_peril
+10833	42	81	2688	5184	Dorgeshuun Deep	dorgeshuun_deep
+10834	42	82	2688	5248	Dorgeshuun City	dorgeshuun_city
+10835	42	83	2688	5312	Dorgeshuun City	dorgeshuun_city
+10842	42	90	2688	5760	Troll Shuffle	troll_shuffle
+10850	42	98	2688	6272	Fallen Empire, The	fallen_empire_the
+10851	42	99	2688	6336	Fallen Empire, The	fallen_empire_the
+10852	42	100	2688	6400	Fallen Empire, The	fallen_empire_the
+10874	42	122	2688	7808	Remnants	remnants
+10890	42	138	2688	8832	Lurking Threats	lurking_threats
+10907	42	155	2688	9920	Masquerade	masquerade
+10910	42	158	2688	10112	Rising Damp	rising_damp
+10911	42	159	2688	10176	Poles Apart	poles_apart
+11067	43	59	2752	3776	Hells Bells	hells_bells
+11074	43	66	2752	4224	Storeroom Shuffle	storeroom_shuffle
+11079	43	71	2752	4544	Deep Down	deep_down
+11085	43	77	2752	4928	Sarcophagus	sarcophagus
+11108	43	100	2752	6400	Unturned Stones	unturned_stones
+11150	43	142	2752	9088	Find My Way	find_my_way
+11154	43	146	2752	9344	Spooky Jungle	spooky_jungle
+11161	43	153	2752	9792	Arabique	arabique
+11167	43	159	2752	10176	Marzipan	marzipan
+11168	43	160	2752	10240	Lamistard's Labyrinth	lamistard_s_labyrinth
+11315	44	51	2816	3264	Shadow, The	shadow_the
+11324	44	60	2816	3840	North, The	north_the
+11325	44	61	2816	3904	Barren Land	barren_land
+11330	44	66	2816	4224	More Than Meets the Eye	more_than_meets_the_eye
+11335	44	71	2816	4544	Fangs for the Memory	fangs_for_the_memory
+11341	44	77	2816	4928	Sarcophagus	sarcophagus
+11345	44	81	2816	5184	Ancient Prison, The	ancient_prison_the
+11346	44	82	2816	5248	Armadyl Alliance	armadyl_alliance
+11347	44	83	2816	5312	Bandos Battalion	bandos_battalion
+11403	44	139	2816	8896	Ocean Depths	ocean_depths
+11408	44	144	2816	9216	Maze, The	maze_the
+11409	44	145	2816	9280	Maze, The	maze_the
+11415	44	151	2816	9664	Relics	relics
+11425	44	161	2816	10304	Lumbering	lumbering
+11427	44	163	2816	10432	Lurking Threats	lurking_threats
+11588	45	68	2880	4352	Xenophobe	xenophobe
+11597	45	77	2880	4928	Sarcophagus	sarcophagus
+11603	45	83	2880	5312	Zamorak Zoo	zamorak_zoo
+11610	45	90	2880	5760	Ruins of Camdozaal, The	ruins_of_camdozaal_the
+11611	45	91	2880	5824	Ruins of Camdozaal, The	ruins_of_camdozaal_the
+11616	45	96	2880	6144	Fires of Lletya, The	fires_of_lletya_the
+11645	45	125	2880	8000	Lord of the Larvae	lord_of_the_larvae
+11662	45	142	2880	9088	Monkey Sadness	monkey_sadness
+11669	45	149	2880	9536	In the Pits	in_the_pits
+11673	45	153	2880	9792	Courage	courage
+11674	45	154	2880	9856	Courage	courage
+11675	45	155	2880	9920	Beyond	beyond
+11681	45	161	2880	10304	Secrets of the North	secrets_of_the_north
+11683	45	163	2880	10432	Lurking Threats	lurking_threats
+11844	46	68	2944	4352	Bane	bane
+11850	46	74	2944	4736	Invader	invader
+11851	46	75	2944	4800	Invader	invader
+11854	46	78	2944	4992	Rogues Den, The	rogues_den_the
+11855	46	79	2944	5056	Rogues Den, The	rogues_den_the
+11857	46	81	2944	5184	Wrath and Ruin	wrath_and_ruin
+11866	46	90	2944	5760	Ruins of Camdozaal, The	ruins_of_camdozaal_the
+11867	46	91	2944	5824	Race Against the Clock	race_against_the_clock
+11928	46	152	2944	9728	Dunjun	dunjun
+12100	47	68	3008	4352	Mutant Medley	mutant_medley
+12106	47	74	3008	4736	Into the Abyss	into_the_abyss
+12108	47	76	3008	4864	Into the Abyss	into_the_abyss
+12110	47	78	3008	4992	Rogues Den, The	rogues_den_the
+12115	47	83	3008	5312	Dimension X	dimension_x
+12119	47	87	3008	5568	Altar Ego	altar_ego
+12122	47	90	3008	5760	Ruins of Camdozaal, The	ruins_of_camdozaal_the
+12126	47	94	3008	6016	Spurned Demon, The	spurned_demon_the
+12178	47	146	3008	9344	Scape Cave	scape_cave
+12183	47	151	3008	9664	Cave Background	cave_background
+12185	47	153	3008	9792	Cave Background	cave_background
+12187	47	155	3008	9920	Museum Medley	museum_medley
+12190	47	158	3008	10112	Armageddon	armageddon
+12335	48	47	3072	3008	Newbie Melody	newbie_melody
+12336	48	48	3072	3072	Newbie Melody	newbie_melody
+12362	48	74	3072	4736	Invader	invader
+12363	48	75	3072	4800	Invader	invader
+12370	48	82	3072	5248	Wrath and Ruin	wrath_and_ruin
+12404	48	116	3072	7424	Stillness	stillness
+12426	48	138	3072	8832	Below the Conch	below_the_conch
+12439	48	151	3072	9664	Down Below	down_below
+12442	48	154	3072	9856	Forever	forever
+12443	48	155	3072	9920	Forever	forever
+12444	48	156	3072	9984	Forever	forever
+12588	49	44	3136	2816	Nomad	nomad
+12615	49	71	3136	4544	Undead Dungeon	undead_dungeon
+12616	49	72	3136	4608	Undead Dungeon	undead_dungeon
+12625	49	81	3136	5184	Alternative Root	alternative_root
+12633	49	89	3136	5696	Rest in Peace	rest_in_peace
+12644	49	100	3136	6400	Vault, The	vault_the
+12662	49	118	3136	7552	Stillness	stillness
+12664	49	120	3136	7680	Solitude	solitude
+12682	49	138	3136	8832	What the Shell!	what_the_shell
+12690	49	146	3136	9344	Bone Dry	bone_dry
+12695	49	151	3136	9664	Safety in Numbers	safety_in_numbers
+12700	49	156	3136	9984	Enclave, The	enclave_the
+12701	49	157	3136	10048	Revenants	revenants
+12702	49	158	3136	10112	Revenants	revenants
+12703	49	159	3136	10176	Revenants	revenants
+12737	49	193	3136	12352	Sharp End of the Crystal	sharp_end_of_the_crystal
+12738	49	194	3136	12416	Sharp End of the Crystal	sharp_end_of_the_crystal
+12867	50	67	3200	4288	Curtain Closes, The	curtain_closes_the
+12875	50	75	3200	4800	Bloodbath	bloodbath
+12889	50	89	3200	5696	Fire in the Deep	fire_in_the_deep
+12900	50	100	3200	6400	Vault, The	vault_the
+12938	50	138	3200	8832	Below the Conch	below_the_conch
+12944	50	144	3200	9216	Depths, The	depths_the
+12951	50	151	3200	9664	Harmony 2	harmony_2
+12954	50	154	3200	9856	Scape Cave	scape_cave
+12955	50	155	3200	9920	Roots and Flutes	roots_and_flutes
+12957	50	157	3200	10048	Revenants	revenants
+12958	50	158	3200	10112	Revenants	revenants
+12959	50	159	3200	10176	Revenants	revenants
+12961	50	161	3200	10304	Scorpia Dances	scorpia_dances
+12993	50	193	3200	12352	Sharp End of the Crystal	sharp_end_of_the_crystal
+12994	50	194	3200	12416	Sharp End of the Crystal	sharp_end_of_the_crystal
+13098	51	42	3264	2688	Dunes of Eternity	dunes_of_eternity
+13136	51	80	3264	5120	Upper Depths	upper_depths
+13137	51	81	3264	5184	Upper Depths	upper_depths
+13138	51	82	3264	5248	Upper Depths	upper_depths
+13139	51	83	3264	5312	Upper Depths	upper_depths
+13140	51	84	3264	5376	Upper Depths	upper_depths
+13145	51	89	3264	5696	Lower Depths	lower_depths
+13148	51	92	3264	5888	Fragment, The	fragment_the
+13156	51	100	3264	6400	Vault, The	vault_the
+13200	51	144	3264	9216	Labyrinth	labyrinth
+13202	51	146	3264	9344	Bone Dry	bone_dry
+13204	51	148	3264	9472	Insect Queen	insect_queen
+13205	51	149	3264	9536	Insect Queen	insect_queen
+13252	51	196	3264	12544	Cursed	cursed
+13354	52	42	3328	2688	Dunes of Eternity	dunes_of_eternity
+13454	52	142	3328	9088	Into the Tombs	into_the_tombs
+13456	52	144	3328	9216	Forgotten Tomb, The	forgotten_tomb_the
+13460	52	148	3328	9472	Insect Queen	insect_queen
+13463	52	151	3328	9664	Mind over Matter	mind_over_matter
+13465	52	153	3328	9792	Venture 2	venture_2
+13469	52	157	3328	10048	Dangerous Game, A	dangerous_game_a
+13470	52	158	3328	10112	Dangerous Game, A	dangerous_game_a
+13491	52	179	3328	11456	Foundry, The	foundry_the
+13611	53	43	3392	2752	Ruins of Isolation	ruins_of_isolation
+13612	53	44	3392	2816	Ruins of Isolation	ruins_of_isolation
+13658	53	90	3392	5760	Last Man Standing	last_man_standing
+13659	53	91	3392	5824	Last Man Standing	last_man_standing
+13660	53	92	3392	5888	Last Man Standing	last_man_standing
+13668	53	100	3392	6400	Doom, The	doom_the
+13712	53	144	3392	9216	Forgotten Tomb, The	forgotten_tomb_the
+13721	53	153	3392	9792	Stillness	stillness
+13723	53	155	3392	9920	Terrible Tower, The	terrible_tower_the
+13725	53	157	3392	10048	Dangerous Game, A	dangerous_game_a
+13726	53	158	3392	10112	Dangerous Game, A	dangerous_game_a
+13891	54	67	3456	4288	Dusk in Yu'biusk	dusk_in_yu_biusk
+13892	54	68	3456	4352	Dusk in Yu'biusk	dusk_in_yu_biusk
+13893	54	69	3456	4416	Dusk in Yu'biusk	dusk_in_yu_biusk
+13914	54	90	3456	5760	Last Man Standing	last_man_standing
+13915	54	91	3456	5824	Last Man Standing	last_man_standing
+13916	54	92	3456	5888	Last Man Standing	last_man_standing
+13918	54	94	3456	6016	Last Man Standing	last_man_standing
+13919	54	95	3456	6080	Last Man Standing	last_man_standing
+13920	54	96	3456	6144	Last Man Standing	last_man_standing
+13924	54	100	3456	6400	Doom, The	doom_the
+13974	54	150	3456	9600	Spooky 2	spooky_2
+13978	54	154	3456	9856	Stillness	stillness
+14142	55	62	3520	3968	Preserved	preserved
+14147	55	67	3520	4288	Dusk in Yu'biusk	dusk_in_yu_biusk
+14148	55	68	3520	4352	Dusk in Yu'biusk	dusk_in_yu_biusk
+14149	55	69	3520	4416	Dusk in Yu'biusk	dusk_in_yu_biusk
+14160	55	80	3520	5120	Beneath Cursed Sands	beneath_cursed_sands
+14164	55	84	3520	5376	Mother's Curse, A	mother_s_curse_a
+14174	55	94	3520	6016	Last Man Standing	last_man_standing
+14175	55	95	3520	6080	Last Man Standing	last_man_standing
+14176	55	96	3520	6144	Last Man Standing	last_man_standing
+14180	55	100	3520	6400	Doom, The	doom_the
+14232	55	152	3520	9728	Terrible Tunnels, The	terrible_tunnels_the
+14233	55	153	3520	9792	Terrible Tunnels, The	terrible_tunnels_the
+14235	55	155	3520	9920	Body Parts	body_parts
+14242	55	162	3520	10368	Relics	relics
+14243	55	163	3520	10432	Relics	relics
+14389	56	53	3584	3392	Deadlands	deadlands
+14398	56	62	3584	3968	Preserved	preserved
+14403	56	67	3584	4288	Dusk in Yu'biusk	dusk_in_yu_biusk
+14404	56	68	3584	4352	Dusk in Yu'biusk	dusk_in_yu_biusk
+14405	56	69	3584	4416	Dusk in Yu'biusk	dusk_in_yu_biusk
+14430	56	94	3584	6016	Last Man Standing	last_man_standing
+14431	56	95	3584	6080	Last Man Standing	last_man_standing
+14432	56	96	3584	6144	Last Man Standing	last_man_standing
+14488	56	152	3584	9728	Terrible Tunnels, The	terrible_tunnels_the
+14489	56	153	3584	9792	Noxious Awakening	noxious_awakening
+14495	56	159	3584	10176	Fossilised	fossilised
+14496	56	160	3584	10240	Fossilised	fossilised
+14642	57	50	3648	3200	Welcome to the Theatre	welcome_to_the_theatre
+14643	57	51	3648	3264	Bloodbath	bloodbath
+14644	57	52	3648	3328	Bloodbath	bloodbath
+14645	57	53	3648	3392	Deadlands	deadlands
+14650	57	58	3648	3712	Preserved	preserved
+14651	57	59	3648	3776	Preserved	preserved
+14652	57	60	3648	3840	Preservation	preservation
+14672	57	80	3648	5120	Laid to Rest	laid_to_rest
+14676	57	84	3648	5376	Sands of Time	sands_of_time
+14744	57	152	3648	9728	Stillness	stillness
+14745	57	153	3648	9792	Itsy Bitsy...	itsy_bitsy
+14899	58	51	3712	3264	Bloodbath	bloodbath
+14900	58	52	3712	3328	Bloodbath	bloodbath
+14906	58	58	3712	3712	Preserved	preserved
+14907	58	59	3712	3776	Preservation	preservation
+14908	58	60	3712	3840	Preservation	preservation
+14915	58	67	3712	4288	Temple of Tribes	temple_of_tribes
+14916	58	68	3712	4352	Catacombs and Tombs	catacombs_and_tombs
+14936	58	88	3712	5632	Pick & Shovel	pick_shovel
+14994	58	146	3712	9344	Little Cave of Horrors	little_cave_of_horrors
+14995	58	147	3712	9408	Little Cave of Horrors	little_cave_of_horrors
+14999	58	151	3712	9664	Everlasting Slumber, The	everlasting_slumber_the
+15000	58	152	3712	9728	Everlasting Slumber, The	everlasting_slumber_the
+15001	58	153	3712	9792	Everlasting Slumber, The	everlasting_slumber_the
+15008	58	160	3712	10240	Lagoon	lagoon
+15148	59	44	3776	2816	Zombiism	zombiism
+15150	59	46	3776	2944	Trouble Brewing	trouble_brewing
+15162	59	58	3776	3712	Preserved	preserved
+15163	59	59	3776	3776	Preserved	preserved
+15164	59	60	3776	3840	Preservation	preservation
+15184	59	80	3776	5120	Amascut's Promise	amascut_s_promise
+15188	59	84	3776	5376	Ape-ex Predator	ape_ex_predator
+15248	59	144	3776	9216	Zombiism	zombiism
+15251	59	147	3776	9408	Little Cave of Horrors	little_cave_of_horrors
+15255	59	151	3776	9664	Everlasting Slumber, The	everlasting_slumber_the
+15256	59	152	3776	9728	Everlasting Slumber, The	everlasting_slumber_the
+15257	59	153	3776	9792	Everlasting Slumber, The	everlasting_slumber_the
+15262	59	158	3776	10112	Lava is Mine	lava_is_mine
+15263	59	159	3776	10176	Lava is Mine	lava_is_mine
+15264	59	160	3776	10240	Lagoon	lagoon
+15428	60	68	3840	4352	Zanik's Theme	zanik_s_theme
+15431	60	71	3840	4544	Plundered Tomb, The	plundered_tomb_the
+15433	60	73	3840	4672	Plundered Tomb, The	plundered_tomb_the
+15511	60	151	3840	9664	Everlasting Slumber, The	everlasting_slumber_the
+15512	60	152	3840	9728	Everlasting Slumber, The	everlasting_slumber_the
+15513	60	153	3840	9792	Everlasting Slumber, The	everlasting_slumber_the
+15515	60	155	3840	9920	Bane of Ashihama, The	bane_of_ashihama_the
+15700	61	84	3904	5376	Jaws of Gluttony	jaws_of_gluttony
+16457	64	73	4096	4672	Black of Knight	black_of_knight
+16458	64	74	4096	4736	Black of Knight	black_of_knight
+16459	64	75	4096	4800	Black of Knight	black_of_knight
+16461	64	77	4096	4928	Dangerous Logic	dangerous_logic

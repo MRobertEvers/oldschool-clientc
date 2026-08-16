@@ -4,107 +4,105 @@ Rewrite of the osrs renderer.
 
 ## Building
 
-```
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake -B build_release -DCMAKE_BUILD_TYPE=Release
-cmake -B build-mingw-release -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+> **[BUILD_AND_RUN.md](BUILD_AND_RUN.md)** is the full cross-platform build and
+> run guide — every platform, the servers, the content pipeline, RuneLite, and
+> every tool in this repository, with commands. The summary below is the short
+> version.
 
-# For compiler invocations
-make VERBOSE=1
-```
+The current client is built by [`src/makefile`](src/makefile). The root CMake
+project and the `v0`/`v1` trees are historical snapshots, not alternate build
+lanes.
 
-### Presets
-
-```
-# Configure
-cmake --preset sse1-only
-cmake --preset sse2
-cmake --preset avx2
-cmake --preset neon
-
-# Build
-cmake --build build_sse1
-cmake --build sse2
-cmake --build avx
-cmake --build neon
+```sh
+make -C src all          # native debug -> src/torirs
+make -C src release      # native -O3  -> src/torirs
+make -C src web          # optimized browser module -> build-web/
+make -C src web-debug    # debug browser module
+make -C src io-server    # cache/boot server used by the browser build
 ```
 
-### Pound Defines
+On Windows, use `./build_windows.ps1 -Opt` for the modern x86_64 artifact or
+`./build_winxp.ps1 -Opt` for the XP-compatible i686 artifact. Omitting `-Opt`
+intentionally builds the corresponding debug lane. Both compiler toolchains
+are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
+Platform selection, prerequisites, renderer flags, compatibility constraints,
+and known defects are centralized in
+[Platform quirks and contracts](docs/platform_quirks.md). Detailed active guides
+cover the [web build](docs/web_build.md), the
+[performance harness](docs/PERF_HARNESS.md), and the repository's
+[Windows toolchains](tools/toolchain/README.md).
+
+Subsystem guides cover the [incremental JS5 client cache](docs/JS5_INCREMENTAL_CACHE.md),
+the [dedicated JS5 server](docs/JS5_SERVER.md), the
+[developer overlay and root UI layout](docs/debug_overlay.md), and
+[per-model depth testing](docs/toridraw_model_zbuffer.md) for models whose parts
+interpenetrate and cannot be resolved by face order alone.
+
+### Content pipeline
+
+The client boots from a cache built from `OSRS-Content/osrs239-content/`:
+
+| Step | Command | Output |
+|---|---|---|
+| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+
+The bake takes `--base` when a pristine cache is present, so records the tree
+does not change keep the bytes they had. **Without a base it creates the cache**,
+and what lands is exactly what the tree states. Aim it elsewhere with:
 
 ```
-# Disables manual vector functions
-SSE_DISABLED
-SSE2_DISABLED
-AVX2_DISABLED
-NEON_DISABLED
+make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
 ```
 
-### Building - Emscripten
+`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+table with no idx file is a table the client cannot read, and `idx255`—the
+reference-table index—is what makes every other table reachable at all.
 
-```
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug
+### Booting a packed cache
 
-cd build.em
+[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
+`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+cache built from content rather than the pristine dump:
 
-emmake make
-```
-
-### C vs C++ ABI (shared headers)
-
-Parts of the tree compile the same headers as **both C and C++** (e.g. `test/win32.cpp` and `LibToriRS_GameNew` in `src/tori_rs_init.u.c` both use `struct GGame` from `src/osrs/game.h`). **The layout of every shared struct must be identical in both languages.** If it is not, fields are read at the wrong offset: pointers look like small integers (e.g. `0x14`), “works under the debugger” heisenbugs, or link errors from mangled C symbols.
-
-**How to avoid:**
-
-- **Do not nest struct types inside a shared aggregate** when MSVC or mixed C/C++ is in play unless you are sure both sides match. Prefer **file-scope** helper structs (see `struct UITraversalFrame` before `struct GGame` in `game.h`).
-- **Do not use empty structs** (`struct Foo {}`) in headers included from C: C and C++ give them **different sizes**. Use a **dummy `uint8_t` member** where a “marker” type is needed (`game_entity.h`, `lua_gametypes.h`, packet structs, etc.).
-- **Win32 `.cpp` files:** include **`<windows.h>` first**, then wrap **`graphics/dash.h`**, **`osrs/game.h`**, and other engine headers in **`extern "C" { #include … }`** before C++ platform headers. See `src/platforms/platform_impl2_win32.cpp` and the Win32 renderer `.cpp` files. Shared headers that declare C APIs should use **`#ifdef __cplusplus` / `extern "C"`** around declarations (`dash.h`, `cache_dat.h`, `nuklear_rawfb.h`).
-- **Macros in headers parsed as C++:** avoid MSVC designated-initializer forms in macros where C++ can parse `[` differently (see **`PACKET_DEFINITION`** in `src/osrs/packetin.h` — positional `{ name, code, length }` only).
-- **ToriRSPlatformKit / D3D8 SoAoS:** after `windows.h`, avoid fragile **`_Alignas`** on SoAoS members; use **`TRSPK_VERTEX_SOAOS_MEMBER_ALIGN`** and **plain integer** alignment constants in `trspk_vertex_soaos_config.h` (details in [docs/d3d8_renderer_architecture.md](docs/d3d8_renderer_architecture.md)).
-
-**Win32 D3D8 reference (monolithic baseline):** the last known-good **all-in-one** Win32 D3D8 implementation before the ToriRSPlatformKit split is commit `9c62ec2d` (message: `d3d8 3d working!`). Inspect the tree with `git show 9c62ec2d:src/platforms/platform_impl2_win32_renderer_d3d8.cpp` and compare device setup, fixed-function state (`D3DRS_LIGHTING`, depth, transforms), `SetIndices` base vertex + `DrawIndexedPrimitive`, and batching to `src/platforms/ToriRSPlatformKit/src/backends/d3d8/`.
-
-### Building - Linux
-
-For linux, install bzip
-
-```
-sudo apt-get update
-
-# GCC
-sudo apt install build-essential
-
-# FreeType, SDL2
-sudo apt install libfreetype6-dev libsdl2-dev
+```sh
+src/torirs --manifest manifest_osrs239_packed.ini --offline
 ```
 
-### Setup
+On Windows, build either repository-owned lane with the wrapper described
+above, then run its staged artifact:
 
-Required dependencies
-
-- SDL2
-- CMake
-
-#### Mac
-
-Install SDL2.
-
-```
-brew install sdl2
+```powershell
+.\dist\win64\torirs.exe --manifest .\manifest_osrs239_packed.ini
+.\dist\win32\torirs.exe --manifest .\manifest_osrs239_packed.ini
 ```
 
-### Debugging - WASM
+Two things a from-scratch cache needs that a `--base` bake inherits for free,
+both of which the packer now provides:
 
-When building to debug wasm, you need to make sure there is no `.wasm.map` file in the output build folder. For some reason, that causes chrome to mess up line numbers and dwarf info. You need only to install the chrome debug extension here https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb
+- **`idx255` reference tables.** An archive is only reachable through one.
+- **Archive name identifiers.** The client hashes a sprite name (djb2) and
+  scans `archives[i].identifier`. Without those identifiers the client can boot
+  with every archive present but no compass, map scene, hitmarks, or other
+  name-addressed assets.
 
-and compile with `-O0 -g`.
+Headless verification proves the cache is bootable rather than merely
+complete:
 
-### TODOS
+```
+TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
+    src/torirs --manifest manifest_osrs239_packed.ini --offline
+```
+
+## Engine notes
+
+The remaining material is an engineering notebook, not a platform build or
+compatibility contract. Platform guidance belongs in the registry linked above.
+
+### TODO
 
 1. Contour Ground
 2. Minimap
@@ -612,6 +610,258 @@ The OSRS client (based on the de-ob) does hit testing for GL and Software Models
 
 For GL Models, it is done out of line with rendering, and each model gets the screen coords of its triangles.
 
+### Walk-here clicking — from pixel to packet
+
+"Walk here" is the shortest interaction in the game and it crosses nearly every
+subsystem: raster, painter, pick, minimenu, wire, server routefinder. It is
+worth writing out in full, because when it breaks the symptom is always the
+same — *nothing happens* — and the cause can be at any of eight stages.
+
+#### The chain
+
+| # | Stage | Owner |
+|---|---|---|
+| 1 | Painter emits a terrain command per (tile, mesh level) | [painters_bucket.u.c](src/painters/painters_bucket.u.c) `bucket_emit_terrain` |
+| 2 | Frame resolves the command to a scene element and stamps `pick_terrain` + the tile coords | [torirs_frame.c](src/render/torirs_frame.c) `try_emit_world_draw_model` |
+| 3 | Renderer projects the mesh and hit-tests the cursor against it | [soft3d](src/platform/platform_sdl2_renderer_soft3d.c) / [gl3](src/platform/platform_sdl2_renderer_gl3.c) / [d3d9](src/platform/platform_win32_renderer_d3d9_core.c) → [toridraw_render.u.c](3rd/toridraw/toridraw_render.u.c) |
+| 4 | Raw hits are classified into the pickset + hover tile | [torirs_pick.c](src/render/torirs_pick.c) `ToriRS_PickHitsClassify` |
+| 5 | Minimenu turns the pickset into rows; the terrain row becomes `Walk here` | [rs_minimenu_world.c](src/game/rs_minimenu_world.c) `RS_Minimenu_AddWorldRows` |
+| 6 | The default row runs → `MOVE_GAMECLICK` | [app.c](src/app.c) `app_try_move` |
+| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [mock230_world.c](src/net/mock/mock230_world.c) `handle_move` → `mock230_world_walk_to` |
+| 8 | BFS + the unreachable fallback | [collision_map.c](src/engine/world_builder/collision_map.c) `collision_map_route_tiles` |
+
+Stages 1–6 are the client deciding **which tile you clicked**. Stages 7–8 are
+the server deciding **where you end up**. Under a modern OSRS era the client
+does no routing at all: it sends five bytes and the server answers.
+
+#### Stage 1–3: what makes a tile clickable
+
+A tile is clickable only if it has a **mesh**. `world_build_scene_terrain`
+([world_terrain.u.c](src/engine/world_builder/world_terrain.u.c)) builds one
+only when the map record states an underlay **or** an overlay:
+
+```c
+if( underlay_id != -1 || overlay_id != -1 )
+    terrain_shape_map_set_tile(...);   /* -> shape_tile->active */
+```
+
+A tile stating neither has no `SceneTilePaint` in the reference either, so it
+draws nothing and cannot be walked to. That is a real map authoring state, not
+a bug — the void beyond a map square's edge, and the floorless ground under the
+Inferno's outer rock scenery, are both this.
+
+`world_builder.c` then prunes `PaintersTile::terrain_levels` down to the levels
+that actually produced an element, so the painter never emits a command for a
+tile with no geometry.
+
+Once emitted, the renderer projects the mesh and asks whether the cursor is
+over one of its triangles. **This is the step with the subtle rule**, and it is
+the one that broke:
+
+> The reference does **not** pick ground tiles through `Model.draw`. Tiles are
+> picked inside `World3D.drawTileUnderlay` / `drawTileOverlay`, and the order
+> there is load-bearing:
+>
+> ```ts
+> if (takingInput && pointInsideTriangle(...)) { clickTileX = x; clickTileZ = z; }
+> if (colour !== 12345678) { fillGouraudTriangle(...); }
+> ```
+>
+> The click test runs **first**. `12345678` is the "draw nothing" sentinel — a
+> flotype whose colour is `0xFF00FF` — and it gates only the *fill*. An
+> invisible tile is still a walk target.
+
+A loc model obeys the opposite rule: `faceColourC == -2` (`TORIDRAWHSL16_HIDDEN`
+here) means the face neither draws nor picks, which is what lets a fully
+merged-away loc fall through to whatever is behind it.
+
+So there are two hit tests, deliberately asymmetric:
+
+| Mesh | Entry point | Hidden faces |
+|---|---|---|
+| loc / npc / player / obj | `ToriDraw_ProjectedModelMouseHitTest` | skipped |
+| ground tile (`pick_terrain`) | `ToriDraw_ProjectedTileMouseHitTest` | **tested** |
+
+Both share one face walk and differ in a single flag; everything else — the
+screen-aabb reject, the near-clipped-vertex skip, the 5px cursor slop, picking
+backfaces — is identical. Pinned by `make -C src test-pick`
+([pick_face_test.c](src/render/test/pick_face_test.c)).
+
+There is a third path, `pick_aabb` — the reference's `useAABBMouseCheck`, a
+screen-box test it sets on npcs, players and ground objs. **This tree
+deliberately leaves it off** ([app.c](src/app.c) `el->pick_aabb = false`): a
+screen box around a large model is enormously bigger than the model, and
+TzKal-Zuk's swallows most of the arena, so clicking the floor near him hit
+*him*. Entities pick per-face like locs instead; the aabb survives only as the
+cheap reject in front of the face walk, so the triangle scan runs only on
+models the cursor is actually over.
+
+#### Stage 4–5: hits become a walk target
+
+`ToriRS_PickHitsClassify` splits the raw hits:
+
+- **Terrain hits** set the hover tile and enter the pickset as `WORLD_PICK_TERRAIN`.
+  Ground *above* the player is refused (`hit->tile_level > player_level`) — that
+  is the roof-level floor of a building you are standing outside. The test is
+  `<=`, not `==`, on purpose: a bridge deck and every VIS_BELOW tile draw at a
+  *lower* level than the player standing on them, so equality would make the
+  ground under your own feet unclickable.
+- **Entity hits** are resolved to npc / player / scenery / obj stack. A
+  non-`interactive` loc is dropped here, which is why walls, gravel and floor
+  decor never produce a menu row (`TORIRS_LOC_DEBUG` lifts that gate).
+
+Hits arrive in painter order, back to front, so the **last** terrain hit is the
+nearest one — that is the tile `RS_Minimenu_AddWorldRows` attaches to the
+`Walk here` row, and the one the yellow cross and the hover readout use.
+`World_PickSetAdd` dedupes by element id, and terrain element ids are per
+(tile, level) via `World_TerrainElementAt`, so stacked tiles stay distinct.
+
+If no terrain was hit, the row is still added but with
+`UI_MINIMENU_PICK_NONE` — the menu shows "Walk here" and clicking it does
+nothing. `TORIRS_NET_DEBUG=1` prints `minimenu: unhandled pick kind 0` for
+exactly this case. **A visible "Walk here" is not evidence that the click has a
+tile.**
+
+`Walk here` is also suppressed entirely while a use/spell selection is armed,
+matching the reference's `useMode == 0 && targetMode == 0` gate.
+
+#### Stage 6: the packet
+
+`app_try_move` (reference `Client.tryMove`) is shared by the ground click
+(type 0) and the minimap click (type 1) and branches on the era:
+
+- **`SERVER_AUTHORITATIVE` (osrs / server_routed)** — no client routing. The
+  body is the destination alone: `MOVE_GAMECLICK` is 5 bytes (absolute x,
+  absolute z, key-combination byte), opcode 86 at rev 230 and 114 at rev 239.
+  The client does **not** paint a map flag; `SET_MAP_FLAG` comes back from the
+  server, and painting a local guess only fights the clear packet.
+- **`CLIENT_BFS` (lostcity)** — the client runs the BFS itself with the era's
+  unreachable fallback and sends waypoints, then latches the flag from the
+  routed destination.
+
+The minimap variant carries the classic start + signed `(dx,dz)` pairs plus a
+14-byte anti-cheat trailer, which the server subtracts before counting
+waypoints.
+
+The local player is deliberately **not** moved here. Movement comes from the
+`PLAYER_INFO` echo, exactly like the reference; the old local-prediction jump
+fought the echo and made the player stutter.
+
+#### Stage 7–8: the server, and "walk to nearest"
+
+`handle_move` rejects a click more than a scene away, ends any pending
+interaction (walking off *is* a new interaction — it stops you swinging at
+what you were fighting, retires a queued op, and closes an open dialogue), then
+calls `mock230_world_walk_to`, which BFS-routes and subsamples the path into at
+most 25 dest-first **corner** waypoints. `SET_MAP_FLAG` is sent only if a route
+was found.
+
+The BFS ([`collision_map_route_tiles`](src/engine/world_builder/collision_map.c))
+floods a 128-tile window centred on the mover, expanding W E S N SW SE NW NE.
+If it never reaches the destination the flood is complete rather than wasted,
+and `collision_nearest_fallback` runs over it — **this is "walk to nearest"**:
+
+| Model | Box | Ranking | Reference |
+|---|---|---|---|
+| `box10_rect` | 21×21 (±10) | least squared distance to the target rect, ties → shorter flood | official rev-239 `Statics.method5592`; rsmod / LostCity `findClosestApproachPoint` |
+| `ring3` | 3×3 (±1) | first tile with the lowest step count | Client-TS `tryMove`, the `tryNearest` block |
+| `none` | — | — | Client-TS passes `tryNearest = false` for every interaction click |
+
+Both models cap candidates at flood distance `< 100`, and both mean *no
+movement at all* when the box is empty. The era table picks one as
+`ground_click_nearest_model` — `box10_rect` for `osrs` / `server_routed`,
+`ring3` for `lostcity`. Under `osrs` the **server's** copy is the one that
+decides, because the client never routes; set both ends anyway so they cannot
+disagree when the era changes. Overrides:
+`[features:boot] ground_click_nearest=` and `TORIRS_GROUND_CLICK_NEAREST` on
+the client, `MOCK230_GROUND_CLICK_NEAREST` on the server (which prints the
+resolved value in its boot line).
+
+This is the whole of "click across a river and walk up to the bank instead of
+doing nothing". Full pathing detail, including the op/interaction click's
+separate settings: [docs/OSRS_PATHING_LOS.md](docs/OSRS_PATHING_LOS.md).
+
+#### Worked example: the Inferno lava
+
+The bug that produced this section. Clicking the Inferno's lava did nothing —
+no cross, no step — and the obvious suspect (the server's `moveNear`) was
+innocent; the click never became a packet.
+
+The arena's lava moat is a band of tiles that state **no underlay and an
+overlay whose flotype colour is `0xFF00FF`**:
+
+```
+tile=43,58 L0  underlay=0 overlay=152 settings=0x01
+  overlay 151: texture=-1 rgb=ff00ff
+```
+
+So: blocked (`settings & 1`), and drawn as a hole. The mesh is built, emitted
+and projected — but every face carries the hidden marker, the generic model
+pick skipped them all, and the chain died at stage 3:
+
+```
+world_pick: mouse=120,140 count=0 hover_tile=-1,-1,-1
+minimenu: unhandled pick kind 0
+```
+
+Routing the terrain commands through `ToriDraw_ProjectedTileMouseHitTest`
+restores the reference's ordering, and the same click now walks you to the
+arena edge:
+
+```
+world_pick: mouse=120,140 count=3 hover_tile=50,55,0
+minimenu: walk-click scene=50,55 abs=6426,111
+mock230: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
+```
+
+`nearest=1` is the `box10_rect` fallback firing.
+
+Note what did **not** change: the lava further out has no floor record at all
+(`underlay=0 overlay=0`), and what you see there is rock and lava *locs* over
+floorless tiles. Those stay unclickable, in this client and in the reference,
+because there is no triangle to test. "Looks like ground" and "is ground" are
+different questions, and only the second one walks.
+
+#### Debugging it
+
+Work down the chain — each variable answers exactly one stage.
+
+| Variable | Answers |
+|---|---|
+| `TORIRS_TILEDATA=x,z` | does this tile state any floor of its own? (raw underlay/overlay/settings, every level) |
+| `TORIRS_TILETABLE=x0,x1,z0,z1` (+ `TORIRS_TILETABLE_AT=<paint>`) | flags / element id / `terrain_levels` / emit order, joined per tile — mis-flagged vs mis-ordered vs no mesh |
+| `TORIRS_WORLD_PICK_DEBUG=1` | what the pickset and hover tile came out as |
+| `TORIRS_PICK_DEBUG=1\|all` | what the raster says is under the pointer |
+| `TORIRS_LOC_DEBUG=1` | lifts the non-interactive gate, so inactive locs show in the pickset |
+| `TORIRS_NET_DEBUG=1` | `minimenu: walk-click`, `trymove:`, and the packet |
+| `MOCK230_VERBOSE=1` | `mock230: route ... nearest=N arrive=x,z` |
+
+The whole thing reproduces headlessly, no human at the mouse:
+
+```sh
+TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=out.bmp TORIRS_NET_CHEAT=zuk \
+TORIRS_SIM_CLICK_AT="560,120,140" TORIRS_WORLD_PICK_DEBUG=1 \
+TORIRS_NET_DEBUG=1 MOCK230_VERBOSE=1 \
+    src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+```
+
+(`dist\win64\torirs.exe` on Windows; add `--soft3d` to exercise the software
+renderer's pick path instead of D3D9 — they are separate call sites, so verify
+both.)
+
+Take the screenshot first to find the pixel, then click it.
+`TORIRS_SIM_CLICK_AT` is `"frame,x,y[,right][;frame,x,y...]"` — but consecutive
+clicks move the player and shift the camera, so use one click per run whenever
+the coordinate matters.
+
+### Interface Layer Clipping — per-surface, not compounded
+
+A UI container that clips its children (`RS_LAYER`, sidebar, chat, inv) restricts them to **its own bounds ∩ the enclosing draw _surface_** — it is **not** intersected with intermediate ancestor layers. This matches the reference `drawInterface`, whose `Pix2D.setClipping` **overwrites** the clip and clamps only to the physical surface PixMap (chatback `479×96`, sidebar `190×261`), so a wide inner widget nested in a narrower ancestor still draws to the surface edge.
+
+**This is deliberately different from the earlier torirs behavior**, which _compounded_ — it intersected every layer's box with the cumulative ancestor clip, cutting overflowing widgets (the visible symptom was a chat-dialogue chathead clipped even though the chatback is 479 wide). The rule is behaviour-preserving for the normal case (a child within its parent, `own ∩ surface == own ∩ parent`) and a layer's own box still bounds its children, so scroll viewports are unchanged; only genuine overflow now renders to the surface edge.
+
+The rule lives in **one** helper, `UITree_LayerChildClip` (`src/ui/uitree_scroll.c`), shared by all four tree walks — emit/render (`uitree_emit.c`), hit-test + menu-collect (`uitree_input.c`), hover (`uitree_hover.c`), and drag drop-target (`uitree.c`) — so drawn pixels, click areas, and hover areas agree by construction (implemented once, no drift). Full detail: [`src/ui/README.md` → Interface layer clipping](src/ui/README.md) and [docs/CLIENT_TS_PARITY.md §18](docs/CLIENT_TS_PARITY.md).
+
 ### Sequence from RuneLite
 
 Seq: 2650
@@ -643,33 +893,201 @@ this.transform(base.types[index], base.bones[index], arg1.x[i], arg1.y[i], arg1.
 return;
 }
 
+### Animations - Frame File Indexing (1-based)
+
+Sequences (animations) reference their per-frame data with a packed `frameID = (archiveId << 16) | fileId`. The `archiveId` (high 16 bits) selects a group in the `ANIMATIONS` cache table; the `fileId` (low 16 bits) selects one frame file within that group.
+
+Gotcha: the frame **file IDs in an animation archive are 1-based** (they run `1..N`, not `0..N-1`), and can in general be sparse. The decoded `RSCache_FileList` (`3rd/rscache/src/filelist.c`) stores files **densely by position** at `files[0..file_count-1]`. The mapping from a file's actual ID to its position lives in `RSCache_Dat2DiskArchive.file_ids[]` (`file_ids[pos]` == that position's real ID, set in `dat2disk.c` from the JS5 index children).
+
+Therefore you must **not** index the filelist with the raw `fileId` — `files[fileId]` is off by one (and `files[N]` runs past the end for the last, `N`-th frame). Resolve the ID to a position first, e.g. find `pos` where `archive->file_ids[pos] == fileId`, then use `files[pos]`. See `seq_file_pos_for_id()` in `src/engine/dat2/task_dat2_sequence_load.c`.
+
+Symptom of getting this wrong: the animation is shifted by one frame and the final frame fails to load (`NULL`), so it renders as the rest/base pose — i.e. the model animates and then shows ~1 frame of "unanimated" every loop. Config-table groups (sequences, objs, npcs, …) are usually 0-based/dense so a positional `files[id]` happens to work for them, which is why this only bites animation frames.
+
+Frame timing: each frame is shown for `frameLengths[frame]` client cycles at 50hz (20ms/cycle); looping uses the sequence `frameStep` (loop-back offset, default -1). See `drive_widget_animations()` in `src/main.c` and `ToriDraw_AnimationFromRSCache()`.
+
 ## Profiling
 
-```
-sudo ../profile.d -c ./scene_tile_test > out.stacks
+The current counters, CSV format, work-versus-pacing boundary, and reproducible
+benchmarks are documented in [the performance harness](docs/PERF_HARNESS.md).
 
-sudo ../profile.d -c ./main_client > out.stacks
-sudo ../profile.d -c ./sdl2 > out.stacks
-sudo ../profile.d -c "./sdl2 --renderer=metal" > out.stacks
+### Profiling without sudo (macOS `sample`)
 
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
-```
-
-Then using flamegraph
-
-Which you can get from here:
-https://github.com/brendangregg/FlameGraph
+`profile.d` needs root. When you cannot get it, `sample` needs no privileges for
+your own processes and FlameGraph ships a collapser for its format.
+`./profile-mac.sh` does the whole loop — build if needed, start the rev230 mock
+if the port is idle, boot the client headless, sample it, render the SVG, and
+print the main-thread breakdown:
 
 ```
-# /Users/matthewevers/Documents/git_repos/FlameGraph
-
-./stackcollapse.pl ./build/out.stacks > out.folded
-./flamegraph.pl out.folded > flamegraph.svg
-open flamegraph.svg
+./profile-mac.sh                              # manifest_osrs230.ini, 25s sample
+./profile-mac.sh manifest_rs254.ini 40        # another manifest, 40s
+TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real window instead of SDL dummy
+TORIRS_PROFILE_ATTACH=$(pgrep -f src/torirs) ./profile-mac.sh   # client already running
+OUT=before ./profile-mac.sh                   # names the outputs before.svg/.folded
 ```
+
+It finds FlameGraph under `~/Documents/git_repos/FlameGraph`,
+`~/git_repos/FlameGraph`, `../FlameGraph` or `$FLAMEGRAPH_DIR`. By hand it is:
+
+```
+./run-live.sh manifest_osrs230.ini &          # or a headless run, see below
+sample $(pgrep -f 'src/torirs') 20 1 -f out.sample
+awk -f ~/git_repos/FlameGraph/stackcollapse-sample.awk out.sample > out.folded
+~/git_repos/FlameGraph/flamegraph.pl out.folded > flamegraph.svg
+```
+
+For a repeatable measurement, drive a fixed number of frames headless and read
+`user` CPU time (the 50 fps cap sleeps out the slack, so wall clock hides
+regressions until frames blow past 20 ms):
+
+```
+time SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1000 \
+    src/torirs --manifest manifest_osrs230.ini --user asdf --pass a
+```
+
+Note the main thread is only half the samples — the other ~50% is AppKit's event
+thread parked in `mach_msg2_trap`. Filter to the main thread
+(`grep DispatchQueue_1`) before reading percentages.
+
+## UITree performance — what pegged the CPU on rev230
+
+> **2026-08-03 update:** for live frame-budget work see
+> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifest_osrs230_embed.ini`
+> with `-O0` + `TORIDRAW_OPT=1`, idle/ui frame p95 is ~8 ms (50 fps gate is
+> 20 ms). Soft3D remains the dominant stage; the numbers below are the
+> historical UITree-only story.
+
+`./run-live.sh manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
+1000 frames (~33 ms/frame) against a 20 ms budget, in the default `-O0` build.
+Almost none of it was the renderer. Three things compounded, all of them widget
+bookkeeping:
+
+**1. The id → index map was rebuilt per widget created.**
+`UITree_FindByComponentId` is backed by an open-addressed map keyed on
+`id_generation`, and _any_ id assignment bumps that generation. `cc_create`
+allocates a dynamic uid by probing the map (`UITree_AllocateDynamicComponentId`),
+so the sequence was: create widget → generation bumps → next create's probe finds
+the map stale → full O(component*count) rebuild. Creating \_n* widgets cost
+O(n²) hash inserts; `uitree_id_index_put` + `UITree_RebuildIdIndex` +
+`uitree_id_hash` alone were **46% of main-thread time**.
+
+Now `UITree_Push` folds the new id into the map incrementally and keeps
+`id_index_gen` in step, so only a reclaim (which cannot be undone in an
+open-addressed table without rescanning for a replacement winner) leaves the map
+stale for the next lookup to rebuild. Because a recycled free-list slot can hand
+a later push a _lower_ index than the entry already stored for that id, the
+tie-break in `uitree_id_index_put` is now stated over the two candidates
+(dynamic beats non-dynamic; within a class the lower index wins) instead of
+relying on ascending insertion order. `ui/test/uitree_test_id_index.c` pins the
+map to the linear scan it replaced, including that case; building `uitree.c` with
+`-DUITREE_ID_INDEX_VERIFY` asserts the same equivalence on every lookup at
+runtime.
+
+**2. Appending a child walked the sibling list.**
+`link_under_parent` walked `first_child` to the tail on every append, so filling
+a container one `cc_create` at a time was quadratic in the child count.
+`UITreeComponent.last_child_hint` short-circuits the walk. Like
+`UITree::last_root_index` it is a _hint_, never trusted blindly: it is used only
+when it still looks like a live last child of that parent, so any mutation may
+leave it stale without breaking anything.
+
+**3. Every var-transmit hook re-ran every tick.**
+`RS_CS2_PumpTransmits` dispatched with `var_id = -1`, i.e. "re-run every
+registered hook", whenever any varp/varc changed. The rev230 gameframe writes a
+clock varc (384) every single tick, and none of the six live hooks listed it as a
+trigger — so all six scripts (and their `cc_deleteall` + `cc_create` widget
+rebuilds) ran 50 times a second for nothing. The host now records _which_ ids
+changed (`RS_CS2Host::var_changed_ids`, TS `changedVarps` parity) and a hook only
+re-runs when the change touches one of its triggers. Unhide
+(`widgets_loaded_dirty`) still dispatches everything, since a widget that was
+hidden through any number of changes must repaint, and a hook with no trigger
+list still matches any change. Varbit triggers resolve through their base varp,
+because that is the id a varbit write notifies with.
+
+**4. Texture discovery swept the whole scene every tick.**
+`app_sync_textures` called `UITreeSceneBridge_CollectMissingTextures`, which
+walked every live scene element and every face of its model just to notice
+texture ids that were not resident yet — a whole world's geometry, per tick, ~8%
+of frame time. Whatever builds a model already knows which textures it needs, and
+`ToriDraw_ModelFromToriRS` is the one funnel every scene model passes through
+(widget models, obj icons, chatheads, entity builds, world scenery), so that is
+where the ids are recorded now. `app_sync_textures` drains them with
+`ToriDraw_ModelTextureWantsTake` (a 256-flag set, so repeats collapse) and costs
+nothing on a tick that built no geometry. `CollectMissingTextures` is still there
+for one-shot audits of a built scene; nothing calls it per frame.
+
+Measured, `-O0`, 1000 frames headless against `src/build/mock230`:
+
+| build                              | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
+| ---------------------------------- | ------------------- | -------- | ---------------------- |
+| before                             | 33.0 s              | 33.0     | 97% (pegged)           |
+| + id-index/tail-hint (1 & 2)       | 15.8 s              | 15.8     | 72%                    |
+| + var-transmit filter (3)          | 13.9 s              | 13.9     | 62%                    |
+| + texture wants at model build (4) | 12.9 s              | 12.9     | 57%                    |
+
+The post-network widget tree dump (`TORIRS_DUMP_TREE_EXIT=1`, 1774 lines of
+kinds, resolved boxes and hidden flags) is byte-identical before and after, and
+the rendered frame matches to 43 pixels out of 384,795 (animation phase, not
+geometry). In the `-O0` profile now, everything `UITree_*`/`uitree_*` adds up to
+**3%** of main-thread samples (`UITree_LayoutResolve` is the largest), texture
+sync and the var-transmit scripts are 0.0%, `app_logic_tick` as a whole is 0.3%,
+and **84% is inside `ToriDraw`** — the software renderer, which is where it
+belongs. `flamegraph_osrs230_before.svg` and `flamegraph_osrs230_after.svg` in
+the repo root are those two profiles. Re-measure with `./tools/perf/run_perf.sh`
+/ `./profile-mac.sh manifest_osrs230_embed.ini` before citing these percentages —
+they are from an older tree; live numbers live in `docs/PERF_HARNESS.md`.
+
+### The rebuild burst — node size and the by-sub-id scan
+
+Steady-state frames barely touch the tree now, but a container rebuild
+(`cc_deleteall` then a run of `cc_create`, which is how a transmit script
+repopulates a bank/spellbook/list) still went through two structural problems.
+`make -C src bench-uitree` measures exactly that path — override the shape with
+`BENCH_ROWS` / `BENCH_ITERS` / `BENCH_STATIC_CHILDREN`.
+
+**5. A widget node was 29,576 bytes.** `menu_options.submenus.ops[10][32][64]`
+alone was 20,480 of it — 20 KB of submenu labels inline in _every_ node, for a
+feature a handful of components use, memset on every push and every reclaim and
+strided over by every linear walk of `components[]`. It is now a lazily allocated
+block reached through `UITree_MenuSubmenu*` (NULL until a `CC/IF_SETOPSUBMENU`
+lands), owned per component: `uitree_menu_options_copy` deep-copies it for
+`CC_COPY`, and `uitree_component_free_owned` releases it. The node is **9,112
+bytes**. (`runtime_hooks` is the remaining 7,424 — 16 hook slots × 464 bytes of
+inline args — and could go the same way; it has 79 use sites, so it was left
+alone.)
+
+**6. Finding a child by sub-id walked the sibling list.** `cc_create` calls
+`UITree_FindChildBySubid` once per row to implement replace-in-slot, and during a
+rebuild every one of those calls is a _miss_ over an ever-longer list — quadratic
+in row count. Each node now carries `child_key_max`, the highest sub-id key among
+its children (`UITREE_CHILD_KEY_NONE` when none, `UITREE_CHILD_KEY_UNKNOWN` when
+a mutation invalidated it), so a lookup above the ceiling answers "no such child"
+without walking. The ceiling is only ever too high, never too low: a stale-high
+value costs a scan, it cannot hide a child. Removing a child only invalidates it
+if that child _was_ the ceiling, which keeps replace-in-slot rebuilds O(1) per
+row too; `CC_DELETEALL` drops it once for the whole batch, and the next lookup
+recomputes it in one walk. Wide sub_ids (> 0xFFFF) skip the fast path, since the
+scan compares non-dynamic children masked to 16 bits.
+
+`make -C src bench-uitree BENCH_ITERS=40`, per rebuild:
+
+| rows | before (29 KB node + scan) | after (9 KB node + ceiling) |
+| ---- | -------------------------- | --------------------------- |
+| 400  | 0.68 ms (1.7 µs/row)       | **0.14 ms** (0.3 µs/row)    |
+| 1600 | 7.38 ms (4.6 µs/row)       | **0.47 ms** (0.3 µs/row)    |
+| 3200 | 38.15 ms (11.9 µs/row)     | **1.01 ms** (0.3 µs/row)    |
+
+Per-row cost is now flat instead of growing with the list, and the array behind a
+3200-row container is 35.6 MB instead of 115.5 MB. Steady-state rev230 barely
+moves (13.1 s → 12.8 s per 1000 frames) — as expected, since the tree is 3% of a
+frame there; this is about the bursts, and about a 766-node gameframe holding
+7 MB instead of 22 MB. `ui/test/uitree_test_id_index.c` checks both the id index
+and every by-sub-id case against the sibling scan they replace (both fast paths
+fail the tests if their bounds are loosened).
+
+Still on the table:
+
+- `runtime_hooks` (7,424 of the remaining 9,112 bytes per node), as above.
 
 ## Profiling - Inline
 
@@ -835,18 +1253,15 @@ new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 2
 On linux
 
 ```
-valgrind --leak-check=full ./scene_tile_test
-
-valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
-valgrind --leak-check=full ./osx > log.txt 2>&1
+valgrind --leak-check=full src/torirs --manifest manifest_osrs230.ini --offline
 
 # Callgrind must be built without ASan
-valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
-valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
+valgrind --tool=callgrind src/torirs --manifest manifest_osrs230.ini --offline > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
-valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out \
+  src/torirs --manifest manifest_osrs230.ini --offline
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```
@@ -882,6 +1297,134 @@ The middle image is my texture renderer with tiling.
 The right image is my texture redner with overflow highlights.
 
 [tiling_proof](./res/measurement_texture_tiling.png)
+
+## RS2 (643) — HD-only textures and the 4x model scale
+
+Two bugs made whole 643 map squares render as a blanket of giant, glaring
+white gravel chunks — "most locs render as the same model". Both had the same
+shape, which is what makes them worth a section: **every decoder validated
+byte-exactly while the render was spectacularly wrong**, because the reference
+client applies rules at _use_ time that no decoder can see. Fixed by walking
+each pipeline stage against rs-map-viewer until the divergence appeared; both
+rules live in the reference's loaders, not its decoders.
+
+### Was: every texture drew. Is: only SD-valid materials draw.
+
+643 does not have "textures" in the OSRS sense — it has _materials_ (table 26),
+and each material carries a `valid` byte. That byte is rs-map-viewer's
+`TextureLoader.isSd`, and in cache.643 only **284 of 1164** materials have it
+set. The other 880 are HD-only: they exist for the HD client's shader pipeline,
+and the SD renderer **must not draw them**:
+
+- `ModelData.light()` nulls the face texture of any face whose material is not
+  SD. The face then lights from its **face colour** — which the loc's recolour
+  list has usually already darkened. 643's pebble/rubble ground decor is the
+  canonical case: an HD gravel material over a dark recoloured base. Draw the
+  texture anyway and the recolour is ignored — bright HD gravel everywhere.
+- `SceneBuilder` applies the same gate to terrain: an overlay naming a non-SD
+  texture falls back to the overlay's own HSL colour (the smooth brown desert
+  paths are this).
+
+We used to bake and draw all 1164. "All textures bake" was even celebrated as
+the milestone — but baking is not drawing, and the SD client's whole look
+depends on _refusing_ most of them. The port is `CacheProvider_TextureIsSd`
+(a provider vtable slot; unset means always-true, which is the reference's
+`SpriteTextureLoader.isSd`, so OSRS and dat1 are untouched by construction)
+applied exactly where the reference applies it: after every recolour/retexture
+and before lighting (`ToriDraw_ModelDropNonSdTextures`) on scenery, player,
+NPC, and spotanim model builds, plus the terrain overlay site.
+
+Two corollaries fell out:
+
+- **Texture ids outgrew a byte.** 234 of the 284 SD materials have ids above
+  255, and the texture pipeline was 256-slot end to end (scene map, wants
+  registry, raster guard, failed-set, a `(uint8_t)` truncation in the overlay
+  map). Faces naming them were silently invisible — the raster skips faces
+  whose texture is absent. Now `TORIDRAW_TEXTURE_ID_CAPACITY` (2048)
+  throughout.
+- The visible signature of a missing _drop_-rule is **uniformity**: hundreds of
+  distinct loc configs converging on one look, because the same undropped
+  ingredient (a shared HD base texture) dominates all of them.
+
+### Was: Steel titan invisible on soft3d (partial on GL3). Is: NPC builds drop HD materials before lighting.
+
+The SD gate above was wired for scenery and player kits first. NPC and spotanim
+builds (`app_world_build_model` / `app_world_build_spotanim_model`) skipped it:
+they kept HD texture ids on faces, lit those faces as textured (storing 0–127
+lightness in `face_colors_a/b/c` instead of HSL16), and then the software
+raster skipped every face whose material was not in the texture map — which
+HD-only materials never are.
+
+Steel titan (NPC 7343 / 7344, model **30469**) is the motivating case: all
+1000 faces name materials **238 / 288 / 241**, and every one of those has
+`valid=0` (HD-only). Soft3d therefore drew nothing. GL3 still submitted the
+geometry (so animation looked alive) but missing/wrong materials left holes.
+Alpha decode was a red herring here — every face alpha is 0 (opaque); the
+model never had a transparency problem.
+
+The fix is the same gate scenery already had: `ToriDraw_ModelDropNonSdTextures`
+before lighting on the NPC/spotanim paths, so those faces light from their
+face colour like `ModelData.light()`'s isSd rule. Alongside that, three
+render conventions were aligned with rs-map-viewer (they were wrong for any
+model, not just the titan):
+
+- Lighting treats cache alphas as signed (`(int8_t)`): raw 255 → hide, 254 →
+  black/hidden type (the old `alpha == -1/-2` checks were dead on `uint8_t`
+  storage).
+- Face render type is the unmasked byte; values other than 0/1/2/3 hide the
+  face (we used to `& 0x3` and draw geometry the reference culls).
+- GL3 applies face alpha only to untextured faces; textured faces stay opaque
+  at the face level (`SceneBuffer.getModelFaces`), and display alpha 0/1 is
+  culled on both paths.
+
+### Was: models 4x too large. Is: version-13+ vertices shift down.
+
+`ModelData.decodeV1` ends with a line the port never had:
+
+```ts
+if (this.version >= 13) {
+  this.scaleDown(2); // vertices >>= 2
+}
+```
+
+Version-13+ models store their vertices at **4x precision**, and the reference
+shifts them down after decode. Our model decode round-trips all 65,014 records
+byte-exactly, which is precisely why this hid: byte-exactness proves the
+_encoder inverts the decoder_, not that the interpretation is right. A
+single-tile gravel scatter spanning three tiles was the tell.
+
+`version` is per model, not per cache, and cache.643 is a mix — census via
+`test_rs2_sweep <root> modelvers`:
+
+| version             | models | scaleDown applies |
+| ------------------- | ------ | ----------------- |
+| 1 (no version byte) | 38,840 | no                |
+| 14                  | 1,955  | yes               |
+| 15                  | 24,219 | yes               |
+
+**26,174 of 65,014 (40.3%)** need the shift and the other 60% must be left
+alone, so this cannot be a blanket "643 models are 4x" rule — the header flag
+has to be read per model. No OldSchool model reaches this code path at all
+(they decode through the version2/version3 branches), which is why the shift is
+structurally unreachable outside RS2.
+
+Settled by decoding model 1139 through rs-map-viewer's own loader headlessly
+(`npx tsx`, its `caches/rs2-643_2011-04-13` is the same cache) and comparing
+vertex-for-vertex: ours `(164, -34, -172)`, theirs `(41, -9, -43)` — exactly
+`>> 2`, arithmetic on negatives.
+
+The shift is deliberately **not** in the rscache decoder: it drops two bits,
+and byte-exact round-trip is that library's validation bar. The decoder records
+`RSCache_Model.format_version`; the engine's ToriRS adaptor applies the shift.
+Byte-fidelity and reference geometry live on opposite sides of the adaptor,
+each checked by its own harness. One trap inside the fix:
+`RSCache_ModelNewCopy`/`NewMerge` must carry `format_version`, because the
+dat2 model task adapts a _copy_ — drop the field and everything silently
+un-scales again.
+
+Full write-ups: `3rd/rscache/EXCEPTIONS.md` B12 (scale) and B18 "The SD gate"
+(materials); `manifest_rs643.ini` carries the status and the debug tooling
+(`test_rs2_sweep <root> loc|model|spawns|materials`).
 
 ## Server
 
@@ -962,175 +1505,13 @@ https://discord.com/channels/788652898904309761/1069689552052166657/117159152840
 
 ![go_frame_time](./res/danes_frame_time.png)
 
-### Windows
+### Historical platform benchmarks
 
-In order for ninja to work, you need to set up your visual studio vars for powershell. See the microsoft powershell profile in scripts.
-
-.\vcpkg.exe install sdl2:x64-windows bzip2:x64-windows zlib:x64-windows freetype:x64-windows
-
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"; cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/insw lled/x64-windows'
-
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -B build-ninja2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmake -G "Visual Studio 17 2022" -A x64 -B build-vs -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-
-cmd /c '"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && ninja -C build-ninja'
-
-Your Visual Studio 2017 installation is probably missing the C packages (they are not automatically included with the Desktop development with C++ workload).
-
-To install it, start the Visual Studio Installer, go to Individual components, and check Windows Universal C Runtime:
-
-#### Building with MSVC
-
-Configure your powershell terminal with vcvars.
-
-```
-# Visual Studio 2022 Community Environment Setup
-# This automatically sets up the Visual Studio environment variables
-# so you don't need to run vcvars64.bat before ninja commands
-
-$vcvarsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-
-if (Test-Path $vcvarsPath) {
-    # Call the batch file and capture its environment variables
-    cmd /c "`"$vcvarsPath`" && set" | ForEach-Object {
-        if ($_ -match "^([^=]+)=(.*)$") {
-            $name = $matches[1]
-            $value = $matches[2]
-            [Environment]::SetEnvironmentVariable($name, $value, "Process")
-        }
-    }
-
-    Write-Host "Visual Studio 2022 Community environment loaded successfully!" -ForegroundColor Green
-} else {
-    Write-Host "Warning: Visual Studio 2022 Community not found at expected path: $vcvarsPath" -ForegroundColor Yellow
-    Write-Host "Please update the path in your PowerShell profile if Visual Studio is installed elsewhere." -ForegroundColor Yellow
-}
-```
-
-You must also set up vcpkg for SDL2.
-
-```
-cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-TODO: How to set up vcpkg and SDL2.
-
-Then using cmake.
-
-```
-cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
-```
-
-#### Building with GCC and MinGW
-
-MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
-
-Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
-
-Also set up and a .bashrc script so you can type `make` instead of `mingw32-make`.
-
-**Prerequisites:**
-
-- Install MinGW-w64 (recommended: MSYS2 or standalone installer)
-  `winget install --id MSYS2.MSYS2`
-
-  ```
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -Syu --noconfirm"
-
-  C:\msys64\msys2_shell.cmd -defterm -here -no-start -mingw64 -c "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-SDL2 mingw-w64-x86_64-freetype mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib"
-
-  cmake -B build-mingw -DCMAKE_BUILD_TYPE=Release -G 'MinGW Makefiles'
-
-  mingw32-make -j4
-  ```
-
-**Terminal Configuration**
-
-```
-   "MSYS2 Terminal": {
-            "path": "C:\\msys64\\msys2_shell.cmd",
-            "args": ["-defterm", "-here", "-no-start", "-mingw64"],
-            "icon": "terminal-bash",
-            "env": {
-                "CHERE_INVOKING": "1",
-                "MSYSTEM": "MINGW64",
-                "HOME": "${workspaceFolder}/scripts"
-            }
-        },
-```
-
-**Installation Options:**
-
-1. **MSYS2 (Recommended):**
-
-   ```bash
-   # Download and install MSYS2 from https://www.msys2.org/
-   # Then install MinGW-w64 toolchain:
-   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make
-   ```
-
-   Or using winget
-
-   ```
-   winget install --id MSYS2.MSYS2
-   ```
-
-2. **MSYS2 Terminal (Alternative):**
-   - Install MSYS2 from https://www.msys2.org/
-   - Use the MSYS2 terminal (not MinGW64 terminal) for a Unix-like environment
-   - Install packages with: `pacman -S gcc cmake make`
-   - Note: This uses the MSYS2 environment, not native Windows MinGW
-
-3. **Standalone MinGW-w64:**
-   - Download from https://www.mingw-w64.org/downloads/
-   - Add `bin` directory to your PATH
-
-**Dependencies:**
-
-For MinGW builds, it's recommended to use MSYS2 packages rather than vcpkg:
-
-```bash
-# Using MSYS2 MinGW64 packages (recommended for native Windows MinGW)
-pacman -S mingw-w64-x86_64-SDL2 mingw-w64-x86_64-bzip2 mingw-w64-x86_64-zlib mingw-w64-x86_64-freetype mingw-w64-x86_64-opengl
-
-# Using MSYS2 terminal packages (Unix-like environment)
-pacman -S SDL2 freetype2 mesa
-```
-
-**Building:**
-
-```bash
-# Configure with MinGW (using MSYS2 packages)
-cmake -B build-mingw -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Build (recommended - works regardless of make availability)
-cmake --build build-mingw
-
-# Alternative: Using mingw32-make (MinGW's make)
-cd build-mingw
-mingw32-make -j$(nproc)
-```
-
-**Static Linking (Optional):**
-
-```bash
-# Using MSYS2 static packages (recommended)
-pacman -S mingw-w64-x86_64-SDL2-static mingw-w64-x86_64-bzip2-static mingw-w64-x86_64-zlib-static mingw-w64-x86_64-freetype-static
-
-# Configure for static linking
-cmake -B build-mingw-static -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build build-mingw-static
-```
+The CMake/MSVC/SDL Windows recipes that used to precede these captures targeted
+the retired renderer stack and have been removed. Current Windows builds use
+the raw-Win32 backend through distinct modern x86_64 and XP-compatible i686
+lanes documented in
+[Platform quirks and contracts](docs/platform_quirks.md#windows-raw-win32-d3d9-and-soft3dgdi).
 
 #### Performance
 
@@ -1153,69 +1534,11 @@ Native Mingw Static
 Also noticing that the deob is faster for big screens.
 Update: No that's not true, it just doesn't work on big screens.
 
-### Building For Emscripten
-
-Install emscripten with it's sdk
-
-```
-git clone https://github.com/emscripten-core/emsdk.git
-
-# Windows
-.\emsdk\emsdk.bat install latest
-.\emsdk\emsdk.bat activate latest
-
-.\emsdk\emsdk_env.ps1
-
-# Test if found
-.\emsdk\upstream\emscripten\emcc.bat --version
-
-# Create build files
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-
-# Unix Like
-.\emsdk\emsdk install latest
-.\emsdk\emsdk activate latest
-
-.\emsdk\upstream\emscripten\emcc --version
-emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Release
-```
-
-Then building=
-
-```
-cd build.em
-
-emmake ninja
-
-# or on unixlike
-
-emmake make
-
-# Then copy the build files.
-# Windows
-powershell -ExecutionPolicy Bypass -File scripts/copy_browser_files.ps1
-```
-
-Then copy the output to public/build
-
-`python3 -m http.server -b 0.0.0.0 -d public/build 8000 `
-`python3 -m http.server -b 0.0.0.0 -d . 8010 `
-
-./scripts/serve_emscripten.py -d public/build 8000
-
-`http://localhost:8000/main.html`
-
 # World and model coords
 
 +y is down
 +z is away from camera (into)
 +x is to the right.
-
-# WebGL
-
-My Moto X (Gen 1) has blacklisted chromium webgl2 drivers.
-See here.
-https://issues.chromium.org/issues/40114751
 
 # Software Renderer integer limits
 
@@ -1398,10 +1721,6 @@ Then
     }
 ```
 
-# Contour Ground
-
-TODO: Need to rework contour ground.
-
 # Managing State
 
 Need to maintain loaded assets.
@@ -1411,7 +1730,7 @@ Dash owns the dash assets.
 
 struct BuildCacheDat
 {
-struct FileListDat\* config_jagfile;
+struct RSCacheShared_FileListDat\* config_jagfile;
 
 struct DashMap* models_hmap;
 struct DashMap* textures_hmap;
@@ -1427,6 +1746,13 @@ Inferno region
 
 Region ID: 9043
 (regionX = 35, regionY = 83)
+x zone = 280
+z zone = 664
+
+Waterfall Region
+/_ OSRS rebuild-normal zone coords (zonex, zonez). _/
+#define RUNESCAPE_ZONE_CENTER_X 313
+#define RUNESCAPE_ZONE_CENTER_Z 437
 
 Instances -> Load region chunk, server has instance area for you.
 
@@ -1497,6 +1823,11 @@ and are limited to that special logic for 20 slots. Consider the equipment scree
 
 The 20 slots can have special offsets and "null" graphics. Higher than that,
 they cannot.
+
+## UITree
+
+How UITree is built (including RevConfig), laid out, walked, and rendered — see
+[src/ui/README.md](src/ui/README.md).
 
 ## Revision Config
 
@@ -1670,21 +2001,6 @@ Side Icons hmid
 496, 466
 ```
 
-## Emscripten
-
-python3 -m http.server 8080
-python3 -m http.server -d build_emscripten 8080
-
-// Serve cache
-cd test/datserver
-./a.out
-
-// Serve lua
-node ./serve-lua-scripts.js
-
-// Serve build
-python3 -m http.server -d build_emscripten 8080
-
 ## Painter
 
 ```
@@ -1709,21 +2025,6 @@ painter bench (avg over 30 frames): paint_w3d=1.971 ms paint_bucket=1.556 ms
 painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
 ```
 
-# Debugging On Target
-
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe ./build-winxp/win32.exe
-
-```
-/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe win32.exe
-
-strings win32.exe | grep .pdb
-
-# Place the pdb file where this path points on the dest machine.
-mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-winxp
-$ strings win32.exe | grep .pdb
-C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
-```
-
 ## Air Strike 245
 
 659=strike_travel
@@ -1740,12 +2041,6 @@ recol2d=32767
 recol3s=31649
 recol3d=31
 
-# Serving to winxp
-
-```
-python3 -m http.server -b 0.0.0.0 -d . 8000
-```
-
 ## Rendering Features Needed
 
 1. Textures U clamp
@@ -1755,3 +2050,781 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 5. Clipping Rect Per Sprite
 6. Rotated Sprites
 7. Fonts and Text
+
+## Empty Models??
+
+Not a loading bug: cache254 contains three model files (IDs 596, 2214, 2215) that are exactly an 18-byte ob2 header with 0 vertices / 0 faces. They are intentionally empty and referenced by real loc configs (gnome glider map icons, shape 22; invisible walls on locs 83-85/2639, shapes 0 and 9). The original client tolerates 0-vertex models and just draws nothing. A crash on one is an engine invariant failure, not a loading failure.
+
+## Bellemorde
+
+have model Bellemorde Head 9424 from the RSCache, what animations work with it?
+
+Model 9424 is the chathead for Bellemorde, the slightly mangy cat from the Ratcatchers quest.
+
+Because it's a chathead model stored in the Dat1/Dat2 cache formats, it doesn't have unique, hardcoded animations tied directly to the mesh. Instead, the engine passes a global dialogue animation ID to the chatbox widget, which then applies that animation to the model's vertex groups.
+
+If you are plugging this into a custom rendering pipeline or parsing the cache, any of the standard global chathead animations (which generally run from 554 to 611) will work with it.
+
+Here are the core IDs you'll want to map for testing the dialogue loops:
+
+Animation ID Expression / Action
+554 Neutral / Listening (Idle loop)
+567 Sad / Distressed
+568 Questioning / Slightly agitated
+570 Happy talking
+571 Standard default talking
+572 Angry / Shouting
+573 Sad talking
+574 Laughing
+Since Bellemorde is a feline model, some of the more exaggerated humanoid expressions (like extreme shouting) might deform the jaw or ears slightly depending on how the original vertex weights were painted, but the standard neutral and talking loops (554 and 571) will run perfectly smoothly on the mesh.
+
+./sdl2 --runescape --dat2 /Users/matthewevers/Documents/git_repos/3draster/cache
+
+## LostCity Memory Stats
+
+On Tutorial Island after idling for a long time.
+=== Client Memory Stats ===
+client.js:20626 [client] camShake: 80 B
+client.js:20626 [client] chatArrays: 2.1 KB
+client.js:20626 [client] collisionMaps: 169.0 KB
+client.js:20626 [client] designArrays: 48 B
+client.js:20626 [client] drawArea: 0 B
+client.js:20626 [client] entityArrays: 83.9 KB
+client.js:20626 [client] flameBuffers: 1.0 KB
+client.js:20626 [client] groundh: 172.3 KB
+client.js:20626 [client] mapBuildGroundData: 300.1 KB
+client.js:20626 [client] mapBuildIndex: 36 B
+client.js:20626 [client] mapBuildLocationData: 19.7 KB
+client.js:20626 [client] mapl: 42.3 KB
+client.js:20626 [client] menuArrays: 15.6 KB
+client.js:20626 [client] messageArrays: 800 B
+client.js:20626 [client] packets: 14.6 KB
+client.js:20626 [client] playerAppearancePackets: 49 B
+client.js:20626 [client] routeFinding: 115.8 KB
+client.js:20626 [client] textureBuffer: 16.0 KB
+client.js:20626 [client] tileLastOccupiedCycle: 42.3 KB
+client.js:20626 [client] uiScanlines: 4.1 KB
+client.js:20626 [client] waveArrays: 600 B
+client.js:20626 [graphics] pix2dPixels: 668.0 KB
+client.js:20626 [graphics] pix3dActiveTexels: 2.50 MB
+client.js:20626 [graphics] pix3dAverageTextureRgb: 200 B
+client.js:20626 [graphics] pix3dTables: 283.5 KB
+client.js:20626 [graphics] pix3dTexelPool: 2.50 MB
+client.js:20626 [graphics] pix3dTexPal: 2.7 KB
+client.js:20626 [graphics] pix3dTextures: 730.7 KB
+client.js:20626 [world] mergeIndices: 78.1 KB
+client.js:20626 [world] occlusionCycle: 172.3 KB
+client.js:20626 [models] ifTypeModelCache: 18.3 KB
+client.js:20626 [models] ifTypeSpriteCache: 0 B
+client.js:20626 [models] locTypeMc1: 22.6 KB
+client.js:20626 [models] locTypeMc2: 149.7 KB
+client.js:20626 [models] modelMeta: 3.76 MB
+client.js:20626 [models] modelStaticBuffers: 3.17 MB
+client.js:20626 [models] npcTypeModelCache: 73.4 KB
+client.js:20626 [models] objTypeModelCache: 0 B
+client.js:20626 [models] objTypeSpriteCache: 0 B
+client.js:20626 [models] playerModelCache: 18.3 KB
+client.js:20626 [models] spotAnimModelCache: 0 B
+client.js:20626 [io] onDemand: 64.0 KB
+client.js:20626 [io] packetCache: 0 B
+client.js:20626 [sound] tone: 1.09 MB
+client.js:20626 [sound] waveBytes: 430.7 KB
+client.js:20626 [browser] jsHeapTotal: 67.38 MB
+client.js:20626 [browser] jsHeapUsed: 64.58 MB
+client.js:20632 TOTAL (tracked buffers): 16.65 MB
+client.js:20636 [browser] JS heap used: 64.58 MB / 67.38 MB
+
+### Low Memory
+
+=== Client Memory Stats ===
+client.js:20626 [client] camShake: 80 B
+client.js:20626 [client] chatArrays: 2.1 KB
+client.js:20626 [client] collisionMaps: 169.0 KB
+client.js:20626 [client] designArrays: 48 B
+client.js:20626 [client] drawArea: 0 B
+client.js:20626 [client] entityArrays: 83.9 KB
+client.js:20626 [client] flameBuffers: 1.0 KB
+client.js:20626 [client] groundh: 172.3 KB
+client.js:20626 [client] mapBuildGroundData: 300.1 KB
+client.js:20626 [client] mapBuildIndex: 36 B
+client.js:20626 [client] mapBuildLocationData: 19.7 KB
+client.js:20626 [client] mapl: 42.3 KB
+client.js:20626 [client] menuArrays: 15.6 KB
+client.js:20626 [client] messageArrays: 800 B
+client.js:20626 [client] packets: 14.6 KB
+client.js:20626 [client] playerAppearancePackets: 49 B
+client.js:20626 [client] routeFinding: 115.8 KB
+client.js:20626 [client] textureBuffer: 16.0 KB
+client.js:20626 [client] tileLastOccupiedCycle: 42.3 KB
+client.js:20626 [client] uiScanlines: 4.1 KB
+client.js:20626 [client] waveArrays: 600 B
+client.js:20626 [graphics] pix2dPixels: 668.0 KB
+client.js:20626 [graphics] pix3dActiveTexels: 576.0 KB
+client.js:20626 [graphics] pix3dAverageTextureRgb: 200 B
+client.js:20626 [graphics] pix3dTables: 283.5 KB
+client.js:20626 [graphics] pix3dTexelPool: 704.0 KB
+client.js:20626 [graphics] pix3dTexPal: 2.7 KB
+client.js:20626 [graphics] pix3dTextures: 202.7 KB
+client.js:20626 [world] mergeIndices: 78.1 KB
+client.js:20626 [world] occlusionCycle: 172.3 KB
+client.js:20626 [models] ifTypeModelCache: 18.3 KB
+client.js:20626 [models] ifTypeSpriteCache: 0 B
+client.js:20626 [models] locTypeMc1: 22.6 KB
+client.js:20626 [models] locTypeMc2: 137.9 KB
+client.js:20626 [models] modelMeta: 573.2 KB
+client.js:20626 [models] modelStaticBuffers: 3.17 MB
+client.js:20626 [models] npcTypeModelCache: 44.6 KB
+client.js:20626 [models] objTypeModelCache: 0 B
+client.js:20626 [models] objTypeSpriteCache: 0 B
+client.js:20626 [models] playerModelCache: 18.3 KB
+client.js:20626 [models] spotAnimModelCache: 0 B
+client.js:20626 [io] onDemand: 64.0 KB
+client.js:20626 [io] packetCache: 0 B
+client.js:20626 [sound] tone: 0 B
+client.js:20626 [sound] waveBytes: 430.7 KB
+client.js:20626 [browser] jsHeapTotal: 56.44 MB
+client.js:20626 [browser] jsHeapUsed: 51.63 MB
+client.js:20632 TOTAL (tracked buffers): 8.05 MB
+client.js:20636 [browser] JS heap used: 51.63 MB / 56.44 MB
+
+# UI Plan
+
+[ini parser]
+=> [revconfig buffer: revconfig ui/revconfig cache]
+=> [ui tree],[anything else]
+
+The revconfig loader outputs more than just a UI tree.
+
+The RevConfig loading actually can apply to ALL parts of the LibToriRS_Instance.
+
+Remove all the RevConfig, and ui loading tasks.
+
+Remove revconfig_ui_build and revconfig_ui_expand. They are FAR to complicated.
+
+Unify the revconfig loading into a single Task_InstanceRevConfigLoad.
+
+At the top level of the instance, it should load all the specified config files into a single item buffer.
+
+Then it should loop on the item buffer to handle each item. The switch case should be single function branches.
+
+Implement TASK_AWAIT macro.
+
+For example, there should be Task_InstanceOnRCCacheSprite
+Task_InstanceOnRCUIComponent
+Task_InstanceOnRCUILayout
+Task_InstanceOnRCInv
+
+Likewise, in the Task_InstanceOnRCUIComponent
+there should be a clear switch and handler for each type of component. Each component should load into a buffer. That buffer will later be used to build the UITree.
+For RS Components specifically.
+
+Create a Task_RSComponentLoad, that task uses callbacks when the component is loaded, and the callbacks are called for each component if there are multiple (e.g. RSLayer), Task_InstanceOnRCUIComponent gives that task callbacks that will build the UITree. Task_RSComponentLoad should also accept a cache type as an argument.
+
+Task_RSComponentLoad switches on the Cache type (Dat1 or Dat2).
+
+For both Dat1 and Dat2, there should not be a recursive load. Inside that task, it should be a Work Loop with an explicit stack.
+
+When an RSComponent is seen, and it needs to load assets, it should queue that asset in the work loop, the task queues the IO needed to load it, then the task yields. On return it decodes, then returns to the work loop.
+
+Likewise, for Task_InstanceOnRCInv
+there should be a Task_RSInvLoad that is structured similarly to Task_RSComponentLoad
+
+For Task_InstanceOnRCCacheSprite, it should load the sprite information into a named lookup.
+
+## Kronos Interfaces
+
+```
+On player connect, tab interfaces are set in DisplayHandler.sendDisplay(), which runs the first time the client sends its display-mode packet (opcode 72) — before player.start() and login listeners.
+
+
+DisplayHandler.java
+Lines 25-28
+        if(!player.hasDisplay()) {
+            player.setDisplayMode(displayMode);
+            sendDisplay(player);
+            player.start();
+Sidebar tab interfaces (gameframe 165)
+Each row is: tab → interface ID (constant name).
+
+Tab	Interface ID	Constant
+Combat
+593
+COMBAT_OPTIONS
+Stats
+320
+SKILLS
+Quest
+720
+NOTICEBOARD (custom, not vanilla quest journal)
+Inventory
+149
+INVENTORY
+Equipment
+387
+EQUIPMENT
+Prayer
+541
+PRAYER
+Spellbook
+218
+MAGIC_BOOK
+Clan Chat
+7
+CLAN_CHAT
+Account Management
+720
+NOTICEBOARD (custom)
+Friends / Ignore
+429 or 432
+FRIENDS_LIST or IGNORE_LIST
+Logout
+182
+LOGOUT
+Options
+261
+OPTIONS
+Emotes
+216
+EMOTE
+Music
+239
+MUSIC_PLAYER
+The mapping comes from sendInterface(interfaceId, 165, childId, 1) calls in sendDisplay():
+
+
+DisplayHandler.java
+Lines 53-68
+        ps.sendInterface(320, 165, 9, 1);
+        ps.sendInterface(Interface.NOTICEBOARD, 165, 10, 1);
+        ps.sendInterface(399, 629, 2, 1);
+        ps.sendInterface(149, 165, 11, 1);
+        ps.sendInterface(387, 165, 12, 1);
+        ps.sendInterface(541, 165, 13, 1);
+        ps.sendInterface(218, 165, 14, 1);
+        ps.sendInterface(Config.FRIENDS_AND_IGNORE_TOGGLE.get(player) == 0 ? Interface.FRIENDS_LIST : Interface.IGNORE_LIST, 165, 17, 1);
+        ps.sendInterface(Interface.NOTICEBOARD, 165, 16, 1);
+        ps.sendInterface(182, 165, 18, 1);
+        ps.sendInterface(261, 165, 19, 1);
+        ps.sendInterface(216, 165, 20, 1);
+        ps.sendInterface(239, 165, 21, 1);
+        ps.sendInterface(7, 165, 15, 1);
+        ps.sendInterface(COMBAT_OPTIONS, 165, 8, 1);
+Conditional / extra UI on connect
+Element	Interface	Condition
+Chat bar
+162 (CHAT_BAR)
+Always
+Private chat
+163 (PRIVATE_CHAT)
+Always
+Minimap orbs
+160 (ORBS)
+DATA_ORBS == 0 (default 0 → shown)
+XP counter
+122 (EXPERIENCE_COUNTER)
+XP_COUNTER_SHOWN == 1 (default 0 → hidden)
+Quest list shell
+399 (QUEST) on parent 629
+Always loaded, but Quest tab shows NOTICEBOARD
+Friends tab: FRIENDS_AND_IGNORE_TOGGLE == 0 → Friends (429); == 1 → Ignore (432). Default is 0 → Friends.
+
+Game frame after tabs load
+After attaching interfaces to frame 165, the server switches to the player’s layout:
+
+Fixed: 548
+Resizable with side panels: 164 (SIDE_PANELS == 1)
+Resizable without side panels: 161
+Sub-interfaces are moved via enum maps 1129–1132.
+
+```
+
+## interfacex — static component parenting
+
+`tools/deprecated/interfacex` builds a `UITreeX` from the static component definitions in the cache before running onLoad / var-transmit CS2 scripts. Each component has a `layer` field (decoded as a packed parent id: `layer += component_id & 0xFFFF0000` in `dat2a_component.c`) that names which other component should be its parent in the tree.
+
+### What was going wrong
+
+The original builder linked each node to its parent **in the same pass** as node creation, walking components in file/index order. For each component, `UITreeXBuilder_SetActiveParentByUserId` searched only the nodes created **so far**. If a component's parent had a **higher file index** (a forward reference — the parent component had not been emplaced yet), the lookup failed.
+
+The bug was what happened next: on failure, `SetActiveParentByUserId` returned without changing `parent_idx`, so `LinkPushSibling` attached the new node under whatever parent was left over from the **previous** component. That stale value cascaded down the file order.
+
+On interface 161 (resizable game frame, if3), this produced visibly wrong nesting:
+
+- Components 57 and 58 (top tab bar background and layer) should be children of component 97 (`0x00a10061`). Their parent is a forward reference, so they were incorrectly attached under component 42 (`0x00a1002a`, the bottom tab bar layer).
+- Component 73 (`0x00a10049`, the tab content shell) should also be a child of 97, sibling to 58. Instead it ended up nested under 58.
+
+The parent ids from the cache were correct; only the **order-dependent** linking was wrong. Symptoms included tab graphics sitting under the wrong layer (wrong clip/position in the layout tree) and elements that should be visible appearing hidden or missing in the render.
+
+### Why the fix works
+
+Static tree construction is now **two-pass**, with parenting intent kept on the builder:
+
+1. **Create** — each `Push*WithParentUserId` emplaces a node (kind, `user_id`, geometry). If `parent_user_id != -1`, it records `{ child_idx, parent_user_id }` on the builder's **pending-parent list** instead of linking immediately.
+2. **Resolve** — after all nodes exist, `UITreeXBuilder_ResolvePendingParents` walks the pending list in enqueue order and appends each child under its resolved parent via `UITreeX_FindByUserId`. If the parent is not found, the child stays a root (stderr warning).
+
+All non-root links are deferred, not only forward references. That preserves sibling z-order: children of the same parent are linked in file/index order once every node exists. Eagerly linking when the parent is already present would attach later siblings before earlier forward-ref siblings are resolved.
+
+`SetActiveParentByUserId` was also hardened: if a parent id is not found, it now resets `parent_idx = -1` instead of silently keeping a stale value. That path is still used by dynamic `CC_CREATE` operations at runtime; the static build uses the pending-parent list instead.
+
+Implementation: `UITreeXBuilder_EnqueueParent` / `UITreeXBuilder_ResolvePendingParents` in `tools/deprecated/interfacex/main.c`, called after the `process_component` loop and before script execution.
+
+## interfacex — layer clipping
+
+OSRS clips **every** positive-size layer/container to its own bounds before drawing children — not only scrollable layers. Child widgets can be sized wider or taller than their parent (e.g. a divider line that spans the outer frame width inside a narrower tab row). The client does not shorten those widgets; it clips them at the parent edge.
+
+### How interfacex implements it
+
+`UITreeX_RenderNode` in `tools/deprecated/interfacex/main.c` keeps a recursive clip rect in `g_render_clip_*` (canvas space, half-open `[x0,y0)..[x1,y1)`). Before rendering a layer's children, if the layer has `abs_w > 0` and `abs_h > 0`, the clip is intersected with the layer viewport (`abs_x/y` .. `abs_x+abs_w`, `abs_y+abs_h`). Primitives (`ToriDraw2D_FillRect`, `ToriDraw2D_DrawLine`, text, sprites) already drop pixels outside that clip.
+
+Scroll is separate: scroll offsets shift child positions during layout; clipping still uses the layer's visible bounds.
+
+### Example: bank divider overshoot
+
+On interface 12 (bank), line component `[12]` (`0x000c000c`) is intentionally **`488x0`** under parent layer `[11]` at **`478x40`**:
+
+- Line draw end: `277 + 488 = 765`
+- Parent right edge: `276 + 478 = 754`
+
+Without layer clipping the line extends ~11px past the vertical border. With clipping it stops at the parent edge, matching the official client.
+
+### Parity references
+
+- Production: `UITree_ComponentClipsChildren` in `src/ui/uitree_scroll.c` is the shared container-clip predicate. The emit walk (`emit_walk_node` in `src/ui/uitree_emit.c`) intersects the child clip for every positive-size container; the hit/hover/drop walks (`src/ui/uitree_input.c`, `src/ui/uitree_hover.c`, `drop_target_pick_in_subtree` in `src/ui/uitree.c`) apply the same predicate via `UITree_ScrollIntersectClip` at screen coords so hitboxes match drawn pixels.
+- TypeScript reference: container child clip in `xrsps-typescript/src/ui/gl/widgets-gl.ts` ("ALL type 0/11 containers clip their children, not just scrollable ones").
+
+## Nonzero `clientCode` values in the dat2 cache
+
+Scanned all **917** interface archives in `cache/` with `tools/dump_interface/dump_interface`. **22** distinct nonzero `clientCode` values appear on **54** widgets.
+
+`clientCode` is decoded from each component record (see
+[`dat2_component.h`](3rd/rscache/src/datatypes/dat2_component.h)). In
+interfacex it is stored on the root [`UITreeXNode`](tools/deprecated/interfacex/main.c) as
+`client_code`.
+
+Many codes from [`Client-TS/src/client/ClientCode.ts`](Client-TS/src/client/ClientCode.ts) (friends list slots 1–203, ignores 401–503, friends2 701–900, player design 300–327, etc.) are assigned **at runtime** by the client to dynamic list rows — they do not appear as baked `clientCode` fields in the cache dump. Only values actually stored on widgets are listed below.
+
+### Gameframe content slots (1336–1401)
+
+These mount special client content into layer/graphic placeholders on the gameframe chrome (161 resizable box, 164 resizable bottom, 548 fixed, 601, etc.). Interfacex defines the main ones in [`tools/deprecated/interfacex/main.c`](tools/deprecated/interfacex/main.c):
+
+| clientCode | Name                      | Widget type | Count | Interfaces                 |
+| ---------- | ------------------------- | ----------- | ----- | -------------------------- |
+| 1336       | CONTENT_CHAT              | layer       | 4     | 161, 164, 548, 601         |
+| 1337       | CONTENT_WORLD (viewport)  | layer       | 6     | 16, 80, 161, 164, 548, 601 |
+| 1338       | CONTENT_MINIMAP           | graphic     | 4     | 161, 164, 548, 601         |
+| 1339       | CONTENT_COMPASS           | graphic     | 5     | 161, 164, 548, 601, 898    |
+| 1354       | CONTENT_XP_DROPS          | layer       | 5     | 80, 161, 164, 548, 601     |
+| 1400       | CONTENT_WORLDMAP          | layer       | 1     | 595                        |
+| 1401       | CONTENT_WORLDMAP_OVERVIEW | layer       | 1     | 595                        |
+
+**1337 viewport** — world render mount inside gameframe chrome:
+
+| Interface              | Component | Packed ID    | Size    |
+| ---------------------- | --------- | ------------ | ------- |
+| 16                     | file 1    | `0x00100001` | 765×503 |
+| 80                     | file 2    | `0x00500002` | 765×503 |
+| 161 (resizable box)    | file 91   | `0x00a1005b` | 800×600 |
+| 164 (resizable bottom) | file 88   | `0x00a40058` | 800×600 |
+| 548 (fixed)            | file 25   | `0x02240019` | 512×334 |
+| 601                    | file 1    | `0x02590001` | 765×503 |
+
+**1336 chat** (120×100 layer on gameframes):
+
+| Interface | Component | Packed ID    |
+| --------- | --------- | ------------ |
+| 161       | file 19   | `0x00a10013` |
+| 164       | file 19   | `0x00a40013` |
+| 548       | file 44   | `0x0224002c` |
+| 601       | file 30   | `0x0259001e` |
+
+**1338 minimap** (graphic, ~145–152²):
+
+| Interface | Component | Packed ID    | Size    |
+| --------- | --------- | ------------ | ------- |
+| 161       | file 30   | `0x00a1001e` | 152×152 |
+| 164       | file 30   | `0x00a4001e` | 152×152 |
+| 548       | file 21   | `0x02240015` | 145×151 |
+| 601       | file 34   | `0x02590022` | 152×152 |
+
+**1339 compass** (graphic, ~32–35²):
+
+| Interface | Component | Packed ID    | Size  |
+| --------- | --------- | ------------ | ----- |
+| 161       | file 29   | `0x00a1001d` | 35×35 |
+| 164       | file 29   | `0x00a4001d` | 35×35 |
+| 548       | file 20   | `0x02240014` | 32×33 |
+| 601       | file 33   | `0x02590021` | 35×35 |
+| 898       | file 44   | `0x0382002c` | 35×35 |
+
+**1354 XP drops** (layer; iface 80 is 1×1 hidden):
+
+| Interface | Component | Packed ID    | Size    | Hidden |
+| --------- | --------- | ------------ | ------- | ------ |
+| 80        | file 24   | `0x00500018` | 1×1     | yes    |
+| 161       | file 74   | `0x00a1004a` | 190×261 | no     |
+| 164       | file 71   | `0x00a40047` | 190×261 | no     |
+| 548       | file 78   | `0x0224004e` | 190×261 | no     |
+| 601       | file 114  | `0x02590072` | 190×261 | no     |
+
+**1400 / 1401 on interface 595** (world map sub-interface, opened from minimap via `openSubInterface(..., WORLD_MAP_GROUP_ID, 1, ...)`):
+
+| clientCode | Component | Packed ID    | Size    | Role                                                                                                             |
+| ---------- | --------- | ------------ | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1400       | file 8    | `0x02530008` | 573×403 | Main interactive world map — pannable/zoomable, draws map tiles, labels, icons                                   |
+| 1401       | file 12   | `0x0253000c` | 146×146 | Overview pane — area background, map element icons, red viewport rectangle showing where the main map is looking |
+
+`WidgetManager.ts` only names 1400 as `WORLDMAP` in its `ContentType` enum; 1401 is handled separately in `widgets-gl.ts`. Both are type-0 layers whose layout comes from normal widget geometry (and ancestor `onResize` scripts). Neither draws like a normal layer (no children/sprites) — the renderer intercepts `contentType === 1400` or `1401` and draws via `worldMapState`. Both block camera zoom (`utils.ts` treats them as visible map surfaces).
+
+### Known `ClientCode.ts` values present in cache
+
+| clientCode | Name        | Widget type | Count | Interfaces |
+| ---------- | ----------- | ----------- | ----- | ---------- |
+| 205        | CC_LOGOUT   | text        | 2     | 182, 374   |
+| 206        | CC_BANKMODE | text        | 1     | 182        |
+
+| Interface | clientCode | Component | Packed ID    | Size   | Button |
+| --------- | ---------- | --------- | ------------ | ------ | ------ |
+| 182       | 205        | file 12   | `0x00b6000c` | 144×36 | 0      |
+| 374       | 205        | file 5    | `0x01760005` | 110×25 | 1      |
+| 182       | 206        | file 7    | `0x00b60007` | 144×36 | 0      |
+
+### Other cache-specific codes
+
+| clientCode | OSRS                                | This client   | Count | Type  | Interfaces            |
+| ---------- | ----------------------------------- | ------------- | ----- | ----- | --------------------- |
+| 70         | Thin layer host (scrollbar/divider) | Generic layer | 1     | layer | 774                   |
+| 328        | Local player 3D preview             | Implemented   | 5     | model | 12, 84, 516, 529, 679 |
+| 999        | —                                   | —             | 1     | model | 277                   |
+| 6488       | —                                   | —             | 1     | text  | 746                   |
+| 6556       | —                                   | —             | 1     | layer | 84                    |
+| 6828       | —                                   | —             | 1     | layer | 601                   |
+| 6985       | —                                   | —             | 5     | text  | 368                   |
+| 7209       | —                                   | —             | 1     | rect  | 863                   |
+| 7961       | —                                   | —             | 2     | text  | 333                   |
+| 8261       | —                                   | —             | 1     | text  | 184                   |
+| 8366       | —                                   | —             | 3     | layer | 913, 914, 915         |
+| 9307       | —                                   | —             | 1     | layer | 819                   |
+| 9586       | —                                   | —             | 2     | layer | 12, 84                |
+
+**328 — local player 3D preview** — marks `TYPE_MODEL` widgets where the client renders the local player's equipped appearance as a rotating 3D model (bank equipment tab, worn-equipment side panel, and similar UIs). The official client intercepts `clientCode === 328` and draws from live player state rather than baking a static `modelId`. In cache these widgets are often `modelType=1 modelId=-1`; runtime CS2 (`CC_SETPLAYERMODEL_SELF` / `IF_SETPLAYERHEAD_SELF`) and equipment changes keep the preview in sync.
+
+| Interface | Component | Packed ID    | Size    | UI                                |
+| --------- | --------- | ------------ | ------- | --------------------------------- |
+| 12        | file 80   | `0x000c0050` | 136×168 | Bank (equipment tab player model) |
+| 84        | file 4    | `0x00540004` | 136×168 | Worn equipment side panel         |
+| 516       | file 22   | `0x02040016` | 136×102 | —                                 |
+| 529       | file 20   | `0x02110014` | 136×168 | —                                 |
+| 679       | file 73   | `0x02a70049` | 136×192 | —                                 |
+
+Interfacex maps `modelType` 5 to `INTERFACEX_MODEL_KIND_PLAYER_SELF` and handles `IF_SETPLAYERMODEL` opcodes; `client_code` 328 identifies these slots in the UITree for the same preview path.
+
+**70 — thin layer host** — on interface 774, file 81 (`16×96`). OSRS uses `clientCode` 70 for scrollbar/divider chrome layers; this client treats it as a generic layer (no special renderer).
+
+### Inspect / render
+
+```bash
+tools/dump_interface/dump_interface cache --iface 161
+tools/deprecated/interfacex/interfacex --no-bmp 601
+```
+
+To rescan: list interface archive ids with `dump_interface_index`, then grep `dump_interface` output for `clientCode=` (layer fields in the dump include a packed-id suffix after the hex id, so parse with field-specific regex rather than a single full-line pattern).
+
+## IO Loading Loop
+
+Interfacex uses the shared `LibToriCoreTaskRunner` protothread scheduler (same as `Task_InstanceRevConfigLoad`). There is no separate work-queue state machine — cooperative tasks yield on IO and resume via `TASK_AWAIT`.
+
+**Pump IO** = `InterfaceX_HostIO_DrainTasks` (native CLI) or `InterfaceX_HostIO_Pump` once per frame (emscripten). The runner services `live_head` (LIFO); child tasks awaited from a parent run to completion before the parent resumes.
+
+### A + B — `Task_InterfaceXOpen` (primed with interface id or pack)
+
+1. `TASK_AWAIT` interface archive IO (`InterfaceX_TaskInterfaceLoad`) if not in buildcache
+2. `InterfaceX_HostIO_InterfaceGroupSubmit` + `InterfaceX_ProcessInterfacePack` (CPU: decode components into UITreeX)
+3. `TASK_AWAIT` tree asset IO (sprites/fonts/obj icons per pending node)
+4. `TASK_AWAIT` script prefetch (`Task_ClientScriptLoad` for onLoad / var / inv hooks)
+5. Resolve `scene_id` on nodes
+6. For each queued onLoad (and root-only var/inv transmit hooks): `TASK_AWAIT Task_InterfaceXRunScript`
+7. `TASK_AWAIT` batch model load flush
+
+`main` queues one root open task and drains the runner to idle before layout/render.
+
+### C — `Task_InterfaceXRunScript` (primed with run script)
+
+1. `CS2VMX_RunScript` until done, error, or `CS2VM_EXECNO_YIELD`
+2. On yield: dispatch pending `CS2VM_HostRequest` to an awaitable child task (script/config/sprite/font/model load, or `Task_InterfaceXLoadGroup` for CC_CREATE/FIND group loads)
+3. `TASK_AWAIT` child, then retry the rolled-back opcode
+
+Mid-script group loads integrate the pack only (no onLoad hooks), matching prior `IntegrateInterfaceGroup` behavior.
+
+### Nested opens / IF_OPENSUB (next step)
+
+A sub-open that must run onLoad to completion before returning is a child `Task_InterfaceXOpen` awaited from `Task_InterfaceXRunScript` — the runner LIFO stack provides interrupt/batch semantics without a separate batch type.
+
+## Async Tasks
+
+### Core Types
+
+- Model
+- ObjectConfig
+- NPCConfig
+- LocConfig
+- Sequence
+- Font
+- SpriteFrame
+- Component
+- ComponentPack
+- AnimFrame
+- SkeletalAnim
+
+// toriauxlib2/cache
+Task_AsyncCache_ModelLoad(on_load: (void* user, struct ToriAuxLibCache_Model* model))
+// toriauxlib2/cache/dat1
+-> Task_AsyncCacheDat1_ModelLoad
+{
+// tori
+TAPIDat1_FetchModel
+PT_YIELD
+TAPIDAT1_DecodeModel
+}
+// toriauxlib2/cache/dat2
+-> Task_AsyncCacheDat2_ModelLoad
+
+(looks up the object config then loads the appropriate model)
+Task_AsyncCache_ObjectModelLoad(on_load: (void* user, struct ToriAuxLibCache_Model* model))
+-> Task_AsyncCacheDat1_ObjectModelLoad
+-> Task_AsyncCacheDat2_ObjectModelLoad
+
+Task_InterfaceX_Main()
+
+## Running against a LostCity server
+
+Build with `make -C src all` (target binary: `src/torirs`), or `make -C src release`
+for an optimized `-O3` build (objects in `src/build_opt/`; both flavors link the same
+`src/torirs`, and switching flavors relinks automatically). The client caps at 50 fps
+by default; pass `--uncapped` to free-run (profiling/benchmarks). With a LostCity_Server
+(Engine-TS rev 254) running locally — game port 43594, web/CRC on port 80 — run from
+the repo root:
+
+```bash
+cd /path/to/3draster
+
+# Fetch the server's 9 archive CRCs (server must be up; the value only changes
+# when the server repacks its cache, so it can be reused across runs):
+export TORIRS_JAG_CRC=$(curl -s http://localhost/crc | \
+  python3 -c "import sys,struct; d=sys.stdin.buffer.read(); print(','.join(str(x) for x in struct.unpack('>%di'%(len(d)//4), d)))")
+
+src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
+```
+
+`--rev lc254` is the default when `--connect` is given; port 43594 and the RSA key
+are built-in defaults that match the stock server. Or use the wrapper, which does
+the CRC fetch for you:
+
+```bash
+./run-live.sh [host] [user] [pass]        # defaults: localhost debugcc test
+```
+
+Notes:
+
+- If login bounces immediately after a previous session ended, wait ~8 seconds —
+  the server still holds the old session (login reply 5 = already logged in).
+- `TORIRS_NET_DEBUG=1` traces the login handshake and every packet on stderr.
+- `TORIRS_NET_CHEAT="tele 0,50,50,21,21"` sends `::` commands once after login
+  (';'-separated). Fresh accounts start on Tutorial Island; the courtyard tele
+  gives a good open view.
+- Use `cache254.lostcity` (a copy of the live server's own
+  `engine/data/pack/main_file_cache.*`) for live play — the older `cache254`
+  snapshot is stale vs the server (missing e.g. the quest journal interfaces).
+- Headless smoke run (no window, screenshot at the end):
+
+```bash
+SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=2000 \
+TORIRS_EXIT_BMP=/tmp/frame.bmp \
+src/torirs cache254.lostcity --connect localhost --user myname --pass mypass
+```
+
+- `TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y]"` injects mouse clicks at
+  given main-loop frames for headless interaction testing.
+- `TORIRS_LOC_DEBUG=1` puts a loc's placement provenance in its minimenu rows
+  and mouseover line — where the map stream put it (`sq`/`ch`/`map`), what
+  scene slot that resolved to (`sc`/`abs`), and where the geometry actually
+  landed (`f`/`t`, which must agree with `sc`). `map` != `abs` is a scene
+  mapping bug; `t` != `sc` is a placement bug. A second row gives the model's
+  own post-transform extent: `ctr` is its centre (0,0 = centred on the element
+  origin; off-centre geometry draws off-tile however right the slot is) and
+  `tiles` the absolute tile span it visually covers — the number to hold
+  against another renderer, since it bypasses our slot math. It also lifts the LocType.active
+  pick gate, so inactive scenery (bushes, walls, roofs) can be hovered at all,
+  and adds the hovered tile plus the local player's tile to the "Walk here"
+  row. Pairs with `TORIRS_SCENERY_DEBUG=1`, which counts what each square's
+  build dropped and now also prints, per loc, the config that shaped its
+  geometry (`size`/`seq`/`mirror`/`offset`/`resize`/`contour`/`shape`/`rot`)
+  beside the model's bounding box — an implausible box and the config that
+  produced it are only useful together. `seq != -1` means the angle is NOT
+  baked into the vertices: it is applied as a draw-time yaw instead, which is
+  a different transform order from the reference (see below).
+- `TORIRS_EMIT_LOC=<loc_id>` traces every draw command emitted for that loc at
+  the point the renderer receives it: element world position, camera, the
+  camera-relative delta handed to the projection kernel, the anchor tile that
+  world position implies, and the slot the build assigned. `tile` != `slot`
+  means the build placed it wrong; both agreeing on a loc that visibly draws
+  elsewhere means the geometry (extent on the second line) or the projection
+  is responsible. One line per element, reprinted only when a position
+  actually changes (e.g. across a scene rebuild).
+- `TORIRS_LOC_CFG=<loc_id>` dumps one loc's decoded config: footprint, anim,
+  transform (multiloc) table, and the shape -> model groups the build selects
+  from. Reach for it when a loc looks like it is in the wrong place: a
+  misaligned shape/model table hands back a _different object_ at the correct
+  position, and a multiloc's transform target can disagree with the base about
+  the footprint (see the multiloc note under scenery placement below) — neither
+  is visible from the placement arithmetic.
+- `TORIRS_PICK_DEBUG=1` prints what the raster says is drawn under the pointer
+  (`all` instead of `1` disables the change-dedupe). `TORIRS_PICK_SWEEP=
+"x0,y0,x1,y1[,step]"` moves the pointer over a grid, rendering once per point
+  — the world analogue of `TORIRS_HOVER_PROBE`. Together they answer "is this
+  loc drawn over its own tile", which nothing else can: every other diagnostic
+  reports what the _build_ decided, and a loc placed right but drawn wrong is
+  indistinguishable from one placed wrong until you compare a loc's pick region
+  against the terrain picks at the same pixels. Expect a loc's pick centroid to
+  sit ~7px above its tile's and ~2px west — that is height parallax, not a
+  placement error.
+- `TORIRS_MODEL_FMT_DEBUG=1` prints each model's decoded `format_version`. Only
+  `decode_ob3` sets it, and only `>= 13` triggers the 4x vertex scale-down in
+  `torirs_model_from_rscache`; every model in an OldSchool cache decodes as 0
+  (the two OSRS decoders never set the field), so that scale-down never fires
+  on that lineage. Check here before blaming model size for a placement bug.
+
+# Slop to cleanup
+
+1. Minimenu actions appeared in the RevConfig?
+
+## Parity
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+Update the MULTI_GENERATIONAL_PARITY.md document to reflect knowledge you learn while implementing this.
+
+Multi-Gen proto
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In XRSP /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+You are in the process implementing a C runescape client that can support several generations of runescape.
+
+In this folder Client-TS is the old generation.
+In XRSP /Users/matthewevers/Documents/git_repos/xrsps-typescript
+is a modern generation.
+
+Here is what I want you to do:
+
+1. Identify the interfaces we can provide for the core game that can be used to implement both generations. For example, we have factored the Cache and the Network into interfaces and modules. For, example, there are also "ClientCode" values that are likely different; likewise for the login protocol.
+2. Plan how to connect to the xrsps server; identify what differences are and ensure that out "abstraction" layers need to provide in order for the core game to work with both.
+   Noe: V1 was already able to render a world with nps, players, and projectiles for both generations. So take inspriation from that.
+
+Some major differences I am aware of already is that the UI is MUCH less hard-coded, so there is less of a reliance on "RevConfig".
+
+Update the MULTI_GENERATIONAL_PARITY.md document to reflect knowledge you learn while implementing this.
+
+### CS2
+
+You should finish implement these CS2 opcodes in src/main.
+
+When implementing a new opcode:
+
+1. Ensure the opcode python generator is updated
+2. If HOST interaction is needed, add that support; always at least stub the host if the opcode is not purely a VM only opcode.
+3. Add the opcode to the dispatch in the cs2vm2
+
+Now, implement these opcode.
+
+#### DB\_\* client database opcodes (7500..7510) — IMPLEMENTED
+
+The client-database family (`DB_FIND`/`DB_FINDALL`/`DB_FINDNEXT`/`DB_GETFIELD`/
+`DB_GETFIELDCOUNT`/`DB_GETROW`/`DB_GETROWTABLE` and the `_WITH_COUNT`/`_FILTER`
+variants) is implemented end to end:
+
+- **Cache decode** (`3rd/rscache/src/datatypes/dat2_config_db.c`): DBROW (config
+  kind 38), DBTABLE (kind 39), and the DBTABLEINDEX (cache table 21). Types and
+  tuple counts are `readUnsignedShortSmart`; ints are 4-byte BE; strings are
+  null-terminated; ScriptVarType 36 is the string base type. DBROW `tableId` and
+  every index count/rowId are `readVarInt2` (LEB128). Validated byte-exact
+  against the osrs230/239/jan2026 caches (0 parse failures over ~30k rows).
+- **Load pipeline**: `CreateTask_Dat2DbRowLoad` + `CreateTask_Dat2DbTableIndexLoad`
+  (dat2 vtable), a new `RSCache_IO_Dat2DbTableIndex*` IO pair, and the
+  `dbrow_cache` / `dbindex_cache` on the CacheProvider.
+- **Host** (`exec_db` in `game/rs_cs2_host.c`): owns the find-iterator
+  (matched row ids + cursor). `DB_FIND` reads the table's inverted index
+  (table 21, file `column+1`); `DB_FINDALL` reads the master file 0;
+  `DB_GETFIELD`/`DB_GETROWTABLE` read the DBROW's inline values.
+- **Test**: `make -C src test-db` (drives the real async pipeline against
+  osrs230 and checks decoded values, e.g. quest row 0 = "Animal Magnetism").
+
+CAVEAT (unverifiable from public sources, flagged in `exec_db`): the dbcolumn
+bit-packing `table=c>>12, column=(c>>4)&0xFF, tuple=c&0xF` and the FIND
+stack order (dbcolumn on top, value below) are the widely-referenced OSRS
+convention but were not confirmed against a rev-230 deob — recheck these first
+if a real DB script misbehaves. No script in this repo exercises the DB opcodes
+yet, so they are covered only by `test-db`, not by live parity.
+
+### OSRS 230 Cache
+
+161 is the root; nothing mounts the tabs, they have to
+be set by the server.
+
+The server has to send IF_OPENSUB.
+
+tabIndex "161 child" group tab
+0 76 593 Combat
+1 77 320 Skills
+2 78 629 Quest / side_journal
+3 79 149 Inventory
+4 80 387 Equipment
+5 81 541 Prayer
+6 82 218 Magic
+7 83 7 Clan chat
+8 84 109 Account Management
+9 85 429 Social / friends
+10 86 182 Logout
+11 87 116 Settings
+12 88 216 Emotes
+13 89 239 Music
+
+### Steel Titan
+
+Steel Titan is at 7343/7344; the OSRS NPC codec doesn't match 643. I'll add an RS2 NPC codec (void's layout) and re-decode.
+
+### Cache Porting Plans
+
+1. NPC -> Automatically port animations and models
+2. Likewise for objects
+3. Models directly.
+
+### Zuk Arena Gotchas
+
+Why the arena decoded green
+A map tile doesn't store a floor's config id — it stores id + 1, with 0 meaning "no floor here". Both the OSRS client and LostCity's do the - 1 on lookup (FloType.list[id - 1]); rscache's decoder keeps the raw stored value, so the exporter had to subtract it and didn't. Every tile came out carrying its neighbour's colour — one record off, uniformly, with every id still valid, which is why it read as a colour problem rather than a decode failure. The Inferno's ids sit in a run where the record above each is an ordinary outdoor floor, so a lava bowl rendered grass green (underlay 1 instead of 0). The lava moat was the tell you spotted as an "empty ring": its real overlay is 0xF6CF0E, but the record one above carries the client's 0xFF00FF "no colour of my own" sentinel, which resolved to that record's dull 0x544D37 secondary. One subtraction in lc_export_map fixed it — the square now exports dark reds, near-blacks and lava yellow.
+
+### Zuk Healers
+
+They turn.
+
+When facing directly back; 3-x-3 column
+When out of range, they turn towards the player.
+Becomes 1-x-5
+
+### Server Vars
+
+var2855 := Client Layout/ fixed, etc
+
+
+### QBD
+
+Hands on level 1
+Near clipping busted
+Wrong painter algorithm

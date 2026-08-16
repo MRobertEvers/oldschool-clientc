@@ -1,8 +1,21 @@
 .env
 build/
+build_*/
+build_opt/
 cache/
+.codex_tmp_live_projection*/*
+.mta_restore_backup*/*
+.tmp_*/
+# ...but src/cache/ is source, not cache data: rscache_io.h is included by every
+# engine/dat2 loader. The bare `cache/` rule above matched it, so it was never
+# tracked, and a fresh clone or `git worktree add` could not build the targets
+# that include it — `fatal error: 'cache/rscache_io.h' file not found`. Two
+# separate pieces of work lost time to this independently before anyone noticed
+# the file was simply absent rather than the build being wrong.
+!src/cache/
 cache254/
 cacheosrs/
+memtrace*
 cache245_2/
 cachers2
 cache.*/
@@ -15,6 +28,7 @@ symbols.txt
 public/cache/
 .cache/
 emsdk/
+/toolchain/
 android/.idea/
 
 package_build_*.zip
@@ -36,6 +50,46 @@ lib/python*
 *.out
 *.dSYM
 *.o
+.tmp
+out/
 
 # Generated painters cullmap blobs (see tools/gen_painters_cullmap)
 src/osrs/revconfig/configs/cullmaps/*.bin
+
+# Browser (Emscripten) intermediate build output
+src2/programs/browser/browser_build/
+
+# Memtrace tooling dependencies and generated traces
+tools/memtrace/node_modules/
+tools/memtrace/bins/
+
+# ui_tree test BMP output
+test/ui_tree/output/
+
+# Compiled editor binary + BMP snapshots (rebuilt in place)
+/src/torirs
+/src/torirs_*
+/src/build_*/
+/src/torirs_mt
+/dist/win64/
+/interfacex_*.bmp
+
+# poser-gl writes its settings into the working directory, as the reference does
+poser-gl.settings
+
+# The client's own device settings (audio volumes, CS2 options), written into
+# the working directory for the same reason. See src/game/rs_prefs.h.
+preferences.ini
+preferences.ini.tmp
+
+# Python bytecode from tools/ (tools are run as scripts, never imported).
+__pycache__/
+*.pyc
+
+# Build artifacts - Windows executables
+src/*.exe
+3rd/rscache/tools/cachepack/*.exe
+
+# Claude Code local overrides
+.claude/settings.local.json
+.claude/worktrees/

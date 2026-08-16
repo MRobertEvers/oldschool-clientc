@@ -1,3 +1,8 @@
+# DEPRECATED — retired v0 Android build. Not maintained, not buildable.
+# Built the v0 tree (scene_tile_test_android) whose sources moved to v0/.
+# The live build is `make -C src` — see readme.md "Building". There is no
+# Android lane in src/platform/platform.mk today; adding one means adding a
+# block there, not reviving this file.
 cmake_minimum_required(VERSION 3.18.1)
 
 # Only set build type if Android Studio hasn't already set it
@@ -147,34 +152,8 @@ set(ANDROID_SOURCES
     ../src/osrs/blend_underlays.c
     ../src/osrs/scene_tile.c
     ../src/osrs/palette.c
-    ../src/osrs/cache.c
+    ../src/osrs/rscache/unity.c
     ../src/osrs/world.c
-    ../src/osrs/tables/model.c
-    ../src/osrs/archive_decompress.c
-    ../src/osrs/reference_table.c
-    ../src/osrs/scene.c
-    ../src/osrs/tables/config_npctype.c
-    ../src/osrs/tables/config_sequence.c
-    ../src/osrs/tables/config_floortype.c
-    ../src/osrs/tables/config_locs.c
-    ../src/osrs/tables/config_object.c
-    ../src/osrs/tables/config_idk.c
-    ../src/osrs/tables/framemap.c
-    ../src/osrs/tables/frame.c
-    ../src/osrs/tables/maps.c
-    ../src/osrs/filelist.c
-    ../src/graphics/render.c
-    ../src/osrs/rsbuf.c
-    ../src/graphics/reference/gouraud_deob.c
-    ../src/graphics/lighting.c
-    ../src/osrs/anim.c
-    ../src/osrs/model_transforms.c
-    ../src/osrs/xtea.c
-    ../src/osrs/archive.c
-    ../src/osrs/xtea_config.c
-    ../src/osrs/scene_cache.c
-    ../src/datastruct/ht.c
-    ../src/osrs/tables/noise.c
     ../src/nuklear/nuklear_impl.c
     ../src/platforms/common/torirs_nk_sdl_input.cpp
     ../src/platforms/common/torirs_nk_ui_bridge.cpp

@@ -1,0 +1,7 @@
+-Iinclude
+-Isrc
+-I.
+-I../bzip
+-I../miniz
+-I../xteas
+-std=c11

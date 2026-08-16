@@ -1,22 +1,27 @@
 # Flags must be understood by the same Clang that runs clangd (e.g. Apple Clang on
 # macOS). GCC-only options (-ftree-vectorizer-*, -fopt-info-*) break every TU and
 # can crash or restart clangd.
+#
+# Per-OS compile DB dirs are set in .vscode/settings.json ([darwin]/[win32]) via
+# clangd --compile-commands-dir. The default is src/, i.e. src/compile_flags.txt:
+# the whole client is built by src/makefile, and the CMake build that used to
+# populate build/compile_commands.json is deprecated (its sources moved to v0/).
 CompileFlags:
-  CompilationDatabase: build/
+  CompilationDatabase: src/
   Add:
-    - -march=native
-    - -D_CRT_SECURE_NO_WARNINGS
-    - -D_WINSOCK_DEPRECATED_NO_WARNINGS
-    - -D_WIN32_WINNT=0x0A00
-    - -DUNICODE
-    - -D_UNICODE
-    - -O3
-    - -ffast-math
+    # Fallback include roots when a TU has no compile_commands entry
+    - -I.
+    - -Isrc
+    - -I3rd/rscache/include
   Remove:
     - -W*
     - -w
     - /W3
     - /W4
+    # ASAN flags in build/compile_commands.json crash Apple clangd during AST build.
+    - -fsanitize=*
+    - -fno-sanitize=*
+    - -fno-omit-frame-pointer
 
 Diagnostics:
   ClangTidy:
@@ -27,8 +32,9 @@ Diagnostics:
     Remove:
       - readability-magic-numbers
       - readability-uppercase-literal-suffix
+      - readability-braces-around-statements
   UnusedIncludes: Strict
-  MissingIncludes: Strict
+  MissingIncludes: None
 
 Index:
   Background: Build
@@ -44,3 +50,41 @@ Hover:
 
 Completion:
   AllScopes: Yes
+
+---
+# 3rd/rscache is a unity-built library — not in CMake compile_commands.json.
+If:
+  PathMatch: 3rd/rscache/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: 3rd/rscache/
+  Add:
+    - -I3rd/rscache/include
+    - -I3rd/rscache/src
+    - -I3rd/rscache
+    - -I3rd/bzip
+    - -I3rd/miniz
+    - -std=c11
+---
+# src/ is built via Makefile, not CMake — use src/compile_flags.txt.
+If:
+  PathMatch: src/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: src/
+---
+# test/gamecache/ is built via Makefile — do not infer flags from build/compile_commands.json.
+If:
+  PathMatch: test/gamecache/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: test/gamecache/
+---
+# tools/interfacex/ is built via Makefile — use tools/interfacex/compile_flags.txt.
+If:
+  PathMatch: tools/interfacex/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: tools/interfacex/
+---
+# Other test/* targets are Makefile-built — use test/compile_flags.txt, not build/.
+If:
+  PathMatch: test/(revconfig_load|ui_tree|ui_input|trspk_leak|model_render|datserver|trspk_batch16)/.*\.(c|h)$
+CompileFlags:
+  CompilationDatabase: test/

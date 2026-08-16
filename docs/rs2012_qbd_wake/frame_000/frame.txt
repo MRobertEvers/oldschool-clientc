@@ -1,0 +1,11 @@
+sequence   rs2012_seq_16714
+position   0 of 108
+packed id  1441792298
+animset    22000
+frame      298
+rs2012_model_view: yaw 1300 culled (code 1)
+rs2012_model_view: yaw 1982 culled (code 1)
+rs2012_model_view: yaw 617 culled (code 1)
+rs2012_model_view: yaw 1300 culled (code 1)
+rs2012_model_view: yaw 1982 culled (code 1)
+rs2012_model_view: yaw 617 culled (code 1)

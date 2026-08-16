@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>ToriRS</title>
+    <script>
+     (function() {
+    'use strict';
+
+    function at(index) {
+        index = Math.trunc(index) || 0;
+        if (index < 0) index += this.length;
+        if (index < 0 || index >= this.length) return undefined;
+        return this[index];
+    }
+
+    if (!Array.prototype.at) {
+        Object.defineProperty(Array.prototype, 'at', {
+            value: at,
+            configurable: true,
+            writable: true
+        });
+        console.log("Polyfilled Array.prototype.at");
+    }
+
+    if (!String.prototype.at) {
+        Object.defineProperty(String.prototype, 'at', {
+            value: at,
+            configurable: true,
+            writable: true
+        });
+        console.log("Polyfilled String.prototype.at");
+    }
+
+    if (typeof window.Uint8Array !== 'undefined') {
+        var TypedArray = Object.getPrototypeOf(Uint8Array.prototype);
+        if (TypedArray && !TypedArray.at) {
+            Object.defineProperty(TypedArray, 'at', {
+                value: at,
+                configurable: true,
+                writable: true
+            });
+            console.log("Polyfilled TypedArray.prototype.at");
+        }
+    }
+})();
+
+    </script>
+    <style>
+      body {
+        font-family: Tahoma, Geneva, sans-serif;
+        background-color: #222;
+        color: white;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      canvas.emscripten {
+        border: 0 none;
+        background-color: black;
+        width: 800px;
+        height: 600px;
+        image-rendering: pixelated;
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 14px;
+      }
+
+      .shell-controls {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 100;
+      }
+
+      .shell-controls button {
+        font: inherit;
+        padding: 6px 12px;
+        cursor: pointer;
+        background: #444;
+        color: #fff;
+        border: 1px solid #666;
+        border-radius: 4px;
+      }
+
+      .shell-controls button:hover {
+        background: #555;
+      }
+
+      canvas.emscripten.fill-viewport {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+      }
+
+      body.canvas-fill-viewport .status {
+        position: fixed;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        margin-top: 0;
+      }
+
+      body.canvas-fill-viewport .shell-controls {
+        z-index: 3;
+      }
+    </style>
+  </head>
+  <body>
+
+    <div class="shell-controls">
+      <button type="button" id="btn-fill-viewport">Fill viewport</button>
+      <button type="button" id="btn-memtrace" hidden>Memtrace</button>
+    </div>
+
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+
+    <div class="status" id="status">Downloading...</div>
+    <script src="./fengari-web.js"></script>
+    <script type="module" src="./LibToriPlatformJS.js"></script>
+    <script>
+    </script>
+
+    <script type='text/javascript'>
+      var statusElement = document.getElementById('status');
+
+      (function () {
+        var canvas = document.getElementById('canvas');
+        var btn = document.getElementById('btn-fill-viewport');
+        if (canvas && btn) {
+          var full = false;
+          btn.addEventListener('click', function () {
+            full = !full;
+            document.body.classList.toggle('canvas-fill-viewport', full);
+            canvas.classList.toggle('fill-viewport', full);
+            btn.textContent = full ? 'Default canvas size' : 'Fill viewport';
+          });
+        }
+      })();
+
+      (function () {
+        var btn = document.getElementById('btn-memtrace');
+        if (!btn) return;
+        function tryShowMemtraceButton() {
+          var mod = window.Module;
+          if (
+            window.LibToriPlatformJS &&
+            typeof window.LibToriPlatformJS.openMemtraceViewer === 'function' &&
+            mod &&
+            typeof mod.FS_readFile === 'function' &&
+            (typeof mod._LibToriPlatformEmscripten_JSHost_MemtraceFlush === 'function' ||
+              typeof mod.LibToriPlatformEmscripten_JSHost_MemtraceFlush === 'function')
+          ) {
+            btn.hidden = false;
+            return true;
+          }
+          return false;
+        }
+        if (!tryShowMemtraceButton()) {
+          var tries = 0;
+          var timer = setInterval(function () {
+            if (tryShowMemtraceButton() || ++tries > 200) {
+              clearInterval(timer);
+            }
+          }, 100);
+        }
+        btn.addEventListener('click', function () {
+          try {
+            if (!window.LibToriPlatformJS || typeof window.LibToriPlatformJS.openMemtraceViewer !== 'function') {
+              alert('Memtrace is not available. Rebuild with make MEMTRACE=1.');
+              return;
+            }
+            window.LibToriPlatformJS.openMemtraceViewer();
+          } catch (e) {
+            alert(e && e.message ? e.message : String(e));
+          }
+        });
+      })();
+
+      const params = new URLSearchParams(window.location.search);
+      const cliArgs = [];
+      if (params.has('runescape')) cliArgs.push('--runescape');
+      if (params.has('soft3d')) cliArgs.push('--soft3d');
+      if (params.has('kronos')) cliArgs.push('--kronos');
+      else if (params.has('dat2')) cliArgs.push('--dat2');
+
+      var Module = {
+        arguments: cliArgs,
+        preRun: [],
+        postRun: [],
+        print: (function() {
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.log(text);
+          };
+        })(),
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          canvas.addEventListener("webglcontextlost", function(e) {
+            alert('WebGL context lost. You will need to reload the page.');
+            e.preventDefault();
+          }, false);
+          return canvas;
+        })(),
+        setStatus: function(text) {
+          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          if (text === Module.setStatus.last.text) return;
+          statusElement.innerHTML = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+        }
+      };
+      Module.setStatus('Downloading...');
+      window.LibToriPlatformJS_Init = function(instancePtr) {
+        window.LibToriPlatformJS = new LibToriPlatformJS(Module, instancePtr);
+      };
+      window.onerror = function() {
+        Module.setStatus('Exception thrown, see JavaScript console');
+        Module.setStatus = function(text) {
+          if (text) console.error('[post-exception status] ' + text);
+        };
+      };
+    </script>
+
+    <script async src="./browser.js"></script>
+  </body>
+</html>

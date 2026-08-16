@@ -1,3 +1,10 @@
+# DEPRECATED — copied from build.em/ to public/build/, both of which belong to
+# the retired v0 CMake web build. The live web build writes a complete servable
+# directory itself: `make -C src web` links into build-web/ and copies the JS
+# host harness in beside it. See docs/web_build.md.
+Write-Error "scripts/copy_browser_files.ps1 is deprecated — 'make -C src web' already populates build-web/."
+exit 1
+
 # Simple script to copy browser files from build.em to public/build
 # Run this after building with Emscripten
 

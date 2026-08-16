@@ -1,0 +1,7 @@
+source_file,line,sound_symbol,source_sound_id,port_disposition
+Familiar.java,497,SPELL_4161,4161,review_required
+Familiar.java,714,SUMMON_NPC_188,188,eligible_byte_copy
+Familiar.java,717,SUMMON_NPC_188,188,eligible_byte_copy
+SpiritWolfNPC.java,111,WOLF_HOWL2_4265,4265,review_required
+UnicornStallionNPC.java,49,HEALING_AURA_4372,4372,review_required
+UnicornStallionNPC.java,81,HEALING_AURA_4372,4372,review_required

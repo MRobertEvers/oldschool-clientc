@@ -1,0 +1,50 @@
+#ifndef LIBTORIRS_INTERNAL_H
+#define LIBTORIRS_INTERNAL_H
+
+#include "buildcache/dat1_buildcache.h"
+#include "ioqueue/libtorirs_io.h"
+#include "toriauxlib/core/toriauxlibcore.h"
+#include "games/game_handle.h"
+#include "games/interface_editor.h"
+#include "games/model_viewer.h"
+#include "games/runescape.h"
+#include "ioqueue/libtorirs_ioqueue.h"
+#include "scripting/libtorirs_scripting.h"
+#include "toridraw/toridraw_scene.h"
+#include "toriauxlib/toriauxlib.h"
+#include "world/world.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+struct LibToriRS_Instance
+{
+    bool running;
+    bool cpu_animation;
+    uint64_t last_frame_ms;
+    uint64_t input_accumulator_ms;
+    uint64_t anim_last_tick_ms;
+    uint64_t anim_accumulator_ms;
+    uint64_t anim_cycle_count;
+    struct LibToriRS_IOQueue* io_queue;
+    struct LibToriRS_ScriptQueue* script_queue;
+    struct LibToriRS_Input* input;
+
+    struct LibToriRS_TaskRunner task_runner;
+
+    struct ToriDraw_Scene* scene;
+    struct ToriAuxLib* toriauxlib;
+
+    enum GameHandleKind active_game_kind;
+    struct GameModelViewer* model_viewer;
+    struct GameHandle model_viewer_handle;
+    struct GameRunescape* runescape;
+    struct GameHandle runescape_handle;
+    struct GameInterfaceEditor* interface_editor;
+    struct GameHandle interface_editor_handle;
+
+    /** Kronos client revision (dat2 format + rev_kronos UI); set via --kronos CLI. */
+    bool client_kronos;
+};
+
+#endif

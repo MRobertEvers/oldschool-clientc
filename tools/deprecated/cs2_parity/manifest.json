@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "cache": {
+    "name": "osrs-237_2026-03-25",
+    "tsPath": "../xrsps-typescript/caches/osrs-237_2026-03-25"
+  },
+  "hostState": {
+    "varp": {},
+    "varbit": {},
+    "varcInt": {},
+    "varcString": {},
+    "inventories": {
+      "94": {
+        "size": 14,
+        "slots": []
+      }
+    }
+  },
+  "cs2Cases": [
+    {
+      "id": "math_add",
+      "description": "Pure VM math: push two ints and add",
+      "scriptId": null,
+      "synthetic": true,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 0
+    },
+    {
+      "id": "enum_lookup",
+      "description": "ENUM opcode against cache-backed enum table",
+      "scriptId": null,
+      "synthetic": true,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 0
+    },
+    {
+      "id": "equip_onload_92",
+      "description": "Equipment toolbar button frame onLoad script 92",
+      "scriptId": 92,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346049,
+      "componentFile": 1,
+      "iface": 387
+    },
+    {
+      "id": "equip_onload_486",
+      "description": "Equipment toolbar button frame helper script 486",
+      "scriptId": 486,
+      "intArgs": [913, 914],
+      "stringArgs": [],
+      "activeComponent": 25346049,
+      "componentFile": 1,
+      "iface": 387
+    },
+    {
+      "id": "equip_onload_98",
+      "description": "Equipment toolbar button frame layout script 98",
+      "scriptId": 98,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346049,
+      "componentFile": 1,
+      "iface": 387
+    },
+    {
+      "id": "equip_slot_onload_3281",
+      "description": "Equipment slot background onLoad script 3281",
+      "scriptId": 3281,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346063,
+      "componentFile": 15,
+      "iface": 387
+    },
+    {
+      "id": "equip_slot_onload_3282",
+      "description": "Equipment slot background layout script 3282",
+      "scriptId": 3282,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346063,
+      "componentFile": 15,
+      "iface": 387
+    },
+    {
+      "id": "cc_dot_sethide",
+      "description": "Synthetic: dot cc_create + dot cc_sethide hides child not parent",
+      "scriptId": null,
+      "synthetic": true,
+      "intArgs": [],
+      "stringArgs": [],
+      "activeComponent": 25346063,
+      "componentFile": 15,
+      "iface": 387
+    }
+  ],
+  "spriteCases": [
+    { "id": "sprite_170", "spriteId": 170, "description": "Equipment slot gray box" },
+    { "id": "sprite_172", "spriteId": 172, "description": "Equipment cross bar horizontal" },
+    { "id": "sprite_173", "spriteId": 173, "description": "Equipment cross bar vertical" },
+    { "id": "sprite_913", "spriteId": 913, "description": "Gray button frame" },
+    { "id": "sprite_914", "spriteId": 914, "description": "Gray button frame alt" }
+  ],
+  "treeCases": [
+    {
+      "id": "equip_387_panel",
+      "description": "Equipment panel 387 with CS2 onLoad chrome",
+      "iface": 387,
+      "panel": true,
+      "rootW": 190,
+      "rootH": 261,
+      "fixture": null,
+      "mounts": []
+    },
+    {
+      "id": "equip_387_fixture",
+      "description": "Equipment panel 387 with worn item fixture",
+      "iface": 387,
+      "panel": true,
+      "rootW": 190,
+      "rootH": 261,
+      "fixture": {
+        "slots": {
+          "15": { "obj": 1153 },
+          "18": { "obj": 1333 },
+          "19": { "obj": 1115 },
+          "21": { "obj": 1189 },
+          "23": { "obj": 1067 }
+        }
+      },
+      "mounts": []
+    },
+    {
+      "id": "gameframe_165_equip",
+      "description": "Gameframe 165 with equipment tab mounted",
+      "iface": 165,
+      "panel": false,
+      "rootW": 765,
+      "rootH": 503,
+      "fixture": null,
+      "mounts": [{ "childFile": 12, "iface": 387 }]
+    }
+  ]
+}

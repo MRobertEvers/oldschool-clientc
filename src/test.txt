@@ -1,0 +1,116 @@
+RSCache_ClientScriptNewFromDecodeFlags: script 901 decode failed (trailer=modern)
+CS2TRACE script=901 pc=0 op=PUSH_CONSTANT_INT(0) intOp=903 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=1 op=PUSH_CONSTANT_INT(0) intOp=-2147483645 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=2 op=PUSH_INT_LOCAL(33) intOp=1 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=3 op=PUSH_CONSTANT_STRING(3) intOp=0 istack=3 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=4 op=PUSH_INT_LOCAL(33) intOp=0 istack=4 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=5 op=IF_SETONSUBCHANGE(2424) intOp=0 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=6 op=PUSH_CONSTANT_INT(0) intOp=904 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=7 op=PUSH_CONSTANT_INT(0) intOp=-2147483645 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=8 op=PUSH_INT_LOCAL(33) intOp=1 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=9 op=PUSH_CONSTANT_STRING(3) intOp=0 istack=3 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=10 op=PUSH_INT_LOCAL(33) intOp=0 istack=4 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=11 op=IF_SETONRESIZE(2427) intOp=0 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=12 op=PUSH_CONSTANT_INT(0) intOp=902 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=13 op=PUSH_CONSTANT_INT(0) intOp=-2147483645 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=14 op=PUSH_INT_LOCAL(33) intOp=1 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=15 op=PUSH_CONSTANT_INT(0) intOp=1021 istack=4 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=16 op=PUSH_CONSTANT_INT(0) intOp=1055 istack=5 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=17 op=PUSH_CONSTANT_INT(0) intOp=1054 istack=6 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=18 op=PUSH_CONSTANT_INT(0) intOp=1734 istack=7 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=19 op=PUSH_CONSTANT_INT(0) intOp=1431 istack=8 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=20 op=PUSH_CONSTANT_INT(0) intOp=1227 istack=9 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=21 op=PUSH_CONSTANT_INT(0) intOp=439 istack=10 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=22 op=PUSH_CONSTANT_INT(0) intOp=2972 istack=11 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=23 op=PUSH_CONSTANT_INT(0) intOp=1141 istack=12 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=24 op=PUSH_CONSTANT_INT(0) intOp=1795 istack=13 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=25 op=PUSH_CONSTANT_INT(0) intOp=1697 istack=14 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=26 op=PUSH_CONSTANT_INT(0) intOp=168 istack=15 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=27 op=PUSH_CONSTANT_INT(0) intOp=169 istack=16 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=28 op=PUSH_CONSTANT_INT(0) intOp=872 istack=17 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=29 op=PUSH_CONSTANT_INT(0) intOp=167 istack=18 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=30 op=PUSH_CONSTANT_INT(0) intOp=3154 istack=19 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=31 op=PUSH_CONSTANT_INT(0) intOp=3698 istack=20 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=32 op=PUSH_CONSTANT_INT(0) intOp=3109 istack=21 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=33 op=PUSH_CONSTANT_INT(0) intOp=3782 istack=22 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=34 op=PUSH_CONSTANT_INT(0) intOp=3796 istack=23 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=35 op=PUSH_CONSTANT_INT(0) intOp=5111 istack=24 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=36 op=PUSH_CONSTANT_INT(0) intOp=2854 istack=25 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=37 op=PUSH_CONSTANT_INT(0) intOp=22 istack=26 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=38 op=PUSH_CONSTANT_STRING(3) intOp=0 istack=26 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=39 op=PUSH_INT_LOCAL(33) intOp=0 istack=27 sstack=1 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=40 op=IF_SETONVARTRANSMIT(2407) intOp=0 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=41 op=PUSH_CONSTANT_INT(0) intOp=0 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=42 op=POP_INT_LOCAL(34) intOp=2 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=43 op=PUSH_CONSTANT_INT(0) intOp=105 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=44 op=PUSH_CONSTANT_INT(0) intOp=73 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=45 op=PUSH_CONSTANT_INT(0) intOp=1138 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=46 op=PUSH_INT_LOCAL(33) intOp=2 istack=4 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=47 op=ENUM(3408) intOp=0 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=48 op=POP_INT_LOCAL(34) intOp=3 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=49 op=PUSH_INT_LOCAL(33) intOp=3 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=50 op=PUSH_CONSTANT_INT(0) intOp=-1 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=51 op=BRANCH_NOT(7) intOp=1 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=53 op=PUSH_CONSTANT_INT(0) intOp=73 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=54 op=PUSH_CONSTANT_INT(0) intOp=73 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=55 op=PUSH_INT_LOCAL(33) intOp=1 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=56 op=PUSH_INT_LOCAL(33) intOp=3 istack=4 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=57 op=ENUM(3408) intOp=0 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=58 op=POP_INT_LOCAL(34) intOp=3 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=59 op=PUSH_INT_LOCAL(33) intOp=3 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=60 op=PUSH_CONSTANT_INT(0) intOp=-1 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=61 op=BRANCH_NOT(7) intOp=1 istack=0 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=63 op=PUSH_CONSTANT_INT(0) intOp=1 istack=1 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=64 op=PUSH_CONSTANT_INT(0) intOp=105 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=65 op=PUSH_CONSTANT_INT(0) intOp=115 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=66 op=PUSH_CONSTANT_INT(0) intOp=1141 istack=4 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=67 op=PUSH_INT_LOCAL(33) intOp=2 istack=5 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=68 op=ENUM(3408) intOp=0 istack=2 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=69 op=PUSH_INT_LOCAL(33) intOp=3 istack=3 sstack=0 aw=0x00000000 dw=0x00000000
+CS2TRACE script=901 pc=70 op=IF_SETOP(2300) intOp=0 istack=1 sstack=0 aw=0x00000000 dw=0x00000000 result=error
+Assertion failed: (archive != NULL), function RSCache_IO_ClientScriptDecode, file rscache_io.h, line 107.
+Task_Dummy_Run
+Task_Dummy_Run
+component 0: id=10551296
+onLoadTask_Dummy_Run
+component 1: id=10551297
+component 2: id=10551298
+component 3: id=10551299
+component 4: id=10551300
+component 5: id=10551301
+component 6: id=10551302
+component 7: id=10551303
+component 8: id=10551304
+component 9: id=10551305
+component 10: id=10551306
+component 11: id=10551307
+component 12: id=10551308
+component 13: id=10551309
+component 14: id=10551310
+component 15: id=10551311
+component 16: id=10551312
+component 17: id=10551313
+component 18: id=10551314
+component 19: id=10551315
+component 20: id=10551316
+component 21: id=10551317
+component 22: id=10551318
+component 23: id=10551319
+component 24: id=10551320
+component 25: id=10551321
+component 26: id=10551322
+component 27: id=10551323
+component 28: id=10551324
+component 29: id=10551325
+component 30: id=10551326
+component 31: id=10551327
+component 32: id=10551328
+component 33: id=10551329
+component 34: id=10551330
+component 35: id=10551331
+component 36: id=10551332
+component 37: id=10551333
+component 38: id=10551334
+onLoadfailed to read index record err: 0
+Failed to read dat2 index entry for table 12 archive 79458704
+Task_Dummy_Run

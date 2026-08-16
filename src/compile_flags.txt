@@ -1,0 +1,15 @@
+-std=c11
+-I.
+-I..
+-Ics2vm2
+-Iserverscript
+-I../3rd/hmap
+-I../3rd/bmp
+-I../3rd/rsareabuf
+-I../3rd/toridraw
+-I../3rd/rscache/include
+-I../3rd/rscache/src
+-I/opt/homebrew/include/SDL2
+-I/usr/local/include/SDL2
+-I/usr/include/SDL2
+-D_THREAD_SAFE

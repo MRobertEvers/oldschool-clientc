@@ -1,0 +1,2106 @@
+{
+  "caseId": "equip_slot_onload_3281",
+  "scriptId": 3281,
+  "status": 0,
+  "opcount": 262,
+  "intStack": [],
+  "stringStack": [],
+  "trace": [
+    {
+      "step": 0,
+      "pc": 0,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 1,
+      "pc": 1,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 2,
+      "pc": 2,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 3,
+      "pc": 3,
+      "opcode": 3304,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 94
+    },
+    {
+      "step": 4,
+      "pc": 4,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 14
+    },
+    {
+      "step": 5,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 6,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 14
+    },
+    {
+      "step": 7,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 8,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 9,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 14
+    },
+    {
+      "step": 10,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 11,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 13
+    },
+    {
+      "step": 12,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 13,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 14,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 15,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 16,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 13
+    },
+    {
+      "step": 17,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 18,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 19,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 20,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 21,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 22,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 23,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 24,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 13
+    },
+    {
+      "step": 25,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 26,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 27,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 13
+    },
+    {
+      "step": 28,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 29,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 12
+    },
+    {
+      "step": 30,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 31,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 32,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 33,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 34,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 12
+    },
+    {
+      "step": 35,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 36,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 37,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 38,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 39,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 40,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 41,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 42,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 12
+    },
+    {
+      "step": 43,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 44,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 45,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 12
+    },
+    {
+      "step": 46,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 47,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 11
+    },
+    {
+      "step": 48,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 49,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 50,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 51,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 52,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 11
+    },
+    {
+      "step": 53,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 54,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 55,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 56,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 57,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 58,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 59,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 60,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 11
+    },
+    {
+      "step": 61,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 62,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 63,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 11
+    },
+    {
+      "step": 64,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 65,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 10
+    },
+    {
+      "step": 66,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 67,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 68,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 69,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 70,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 10
+    },
+    {
+      "step": 71,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 72,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 73,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 74,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 75,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 76,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 77,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 78,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 10
+    },
+    {
+      "step": 79,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 80,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 81,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 10
+    },
+    {
+      "step": 82,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 83,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 9
+    },
+    {
+      "step": 84,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 85,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 86,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 87,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 88,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 9
+    },
+    {
+      "step": 89,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 90,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 91,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 92,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 93,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 94,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 95,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 96,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 9
+    },
+    {
+      "step": 97,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 98,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 99,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 9
+    },
+    {
+      "step": 100,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 101,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 8
+    },
+    {
+      "step": 102,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 103,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 104,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 105,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 106,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 8
+    },
+    {
+      "step": 107,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 108,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 109,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 110,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 111,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 112,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 113,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 114,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 8
+    },
+    {
+      "step": 115,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 116,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 117,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 8
+    },
+    {
+      "step": 118,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 119,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 7
+    },
+    {
+      "step": 120,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 121,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 122,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 123,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 124,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 7
+    },
+    {
+      "step": 125,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 126,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 127,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 128,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 129,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 130,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 131,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 132,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 7
+    },
+    {
+      "step": 133,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 134,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 135,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 7
+    },
+    {
+      "step": 136,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 137,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 6
+    },
+    {
+      "step": 138,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 139,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 140,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 141,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 142,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 6
+    },
+    {
+      "step": 143,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 144,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 145,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 146,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 147,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 148,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 149,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 150,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 6
+    },
+    {
+      "step": 151,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 152,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 153,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 6
+    },
+    {
+      "step": 154,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 155,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 5
+    },
+    {
+      "step": 156,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 157,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 158,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 159,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 160,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 5
+    },
+    {
+      "step": 161,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 162,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 163,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 164,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 165,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 166,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 167,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 168,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 5
+    },
+    {
+      "step": 169,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 170,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 171,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 5
+    },
+    {
+      "step": 172,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 173,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 4
+    },
+    {
+      "step": 174,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 175,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 176,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 177,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 178,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 4
+    },
+    {
+      "step": 179,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 180,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 181,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 182,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 183,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 184,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 185,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 186,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 4
+    },
+    {
+      "step": 187,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 188,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 189,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 4
+    },
+    {
+      "step": 190,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 191,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 3
+    },
+    {
+      "step": 192,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 193,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 194,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 195,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 196,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 3
+    },
+    {
+      "step": 197,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 198,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 199,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 200,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 201,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 202,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 203,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 204,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 3
+    },
+    {
+      "step": 205,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 206,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 207,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 3
+    },
+    {
+      "step": 208,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 209,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 2
+    },
+    {
+      "step": 210,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 211,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 212,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 213,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 214,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 2
+    },
+    {
+      "step": 215,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 216,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 217,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 218,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 219,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 220,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 221,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 222,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 2
+    },
+    {
+      "step": 223,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 224,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 225,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 2
+    },
+    {
+      "step": 226,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 227,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 228,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 229,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 230,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 231,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 232,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 233,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 234,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 235,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 236,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 237,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 238,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 239,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 240,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 241,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 242,
+      "pc": 9,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 243,
+      "pc": 10,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 244,
+      "pc": 11,
+      "opcode": 4001,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 1
+    },
+    {
+      "step": 245,
+      "pc": 12,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 246,
+      "pc": 13,
+      "opcode": 0,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 247,
+      "pc": 14,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 105
+    },
+    {
+      "step": 248,
+      "pc": 15,
+      "opcode": 33,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 73
+    },
+    {
+      "step": 249,
+      "pc": 16,
+      "opcode": 33,
+      "intSp": 3,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 250,
+      "pc": 17,
+      "opcode": 3408,
+      "intSp": 4,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 251,
+      "pc": 18,
+      "opcode": 34,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 252,
+      "pc": 19,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 253,
+      "pc": 20,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 254,
+      "pc": 21,
+      "opcode": 7,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": -1
+    },
+    {
+      "step": 255,
+      "pc": 22,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 256,
+      "pc": 27,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 257,
+      "pc": 5,
+      "opcode": 33,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 258,
+      "pc": 6,
+      "opcode": 0,
+      "intSp": 1,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 259,
+      "pc": 7,
+      "opcode": 10,
+      "intSp": 2,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 260,
+      "pc": 8,
+      "opcode": 6,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    },
+    {
+      "step": 261,
+      "pc": 28,
+      "opcode": 21,
+      "intSp": 0,
+      "strSp": 0,
+      "topInt": 0
+    }
+  ]
+}

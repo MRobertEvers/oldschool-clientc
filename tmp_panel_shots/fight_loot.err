@@ -1,0 +1,1 @@
+torirs: cache identity unset — pass --manifest <boot.ini> (with epoch/game/revision/quirks) or --rev <name>

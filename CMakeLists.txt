@@ -1,5 +1,30 @@
+# ============================================================================
+# DEPRECATED — retired v0 build. Not maintained, not buildable.
+#
+# Every source path below (src/platforms/, src/3rd/lua, src/tori_rs.c,
+# src/nuklear/, src2/platforms/asan_compat.c) was relocated to v0/ or deleted,
+# so configure fails with "Cannot find source file" regardless of toolchain.
+# It is kept only as a record of how the v0 targets were assembled.
+#
+# The live build is plain make, one lane per platform:
+#
+#     make -C src            macOS / Linux   -> src/torirs
+#     make -C src web        Emscripten      -> build-web/torirs.js
+#     make -C src winxp      Windows XP i686 -> src/torirs.exe
+#
+# See readme.md "Building", src/platform/platform.mk, and docs/PORTING_GUIDE.md
+# §"Build". Fail loudly here rather than 900 lines further down, where the
+# missing-source error says nothing about which tree moved.
+# ============================================================================
 cmake_minimum_required(VERSION 3.7)
 project(RSClient LANGUAGES C CXX)
+
+if(NOT TORIRS_ALLOW_DEPRECATED_CMAKE)
+    message(FATAL_ERROR
+        "This CMake build is deprecated and cannot configure: its sources moved to v0/.\n"
+        "Use the make lane instead:  make -C src | make -C src web | make -C src winxp\n"
+        "(-DTORIRS_ALLOW_DEPRECATED_CMAKE=ON to proceed anyway, for archaeology only.)")
+endif()
 
 # clangd/IDE: emit build/compile_commands.json (refreshed when you re-run CMake)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -109,26 +134,6 @@ set(COMMON_SOURCES
     src/osrs/buildcache_loader.c
     src/graphics/shared_tables.c
     src/graphics/lighting.c
-    src/osrs/rscache/tables/model.c
-    src/osrs/rscache/tables/maps.c
-    src/osrs/rscache/tables/config_locs.c
-    src/osrs/rscache/tables/config_floortype.c
-    src/osrs/rscache/tables/config_object.c
-    src/osrs/rscache/tables/config_sequence.c
-    src/osrs/rscache/tables/config_npctype.c
-    src/osrs/rscache/tables/noise.c
-    src/osrs/rscache/tables/framemap.c
-    src/osrs/rscache/tables/frame.c
-    src/osrs/rscache/tables/textures.c
-    src/osrs/rscache/tables/sprites.c
-    src/osrs/rscache/tables_dat/config_textures.c
-    src/osrs/rscache/tables_dat/config_idk.c
-    src/osrs/rscache/tables_dat/config_varp.c
-    src/osrs/rscache/tables_dat/config_obj.c
-    src/osrs/rscache/tables_dat/animframe.c
-    src/osrs/rscache/tables_dat/pix8.c
-    src/osrs/rscache/tables_dat/pix32.c
-    src/osrs/rscache/tables_dat/pixfont.c
     src/osrs/painters.c
     src/osrs/painters_cullmap_baked_path.c
     src/osrs/cache_utils.c
@@ -139,16 +144,12 @@ set(COMMON_SOURCES
     src/osrs/collision_map.c
     src/osrs/world_pickset.c
     src/osrs/world_options.c
-    src/osrs/rscache/filelist.c
-    src/osrs/rscache/archive.c
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/uitree.c
     src/osrs/revconfig/uitree_load.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
-    src/osrs/rscache/tables_dat/config_component.c
-    src/osrs/rscache/tables_dat/config_spotanim.c
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
@@ -186,26 +187,9 @@ set(COMMON_SOURCES
     src/osrs/packets/pkt_player_info.c
     src/osrs/packets/pkt_npc_info.c
     src/osrs/packetbuffer.c
-    src/osrs/rscache/compression.c
-    src/osrs/rscache/tables/string_utils.c
-    src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
-    src/osrs/rscache/tables_dat/config_npc.c
-    src/osrs/rscache/cache.c
-    src/osrs/rscache/cache_dat.c
     src/osrs/frustrum_cullmap.c
     src/osrs/palette.c
-    src/osrs/rscache/archive_decompress.c
-    src/osrs/rscache/disk.c
-    src/osrs/rscache/reference_table.c
-    src/osrs/rscache/xtea_config.c
     src/osrs/rsa.c
-    src/osrs/rscache/rsbuf.c
-    src/osrs/rscache/tables/component.c
-    src/osrs/rscache/bitbuffer.c
-    src/osrs/rscache/xtea.c
-    src/osrs/revs/revpacket_lc245_2_query.c
-    src/osrs/entity_scenebuild.c
-    src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
@@ -220,11 +204,96 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_api.c
     src/osrs/lua_sidecar/lua_api_ht.c
     src/osrs/lua_sidecar/lua_platform.c
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
     src/3rd/tommath/mpi.c
     src/3rd/ini/ini.c
 )
+
+# --- RSCache library (unity build) ---
+add_library(rscache STATIC
+    v0/osrs/rscache/unity.c
+    v0/3rd/bzip/bzip.c
+    v0/3rd/miniz/miniz.c
+)
+target_include_directories(rscache PUBLIC v0 v0/osrs/rscache)
+set_target_properties(rscache PROPERTIES C_STANDARD 11)
+
+if(NOT EMSCRIPTEN)
+    # Non-sanitized rscache for offline dump tools. Global CMAKE_C_FLAGS with
+    # -fsanitize=address hangs dat2 interface decode on macOS; the game keeps
+    # the shared ASAN-capable rscache above.
+    add_library(rscache_dump STATIC
+        v0/osrs/rscache/unity.c
+        v0/3rd/bzip/bzip.c
+        v0/3rd/miniz/miniz.c
+    )
+    target_include_directories(rscache_dump PUBLIC v0 v0/osrs/rscache)
+    set_target_properties(rscache_dump PROPERTIES C_STANDARD 11)
+
+    add_library(dump_interface_common STATIC
+        tools/dump_interface_common.c
+    )
+    target_link_libraries(dump_interface_common PUBLIC rscache_dump)
+    target_include_directories(dump_interface_common PUBLIC v0 v0/osrs/rscache src tools)
+    set_target_properties(dump_interface_common PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_interface_layout tools/dump_interface_layout/main.c)
+    target_link_libraries(dump_interface_layout dump_interface_common)
+    target_include_directories(dump_interface_layout PRIVATE v0 v0/osrs/rscache src tools)
+    set_target_properties(dump_interface_layout PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_interface tools/dump_interface/main.c)
+    target_link_libraries(dump_interface dump_interface_common)
+    target_include_directories(dump_interface PRIVATE v0 v0/osrs/rscache src tools)
+    set_target_properties(dump_interface PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_map_index tools/deprecated/dump_map_index/main.c)
+    target_link_libraries(dump_map_index rscache)
+    target_include_directories(dump_map_index PRIVATE src)
+    set_target_properties(dump_map_index PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_interface_index tools/deprecated/dump_interface_index/main.c)
+    target_link_libraries(dump_interface_index rscache_dump)
+    target_include_directories(dump_interface_index PRIVATE v0 v0/osrs/rscache src)
+    set_target_properties(dump_interface_index PROPERTIES C_STANDARD 11)
+
+    # Strip sanitizers from the full dump-tool chain (overrides global flags).
+    set(_dump_sanitizer_flags_active FALSE)
+    if(CMAKE_C_FLAGS MATCHES "sanitize" OR CMAKE_CXX_FLAGS MATCHES "sanitize"
+       OR CMAKE_EXE_LINKER_FLAGS MATCHES "sanitize"
+       OR ENABLE_ASAN OR ENABLE_UBSAN)
+        set(_dump_sanitizer_flags_active TRUE)
+    endif()
+    if(_dump_sanitizer_flags_active)
+        foreach(_dump_tgt rscache_dump dump_interface_common dump_interface
+                          dump_interface_layout dump_interface_index)
+            target_compile_options(${_dump_tgt} PRIVATE
+                -fno-sanitize=address -fno-sanitize=undefined)
+            target_link_options(${_dump_tgt} PRIVATE
+                -fno-sanitize=address -fno-sanitize=undefined)
+        endforeach()
+    endif()
+    unset(_dump_sanitizer_flags_active)
+
+    add_executable(match_dat2_interface tools/deprecated/match_dat2_interface/main.c)
+    target_link_libraries(match_dat2_interface rscache)
+    target_include_directories(match_dat2_interface PRIVATE src)
+    set_target_properties(match_dat2_interface PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_map_locs tools/deprecated/dump_map_locs/main.c)
+    target_link_libraries(dump_map_locs rscache)
+    target_include_directories(dump_map_locs PRIVATE src)
+    set_target_properties(dump_map_locs PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_graphic tools/deprecated/dump_graphic/main.c src/bmp.c)
+    target_link_libraries(dump_graphic rscache)
+    target_include_directories(dump_graphic PRIVATE src)
+    set_target_properties(dump_graphic PROPERTIES C_STANDARD 11)
+
+    add_executable(dump_loc_shapes tools/deprecated/dump_loc_shapes/main.c)
+    target_link_libraries(dump_loc_shapes rscache)
+    target_include_directories(dump_loc_shapes PRIVATE src)
+    set_target_properties(dump_loc_shapes PROPERTIES C_STANDARD 11)
+endif()
 
 # --- Native (OSX/Windows) Target ---
 if(NOT EMSCRIPTEN)
@@ -666,6 +735,12 @@ if(NOT EMSCRIPTEN)
         target_link_options(sdl2 PRIVATE -fsanitize=address)
         target_compile_options(bench_sdl2 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(bench_sdl2 PRIVATE -fsanitize=address)
+        if(APPLE)
+            target_compile_definitions(sdl2 PRIVATE TORIRS_ENABLE_ASAN=1)
+            target_compile_definitions(bench_sdl2 PRIVATE TORIRS_ENABLE_ASAN=1)
+            target_sources(sdl2 PRIVATE src2/platforms/asan_compat.c)
+            target_sources(bench_sdl2 PRIVATE src2/platforms/asan_compat.c)
+        endif()
     endif()
 
     if(ENABLE_UBSAN)
@@ -938,6 +1013,7 @@ endforeach()
 # --- Global Properties ---
 foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${target})
+        target_link_libraries(${target} rscache)
         target_include_directories(${target} PRIVATE src src/platforms src/nuklear src/platforms/ToriRSPlatformKit/include)
         set_target_properties(${target} PROPERTIES
             C_STANDARD 11

@@ -1,0 +1,11 @@
+npc_id,npc_name,gameval,models,seed_seqs,framemaps,rig_match_seqs,rig_match_skeletal,animaya_skinned,strict_covers,name_match_seqs,name_matches_outside_rig
+25000,Queen Black Dragon,,110000 110001,22021,9000,13,0,false,true,0,0
+25001,Queen Black Dragon,,110002 110001,22021,9000,13,0,false,true,0,0
+25002,Queen Black Dragon,,110003 110001,22021,9000,13,0,false,true,0,0
+25003,Queen Black Dragon,,110000 110001,22022,9000,13,0,false,true,0,0
+25004,Tortured soul,,110004,22023 22024,9001,5,0,false,true,0,0
+25005,Giant worm,,110005,22025,9003,7,0,false,true,0,0
+25006,Tormented demon,,110006,22017 22016,9002,9,0,false,false,0,0
+25007,Tormented demon,,110006,22017 22016,9002,9,0,false,false,0,0
+25008,Tormented demon,,110006,22017 22016,9002,9,0,false,false,0,0
+25009,Sir Rebrum,,110658,22076 22077 22078 22079 22080,9025,6,0,false,false,0,0

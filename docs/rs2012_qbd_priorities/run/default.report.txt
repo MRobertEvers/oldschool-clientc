@@ -1,0 +1,56 @@
+geometry: 6223 vertices, 9012 faces across 2 input model(s)
+features: 216 connected
+baseline: 36138/678610 wrong pixels under the pure depth sort (5.33%)
+          2515 within one feature (no band can reach these), 33623 between features
+final:    34752/678610 wrong (5.12%), 2510 within, 32242 between
+pairs:    41 a band could pay for
+solve:    settled after 1 round(s), model predicts +0 pixels
+  band   features      faces
+     0        210       8986
+     1          6         26
+
+largest features:
+    id   faces   band
+     1    2258      0
+   145    1212      0
+   212     240      0
+     0     212      0
+   170     184      0
+   171     184      0
+   172     184      0
+   173     184      0
+   213     156      0
+   144     144      0
+   174     136      0
+   191     136      0
+   193     136      0
+   210     136      0
+    30      74      0
+    31      74      0
+    32      74      0
+    33      74      0
+    91      74      0
+    15      60      0
+
+worst feature pairs (last round):
+  over  under  fixable   breaks      net  bndA  bndB
+     0      1     3174     6354    -3180     0     0
+   144      1     2020    11229    -9209     0     0
+   214      1     1610     1678      -68     0     0
+     6      5      875       62      813     0     0
+     4      3      838       30      808     0     0
+   212    214      832     1769     -937     0     0
+     1    213      822     8899    -8077     0     0
+   144      6      790     5428    -4638     0     0
+   213      1      720     6754    -6034     0     0
+    29    144      718        7      711     0     0
+   144      4      683     5338    -4655     0     0
+     1    145      621    41369   -40748     0     0
+    26    144      612        1      611     0     0
+   212      1      587     4070    -3483     0     0
+   213    214      512      894     -382     0     0
+
+separations the bands actually buy:
+  over  under     net px
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_70260.ob3 (94761 bytes)
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_69766.ob3 (30053 bytes)

@@ -1,0 +1,1223 @@
+#include "opcode_codec.h"
+
+#include "datatypes/dat2_config_healthbar.h"
+#include "datatypes/dat2_config_hitsplat.h"
+#include "datatypes/dat2_config_db.h"
+#include "datatypes/dat2_config_flo.h"
+#include "datatypes/dat2_config_enum.h"
+#include "datatypes/dat2_config_idk.h"
+#include "datatypes/dat2_config_mapelement.h"
+#include "datatypes/dat2_config_inv.h"
+#include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_config_sequence.h"
+#include "datatypes/dat2_config_spotanim.h"
+#include "datatypes/dat2_config_loc.h"
+#include "datatypes/dat2_config_npc.h"
+#include "datatypes/dat2_config_param.h"
+#include "datatypes/dat2_config_struct.h"
+#include "datatypes/dat2_config_var.h"
+
+#include "datatypes/dat1_config_component.h"
+#include "datatypes/dat1_config_idk.h"
+#include "datatypes/dat1_config_npc.h"
+#include "datatypes/dat1_config_obj.h"
+#include "datatypes/dat1_config_seq.h"
+#include "datatypes/dat1_config_spotanim.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+/*
+ * The registry.
+ *
+ * Every row is a wrapper over functions that already exist and are already held to
+ * byte-exact round-trip. Nothing here reimplements a layout, and no decoder body was
+ * touched to add a row — which is the property that lets this land without moving
+ * any fidelity number.
+ *
+ * The wrappers are macro-generated because they are pure shape adaptation and
+ * reading them as a table is what makes an omission obvious. That is the same
+ * reasoning `tools/cachepack/cp_codec.c` records for gathering its baseline
+ * functions in one file rather than beside each type.
+ *
+ * ## Three shapes the datatypes come in, and why the macros are plural
+ *
+ *  - **Profile or no profile.** `loc` and `npc` need the cache profile because an
+ *    opcode's *shape* is era dependent; `inv` does not. Passing it everywhere would
+ *    be uniform but would also mean an encoder that quietly ignores era when it
+ *    should not, which is the failure `dat2_config_npc.h` documents for opcode 102.
+ *  - **In-place or allocating.** Most types decode into a caller's struct;
+ *    `npc`, `spotanim`, `bas` and `component` only allocate. Those get a shim.
+ *  - **Owns memory or does not.** A type with no `Free` in its header owns nothing,
+ *    so its `record_free` is NULL rather than an empty function.
+ */
+
+/* ---- wrapper generation -------------------------------------------------- */
+
+/** Defaults are a zeroed struct: every field the decoder leaves alone reads 0. */
+#define WRAP_INIT_ZERO(TAG, STRUCT)                                                                \
+    static void cpc_##TAG##_init(void* record)                                                     \
+    {                                                                                              \
+        memset(record, 0, sizeof(STRUCT));                                                         \
+    }
+
+/**
+ * Zero, then apply the type's non-zero defaults.
+ *
+ * Required for any type whose decoder used to seed defaults at the top of its own
+ * loop — `hitsplat` and `healthbar` both set their sprite ids to -1 there. Once
+ * the loop moves out to the shared driver, a zeroing init alone would leave those
+ * at 0, and sprite 0 is a real sprite: the record would decode with no error and
+ * draw the wrong graphic. That failure has no other symptom, which is why the
+ * defaults are a named function per type rather than a comment.
+ */
+#define WRAP_INIT(TAG, STRUCT, FN)                                                                 \
+    static void cpc_##TAG##_init(void* record)                                                     \
+    {                                                                                              \
+        memset(record, 0, sizeof(STRUCT));                                                         \
+        FN((STRUCT*)record);                                                                       \
+    }
+
+/**
+ * Decode into a caller-owned struct, reporting `_consumed`.
+ *
+ * `_consumed` short of `size` is not an error here and must not be turned into one:
+ * these decoders stop on an opcode they do not know rather than guessing its width,
+ * and the short return is precisely the signal the round-trip harness asserts on.
+ * Reporting it as failure would hide it.
+ */
+#define WRAP_DECODE_INPLACE(TAG, STRUCT, FN)                                                       \
+    static int cpc_##TAG##_decode(                                                                 \
+        const struct RSCache* cache, void* record, const uint8_t* src, int size)                   \
+    {                                                                                              \
+        STRUCT* rec = (STRUCT*)record;                                                             \
+        (void)cache;                                                                               \
+        if( !rec || !src || size < 0 )                                                             \
+            return -1;                                                                             \
+        FN(rec, src, size);                                                                        \
+        return rec->_consumed;                                                                     \
+    }
+
+/**
+ * Adapt a typed per-opcode handler to the interface's `void*` form.
+ *
+ * The typed function is what a server-side record calls to delegate — it takes
+ * `&server->base`, so it must stay concretely typed rather than being generated
+ * only in this erased shape.
+ */
+/**
+ * As WRAP_DECODE_INPLACE, for a type whose struct carries no `_consumed`.
+ *
+ * dbrow and dbtable are not opcode streams in the usual sense — their payload is
+ * a column table, validated byte-exact by `test_db_encode` — so consumption is
+ * reported as the full record rather than measured. Named distinctly so it is
+ * visible which types are not being held to the consumption bar.
+ */
+#define WRAP_DECODE_INPLACE_NOCONSUMED(TAG, STRUCT, FN)                                            \
+    static int cpc_##TAG##_decode(                                                                 \
+        const struct RSCache* cache, void* record, const uint8_t* src, int size)                   \
+    {                                                                                              \
+        (void)cache;                                                                               \
+        if( !record || !src || size < 0 )                                                          \
+            return -1;                                                                             \
+        FN((STRUCT*)record, src, size);                                                            \
+        return size;                                                                               \
+    }
+
+#define WRAP_DECODE_OP(TAG, STRUCT, FN)                                                            \
+    static bool cpc_##TAG##_decode_op(                                                             \
+        void* record, int opcode, struct RSCache_Buffer* buffer, unsigned flags)                   \
+    {                                                                                              \
+        return FN((STRUCT*)record, opcode, buffer, flags);                                         \
+    }
+
+/**
+ * Adapt an era-flags function to the hook's type.
+ *
+ * Needed because these return `int` while the hook is `unsigned`; the wrapper is
+ * where that conversion is stated once rather than cast at each call.
+ */
+/** Post-decode fixups, adapted to the hook's `void*` form. */
+#define WRAP_FINISH(TAG, STRUCT, FN)                                                               \
+    static void cpc_##TAG##_finish(void* record, unsigned flags)                                   \
+    {                                                                                              \
+        FN((STRUCT*)record, flags);                                                                \
+    }
+
+#define WRAP_FLAGS(TAG, FN)                                                                        \
+    static unsigned cpc_##TAG##_flags(const struct RSCache* cache)                                 \
+    {                                                                                              \
+        return (unsigned)FN(cache);                                                                \
+    }
+
+/** An encoder that needs the profile, because its opcode shapes are era-gated. */
+#define WRAP_ENCODE_PROFILE(TAG, STRUCT, FN)                                                       \
+    static uint32_t cpc_##TAG##_encode(                                                            \
+        const struct RSCache* cache, const void* record, uint8_t* out, uint32_t cap)               \
+    {                                                                                              \
+        return FN(cache, (const STRUCT*)record, out, cap);                                         \
+    }
+
+#define WRAP_ENCODE(TAG, STRUCT, FN)                                                               \
+    static uint32_t cpc_##TAG##_encode(                                                            \
+        const struct RSCache* cache, const void* record, uint8_t* out, uint32_t cap)               \
+    {                                                                                              \
+        (void)cache;                                                                               \
+        return FN((const STRUCT*)record, out, cap);                                                \
+    }
+
+#define WRAP_BOUND(TAG, STRUCT, FN)                                                                \
+    static uint32_t cpc_##TAG##_bound(const void* record)                                          \
+    {                                                                                              \
+        return FN((const STRUCT*)record);                                                          \
+    }
+
+#define WRAP_FREE(TAG, STRUCT, FN)                                                                 \
+    static void cpc_##TAG##_free(void* record)                                                     \
+    {                                                                                              \
+        FN((STRUCT*)record);                                                                       \
+    }
+
+/* ---- dat2: fixed-shape records ------------------------------------------- */
+
+WRAP_INIT_ZERO(
+    inv,
+    struct RSCache_Dat2ConfigInv)
+WRAP_DECODE_OP(
+    inv,
+    struct RSCache_Dat2ConfigInv,
+    RSCache_Dat2ConfigInvDecodeOp)
+WRAP_ENCODE(
+    inv,
+    struct RSCache_Dat2ConfigInv,
+    RSCache_Dat2ConfigInvEncode)
+WRAP_BOUND(
+    inv,
+    struct RSCache_Dat2ConfigInv,
+    RSCache_Dat2ConfigInvEncodeBound)
+WRAP_FREE(
+    inv,
+    struct RSCache_Dat2ConfigInv,
+    RSCache_Dat2ConfigInvFreeInplace)
+
+WRAP_INIT(
+    hitsplat,
+    struct RSCache_Dat2ConfigHitsplat,
+    RSCache_Dat2ConfigHitsplatInit)
+WRAP_DECODE_OP(
+    hitsplat,
+    struct RSCache_Dat2ConfigHitsplat,
+    RSCache_Dat2ConfigHitsplatDecodeOp)
+WRAP_ENCODE(
+    hitsplat,
+    struct RSCache_Dat2ConfigHitsplat,
+    RSCache_Dat2ConfigHitsplatEncode)
+WRAP_BOUND(
+    hitsplat,
+    struct RSCache_Dat2ConfigHitsplat,
+    RSCache_Dat2ConfigHitsplatEncodeBound)
+/* Group 32 is a hitsplat stream only in the OldSchool lineage — a pre-EoC RS2
+ * cache puts something else there entirely. Without this the decoder claimed
+ * those bytes and produced thousands of nonsense records. */
+WRAP_FLAGS(hitsplat, RSCache_Dat2ConfigHitsplatFlags)
+
+WRAP_INIT(
+    healthbar,
+    struct RSCache_Dat2ConfigHealthbar,
+    RSCache_Dat2ConfigHealthbarInit)
+WRAP_DECODE_OP(
+    healthbar,
+    struct RSCache_Dat2ConfigHealthbar,
+    RSCache_Dat2ConfigHealthbarDecodeOp)
+WRAP_ENCODE(
+    healthbar,
+    struct RSCache_Dat2ConfigHealthbar,
+    RSCache_Dat2ConfigHealthbarEncode)
+WRAP_BOUND(
+    healthbar,
+    struct RSCache_Dat2ConfigHealthbar,
+    RSCache_Dat2ConfigHealthbarEncodeBound)
+
+WRAP_INIT(
+    varbit,
+    struct RSCache_Dat2ConfigVarbit,
+    RSCache_Dat2ConfigVarbitInit)
+WRAP_DECODE_OP(
+    varbit,
+    struct RSCache_Dat2ConfigVarbit,
+    RSCache_Dat2ConfigVarbitDecodeOp)
+WRAP_ENCODE(
+    varbit,
+    struct RSCache_Dat2ConfigVarbit,
+    RSCache_Dat2ConfigVarbitEncode)
+WRAP_BOUND(
+    varbit,
+    struct RSCache_Dat2ConfigVarbit,
+    RSCache_Dat2ConfigVarbitEncodeBound)
+WRAP_FREE(
+    varbit,
+    struct RSCache_Dat2ConfigVarbit,
+    RSCache_Dat2ConfigVarbitFreeInplace)
+
+WRAP_INIT_ZERO(
+    varp,
+    struct RSCache_Dat2ConfigVarplayer)
+WRAP_DECODE_OP(
+    varp,
+    struct RSCache_Dat2ConfigVarplayer,
+    RSCache_Dat2ConfigVarplayerDecodeOp)
+WRAP_ENCODE(
+    varp,
+    struct RSCache_Dat2ConfigVarplayer,
+    RSCache_Dat2ConfigVarplayerEncode)
+WRAP_BOUND(
+    varp,
+    struct RSCache_Dat2ConfigVarplayer,
+    RSCache_Dat2ConfigVarplayerEncodeBound)
+
+WRAP_INIT_ZERO(
+    varc,
+    struct RSCache_Dat2ConfigVarclient)
+WRAP_DECODE_OP(
+    varc,
+    struct RSCache_Dat2ConfigVarclient,
+    RSCache_Dat2ConfigVarclientDecodeOp)
+WRAP_ENCODE(
+    varc,
+    struct RSCache_Dat2ConfigVarclient,
+    RSCache_Dat2ConfigVarclientEncode)
+WRAP_BOUND(
+    varc,
+    struct RSCache_Dat2ConfigVarclient,
+    RSCache_Dat2ConfigVarclientEncodeBound)
+
+WRAP_INIT(
+    param,
+    struct RSCache_Dat2ConfigParam,
+    RSCache_Dat2ConfigParamInit)
+WRAP_DECODE_OP(
+    param,
+    struct RSCache_Dat2ConfigParam,
+    RSCache_Dat2ConfigParamDecodeOp)
+WRAP_ENCODE(
+    param,
+    struct RSCache_Dat2ConfigParam,
+    RSCache_Dat2ConfigParamEncode)
+WRAP_BOUND(
+    param,
+    struct RSCache_Dat2ConfigParam,
+    RSCache_Dat2ConfigParamEncodeBound)
+WRAP_FREE(
+    param,
+    struct RSCache_Dat2ConfigParam,
+    RSCache_Dat2ConfigParamFreeInplace)
+
+WRAP_INIT_ZERO(
+    cfgstruct,
+    struct RSCache_Dat2ConfigStruct)
+WRAP_DECODE_OP(
+    cfgstruct,
+    struct RSCache_Dat2ConfigStruct,
+    RSCache_Dat2ConfigStructDecodeOp)
+WRAP_ENCODE(
+    cfgstruct,
+    struct RSCache_Dat2ConfigStruct,
+    RSCache_Dat2ConfigStructEncode)
+WRAP_BOUND(
+    cfgstruct,
+    struct RSCache_Dat2ConfigStruct,
+    RSCache_Dat2ConfigStructEncodeBound)
+WRAP_FREE(
+    cfgstruct,
+    struct RSCache_Dat2ConfigStruct,
+    RSCache_Dat2ConfigStructFreeInplace)
+
+WRAP_INIT(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcInit)
+WRAP_FINISH(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcFinish)
+WRAP_FLAGS(
+    npc,
+    RSCache_Dat2ConfigNpcFlags)
+WRAP_DECODE_OP(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcDecodeOp)
+WRAP_ENCODE_PROFILE(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcEncodeProfile)
+WRAP_BOUND(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcEncodeBound)
+WRAP_FREE(
+    npc,
+    struct RSCache_Dat2ConfigNpc,
+    RSCache_Dat2ConfigNpcFreeInplace)
+
+WRAP_INIT(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocInit)
+WRAP_FINISH(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocFinish)
+WRAP_FLAGS(
+    loc,
+    RSCache_Dat2ConfigLocFlags)
+WRAP_DECODE_OP(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocDecodeOp)
+WRAP_ENCODE_PROFILE(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocEncode)
+WRAP_BOUND(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocEncodeBound)
+WRAP_FREE(
+    loc,
+    struct RSCache_Dat2ConfigLoc,
+    RSCache_Dat2ConfigLocFreeInplace)
+
+WRAP_INIT(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjInit)
+WRAP_FLAGS(
+    obj,
+    RSCache_Dat2ConfigObjFlags)
+WRAP_DECODE_OP(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjDecodeOp)
+WRAP_ENCODE_PROFILE(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjEncodeProfile)
+WRAP_BOUND(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjEncodeBound)
+WRAP_FREE(
+    obj,
+    struct RSCache_Dat2ConfigObj,
+    RSCache_Dat2ConfigObjFreeInplace)
+
+WRAP_INIT(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkInit)
+WRAP_DECODE_OP(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkDecodeOp)
+WRAP_ENCODE(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkEncode)
+WRAP_BOUND(
+    idk,
+    struct RSCache_Dat2ConfigIdk,
+    RSCache_Dat2ConfigIdkEncodeBound)
+
+/*
+ * seq keeps the whole-record path rather than taking a `decode_op`.
+ *
+ * It has *three* decoders — `decode_sequence_v1/v2/v3`, selected by codec version
+ * — so a per-opcode split is three splits, and the opcode numbering differs
+ * between them. Nothing needs to subclass seq: the server pack carries npc, loc
+ * and obj. This is a deferral, not a structural limit like `enum`'s; if a
+ * server-side seq ever needs fields, the split is still available.
+ */
+WRAP_INIT_ZERO(
+    seq,
+    struct RSCache_Dat2ConfigSequence)
+WRAP_BOUND(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceEncodeBound)
+WRAP_ENCODE_PROFILE(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceEncode)
+WRAP_FREE(
+    seq,
+    struct RSCache_Dat2ConfigSequence,
+    RSCache_Dat2ConfigSequenceFreeInplace)
+
+static int
+cpc_seq_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    struct RSCache_Dat2ConfigSequence* def = (struct RSCache_Dat2ConfigSequence*)record;
+
+    if( !def || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigSequenceDecodeProfile(def, cache, (char*)src, size);
+    return def->_consumed;
+}
+
+/*
+ * enum keeps the whole-record path, and unlike seq this is structural rather than
+ * a deferral: its decoder accumulates keys and values in *function locals* across
+ * opcodes 5/6/7 and commits them to the record only after the loop ends. A
+ * per-opcode handler has no stack frame to hold them, so splitting it would mean
+ * moving four accumulators into the record — a change to the type, not a
+ * refactor of the decoder.
+ */
+WRAP_INIT_ZERO(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum)
+WRAP_DECODE_INPLACE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumDecodeInplace)
+WRAP_ENCODE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumEncode)
+WRAP_BOUND(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumEncodeBound)
+WRAP_FREE(
+    cfgenum,
+    struct RSCache_Dat2ConfigEnum,
+    RSCache_Dat2ConfigEnumFreeInplace)
+
+WRAP_INIT_ZERO(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowDecodeInplace)
+WRAP_ENCODE(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowEncode)
+WRAP_BOUND(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowEncodeBound)
+WRAP_FREE(
+    dbrow,
+    struct RSCache_Dat2ConfigDbRow,
+    RSCache_Dat2ConfigDbRowFreeInplace)
+
+WRAP_INIT_ZERO(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableDecodeInplace)
+WRAP_ENCODE(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableEncode)
+WRAP_BOUND(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableEncodeBound)
+WRAP_FREE(
+    dbtable,
+    struct RSCache_Dat2ConfigDbTable,
+    RSCache_Dat2ConfigDbTableFreeInplace)
+
+/*
+ * The flo pair and mapelement.
+ *
+ * All three take the whole-record path for the same small reason: their decoders
+ * are era-gated at the *record* level rather than per opcode, and none of them is
+ * a candidate for server-side extension. Their `default` cases already stop on an
+ * unknown opcode, which was checked rather than assumed.
+ */
+WRAP_INIT_ZERO(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay)
+WRAP_ENCODE(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayEncode)
+WRAP_BOUND(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayEncodeBound)
+WRAP_FREE(
+    underlay,
+    struct RSCache_Dat2ConfigUnderlay,
+    RSCache_Dat2ConfigUnderlayFreeInplace)
+
+WRAP_INIT_ZERO(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay)
+WRAP_ENCODE(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayEncode)
+WRAP_BOUND(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayEncodeBound)
+WRAP_FREE(
+    overlay,
+    struct RSCache_Dat2ConfigOverlay,
+    RSCache_Dat2ConfigOverlayFreeInplace)
+
+WRAP_INIT_ZERO(
+    mapelement,
+    struct RSCache_MapElement)
+WRAP_DECODE_INPLACE_NOCONSUMED(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementDecodeInplace)
+WRAP_ENCODE(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementEncode)
+WRAP_BOUND(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementEncodeBound)
+WRAP_FREE(
+    mapelement,
+    struct RSCache_MapElement,
+    RSCache_MapElementFreeInplace)
+
+/* The flo decoders take era flags, so their whole-record wrappers derive them
+ * from the profile the same way `flags_for` would. */
+static int
+cpc_underlay_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    if( !record || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
+        (struct RSCache_Dat2ConfigUnderlay*)record, (char*)src, size,
+        RSCache_Dat2ConfigFloFlags(cache));
+    return size;
+}
+
+static int
+cpc_overlay_decode(const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    if( !record || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
+        (struct RSCache_Dat2ConfigOverlay*)record, (char*)src, size,
+        RSCache_Dat2ConfigFloFlags(cache));
+    return size;
+}
+
+/* spotanim's encoder is revision-gated (opcode 3 replaces 1 for models from rev
+ * 237), so its wrapper derives the revision from the profile rather than taking
+ * the revision-less entry point. */
+WRAP_INIT(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimInit)
+static int
+cpc_spotanim_decode(
+    const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    struct RSCache_Dat2ConfigSpotanim* rec =
+        (struct RSCache_Dat2ConfigSpotanim*)record;
+    if( !rec || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(rec, cache, src, size);
+    return rec->_consumed;
+}
+WRAP_BOUND(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimEncodeBound)
+WRAP_FREE(
+    spotanim,
+    struct RSCache_Dat2ConfigSpotanim,
+    RSCache_Dat2ConfigSpotanimFreeInplace)
+
+static uint32_t
+cpc_spotanim_encode(
+    const struct RSCache* cache, const void* record, uint8_t* out, uint32_t cap)
+{
+    return RSCache_Dat2ConfigSpotanimEncodeRevision(
+        cache ? cache->revision : 0, (const struct RSCache_Dat2ConfigSpotanim*)record, out,
+        cap);
+}
+
+/* ---- dat1 ---------------------------------------------------------------- */
+
+/*
+ * Every row below takes `WRAP_INIT` over the type's own named `Init`, and not
+ * one of them may use `WRAP_INIT_ZERO`.
+ *
+ * The reason is the same one `WRAP_INIT`'s comment gives for hitsplat, and dat1
+ * makes it sharper: these decoders seeded their defaults at the top of their own
+ * loop, so lifting the loop out to the shared driver would have left the
+ * defaults behind. dat1 npc alone has nineteen non-zero ones — `size` 1,
+ * `resizeh`/`resizev` 128, `turnspeed` 32, five anim ids at -1 — and every one
+ * of those values is also a legitimate field value, so nothing about the decoded
+ * record would look wrong. The encoders write an opcode only where a field
+ * *differs from its default*, so a zeroing init changes which opcodes are
+ * emitted: dat2 npc dropped from 99 byte-exact records to 0 that way, with no
+ * other symptom. Comparing against zero instead of against the default is the
+ * bug; `Init` is where the default is stated once for both callers.
+ *
+ * The order of the opcode stream is data here, not a convention. dat1 config
+ * records are *not* ascending — cache254's first idk runs 1, 60, 2 — so obj,
+ * idk and spotanim record the order they decoded and their encoders replay it
+ * (the device `RSCache_Dat2ConfigHitsplat` uses). That bookkeeping lives in
+ * `decode_op` so the type's own entry point and this registry cannot disagree
+ * about it.
+ */
+
+WRAP_INIT(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjInit)
+WRAP_DECODE_OP(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjDecodeOp)
+WRAP_ENCODE(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjEncode)
+WRAP_BOUND(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjEncodeBound)
+WRAP_FREE(
+    d1obj,
+    struct RSCache_Dat1ConfigObj,
+    RSCache_Dat1ConfigObjFreeInplace)
+
+WRAP_INIT(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcInit)
+WRAP_DECODE_OP(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcDecodeOp)
+WRAP_ENCODE(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcEncode)
+WRAP_BOUND(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcEncodeBound)
+WRAP_FREE(
+    d1npc,
+    struct RSCache_Dat1ConfigNpc,
+    RSCache_Dat1ConfigNpcFreeInplace)
+
+WRAP_INIT(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkInit)
+WRAP_DECODE_OP(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkDecodeOp)
+WRAP_ENCODE(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkEncode)
+WRAP_BOUND(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkEncodeBound)
+WRAP_FREE(
+    d1idk,
+    struct RSCache_Dat1ConfigIdk,
+    RSCache_Dat1ConfigIdkFreeInplace)
+
+WRAP_INIT(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqInit)
+WRAP_DECODE_OP(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqDecodeOp)
+WRAP_ENCODE(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqEncode)
+WRAP_BOUND(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqEncodeBound)
+WRAP_FREE(
+    d1seq,
+    struct RSCache_Dat1ConfigSeq,
+    RSCache_Dat1ConfigSeqFreeInplace)
+
+/* No `record_free`: the dat1 spotanim record is scalars and two fixed arrays, so
+ * it owns nothing. NULL rather than an empty function, per the note at the top. */
+WRAP_INIT(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimInit)
+WRAP_DECODE_OP(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimDecodeOp)
+WRAP_ENCODE(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimEncode)
+WRAP_BOUND(
+    d1spotanim,
+    struct RSCache_Dat1ConfigSpotanim,
+    RSCache_Dat1ConfigSpotanimEncodeBound)
+
+/*
+ * component is the one dat1 type that is not an opcode stream.
+ *
+ * Its record is a fixed header — id, type, buttonType, size, alpha, the overlay
+ * and comparator and script blocks — followed by sections chosen by `type` and
+ * `buttonType`. There is no code byte to dispatch on and no zero terminator; the
+ * record ends where its last conditional section ends. So there is nothing for
+ * `decode_op` to be, and it takes the whole-record `decode` override that
+ * `opcode_codec.h` describes as existing for exactly this shape.
+ *
+ * It is also the only dat1 row with no encoder. That is a statement about the
+ * type, not an omission to route around: `RSCache_OpcodeCodecCanEncode` is the
+ * check, and it answers false here.
+ */
+WRAP_INIT(
+    d1component,
+    struct RSCache_Dat1ConfigComponent,
+    RSCache_Dat1ConfigComponentInit)
+WRAP_FREE(
+    d1component,
+    struct RSCache_Dat1ConfigComponent,
+    RSCache_Dat1ConfigComponentFreeInplace)
+
+static int
+cpc_d1component_decode(
+    const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    (void)cache;
+    return RSCache_Dat1ConfigComponentDecodeInplace(
+        (struct RSCache_Dat1ConfigComponent*)record, src, size);
+}
+
+/* ---- the table ----------------------------------------------------------- */
+
+/*
+ * Designated initialisers, not positional. The first version of this table was
+ * positional and broke silently the moment `decode_op` was inserted ahead of
+ * `decode`: every row still compiled, with a decode function installed as the
+ * flags hook. Naming the fields makes the order of the struct irrelevant, which
+ * matters most for the rows where an optional hook is absent.
+ */
+#define ROW(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                                  \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
+      .record_free = FREE,                                                                         \
+      .flags_for = NULL,                                                                           \
+      .decode_op = cpc_##TAG##_decode_op,                                                          \
+      .decode = NULL,                                                                              \
+      .encode = cpc_##TAG##_encode,                                                                \
+      .encode_bound = cpc_##TAG##_bound }
+
+/** Like ROW, for a type whose opcodes are era-gated and so needs `flags_for`. */
+#define ROW_ERA(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                              \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = cpc_##TAG##_finish,                                                         \
+      .record_free = FREE,                                                                         \
+      .flags_for = cpc_##TAG##_flags,                                                              \
+      .decode_op = cpc_##TAG##_decode_op,                                                          \
+      .decode = NULL,                                                                              \
+      .encode = cpc_##TAG##_encode,                                                                \
+      .encode_bound = cpc_##TAG##_bound }
+
+/** Era-gated, with nothing to fix up once the stream ends. */
+#define ROW_ERA_NOFINISH(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                     \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
+      .record_free = FREE,                                                                         \
+      .flags_for = cpc_##TAG##_flags,                                                              \
+      .decode_op = cpc_##TAG##_decode_op,                                                          \
+      .decode = NULL,                                                                              \
+      .encode = cpc_##TAG##_encode,                                                                \
+      .encode_bound = cpc_##TAG##_bound }
+
+/** A type whose record is not purely a stream, so it keeps its own whole-record
+ *  decode instead of taking the shared driver. */
+#define ROW_WHOLE(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                            \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
+      .record_free = FREE,                                                                         \
+      .flags_for = NULL,                                                                           \
+      .decode_op = NULL,                                                                           \
+      .decode = cpc_##TAG##_decode,                                                                \
+      .encode = cpc_##TAG##_encode,                                                                \
+      .encode_bound = cpc_##TAG##_bound }
+
+/** As ROW_WHOLE, for a type that has no encoder — `CanEncode` answers false. */
+#define ROW_WHOLE_DECODE_ONLY(NAME, TYPE, EPOCH, STRUCT, TAG, FREE)                                \
+    { .name = NAME,                                                                                \
+      .type = TYPE,                                                                                \
+      .epoch = EPOCH,                                                                              \
+      .record_size = sizeof(STRUCT),                                                               \
+      .record_init = cpc_##TAG##_init,                                                             \
+      .record_finish = NULL,                                                                       \
+      .record_free = FREE,                                                                         \
+      .flags_for = NULL,                                                                           \
+      .decode_op = NULL,                                                                           \
+      .decode = cpc_##TAG##_decode,                                                                \
+      .encode = NULL,                                                                              \
+      .encode_bound = NULL }
+
+static const struct RSCache_OpcodeCodec k_codecs[] = {
+    ROW("inv",
+        RSCACHE_TYPE_INV,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigInv,
+        inv,
+        cpc_inv_free),
+    ROW_ERA_NOFINISH(
+        "hitsplat",
+        RSCACHE_TYPE_HITSPLAT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigHitsplat,
+        hitsplat,
+        NULL),
+    ROW(
+        "healthbar",
+        RSCACHE_TYPE_HEALTHBAR,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigHealthbar,
+        healthbar,
+        NULL),
+    ROW(
+        "varbit",
+        RSCACHE_TYPE_VARBIT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigVarbit,
+        varbit,
+        cpc_varbit_free),
+    ROW(
+        "varp",
+        RSCACHE_TYPE_VARPLAYER,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigVarplayer,
+        varp,
+        NULL),
+    ROW(
+        "varc",
+        RSCACHE_TYPE_VARCLIENT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigVarclient,
+        varc,
+        NULL),
+    ROW(
+        "param",
+        RSCACHE_TYPE_PARAM,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigParam,
+        param,
+        cpc_param_free),
+    ROW(
+        "struct",
+        RSCACHE_TYPE_STRUCT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigStruct,
+        cfgstruct,
+        cpc_cfgstruct_free),
+    ROW_ERA(
+        "npc",
+        RSCACHE_TYPE_NPC,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigNpc,
+        npc,
+        cpc_npc_free),
+    ROW_ERA(
+        "loc",
+        RSCACHE_TYPE_LOC,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigLoc,
+        loc,
+        cpc_loc_free),
+    ROW_ERA_NOFINISH(
+        "obj",
+        RSCACHE_TYPE_OBJ,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigObj,
+        obj,
+        cpc_obj_free),
+    ROW(
+        "idk",
+        RSCACHE_TYPE_IDK,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigIdk,
+        idk,
+        NULL),
+    ROW_WHOLE(
+        "seq",
+        RSCACHE_TYPE_SEQUENCE,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigSequence,
+        seq,
+        cpc_seq_free),
+    ROW_WHOLE(
+        "enum",
+        RSCACHE_TYPE_ENUM,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigEnum,
+        cfgenum,
+        cpc_cfgenum_free),
+    ROW_WHOLE(
+        "dbrow",
+        RSCACHE_TYPE_DBROW,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigDbRow,
+        dbrow,
+        cpc_dbrow_free),
+    ROW_WHOLE(
+        "dbtable",
+        RSCACHE_TYPE_DBTABLE,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigDbTable,
+        dbtable,
+        cpc_dbtable_free),
+    ROW_WHOLE(
+        "underlay",
+        RSCACHE_TYPE_UNDERLAY,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigUnderlay,
+        underlay,
+        cpc_underlay_free),
+    ROW_WHOLE(
+        "overlay",
+        RSCACHE_TYPE_OVERLAY,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigOverlay,
+        overlay,
+        cpc_overlay_free),
+    ROW_WHOLE(
+        "mapelement",
+        RSCACHE_TYPE_MAPELEMENT,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_MapElement,
+        mapelement,
+        cpc_mapelement_free),
+    ROW_WHOLE(
+        "spotanim",
+        RSCACHE_TYPE_SPOTANIM,
+        RSCACHE_EPOCH_DAT2,
+        struct RSCache_Dat2ConfigSpotanim,
+        spotanim,
+        cpc_spotanim_free),
+
+    /* dat1. Same names and same types as five of the rows above — the keying is
+     * on (epoch, type), which is why both families can be registered at once
+     * without either answering for the other. See `opcode_codec.h`, "Keying". */
+    ROW(
+        "obj",
+        RSCACHE_TYPE_OBJ,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigObj,
+        d1obj,
+        cpc_d1obj_free),
+    ROW(
+        "npc",
+        RSCACHE_TYPE_NPC,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigNpc,
+        d1npc,
+        cpc_d1npc_free),
+    ROW(
+        "idk",
+        RSCACHE_TYPE_IDK,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigIdk,
+        d1idk,
+        cpc_d1idk_free),
+    ROW(
+        "seq",
+        RSCACHE_TYPE_SEQUENCE,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigSeq,
+        d1seq,
+        cpc_d1seq_free),
+    ROW(
+        "spotanim",
+        RSCACHE_TYPE_SPOTANIM,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigSpotanim,
+        d1spotanim,
+        NULL),
+    ROW_WHOLE_DECODE_ONLY(
+        "component",
+        RSCACHE_TYPE_COMPONENT,
+        RSCACHE_EPOCH_DAT1,
+        struct RSCache_Dat1ConfigComponent,
+        d1component,
+        cpc_d1component_free),
+};
+
+#define CODEC_COUNT ((int)(sizeof(k_codecs) / sizeof(k_codecs[0])))
+
+const struct RSCache_OpcodeCodec*
+RSCache_OpcodeCodecFor(
+    const struct RSCache* cache,
+    enum RSCache_Type type)
+{
+    int epoch = cache ? cache->epoch : RSCACHE_EPOCH_DAT2;
+
+    for( int i = 0; i < CODEC_COUNT; i++ )
+    {
+        if( k_codecs[i].type == type && (int)k_codecs[i].epoch == epoch )
+            return &k_codecs[i];
+    }
+    return NULL;
+}
+
+const struct RSCache_OpcodeCodec*
+RSCache_OpcodeCodecByName(
+    const struct RSCache* cache,
+    const char* name)
+{
+    int epoch = cache ? cache->epoch : RSCACHE_EPOCH_DAT2;
+
+    assert(name != NULL);
+    for( int i = 0; i < CODEC_COUNT; i++ )
+    {
+        if( strcmp(k_codecs[i].name, name) == 0 && (int)k_codecs[i].epoch == epoch )
+            return &k_codecs[i];
+    }
+    return NULL;
+}
+
+int
+RSCache_OpcodeCodecCount(void)
+{
+    return CODEC_COUNT;
+}
+
+const struct RSCache_OpcodeCodec*
+RSCache_OpcodeCodecAt(int index)
+{
+    assert(index >= 0 && index < CODEC_COUNT);
+    return &k_codecs[index];
+}
+
+int
+RSCache_OpcodeStreamDecode(
+    const struct RSCache_OpcodeCodec* codec,
+    const struct RSCache* cache,
+    void* record,
+    const uint8_t* src,
+    int size)
+{
+    struct RSCache_Buffer buffer;
+    unsigned flags;
+
+    assert(codec != NULL);
+    assert(codec->decode_op != NULL);
+    assert(record != NULL);
+    assert(src != NULL);
+    assert(size > 0);
+
+    flags = codec->flags_for ? codec->flags_for(cache) : 0u;
+    RSCache_BufferInit(&buffer, (uint8_t*)src, (uint32_t)size);
+
+    for( ;; )
+    {
+        int opcode;
+
+        if( buffer.position >= buffer.size )
+            break;
+        opcode = g1(&buffer);
+        if( opcode == 0 )
+            break;
+        /* An opcode the codec declines ends the record: its payload width is
+         * unknown, so skipping it would resynchronise on garbage. The caller sees
+         * the shortfall in the return value. */
+        if( !codec->decode_op(record, opcode, &buffer, flags) )
+            break;
+    }
+    /* Runs even on a short stream: a record that stopped early still needs its
+     * derived fields, and leaving them unset is the difference between a record
+     * that re-encodes and one that quietly does not. */
+    if( codec->record_finish )
+        codec->record_finish(record, flags);
+    return (int)buffer.position;
+}
+
+void*
+RSCache_OpcodeCodecRecordDecode(
+    const struct RSCache_OpcodeCodec* codec,
+    const struct RSCache* cache,
+    const uint8_t* src,
+    int size,
+    int* out_consumed)
+{
+    void* record;
+    int consumed;
+
+    assert(codec != NULL);
+    assert(cache != NULL);
+    record = calloc(1, codec->record_size);
+    assert(record != NULL);
+
+    if( codec->record_init )
+        codec->record_init(record);
+    /* A row that supplies `decode_op` takes the shared loop; `decode` is the
+     * override for records that are not purely a stream. */
+    consumed = codec->decode_op ? RSCache_OpcodeStreamDecode(codec, cache, record, src, size)
+                                : codec->decode(cache, record, src, size);
+    if( consumed < 0 )
+    {
+        /* Never hand back a half-decoded record: a caller that checked only for
+         * NULL would read fields the decoder never reached. */
+        if( codec->record_free )
+            codec->record_free(record);
+        free(record);
+        return NULL;
+    }
+    if( out_consumed )
+        *out_consumed = consumed;
+    return record;
+}
+
+void
+RSCache_OpcodeCodecRecordFree(
+    const struct RSCache_OpcodeCodec* codec,
+    void* record)
+{
+    assert(record != NULL);
+    if( codec && codec->record_free )
+        codec->record_free(record);
+    free(record);
+}

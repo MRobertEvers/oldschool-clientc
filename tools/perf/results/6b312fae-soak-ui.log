@@ -1,0 +1,1024 @@
+torirs: dat2 cache=/Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.baked iface=161
+torirs_perf: enabled (ring=2048 window=500 budget=20ms) csv=/Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/6b312fae-soak-ui.csv
+mock230: features era=osrs approach=rect op_nearest=10
+mock230: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
+mock230: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+mock230: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+mock230: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19008 records from cache.osrs239)
+mock230: 1117 param types from configs/all.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (214092 symbols, 681 constants, 44 npc defs, 2280 loc defs, 238 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
+mock230: server band: npc.moverestrict stays text-loaded on 13 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
+mock230: server band: loc.next_loc_stage stays text-loaded on 36 record(s) — the band has no wire for it
+mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (817 overlay authored defs, 73 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+mock230: db tables loaded (269 tables, 15867 rows from cache.osrs239; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+sim_hotkey: 'escape' -> osrs_key=13 at frame 350
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Task_CS2Run: script 2503 failed at opcode 34 pc 88 (invoked as script 901 for component 0xa10000)
+  script 2503: int_args=0 str_args=0 int_locals=10 str_locals=3 ops=120
+  pc=64 op=1 PUSH_VAR operand=1780 str=(null)
+  pc=65 op=4106 TOSTRING operand=0 str=(null)
+  pc=66 op=3 PUSH_CONSTANT_STRING operand=0 str= days left</col>
+  pc=67 op=37 JOIN_STRING operand=3 str=(null)
+  pc=68 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=69 op=6 BRANCH operand=6 str=(null)
+  pc=70 op=3 PUSH_CONSTANT_STRING operand=0 str=Membership: 
+  pc=71 op=1 PUSH_VAR operand=1780 str=(null)
+  pc=72 op=4106 TOSTRING operand=0 str=(null)
+  pc=73 op=3 PUSH_CONSTANT_STRING operand=0 str= days left
+  pc=74 op=37 JOIN_STRING operand=3 str=(null)
+  pc=75 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=76 op=3 PUSH_CONSTANT_STRING operand=0 str=Open Store
+  pc=77 op=36 POP_STRING_LOCAL operand=1 str=(null)
+  pc=78 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_1704
+  pc=79 op=34 POP_INT_LOCAL operand=8 str=(null)
+  pc=80 op=6 BRANCH operand=9 str=(null)
+  pc=81 op=25 PUSH_VARBIT operand=6713 str=(null)
+  pc=82 op=0 PUSH_CONSTANT_INT operand=0 str=(null)
+  pc=83 op=8 BRANCH_EQUALS operand=1 str=(null)
+  pc=84 op=6 BRANCH operand=5 str=(null)
+  pc=85 op=3 PUSH_CONSTANT_STRING operand=0 str=View Benefits
+  pc=86 op=36 POP_STRING_LOCAL operand=2 str=(null)
+  pc=87 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_2150
+  pc=88 op=34 POP_INT_LOCAL operand=9 str=(null)
+  pc=89 op=6 BRANCH operand=0 str=(null)
+  pc=90 op=35 PUSH_STRING_LOCAL operand=2 str=(null)
+boot: 4766ms  frames=1 steps=214 capped=0
+mock230: login user='testc' session=ok
+mock230: 2085 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 8 opcode(s) this content uses are not implemented:
+  SPOTANIM_MAP                 first wanted by [label,magic_spell_telegrab]
+  CAM_RESET                    first wanted by [proc,p_telejump_safe]
+  P_EXACTMOVE                  first wanted by [proc,agility_exactmove]
+  P_LOCMERGE                   first wanted by [proc,agility_exactmove]
+  NPC_STATHEAL                 first wanted by [label,demon_slayer_wrong_incantation]
+  NPC_WALK                     first wanted by [ai_queue3,delrith]
+  OC_COST                      first wanted by [label,magic_spell_high_alch]
+  OC_MEMBERS                   first wanted by [proc,staff_runes]
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+net: no decoder for wire opcode 108 (osrs230) — dropped
+textures: sprite-backed system (no materials table)
+Failed to load dat2 texture 65535
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+painter_paint_bucket: draw box 25x25 has 0 visible tiles (cullspan=1 cullmap_radius=0) — world will be blank; set TORIRS_PAINTER_NOCULL=1 to recover
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Task_CS2Run: script 2503 failed at opcode 34 pc 88 (invoked as script 2497 for component 0x6d0000)
+  script 2503: int_args=0 str_args=0 int_locals=10 str_locals=3 ops=120
+  pc=64 op=1 PUSH_VAR operand=1780 str=(null)
+  pc=65 op=4106 TOSTRING operand=0 str=(null)
+  pc=66 op=3 PUSH_CONSTANT_STRING operand=0 str= days left</col>
+  pc=67 op=37 JOIN_STRING operand=3 str=(null)
+  pc=68 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=69 op=6 BRANCH operand=6 str=(null)
+  pc=70 op=3 PUSH_CONSTANT_STRING operand=0 str=Membership: 
+  pc=71 op=1 PUSH_VAR operand=1780 str=(null)
+  pc=72 op=4106 TOSTRING operand=0 str=(null)
+  pc=73 op=3 PUSH_CONSTANT_STRING operand=0 str= days left
+  pc=74 op=37 JOIN_STRING operand=3 str=(null)
+  pc=75 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=76 op=3 PUSH_CONSTANT_STRING operand=0 str=Open Store
+  pc=77 op=36 POP_STRING_LOCAL operand=1 str=(null)
+  pc=78 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_1704
+  pc=79 op=34 POP_INT_LOCAL operand=8 str=(null)
+  pc=80 op=6 BRANCH operand=9 str=(null)
+  pc=81 op=25 PUSH_VARBIT operand=6713 str=(null)
+  pc=82 op=0 PUSH_CONSTANT_INT operand=0 str=(null)
+  pc=83 op=8 BRANCH_EQUALS operand=1 str=(null)
+  pc=84 op=6 BRANCH operand=5 str=(null)
+  pc=85 op=3 PUSH_CONSTANT_STRING operand=0 str=View Benefits
+  pc=86 op=36 POP_STRING_LOCAL operand=2 str=(null)
+  pc=87 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_2150
+  pc=88 op=34 POP_INT_LOCAL operand=9 str=(null)
+  pc=89 op=6 BRANCH operand=0 str=(null)
+  pc=90 op=35 PUSH_STRING_LOCAL operand=2 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 631 from script 631 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 631 failed at opcode 40 pc 9 (invoked as script 123 for component 0x1ad0000)
+  script 631: int_args=9 str_args=0 int_locals=9 str_locals=0 ops=11
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=33 PUSH_INT_LOCAL operand=2 str=(null)
+  pc=3 op=33 PUSH_INT_LOCAL operand=3 str=(null)
+  pc=4 op=33 PUSH_INT_LOCAL operand=4 str=(null)
+  pc=5 op=33 PUSH_INT_LOCAL operand=5 str=(null)
+  pc=6 op=33 PUSH_INT_LOCAL operand=6 str=(null)
+  pc=7 op=33 PUSH_INT_LOCAL operand=7 str=(null)
+  pc=8 op=33 PUSH_INT_LOCAL operand=8 str=(null)
+  pc=9 op=40 GOSUB_WITH_PARAMS operand=631 str=(null)
+  pc=10 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Failed to load dat2 idk 307
+spawn_player: element=59751 tile=84,84 level=0
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+spawn_npc: npc=3106 element=59752 tile=90,84 level=0 size=1 recolors=4 retextures=0
+spawn_npc: npc=3105 element=59753 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3108 element=59754 tile=90,84 level=0 size=1 recolors=2 retextures=0
+spawn_npc: npc=5007 element=59755 tile=90,84 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=10619 element=59756 tile=90,84 level=0 size=1 recolors=5 retextures=0
+spawn_npc: npc=13618 element=59757 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=0 element=59758 tile=90,84 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=6773 element=59759 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3254 element=59760 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=3254 element=59761 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=6816 element=59762 tile=90,84 level=0 size=1 recolors=3 retextures=0
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'escape' -> osrs_key=13 at frame 400
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 420
+sim_hotkey: 'f2' -> osrs_key=2 at frame 440
+sim_hotkey: 'f3' -> osrs_key=3 at frame 460
+sim_hotkey: 'f4' -> osrs_key=4 at frame 480
+sim_hotkey: 'f5' -> osrs_key=5 at frame 500
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Task_CS2Run: script 7188 failed at opcode 34 pc 14 (invoked as script 7128 for component 0x28a0000)
+  script 7188: int_args=0 str_args=0 int_locals=1 str_locals=1 ops=31
+  pc=0 op=0 PUSH_CONSTANT_INT operand=-1 str=(null)
+  pc=1 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=2 op=3 PUSH_CONSTANT_STRING operand=0 str=
+  pc=3 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=4 op=25 PUSH_VARBIT operand=14881 str=(null)
+  pc=5 op=60 SWITCH operand=0 str=(null)
+  pc=6 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+  pc=7 op=3 PUSH_CONSTANT_STRING operand=0 str=Grand Exchange value
+  pc=8 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=9 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=10 op=6 BRANCH operand=10 str=(null)
+  pc=11 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4912
+  pc=12 op=3 PUSH_CONSTANT_STRING operand=0 str=High Alchemy value
+  pc=13 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=14 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=15 op=6 BRANCH operand=5 str=(null)
+  pc=16 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+torirs_perf: window=500 writing /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/6b312fae-soak-ui.csv.windows.csv
+torirs_perf: window=0 frame_p95=7.49ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 520
+sim_hotkey: 'f7' -> osrs_key=7 at frame 540
+sim_hotkey: 'f8' -> osrs_key=8 at frame 560
+sim_hotkey: 'f9' -> osrs_key=9 at frame 580
+sim_hotkey: 'f10' -> osrs_key=10 at frame 600
+sim_hotkey: 'f11' -> osrs_key=11 at frame 620
+sim_hotkey: 'f12' -> osrs_key=12 at frame 640
+sim_hotkey: 'escape' -> osrs_key=13 at frame 660
+sim_hotkey: 'escape' -> osrs_key=13 at frame 680
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 700
+sim_hotkey: 'f2' -> osrs_key=2 at frame 720
+sim_hotkey: 'f3' -> osrs_key=3 at frame 740
+sim_hotkey: 'f4' -> osrs_key=4 at frame 760
+sim_hotkey: 'f5' -> osrs_key=5 at frame 780
+spawn_npc: npc=2854 element=59770 tile=90,84 level=0 size=1 recolors=1 retextures=0
+sim_hotkey: 'f6' -> osrs_key=6 at frame 800
+sim_hotkey: 'f7' -> osrs_key=7 at frame 820
+sim_hotkey: 'f8' -> osrs_key=8 at frame 840
+torirs_iface_stats: tick=250 groups=33
+  group=161 opens=1 closes=0 bakes=1 reuse=0 live=106 hidden=14 hooks=22 hook_bytes=224400
+  group=162 opens=1 closes=0 bakes=1 reuse=0 live=3222 hidden=2508 hooks=18 hook_bytes=183600
+  group=651 opens=1 closes=0 bakes=1 reuse=0 live=7 hidden=0 hooks=0 hook_bytes=0
+  group=708 opens=1 closes=0 bakes=1 reuse=0 live=13 hidden=1 hooks=4 hook_bytes=40800
+  group=163 opens=1 closes=0 bakes=0 reuse=1 live=26 hidden=25 hooks=0 hook_bytes=0
+  group=303 opens=1 closes=0 bakes=1 reuse=0 live=21 hidden=5 hooks=2 hook_bytes=20400
+  group=90 opens=1 closes=0 bakes=1 reuse=0 live=60 hidden=13 hooks=13 hook_bytes=132600
+  group=160 opens=1 closes=0 bakes=1 reuse=0 live=58 hidden=12 hooks=11 hook_bytes=112200
+  group=122 opens=1 closes=0 bakes=1 reuse=0 live=33 hidden=15 hooks=9 hook_bytes=91800
+  group=728 opens=1 closes=0 bakes=0 reuse=1 live=50 hidden=2 hooks=4 hook_bytes=40800
+  group=896 opens=1 closes=0 bakes=0 reuse=1 live=903 hidden=902 hooks=0 hook_bytes=0
+  group=593 opens=1 closes=0 bakes=1 reuse=0 live=117 hidden=7 hooks=6 hook_bytes=61200
+  group=320 opens=1 closes=0 bakes=1 reuse=0 live=202 hidden=24 hooks=49 hook_bytes=499800
+  group=629 opens=1 closes=0 bakes=1 reuse=0 live=46 hidden=5 hooks=3 hook_bytes=30600
+  group=712 opens=1 closes=0 bakes=1 reuse=0 live=113 hidden=0 hooks=5 hook_bytes=51000
+  group=149 opens=1 closes=0 bakes=0 reuse=1 live=29 hidden=0 hooks=28 hook_bytes=285600
+  group=387 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=12 hooks=13 hook_bytes=132600
+  group=541 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=33 hooks=30 hook_bytes=306000
+  group=218 opens=1 closes=0 bakes=1 reuse=0 live=232 hidden=132 hooks=195 hook_bytes=1989000
+  group=707 opens=1 closes=0 bakes=1 reuse=0 live=39 hidden=0 hooks=5 hook_bytes=51000
+  group=109 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=13 hooks=10 hook_bytes=102000
+  group=429 opens=1 closes=0 bakes=1 reuse=0 live=35 hidden=0 hooks=8 hook_bytes=81600
+  group=182 opens=1 closes=0 bakes=1 reuse=0 live=94 hidden=3 hooks=10 hook_bytes=102000
+  group=116 opens=1 closes=0 bakes=1 reuse=0 live=222 hidden=12 hooks=65 hook_bytes=663000
+  group=216 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=0 hooks=61 hook_bytes=622200
+  group=239 opens=1 closes=0 bakes=1 reuse=0 live=934 hidden=597 hooks=267 hook_bytes=2723400
+  group=12 opens=1 closes=1 bakes=1 reuse=0 live=1781 hidden=73 hooks=0 hook_bytes=0
+  group=15 opens=1 closes=1 bakes=1 reuse=0 live=650 hidden=49 hooks=0 hook_bytes=0
+  group=84 opens=1 closes=1 bakes=1 reuse=0 live=123 hidden=14 hooks=0 hook_bytes=0
+  group=729 opens=1 closes=1 bakes=0 reuse=1 live=36 hidden=1 hooks=0 hook_bytes=0
+  group=650 opens=1 closes=1 bakes=1 reuse=0 live=110 hidden=3 hooks=0 hook_bytes=0
+  group=894 opens=1 closes=0 bakes=1 reuse=0 live=413 hidden=4 hooks=117 hook_bytes=1193400
+  group=32766 opens=0 closes=0 bakes=0 reuse=0 live=4 hidden=0 hooks=0 hook_bytes=0
+torirs_stats: tick=250 components=10119 live=10119 hidden=4479 freed=0 free_head=-1 inv_hooks=19 var_hooks=163 timers=28 timers_hidden=7 iface_parents=26
+sim_hotkey: 'f9' -> osrs_key=9 at frame 860
+sim_hotkey: 'f10' -> osrs_key=10 at frame 880
+sim_hotkey: 'f11' -> osrs_key=11 at frame 900
+sim_hotkey: 'f12' -> osrs_key=12 at frame 920
+sim_hotkey: 'escape' -> osrs_key=13 at frame 940
+sim_hotkey: 'escape' -> osrs_key=13 at frame 960
+sim_hotkey: 'f1' -> osrs_key=1 at frame 980
+spawn_npc: npc=3106 element=59771 tile=90,84 level=0 size=1 recolors=4 retextures=0
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1000
+torirs_perf: window=1 frame_p95=6.38ms
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1020
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1040
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1060
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1080
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1100
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1120
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1140
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1160
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1180
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1200
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1220
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1240
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1260
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1280
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1300
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1320
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1340
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1360
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1380
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1400
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1420
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1440
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1460
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1480
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1500
+torirs_perf: window=2 frame_p95=5.66ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1520
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Task_CS2Run: script 7188 failed at opcode 34 pc 14 (invoked as script 7128 for component 0x28a0000)
+  script 7188: int_args=0 str_args=0 int_locals=1 str_locals=1 ops=31
+  pc=0 op=0 PUSH_CONSTANT_INT operand=-1 str=(null)
+  pc=1 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=2 op=3 PUSH_CONSTANT_STRING operand=0 str=
+  pc=3 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=4 op=25 PUSH_VARBIT operand=14881 str=(null)
+  pc=5 op=60 SWITCH operand=0 str=(null)
+  pc=6 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+  pc=7 op=3 PUSH_CONSTANT_STRING operand=0 str=Grand Exchange value
+  pc=8 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=9 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=10 op=6 BRANCH operand=10 str=(null)
+  pc=11 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4912
+  pc=12 op=3 PUSH_CONSTANT_STRING operand=0 str=High Alchemy value
+  pc=13 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=14 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=15 op=6 BRANCH operand=5 str=(null)
+  pc=16 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1540
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1560
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1580
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1600
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1620
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1640
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1660
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1680
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1700
+torirs_iface_stats: tick=500 groups=33
+  group=161 opens=1 closes=0 bakes=1 reuse=0 live=106 hidden=14 hooks=22 hook_bytes=224400
+  group=162 opens=1 closes=0 bakes=1 reuse=0 live=3222 hidden=2495 hooks=18 hook_bytes=183600
+  group=651 opens=1 closes=0 bakes=1 reuse=0 live=7 hidden=0 hooks=0 hook_bytes=0
+  group=708 opens=1 closes=0 bakes=1 reuse=0 live=13 hidden=1 hooks=4 hook_bytes=40800
+  group=163 opens=1 closes=0 bakes=0 reuse=1 live=26 hidden=25 hooks=0 hook_bytes=0
+  group=303 opens=1 closes=0 bakes=1 reuse=0 live=21 hidden=5 hooks=2 hook_bytes=20400
+  group=90 opens=1 closes=0 bakes=1 reuse=0 live=60 hidden=13 hooks=13 hook_bytes=132600
+  group=160 opens=1 closes=0 bakes=1 reuse=0 live=58 hidden=12 hooks=11 hook_bytes=112200
+  group=122 opens=1 closes=0 bakes=1 reuse=0 live=33 hidden=15 hooks=9 hook_bytes=91800
+  group=728 opens=1 closes=0 bakes=0 reuse=1 live=50 hidden=2 hooks=4 hook_bytes=40800
+  group=896 opens=1 closes=0 bakes=0 reuse=1 live=903 hidden=902 hooks=0 hook_bytes=0
+  group=593 opens=1 closes=0 bakes=1 reuse=0 live=117 hidden=7 hooks=6 hook_bytes=61200
+  group=320 opens=1 closes=0 bakes=1 reuse=0 live=202 hidden=24 hooks=49 hook_bytes=499800
+  group=629 opens=1 closes=0 bakes=1 reuse=0 live=46 hidden=5 hooks=3 hook_bytes=30600
+  group=712 opens=1 closes=0 bakes=1 reuse=0 live=113 hidden=0 hooks=5 hook_bytes=51000
+  group=149 opens=1 closes=0 bakes=0 reuse=1 live=29 hidden=0 hooks=28 hook_bytes=285600
+  group=387 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=12 hooks=13 hook_bytes=132600
+  group=541 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=33 hooks=30 hook_bytes=306000
+  group=218 opens=1 closes=0 bakes=1 reuse=0 live=232 hidden=132 hooks=195 hook_bytes=1989000
+  group=707 opens=1 closes=0 bakes=1 reuse=0 live=39 hidden=0 hooks=5 hook_bytes=51000
+  group=109 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=13 hooks=10 hook_bytes=102000
+  group=429 opens=1 closes=0 bakes=1 reuse=0 live=35 hidden=0 hooks=8 hook_bytes=81600
+  group=182 opens=1 closes=0 bakes=1 reuse=0 live=94 hidden=3 hooks=10 hook_bytes=102000
+  group=116 opens=1 closes=0 bakes=1 reuse=0 live=222 hidden=12 hooks=65 hook_bytes=663000
+  group=216 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=0 hooks=61 hook_bytes=622200
+  group=239 opens=1 closes=0 bakes=1 reuse=0 live=934 hidden=597 hooks=267 hook_bytes=2723400
+  group=12 opens=2 closes=2 bakes=1 reuse=1 live=1781 hidden=73 hooks=0 hook_bytes=0
+  group=15 opens=2 closes=2 bakes=1 reuse=1 live=650 hidden=49 hooks=0 hook_bytes=0
+  group=84 opens=2 closes=2 bakes=1 reuse=1 live=123 hidden=14 hooks=0 hook_bytes=0
+  group=729 opens=2 closes=2 bakes=0 reuse=2 live=36 hidden=1 hooks=0 hook_bytes=0
+  group=650 opens=2 closes=1 bakes=1 reuse=1 live=110 hidden=2 hooks=6 hook_bytes=61200
+  group=894 opens=1 closes=1 bakes=1 reuse=0 live=413 hidden=5 hooks=0 hook_bytes=0
+  group=32766 opens=0 closes=0 bakes=0 reuse=0 live=4 hidden=0 hooks=0 hook_bytes=0
+torirs_stats: tick=500 components=10119 live=10119 hidden=4466 freed=0 free_head=-1 inv_hooks=19 var_hooks=164 timers=28 timers_hidden=7 iface_parents=26
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1720
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1740
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1760
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1780
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1800
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1820
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1840
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1860
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1880
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1900
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1920
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1940
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1960
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1980
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2000
+torirs_perf: window=3 frame_p95=4.76ms
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2020
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2040
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2060
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2080
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2100
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2120
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2140
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2160
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2180
+Failed to load dat2 idk 307
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+spawn_npc: npc=2854 element=59755 tile=90,84 level=0 size=1 recolors=1 retextures=0
+spawn_npc: npc=5007 element=59772 tile=90,84 level=0 size=1 recolors=0 retextures=0
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2200
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2220
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2240
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2260
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2280
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2300
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2320
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2340
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2360
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2380
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2400
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2420
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2440
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2460
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2480
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2500
+torirs_iface_stats: tick=750 groups=33
+  group=161 opens=1 closes=0 bakes=1 reuse=0 live=106 hidden=14 hooks=22 hook_bytes=224400
+  group=162 opens=1 closes=0 bakes=1 reuse=0 live=3222 hidden=2482 hooks=18 hook_bytes=183600
+  group=651 opens=1 closes=0 bakes=1 reuse=0 live=7 hidden=0 hooks=0 hook_bytes=0
+  group=708 opens=1 closes=0 bakes=1 reuse=0 live=13 hidden=1 hooks=4 hook_bytes=40800
+  group=163 opens=1 closes=0 bakes=0 reuse=1 live=26 hidden=25 hooks=0 hook_bytes=0
+  group=303 opens=1 closes=0 bakes=1 reuse=0 live=21 hidden=5 hooks=2 hook_bytes=20400
+  group=90 opens=1 closes=0 bakes=1 reuse=0 live=60 hidden=13 hooks=13 hook_bytes=132600
+  group=160 opens=1 closes=0 bakes=1 reuse=0 live=58 hidden=12 hooks=11 hook_bytes=112200
+  group=122 opens=1 closes=0 bakes=1 reuse=0 live=33 hidden=15 hooks=9 hook_bytes=91800
+  group=728 opens=1 closes=0 bakes=0 reuse=1 live=50 hidden=2 hooks=4 hook_bytes=40800
+  group=896 opens=1 closes=0 bakes=0 reuse=1 live=903 hidden=902 hooks=0 hook_bytes=0
+  group=593 opens=1 closes=0 bakes=1 reuse=0 live=117 hidden=7 hooks=6 hook_bytes=61200
+  group=320 opens=1 closes=0 bakes=1 reuse=0 live=202 hidden=24 hooks=49 hook_bytes=499800
+  group=629 opens=1 closes=0 bakes=1 reuse=0 live=46 hidden=5 hooks=3 hook_bytes=30600
+  group=712 opens=1 closes=0 bakes=1 reuse=0 live=113 hidden=0 hooks=5 hook_bytes=51000
+  group=149 opens=1 closes=0 bakes=0 reuse=1 live=29 hidden=0 hooks=28 hook_bytes=285600
+  group=387 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=12 hooks=13 hook_bytes=132600
+  group=541 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=33 hooks=30 hook_bytes=306000
+  group=218 opens=1 closes=0 bakes=1 reuse=0 live=232 hidden=132 hooks=195 hook_bytes=1989000
+  group=707 opens=1 closes=0 bakes=1 reuse=0 live=39 hidden=0 hooks=5 hook_bytes=51000
+  group=109 opens=1 closes=0 bakes=1 reuse=0 live=96 hidden=13 hooks=10 hook_bytes=102000
+  group=429 opens=1 closes=0 bakes=1 reuse=0 live=35 hidden=0 hooks=8 hook_bytes=81600
+  group=182 opens=1 closes=0 bakes=1 reuse=0 live=94 hidden=3 hooks=10 hook_bytes=102000
+  group=116 opens=1 closes=0 bakes=1 reuse=0 live=222 hidden=12 hooks=65 hook_bytes=663000
+  group=216 opens=1 closes=0 bakes=1 reuse=0 live=124 hidden=0 hooks=61 hook_bytes=622200
+  group=239 opens=1 closes=0 bakes=1 reuse=0 live=934 hidden=597 hooks=267 hook_bytes=2723400
+  group=12 opens=3 closes=3 bakes=1 reuse=2 live=1781 hidden=73 hooks=0 hook_bytes=0
+  group=15 opens=3 closes=3 bakes=1 reuse=2 live=650 hidden=49 hooks=0 hook_bytes=0
+  group=84 opens=3 closes=3 bakes=1 reuse=2 live=123 hidden=14 hooks=0 hook_bytes=0
+  group=729 opens=3 closes=2 bakes=0 reuse=3 live=36 hidden=0 hooks=6 hook_bytes=61200
+  group=650 opens=2 closes=2 bakes=1 reuse=1 live=110 hidden=3 hooks=0 hook_bytes=0
+  group=894 opens=2 closes=2 bakes=1 reuse=1 live=413 hidden=5 hooks=0 hook_bytes=0
+  group=32766 opens=0 closes=0 bakes=0 reuse=0 live=4 hidden=0 hooks=0 hook_bytes=0
+torirs_stats: tick=750 components=10119 live=10119 hidden=4453 freed=0 free_head=-1 inv_hooks=19 var_hooks=163 timers=28 timers_hidden=7 iface_parents=26
+torirs_perf: window=4 frame_p95=7.64ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2520
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Task_CS2Run: script 7188 failed at opcode 34 pc 14 (invoked as script 7128 for component 0x28a0000)
+  script 7188: int_args=0 str_args=0 int_locals=1 str_locals=1 ops=31
+  pc=0 op=0 PUSH_CONSTANT_INT operand=-1 str=(null)
+  pc=1 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=2 op=3 PUSH_CONSTANT_STRING operand=0 str=
+  pc=3 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=4 op=25 PUSH_VARBIT operand=14881 str=(null)
+  pc=5 op=60 SWITCH operand=0 str=(null)
+  pc=6 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+  pc=7 op=3 PUSH_CONSTANT_STRING operand=0 str=Grand Exchange value
+  pc=8 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=9 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=10 op=6 BRANCH operand=10 str=(null)
+  pc=11 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4912
+  pc=12 op=3 PUSH_CONSTANT_STRING operand=0 str=High Alchemy value
+  pc=13 op=36 POP_STRING_LOCAL operand=0 str=(null)
+  pc=14 op=34 POP_INT_LOCAL operand=0 str=(null)
+  pc=15 op=6 BRANCH operand=5 str=(null)
+  pc=16 op=3 PUSH_CONSTANT_STRING operand=0 str=graphic_4911
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2540
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2560
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2580
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2600
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2620
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2640
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2660
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2680
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2700
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+CS2VM2: call depth 128 exhausted calling script 904 from script 904 (raise CS2VM_MAX_FRAMES)
+Task_CS2Run: script 904 failed at opcode 40 pc 2 (invoked as script 903 for component 0xa10000)
+  script 904: int_args=2 str_args=0 int_locals=2 str_locals=0 ops=4
+  pc=0 op=33 PUSH_INT_LOCAL operand=0 str=(null)
+  pc=1 op=33 PUSH_INT_LOCAL operand=1 str=(null)
+  pc=2 op=40 GOSUB_WITH_PARAMS operand=904 str=(null)
+  pc=3 op=21 RETURN operand=0 str=(null)
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2720
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2740
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2760
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2780
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2800
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2820
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2840
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2860
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2880
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2900
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2920
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2940
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2960
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2980
+post-boot: busy_frames=1 busy_steps=32 (frames that used the whole budget with work still queued)
+torirs_perf: window=5 frame_p95=4.67ms
+
+=== torirs_perf report ===
+frames=3000 ring=2048 over_20ms=31 (1.0%) eff_fps=217.5
+frame_ns mean=4597311 p50=4235000 p95=5529000 max=83314000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async            149919       2000     202000   26009000
+logic            503943     236000     910000   78727000
+cs2              290739          0     691000   78479000
+layout               61          0       1000       1000
+interact          21758      21000      30000     143000
+emit             232406     209000     428000    2606000
+paint            456522     434000     516000    5567000
+build            456682     434000     516000    5568000
+render          2801747    2672000    3454000   19134000
+present          140292     135000     156000    4795000
+server             3118       1000       4000     270000
+residual        -459876  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                        1653673       807.46
+uitree_find_id_probes                 4822890      2354.93
+uitree_id_rebuild                         426         0.21
+uitree_find_child                       50117        24.47
+uitree_find_child_hit                   37926        18.52
+uitree_find_child_ceil_miss             11483         5.61
+uitree_walk_emit                      6722569      3282.50
+uitree_walk_hit                       1454080       710.00
+uitree_walk_hover                      215040       105.00
+uitree_emit_skip                      5819630      2841.62
+uitree_layout_resolve                    1320         0.64
+uitree_layout_skip                        630         0.31
+uitree_layout_nodes                   6982110      3409.23
+uitree_layout_node_skip               6803667      3322.10
+uitree_layout_depth_recompute             655         0.32
+uitree_ensure_layout                    32501        15.87
+uitree_cc_create                        11168         5.45
+uitree_cc_deleteall                      1124         0.55
+uitree_cc_deleteall_rows                10996         5.37
+uitree_apply_geo                        90300        44.09
+uitree_apply_content                    99578        48.62
+uitree_apply_hook                       30850        15.06
+uitree_apply_other                    1070565       522.74
+uitree_components                    20723712     10119.00
+uitree_capacity                      33554432     16384.00
+uitree_node_bytes                 58250493952  28442624.00
+cs2_scripts                             13621         6.65
+cs2_opcodes                           4003726      1954.94
+cs2_host_ops                           571929       279.26
+cs2_cycles                            4003726      1954.94
+cs2_aborts                                 24         0.01
+cs2_vm_acquire                          13621         6.65
+cs2_vm_pool_hit                         13621         6.65
+cs2_vm_init_ns                       10794000      5270.51
+cs2_frame_pool_hit                      31722        15.49
+cache_model_hit                         37008        18.07
+cache_sprite_hit                         2054         1.00
+painter_pops                         11723256      5724.25
+painter_gate_rejects                  5096443      2488.50
+painter_pushes                       11723256      5724.25
+painter_push_dedup                    4932992      2408.69
+painter_drain_events                     8192         4.00
+painter_commands                      7467210      3646.10
+painter_tiles_remaining_set           5971968      2916.00
+scene_elements                       35146165     17161.21
+scene_anim_list                        181692        88.72
+zone_map_count                         117360        57.30
+zone_map_capacity                      524288       256.00
+npc_slot_max                           133120        65.00
+cache_model_size                       683256       333.62
+cache_sprite_size                      393372       192.08
+iface_open                                 12         0.01
+iface_close                                17         0.01
+iface_bake_reuse                           12         0.01
+iface_mount_ns                          45000        21.97
+iface_close_ns                         691000       337.40
+iface_groups_resident                   19404         9.47
+uitree_hidden                         2621358      1279.96
+uitree_unmounted                         2722         1.33
+uitree_hook_blocks                     651548       318.14
+uitree_hook_bytes                  6645789600   3245014.45
+host_inv_hooks                          14390         7.03
+host_var_hooks                          99982        48.82
+host_stat_hooks                         38220        18.66
+bridge_sprite_map                      364560       178.01
+bridge_model_map                          588         0.29
+bridge_obj_icon_map                     45276        22.11
+cache_clientscript_size                384552       187.77
+uitree_anim_scan                         1204         0.59
+uitree_anim_scan_nodes                   3612         1.76
+uitree_anim_model_nodes                  3612         1.76
+iface_group_scan_nodes                  15779         7.70
+
+torirs_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/6b312fae-soak-ui.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1060 onloads=6 inv_hooks=0 var_hooks=4 mounts=0

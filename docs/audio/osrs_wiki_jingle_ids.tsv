@@ -1,0 +1,340 @@
+<!--
+Old School RuneScape Wiki jingle cache ids, harvested from Category:Jingles
+(https://oldschool.runescape.wiki/wiki/Category:Jingles, 324 pages) via the
+MediaWiki API (action=query&prop=revisions, batched 40 titles at a time,
+2026-08-14), reading each page's infobox `|cacheid=` field.
+
+`cacheid` is the JS5 index-11 (music jingles) archive/group id -- verified,
+not assumed, three independent ways (see docs/AUDIO_ACCURACY.md and
+tools/gen_jingle_names.py):
+  - name-hash proof on the sibling index-6 (music tracks) table, which DOES
+    carry name hashes -- 7/7 sampled wiki cacheids resolved to the archive-6
+    group whose stored hash matches the lowercased track name
+  - id-set identity: all 314 wiki jingle cacheids fall in exactly the
+    315-entry archive-11 group id set of cache.osrs239 (314 of 315 -- the one
+    miss, id 178, has no wiki page; id 17 likewise)
+  - independent MIDI note-event match against LostCity's 74 named 2004
+    jingle .mid files (66/74 exact -- see gen_jingle_names.py)
+
+314 of 315 archive-11 ids resolved this way. Ids 17 and 178 have no wiki
+page and keep jingle_<id> in the pack. `cacheid=11488` on "Yama's Jingle" is
+out of range for this table (max valid id is index-11's own count) and is
+treated as a wiki error, not a row -- the generator only trusts an id inside
+the cache's own group id set.
+-->
+
+id	title
+0	The Guests are Free! (Recipe for Disaster)
+1	A Diving Sail (Recipe for Disaster - Freeing Pirate Pete)
+2	A Light Flight (Tears of Guthix)
+3	Gnomeball GOAL!
+4	The Banquet (Recipe for Disaster)
+5	Ruined Potion (Black Knights' Fortress)
+6	The Face of a King (The Giant Dwarf)
+7	Audience of Nature
+8	Garden Tour (Garden of Tranquillity)
+9	A Healthy Cactus
+10	Farming Level Up!
+11	Farming Level Up! (Unlocks)
+12	A Forgettable Puzzle... (Forgettable Tale...)
+13	Sigmund's Plan (Death to the Dorgeshuun)
+14	Domain of the Vampyres (Darkness of Hallowvale)
+15	Vanstrom! (Darkness of Hallowvale)
+16	Tropical Wood Entrance (POH)
+18	Whitewashed Stone Entrance (POH)
+19	Fremennik-Style Wood Entrance (POH)
+20	Basic Wood Entrance (POH)
+21	Basic Stone Entrance (POH)
+22	Fancy Stone Entrance (POH)
+23	Lumbridge Entrance (POH)
+24	Safe Cracked (Rogues' Den)
+25	Rune Casket Open! (Rogue Trader)
+26	Billy & Bob (Garden of Tranquillity)
+27	Zanik's Theme (Death to the Dorgeshuun)
+28	Agility Level Up!
+29	Attack Level Up!
+30	Attack Level Up! (Unlocks)
+31	Construction Level Up!
+32	Construction Level Up! (Every 10th)
+33	Cooking Level Up!
+34	Cooking Level Up! (Unlocks)
+35	Crafting Level Up!
+36	Crafting Level Up! (Unlocks)
+37	Defence Level Up!
+38	Defence Level Up! (Unlocks)
+39	Firemaking Level Up!
+40	Firemaking Level Up! (Unlocks)
+41	Fishing Level Up!
+42	Fishing Level Up! (Unlocks)
+43	Fletching Level Up!
+44	Fletching Level Up! (Unlocks)
+45	Herblore Level Up!
+46	Herblore Level Up! (Unlocks)
+47	Hitpoints Level Up! (2-49)
+48	Hitpoints Level Up! (50-99)
+49	Hunter Level Up! (Even)
+50	Hunter Level Up! (Odd)
+51	Magic Level Up!
+52	Magic Level Up! (Unlocks)
+53	Mining Level Up!
+54	Mining Level Up! (Unlocks)
+55	Prayer Level Up!
+56	Prayer Level Up! (Unlocks)
+57	Ranged Level Up!
+58	Ranged Level Up! (Unlocks)
+59	Runecraft Level Up!
+60	Runecraft Level Up! (Unlocks)
+61	Slayer Level Up!
+62	Slayer Level Up! (Unlocks)
+63	Smithing Level Up!
+64	Smithing Level Up! (Unlocks)
+65	Strength Level Up! (2-49)
+66	Strength Level Up! (50-99)
+67	Thieving Level Up!
+68	Thieving Level Up! (Unlocks)
+69	Woodcutting Level Up!
+70	Woodcutting Level Up! (Unlocks)
+71	Tagged a Ticket! (Brimhaven Agility Arena)
+72	Happy Organ
+73	Moody Organ
+74	Spooky Organ
+75	Last Man Standing! (Fight Pits)
+76	The Fight Continues (Fight Cave)
+77	Grave Robber (Barrows)
+78	The Grand Opening (Another Slice of H.A.M.)
+79	Captain Braindeath (Rum Deal)
+80	Draw. (Castle Wars)
+81	Slaughtered... (Castle Wars)
+82	Victory! (Castle Wars)
+83	Rat Beats Cat (Rat Pits)
+84	Rat Goes Splat (Rat Pits)
+85	A New Champion! (Champion's Challenge)
+86	Grand Transaction
+87	Making Sense of Dwarven Schematics (Between a Rock)
+88	Fire! (Contact!)
+89	Oh Dear!
+90	You Are Dead!
+91	Evil Introduction (Shadow of the Storm)
+92	Assassin Attack! (Devious Minds)
+93	Bad Roll (Death Plateau)
+94	Lucky Win (Death Plateau)
+95	Reflection (Lunar Diplomacy)
+96	Dream World (Lunar Diplomacy)
+97	Commence The Fight! (Duel Arena)
+98	You Are Victorious! (Emir's Arena)
+99	Scape Scrambled (Easter 2005)
+100	Elf Singing
+101	Evil Twin Caught!
+102	The Fairy Dragon Appears! (Recipe for Disaster - Sir Amik Varze)
+103	First Sunshine (Death to the Dorgeshuun)
+104	Beer & Kebabs... (Forgettable Tale...)
+105	Kebabsh... (Forgettable Tale...)
+106	A Tale... (Forgettable Tale...)
+107	Gadderanks... (In Aid of the Myreque)
+108	Draw (Burthorpe Games Room)
+109	Defeat... (Burthorpe Games Room)
+110	Victory! (Burthorpe Games Room)
+111	Gnome Delivery (Gnome Restaurant)
+112	Deathly Mansion Entrance (POH)
+113	Correct! (Recipe for Disaster - Lumbridge Guide)
+114	Bert's Lovely Sand (Hand in the Sand)
+115	Hawaii 5 Ogre (Recipe for Disaster - Skrach Uglogwee)
+116	Burning Experiments (Enlightened Journey)
+117	Maze Centre
+118	A Hot Air Journey (Enlightened Journey)
+119	Welcome to the Moon Clan (Lunar Diplomacy)
+120	Cadava Potion (Romeo & Juliet)
+121	Loss (Keldagrim Trading)
+122	Profit (Keldagrim Trading)
+123	King Rat Is Dead! (Ratcatchers)
+124	Long Live The Rat King (Ratcatchers)
+125	A Temple For My Lord (Enakhra's Lament)
+126	Failed Weapons (Enakhra's Lament)
+127	The Avarrockians (Enakhra's Lament)
+128	Zamorkian Lie (Enakhra's Lament)
+129	Entrapment (Enakhra's Lament)
+130	Akthanakos Freed (Enakhra's Lament)
+131	Improvisation (Recruitment Drive)
+132	Magic Carpet Ride
+133	Mizgog's Beads (Imp Catcher)
+134	Mission Over (Monkey Madness)
+135	Meanwhile. (Monkey Madness)
+136	New Chapter (Monkey Madness)
+137	The Last Sail (In Search of the Myreque)
+138	An Ogre Sail
+139	The Chest of Light (Mourning's End Part II)
+140	Osman The Spymaster (Contact!)
+141	The Outpost (Making History)
+142	Honourable Victory! (Barbarian Assault)
+143	The Penance Queen! (Barbarian Assault)
+144	Void Knight Defeated... (Pest Control)
+145	Pest Controlled (Pest Control)
+146	Petra Freed (One Small Favour)
+147	Pied Piper (Ratcatchers)
+148	It's Pete! (Postie Pete)
+149	Wrong Key! (Prison Pete)
+150	Freedom at Last! (Prison Pete)
+151	Top of the Pyramid!
+152	Quest Complete 1
+153	Quest Complete 2
+154	Quest Complete 3
+155	Logic (Recruitment Drive)
+156	Memory (Recruitment Drive)
+157	Gift of Peace (Stronghold of Security)
+158	Cradle of Life (Stronghold of Security)
+159	Observation (Recruitment Drive)
+160	Order (Recruitment Drive)
+161	Patience (Recruitment Drive)
+162	Wisdom (Recruitment Drive)
+163	Perfectly Tuned (Fremennik Trials)
+164	Ballad Refrain (Fremennik Trials)
+165	Ballad Opening (Fremennik Trials)
+166	Echo of Beauty (Mountain Daughter)
+167	Ready to Fire! (Between a Rock)
+168	Romeo Falls in Love (Romeo & Juliet)
+169	A Long Royal Plan (Royal Trouble)
+170	A Royal Plan (Royal Trouble)
+171	Quick Sail
+172	Sailing Journey
+173	Silence (25 Seconds)
+174	Skullball Goal!
+175	Snake Charming (Pyramid Plunder)
+176	Snake Charming (The Feud)
+177	Box of Health (Stronghold of Security)
+179	Grain of Plenty (Stronghold of Security)
+180	Angry (A Soul's Bane)
+181	Confused (A Soul's Bane)
+182	Fear (A Soul's Bane)
+183	Hopeless (A Soul's Bane)
+184	A Monster (A Soul's Bane)
+185	Too Slow! (Speedy Gnome)
+186	Faster Than Gnome! (Speedy Gnome)
+187	Tale of the Wise Old Man (Swan Song)
+188	Tinsay Satisfied (Tai Bwo Wannai Trio)
+189	Tiadeche Thankful (Tai Bwo Wannai Trio)
+190	Tamayu Slays the Shaikahan (Tai Bwo Wannai Trio)
+191	Flamtaer Restored
+192	Icthlarin's Little Puzzle
+193	Treasure! (Treasure Trails)
+194	Trek Destination (Temple Trekking)
+195	Dangers of Morytania (Temple Trekking)
+196	Danger Evaded (Temple Trekking)
+197	Trek Continues (Temple Trekking)
+198	Cat gets Lazy
+199	Cat gets Wily
+200	Vampyre Assault (In Aid of the Myreque)
+201	A Thing Under the Bed!
+202	Zanik Lives Again! (Death to the Dorgeshuun)
+203	Rum for the Dumb (Rum Deal)
+204	Stealing from the Godfather (A Fairy Tale Part II)
+205	Fairy Queen Awakens! (A Fairy Tale Part II)
+206	The Battle of Atarisundri (The Eyes of Glouphrie)
+207	Gnomes & Goblins (The Eyes of Glouphrie)
+208	Invincible Army (The Eyes of Glouphrie)
+209	Goblin Retreat (The Eyes of Glouphrie)
+210	Oaknock Calls (The Eyes of Glouphrie)
+211	The Illusion... (The Eyes of Glouphrie)
+212	Of Glouphrie (The Eyes of Glouphrie)
+213	Secrets (The Eyes of Glouphrie)
+214	Healthorg's Rule (The Eyes of Glouphrie)
+215	Glouphrie's Watching (The Eyes of Glouphrie)
+216	Expulsion (The Eyes of Glouphrie)
+217	The Expulsion of Glouphrie (The Eyes of Glouphrie)
+218	Machine Fixed (The Eyes of Glouphrie)
+219	Izzie no More (The Eyes of Glouphrie)
+220	Oaknock's Machine (The Eyes of Glouphrie)
+221	Story for Brimstal (The Eyes of Glouphrie)
+222	The Machine is Broken... (The Eyes of Glouphrie)
+223	Gnome Sabotage (The Eyes of Glouphrie)
+224	A Shadow Passes (The Eyes of Glouphrie)
+225	Sudden Cry (The Eyes of Glouphrie)
+226	Argento (The Eyes of Glouphrie)
+227	Morytanian Mystery (Darkness of Hallowvale)
+228	Welcome to the Family (The Slug Menace)
+229	The Slug Prince (The Slug Menace)
+230	Mother Mallum (The Slug Menace)
+231	Cape of Accomplishment (jingle)
+232	Adventurer Stew (My Arm's Big Adventure)
+233	Rumble in da Jungle (My Arm's Big Adventure)
+234	The Watchtower Shield
+235	Here Chicky Chicky! (Animal Magnetism)
+236	Chicken Grabbed (Animal Magnetism)
+237	Claws' Shanty (Christmas 2013)
+238	Tarn (Lair of Tarn Razorlor)
+239	The Transformation (Lair of Tarn Razorlor)
+240	Bongos (Cold War)
+241	Cowbells (Cold War)
+242	The Royal Decree (The Fremennik Isles)
+243	Sleepy... (Great Brain Robbery)
+244	Soothing Kitten Music (Great Brain Robbery)
+245	Silence (6 Seconds)
+246	Dorgesh-Kaan Nursery
+247	Surok Dance (What Lies Below)
+248	Surok Rock (What Lies Below)
+249	Air Guitar (jingle)
+250	Verzik's Defeat
+251	All Medium Tasks (Karamja Diary)
+252	All Easy Tasks (Karamja Diary)
+253	All Hard Tasks (Karamja Diary)
+254	Easy Task (Karamja Diary)
+255	Hard Task (Karamja Diary)
+256	Medium Task (Karamja Diary)
+257	Rupert's Decent (Grim Tales)
+258	Rupert's Ascent (Grim Tales)
+259	Rupert's Second Decent (Grim Tales)
+260	Nora's Record (Grim Tales)
+261	Nora's Broken Record (Grim Tales)
+262	Nora's Melody (Grim Tales)
+263	A Grim Tale (Grim Tales)
+264	Grimgnash's Bedtime (Grim Tales)
+265	Stupid Human Story (Grim Tales)
+266	Silence (1 Second)
+267	A Slayer's Feat (Dragon Slayer)
+268	Barbarian Funeral
+269	Top of the Class (Surprise Exam)
+270	Fail (Surprise Exam)
+271	King has Come (King's Ransom)
+272	Case Closed (King's Ransom)
+273	My Arm's First Love (Making Friends with My Arm)
+274	Rejection (Making Friends with My Arm)
+275	My Arm & Snowflake Forever (Making Friends with My Arm)
+276	Clearing the Gauntlet
+277	Petrification of the Basilisk (The Fremennik Exiles)
+278	The Fallen Myreque (Sins of the Father)
+279	Hosidius Entrance (POH)
+280	Scape Jingle
+281	Border Broken (Leagues)
+282	Relic of Power (Leagues)
+283	Task Mastered (Leagues)
+284	Defeated! (Soul Wars)
+285	Victorious! (Soul Wars)
+286	Festive Entrance (POH)
+287	Star of Your Own (Shooting Stars)
+288	Tempor Subdued! (Tempoross)
+289	Raging Storm (Tempoross)
+290	A Christmas Deed (Christmas 2021)
+291	Guardian Falls (Guardians of the Rift)
+292	Rift Closed (Guardians of the Rift)
+293	Sword Good. Hand Over. (Giants' Foundry)
+294	Gilbert's Glade (Pride 2022)
+295	Test of Nobility (Tombs of Amascut)
+296	Tomb Cleared (Tombs of Amascut)
+297	A Merry Christmas (Christmas 2022)
+298	Assassin Altercation (Secrets of the North)
+299	Combat Level Up!
+300	Sliske... (Desert Treasure II)
+301	Terrorbird Tussle (Jingle)
+302	Dumpling no More (Path of Glouphrie)
+303	The Terrorbirds (Path of Glouphrie)
+304	Zemouregal's Theatre (Defender of Varrock)
+305	Glorious Champion (Fortis Colosseum)
+306	Assassin Ambush! (While Guthix Sleeps)
+307	Canifis Entrance (POH)
+308	Civitas Entrance (POH)
+309	Yama's Horn
+310	Yama's Soulflame Horn
+830	Charted the Sea
+831	Sailing Level Up!
+832	Sailing Level Up! (99)
+864	The Blood Moon Falls
+11488	Yama's Jingle

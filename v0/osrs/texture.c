@@ -1,0 +1,524 @@
+
+#include "texture.h"
+
+#include "osrs/rscache/dat2a/dat2a_sprites.h"
+#include "osrs/rscache/dat2a/dat2a_textures.h"
+#include "osrs/rscache/dat1a/dat1a_config_textures.h"
+#include "toridraw/toridraw_types.h"
+
+#include <assert.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int
+gamma_blend(
+    int rgb,
+    double gamma)
+{
+    double r = (rgb >> 16) / 256.0;
+    double g = ((rgb >> 8) & 255) / 256.0;
+    double b = (rgb & 255) / 256.0;
+    r = pow(r, gamma);
+    g = pow(g, gamma);
+    b = pow(b, gamma);
+    int new_r = (int)(r * 256.0);
+    int new_g = (int)(g * 256.0);
+    int new_b = (int)(b * 256.0);
+    return (new_r << 16) | (new_g << 8) | new_b;
+}
+
+static inline int*
+normalize_pixel_buffer(
+    int* pixels,
+    int current_width,
+    int current_height,
+    int new_width,
+    int new_height)
+{
+    int* normalized_pixels = (int*)malloc((size_t)new_width * new_height * sizeof(int));
+    if( !normalized_pixels )
+        return NULL;
+    memset(normalized_pixels, 0, (size_t)new_width * new_height * sizeof(int));
+
+    int xstep = (current_width + new_width - 1) / new_width;
+    int ystep = (current_height + new_height - 1) / new_height;
+    if( current_width != new_width || current_height != new_height )
+    {
+        for( int y = 0; y < current_height; y += ystep )
+        {
+            for( int x = 0; x < current_width; x += xstep )
+            {
+                int dst_x = x / xstep;
+                int dst_y = y / ystep;
+                int pixel = pixels[x + y * current_width];
+                normalized_pixels[dst_x + dst_y * new_width] = pixel;
+            }
+        }
+    }
+    else
+    {
+        memcpy(normalized_pixels, pixels, (size_t)current_width * current_height * sizeof(int));
+    }
+
+    return normalized_pixels;
+}
+
+struct TextureDecodedSprite
+{
+    int* texels;
+    int width;
+    int height;
+    bool opaque;
+};
+
+static struct TextureDecodedSprite
+texture_decode_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs)
+{
+    struct TextureDecodedSprite decoded = { 0 };
+    struct RSCacheDat2A_Sprite* sprite = NULL;
+    if( !texture_definition || !packs )
+        return decoded;
+
+    bool opaque = texture_definition->opaque;
+    int size = 128;
+    int* pixels = (int*)malloc(size * size * sizeof(int));
+    if( !pixels )
+        return decoded;
+    memset(pixels, 0, size * size * sizeof(int));
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        struct RSCacheDat2A_SpritePack* sprite_pack = packs[i];
+        if( !sprite_pack || sprite_pack->count == 0 )
+            continue;
+
+        int* palette = sprite_pack->palette;
+        int palette_length = sprite_pack->palette_length;
+        sprite = &sprite_pack->sprites[0];
+        uint8_t* palette_pixels = sprite->palette_pixels;
+
+        int* adjusted_palette = (int*)malloc(palette_length * sizeof(int));
+        if( !adjusted_palette )
+        {
+            free(pixels);
+            return decoded;
+        }
+
+        for( int pi = 0; pi < palette_length; pi++ )
+        {
+            int alpha = 0xff;
+            if( (palette[pi] & 0xf8f8ff) == 0 )
+                alpha = 0;
+            adjusted_palette[pi] = (alpha << 24) | gamma_blend(palette[pi], 0.8f);
+        }
+
+        for( int pixel_index = 0; pixel_index < sprite->width * sprite->height; pixel_index++ )
+        {
+            int palette_index = palette_pixels[pixel_index];
+            if( (adjusted_palette[palette_index] & 0xf8f8ff) == 0 )
+                opaque = false;
+        }
+
+        int index = 0;
+        if( i > 0 && texture_definition->sprite_types )
+            index = texture_definition->sprite_types[i - 1];
+
+        if( index == 0 )
+        {
+            if( size == sprite->width )
+            {
+                for( int pixel_index = 0; pixel_index < sprite->width * sprite->height;
+                     pixel_index++ )
+                {
+                    int palette_index = palette_pixels[pixel_index];
+                    pixels[pixel_index] = adjusted_palette[palette_index];
+                }
+            }
+            else if( sprite->width == 64 && size == 128 )
+            {
+                int pixel_index = 0;
+                for( int x = 0; x < size; x++ )
+                {
+                    for( int y = 0; y < size; y++ )
+                    {
+                        int palette_index = palette_pixels[((x >> 1) << 6) + (y >> 1)];
+                        pixels[pixel_index] = adjusted_palette[palette_index];
+                        pixel_index++;
+                    }
+                }
+            }
+        }
+
+        free(adjusted_palette);
+    }
+
+    decoded.texels = pixels;
+    decoded.width = size;
+    decoded.height = size;
+    decoded.opaque = opaque;
+    return decoded;
+}
+
+struct DashTexture*
+texture_new_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_definition_packs(texture_definition, packs);
+    if( !decoded.texels )
+        return NULL;
+
+    struct DashTexture* texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
+    if( !texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(texture, 0, sizeof(struct DashTexture));
+
+    texture->texels = decoded.texels;
+    texture->width = decoded.width;
+    texture->height = decoded.height;
+    texture->opaque = decoded.opaque;
+    texture->animation_direction = texture_definition->animation_direction;
+    texture->animation_speed = texture_definition->animation_speed;
+
+    return texture;
+}
+
+struct ToriDraw_Texture*
+texture_new_toridraw_from_definition_packs(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct RSCacheDat2A_SpritePack** packs)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_definition_packs(texture_definition, packs);
+    if( !decoded.texels )
+        return NULL;
+
+    struct ToriDraw_Texture* toridraw_texture =
+        (struct ToriDraw_Texture*)malloc(sizeof(struct ToriDraw_Texture));
+    if( !toridraw_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(toridraw_texture, 0, sizeof(struct ToriDraw_Texture));
+
+    toridraw_texture->texels = decoded.texels;
+    toridraw_texture->width = decoded.width;
+    toridraw_texture->height = decoded.height;
+    toridraw_texture->opaque = decoded.opaque;
+    toridraw_texture->animation_direction = texture_definition->animation_direction;
+    toridraw_texture->animation_speed = texture_definition->animation_speed;
+
+    return toridraw_texture;
+}
+
+struct DashTexture*
+texture_new_from_definition(
+    struct RSCacheDat2A_Texture* texture_definition,
+    struct DashMap* sprites_hmap)
+{
+    struct SpritePackEntry* spritepack_entry = NULL;
+    struct RSCacheDat2A_SpritePack* sprite_pack = NULL;
+    if( !texture_definition || !sprites_hmap )
+        return NULL;
+
+    struct RSCacheDat2A_SpritePack** sprite_packs = (struct RSCacheDat2A_SpritePack**)malloc(
+        texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
+    if( !sprite_packs )
+        return NULL;
+    memset(sprite_packs, 0, texture_definition->sprite_ids_count * sizeof(struct RSCacheDat2A_SpritePack*));
+
+    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    {
+        int sprite_id = texture_definition->sprite_ids[i];
+        spritepack_entry =
+            (struct SpritePackEntry*)dashmap_search(sprites_hmap, &sprite_id, DASHMAP_FIND);
+        assert(spritepack_entry && "Spritepack must be inserted into hmap");
+        sprite_pack = spritepack_entry->spritepack;
+        assert(sprite_pack && "Texture SpritePacks must be loaded prior to texture creation");
+        if( !sprite_pack )
+            continue;
+
+        sprite_packs[i] = sprite_pack;
+    }
+
+    struct DashTexture* texture = texture_new_from_definition_packs(texture_definition, sprite_packs);
+    free(sprite_packs);
+    return texture;
+}
+// @ObfuscatedName("kb.a([II[B[IIIIIII)V")
+// public void plot(int[] pal, int h, byte[] src, int[] dst, int srcStep, int dstOff, int srcOff,
+// int w, int dstStep) {
+//     int qw = -(w >> 2);
+//     w = -(w & 0x3);
+
+//     for (int y = -h; y < 0; y++) {
+//         for (int x = qw; x < 0; x++) {
+//             byte palIndex = src[srcOff++];
+//             if (palIndex == 0) {
+//                 dstOff++;
+//             } else {
+//                 dst[dstOff++] = pal[palIndex & 0xFF];
+//             }
+
+//             palIndex = src[srcOff++];
+//             if (palIndex == 0) {
+//                 dstOff++;
+//             } else {
+//                 dst[dstOff++] = pal[palIndex & 0xFF];
+//             }
+
+//             palIndex = src[srcOff++];
+//             if (palIndex == 0) {
+//                 dstOff++;
+//             } else {
+//                 dst[dstOff++] = pal[palIndex & 0xFF];
+//             }
+
+//             palIndex = src[srcOff++];
+//             if (palIndex == 0) {
+//                 dstOff++;
+//             } else {
+//                 dst[dstOff++] = pal[palIndex & 0xFF];
+//             }
+//         }
+
+//         for (int x = w; x < 0; x++) {
+//             byte palIndex = src[srcOff++];
+//             if (palIndex == 0) {
+//                 dstOff++;
+//             } else {
+//                 dst[dstOff++] = pal[palIndex & 0xFF];
+//             }
+//         }
+
+//         dstOff += dstStep;
+//         srcOff += srcStep;
+//     }
+// }
+
+// const sprite = this.loadTextureSprite(id);
+
+// const palettePixels = sprite.pixels;
+// const palette = sprite.palette;
+
+// for (let pi = 0; pi < palette.length; pi++) {
+//     let alpha = 0xff;
+//     if (palette[pi] === 0) {
+//         alpha = 0;
+//     }
+//     palette[pi] = (alpha << 24) | brightenRgb(palette[pi], brightness);
+// }
+
+// const pixelCount = size * size;
+// const pixels = new Int32Array(pixelCount);
+
+// if (size === sprite.subWidth) {
+//     for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
+//         const paletteIndex = palettePixels[pixelIndex];
+//         pixels[pixelIndex] = palette[paletteIndex];
+//     }
+// } else if (sprite.subWidth === 64 && size === 128) {
+//     let pixelIndex = 0;
+
+//     for (let x = 0; x < size; x++) {
+//         for (let y = 0; y < size; y++) {
+//             const paletteIndex = palettePixels[((x >> 1) << 6) + (y >> 1)];
+//             pixels[pixelIndex++] = palette[paletteIndex];
+//         }
+//     }
+// } else {
+//     if (sprite.subWidth !== 128 || size !== 64) {
+//         throw new Error("Texture sprite has unexpected size");
+//     }
+
+//     let pixelIndex = 0;
+
+//     for (let x = 0; x < size; x++) {
+//         for (let y = 0; y < size; y++) {
+//             const paletteIndex = palettePixels[(y << 1) + ((x << 1) << 7)];
+//             pixels[pixelIndex++] = palette[paletteIndex];
+//         }
+//     }
+// }
+
+// return pixels;
+
+static struct TextureDecodedSprite
+texture_decode_from_cache_dat(
+    struct RSCacheDat1A_ConfigTexture* texture,
+    bool upscale_to_128,
+    bool half_to_64)
+{
+    struct TextureDecodedSprite decoded = { 0 };
+    bool opaque = true;
+    int size = 128;
+    if( texture->wi == 64 && !upscale_to_128 )
+        size = 64;
+    else if( half_to_64 && texture->wi == 128 && texture->hi == 128 )
+        size = 64;
+    int* normalized_pixels =
+        normalize_pixel_buffer(texture->pixels, texture->wi, texture->hi, size, size);
+    if( !normalized_pixels )
+        return decoded;
+
+    for( int pi = 0; pi < texture->palette_count; pi++ )
+    {
+        int alpha = 0xff;
+        if( texture->palette[pi] == 0 )
+        {
+            alpha = 0;
+        }
+        texture->palette[pi] = (alpha << 24) | gamma_blend(texture->palette[pi], 0.8f);
+    }
+
+    int pixel_count = size * size;
+
+    int* pixels = (int*)malloc(pixel_count * sizeof(int));
+    if( !pixels )
+    {
+        free(normalized_pixels);
+        return decoded;
+    }
+    memset(pixels, 0, pixel_count * sizeof(int));
+
+    for( int i = 0; i < pixel_count; i++ )
+    {
+        int palette_index = normalized_pixels[i];
+        pixels[i] = texture->palette[palette_index] & 0xf8f8ff;
+        if( pixels[i] == 0 )
+        {
+            opaque = false;
+        }
+    }
+
+    if( texture->wi == size && texture->hi == size )
+    {
+        for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
+        {
+            int palette_index = normalized_pixels[pixel_index];
+            pixels[pixel_index] = texture->palette[palette_index];
+        }
+    }
+    else if( texture->wi == 64 && size == 128 )
+    {
+        int pixel_index = 0;
+
+        for( int x = 0; x < size; x++ )
+        {
+            for( int y = 0; y < size; y++ )
+            {
+                int palette_index = normalized_pixels[((x >> 1) << 6) + (y >> 1)];
+                pixels[pixel_index++] = texture->palette[palette_index];
+            }
+        }
+    }
+    else if( texture->wi == 128 && size == 64 )
+    {
+        int pixel_index = 0;
+
+        for( int x = 0; x < size; x++ )
+        {
+            for( int y = 0; y < size; y++ )
+            {
+                int palette_index = normalized_pixels[(y << 1) + ((x << 1) << 7)];
+                pixels[pixel_index++] = texture->palette[palette_index];
+            }
+        }
+    }
+    else
+    {
+        for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
+        {
+            int palette_index = normalized_pixels[pixel_index];
+            pixels[pixel_index] = texture->palette[palette_index];
+        }
+    }
+
+    free(normalized_pixels);
+
+    decoded.texels = pixels;
+    decoded.width = size;
+    decoded.height = size;
+    decoded.opaque = opaque;
+    return decoded;
+}
+
+struct DashTexture*
+texture_new_from_texture_sprite(
+    struct RSCacheDat1A_ConfigTexture* texture,
+    int animation_direction,
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_cache_dat(texture, upscale_to_128, half_to_64);
+    if( !decoded.texels )
+        return NULL;
+
+    struct DashTexture* dash_texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
+    if( !dash_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(dash_texture, 0, sizeof(struct DashTexture));
+
+    dash_texture->texels = decoded.texels;
+    dash_texture->width = decoded.width;
+    dash_texture->height = decoded.height;
+    dash_texture->opaque = decoded.opaque;
+    dash_texture->animation_direction = animation_direction;
+    dash_texture->animation_speed = animation_speed;
+
+    return dash_texture;
+}
+
+struct ToriDraw_Texture*
+texture_new_toridraw_from_texture_sprite(
+    struct RSCacheDat1A_ConfigTexture* texture,
+    int animation_direction,
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_cache_dat(texture, upscale_to_128, half_to_64);
+    if( !decoded.texels )
+        return NULL;
+
+    struct ToriDraw_Texture* toridraw_texture =
+        (struct ToriDraw_Texture*)malloc(sizeof(struct ToriDraw_Texture));
+    if( !toridraw_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(toridraw_texture, 0, sizeof(struct ToriDraw_Texture));
+
+    toridraw_texture->texels = decoded.texels;
+    toridraw_texture->width = decoded.width;
+    toridraw_texture->height = decoded.height;
+    toridraw_texture->opaque = decoded.opaque;
+    toridraw_texture->animation_direction = animation_direction;
+    toridraw_texture->animation_speed = animation_speed;
+
+    return toridraw_texture;
+}
+
+void
+texture_free(struct DashTexture* texture)
+{
+    if( !texture )
+        return;
+    free(texture->texels);
+    free(texture);
+}

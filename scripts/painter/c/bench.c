@@ -10,6 +10,18 @@
 #define BENCH_ITERS 100
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+static double
+now_seconds(void)
+{
+    LARGE_INTEGER freq, cnt;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&cnt);
+    return (double)cnt.QuadPart / (double)freq.QuadPart;
+}
+#else
 static double
 now_seconds(void)
 {
@@ -18,6 +30,7 @@ now_seconds(void)
         return 0.0;
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
+#endif
 
 static const PainterScenerySpec k_heap_default_scenery[] = {
     { 1, 1, 3, 2, 0 },
@@ -124,6 +137,11 @@ main(void)
     const double yaws[] = { 0.0, 45.0, 180.0, 360.0 };
     const double fov = 90.0;
     const int levels_opts[] = { 2, 4 };
+
+    double total_ns_w3d = 0.0;
+    double total_ns_bkt = 0.0;
+    int scenarios_run = 0;
+    int scenarios_bucket_slower = 0;
 
     printf(
         "%-7s %4s %4s %6s %6s %-8s %-10s %6s %7s %10s %12s %12s\n",
@@ -247,6 +265,12 @@ main(void)
 
                         (void)sink;
 
+                        total_ns_bkt += ns_h;
+                        total_ns_w3d += ns_w;
+                        scenarios_run++;
+                        if( ns_h > ns_w )
+                            scenarios_bucket_slower++;
+
                         const char* name_bucket = (ns_h < ns_w) ? "bucket*" : "bucket";
                         const char* name_w3d = (ns_w < ns_h) ? "w3d*" : "w3d";
 
@@ -285,6 +309,25 @@ main(void)
                 }
             }
         }
+    }
+
+    if( scenarios_run > 0 )
+    {
+        double mean_ratio = total_ns_bkt / (total_ns_w3d > 0.0 ? total_ns_w3d : 1.0);
+        printf(
+            "\n--- aggregate over %d scenarios ---\n"
+            "  world3d total: %.1f ms  (%.1f ns/iter mean)\n"
+            "  bucket  total: %.1f ms  (%.1f ns/iter mean)\n"
+            "  mean ratio bucket/world3d: %.3f\n"
+            "  scenarios where bucket slower: %d / %d\n",
+            scenarios_run,
+            total_ns_w3d / 1e6,
+            total_ns_w3d / (double)scenarios_run,
+            total_ns_bkt / 1e6,
+            total_ns_bkt / (double)scenarios_run,
+            mean_ratio,
+            scenarios_bucket_slower,
+            scenarios_run);
     }
 
     return 0;

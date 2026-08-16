@@ -1,0 +1,172 @@
+# From repo root: make -C test/instance_revconfig_load
+
+CC ?= cc
+TEST_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+OBJ_DIR = build
+TARGET = instance_revconfig_load_test
+
+REPO_ROOT := $(abspath $(TEST_DIR)/../..)
+SRC_DIR   := $(REPO_ROOT)/src
+SRC2_DIR  := $(REPO_ROOT)/src2
+
+CFLAGS = -std=c11 -Wall -Wextra -g -MMD -MP \
+	-I$(TEST_DIR) -I$(SRC_DIR) -I$(SRC_DIR)/graphics -I$(SRC2_DIR) -I$(SRC2_DIR)/core \
+	-I$(SRC2_DIR)/toridraw -I$(SRC2_DIR)/platforms \
+	-I$(SRC2_DIR)/toriauxlib/core/tasks -I$(REPO_ROOT)
+
+LDFLAGS = -Wl,-dead_strip -lm
+
+SRCS = $(TEST_DIR)/main.c \
+	$(TEST_DIR)/stubs.c \
+	$(SRC2_DIR)/platforms/platform_x_io_reactor.c \
+	$(SRC2_DIR)/platforms/platform_x/cachelib.c \
+	$(SRC2_DIR)/platforms/platform_x/cachelib_platform.c \
+	$(SRC2_DIR)/platforms/platform_x/cachelib_serialized.c \
+	$(SRC2_DIR)/platforms/platform_x/cache_path_resolve.c \
+	$(SRC2_DIR)/platforms/platform_x_cache.c \
+	$(SRC2_DIR)/toriauxlib/toriauxlib.c \
+	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore.c \
+	$(SRC2_DIR)/toriauxlib/core/toriauxlibcore_types.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_component_dat2_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_model_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_sprite_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_font_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_clientscript_convert.c \
+	$(SRC2_DIR)/toriauxlib/cache/toriauxlibcache_submit.c \
+	$(SRC2_DIR)/toriauxlib/td/toridraw_cachesprite.c \
+	$(SRC2_DIR)/buildcache/dat1_buildcache.c \
+	$(SRC2_DIR)/buildcache/dat2_buildcache.c \
+	$(SRC2_DIR)/buildcache/dat2_buildcache_meta.c \
+	$(SRC2_DIR)/buildcache/dat1_buildcache_ui.c \
+	$(SRC2_DIR)/buildcache/dat2_buildcache_ui.c \
+	$(SRC2_DIR)/ui/ui_sprite_lookup.c \
+	$(SRC2_DIR)/ui/ui_font_lookup.c \
+	$(SRC2_DIR)/ui/ui_input.c \
+	$(SRC2_DIR)/ui/ui_scroll.c \
+	$(SRC2_DIR)/ui/ui_scroll_runtime.c \
+	$(SRC2_DIR)/ui/ui_cross_cursor.c \
+	$(SRC2_DIR)/ui/ui_hover_routing.c \
+	$(SRC2_DIR)/ui/ui_inv_selection.c \
+	$(SRC2_DIR)/ui/chat_state.c \
+	$(SRC2_DIR)/world/entity_registry.c \
+	$(SRC2_DIR)/ui/rs_inv_container.c \
+	$(SRC2_DIR)/ui/ui_inv_data_service.c \
+	$(SRC2_DIR)/ui/ui_inv_slot_view.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_inv_bind.c \
+	$(SRC2_DIR)/ui/ui_input_adapter.c \
+	$(SRC2_DIR)/ui/ui_behavior.c \
+	$(SRC2_DIR)/ui/uitree_host.c \
+	$(SRC2_DIR)/ui/ui_click.c \
+	$(SRC2_DIR)/ui/ui_chat_minimenu.c \
+	$(SRC2_DIR)/ui/ui_debug.c \
+	$(SRC2_DIR)/ui/ui_minimenu.c \
+	$(SRC2_DIR)/ui/interaction_state.c \
+	$(SRC2_DIR)/ui/minimenu_pickset.c \
+	$(SRC2_DIR)/ui/uitree.c \
+	$(SRC2_DIR)/ui/uitree_layout.c \
+	$(SRC2_DIR)/vm/cs1vm.c \
+	$(SRC2_DIR)/vm/cs1vm_host.c \
+	$(SRC2_DIR)/vm/cs1vm_level.c \
+	$(SRC2_DIR)/vm/cs2vm_unity.c \
+	$(SRC2_DIR)/toriauxlib/vm/toriauxlibvm.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/instance_revconfig_context.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/component_load_common.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/task_cache_wrappers.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_component_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_inv_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_sprite_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_font_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_model_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_animate.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_npc_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_player_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_projectile_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_core.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_centerzone.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat1/task_dat1_world_rebuild_chunk_list.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_model_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_animate.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_npc_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_player_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_projectile_add.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_core.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_centerzone.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_world_rebuild_chunk_list.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_textures_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_config_entry_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_component_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_inv_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_sprite_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_font_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_clientscript_load.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/dat2/task_dat2_anim_resolve.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_on_rc.c \
+	$(SRC2_DIR)/toriauxlib/core/tasks/task_instance_revconfig_load.c \
+	$(SRC2_DIR)/games/ie_enum_lookup.c \
+	$(SRC2_DIR)/games/ie_struct_lookup.c \
+	$(SRC2_DIR)/games/ie_param_lookup.c \
+	$(SRC2_DIR)/games/runescape_cs2_host.c \
+	$(SRC2_DIR)/games/runescape_cs2_queue.c \
+	$(TEST_DIR)/font_td_shim.c \
+	$(SRC2_DIR)/toridraw/toridraw_scene.c \
+	$(SRC2_DIR)/toridraw/toridraw_intrusive_list.c \
+	$(SRC2_DIR)/toridraw/toridraw_sprite.c \
+	$(SRC2_DIR)/toridraw/toridraw_model_sprite.c \
+	$(SRC2_DIR)/toridraw/toridraw_font.c \
+	$(SRC2_DIR)/toridraw/toridraw_math.c \
+	$(SRC2_DIR)/toridraw/toridraw_map.c \
+	$(SRC2_DIR)/toridraw/toridraw_vec.c \
+	$(SRC2_DIR)/commands/libtorirs_command_queue.c \
+	$(SRC2_DIR)/revconfig/revconfig.c \
+	$(SRC2_DIR)/revconfig/revconfig_load.c \
+	$(SRC_DIR)/osrs/varp_varbit_manager.c \
+	$(SRC2_DIR)/world/minimap.c \
+	$(SRC2_DIR)/world/world.c \
+	$(SRC2_DIR)/world/world_entity.c \
+	$(SRC2_DIR)/world/world_pickset.c \
+	$(SRC2_DIR)/3rd/ini/ini.c \
+	$(SRC_DIR)/osrs/rscache/unity.c \
+	$(SRC_DIR)/3rd/bzip/bzip.c \
+	$(SRC_DIR)/3rd/miniz/miniz.c \
+	$(SRC_DIR)/osrs/palette.c
+
+OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
+
+-include $(OBJS:.o=.d)
+
+.PHONY: all clean run check
+
+all: $(OBJ_DIR) $(TARGET)
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+
+define make-goal
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+	$(CC) $(CFLAGS) -c $(1) -o $(OBJ_DIR)/$(notdir $(1:.c=.o)) -MF $(OBJ_DIR)/$(notdir $(1:.c=.d))
+endef
+
+$(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
+
+$(OBJS): | $(OBJ_DIR)
+
+THIRD_PARTY_CFLAGS := $(filter-out -Wall -Wextra,$(CFLAGS)) -w
+
+$(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $< -o $@
+
+$(OBJ_DIR)/miniz.o: $(SRC_DIR)/3rd/miniz/miniz.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -w -c $< -o $@
+
+run: $(TARGET)
+	./$(TARGET)
+
+check: run
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)

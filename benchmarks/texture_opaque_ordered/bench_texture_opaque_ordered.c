@@ -10,7 +10,7 @@
 #include <time.h>
 
 int g_sin_table[2048];
-int g_cos_table[2048];
+int RSCacheDat2A_NoiseCosTable[2048];
 int g_tan_table[2048];
 uint16_t g_reciprocal16_simd[256 * 1024];
 uint32_t g_reciprocal_norm30[1 << 15];
@@ -57,7 +57,7 @@ fill_lookup_stubs(void)
     for( int i = 0; i < 2048; i++ )
     {
         g_sin_table[i] = 0;
-        g_cos_table[i] = 65536;
+        RSCacheDat2A_NoiseCosTable[i] = 65536;
         g_tan_table[i] = 65536;
     }
     for( int i = 1; i < 256 * 1024; i++ )

@@ -1,0 +1,413 @@
+#include "../../commands/libtorirs_command_queue.h"
+#include "../../ioqueue/libtorirs_ioqueue.h"
+#include "../../platforms/platform_sdl2/platform_sdl2.h"
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_soft3d.h"
+#include "../../platforms/platform_x/cache_path_resolve.h"
+#include "../../platforms/platform_x/cachelib.h"
+#include "../../platforms/platform_x/cachelib_platform.h"
+#include "../../platforms/platform_x_io_reactor.h"
+#include "../../platforms/platform_x_lua.h"
+#include "../../scripting/libtorirs_scriptapi.h"
+#include "../../scripting/libtorirs_scripting.h"
+#include "../../toriauxlib/cache/toriauxlibcache.h"
+#include "../../toriauxlib/toriauxlib.h"
+
+#if defined(_WIN32)
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_d3d9.h"
+#else
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_opengl3.h"
+#endif
+
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+
+static bool
+has_flag(
+    int argc,
+    char* argv[],
+    char const* flag)
+{
+    for( int i = 1; i < argc; i++ )
+    {
+        if( argv[i] && strcmp(argv[i], flag) == 0 )
+            return true;
+    }
+    return false;
+}
+
+static bool
+flag_value(
+    int argc,
+    char* argv[],
+    char const* flag,
+    char const** out_value)
+{
+    size_t const flag_len = strlen(flag);
+
+    for( int i = 1; i < argc; i++ )
+    {
+        char const* arg = argv[i];
+        if( !arg )
+            continue;
+        if( strncmp(arg, flag, flag_len) != 0 )
+            continue;
+        if( arg[flag_len] == '=' )
+        {
+            *out_value = arg + flag_len + 1;
+            return true;
+        }
+        if( arg[flag_len] == '\0' && i + 1 < argc && argv[i + 1] && argv[i + 1][0] != '-' )
+        {
+            *out_value = argv[i + 1];
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
+resolve_use_runescape(
+    int argc,
+    char* argv[])
+{
+    if( has_flag(argc, argv, "--runescape") )
+        return true;
+
+    char const* game = NULL;
+    if( flag_value(argc, argv, "--game", &game) && game && strcmp(game, "runescape") == 0 )
+        return true;
+    return false;
+}
+
+static bool
+is_positional_cache_path_arg(
+    char* argv[],
+    int i)
+{
+    if( i <= 1 || !argv[i] || argv[i][0] == '-' )
+        return false;
+    if( argv[i - 1] && strcmp(argv[i - 1], "--game") == 0 )
+        return false;
+    return true;
+}
+
+static char const*
+resolve_cache_dat_path(
+    int argc,
+    char* argv[],
+    bool use_dat2,
+    bool use_kronos)
+{
+    /* --kronos always uses cache.kronos (repo root); a positional cache/ path must not
+     * override it — generic dat2 cache uses different interface archive layouts (e.g.
+     * iface 149 is a layer shell in cache/, but the INV grid in cache.kronos). */
+    if( use_kronos )
+    {
+        char const* kronos = cache_path_resolve_kronos_repo();
+        if( kronos )
+            return kronos;
+    }
+
+    if( use_dat2 )
+    {
+        char const* osrs = cache_path_resolve_osrs_repo();
+        if( osrs )
+            return osrs;
+    }
+
+    for( int i = 1; i < argc; i++ )
+    {
+        if( !is_positional_cache_path_arg(argv, i) )
+            continue;
+        return argv[i];
+    }
+
+#ifdef CACHE_DAT_PATH
+    return CACHE_DAT_PATH;
+#else
+
+    static char const* const dat1_candidates[] = {
+        "cache254",          "../cache254",          "../../cache254",
+        "../../../cache254", "../../../../cache254", NULL,
+    };
+    static char const* const dat2_candidates[] = {
+        "cache", "../cache", "../../cache", "../../../cache", "../../../../cache", NULL,
+    };
+    char const* const* candidates = dat1_candidates;
+    if( use_dat2 )
+        candidates = dat2_candidates;
+    char const* cache_file = use_dat2 ? "main_file_cache.dat2" : "main_file_cache.dat";
+
+    char dat_path[512];
+    for( int i = 0; candidates[i]; i++ )
+    {
+        snprintf(dat_path, sizeof(dat_path), "%s/%s", candidates[i], cache_file);
+        FILE* f = fopen(dat_path, "rb");
+        if( f )
+        {
+            fclose(f);
+            return candidates[i];
+        }
+    }
+    return NULL;
+#endif
+}
+
+int
+main(
+    int argc,
+    char* argv[])
+{
+    printf("Hello from main!\n");
+
+    bool const use_soft3d = has_flag(argc, argv, "--soft3d");
+    bool const use_runescape = resolve_use_runescape(argc, argv);
+    bool const use_kronos = has_flag(argc, argv, "--kronos");
+    bool const use_dat1 = has_flag(argc, argv, "--dat1");
+    bool const use_dat2 =
+        has_flag(argc, argv, "--dat2") || use_kronos || (use_runescape && !use_dat1);
+    int const cache_mode = use_dat2 ? CACHE_MODE_DAT2 : CACHE_MODE_DAT1;
+    enum ToriAuxLibCacheMode toriauxlib_mode =
+        use_dat2 ? TORIAUXLIBCACHE_MODE_DAT2 : TORIAUXLIBCACHE_MODE_DAT1;
+
+    struct LibToriPlatformX_Lua* lua = NULL;
+    struct LibToriPlatformX_IOReactor* io_reactor = NULL;
+    struct RSCacheDat2DiskLib* cache = NULL;
+    struct LibToriPlatformSDL2* platform = NULL;
+    struct LibToriPlatformSDL2_RendererSoft3D* renderer_soft3d = NULL;
+#if defined(_WIN32)
+    struct LibToriPlatformSDL2_RendererD3D9* renderer = NULL;
+#else
+    struct LibToriPlatformSDL2_RendererGL3* renderer = NULL;
+#endif
+    struct LibToriRS_CommandQueue* command_queue = NULL;
+    struct LibToriRS_Instance* instance = NULL;
+
+    char const* cache_dat_path = resolve_cache_dat_path(argc, argv, use_dat2, use_kronos);
+    if( !cache_dat_path )
+    {
+        printf(
+            "Failed to find cache directory (expected main_file_cache.%s). "
+            "Run from a directory that contains the cache/, or pass the cache path as an "
+            "argument.\n",
+            use_dat2 ? "dat2" : "dat");
+        goto error_exit;
+    }
+    printf(
+        "Using cache: %s (format=%s%s)\n",
+        cache_dat_path,
+        use_dat2 ? "dat2" : "dat1",
+        use_kronos ? ", client=kronos" : "");
+    if( use_soft3d )
+        printf("Renderer: software 3D (CPU)\n");
+    if( use_runescape )
+        printf("Game: runescape world\n");
+
+    instance = LibToriRS_InstanceNewWithCacheMode((int)toriauxlib_mode);
+    if( !instance )
+    {
+        printf("Failed to create instance\n");
+        goto error_exit;
+    }
+    LibToriRS_InstanceSetClientKronos(instance, use_kronos);
+
+    lua = LibToriPlatformX_LuaNew(instance);
+    if( !lua )
+    {
+        printf("Failed to create Lua\n");
+        goto error_exit;
+    }
+
+    cache = cachelib_new(cache_mode);
+    if( !cache )
+    {
+        printf("Failed to create cache\n");
+        goto error_exit;
+    }
+
+    if( cachelib_platform_init(cache, cache_dat_path) != 1 )
+    {
+        printf("Failed to init cache\n");
+        goto error_exit;
+    }
+
+    io_reactor = LibToriPlatformX_IOReactorNew(cache);
+    if( !io_reactor )
+    {
+        printf("Failed to create IO reactor\n");
+        goto error_exit;
+    }
+
+    char const* init_script = use_runescape ? "init_runescape.lua" : "init.lua";
+    struct LibToriRS_Script* script =
+        LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), init_script);
+    script->is_inline = false;
+
+    platform = LibToriPlatformSDL2_New();
+    if( !platform )
+    {
+        printf("Failed to create SDL2 platform\n");
+        goto error_exit;
+    }
+
+    const int screen_w = 800;
+    const int screen_h = 600;
+
+    if( use_soft3d )
+    {
+        if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+        {
+            printf("Failed to init SDL2 soft3d window\n");
+            goto error_exit;
+        }
+        renderer_soft3d = LibToriPlatformSDL2_RendererSoft3D_New(screen_w, screen_h);
+        if( !renderer_soft3d )
+        {
+            printf("Failed to create soft3d renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererSoft3D_Init(
+                renderer_soft3d, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init soft3d renderer\n");
+            goto error_exit;
+        }
+    }
+#if defined(_WIN32)
+    else if( !LibToriPlatformSDL2_InitForD3D9(platform, screen_w, screen_h) )
+    {
+        printf("Failed to init SDL2 D3D9 window\n");
+        goto error_exit;
+    }
+    else
+    {
+        renderer = LibToriPlatformSDL2_RendererD3D9_New(screen_w, screen_h);
+        if( !renderer )
+        {
+            printf("Failed to create D3D9 renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererD3D9_Init(
+                renderer, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init D3D9 renderer\n");
+            goto error_exit;
+        }
+    }
+#else
+    else if( !LibToriPlatformSDL2_InitForOpenGL3(platform, screen_w, screen_h) )
+    {
+        printf("Failed to init SDL2 OpenGL window\n");
+        goto error_exit;
+    }
+    else
+    {
+        renderer = LibToriPlatformSDL2_RendererGL3_New(screen_w, screen_h);
+        if( !renderer )
+        {
+            printf("Failed to create OpenGL3 renderer\n");
+            goto error_exit;
+        }
+        if( !LibToriPlatformSDL2_RendererGL3_Init(
+                renderer, LibToriPlatformSDL2_GetWindow(platform)) )
+        {
+            printf("Failed to init OpenGL3 renderer\n");
+            goto error_exit;
+        }
+    }
+#endif
+
+    command_queue = LibToriRS_CommandQueue_New();
+    if( !command_queue )
+    {
+        printf("Failed to create command queue\n");
+        goto error_exit;
+    }
+
+    uint64_t time = SDL_GetTicks64();
+    LibToriRS_InitTime(instance, time);
+
+    while( LibToriRS_IsRunning(instance) )
+    {
+        time = SDL_GetTicks64();
+
+        LibToriPlatformSDL2_PollEvents(platform, command_queue);
+        LibToriRS_TickInput(instance, command_queue, time);
+
+        if( !LibToriRS_IsRunning(instance) )
+            break;
+
+        LibToriRS_FramePrepare(instance);
+
+        /* Pump tasks + IO until the game settles (CS2 yields may re-queue work). */
+        for( ;; )
+        {
+            bool ran = LibToriRS_TasksRun(instance);
+            LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+            if( LibToriRS_TasksSettled(instance) && !ran )
+                break;
+            if( !ran && !LibToriRS_TasksHasLive(instance) )
+                break;
+        }
+
+        while( !LibToriRS_ScriptQueueIsEmpty(LibToriRS_GetScriptQueue(instance)) )
+        {
+            int rc = LibToriPlatformX_LuaRun(lua, instance);
+            while( rc == LIBTORI_PLATFORM_X_LUA_YIELDED )
+            {
+                LibToriPlatformX_IOReactorProcess(io_reactor, LibToriRS_GetIOQueue(instance));
+                rc = LibToriPlatformX_LuaContinue(lua, instance);
+            }
+            if( rc != LIBTORI_PLATFORM_X_LUA_OK )
+            {
+                printf("Failed to run script\n");
+                goto error_exit;
+            }
+        }
+
+        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
+        LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
+
+        if( use_soft3d )
+            LibToriPlatformSDL2_RendererSoft3D_Render(renderer_soft3d, instance, NULL);
+#if defined(_WIN32)
+        else
+            LibToriPlatformSDL2_RendererD3D9_Render(renderer, instance);
+#else
+        else
+            LibToriPlatformSDL2_RendererGL3_Render(renderer, instance);
+#endif
+
+        SDL_Delay(1);
+    }
+
+exit:
+    if( renderer_soft3d )
+        LibToriPlatformSDL2_RendererSoft3D_Free(renderer_soft3d);
+    if( renderer )
+    {
+#if defined(_WIN32)
+        LibToriPlatformSDL2_RendererD3D9_Free(renderer);
+#else
+        LibToriPlatformSDL2_RendererGL3_Free(renderer);
+#endif
+    }
+    if( io_reactor )
+        LibToriPlatformX_IOReactorFree(io_reactor);
+    if( cache )
+        cachelib_free(cache);
+    if( lua )
+        LibToriPlatformX_LuaFree(lua);
+    if( instance )
+        LibToriRS_InstanceFree(instance);
+    if( command_queue )
+        LibToriRS_CommandQueue_Free(command_queue);
+    if( platform )
+        LibToriPlatformSDL2_Free(platform);
+    return 0;
+
+error_exit:
+    printf("ERROR EXIT");
+    goto exit;
+}

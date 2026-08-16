@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TorIRS Memtrace Viewer</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #1a1d27;
+      --text: #e6e8ef;
+      --muted: #9aa3b2;
+      --accent: #5b9cff;
+      --alloc: #4ade80;
+      --free: #f87171;
+      --border: #2a3142;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    .btn, input[type=file] {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .stats strong { color: var(--text); }
+    #statusLine { color: var(--accent); font-size: 13px; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 280px;
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+    .panel.collapsible-panel { min-height: auto; }
+    .panel.collapsible-panel > details > summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      list-style: none;
+      user-select: none;
+    }
+    .panel.collapsible-panel > details > summary::-webkit-details-marker { display: none; }
+    .panel.collapsible-panel > details > summary::before {
+      content: '▸ ';
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .panel.collapsible-panel > details[open] > summary::before { content: '▾ '; }
+    .panel.collapsible-panel > details > summary:hover { color: var(--accent); }
+    .full { grid-column: 1 / -1; }
+    canvas { width: 100%; height: 260px; display: block; background: #12151e; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table-wrap { overflow-x: auto; max-width: 100%; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    .stack { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; color: #c6d0e0; }
+    .stack-cell { cursor: pointer; }
+    .stack-cell:hover { background: #222836; }
+    .stack-cell .more { color: #5b9cff; }
+    .delta-pos { color: #4ade80; }
+    .delta-neg { color: #f87171; }
+    .controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: #000c;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 480px;
+      display: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TorIRS Memtrace Viewer</h1>
+    <label class="btn">Load events.jsonl<input id="eventsFile" type="file" accept=".jsonl,.json" hidden /></label>
+    <label class="btn">Load memtrace.bin<input id="binFile" type="file" accept=".bin" hidden /></label>
+    <label class="btn">Load meta.json<input id="metaFile" type="file" accept=".json" hidden /></label>
+    <button class="btn" id="downloadTraceBtn" type="button" disabled>Download trace</button>
+    <button class="btn" id="exportSqliteBtn" type="button" disabled>Export SQLite</button>
+    <button class="btn" id="clearCacheBtn" type="button">Clear cached trace</button>
+    <span id="statusLine"></span>
+    <div class="stats" id="stats"></div>
+  </header>
+  <main>
+    <section class="panel full">
+      <h2>Live heap over time</h2>
+      <canvas id="timeline" height="260"></canvas>
+    </section>
+    <section class="panel full collapsible-panel">
+      <details id="liveAtDetails" open>
+        <summary>Live allocations at a point in time</summary>
+        <div class="controls">
+          <input type="range" id="timeSlider" min="0" max="1000" value="1000" style="flex:1" />
+          <span id="timeReadout" style="color:#9aa3b2;font-size:12px"></span>
+        </div>
+        <div class="controls" id="liveAtTableControls" hidden>
+          <label>Show
+            <select id="liveAtPageSize">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+              <option value="0">All</option>
+            </select>
+          </label>
+          <button class="btn" id="liveAtPrev" type="button">Prev</button>
+          <span id="liveAtPageInfo" style="font-size:12px;color:var(--muted)"></span>
+          <button class="btn" id="liveAtNext" type="button">Next</button>
+        </div>
+        <div id="liveAt" class="empty">Move the slider or click the timeline to inspect live allocations.</div>
+      </details>
+    </section>
+    <section class="panel full collapsible-panel">
+      <details id="diffDetails" open>
+        <summary>Diff two points in time</summary>
+        <div class="controls">
+          <label style="flex:1">A <input type="range" id="diffSliderA" min="0" max="1000" value="50" style="flex:1" /></label>
+          <span id="diffReadoutA" style="color:#22d3ee;font-size:12px"></span>
+        </div>
+        <div class="controls">
+          <label style="flex:1">B <input type="range" id="diffSliderB" min="0" max="1000" value="1000" style="flex:1" /></label>
+          <span id="diffReadoutB" style="color:#f472b6;font-size:12px"></span>
+        </div>
+        <div id="diff" class="empty">Set A and B to compare live allocations between two times.</div>
+      </details>
+    </section>
+    <section class="panel">
+      <h2>Allocation flamegraph</h2>
+      <div class="controls">
+        <label><input type="radio" name="metric" value="bytes" checked /> Bytes</label>
+        <label><input type="radio" name="metric" value="count" /> Count</label>
+        <label><input type="radio" name="metric" value="live" /> Still live</label>
+        <label>Kind
+          <select id="kindFilter">
+            <option value="all">all alloc kinds</option>
+            <option value="malloc">malloc</option>
+            <option value="calloc">calloc</option>
+            <option value="realloc">realloc</option>
+            <option value="free">free</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="hideInstrumentation" checked /> Hide instrumentation frames</label>
+      </div>
+      <canvas id="flame" height="320"></canvas>
+    </section>
+    <section class="panel">
+      <h2>Top allocation sites</h2>
+      <div id="topSites" class="empty">Load a trace to see top sites.</div>
+    </section>
+    <section class="panel full">
+      <h2>Still live at end of trace</h2>
+      <div class="controls" id="leaksControls" hidden>
+        <label>Show
+          <select id="leaksPageSize">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="0">All</option>
+          </select>
+        </label>
+        <button class="btn" id="leaksPrev" type="button">Prev</button>
+        <span id="leaksPageInfo" style="font-size:12px;color:var(--muted)"></span>
+        <button class="btn" id="leaksNext" type="button">Next</button>
+      </div>
+      <div id="leaks" class="empty">Load a trace for leak summary.</div>
+    </section>
+  </main>
+  <div id="tooltip"></div>
+
+  <script id="memtrace-worker-src" type="text/plain">
+const MEMTRACE_MAGIC = 0x544d5254;
+const MEMTRACE_FOOTER_MAGIC = 0x534d5254;
+const MEMTRACE_RECORD_SIZE = 324;
+const KIND_COUNT = 7;
+const KIND_ALLOC = new Set([1, 2, 3, 5, 6]);
+const KIND_NAMES = { 1: 'malloc', 2: 'calloc', 3: 'realloc', 4: 'free', 5: 'posix_memalign', 6: 'strdup' };
+const TIMELINE_BUCKETS = 2000;
+let gDecoded = null;
+
+function readU32(dv, off) { return dv.getUint32(off, true); }
+function readU64(dv, off) {
+  const lo = dv.getUint32(off, true);
+  const hi = dv.getUint32(off + 4, true);
+  return hi * 0x100000000 + lo;
+}
+function readU8(dv, off) { return dv.getUint8(off); }
+
+function parseWasmStackFooter(bytes, footerOff) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const magic = readU32(dv, footerOff);
+  if (magic !== MEMTRACE_FOOTER_MAGIC) return { stacks: [''], footerOff: bytes.length };
+  let off = footerOff + 4;
+  const count = readU32(dv, off);
+  off += 4;
+  const stacks = [''];
+  const dec = new TextDecoder();
+  for (let i = 0; i < count; i++) {
+    const len = readU32(dv, off);
+    off += 4;
+    stacks.push(dec.decode(bytes.subarray(off, off + len)));
+    off += len;
+  }
+  return { stacks, footerOff };
+}
+
+function decodeBinary(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length < 20) throw new Error('memtrace file too small');
+  if (readU32(dv, 0) !== MEMTRACE_MAGIC) throw new Error('invalid memtrace magic');
+
+  const version = readU32(dv, 4);
+  const platform = readU32(dv, 8);
+  const modCount = readU32(dv, 12);
+  let off = 20;
+  for (let i = 0; i < modCount; i++) {
+    const pathLen = readU32(dv, off + 16);
+    off += 20 + pathLen;
+  }
+
+  const footerSearch = new Uint8Array([0x54, 0x52, 0x4d, 0x53]);
+  let footerOff = -1;
+  for (let i = bytes.length - 4; i >= off; i--) {
+    if (bytes[i] === 0x54 && bytes[i+1] === 0x52 && bytes[i+2] === 0x4d && bytes[i+3] === 0x53) {
+      footerOff = i;
+      break;
+    }
+  }
+
+  const { stacks, footerOff: eventsEnd } = footerOff >= 0
+    ? parseWasmStackFooter(bytes, footerOff)
+    : { stacks: [''], footerOff: bytes.length };
+
+  const eventCount = Math.floor((eventsEnd - off) / MEMTRACE_RECORD_SIZE);
+  const t = new Float64Array(eventCount);
+  const live = new Float64Array(eventCount);
+  const kind = new Uint8Array(eventCount);
+  const sizeUsable = new Float64Array(eventCount);
+  const ptr = new Float64Array(eventCount);
+  const stackId = new Int32Array(eventCount);
+
+  let peakLive = 0;
+  const ptrLive = new Map();
+
+  for (let i = 0, recOff = off; recOff + MEMTRACE_RECORD_SIZE <= eventsEnd; i++, recOff += MEMTRACE_RECORD_SIZE) {
+    const k = readU8(dv, recOff);
+    const sc = readU8(dv, recOff + 1);
+    const ts = readU64(dv, recOff + 4);
+    const req = readU64(dv, recOff + 20);
+    const usable = readU64(dv, recOff + 28);
+    const p = readU64(dv, recOff + 36);
+    const liveBytes = readU64(dv, recOff + 52);
+
+    let sid = 0;
+    if (sc >= 1) {
+      const raw = readU64(dv, recOff + 68);
+      if (raw > 0 && raw < stacks.length) sid = raw | 0;
+    }
+
+    t[i] = ts;
+    live[i] = liveBytes;
+    kind[i] = k;
+    sizeUsable[i] = usable || req;
+    ptr[i] = p;
+    stackId[i] = sid;
+    if (liveBytes > peakLive) peakLive = liveBytes;
+
+    if (k !== 4 && p) ptrLive.set(p, { sid, size: usable || req });
+    else if (k === 4 && p) ptrLive.delete(p);
+  }
+
+  const stackFrames = stacks.map((text, id) => {
+    if (!text) return [];
+    return text.split('\n').filter(Boolean);
+  });
+
+  return {
+    platform, version, eventCount, peakLive, ptrLive, stackFrames,
+    t, live, kind, sizeUsable, ptr, stackId,
+  };
+}
+
+function internStack(stackMap, frames) {
+  const key = (frames || []).join('\n');
+  if (stackMap.has(key)) return stackMap.get(key);
+  const id = stackMap.size;
+  stackMap.set(key, id);
+  return id;
+}
+
+function decodeJsonl(text) {
+  const lines = text.split(/\n/).filter(Boolean);
+  const n = lines.length;
+  const t = new Float64Array(n);
+  const live = new Float64Array(n);
+  const kind = new Uint8Array(n);
+  const sizeUsable = new Float64Array(n);
+  const ptr = new Float64Array(n);
+  const stackId = new Int32Array(n);
+  const stackMap = new Map();
+  const stackFrames = [''];
+  const kindRev = { malloc: 1, calloc: 2, realloc: 3, free: 4, posix_memalign: 5, strdup: 6 };
+
+  let peakLive = 0;
+  const ptrLive = new Map();
+
+  for (let i = 0; i < n; i++) {
+    const e = JSON.parse(lines[i]);
+    const k = kindRev[e.kind] || 0;
+    const frames = e.stack || [];
+    let sid = internStack(stackMap, frames);
+    while (stackFrames.length <= sid) stackFrames.push([]);
+    if (!stackFrames[sid].length) stackFrames[sid] = frames;
+
+    const p = e.ptr ? parseInt(e.ptr, 16) : 0;
+    t[i] = e.t;
+    live[i] = e.live || 0;
+    kind[i] = k;
+    sizeUsable[i] = e.usable || e.req || 0;
+    ptr[i] = p;
+    stackId[i] = sid;
+    if (live[i] > peakLive) peakLive = live[i];
+
+    if (k !== 4 && p) ptrLive.set(p, { sid, size: sizeUsable[i] });
+    else if (k === 4 && p) ptrLive.delete(p);
+  }
+
+  return {
+    platform: 2, version: 1, eventCount: n, peakLive, ptrLive, stackFrames,
+    t, live, kind, sizeUsable, ptr, stackId,
+  };
+}
+
+function decodeEvents(events, metaIn) {
+  const n = events.length;
+  const t = new Float64Array(n);
+  const live = new Float64Array(n);
+  const kind = new Uint8Array(n);
+  const sizeUsable = new Float64Array(n);
+  const ptr = new Float64Array(n);
+  const stackId = new Int32Array(n);
+  const stackMap = new Map();
+  const stackFrames = [''];
+  const kindRev = { malloc: 1, calloc: 2, realloc: 3, free: 4, posix_memalign: 5, strdup: 6 };
+
+  let peakLive = metaIn?.peak_live_bytes || 0;
+  const ptrLive = new Map();
+
+  for (let i = 0; i < n; i++) {
+    const e = events[i];
+    const k = kindRev[e.kind] || 0;
+    const frames = e.stack || [];
+    let sid = internStack(stackMap, frames);
+    while (stackFrames.length <= sid) stackFrames.push([]);
+    if (!stackFrames[sid].length) stackFrames[sid] = frames;
+
+    const p = e.ptr ? parseInt(e.ptr, 16) : 0;
+    t[i] = e.t;
+    live[i] = e.live || 0;
+    kind[i] = k;
+    sizeUsable[i] = e.usable || e.req || 0;
+    ptr[i] = p;
+    stackId[i] = sid;
+    if (live[i] > peakLive) peakLive = live[i];
+
+    if (k !== 4 && p) ptrLive.set(p, { sid, size: sizeUsable[i] });
+    else if (k === 4 && p) ptrLive.delete(p);
+  }
+
+  return {
+    platform: metaIn?.platform === 'wasm' ? 2 : metaIn?.platform === 'macos' ? 1 : 0,
+    version: metaIn?.version || 1,
+    eventCount: n, peakLive, ptrLive, stackFrames,
+    t, live, kind, sizeUsable, ptr, stackId,
+    metaOverride: metaIn,
+  };
+}
+
+function aggregate(decoded) {
+  const { eventCount, t, live, kind, sizeUsable, ptr, stackId, ptrLive, stackFrames, peakLive, platform, version, metaOverride } = decoded;
+
+  const stackStats = new Map();
+  function getStats(sid) {
+    if (!stackStats.has(sid)) {
+      stackStats.set(sid, {
+        id: sid,
+        bytes: new Float64Array(KIND_COUNT),
+        count: new Uint32Array(KIND_COUNT),
+        live: 0,
+      });
+    }
+    return stackStats.get(sid);
+  }
+
+  for (let i = 0; i < eventCount; i++) {
+    const k = kind[i];
+    const sid = stackId[i];
+    if (sid <= 0) continue;
+    const st = getStats(sid);
+    const sz = sizeUsable[i];
+    if (KIND_ALLOC.has(k)) {
+      st.bytes[k] += sz;
+      st.count[k] += 1;
+    } else if (k === 4) {
+      st.count[4] += 1;
+    }
+  }
+
+  for (const v of ptrLive.values()) {
+    if (v.sid > 0) getStats(v.sid).live += v.size;
+  }
+
+  let stillLiveBytes = 0;
+  for (const v of ptrLive.values()) stillLiveBytes += v.size;
+
+  const perStack = [];
+  for (const st of stackStats.values()) {
+    perStack.push({
+      id: st.id,
+      bytes: Array.from(st.bytes),
+      count: Array.from(st.count),
+      live: st.live,
+    });
+  }
+
+  const topLeaks = [];
+  for (const [p, v] of ptrLive.entries()) {
+    topLeaks.push({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid });
+  }
+  topLeaks.sort((a, b) => b.bytes - a.bytes);
+
+  const bucketCount = Math.min(TIMELINE_BUCKETS, Math.max(1, eventCount));
+  const xRatio = new Float32Array(bucketCount);
+  const yLive = new Float32Array(bucketCount);
+  const tBucket = new Float64Array(bucketCount);
+  let maxLive = peakLive > 0 ? peakLive : 1;
+  const tMin = eventCount > 0 ? t[0] : 0;
+  const tMax = eventCount > 0 ? t[eventCount - 1] : 0;
+
+  if (eventCount > 0) {
+  for (let b = 0; b < bucketCount; b++) {
+    const start = Math.floor(b * eventCount / bucketCount);
+    const end = Math.floor((b + 1) * eventCount / bucketCount);
+    let best = 0;
+    for (let i = start; i < end && i < eventCount; i++) {
+      if (live[i] > best) best = live[i];
+    }
+    xRatio[b] = b / Math.max(1, bucketCount - 1);
+    yLive[b] = best;
+    tBucket[b] = end > start ? t[end - 1] : t[0];
+    if (best > maxLive) maxLive = best;
+  }
+  }
+
+  const platformName = platform === 2 ? 'wasm' : platform === 1 ? 'macos' : 'linux';
+  const meta = metaOverride || {
+    platform: platformName,
+    version,
+    event_count: eventCount,
+    peak_live_bytes: peakLive,
+    still_live_count: ptrLive.size,
+    still_live_bytes: stillLiveBytes,
+    top_leaks: topLeaks,
+  };
+
+  return {
+    meta,
+    timeline: { xRatio, yLive, maxLive, tBucket, tMin, tMax },
+    perStack,
+    stacks: stackFrames,
+  };
+}
+
+function liveMapAtTime(tNs) {
+  const d = gDecoded;
+  const liveMap = new Map();
+  if (!d) return liveMap;
+  for (let i = 0; i < d.eventCount; i++) {
+    if (d.t[i] > tNs) break;
+    const p = d.ptr[i];
+    if (!p) continue;
+    if (d.kind[i] === 4) liveMap.delete(p);
+    else liveMap.set(p, { sid: d.stackId[i], size: d.sizeUsable[i] });
+  }
+  return liveMap;
+}
+
+function aggregateLiveMap(liveMap) {
+  const bySite = new Map();
+  let totalBytes = 0;
+  for (const v of liveMap.values()) {
+    totalBytes += v.size;
+    const s = bySite.get(v.sid) || { bytes: 0, count: 0 };
+    s.bytes += v.size;
+    s.count += 1;
+    bySite.set(v.sid, s);
+  }
+  return { bySite, totalBytes };
+}
+
+function liveAtTime(tNs) {
+  const liveMap = liveMapAtTime(tNs);
+  const { bySite, totalBytes } = aggregateLiveMap(liveMap);
+
+  const sites = [...bySite.entries()]
+    .map(([sid, s]) => ({ sid, bytes: s.bytes, count: s.count }))
+    .sort((a, b) => b.bytes - a.bytes);
+
+  const pointers = [...liveMap.entries()]
+    .map(([p, v]) => ({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid }))
+    .sort((a, b) => b.bytes - a.bytes);
+
+  return { tNs, totalBytes, totalCount: liveMap.size, sites, pointers };
+}
+
+function diffTimes(tA, tB) {
+  const a = liveMapAtTime(tA);
+  const b = liveMapAtTime(tB);
+
+  const siteIds = new Set();
+  for (const v of a.values()) siteIds.add(v.sid);
+  for (const v of b.values()) siteIds.add(v.sid);
+
+  const bySite = new Map();
+  for (const sid of siteIds) {
+    let bytesA = 0, bytesB = 0, countA = 0, countB = 0;
+    for (const v of a.values()) {
+      if (v.sid === sid) { bytesA += v.size; countA += 1; }
+    }
+    for (const v of b.values()) {
+      if (v.sid === sid) { bytesB += v.size; countB += 1; }
+    }
+    const deltaBytes = bytesB - bytesA;
+    const deltaCount = countB - countA;
+    if (deltaBytes !== 0 || deltaCount !== 0) {
+      bySite.set(sid, { sid, bytesA, bytesB, countA, countB, deltaBytes, deltaCount });
+    }
+  }
+
+  const sites = [...bySite.values()]
+    .sort((x, y) => Math.abs(y.deltaBytes) - Math.abs(x.deltaBytes))
+    .slice(0, 50);
+
+  const added = [];
+  for (const [p, v] of b.entries()) {
+    if (!a.has(p)) added.push({ ptr: '0x' + p.toString(16), bytes: v.size, sid: v.sid });
+  }
+  added.sort((x, y) => y.bytes - x.bytes);
+  const addedTotal = added.length;
+  added.length = Math.min(added.length, 50);
+
+  const d = gDecoded;
+  const freeSite = new Map();
+  if (d) {
+    const cur = new Set(a.keys());
+    for (let i = 0; i < d.eventCount; i++) {
+      const tt = d.t[i];
+      if (tt <= tA) continue;
+      if (tt > tB) break;
+      const p = d.ptr[i];
+      if (!p) continue;
+      if (d.kind[i] === 4) {
+        if (cur.has(p)) {
+          freeSite.set(p, d.stackId[i]);
+          cur.delete(p);
+        }
+      } else {
+        cur.add(p);
+        freeSite.delete(p);
+      }
+    }
+  }
+
+  const freed = [];
+  for (const [p, v] of a.entries()) {
+    if (!b.has(p)) {
+      const fs = freeSite.get(p);
+      freed.push({
+        ptr: '0x' + p.toString(16),
+        bytes: v.size,
+        sid: v.sid,
+        freeSid: fs == null ? -1 : fs,
+      });
+    }
+  }
+  freed.sort((x, y) => y.bytes - x.bytes);
+  const freedTotal = freed.length;
+  freed.length = Math.min(freed.length, 50);
+
+  let totalA = 0, totalB = 0;
+  for (const v of a.values()) totalA += v.size;
+  for (const v of b.values()) totalB += v.size;
+
+    return {
+    tA, tB,
+    totalA, totalB,
+    totalCountA: a.size,
+    totalCountB: b.size,
+    addedTotal,
+    freedTotal,
+    sites, added, freed,
+  };
+}
+
+const SQLJS_BASE = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/';
+let gSqlPromise = null;
+
+function loadSqlJs() {
+  if (!gSqlPromise) {
+    importScripts(SQLJS_BASE + 'sql-wasm.js');
+    gSqlPromise = initSqlJs({ locateFile: (f) => SQLJS_BASE + f });
+  }
+  return gSqlPromise;
+}
+
+async function exportSqlite() {
+  const d = gDecoded;
+  if (!d) throw new Error('No trace loaded');
+
+  const SQL = await loadSqlJs();
+  const db = new SQL.Database();
+  const agg = aggregate(d);
+
+  db.run('CREATE TABLE meta(key TEXT PRIMARY KEY, value)');
+  db.run('CREATE TABLE stacks(sid INTEGER PRIMARY KEY, depth INTEGER, frames TEXT)');
+  db.run('CREATE TABLE frames(sid INTEGER, idx INTEGER, frame TEXT, PRIMARY KEY(sid, idx))');
+  db.run(`CREATE TABLE events(
+    seq INTEGER PRIMARY KEY, t_ns REAL, kind_id INTEGER, kind TEXT,
+    ptr TEXT, size REAL, live_bytes REAL, stack_id INTEGER)`);
+  db.run(`CREATE TABLE sites(
+    sid INTEGER PRIMARY KEY, alloc_bytes REAL, alloc_count INTEGER,
+    free_count INTEGER, live_bytes REAL)`);
+  db.run('CREATE TABLE live_pointers(ptr TEXT PRIMARY KEY, size REAL, stack_id INTEGER)');
+
+  const platformName = d.platform === 2 ? 'wasm' : d.platform === 1 ? 'macos' : 'linux';
+  const tMin = d.eventCount > 0 ? d.t[0] : 0;
+  const tMax = d.eventCount > 0 ? d.t[d.eventCount - 1] : 0;
+  let stillLiveBytes = 0;
+  for (const v of d.ptrLive.values()) stillLiveBytes += v.size;
+
+  const metaIns = db.prepare('INSERT INTO meta(key, value) VALUES (?, ?)');
+  const metaRows = [
+    ['platform', platformName],
+    ['version', String(d.version)],
+    ['event_count', String(d.eventCount)],
+    ['peak_live_bytes', String(d.peakLive)],
+    ['still_live_count', String(d.ptrLive.size)],
+    ['still_live_bytes', String(stillLiveBytes)],
+    ['t_min_ns', String(tMin)],
+    ['t_max_ns', String(tMax)],
+    ['duration_ns', String(tMax - tMin)],
+    ['instrumentation_prefixes', 'torirs_memtrace_|torirs_hook_|__wrap_|real_malloc|real_calloc|real_realloc|real_reallocf|real_free|real_posix_memalign|real_strdup'],
+    ['sqljs_version', '1.10.3'],
+    ['exported_at', new Date().toISOString()],
+  ];
+  for (const [k, v] of metaRows) metaIns.run([k, v]);
+  metaIns.free();
+
+  db.run('BEGIN');
+
+  const stackIns = db.prepare('INSERT INTO stacks(sid, depth, frames) VALUES (?, ?, ?)');
+  const frameIns = db.prepare('INSERT INTO frames(sid, idx, frame) VALUES (?, ?, ?)');
+  for (let sid = 0; sid < d.stackFrames.length; sid++) {
+    const frames = d.stackFrames[sid] || [];
+    if (!frames.length && sid === 0) continue;
+    stackIns.run([sid, frames.length, frames.join('\n')]);
+    for (let idx = 0; idx < frames.length; idx++) {
+      frameIns.run([sid, idx, frames[idx]]);
+    }
+  }
+  stackIns.free();
+  frameIns.free();
+
+  const eventIns = db.prepare(
+    'INSERT INTO events(seq, t_ns, kind_id, kind, ptr, size, live_bytes, stack_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  for (let i = 0; i < d.eventCount; i++) {
+    const k = d.kind[i];
+    const p = d.ptr[i];
+    eventIns.run([
+      i,
+      d.t[i],
+      k,
+      KIND_NAMES[k] || '',
+      p ? '0x' + p.toString(16) : '',
+      d.sizeUsable[i],
+      d.live[i],
+      d.stackId[i],
+    ]);
+  }
+  eventIns.free();
+
+  const siteIns = db.prepare(
+    'INSERT INTO sites(sid, alloc_bytes, alloc_count, free_count, live_bytes) VALUES (?, ?, ?, ?, ?)',
+  );
+  for (const row of agg.perStack) {
+    let allocBytes = 0;
+    let allocCount = 0;
+    for (const kid of KIND_ALLOC) {
+      allocBytes += row.bytes[kid] || 0;
+      allocCount += row.count[kid] || 0;
+    }
+    siteIns.run([row.id, allocBytes, allocCount, row.count[4] || 0, row.live]);
+  }
+  siteIns.free();
+
+  const liveIns = db.prepare('INSERT INTO live_pointers(ptr, size, stack_id) VALUES (?, ?, ?)');
+  for (const [p, v] of d.ptrLive.entries()) {
+    liveIns.run(['0x' + p.toString(16), v.size, v.sid]);
+  }
+  liveIns.free();
+
+  db.run('COMMIT');
+
+  db.run('CREATE INDEX idx_events_stack_id ON events(stack_id)');
+  db.run('CREATE INDEX idx_events_kind_id ON events(kind_id)');
+  db.run('CREATE INDEX idx_events_t_ns ON events(t_ns)');
+  db.run('CREATE INDEX idx_frames_frame ON frames(frame)');
+  db.run('CREATE INDEX idx_live_pointers_stack_id ON live_pointers(stack_id)');
+  db.run('CREATE INDEX idx_sites_live_bytes ON sites(live_bytes)');
+
+  db.run(`CREATE VIEW v_leaks AS
+    SELECT lp.ptr, lp.size, lp.stack_id, s.frames
+    FROM live_pointers lp
+    LEFT JOIN stacks s ON s.sid = lp.stack_id
+    ORDER BY lp.size DESC`);
+  db.run(`CREATE VIEW v_sites_by_live AS
+    SELECT st.sid, st.alloc_bytes, st.alloc_count, st.free_count, st.live_bytes, s.frames
+    FROM sites st
+    LEFT JOIN stacks s ON s.sid = st.sid
+    ORDER BY st.live_bytes DESC`);
+
+  const bytes = db.export();
+  db.close();
+  return bytes;
+}
+
+self.onmessage = async (ev) => {
+  try {
+    const msg = ev.data;
+    if (msg.type === 'live-at') {
+      self.postMessage({ type: 'live-at', ...liveAtTime(msg.tNs) });
+      return;
+    }
+    if (msg.type === 'diff') {
+      self.postMessage({ type: 'diff', ...diffTimes(msg.tA, msg.tB) });
+      return;
+    }
+    if (msg.type === 'export-sqlite') {
+      const bytes = await exportSqlite();
+      self.postMessage({ type: 'sqlite', bytes }, [bytes.buffer]);
+      return;
+    }
+
+    let decoded;
+    if (msg.type === 'decode-bytes') {
+      decoded = decodeBinary(msg.buffer);
+    } else if (msg.type === 'decode-jsonl') {
+      decoded = decodeJsonl(msg.text);
+    } else if (msg.type === 'decode-events') {
+      decoded = decodeEvents(msg.events, msg.meta);
+    } else {
+      return;
+    }
+    gDecoded = decoded;
+    const result = aggregate(decoded);
+    self.postMessage({ type: 'decoded', ...result });
+  } catch (err) {
+    self.postMessage({ type: 'error', message: err && err.message ? err.message : String(err) });
+  }
+};
+  </script>
+
+  <script type="module">
+    const KIND_ALLOC_IDS = new Set([1, 2, 3, 5, 6]);
+    const KIND_NAME_TO_ID = { all: 0, malloc: 1, calloc: 2, realloc: 3, free: 4, posix_memalign: 5, strdup: 6 };
+
+    const state = {
+      meta: null,
+      timeline: null,
+      perStack: [],
+      stacks: [],
+      metric: 'bytes',
+      kindFilter: 'all',
+      hideInstrumentation: true,
+      selectedRatio: 1,
+      ratioA: 0.05,
+      ratioB: 1,
+      liveAt: null,
+      diff: null,
+      busy: false,
+      traceSource: null,
+      exportSqliteBusy: false,
+      leaksPage: 0,
+      leaksPageSize: 50,
+      liveAtPage: 0,
+      liveAtPageSize: 50,
+    };
+
+    const TIMELINE_PAD = { l: 48, r: 12, t: 12, b: 28 };
+
+    const statusLine = document.getElementById('statusLine');
+    const workerSrc = document.getElementById('memtrace-worker-src').textContent;
+    const worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: 'application/javascript' })));
+
+    const IDB_NAME = 'memtrace';
+    const IDB_STORE = 'traces';
+    const IDB_KEY = 'last';
+
+    function setStatus(text) {
+      statusLine.textContent = text || '';
+    }
+
+    function updateDownloadBtn() {
+      document.getElementById('downloadTraceBtn').disabled = !state.traceSource;
+    }
+
+    function updateExportSqliteBtn() {
+      const btn = document.getElementById('exportSqliteBtn');
+      btn.disabled = !state.timeline || state.exportSqliteBusy;
+    }
+
+    function downloadSqlite(bytes) {
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'memtrace.db';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function setTraceSource(filename, blob) {
+      state.traceSource = { filename, blob };
+      updateDownloadBtn();
+    }
+
+    function downloadTrace() {
+      const src = state.traceSource;
+      if (!src) return;
+      const url = URL.createObjectURL(src.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = src.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function fmtBytes(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + ' MB';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + ' KB';
+      return n + ' B';
+    }
+
+    function fmtDelta(n) {
+      if (n === 0) return '0 B';
+      const sign = n > 0 ? '+' : '-';
+      return sign + fmtBytes(Math.abs(n));
+    }
+
+    function fmtTimeNs(tNs) {
+      if (!Number.isFinite(tNs)) return '—';
+      const ms = tNs / 1e6;
+      if (ms >= 1000) return (ms / 1000).toFixed(2) + ' s';
+      if (ms >= 1) return ms.toFixed(2) + ' ms';
+      return (tNs / 1e3).toFixed(1) + ' µs';
+    }
+
+
+    function openIdb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          req.result.createObjectStore(IDB_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbPutTrace(buffer) {
+      const db = await openIdb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(buffer, IDB_KEY);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    async function idbGetTrace() {
+      const db = await openIdb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+        req.onsuccess = () => { db.close(); resolve(req.result || null); };
+        req.onerror = () => { db.close(); reject(req.error); };
+      });
+    }
+
+    async function idbClearTrace() {
+      const db = await openIdb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(IDB_KEY);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    function stackMetric(row, metric, kindFilter) {
+      const kindId = KIND_NAME_TO_ID[kindFilter] || 0;
+      if (metric === 'live') return row.live;
+      if (metric === 'count') {
+        if (kindId === 0) {
+          let n = 0;
+          for (const k of KIND_ALLOC_IDS) n += row.count[k] || 0;
+          if (kindFilter === 'all') return n;
+        }
+        if (kindId === 4) return row.count[4] || 0;
+        return kindId > 0 ? (row.count[kindId] || 0) : 0;
+      }
+      if (kindId === 0) {
+        let b = 0;
+        for (const k of KIND_ALLOC_IDS) b += row.bytes[k] || 0;
+        return b;
+      }
+      if (kindId === 4) return 0;
+      return kindId > 0 ? (row.bytes[kindId] || 0) : 0;
+    }
+
+    const INSTRUMENTATION_RE = /torirs_memtrace_|torirs_hook_|__wrap_|real_malloc|real_calloc|real_realloc|real_reallocf|real_free|real_posix_memalign|real_strdup/;
+    function stripInstrumentation(frames) {
+      if (!state.hideInstrumentation) return frames;
+      const out = frames.filter((f) => !INSTRUMENTATION_RE.test(f));
+      return out.length ? out : frames;
+    }
+
+    function stackFramesForSid(sid) {
+      return stripInstrumentation(state.stacks[sid] || []);
+    }
+
+    function stackCellCollapsedHtml(frames, cellKey) {
+      if (!frames.length) return `<td class="stack">(no stack)</td>`;
+      const head = frames.slice(0, 4).join('\n');
+      const more = frames.length > 4
+        ? `\n<span class="more">… +${frames.length - 4} more (click to expand)</span>`
+        : '';
+      return `<td class="stack stack-cell" data-cell-key="${cellKey}" data-expanded="0">${head}${more}</td>`;
+    }
+
+    function stackCellHtml(sid) {
+      return stackCellCollapsedHtml(stackFramesForSid(sid), 's' + sid);
+    }
+
+    function framesForCellKey(key) {
+      if (key.startsWith('s')) return stackFramesForSid(Number(key.slice(1)));
+      return [];
+    }
+
+    function toggleStackCell(cell) {
+      const key = cell.dataset.cellKey;
+      const expanded = cell.dataset.expanded === '1';
+      const frames = framesForCellKey(key);
+      if (expanded) {
+        cell.dataset.expanded = '0';
+        const head = frames.slice(0, 4).join('\n');
+        const more = frames.length > 4
+          ? `\n<span class="more">… +${frames.length - 4} more (click to expand)</span>`
+          : '';
+        cell.innerHTML = head + more;
+      } else {
+        cell.dataset.expanded = '1';
+        cell.textContent = frames.join('\n');
+      }
+    }
+
+    function buildFlameRows() {
+      return state.perStack
+        .map((row) => ({
+          id: row.id,
+          stack: stripInstrumentation(state.stacks[row.id] || []),
+          value: stackMetric(row, state.metric, state.kindFilter),
+        }))
+        .filter((r) => r.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 500);
+    }
+
+    function buildFlameTree(rows) {
+      const root = { name: 'all', value: 0, children: new Map() };
+      for (const row of rows) {
+        const metricVal = row.value;
+        if (metricVal <= 0) continue;
+        let node = root;
+        node.value += metricVal;
+        const frames = [...(row.stack || [])].reverse();
+        if (!frames.length) frames.push('(unknown)');
+        for (const frame of frames) {
+          if (!node.children.has(frame)) {
+            node.children.set(frame, { name: frame, value: 0, children: new Map() });
+          }
+          node = node.children.get(frame);
+          node.value += metricVal;
+        }
+      }
+      return root;
+    }
+
+    function flattenFlame(node, depth, x, width, out) {
+      out.push({ name: node.name, depth, x, width, value: node.value });
+      const children = [...node.children.values()].sort((a, b) => b.value - a.value);
+      let cx = x;
+      const total = children.reduce((s, c) => s + c.value, 0) || 1;
+      for (const ch of children) {
+        const cw = width * (ch.value / total);
+        flattenFlame(ch, depth + 1, cx, cw, out);
+        cx += cw;
+      }
+    }
+
+    function updateStats() {
+      const el = document.getElementById('stats');
+      if (!state.meta) { el.innerHTML = ''; return; }
+      const m = state.meta;
+      const dur = state.timeline && state.timeline.xRatio.length > 1
+        ? '—'
+        : '—';
+      el.innerHTML = `
+        <span>Events: <strong>${(m.event_count || 0).toLocaleString()}</strong></span>
+        <span>Peak live: <strong>${fmtBytes(m.peak_live_bytes || 0)}</strong></span>
+        <span>Platform: <strong>${m.platform ?? '?'}</strong></span>
+      `;
+    }
+
+    function drawTimeline() {
+      const canvas = document.getElementById('timeline');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (!state.timeline || !state.timeline.xRatio.length) return;
+
+      const { xRatio, yLive, maxLive } = state.timeline;
+      const pad = TIMELINE_PAD;
+      const plotW = w - pad.l - pad.r;
+      const plotH = h - pad.t - pad.b;
+      const denom = maxLive > 0 ? maxLive : 1;
+
+      ctx.strokeStyle = '#2a3142';
+      ctx.beginPath();
+      ctx.moveTo(pad.l, pad.t);
+      ctx.lineTo(pad.l, pad.t + plotH);
+      ctx.lineTo(pad.l + plotW, pad.t + plotH);
+      ctx.stroke();
+
+      ctx.fillStyle = '#9aa3b2';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(fmtBytes(maxLive), 4, pad.t + 10);
+      ctx.fillText('0', 24, pad.t + plotH);
+
+      ctx.strokeStyle = '#5b9cff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < xRatio.length; i++) {
+        const x = pad.l + xRatio[i] * plotW;
+        const y = pad.t + plotH - (yLive[i] / denom) * plotH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      if (state.selectedRatio != null) {
+        const mx = pad.l + state.selectedRatio * plotW;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mx, pad.t);
+        ctx.lineTo(mx, pad.t + plotH);
+        ctx.stroke();
+      }
+
+      function drawTimeMarker(ratio, color, label) {
+        if (ratio == null) return;
+        const mx = pad.l + ratio * plotW;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mx, pad.t);
+        ctx.lineTo(mx, pad.t + plotH);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(label, mx + 3, pad.t + 12);
+      }
+      drawTimeMarker(state.ratioA, '#22d3ee', 'A');
+      drawTimeMarker(state.ratioB, '#f472b6', 'B');
+    }
+
+    function drawFlame() {
+      const canvas = document.getElementById('flame');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const rows = buildFlameRows();
+      const tree = buildFlameTree(rows);
+      const rects = [];
+      flattenFlame(tree, 0, 0, w, rects);
+      let maxDepth = 0;
+      for (const r of rects) if (r.depth > maxDepth) maxDepth = r.depth;
+      const rowH = Math.max(16, Math.min(24, h / (maxDepth + 2)));
+
+      const palette = ['#355c9f', '#3d7a5f', '#8b5a2b', '#7a3d6f', '#2f6f7a', '#6f5a2f'];
+      for (const r of rects) {
+        if (r.width < 1) continue;
+        const y = r.depth * rowH + 4;
+        ctx.fillStyle = palette[r.depth % palette.length];
+        ctx.fillRect(r.x + 1, y, Math.max(0, r.width - 2), rowH - 2);
+        if (r.width > 50) {
+          ctx.fillStyle = '#fff';
+          ctx.font = '11px sans-serif';
+          const label = r.name.length > Math.floor(r.width / 6) ? r.name.slice(0, Math.floor(r.width / 6)) + '…' : r.name;
+          ctx.fillText(label, r.x + 4, y + 12);
+        }
+        r._y = y; r._h = rowH - 2;
+      }
+      canvas._flameRects = rects;
+    }
+
+    function renderTopSites() {
+      const el = document.getElementById('topSites');
+      const rows = buildFlameRows().slice(0, 20);
+      if (!rows.length) { el.className = 'empty'; el.textContent = 'No data.'; return; }
+      el.className = '';
+      el.innerHTML = `<table><thead><tr><th>#</th><th>${state.metric}</th><th>Stack (leaf first)</th></tr></thead><tbody>` +
+        rows.map((r, i) => `<tr><td>${i + 1}</td><td>${state.metric === 'count' ? r.value : fmtBytes(r.value)}</td>${stackCellHtml(r.id)}</tr>`).join('') +
+        '</tbody></table>';
+    }
+
+    function renderLeaks() {
+      const el = document.getElementById('leaks');
+      const controls = document.getElementById('leaksControls');
+      const leaks = state.meta?.top_leaks || [];
+      if (!leaks.length) {
+        controls.hidden = true;
+        el.className = 'empty';
+        el.textContent = state.meta
+          ? `No leaked pointers reported (${state.meta.still_live_count || 0} still live, ${fmtBytes(state.meta.still_live_bytes || 0)}).`
+          : 'Load a trace for leak summary.';
+        return;
+      }
+
+      const total = leaks.length;
+      const pageSize = state.leaksPageSize > 0 ? state.leaksPageSize : total;
+      const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+      if (state.leaksPage >= pageCount) state.leaksPage = pageCount - 1;
+      if (state.leaksPage < 0) state.leaksPage = 0;
+
+      const start = state.leaksPage * pageSize;
+      const page = leaks.slice(start, start + pageSize);
+      const paged = pageSize < total;
+
+      controls.hidden = false;
+      document.getElementById('leaksPageSize').value = String(state.leaksPageSize);
+      document.getElementById('leaksPrev').disabled = !paged || state.leaksPage <= 0;
+      document.getElementById('leaksNext').disabled = !paged || state.leaksPage >= pageCount - 1;
+      const pageInfo = document.getElementById('leaksPageInfo');
+      if (paged) {
+        pageInfo.textContent = `Page ${state.leaksPage + 1} of ${pageCount} · rows ${start + 1}–${start + page.length} of ${total}`;
+      } else {
+        pageInfo.textContent = `${total} row${total === 1 ? '' : 's'}`;
+      }
+
+      let running = 0;
+      for (let i = 0; i < start; i++) running += leaks[i].bytes;
+
+      el.className = '';
+      el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>#</th><th>Pointer</th><th>Bytes</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
+        page.map((l, i) => {
+          running += l.bytes;
+          return `<tr><td>${start + i + 1}</td><td class="stack">${l.ptr}</td><td>${fmtBytes(l.bytes)}</td><td>${fmtBytes(running)}</td>${stackCellHtml(l.sid)}</tr>`;
+        }).join('') +
+        `</tbody></table></div>` +
+        `<p style="color:#9aa3b2;font-size:12px;margin-top:8px">Still live: ${state.meta.still_live_count} pointers, ${fmtBytes(state.meta.still_live_bytes || 0)} total.</p>`;
+    }
+
+    function renderLiveAt() {
+      const el = document.getElementById('liveAt');
+      const controls = document.getElementById('liveAtTableControls');
+      const data = state.liveAt;
+      if (!data || !state.timeline) {
+        controls.hidden = true;
+        el.className = 'empty';
+        el.textContent = 'Move the slider or click the timeline to inspect live allocations.';
+        return;
+      }
+      const sites = data.sites || [];
+      if (!sites.length) {
+        controls.hidden = true;
+        el.className = 'empty';
+        el.textContent = `No live allocations at ${fmtTimeNs(data.tNs)}.`;
+        return;
+      }
+
+      const total = sites.length;
+      const pageSize = state.liveAtPageSize > 0 ? state.liveAtPageSize : total;
+      const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+      if (state.liveAtPage >= pageCount) state.liveAtPage = pageCount - 1;
+      if (state.liveAtPage < 0) state.liveAtPage = 0;
+
+      const start = state.liveAtPage * pageSize;
+      const page = sites.slice(start, start + pageSize);
+      const paged = pageSize < total;
+
+      controls.hidden = false;
+      document.getElementById('liveAtPageSize').value = String(state.liveAtPageSize);
+      document.getElementById('liveAtPrev').disabled = !paged || state.liveAtPage <= 0;
+      document.getElementById('liveAtNext').disabled = !paged || state.liveAtPage >= pageCount - 1;
+      const pageInfo = document.getElementById('liveAtPageInfo');
+      if (paged) {
+        pageInfo.textContent = `Page ${state.liveAtPage + 1} of ${pageCount} · rows ${start + 1}–${start + page.length} of ${total}`;
+      } else {
+        pageInfo.textContent = `${total} row${total === 1 ? '' : 's'}`;
+      }
+
+      let running = 0;
+      for (let i = 0; i < start; i++) running += sites[i].bytes;
+
+      el.className = '';
+      el.innerHTML = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">At ${fmtTimeNs(data.tNs)}: <strong style="color:#e6e8ef">${data.totalCount.toLocaleString()}</strong> pointers, <strong style="color:#e6e8ef">${fmtBytes(data.totalBytes)}</strong> live across <strong style="color:#e6e8ef">${total.toLocaleString()}</strong> sites.</p>` +
+        `<div class="table-wrap"><table><thead><tr><th>#</th><th>Bytes</th><th>Count</th><th>Running sum</th><th>Allocated at</th></tr></thead><tbody>` +
+        page.map((s, i) => {
+          running += s.bytes;
+          return `<tr><td>${start + i + 1}</td><td>${fmtBytes(s.bytes)}</td><td>${s.count}</td><td>${fmtBytes(running)}</td>${stackCellHtml(s.sid)}</tr>`;
+        }).join('') +
+        '</tbody></table></div>';
+    }
+
+    function freedStackCell(freeSid) {
+      return freeSid >= 0 ? stackCellHtml(freeSid) : '<td class="stack">(not seen in window)</td>';
+    }
+
+    function renderDiff() {
+      const el = document.getElementById('diff');
+      const data = state.diff;
+      if (!data || !state.timeline) {
+        el.className = 'empty';
+        el.textContent = 'Set A and B to compare live allocations between two times.';
+        return;
+      }
+      const deltaBytes = data.totalB - data.totalA;
+      const deltaCount = data.totalCountB - data.totalCountA;
+      const deltaBytesCls = deltaBytes >= 0 ? 'delta-pos' : 'delta-neg';
+      const deltaCountCls = deltaCount >= 0 ? 'delta-pos' : 'delta-neg';
+
+      let html = `<p style="color:#9aa3b2;font-size:12px;margin:0 0 8px">` +
+        `A ${fmtTimeNs(data.tA)}: <strong style="color:#e6e8ef">${fmtBytes(data.totalA)}</strong> (${data.totalCountA.toLocaleString()} ptrs) → ` +
+        `B ${fmtTimeNs(data.tB)}: <strong style="color:#e6e8ef">${fmtBytes(data.totalB)}</strong> (${data.totalCountB.toLocaleString()} ptrs), ` +
+        `Δ <strong class="${deltaBytesCls}">${fmtDelta(deltaBytes)}</strong> / ` +
+        `<strong class="${deltaCountCls}">${deltaCount >= 0 ? '+' : ''}${deltaCount.toLocaleString()}</strong> ptrs</p>`;
+
+      const sites = data.sites || [];
+      if (sites.length) {
+        html += `<div class="table-wrap"><table><thead><tr><th>Δ Bytes</th><th>Bytes A</th><th>Bytes B</th><th>Δ Count</th><th>Allocated at</th></tr></thead><tbody>` +
+          sites.map(s => {
+            const cls = s.deltaBytes >= 0 ? 'delta-pos' : 'delta-neg';
+            const countCls = s.deltaCount >= 0 ? 'delta-pos' : 'delta-neg';
+            return `<tr><td class="${cls}">${fmtDelta(s.deltaBytes)}</td><td>${fmtBytes(s.bytesA)}</td><td>${fmtBytes(s.bytesB)}</td>` +
+              `<td class="${countCls}">${s.deltaCount >= 0 ? '+' : ''}${s.deltaCount}</td>${stackCellHtml(s.sid)}</tr>`;
+          }).join('') +
+          '</tbody></table></div>';
+      } else {
+        html += `<p style="color:#9aa3b2;font-size:12px">No per-site changes between A and B.</p>`;
+      }
+
+      const added = data.added || [];
+      const freed = data.freed || [];
+      const freedTotal = data.freedTotal || 0;
+      if (added.length) {
+        html += `<h3 style="font-size:13px;margin:16px 0 8px">Newly allocated (in B, not A)${data.addedTotal > added.length ? ` — top ${added.length} of ${data.addedTotal}` : ''}</h3>` +
+          `<div class="table-wrap"><table><thead><tr><th>Pointer</th><th>Bytes</th><th>Allocated at</th></tr></thead><tbody>` +
+          added.map(p => `<tr><td class="stack">${p.ptr}</td><td>${fmtBytes(p.bytes)}</td>${stackCellHtml(p.sid)}</tr>`).join('') +
+          '</tbody></table></div>';
+      }
+      if (freed.length || freedTotal > 0 || data.totalCountA > data.totalCountB) {
+        html += `<h3 style="font-size:13px;margin:16px 0 8px">Freed (in A, not B)${freedTotal > freed.length ? ` — top ${freed.length} of ${freedTotal}` : ''}</h3>`;
+        if (freed.length) {
+          html += `<div class="table-wrap"><table><thead><tr><th>Pointer</th><th>Bytes</th><th>Allocated at</th><th>Freed at</th></tr></thead><tbody>` +
+            freed.map(p => `<tr><td class="stack">${p.ptr}</td><td>${fmtBytes(p.bytes)}</td>${stackCellHtml(p.sid)}${freedStackCell(p.freeSid)}</tr>`).join('') +
+            '</tbody></table></div>';
+        } else {
+          html += `<p style="color:#9aa3b2;font-size:12px">No individual freed pointers in this A→B window. Move <strong style="color:#22d3ee">A</strong> later (or <strong style="color:#f472b6">B</strong> earlier) to capture frees between two instants.</p>`;
+        }
+      }
+
+      el.className = '';
+      el.innerHTML = html;
+    }
+
+    function updateTimeReadout(tNs) {
+      const el = document.getElementById('timeReadout');
+      if (!state.timeline) {
+        el.textContent = '';
+        return;
+      }
+      const { tMin, tMax } = state.timeline;
+      const span = tMax - tMin;
+      const pct = span > 0 ? ((tNs - tMin) / span * 100).toFixed(1) : '100.0';
+      el.textContent = `${fmtTimeNs(tNs)} (${pct}% of trace)`;
+    }
+
+    function requestLiveAt(ratio) {
+      if (!state.timeline) return;
+      const r = Math.max(0, Math.min(1, ratio));
+      state.selectedRatio = r;
+      state.liveAtPage = 0;
+      const { tMin, tMax } = state.timeline;
+      const tNs = tMin + r * (tMax - tMin);
+      const slider = document.getElementById('timeSlider');
+      slider.value = String(Math.round(r * 1000));
+      updateTimeReadout(tNs);
+      drawTimeline();
+      worker.postMessage({ type: 'live-at', tNs });
+    }
+
+    function updateDiffReadouts(tA, tB) {
+      if (!state.timeline) {
+        document.getElementById('diffReadoutA').textContent = '';
+        document.getElementById('diffReadoutB').textContent = '';
+        return;
+      }
+      const { tMin, tMax } = state.timeline;
+      const span = tMax - tMin;
+      const pctA = span > 0 ? ((tA - tMin) / span * 100).toFixed(1) : '0.0';
+      const pctB = span > 0 ? ((tB - tMin) / span * 100).toFixed(1) : '100.0';
+      document.getElementById('diffReadoutA').textContent = `${fmtTimeNs(tA)} (${pctA}%)`;
+      document.getElementById('diffReadoutB').textContent = `${fmtTimeNs(tB)} (${pctB}%)`;
+    }
+
+    function requestDiff() {
+      if (!state.timeline) return;
+      const { tMin, tMax } = state.timeline;
+      const tA = tMin + state.ratioA * (tMax - tMin);
+      const tB = tMin + state.ratioB * (tMax - tMin);
+      document.getElementById('diffSliderA').value = String(Math.round(state.ratioA * 1000));
+      document.getElementById('diffSliderB').value = String(Math.round(state.ratioB * 1000));
+      updateDiffReadouts(tA, tB);
+      drawTimeline();
+      worker.postMessage({ type: 'diff', tA, tB });
+    }
+
+    function renderAll() {
+      updateStats();
+      drawTimeline();
+      drawFlame();
+      renderTopSites();
+      renderLeaks();
+      renderLiveAt();
+      renderDiff();
+      setStatus('');
+      updateExportSqliteBtn();
+    }
+
+    function applyDecoded(msg) {
+      state.meta = msg.meta;
+      state.timeline = msg.timeline;
+      state.perStack = msg.perStack;
+      state.stacks = msg.stacks;
+      state.liveAt = null;
+      state.diff = null;
+      state.selectedRatio = 1;
+      state.ratioA = 0.05;
+      state.ratioB = 1;
+      state.leaksPage = 0;
+      state.liveAtPage = 0;
+      document.getElementById('diffSliderA').value = '50';
+      document.getElementById('diffSliderB').value = '1000';
+      renderAll();
+      requestLiveAt(1);
+      requestDiff();
+    }
+
+    function decodeInWorker(payload) {
+      state.busy = true;
+      setStatus('Decoding…');
+      worker.postMessage(payload);
+    }
+
+    async function ingestBytes(buffer, { cache = true, ackOpener = false, filename = 'memtrace.bin' } = {}) {
+      setTraceSource(filename, new Blob([buffer], { type: 'application/octet-stream' }));
+      if (cache) {
+        try {
+          const copy = buffer.slice(0);
+          await idbPutTrace(copy);
+        } catch (e) {
+          console.warn('IndexedDB cache write failed', e);
+        }
+      }
+      decodeInWorker({ type: 'decode-bytes', buffer });
+      if (ackOpener && window.opener) {
+        window.opener.postMessage({ type: 'memtrace-acked' }, window.location.origin);
+      }
+    }
+
+    worker.onmessage = (ev) => {
+      const msg = ev.data;
+      if (msg.type === 'decoded') {
+        state.busy = false;
+        applyDecoded(msg);
+        return;
+      }
+      if (msg.type === 'live-at') {
+        state.liveAt = msg;
+        renderLiveAt();
+        return;
+      }
+      if (msg.type === 'diff') {
+        state.diff = msg;
+        renderDiff();
+        return;
+      }
+      if (msg.type === 'sqlite') {
+        state.exportSqliteBusy = false;
+        downloadSqlite(msg.bytes);
+        setStatus('');
+        updateExportSqliteBtn();
+        return;
+      }
+      if (msg.type === 'error') {
+        state.busy = false;
+        state.exportSqliteBusy = false;
+        setStatus('');
+        updateExportSqliteBtn();
+        alert(msg.message || 'Decode failed');
+      }
+    };
+
+    document.getElementById('eventsFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      setTraceSource(file.name, new Blob([text], { type: 'application/x-ndjson' }));
+      decodeInWorker({ type: 'decode-jsonl', text });
+    });
+
+    document.getElementById('binFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      await ingestBytes(await file.arrayBuffer(), { cache: true, filename: file.name });
+    });
+
+    document.getElementById('metaFile').addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      state.meta = { ...state.meta, ...JSON.parse(await file.text()) };
+      renderLeaks();
+      updateStats();
+    });
+
+    document.querySelectorAll('input[name=metric]').forEach((el) => {
+      el.addEventListener('change', () => {
+        state.metric = document.querySelector('input[name=metric]:checked').value;
+        drawFlame();
+        renderTopSites();
+      });
+    });
+
+    document.getElementById('kindFilter').addEventListener('change', (ev) => {
+      state.kindFilter = ev.target.value;
+      drawFlame();
+      renderTopSites();
+    });
+
+    document.getElementById('hideInstrumentation').addEventListener('change', (ev) => {
+      state.hideInstrumentation = ev.target.checked;
+      drawFlame();
+      renderTopSites();
+      renderLeaks();
+      renderLiveAt();
+      renderDiff();
+    });
+
+    document.getElementById('leaksPageSize').addEventListener('change', (ev) => {
+      state.leaksPageSize = Number(ev.target.value);
+      state.leaksPage = 0;
+      renderLeaks();
+    });
+
+    document.getElementById('leaksPrev').addEventListener('click', () => {
+      if (state.leaksPage > 0) {
+        state.leaksPage -= 1;
+        renderLeaks();
+      }
+    });
+
+    document.getElementById('leaksNext').addEventListener('click', () => {
+      state.leaksPage += 1;
+      renderLeaks();
+    });
+
+    document.getElementById('liveAtPageSize').addEventListener('change', (ev) => {
+      state.liveAtPageSize = Number(ev.target.value);
+      state.liveAtPage = 0;
+      renderLiveAt();
+    });
+
+    document.getElementById('liveAtPrev').addEventListener('click', () => {
+      if (state.liveAtPage > 0) {
+        state.liveAtPage -= 1;
+        renderLiveAt();
+      }
+    });
+
+    document.getElementById('liveAtNext').addEventListener('click', () => {
+      state.liveAtPage += 1;
+      renderLiveAt();
+    });
+
+    document.getElementById('timeSlider').addEventListener('input', (ev) => {
+      requestLiveAt(Number(ev.target.value) / 1000);
+    });
+
+    function setupCollapsibleDetails(el, storageKey) {
+      try {
+        const saved = sessionStorage.getItem(storageKey);
+        if (saved === '0') el.open = false;
+      } catch (_) { /* ignore */ }
+      el.addEventListener('toggle', () => {
+        try {
+          sessionStorage.setItem(storageKey, el.open ? '1' : '0');
+        } catch (_) { /* ignore */ }
+      });
+    }
+
+    setupCollapsibleDetails(document.getElementById('liveAtDetails'), 'memtrace-viewer-liveAt-open');
+    setupCollapsibleDetails(document.getElementById('diffDetails'), 'memtrace-viewer-diff-open');
+
+    document.getElementById('diffSliderA').addEventListener('input', (ev) => {
+      state.ratioA = Number(ev.target.value) / 1000;
+      requestDiff();
+    });
+
+    document.getElementById('diffSliderB').addEventListener('input', (ev) => {
+      state.ratioB = Number(ev.target.value) / 1000;
+      requestDiff();
+    });
+
+    document.querySelector('main').addEventListener('click', (ev) => {
+      const cell = ev.target.closest('.stack-cell');
+      if (cell) toggleStackCell(cell);
+    });
+
+    document.getElementById('downloadTraceBtn').addEventListener('click', downloadTrace);
+
+    document.getElementById('exportSqliteBtn').addEventListener('click', () => {
+      if (!state.timeline || state.exportSqliteBusy) return;
+      state.exportSqliteBusy = true;
+      setStatus('Building SQLite…');
+      updateExportSqliteBtn();
+      worker.postMessage({ type: 'export-sqlite' });
+    });
+
+    document.getElementById('clearCacheBtn').addEventListener('click', async () => {
+      await idbClearTrace();
+      setStatus('Cache cleared.');
+    });
+
+    const tooltip = document.getElementById('tooltip');
+    document.getElementById('flame').addEventListener('mousemove', (ev) => {
+      const canvas = ev.target;
+      const rects = canvas._flameRects || [];
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      const hit = rects.find(r => x >= r.x && x <= r.x + r.width && y >= r._y && y <= r._y + r._h);
+      if (!hit) { tooltip.style.display = 'none'; return; }
+      tooltip.style.display = 'block';
+      tooltip.style.left = (ev.clientX + 12) + 'px';
+      tooltip.style.top = (ev.clientY + 12) + 'px';
+      tooltip.innerHTML = `<strong>${hit.name}</strong><br/>${state.metric}: ${state.metric === 'count' ? hit.value : fmtBytes(hit.value)}`;
+    });
+    document.getElementById('flame').addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    document.getElementById('timeline').addEventListener('click', (ev) => {
+      if (!state.timeline) return;
+      const canvas = ev.target;
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const plotW = canvas.clientWidth - TIMELINE_PAD.l - TIMELINE_PAD.r;
+      if (plotW <= 0) return;
+      const ratio = (x - TIMELINE_PAD.l) / plotW;
+      if (ratio < 0 || ratio > 1) return;
+      requestLiveAt(ratio);
+    });
+    window.addEventListener('resize', () => { drawTimeline(); drawFlame(); });
+
+    window.addEventListener('message', async (ev) => {
+      const data = ev.data;
+      if (!data) return;
+      if (data.type === 'memtrace-bytes' && data.buffer) {
+        await ingestBytes(data.buffer, { cache: true, ackOpener: true });
+      } else if (data.type === 'memtrace-data') {
+        const events = data.events || [];
+        const text = events.map((e) => JSON.stringify(e)).join('\n') + (events.length ? '\n' : '');
+        setTraceSource('events.jsonl', new Blob([text], { type: 'application/x-ndjson' }));
+        decodeInWorker({ type: 'decode-events', events, meta: data.meta || null });
+        if (window.opener) {
+          window.opener.postMessage({ type: 'memtrace-acked' }, window.location.origin);
+        }
+      }
+    });
+
+    async function boot() {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'memtrace-ready' }, window.location.origin);
+        return;
+      }
+      try {
+        const cached = await idbGetTrace();
+        if (cached) {
+          setStatus('Loading cached trace…');
+          await ingestBytes(cached, { cache: false });
+        }
+      } catch (e) {
+        console.warn('IndexedDB cache read failed', e);
+      }
+    }
+
+    boot();
+    updateDownloadBtn();
+    updateExportSqliteBtn();
+  </script>
+</body>
+</html>

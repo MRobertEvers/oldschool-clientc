@@ -1,0 +1,53 @@
+# Equip BAS port queue
+
+Agent-loop state for equipable-item stats, stance BAS (`*_baseanim`), and
+related attack/defend anim overlays (LostCity → OSRS-Content).
+
+Inventory = objs with `wearpos` (RuneLite/cache equipables). Stats = cache
+params (do not import RuneLite `ItemEquipmentStats`). BAS = LostCity
+`ready_baseanim`…`running_baseanim` + `~update_bas`. Post-254 weapons without
+LC overlays keep param defaults.
+
+Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4.
+Status: `pending` | `in_progress` | `done` | `blocked`.
+
+## Shared tree — never silence another lane
+
+**Do not ever** `.rs2.skip` / `dirname.skip` / move / delete sibling content
+to green `sscompile`. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
+
+Loop prompt: read this file + PORTING_GUIDE §4 / §7; if any slice is
+pending/unblocked, port it; NEVER park sibling lanes; verify
+(`mock230_pack --check-only`, `make -C src mock230-scripts`); update this file;
+re-arm. Stop only when the user stops the loop.
+
+| # | Slice | Status | Notes |
+|---|---|---|---|
+| 0 | Queue tracker | done | This file |
+| 1 | Engine idle-anim path | done | Player fields + READYANIM…RUNANIM; put_appearance reads them; coverage regenerated |
+| 2 | `~update_bas` | done | appearance.rs2; equip/unequip/login; content-owned (no engine hook) |
+| 3 | BAS overlays — spears | done | 21 objs in skill_combat/configs/bas/spears.obj |
+| 4 | BAS overlays — polearms | done | 8 objs in bas/polearms.obj |
+| 5 | BAS overlays — staves | done | 17 objs in bas/staves.obj |
+| 6 | BAS overlays — sparse | done | dragon_longsword human_ds_ready |
+| 7 | Attack/defend anim overlays | done | 210 objs in bas/attack_anims.obj; stab/crushattack_anim params; combat_attack_anim style switch |
+| 8 | Stats audit | done | Cache bonuses remain authority (bronze scimitar selftest); no RL dump |
+| 9 | Headless verify | done | Selftest: spear wield → human_staffready; unequip → human_ready; pack 0 errors |
+
+## Superseded for post-2004 weapons
+
+Slices 3–7 above are the **LostCity** overlays, and LostCity stops in September
+2004. Measured 2026-08-04: they cover 170 of this cache's 1,083 combat weapons,
+and the other **913 swing a param default** — an abyssal whip plays
+`human_sword_slash`. Nothing here is wrong; it simply ends where its reference
+does.
+
+The continuation is [`WEAPON_FX_PORT_QUEUE.md`](WEAPON_FX_PORT_QUEUE.md), with
+the measurements in [`WEAPON_FX.md`](WEAPON_FX.md). Slice 8's "Stats audit —
+cache bonuses remain authority" still holds and is not revisited there.
+
+## Log
+
+- queue created (equip BAS parallel to CONTENT_PORT_QUEUE)
+- slices 1–9 done in one pass: engine READYANIM hosts, ~update_bas, LC BAS+attack overlays, obj param overlay loader (beyond levelrequire), server .param defaults walk, opcode coverage regen, pack 0 errors

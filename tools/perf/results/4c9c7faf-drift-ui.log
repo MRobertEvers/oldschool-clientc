@@ -1,0 +1,1427 @@
+torirs: dat2 cache=/Users/matthewevers/Documents/git_repos/3draster/cache.osrs239 iface=161
+torirs_perf: enabled (ring=2048 window=500 budget=20ms) csv=/Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/4c9c7faf-drift-ui.csv
+audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
+audio: no device; running silent
+mock230: features era=osrs approach=rect op_nearest=10
+mock230: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
+mock230: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+mock230: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+mock230: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19008 records from cache.osrs239)
+mock230: 1117 param types from configs/all.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (213780 symbols, 503 constants, 44 npc defs, 2204 loc defs, 206 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
+mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (817 overlay authored defs, 24 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+mock230: db tables loaded (257 tables, 15608 rows from cache.osrs239; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+sim_hotkey: 'escape' -> osrs_key=13 at frame 350
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+boot: 5960ms  frames=1 steps=242 capped=0
+mock230: login user='testc' session=ok
+mock230: 1140 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+mock230: 1 opcode(s) this content uses are not implemented:
+  LINEOFWALK                   first wanted by [opheld1,mithril_seed]
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+net: no decoder for wire opcode 108 (osrs230) — dropped
+textures: sprite-backed system (no materials table)
+Failed to load dat2 texture 65535
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+painter_paint_bucket: draw box 25x25 has 0 visible tiles (cullspan=1 cullmap_radius=0) — world will be blank; set TORIRS_PAINTER_NOCULL=1 to recover
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+Failed to load dat2 idk 307
+spawn_player: element=59751 tile=84,84 level=0
+spawn_npc: npc=3111 element=59752 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=3106 element=59753 tile=90,84 level=0 size=1 recolors=4 retextures=0
+spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3108 element=59755 tile=90,84 level=0 size=1 recolors=2 retextures=0
+spawn_npc: npc=5007 element=59756 tile=90,84 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=10619 element=59757 tile=90,84 level=0 size=1 recolors=5 retextures=0
+spawn_npc: npc=13618 element=59758 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=0 element=59759 tile=90,84 level=0 size=1 recolors=0 retextures=0
+spawn_npc: npc=6773 element=59760 tile=90,84 level=0 size=1 recolors=6 retextures=0
+spawn_npc: npc=3254 element=59761 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=3254 element=59762 tile=90,84 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc=6816 element=59763 tile=90,84 level=0 size=1 recolors=3 retextures=0
+sim_hotkey: 'f1' -> osrs_key=1 at frame 400
+sim_hotkey: 'f2' -> osrs_key=2 at frame 425
+sim_hotkey: 'f3' -> osrs_key=3 at frame 450
+sim_hotkey: 'f4' -> osrs_key=4 at frame 475
+sim_hotkey: 'f5' -> osrs_key=5 at frame 500
+torirs_perf: window=500 writing /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/4c9c7faf-drift-ui.csv.windows.csv
+torirs_perf: window=0 frame_p95=5.26ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 525
+sim_hotkey: 'f7' -> osrs_key=7 at frame 550
+sim_hotkey: 'f8' -> osrs_key=8 at frame 575
+sim_hotkey: 'f9' -> osrs_key=9 at frame 600
+sim_hotkey: 'f10' -> osrs_key=10 at frame 625
+sim_hotkey: 'f11' -> osrs_key=11 at frame 650
+sim_hotkey: 'f12' -> osrs_key=12 at frame 675
+sim_hotkey: 'escape' -> osrs_key=13 at frame 700
+sim_hotkey: 'f1' -> osrs_key=1 at frame 725
+sim_hotkey: 'f2' -> osrs_key=2 at frame 750
+sim_hotkey: 'f3' -> osrs_key=3 at frame 775
+sim_hotkey: 'f4' -> osrs_key=4 at frame 800
+sim_hotkey: 'f5' -> osrs_key=5 at frame 825
+sim_hotkey: 'f6' -> osrs_key=6 at frame 850
+sim_hotkey: 'f7' -> osrs_key=7 at frame 875
+sim_hotkey: 'f8' -> osrs_key=8 at frame 900
+sim_hotkey: 'f9' -> osrs_key=9 at frame 925
+sim_hotkey: 'f10' -> osrs_key=10 at frame 950
+sim_hotkey: 'f11' -> osrs_key=11 at frame 975
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1000
+torirs_perf: window=1 frame_p95=6.04ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1025
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1050
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1075
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1100
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1125
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1150
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1175
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1200
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1225
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1250
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1275
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1300
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1325
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1350
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1375
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1400
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1425
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1450
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1475
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1500
+torirs_perf: window=2 frame_p95=4.85ms
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1525
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1550
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1575
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1600
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1625
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1650
+sim_hotkey: 'escape' -> osrs_key=13 at frame 1675
+sim_hotkey: 'f1' -> osrs_key=1 at frame 1700
+sim_hotkey: 'f2' -> osrs_key=2 at frame 1725
+sim_hotkey: 'f3' -> osrs_key=3 at frame 1750
+sim_hotkey: 'f4' -> osrs_key=4 at frame 1775
+sim_hotkey: 'f5' -> osrs_key=5 at frame 1800
+sim_hotkey: 'f6' -> osrs_key=6 at frame 1825
+sim_hotkey: 'f7' -> osrs_key=7 at frame 1850
+sim_hotkey: 'f8' -> osrs_key=8 at frame 1875
+sim_hotkey: 'f9' -> osrs_key=9 at frame 1900
+sim_hotkey: 'f10' -> osrs_key=10 at frame 1925
+sim_hotkey: 'f11' -> osrs_key=11 at frame 1950
+sim_hotkey: 'f12' -> osrs_key=12 at frame 1975
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2000
+torirs_perf: window=3 frame_p95=5.72ms
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2025
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2050
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2075
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2100
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2125
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2150
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2175
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2200
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2225
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2250
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2275
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2300
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2325
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2350
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2375
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2400
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2425
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2450
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2475
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2500
+torirs_perf: window=4 frame_p95=5.12ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2525
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2550
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2575
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2600
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2625
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2650
+spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
+sim_hotkey: 'f1' -> osrs_key=1 at frame 2675
+sim_hotkey: 'f2' -> osrs_key=2 at frame 2700
+sim_hotkey: 'f3' -> osrs_key=3 at frame 2725
+sim_hotkey: 'f4' -> osrs_key=4 at frame 2750
+sim_hotkey: 'f5' -> osrs_key=5 at frame 2775
+sim_hotkey: 'f6' -> osrs_key=6 at frame 2800
+sim_hotkey: 'f7' -> osrs_key=7 at frame 2825
+sim_hotkey: 'f8' -> osrs_key=8 at frame 2850
+sim_hotkey: 'f9' -> osrs_key=9 at frame 2875
+sim_hotkey: 'f10' -> osrs_key=10 at frame 2900
+sim_hotkey: 'f11' -> osrs_key=11 at frame 2925
+sim_hotkey: 'f12' -> osrs_key=12 at frame 2950
+sim_hotkey: 'escape' -> osrs_key=13 at frame 2975
+sim_hotkey: 'f1' -> osrs_key=1 at frame 3000
+torirs_perf: window=5 frame_p95=9.32ms
+sim_hotkey: 'f2' -> osrs_key=2 at frame 3025
+sim_hotkey: 'f3' -> osrs_key=3 at frame 3050
+sim_hotkey: 'f4' -> osrs_key=4 at frame 3075
+sim_hotkey: 'f5' -> osrs_key=5 at frame 3100
+sim_hotkey: 'f6' -> osrs_key=6 at frame 3125
+sim_hotkey: 'f7' -> osrs_key=7 at frame 3150
+sim_hotkey: 'f8' -> osrs_key=8 at frame 3175
+sim_hotkey: 'f9' -> osrs_key=9 at frame 3200
+sim_hotkey: 'f10' -> osrs_key=10 at frame 3225
+sim_hotkey: 'f11' -> osrs_key=11 at frame 3250
+sim_hotkey: 'f12' -> osrs_key=12 at frame 3275
+sim_hotkey: 'escape' -> osrs_key=13 at frame 3300
+sim_hotkey: 'f1' -> osrs_key=1 at frame 3325
+sim_hotkey: 'f2' -> osrs_key=2 at frame 3350
+sim_hotkey: 'f3' -> osrs_key=3 at frame 3375
+sim_hotkey: 'f4' -> osrs_key=4 at frame 3400
+sim_hotkey: 'f5' -> osrs_key=5 at frame 3425
+sim_hotkey: 'f6' -> osrs_key=6 at frame 3450
+sim_hotkey: 'f7' -> osrs_key=7 at frame 3475
+sim_hotkey: 'f8' -> osrs_key=8 at frame 3500
+torirs_perf: window=6 frame_p95=12.60ms
+sim_hotkey: 'f9' -> osrs_key=9 at frame 3525
+sim_hotkey: 'f10' -> osrs_key=10 at frame 3550
+sim_hotkey: 'f11' -> osrs_key=11 at frame 3575
+sim_hotkey: 'f12' -> osrs_key=12 at frame 3600
+sim_hotkey: 'escape' -> osrs_key=13 at frame 3625
+sim_hotkey: 'f1' -> osrs_key=1 at frame 3650
+sim_hotkey: 'f2' -> osrs_key=2 at frame 3675
+sim_hotkey: 'f3' -> osrs_key=3 at frame 3700
+sim_hotkey: 'f4' -> osrs_key=4 at frame 3725
+sim_hotkey: 'f5' -> osrs_key=5 at frame 3750
+sim_hotkey: 'f6' -> osrs_key=6 at frame 3775
+sim_hotkey: 'f7' -> osrs_key=7 at frame 3800
+sim_hotkey: 'f8' -> osrs_key=8 at frame 3825
+sim_hotkey: 'f9' -> osrs_key=9 at frame 3850
+sim_hotkey: 'f10' -> osrs_key=10 at frame 3875
+sim_hotkey: 'f11' -> osrs_key=11 at frame 3900
+sim_hotkey: 'f12' -> osrs_key=12 at frame 3925
+sim_hotkey: 'escape' -> osrs_key=13 at frame 3950
+sim_hotkey: 'f1' -> osrs_key=1 at frame 3975
+sim_hotkey: 'f2' -> osrs_key=2 at frame 4000
+torirs_perf: window=7 frame_p95=12.84ms
+sim_hotkey: 'f3' -> osrs_key=3 at frame 4025
+sim_hotkey: 'f4' -> osrs_key=4 at frame 4050
+spawn_npc: npc=3111 element=59754 tile=90,84 level=0 size=1 recolors=3 retextures=0
+sim_hotkey: 'f5' -> osrs_key=5 at frame 4075
+sim_hotkey: 'f6' -> osrs_key=6 at frame 4100
+sim_hotkey: 'f7' -> osrs_key=7 at frame 4125
+sim_hotkey: 'f8' -> osrs_key=8 at frame 4150
+sim_hotkey: 'f9' -> osrs_key=9 at frame 4175
+sim_hotkey: 'f10' -> osrs_key=10 at frame 4200
+sim_hotkey: 'f11' -> osrs_key=11 at frame 4225
+sim_hotkey: 'f12' -> osrs_key=12 at frame 4250
+sim_hotkey: 'escape' -> osrs_key=13 at frame 4275
+sim_hotkey: 'f1' -> osrs_key=1 at frame 4300
+sim_hotkey: 'f2' -> osrs_key=2 at frame 4325
+sim_hotkey: 'f3' -> osrs_key=3 at frame 4350
+sim_hotkey: 'f4' -> osrs_key=4 at frame 4375
+sim_hotkey: 'f5' -> osrs_key=5 at frame 4400
+sim_hotkey: 'f6' -> osrs_key=6 at frame 4425
+sim_hotkey: 'f7' -> osrs_key=7 at frame 4450
+sim_hotkey: 'f8' -> osrs_key=8 at frame 4475
+sim_hotkey: 'f9' -> osrs_key=9 at frame 4500
+torirs_perf: window=8 frame_p95=13.72ms
+sim_hotkey: 'f10' -> osrs_key=10 at frame 4525
+sim_hotkey: 'f11' -> osrs_key=11 at frame 4550
+sim_hotkey: 'f12' -> osrs_key=12 at frame 4575
+sim_hotkey: 'escape' -> osrs_key=13 at frame 4600
+sim_hotkey: 'f1' -> osrs_key=1 at frame 4625
+sim_hotkey: 'f2' -> osrs_key=2 at frame 4650
+sim_hotkey: 'f3' -> osrs_key=3 at frame 4675
+sim_hotkey: 'f4' -> osrs_key=4 at frame 4700
+sim_hotkey: 'f5' -> osrs_key=5 at frame 4725
+sim_hotkey: 'f6' -> osrs_key=6 at frame 4750
+sim_hotkey: 'f7' -> osrs_key=7 at frame 4775
+sim_hotkey: 'f8' -> osrs_key=8 at frame 4800
+sim_hotkey: 'f9' -> osrs_key=9 at frame 4825
+sim_hotkey: 'f10' -> osrs_key=10 at frame 4850
+sim_hotkey: 'f11' -> osrs_key=11 at frame 4875
+sim_hotkey: 'f12' -> osrs_key=12 at frame 4900
+sim_hotkey: 'escape' -> osrs_key=13 at frame 4925
+sim_hotkey: 'f1' -> osrs_key=1 at frame 4950
+sim_hotkey: 'f2' -> osrs_key=2 at frame 4975
+sim_hotkey: 'f3' -> osrs_key=3 at frame 5000
+torirs_perf: window=9 frame_p95=4.97ms
+sim_hotkey: 'f4' -> osrs_key=4 at frame 5025
+sim_hotkey: 'f5' -> osrs_key=5 at frame 5050
+sim_hotkey: 'f6' -> osrs_key=6 at frame 5075
+sim_hotkey: 'f7' -> osrs_key=7 at frame 5100
+sim_hotkey: 'f8' -> osrs_key=8 at frame 5125
+sim_hotkey: 'f9' -> osrs_key=9 at frame 5150
+sim_hotkey: 'f10' -> osrs_key=10 at frame 5175
+sim_hotkey: 'f11' -> osrs_key=11 at frame 5200
+sim_hotkey: 'f12' -> osrs_key=12 at frame 5225
+sim_hotkey: 'escape' -> osrs_key=13 at frame 5250
+sim_hotkey: 'f1' -> osrs_key=1 at frame 5275
+sim_hotkey: 'f2' -> osrs_key=2 at frame 5300
+sim_hotkey: 'f3' -> osrs_key=3 at frame 5325
+sim_hotkey: 'f4' -> osrs_key=4 at frame 5350
+sim_hotkey: 'f5' -> osrs_key=5 at frame 5375
+sim_hotkey: 'f6' -> osrs_key=6 at frame 5400
+sim_hotkey: 'f7' -> osrs_key=7 at frame 5425
+sim_hotkey: 'f8' -> osrs_key=8 at frame 5450
+sim_hotkey: 'f9' -> osrs_key=9 at frame 5475
+sim_hotkey: 'f10' -> osrs_key=10 at frame 5500
+torirs_perf: window=10 frame_p95=8.55ms
+sim_hotkey: 'f11' -> osrs_key=11 at frame 5525
+sim_hotkey: 'f12' -> osrs_key=12 at frame 5550
+sim_hotkey: 'escape' -> osrs_key=13 at frame 5575
+sim_hotkey: 'f1' -> osrs_key=1 at frame 5600
+sim_hotkey: 'f2' -> osrs_key=2 at frame 5625
+sim_hotkey: 'f3' -> osrs_key=3 at frame 5650
+sim_hotkey: 'f4' -> osrs_key=4 at frame 5675
+sim_hotkey: 'f5' -> osrs_key=5 at frame 5700
+sim_hotkey: 'f6' -> osrs_key=6 at frame 5725
+sim_hotkey: 'f7' -> osrs_key=7 at frame 5750
+sim_hotkey: 'f8' -> osrs_key=8 at frame 5775
+sim_hotkey: 'f9' -> osrs_key=9 at frame 5800
+sim_hotkey: 'f10' -> osrs_key=10 at frame 5825
+sim_hotkey: 'f11' -> osrs_key=11 at frame 5850
+sim_hotkey: 'f12' -> osrs_key=12 at frame 5875
+sim_hotkey: 'escape' -> osrs_key=13 at frame 5900
+sim_hotkey: 'f1' -> osrs_key=1 at frame 5925
+sim_hotkey: 'f2' -> osrs_key=2 at frame 5950
+sim_hotkey: 'f3' -> osrs_key=3 at frame 5975
+sim_hotkey: 'f4' -> osrs_key=4 at frame 6000
+torirs_perf: window=11 frame_p95=4.77ms
+sim_hotkey: 'f5' -> osrs_key=5 at frame 6025
+sim_hotkey: 'f6' -> osrs_key=6 at frame 6050
+sim_hotkey: 'f7' -> osrs_key=7 at frame 6075
+sim_hotkey: 'f8' -> osrs_key=8 at frame 6100
+sim_hotkey: 'f9' -> osrs_key=9 at frame 6125
+sim_hotkey: 'f10' -> osrs_key=10 at frame 6150
+sim_hotkey: 'f11' -> osrs_key=11 at frame 6175
+sim_hotkey: 'f12' -> osrs_key=12 at frame 6200
+sim_hotkey: 'escape' -> osrs_key=13 at frame 6225
+sim_hotkey: 'f1' -> osrs_key=1 at frame 6250
+sim_hotkey: 'f2' -> osrs_key=2 at frame 6275
+sim_hotkey: 'f3' -> osrs_key=3 at frame 6300
+sim_hotkey: 'f4' -> osrs_key=4 at frame 6325
+sim_hotkey: 'f5' -> osrs_key=5 at frame 6350
+sim_hotkey: 'f6' -> osrs_key=6 at frame 6375
+sim_hotkey: 'f7' -> osrs_key=7 at frame 6400
+sim_hotkey: 'f8' -> osrs_key=8 at frame 6425
+sim_hotkey: 'f9' -> osrs_key=9 at frame 6450
+sim_hotkey: 'f10' -> osrs_key=10 at frame 6475
+sim_hotkey: 'f11' -> osrs_key=11 at frame 6500
+torirs_perf: window=12 frame_p95=8.77ms
+sim_hotkey: 'f12' -> osrs_key=12 at frame 6525
+sim_hotkey: 'escape' -> osrs_key=13 at frame 6550
+sim_hotkey: 'f1' -> osrs_key=1 at frame 6575
+sim_hotkey: 'f2' -> osrs_key=2 at frame 6600
+sim_hotkey: 'f3' -> osrs_key=3 at frame 6625
+sim_hotkey: 'f4' -> osrs_key=4 at frame 6650
+sim_hotkey: 'f5' -> osrs_key=5 at frame 6675
+sim_hotkey: 'f6' -> osrs_key=6 at frame 6700
+sim_hotkey: 'f7' -> osrs_key=7 at frame 6725
+sim_hotkey: 'f8' -> osrs_key=8 at frame 6750
+sim_hotkey: 'f9' -> osrs_key=9 at frame 6775
+sim_hotkey: 'f10' -> osrs_key=10 at frame 6800
+sim_hotkey: 'f11' -> osrs_key=11 at frame 6825
+sim_hotkey: 'f12' -> osrs_key=12 at frame 6850
+sim_hotkey: 'escape' -> osrs_key=13 at frame 6875
+sim_hotkey: 'f1' -> osrs_key=1 at frame 6900
+sim_hotkey: 'f2' -> osrs_key=2 at frame 6925
+sim_hotkey: 'f3' -> osrs_key=3 at frame 6950
+sim_hotkey: 'f4' -> osrs_key=4 at frame 6975
+sim_hotkey: 'f5' -> osrs_key=5 at frame 7000
+torirs_perf: window=13 frame_p95=4.89ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 7025
+sim_hotkey: 'f7' -> osrs_key=7 at frame 7050
+sim_hotkey: 'f8' -> osrs_key=8 at frame 7075
+sim_hotkey: 'f9' -> osrs_key=9 at frame 7100
+sim_hotkey: 'f10' -> osrs_key=10 at frame 7125
+sim_hotkey: 'f11' -> osrs_key=11 at frame 7150
+sim_hotkey: 'f12' -> osrs_key=12 at frame 7175
+sim_hotkey: 'escape' -> osrs_key=13 at frame 7200
+sim_hotkey: 'f1' -> osrs_key=1 at frame 7225
+sim_hotkey: 'f2' -> osrs_key=2 at frame 7250
+sim_hotkey: 'f3' -> osrs_key=3 at frame 7275
+sim_hotkey: 'f4' -> osrs_key=4 at frame 7300
+sim_hotkey: 'f5' -> osrs_key=5 at frame 7325
+sim_hotkey: 'f6' -> osrs_key=6 at frame 7350
+sim_hotkey: 'f7' -> osrs_key=7 at frame 7375
+sim_hotkey: 'f8' -> osrs_key=8 at frame 7400
+sim_hotkey: 'f9' -> osrs_key=9 at frame 7425
+sim_hotkey: 'f10' -> osrs_key=10 at frame 7450
+sim_hotkey: 'f11' -> osrs_key=11 at frame 7475
+sim_hotkey: 'f12' -> osrs_key=12 at frame 7500
+torirs_perf: window=14 frame_p95=4.97ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 7525
+sim_hotkey: 'f1' -> osrs_key=1 at frame 7550
+sim_hotkey: 'f2' -> osrs_key=2 at frame 7575
+sim_hotkey: 'f3' -> osrs_key=3 at frame 7600
+sim_hotkey: 'f4' -> osrs_key=4 at frame 7625
+sim_hotkey: 'f5' -> osrs_key=5 at frame 7650
+sim_hotkey: 'f6' -> osrs_key=6 at frame 7675
+sim_hotkey: 'f7' -> osrs_key=7 at frame 7700
+sim_hotkey: 'f8' -> osrs_key=8 at frame 7725
+sim_hotkey: 'f9' -> osrs_key=9 at frame 7750
+sim_hotkey: 'f10' -> osrs_key=10 at frame 7775
+sim_hotkey: 'f11' -> osrs_key=11 at frame 7800
+sim_hotkey: 'f12' -> osrs_key=12 at frame 7825
+sim_hotkey: 'escape' -> osrs_key=13 at frame 7850
+sim_hotkey: 'f1' -> osrs_key=1 at frame 7875
+sim_hotkey: 'f2' -> osrs_key=2 at frame 7900
+sim_hotkey: 'f3' -> osrs_key=3 at frame 7925
+sim_hotkey: 'f4' -> osrs_key=4 at frame 7950
+sim_hotkey: 'f5' -> osrs_key=5 at frame 7975
+sim_hotkey: 'f6' -> osrs_key=6 at frame 8000
+torirs_perf: window=15 frame_p95=4.75ms
+sim_hotkey: 'f7' -> osrs_key=7 at frame 8025
+sim_hotkey: 'f8' -> osrs_key=8 at frame 8050
+sim_hotkey: 'f9' -> osrs_key=9 at frame 8075
+sim_hotkey: 'f10' -> osrs_key=10 at frame 8100
+sim_hotkey: 'f11' -> osrs_key=11 at frame 8125
+sim_hotkey: 'f12' -> osrs_key=12 at frame 8150
+sim_hotkey: 'escape' -> osrs_key=13 at frame 8175
+sim_hotkey: 'f1' -> osrs_key=1 at frame 8200
+sim_hotkey: 'f2' -> osrs_key=2 at frame 8225
+sim_hotkey: 'f3' -> osrs_key=3 at frame 8250
+sim_hotkey: 'f4' -> osrs_key=4 at frame 8275
+sim_hotkey: 'f5' -> osrs_key=5 at frame 8300
+sim_hotkey: 'f6' -> osrs_key=6 at frame 8325
+sim_hotkey: 'f7' -> osrs_key=7 at frame 8350
+sim_hotkey: 'f8' -> osrs_key=8 at frame 8375
+sim_hotkey: 'f9' -> osrs_key=9 at frame 8400
+sim_hotkey: 'f10' -> osrs_key=10 at frame 8425
+sim_hotkey: 'f11' -> osrs_key=11 at frame 8450
+sim_hotkey: 'f12' -> osrs_key=12 at frame 8475
+sim_hotkey: 'escape' -> osrs_key=13 at frame 8500
+torirs_perf: window=16 frame_p95=6.02ms
+sim_hotkey: 'f1' -> osrs_key=1 at frame 8525
+sim_hotkey: 'f2' -> osrs_key=2 at frame 8550
+sim_hotkey: 'f3' -> osrs_key=3 at frame 8575
+sim_hotkey: 'f4' -> osrs_key=4 at frame 8600
+sim_hotkey: 'f5' -> osrs_key=5 at frame 8625
+sim_hotkey: 'f6' -> osrs_key=6 at frame 8650
+sim_hotkey: 'f7' -> osrs_key=7 at frame 8675
+sim_hotkey: 'f8' -> osrs_key=8 at frame 8700
+sim_hotkey: 'f9' -> osrs_key=9 at frame 8725
+sim_hotkey: 'f10' -> osrs_key=10 at frame 8750
+sim_hotkey: 'f11' -> osrs_key=11 at frame 8775
+sim_hotkey: 'f12' -> osrs_key=12 at frame 8800
+sim_hotkey: 'escape' -> osrs_key=13 at frame 8825
+sim_hotkey: 'f1' -> osrs_key=1 at frame 8850
+sim_hotkey: 'f2' -> osrs_key=2 at frame 8875
+sim_hotkey: 'f3' -> osrs_key=3 at frame 8900
+sim_hotkey: 'f4' -> osrs_key=4 at frame 8925
+sim_hotkey: 'f5' -> osrs_key=5 at frame 8950
+sim_hotkey: 'f6' -> osrs_key=6 at frame 8975
+sim_hotkey: 'f7' -> osrs_key=7 at frame 9000
+torirs_perf: window=17 frame_p95=7.47ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 9025
+sim_hotkey: 'f9' -> osrs_key=9 at frame 9050
+sim_hotkey: 'f10' -> osrs_key=10 at frame 9075
+sim_hotkey: 'f11' -> osrs_key=11 at frame 9100
+sim_hotkey: 'f12' -> osrs_key=12 at frame 9125
+sim_hotkey: 'escape' -> osrs_key=13 at frame 9150
+sim_hotkey: 'f1' -> osrs_key=1 at frame 9175
+sim_hotkey: 'f2' -> osrs_key=2 at frame 9200
+sim_hotkey: 'f3' -> osrs_key=3 at frame 9225
+sim_hotkey: 'f4' -> osrs_key=4 at frame 9250
+sim_hotkey: 'f5' -> osrs_key=5 at frame 9275
+sim_hotkey: 'f6' -> osrs_key=6 at frame 9300
+sim_hotkey: 'f7' -> osrs_key=7 at frame 9325
+sim_hotkey: 'f8' -> osrs_key=8 at frame 9350
+sim_hotkey: 'f9' -> osrs_key=9 at frame 9375
+sim_hotkey: 'f10' -> osrs_key=10 at frame 9400
+sim_hotkey: 'f11' -> osrs_key=11 at frame 9425
+sim_hotkey: 'f12' -> osrs_key=12 at frame 9450
+sim_hotkey: 'escape' -> osrs_key=13 at frame 9475
+sim_hotkey: 'f1' -> osrs_key=1 at frame 9500
+torirs_perf: window=18 frame_p95=5.39ms
+sim_hotkey: 'f2' -> osrs_key=2 at frame 9525
+sim_hotkey: 'f3' -> osrs_key=3 at frame 9550
+sim_hotkey: 'f4' -> osrs_key=4 at frame 9575
+sim_hotkey: 'f5' -> osrs_key=5 at frame 9600
+sim_hotkey: 'f6' -> osrs_key=6 at frame 9625
+sim_hotkey: 'f7' -> osrs_key=7 at frame 9650
+sim_hotkey: 'f8' -> osrs_key=8 at frame 9675
+sim_hotkey: 'f9' -> osrs_key=9 at frame 9700
+sim_hotkey: 'f10' -> osrs_key=10 at frame 9725
+sim_hotkey: 'f11' -> osrs_key=11 at frame 9750
+sim_hotkey: 'f12' -> osrs_key=12 at frame 9775
+sim_hotkey: 'escape' -> osrs_key=13 at frame 9800
+sim_hotkey: 'f1' -> osrs_key=1 at frame 9825
+sim_hotkey: 'f2' -> osrs_key=2 at frame 9850
+sim_hotkey: 'f3' -> osrs_key=3 at frame 9875
+sim_hotkey: 'f4' -> osrs_key=4 at frame 9900
+sim_hotkey: 'f5' -> osrs_key=5 at frame 9925
+sim_hotkey: 'f6' -> osrs_key=6 at frame 9950
+sim_hotkey: 'f7' -> osrs_key=7 at frame 9975
+sim_hotkey: 'f8' -> osrs_key=8 at frame 10000
+torirs_perf: window=19 frame_p95=7.40ms
+sim_hotkey: 'f9' -> osrs_key=9 at frame 10025
+sim_hotkey: 'f10' -> osrs_key=10 at frame 10050
+sim_hotkey: 'f11' -> osrs_key=11 at frame 10075
+sim_hotkey: 'f12' -> osrs_key=12 at frame 10100
+sim_hotkey: 'escape' -> osrs_key=13 at frame 10125
+sim_hotkey: 'f1' -> osrs_key=1 at frame 10150
+sim_hotkey: 'f2' -> osrs_key=2 at frame 10175
+sim_hotkey: 'f3' -> osrs_key=3 at frame 10200
+sim_hotkey: 'f4' -> osrs_key=4 at frame 10225
+sim_hotkey: 'f5' -> osrs_key=5 at frame 10250
+sim_hotkey: 'f6' -> osrs_key=6 at frame 10275
+sim_hotkey: 'f7' -> osrs_key=7 at frame 10300
+sim_hotkey: 'f8' -> osrs_key=8 at frame 10325
+sim_hotkey: 'f9' -> osrs_key=9 at frame 10350
+sim_hotkey: 'f10' -> osrs_key=10 at frame 10375
+sim_hotkey: 'f11' -> osrs_key=11 at frame 10400
+sim_hotkey: 'f12' -> osrs_key=12 at frame 10425
+sim_hotkey: 'escape' -> osrs_key=13 at frame 10450
+sim_hotkey: 'f1' -> osrs_key=1 at frame 10475
+sim_hotkey: 'f2' -> osrs_key=2 at frame 10500
+torirs_perf: window=20 frame_p95=5.06ms
+sim_hotkey: 'f3' -> osrs_key=3 at frame 10525
+sim_hotkey: 'f4' -> osrs_key=4 at frame 10550
+sim_hotkey: 'f5' -> osrs_key=5 at frame 10575
+sim_hotkey: 'f6' -> osrs_key=6 at frame 10600
+sim_hotkey: 'f7' -> osrs_key=7 at frame 10625
+sim_hotkey: 'f8' -> osrs_key=8 at frame 10650
+sim_hotkey: 'f9' -> osrs_key=9 at frame 10675
+sim_hotkey: 'f10' -> osrs_key=10 at frame 10700
+sim_hotkey: 'f11' -> osrs_key=11 at frame 10725
+sim_hotkey: 'f12' -> osrs_key=12 at frame 10750
+sim_hotkey: 'escape' -> osrs_key=13 at frame 10775
+sim_hotkey: 'f1' -> osrs_key=1 at frame 10800
+sim_hotkey: 'f2' -> osrs_key=2 at frame 10825
+sim_hotkey: 'f3' -> osrs_key=3 at frame 10850
+sim_hotkey: 'f4' -> osrs_key=4 at frame 10875
+sim_hotkey: 'f5' -> osrs_key=5 at frame 10900
+sim_hotkey: 'f6' -> osrs_key=6 at frame 10925
+sim_hotkey: 'f7' -> osrs_key=7 at frame 10950
+sim_hotkey: 'f8' -> osrs_key=8 at frame 10975
+sim_hotkey: 'f9' -> osrs_key=9 at frame 11000
+torirs_perf: window=21 frame_p95=6.74ms
+sim_hotkey: 'f10' -> osrs_key=10 at frame 11025
+sim_hotkey: 'f11' -> osrs_key=11 at frame 11050
+sim_hotkey: 'f12' -> osrs_key=12 at frame 11075
+sim_hotkey: 'escape' -> osrs_key=13 at frame 11100
+sim_hotkey: 'f1' -> osrs_key=1 at frame 11125
+sim_hotkey: 'f2' -> osrs_key=2 at frame 11150
+sim_hotkey: 'f3' -> osrs_key=3 at frame 11175
+sim_hotkey: 'f4' -> osrs_key=4 at frame 11200
+sim_hotkey: 'f5' -> osrs_key=5 at frame 11225
+sim_hotkey: 'f6' -> osrs_key=6 at frame 11250
+sim_hotkey: 'f7' -> osrs_key=7 at frame 11275
+sim_hotkey: 'f8' -> osrs_key=8 at frame 11300
+sim_hotkey: 'f9' -> osrs_key=9 at frame 11325
+sim_hotkey: 'f10' -> osrs_key=10 at frame 11350
+sim_hotkey: 'f11' -> osrs_key=11 at frame 11375
+sim_hotkey: 'f12' -> osrs_key=12 at frame 11400
+sim_hotkey: 'escape' -> osrs_key=13 at frame 11425
+sim_hotkey: 'f1' -> osrs_key=1 at frame 11450
+sim_hotkey: 'f2' -> osrs_key=2 at frame 11475
+sim_hotkey: 'f3' -> osrs_key=3 at frame 11500
+torirs_perf: window=22 frame_p95=6.81ms
+sim_hotkey: 'f4' -> osrs_key=4 at frame 11525
+sim_hotkey: 'f5' -> osrs_key=5 at frame 11550
+sim_hotkey: 'f6' -> osrs_key=6 at frame 11575
+sim_hotkey: 'f7' -> osrs_key=7 at frame 11600
+sim_hotkey: 'f8' -> osrs_key=8 at frame 11625
+sim_hotkey: 'f9' -> osrs_key=9 at frame 11650
+sim_hotkey: 'f10' -> osrs_key=10 at frame 11675
+sim_hotkey: 'f11' -> osrs_key=11 at frame 11700
+sim_hotkey: 'f12' -> osrs_key=12 at frame 11725
+sim_hotkey: 'escape' -> osrs_key=13 at frame 11750
+sim_hotkey: 'f1' -> osrs_key=1 at frame 11775
+sim_hotkey: 'f2' -> osrs_key=2 at frame 11800
+sim_hotkey: 'f3' -> osrs_key=3 at frame 11825
+sim_hotkey: 'f4' -> osrs_key=4 at frame 11850
+sim_hotkey: 'f5' -> osrs_key=5 at frame 11875
+sim_hotkey: 'f6' -> osrs_key=6 at frame 11900
+sim_hotkey: 'f7' -> osrs_key=7 at frame 11925
+sim_hotkey: 'f8' -> osrs_key=8 at frame 11950
+sim_hotkey: 'f9' -> osrs_key=9 at frame 11975
+sim_hotkey: 'f10' -> osrs_key=10 at frame 12000
+torirs_perf: window=23 frame_p95=4.78ms
+sim_hotkey: 'f11' -> osrs_key=11 at frame 12025
+sim_hotkey: 'f12' -> osrs_key=12 at frame 12050
+sim_hotkey: 'escape' -> osrs_key=13 at frame 12075
+sim_hotkey: 'f1' -> osrs_key=1 at frame 12100
+sim_hotkey: 'f2' -> osrs_key=2 at frame 12125
+sim_hotkey: 'f3' -> osrs_key=3 at frame 12150
+sim_hotkey: 'f4' -> osrs_key=4 at frame 12175
+sim_hotkey: 'f5' -> osrs_key=5 at frame 12200
+spawn_npc: npc=3105 element=59752 tile=90,84 level=0 size=1 recolors=6 retextures=0
+sim_hotkey: 'f6' -> osrs_key=6 at frame 12225
+sim_hotkey: 'f7' -> osrs_key=7 at frame 12250
+sim_hotkey: 'f8' -> osrs_key=8 at frame 12275
+sim_hotkey: 'f9' -> osrs_key=9 at frame 12300
+sim_hotkey: 'f10' -> osrs_key=10 at frame 12325
+sim_hotkey: 'f11' -> osrs_key=11 at frame 12350
+sim_hotkey: 'f12' -> osrs_key=12 at frame 12375
+sim_hotkey: 'escape' -> osrs_key=13 at frame 12400
+sim_hotkey: 'f1' -> osrs_key=1 at frame 12425
+sim_hotkey: 'f2' -> osrs_key=2 at frame 12450
+sim_hotkey: 'f3' -> osrs_key=3 at frame 12475
+sim_hotkey: 'f4' -> osrs_key=4 at frame 12500
+torirs_perf: window=24 frame_p95=4.86ms
+sim_hotkey: 'f5' -> osrs_key=5 at frame 12525
+sim_hotkey: 'f6' -> osrs_key=6 at frame 12550
+sim_hotkey: 'f7' -> osrs_key=7 at frame 12575
+sim_hotkey: 'f8' -> osrs_key=8 at frame 12600
+sim_hotkey: 'f9' -> osrs_key=9 at frame 12625
+sim_hotkey: 'f10' -> osrs_key=10 at frame 12650
+sim_hotkey: 'f11' -> osrs_key=11 at frame 12675
+sim_hotkey: 'f12' -> osrs_key=12 at frame 12700
+sim_hotkey: 'escape' -> osrs_key=13 at frame 12725
+sim_hotkey: 'f1' -> osrs_key=1 at frame 12750
+sim_hotkey: 'f2' -> osrs_key=2 at frame 12775
+sim_hotkey: 'f3' -> osrs_key=3 at frame 12800
+sim_hotkey: 'f4' -> osrs_key=4 at frame 12825
+sim_hotkey: 'f5' -> osrs_key=5 at frame 12850
+sim_hotkey: 'f6' -> osrs_key=6 at frame 12875
+sim_hotkey: 'f7' -> osrs_key=7 at frame 12900
+sim_hotkey: 'f8' -> osrs_key=8 at frame 12925
+sim_hotkey: 'f9' -> osrs_key=9 at frame 12950
+sim_hotkey: 'f10' -> osrs_key=10 at frame 12975
+sim_hotkey: 'f11' -> osrs_key=11 at frame 13000
+torirs_perf: window=25 frame_p95=4.78ms
+sim_hotkey: 'f12' -> osrs_key=12 at frame 13025
+sim_hotkey: 'escape' -> osrs_key=13 at frame 13050
+sim_hotkey: 'f1' -> osrs_key=1 at frame 13075
+sim_hotkey: 'f2' -> osrs_key=2 at frame 13100
+sim_hotkey: 'f3' -> osrs_key=3 at frame 13125
+sim_hotkey: 'f4' -> osrs_key=4 at frame 13150
+sim_hotkey: 'f5' -> osrs_key=5 at frame 13175
+sim_hotkey: 'f6' -> osrs_key=6 at frame 13200
+sim_hotkey: 'f7' -> osrs_key=7 at frame 13225
+sim_hotkey: 'f8' -> osrs_key=8 at frame 13250
+sim_hotkey: 'f9' -> osrs_key=9 at frame 13275
+sim_hotkey: 'f10' -> osrs_key=10 at frame 13300
+sim_hotkey: 'f11' -> osrs_key=11 at frame 13325
+sim_hotkey: 'f12' -> osrs_key=12 at frame 13350
+sim_hotkey: 'escape' -> osrs_key=13 at frame 13375
+sim_hotkey: 'f1' -> osrs_key=1 at frame 13400
+sim_hotkey: 'f2' -> osrs_key=2 at frame 13425
+sim_hotkey: 'f3' -> osrs_key=3 at frame 13450
+sim_hotkey: 'f4' -> osrs_key=4 at frame 13475
+sim_hotkey: 'f5' -> osrs_key=5 at frame 13500
+torirs_perf: window=26 frame_p95=5.21ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 13525
+sim_hotkey: 'f7' -> osrs_key=7 at frame 13550
+sim_hotkey: 'f8' -> osrs_key=8 at frame 13575
+sim_hotkey: 'f9' -> osrs_key=9 at frame 13600
+sim_hotkey: 'f10' -> osrs_key=10 at frame 13625
+sim_hotkey: 'f11' -> osrs_key=11 at frame 13650
+sim_hotkey: 'f12' -> osrs_key=12 at frame 13675
+sim_hotkey: 'escape' -> osrs_key=13 at frame 13700
+sim_hotkey: 'f1' -> osrs_key=1 at frame 13725
+sim_hotkey: 'f2' -> osrs_key=2 at frame 13750
+sim_hotkey: 'f3' -> osrs_key=3 at frame 13775
+sim_hotkey: 'f4' -> osrs_key=4 at frame 13800
+sim_hotkey: 'f5' -> osrs_key=5 at frame 13825
+sim_hotkey: 'f6' -> osrs_key=6 at frame 13850
+sim_hotkey: 'f7' -> osrs_key=7 at frame 13875
+sim_hotkey: 'f8' -> osrs_key=8 at frame 13900
+sim_hotkey: 'f9' -> osrs_key=9 at frame 13925
+sim_hotkey: 'f10' -> osrs_key=10 at frame 13950
+sim_hotkey: 'f11' -> osrs_key=11 at frame 13975
+sim_hotkey: 'f12' -> osrs_key=12 at frame 14000
+torirs_perf: window=27 frame_p95=5.24ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 14025
+sim_hotkey: 'f1' -> osrs_key=1 at frame 14050
+sim_hotkey: 'f2' -> osrs_key=2 at frame 14075
+sim_hotkey: 'f3' -> osrs_key=3 at frame 14100
+sim_hotkey: 'f4' -> osrs_key=4 at frame 14125
+sim_hotkey: 'f5' -> osrs_key=5 at frame 14150
+sim_hotkey: 'f6' -> osrs_key=6 at frame 14175
+sim_hotkey: 'f7' -> osrs_key=7 at frame 14200
+sim_hotkey: 'f8' -> osrs_key=8 at frame 14225
+sim_hotkey: 'f9' -> osrs_key=9 at frame 14250
+sim_hotkey: 'f10' -> osrs_key=10 at frame 14275
+sim_hotkey: 'f11' -> osrs_key=11 at frame 14300
+sim_hotkey: 'f12' -> osrs_key=12 at frame 14325
+sim_hotkey: 'escape' -> osrs_key=13 at frame 14350
+sim_hotkey: 'f1' -> osrs_key=1 at frame 14375
+sim_hotkey: 'f2' -> osrs_key=2 at frame 14400
+sim_hotkey: 'f3' -> osrs_key=3 at frame 14425
+sim_hotkey: 'f4' -> osrs_key=4 at frame 14450
+sim_hotkey: 'f5' -> osrs_key=5 at frame 14475
+sim_hotkey: 'f6' -> osrs_key=6 at frame 14500
+torirs_perf: window=28 frame_p95=4.87ms
+sim_hotkey: 'f7' -> osrs_key=7 at frame 14525
+sim_hotkey: 'f8' -> osrs_key=8 at frame 14550
+sim_hotkey: 'f9' -> osrs_key=9 at frame 14575
+sim_hotkey: 'f10' -> osrs_key=10 at frame 14600
+sim_hotkey: 'f11' -> osrs_key=11 at frame 14625
+sim_hotkey: 'f12' -> osrs_key=12 at frame 14650
+sim_hotkey: 'escape' -> osrs_key=13 at frame 14675
+sim_hotkey: 'f1' -> osrs_key=1 at frame 14700
+sim_hotkey: 'f2' -> osrs_key=2 at frame 14725
+sim_hotkey: 'f3' -> osrs_key=3 at frame 14750
+sim_hotkey: 'f4' -> osrs_key=4 at frame 14775
+sim_hotkey: 'f5' -> osrs_key=5 at frame 14800
+sim_hotkey: 'f6' -> osrs_key=6 at frame 14825
+sim_hotkey: 'f7' -> osrs_key=7 at frame 14850
+sim_hotkey: 'f8' -> osrs_key=8 at frame 14875
+sim_hotkey: 'f9' -> osrs_key=9 at frame 14900
+sim_hotkey: 'f10' -> osrs_key=10 at frame 14925
+sim_hotkey: 'f11' -> osrs_key=11 at frame 14950
+sim_hotkey: 'f12' -> osrs_key=12 at frame 14975
+sim_hotkey: 'escape' -> osrs_key=13 at frame 15000
+torirs_perf: window=29 frame_p95=6.30ms
+sim_hotkey: 'f1' -> osrs_key=1 at frame 15025
+sim_hotkey: 'f2' -> osrs_key=2 at frame 15050
+sim_hotkey: 'f3' -> osrs_key=3 at frame 15075
+sim_hotkey: 'f4' -> osrs_key=4 at frame 15100
+sim_hotkey: 'f5' -> osrs_key=5 at frame 15125
+sim_hotkey: 'f6' -> osrs_key=6 at frame 15150
+sim_hotkey: 'f7' -> osrs_key=7 at frame 15175
+sim_hotkey: 'f8' -> osrs_key=8 at frame 15200
+sim_hotkey: 'f9' -> osrs_key=9 at frame 15225
+sim_hotkey: 'f10' -> osrs_key=10 at frame 15250
+sim_hotkey: 'f11' -> osrs_key=11 at frame 15275
+sim_hotkey: 'f12' -> osrs_key=12 at frame 15300
+sim_hotkey: 'escape' -> osrs_key=13 at frame 15325
+sim_hotkey: 'f1' -> osrs_key=1 at frame 15350
+sim_hotkey: 'f2' -> osrs_key=2 at frame 15375
+sim_hotkey: 'f3' -> osrs_key=3 at frame 15400
+sim_hotkey: 'f4' -> osrs_key=4 at frame 15425
+sim_hotkey: 'f5' -> osrs_key=5 at frame 15450
+sim_hotkey: 'f6' -> osrs_key=6 at frame 15475
+sim_hotkey: 'f7' -> osrs_key=7 at frame 15500
+torirs_perf: window=30 frame_p95=5.14ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 15525
+sim_hotkey: 'f9' -> osrs_key=9 at frame 15550
+sim_hotkey: 'f10' -> osrs_key=10 at frame 15575
+sim_hotkey: 'f11' -> osrs_key=11 at frame 15600
+sim_hotkey: 'f12' -> osrs_key=12 at frame 15625
+sim_hotkey: 'escape' -> osrs_key=13 at frame 15650
+sim_hotkey: 'f1' -> osrs_key=1 at frame 15675
+sim_hotkey: 'f2' -> osrs_key=2 at frame 15700
+sim_hotkey: 'f3' -> osrs_key=3 at frame 15725
+sim_hotkey: 'f4' -> osrs_key=4 at frame 15750
+sim_hotkey: 'f5' -> osrs_key=5 at frame 15775
+sim_hotkey: 'f6' -> osrs_key=6 at frame 15800
+sim_hotkey: 'f7' -> osrs_key=7 at frame 15825
+sim_hotkey: 'f8' -> osrs_key=8 at frame 15850
+sim_hotkey: 'f9' -> osrs_key=9 at frame 15875
+sim_hotkey: 'f10' -> osrs_key=10 at frame 15900
+sim_hotkey: 'f11' -> osrs_key=11 at frame 15925
+sim_hotkey: 'f12' -> osrs_key=12 at frame 15950
+sim_hotkey: 'escape' -> osrs_key=13 at frame 15975
+sim_hotkey: 'f1' -> osrs_key=1 at frame 16000
+torirs_perf: window=31 frame_p95=4.95ms
+sim_hotkey: 'f2' -> osrs_key=2 at frame 16025
+sim_hotkey: 'f3' -> osrs_key=3 at frame 16050
+sim_hotkey: 'f4' -> osrs_key=4 at frame 16075
+sim_hotkey: 'f5' -> osrs_key=5 at frame 16100
+sim_hotkey: 'f6' -> osrs_key=6 at frame 16125
+sim_hotkey: 'f7' -> osrs_key=7 at frame 16150
+sim_hotkey: 'f8' -> osrs_key=8 at frame 16175
+sim_hotkey: 'f9' -> osrs_key=9 at frame 16200
+sim_hotkey: 'f10' -> osrs_key=10 at frame 16225
+sim_hotkey: 'f11' -> osrs_key=11 at frame 16250
+sim_hotkey: 'f12' -> osrs_key=12 at frame 16275
+sim_hotkey: 'escape' -> osrs_key=13 at frame 16300
+sim_hotkey: 'f1' -> osrs_key=1 at frame 16325
+sim_hotkey: 'f2' -> osrs_key=2 at frame 16350
+sim_hotkey: 'f3' -> osrs_key=3 at frame 16375
+sim_hotkey: 'f4' -> osrs_key=4 at frame 16400
+sim_hotkey: 'f5' -> osrs_key=5 at frame 16425
+sim_hotkey: 'f6' -> osrs_key=6 at frame 16450
+sim_hotkey: 'f7' -> osrs_key=7 at frame 16475
+sim_hotkey: 'f8' -> osrs_key=8 at frame 16500
+torirs_perf: window=32 frame_p95=4.78ms
+sim_hotkey: 'f9' -> osrs_key=9 at frame 16525
+sim_hotkey: 'f10' -> osrs_key=10 at frame 16550
+sim_hotkey: 'f11' -> osrs_key=11 at frame 16575
+sim_hotkey: 'f12' -> osrs_key=12 at frame 16600
+sim_hotkey: 'escape' -> osrs_key=13 at frame 16625
+sim_hotkey: 'f1' -> osrs_key=1 at frame 16650
+sim_hotkey: 'f2' -> osrs_key=2 at frame 16675
+sim_hotkey: 'f3' -> osrs_key=3 at frame 16700
+sim_hotkey: 'f4' -> osrs_key=4 at frame 16725
+sim_hotkey: 'f5' -> osrs_key=5 at frame 16750
+sim_hotkey: 'f6' -> osrs_key=6 at frame 16775
+sim_hotkey: 'f7' -> osrs_key=7 at frame 16800
+sim_hotkey: 'f8' -> osrs_key=8 at frame 16825
+sim_hotkey: 'f9' -> osrs_key=9 at frame 16850
+sim_hotkey: 'f10' -> osrs_key=10 at frame 16875
+sim_hotkey: 'f11' -> osrs_key=11 at frame 16900
+sim_hotkey: 'f12' -> osrs_key=12 at frame 16925
+sim_hotkey: 'escape' -> osrs_key=13 at frame 16950
+sim_hotkey: 'f1' -> osrs_key=1 at frame 16975
+sim_hotkey: 'f2' -> osrs_key=2 at frame 17000
+torirs_perf: window=33 frame_p95=4.65ms
+sim_hotkey: 'f3' -> osrs_key=3 at frame 17025
+sim_hotkey: 'f4' -> osrs_key=4 at frame 17050
+sim_hotkey: 'f5' -> osrs_key=5 at frame 17075
+sim_hotkey: 'f6' -> osrs_key=6 at frame 17100
+sim_hotkey: 'f7' -> osrs_key=7 at frame 17125
+sim_hotkey: 'f8' -> osrs_key=8 at frame 17150
+sim_hotkey: 'f9' -> osrs_key=9 at frame 17175
+sim_hotkey: 'f10' -> osrs_key=10 at frame 17200
+sim_hotkey: 'f11' -> osrs_key=11 at frame 17225
+sim_hotkey: 'f12' -> osrs_key=12 at frame 17250
+sim_hotkey: 'escape' -> osrs_key=13 at frame 17275
+sim_hotkey: 'f1' -> osrs_key=1 at frame 17300
+sim_hotkey: 'f2' -> osrs_key=2 at frame 17325
+sim_hotkey: 'f3' -> osrs_key=3 at frame 17350
+sim_hotkey: 'f4' -> osrs_key=4 at frame 17375
+sim_hotkey: 'f5' -> osrs_key=5 at frame 17400
+sim_hotkey: 'f6' -> osrs_key=6 at frame 17425
+sim_hotkey: 'f7' -> osrs_key=7 at frame 17450
+sim_hotkey: 'f8' -> osrs_key=8 at frame 17475
+sim_hotkey: 'f9' -> osrs_key=9 at frame 17500
+torirs_perf: window=34 frame_p95=4.58ms
+sim_hotkey: 'f10' -> osrs_key=10 at frame 17525
+sim_hotkey: 'f11' -> osrs_key=11 at frame 17550
+sim_hotkey: 'f12' -> osrs_key=12 at frame 17575
+sim_hotkey: 'escape' -> osrs_key=13 at frame 17600
+sim_hotkey: 'f1' -> osrs_key=1 at frame 17625
+sim_hotkey: 'f2' -> osrs_key=2 at frame 17650
+sim_hotkey: 'f3' -> osrs_key=3 at frame 17675
+sim_hotkey: 'f4' -> osrs_key=4 at frame 17700
+sim_hotkey: 'f5' -> osrs_key=5 at frame 17725
+sim_hotkey: 'f6' -> osrs_key=6 at frame 17750
+sim_hotkey: 'f7' -> osrs_key=7 at frame 17775
+sim_hotkey: 'f8' -> osrs_key=8 at frame 17800
+sim_hotkey: 'f9' -> osrs_key=9 at frame 17825
+sim_hotkey: 'f10' -> osrs_key=10 at frame 17850
+sim_hotkey: 'f11' -> osrs_key=11 at frame 17875
+sim_hotkey: 'f12' -> osrs_key=12 at frame 17900
+sim_hotkey: 'escape' -> osrs_key=13 at frame 17925
+sim_hotkey: 'f1' -> osrs_key=1 at frame 17950
+sim_hotkey: 'f2' -> osrs_key=2 at frame 17975
+sim_hotkey: 'f3' -> osrs_key=3 at frame 18000
+torirs_perf: window=35 frame_p95=4.86ms
+sim_hotkey: 'f4' -> osrs_key=4 at frame 18025
+sim_hotkey: 'f5' -> osrs_key=5 at frame 18050
+sim_hotkey: 'f6' -> osrs_key=6 at frame 18075
+sim_hotkey: 'f7' -> osrs_key=7 at frame 18100
+sim_hotkey: 'f8' -> osrs_key=8 at frame 18125
+sim_hotkey: 'f9' -> osrs_key=9 at frame 18150
+sim_hotkey: 'f10' -> osrs_key=10 at frame 18175
+sim_hotkey: 'f11' -> osrs_key=11 at frame 18200
+sim_hotkey: 'f12' -> osrs_key=12 at frame 18225
+sim_hotkey: 'escape' -> osrs_key=13 at frame 18250
+sim_hotkey: 'f1' -> osrs_key=1 at frame 18275
+sim_hotkey: 'f2' -> osrs_key=2 at frame 18300
+sim_hotkey: 'f3' -> osrs_key=3 at frame 18325
+sim_hotkey: 'f4' -> osrs_key=4 at frame 18350
+sim_hotkey: 'f5' -> osrs_key=5 at frame 18375
+sim_hotkey: 'f6' -> osrs_key=6 at frame 18400
+sim_hotkey: 'f7' -> osrs_key=7 at frame 18425
+sim_hotkey: 'f8' -> osrs_key=8 at frame 18450
+sim_hotkey: 'f9' -> osrs_key=9 at frame 18475
+sim_hotkey: 'f10' -> osrs_key=10 at frame 18500
+torirs_perf: window=36 frame_p95=4.82ms
+sim_hotkey: 'f11' -> osrs_key=11 at frame 18525
+sim_hotkey: 'f12' -> osrs_key=12 at frame 18550
+sim_hotkey: 'escape' -> osrs_key=13 at frame 18575
+sim_hotkey: 'f1' -> osrs_key=1 at frame 18600
+sim_hotkey: 'f2' -> osrs_key=2 at frame 18625
+sim_hotkey: 'f3' -> osrs_key=3 at frame 18650
+sim_hotkey: 'f4' -> osrs_key=4 at frame 18675
+sim_hotkey: 'f5' -> osrs_key=5 at frame 18700
+sim_hotkey: 'f6' -> osrs_key=6 at frame 18725
+sim_hotkey: 'f7' -> osrs_key=7 at frame 18750
+sim_hotkey: 'f8' -> osrs_key=8 at frame 18775
+sim_hotkey: 'f9' -> osrs_key=9 at frame 18800
+sim_hotkey: 'f10' -> osrs_key=10 at frame 18825
+sim_hotkey: 'f11' -> osrs_key=11 at frame 18850
+sim_hotkey: 'f12' -> osrs_key=12 at frame 18875
+sim_hotkey: 'escape' -> osrs_key=13 at frame 18900
+sim_hotkey: 'f1' -> osrs_key=1 at frame 18925
+sim_hotkey: 'f2' -> osrs_key=2 at frame 18950
+sim_hotkey: 'f3' -> osrs_key=3 at frame 18975
+sim_hotkey: 'f4' -> osrs_key=4 at frame 19000
+torirs_perf: window=37 frame_p95=4.58ms
+sim_hotkey: 'f5' -> osrs_key=5 at frame 19025
+sim_hotkey: 'f6' -> osrs_key=6 at frame 19050
+sim_hotkey: 'f7' -> osrs_key=7 at frame 19075
+spawn_npc: npc=5007 element=59752 tile=90,84 level=0 size=1 recolors=0 retextures=0
+sim_hotkey: 'f8' -> osrs_key=8 at frame 19100
+sim_hotkey: 'f9' -> osrs_key=9 at frame 19125
+sim_hotkey: 'f10' -> osrs_key=10 at frame 19150
+sim_hotkey: 'f11' -> osrs_key=11 at frame 19175
+sim_hotkey: 'f12' -> osrs_key=12 at frame 19200
+sim_hotkey: 'escape' -> osrs_key=13 at frame 19225
+sim_hotkey: 'f1' -> osrs_key=1 at frame 19250
+sim_hotkey: 'f2' -> osrs_key=2 at frame 19275
+sim_hotkey: 'f3' -> osrs_key=3 at frame 19300
+sim_hotkey: 'f4' -> osrs_key=4 at frame 19325
+sim_hotkey: 'f5' -> osrs_key=5 at frame 19350
+sim_hotkey: 'f6' -> osrs_key=6 at frame 19375
+sim_hotkey: 'f7' -> osrs_key=7 at frame 19400
+sim_hotkey: 'f8' -> osrs_key=8 at frame 19425
+sim_hotkey: 'f9' -> osrs_key=9 at frame 19450
+sim_hotkey: 'f10' -> osrs_key=10 at frame 19475
+sim_hotkey: 'f11' -> osrs_key=11 at frame 19500
+torirs_perf: window=38 frame_p95=4.52ms
+sim_hotkey: 'f12' -> osrs_key=12 at frame 19525
+sim_hotkey: 'escape' -> osrs_key=13 at frame 19550
+sim_hotkey: 'f1' -> osrs_key=1 at frame 19575
+sim_hotkey: 'f2' -> osrs_key=2 at frame 19600
+sim_hotkey: 'f3' -> osrs_key=3 at frame 19625
+sim_hotkey: 'f4' -> osrs_key=4 at frame 19650
+sim_hotkey: 'f5' -> osrs_key=5 at frame 19675
+sim_hotkey: 'f6' -> osrs_key=6 at frame 19700
+sim_hotkey: 'f7' -> osrs_key=7 at frame 19725
+sim_hotkey: 'f8' -> osrs_key=8 at frame 19750
+sim_hotkey: 'f9' -> osrs_key=9 at frame 19775
+sim_hotkey: 'f10' -> osrs_key=10 at frame 19800
+sim_hotkey: 'f11' -> osrs_key=11 at frame 19825
+sim_hotkey: 'f12' -> osrs_key=12 at frame 19850
+sim_hotkey: 'escape' -> osrs_key=13 at frame 19875
+sim_hotkey: 'f1' -> osrs_key=1 at frame 19900
+sim_hotkey: 'f2' -> osrs_key=2 at frame 19925
+sim_hotkey: 'f3' -> osrs_key=3 at frame 19950
+sim_hotkey: 'f4' -> osrs_key=4 at frame 19975
+sim_hotkey: 'f5' -> osrs_key=5 at frame 20000
+torirs_perf: window=39 frame_p95=4.87ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 20025
+sim_hotkey: 'f7' -> osrs_key=7 at frame 20050
+sim_hotkey: 'f8' -> osrs_key=8 at frame 20075
+sim_hotkey: 'f9' -> osrs_key=9 at frame 20100
+sim_hotkey: 'f10' -> osrs_key=10 at frame 20125
+sim_hotkey: 'f11' -> osrs_key=11 at frame 20150
+sim_hotkey: 'f12' -> osrs_key=12 at frame 20175
+sim_hotkey: 'escape' -> osrs_key=13 at frame 20200
+sim_hotkey: 'f1' -> osrs_key=1 at frame 20225
+sim_hotkey: 'f2' -> osrs_key=2 at frame 20250
+sim_hotkey: 'f3' -> osrs_key=3 at frame 20275
+sim_hotkey: 'f4' -> osrs_key=4 at frame 20300
+sim_hotkey: 'f5' -> osrs_key=5 at frame 20325
+sim_hotkey: 'f6' -> osrs_key=6 at frame 20350
+sim_hotkey: 'f7' -> osrs_key=7 at frame 20375
+sim_hotkey: 'f8' -> osrs_key=8 at frame 20400
+sim_hotkey: 'f9' -> osrs_key=9 at frame 20425
+sim_hotkey: 'f10' -> osrs_key=10 at frame 20450
+sim_hotkey: 'f11' -> osrs_key=11 at frame 20475
+sim_hotkey: 'f12' -> osrs_key=12 at frame 20500
+torirs_perf: window=40 frame_p95=4.83ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 20525
+sim_hotkey: 'f1' -> osrs_key=1 at frame 20550
+sim_hotkey: 'f2' -> osrs_key=2 at frame 20575
+sim_hotkey: 'f3' -> osrs_key=3 at frame 20600
+sim_hotkey: 'f4' -> osrs_key=4 at frame 20625
+sim_hotkey: 'f5' -> osrs_key=5 at frame 20650
+sim_hotkey: 'f6' -> osrs_key=6 at frame 20675
+sim_hotkey: 'f7' -> osrs_key=7 at frame 20700
+sim_hotkey: 'f8' -> osrs_key=8 at frame 20725
+sim_hotkey: 'f9' -> osrs_key=9 at frame 20750
+sim_hotkey: 'f10' -> osrs_key=10 at frame 20775
+sim_hotkey: 'f11' -> osrs_key=11 at frame 20800
+sim_hotkey: 'f12' -> osrs_key=12 at frame 20825
+sim_hotkey: 'escape' -> osrs_key=13 at frame 20850
+sim_hotkey: 'f1' -> osrs_key=1 at frame 20875
+sim_hotkey: 'f2' -> osrs_key=2 at frame 20900
+sim_hotkey: 'f3' -> osrs_key=3 at frame 20925
+sim_hotkey: 'f4' -> osrs_key=4 at frame 20950
+sim_hotkey: 'f5' -> osrs_key=5 at frame 20975
+sim_hotkey: 'f6' -> osrs_key=6 at frame 21000
+torirs_perf: window=41 frame_p95=4.69ms
+sim_hotkey: 'f7' -> osrs_key=7 at frame 21025
+sim_hotkey: 'f8' -> osrs_key=8 at frame 21050
+sim_hotkey: 'f9' -> osrs_key=9 at frame 21075
+sim_hotkey: 'f10' -> osrs_key=10 at frame 21100
+sim_hotkey: 'f11' -> osrs_key=11 at frame 21125
+sim_hotkey: 'f12' -> osrs_key=12 at frame 21150
+sim_hotkey: 'escape' -> osrs_key=13 at frame 21175
+sim_hotkey: 'f1' -> osrs_key=1 at frame 21200
+sim_hotkey: 'f2' -> osrs_key=2 at frame 21225
+sim_hotkey: 'f3' -> osrs_key=3 at frame 21250
+sim_hotkey: 'f4' -> osrs_key=4 at frame 21275
+sim_hotkey: 'f5' -> osrs_key=5 at frame 21300
+sim_hotkey: 'f6' -> osrs_key=6 at frame 21325
+sim_hotkey: 'f7' -> osrs_key=7 at frame 21350
+sim_hotkey: 'f8' -> osrs_key=8 at frame 21375
+sim_hotkey: 'f9' -> osrs_key=9 at frame 21400
+sim_hotkey: 'f10' -> osrs_key=10 at frame 21425
+sim_hotkey: 'f11' -> osrs_key=11 at frame 21450
+sim_hotkey: 'f12' -> osrs_key=12 at frame 21475
+sim_hotkey: 'escape' -> osrs_key=13 at frame 21500
+torirs_perf: window=42 frame_p95=4.91ms
+sim_hotkey: 'f1' -> osrs_key=1 at frame 21525
+sim_hotkey: 'f2' -> osrs_key=2 at frame 21550
+sim_hotkey: 'f3' -> osrs_key=3 at frame 21575
+sim_hotkey: 'f4' -> osrs_key=4 at frame 21600
+sim_hotkey: 'f5' -> osrs_key=5 at frame 21625
+sim_hotkey: 'f6' -> osrs_key=6 at frame 21650
+sim_hotkey: 'f7' -> osrs_key=7 at frame 21675
+sim_hotkey: 'f8' -> osrs_key=8 at frame 21700
+sim_hotkey: 'f9' -> osrs_key=9 at frame 21725
+sim_hotkey: 'f10' -> osrs_key=10 at frame 21750
+sim_hotkey: 'f11' -> osrs_key=11 at frame 21775
+sim_hotkey: 'f12' -> osrs_key=12 at frame 21800
+sim_hotkey: 'escape' -> osrs_key=13 at frame 21825
+sim_hotkey: 'f1' -> osrs_key=1 at frame 21850
+sim_hotkey: 'f2' -> osrs_key=2 at frame 21875
+sim_hotkey: 'f3' -> osrs_key=3 at frame 21900
+sim_hotkey: 'f4' -> osrs_key=4 at frame 21925
+sim_hotkey: 'f5' -> osrs_key=5 at frame 21950
+sim_hotkey: 'f6' -> osrs_key=6 at frame 21975
+sim_hotkey: 'f7' -> osrs_key=7 at frame 22000
+torirs_perf: window=43 frame_p95=4.85ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 22025
+sim_hotkey: 'f9' -> osrs_key=9 at frame 22050
+sim_hotkey: 'f10' -> osrs_key=10 at frame 22075
+sim_hotkey: 'f11' -> osrs_key=11 at frame 22100
+sim_hotkey: 'f12' -> osrs_key=12 at frame 22125
+sim_hotkey: 'escape' -> osrs_key=13 at frame 22150
+sim_hotkey: 'f1' -> osrs_key=1 at frame 22175
+sim_hotkey: 'f2' -> osrs_key=2 at frame 22200
+sim_hotkey: 'f3' -> osrs_key=3 at frame 22225
+sim_hotkey: 'f4' -> osrs_key=4 at frame 22250
+sim_hotkey: 'f5' -> osrs_key=5 at frame 22275
+sim_hotkey: 'f6' -> osrs_key=6 at frame 22300
+sim_hotkey: 'f7' -> osrs_key=7 at frame 22325
+sim_hotkey: 'f8' -> osrs_key=8 at frame 22350
+sim_hotkey: 'f9' -> osrs_key=9 at frame 22375
+sim_hotkey: 'f10' -> osrs_key=10 at frame 22400
+sim_hotkey: 'f11' -> osrs_key=11 at frame 22425
+sim_hotkey: 'f12' -> osrs_key=12 at frame 22450
+sim_hotkey: 'escape' -> osrs_key=13 at frame 22475
+sim_hotkey: 'f1' -> osrs_key=1 at frame 22500
+torirs_perf: window=44 frame_p95=6.60ms
+sim_hotkey: 'f2' -> osrs_key=2 at frame 22525
+sim_hotkey: 'f3' -> osrs_key=3 at frame 22550
+sim_hotkey: 'f4' -> osrs_key=4 at frame 22575
+sim_hotkey: 'f5' -> osrs_key=5 at frame 22600
+sim_hotkey: 'f6' -> osrs_key=6 at frame 22625
+sim_hotkey: 'f7' -> osrs_key=7 at frame 22650
+sim_hotkey: 'f8' -> osrs_key=8 at frame 22675
+sim_hotkey: 'f9' -> osrs_key=9 at frame 22700
+sim_hotkey: 'f10' -> osrs_key=10 at frame 22725
+sim_hotkey: 'f11' -> osrs_key=11 at frame 22750
+sim_hotkey: 'f12' -> osrs_key=12 at frame 22775
+sim_hotkey: 'escape' -> osrs_key=13 at frame 22800
+sim_hotkey: 'f1' -> osrs_key=1 at frame 22825
+sim_hotkey: 'f2' -> osrs_key=2 at frame 22850
+sim_hotkey: 'f3' -> osrs_key=3 at frame 22875
+sim_hotkey: 'f4' -> osrs_key=4 at frame 22900
+sim_hotkey: 'f5' -> osrs_key=5 at frame 22925
+sim_hotkey: 'f6' -> osrs_key=6 at frame 22950
+sim_hotkey: 'f7' -> osrs_key=7 at frame 22975
+sim_hotkey: 'f8' -> osrs_key=8 at frame 23000
+torirs_perf: window=45 frame_p95=5.11ms
+sim_hotkey: 'f9' -> osrs_key=9 at frame 23025
+sim_hotkey: 'f10' -> osrs_key=10 at frame 23050
+sim_hotkey: 'f11' -> osrs_key=11 at frame 23075
+sim_hotkey: 'f12' -> osrs_key=12 at frame 23100
+sim_hotkey: 'escape' -> osrs_key=13 at frame 23125
+sim_hotkey: 'f1' -> osrs_key=1 at frame 23150
+sim_hotkey: 'f2' -> osrs_key=2 at frame 23175
+sim_hotkey: 'f3' -> osrs_key=3 at frame 23200
+sim_hotkey: 'f4' -> osrs_key=4 at frame 23225
+sim_hotkey: 'f5' -> osrs_key=5 at frame 23250
+sim_hotkey: 'f6' -> osrs_key=6 at frame 23275
+sim_hotkey: 'f7' -> osrs_key=7 at frame 23300
+spawn_npc: npc=3105 element=59754 tile=90,84 level=0 size=1 recolors=6 retextures=0
+sim_hotkey: 'f8' -> osrs_key=8 at frame 23325
+sim_hotkey: 'f9' -> osrs_key=9 at frame 23350
+sim_hotkey: 'f10' -> osrs_key=10 at frame 23375
+sim_hotkey: 'f11' -> osrs_key=11 at frame 23400
+sim_hotkey: 'f12' -> osrs_key=12 at frame 23425
+sim_hotkey: 'escape' -> osrs_key=13 at frame 23450
+sim_hotkey: 'f1' -> osrs_key=1 at frame 23475
+sim_hotkey: 'f2' -> osrs_key=2 at frame 23500
+torirs_perf: window=46 frame_p95=7.49ms
+sim_hotkey: 'f3' -> osrs_key=3 at frame 23525
+sim_hotkey: 'f4' -> osrs_key=4 at frame 23550
+sim_hotkey: 'f5' -> osrs_key=5 at frame 23575
+sim_hotkey: 'f6' -> osrs_key=6 at frame 23600
+sim_hotkey: 'f7' -> osrs_key=7 at frame 23625
+sim_hotkey: 'f8' -> osrs_key=8 at frame 23650
+sim_hotkey: 'f9' -> osrs_key=9 at frame 23675
+sim_hotkey: 'f10' -> osrs_key=10 at frame 23700
+sim_hotkey: 'f11' -> osrs_key=11 at frame 23725
+sim_hotkey: 'f12' -> osrs_key=12 at frame 23750
+sim_hotkey: 'escape' -> osrs_key=13 at frame 23775
+sim_hotkey: 'f1' -> osrs_key=1 at frame 23800
+sim_hotkey: 'f2' -> osrs_key=2 at frame 23825
+sim_hotkey: 'f3' -> osrs_key=3 at frame 23850
+sim_hotkey: 'f4' -> osrs_key=4 at frame 23875
+sim_hotkey: 'f5' -> osrs_key=5 at frame 23900
+sim_hotkey: 'f6' -> osrs_key=6 at frame 23925
+sim_hotkey: 'f7' -> osrs_key=7 at frame 23950
+sim_hotkey: 'f8' -> osrs_key=8 at frame 23975
+sim_hotkey: 'f9' -> osrs_key=9 at frame 24000
+torirs_perf: window=47 frame_p95=5.49ms
+sim_hotkey: 'f10' -> osrs_key=10 at frame 24025
+sim_hotkey: 'f11' -> osrs_key=11 at frame 24050
+sim_hotkey: 'f12' -> osrs_key=12 at frame 24075
+sim_hotkey: 'escape' -> osrs_key=13 at frame 24100
+sim_hotkey: 'f1' -> osrs_key=1 at frame 24125
+sim_hotkey: 'f2' -> osrs_key=2 at frame 24150
+sim_hotkey: 'f3' -> osrs_key=3 at frame 24175
+sim_hotkey: 'f4' -> osrs_key=4 at frame 24200
+sim_hotkey: 'f5' -> osrs_key=5 at frame 24225
+sim_hotkey: 'f6' -> osrs_key=6 at frame 24250
+sim_hotkey: 'f7' -> osrs_key=7 at frame 24275
+sim_hotkey: 'f8' -> osrs_key=8 at frame 24300
+sim_hotkey: 'f9' -> osrs_key=9 at frame 24325
+sim_hotkey: 'f10' -> osrs_key=10 at frame 24350
+sim_hotkey: 'f11' -> osrs_key=11 at frame 24375
+sim_hotkey: 'f12' -> osrs_key=12 at frame 24400
+sim_hotkey: 'escape' -> osrs_key=13 at frame 24425
+sim_hotkey: 'f1' -> osrs_key=1 at frame 24450
+sim_hotkey: 'f2' -> osrs_key=2 at frame 24475
+sim_hotkey: 'f3' -> osrs_key=3 at frame 24500
+torirs_perf: window=48 frame_p95=5.67ms
+sim_hotkey: 'f4' -> osrs_key=4 at frame 24525
+sim_hotkey: 'f5' -> osrs_key=5 at frame 24550
+sim_hotkey: 'f6' -> osrs_key=6 at frame 24575
+sim_hotkey: 'f7' -> osrs_key=7 at frame 24600
+sim_hotkey: 'f8' -> osrs_key=8 at frame 24625
+sim_hotkey: 'f9' -> osrs_key=9 at frame 24650
+sim_hotkey: 'f10' -> osrs_key=10 at frame 24675
+sim_hotkey: 'f11' -> osrs_key=11 at frame 24700
+sim_hotkey: 'f12' -> osrs_key=12 at frame 24725
+sim_hotkey: 'escape' -> osrs_key=13 at frame 24750
+sim_hotkey: 'f1' -> osrs_key=1 at frame 24775
+sim_hotkey: 'f2' -> osrs_key=2 at frame 24800
+sim_hotkey: 'f3' -> osrs_key=3 at frame 24825
+sim_hotkey: 'f4' -> osrs_key=4 at frame 24850
+sim_hotkey: 'f5' -> osrs_key=5 at frame 24875
+sim_hotkey: 'f6' -> osrs_key=6 at frame 24900
+sim_hotkey: 'f7' -> osrs_key=7 at frame 24925
+sim_hotkey: 'f8' -> osrs_key=8 at frame 24950
+sim_hotkey: 'f9' -> osrs_key=9 at frame 24975
+sim_hotkey: 'f10' -> osrs_key=10 at frame 25000
+torirs_perf: window=49 frame_p95=6.54ms
+sim_hotkey: 'f11' -> osrs_key=11 at frame 25025
+sim_hotkey: 'f12' -> osrs_key=12 at frame 25050
+sim_hotkey: 'escape' -> osrs_key=13 at frame 25075
+sim_hotkey: 'f1' -> osrs_key=1 at frame 25100
+sim_hotkey: 'f2' -> osrs_key=2 at frame 25125
+sim_hotkey: 'f3' -> osrs_key=3 at frame 25150
+sim_hotkey: 'f4' -> osrs_key=4 at frame 25175
+sim_hotkey: 'f5' -> osrs_key=5 at frame 25200
+sim_hotkey: 'f6' -> osrs_key=6 at frame 25225
+sim_hotkey: 'f7' -> osrs_key=7 at frame 25250
+sim_hotkey: 'f8' -> osrs_key=8 at frame 25275
+sim_hotkey: 'f9' -> osrs_key=9 at frame 25300
+sim_hotkey: 'f10' -> osrs_key=10 at frame 25325
+sim_hotkey: 'f11' -> osrs_key=11 at frame 25350
+sim_hotkey: 'f12' -> osrs_key=12 at frame 25375
+sim_hotkey: 'escape' -> osrs_key=13 at frame 25400
+sim_hotkey: 'f1' -> osrs_key=1 at frame 25425
+sim_hotkey: 'f2' -> osrs_key=2 at frame 25450
+sim_hotkey: 'f3' -> osrs_key=3 at frame 25475
+sim_hotkey: 'f4' -> osrs_key=4 at frame 25500
+torirs_perf: window=50 frame_p95=8.70ms
+sim_hotkey: 'f5' -> osrs_key=5 at frame 25525
+sim_hotkey: 'f6' -> osrs_key=6 at frame 25550
+sim_hotkey: 'f7' -> osrs_key=7 at frame 25575
+sim_hotkey: 'f8' -> osrs_key=8 at frame 25600
+sim_hotkey: 'f9' -> osrs_key=9 at frame 25625
+sim_hotkey: 'f10' -> osrs_key=10 at frame 25650
+sim_hotkey: 'f11' -> osrs_key=11 at frame 25675
+sim_hotkey: 'f12' -> osrs_key=12 at frame 25700
+sim_hotkey: 'escape' -> osrs_key=13 at frame 25725
+sim_hotkey: 'f1' -> osrs_key=1 at frame 25750
+sim_hotkey: 'f2' -> osrs_key=2 at frame 25775
+sim_hotkey: 'f3' -> osrs_key=3 at frame 25800
+sim_hotkey: 'f4' -> osrs_key=4 at frame 25825
+sim_hotkey: 'f5' -> osrs_key=5 at frame 25850
+sim_hotkey: 'f6' -> osrs_key=6 at frame 25875
+sim_hotkey: 'f7' -> osrs_key=7 at frame 25900
+sim_hotkey: 'f8' -> osrs_key=8 at frame 25925
+sim_hotkey: 'f9' -> osrs_key=9 at frame 25950
+sim_hotkey: 'f10' -> osrs_key=10 at frame 25975
+sim_hotkey: 'f11' -> osrs_key=11 at frame 26000
+torirs_perf: window=51 frame_p95=4.94ms
+sim_hotkey: 'f12' -> osrs_key=12 at frame 26025
+sim_hotkey: 'escape' -> osrs_key=13 at frame 26050
+sim_hotkey: 'f1' -> osrs_key=1 at frame 26075
+sim_hotkey: 'f2' -> osrs_key=2 at frame 26100
+sim_hotkey: 'f3' -> osrs_key=3 at frame 26125
+sim_hotkey: 'f4' -> osrs_key=4 at frame 26150
+sim_hotkey: 'f5' -> osrs_key=5 at frame 26175
+sim_hotkey: 'f6' -> osrs_key=6 at frame 26200
+sim_hotkey: 'f7' -> osrs_key=7 at frame 26225
+sim_hotkey: 'f8' -> osrs_key=8 at frame 26250
+sim_hotkey: 'f9' -> osrs_key=9 at frame 26275
+sim_hotkey: 'f10' -> osrs_key=10 at frame 26300
+sim_hotkey: 'f11' -> osrs_key=11 at frame 26325
+sim_hotkey: 'f12' -> osrs_key=12 at frame 26350
+sim_hotkey: 'escape' -> osrs_key=13 at frame 26375
+sim_hotkey: 'f1' -> osrs_key=1 at frame 26400
+sim_hotkey: 'f2' -> osrs_key=2 at frame 26425
+sim_hotkey: 'f3' -> osrs_key=3 at frame 26450
+sim_hotkey: 'f4' -> osrs_key=4 at frame 26475
+sim_hotkey: 'f5' -> osrs_key=5 at frame 26500
+torirs_perf: window=52 frame_p95=6.36ms
+sim_hotkey: 'f6' -> osrs_key=6 at frame 26525
+sim_hotkey: 'f7' -> osrs_key=7 at frame 26550
+sim_hotkey: 'f8' -> osrs_key=8 at frame 26575
+sim_hotkey: 'f9' -> osrs_key=9 at frame 26600
+sim_hotkey: 'f10' -> osrs_key=10 at frame 26625
+sim_hotkey: 'f11' -> osrs_key=11 at frame 26650
+sim_hotkey: 'f12' -> osrs_key=12 at frame 26675
+sim_hotkey: 'escape' -> osrs_key=13 at frame 26700
+sim_hotkey: 'f1' -> osrs_key=1 at frame 26725
+sim_hotkey: 'f2' -> osrs_key=2 at frame 26750
+sim_hotkey: 'f3' -> osrs_key=3 at frame 26775
+sim_hotkey: 'f4' -> osrs_key=4 at frame 26800
+sim_hotkey: 'f5' -> osrs_key=5 at frame 26825
+sim_hotkey: 'f6' -> osrs_key=6 at frame 26850
+sim_hotkey: 'f7' -> osrs_key=7 at frame 26875
+sim_hotkey: 'f8' -> osrs_key=8 at frame 26900
+sim_hotkey: 'f9' -> osrs_key=9 at frame 26925
+sim_hotkey: 'f10' -> osrs_key=10 at frame 26950
+sim_hotkey: 'f11' -> osrs_key=11 at frame 26975
+sim_hotkey: 'f12' -> osrs_key=12 at frame 27000
+torirs_perf: window=53 frame_p95=6.18ms
+sim_hotkey: 'escape' -> osrs_key=13 at frame 27025
+sim_hotkey: 'f1' -> osrs_key=1 at frame 27050
+sim_hotkey: 'f2' -> osrs_key=2 at frame 27075
+sim_hotkey: 'f3' -> osrs_key=3 at frame 27100
+sim_hotkey: 'f4' -> osrs_key=4 at frame 27125
+sim_hotkey: 'f5' -> osrs_key=5 at frame 27150
+sim_hotkey: 'f6' -> osrs_key=6 at frame 27175
+sim_hotkey: 'f7' -> osrs_key=7 at frame 27200
+sim_hotkey: 'f8' -> osrs_key=8 at frame 27225
+sim_hotkey: 'f9' -> osrs_key=9 at frame 27250
+sim_hotkey: 'f10' -> osrs_key=10 at frame 27275
+sim_hotkey: 'f11' -> osrs_key=11 at frame 27300
+sim_hotkey: 'f12' -> osrs_key=12 at frame 27325
+sim_hotkey: 'escape' -> osrs_key=13 at frame 27350
+sim_hotkey: 'f1' -> osrs_key=1 at frame 27375
+sim_hotkey: 'f2' -> osrs_key=2 at frame 27400
+sim_hotkey: 'f3' -> osrs_key=3 at frame 27425
+sim_hotkey: 'f4' -> osrs_key=4 at frame 27450
+sim_hotkey: 'f5' -> osrs_key=5 at frame 27475
+sim_hotkey: 'f6' -> osrs_key=6 at frame 27500
+torirs_perf: window=54 frame_p95=6.00ms
+sim_hotkey: 'f7' -> osrs_key=7 at frame 27525
+sim_hotkey: 'f8' -> osrs_key=8 at frame 27550
+sim_hotkey: 'f9' -> osrs_key=9 at frame 27575
+sim_hotkey: 'f10' -> osrs_key=10 at frame 27600
+sim_hotkey: 'f11' -> osrs_key=11 at frame 27625
+sim_hotkey: 'f12' -> osrs_key=12 at frame 27650
+sim_hotkey: 'escape' -> osrs_key=13 at frame 27675
+sim_hotkey: 'f1' -> osrs_key=1 at frame 27700
+sim_hotkey: 'f2' -> osrs_key=2 at frame 27725
+sim_hotkey: 'f3' -> osrs_key=3 at frame 27750
+sim_hotkey: 'f4' -> osrs_key=4 at frame 27775
+sim_hotkey: 'f5' -> osrs_key=5 at frame 27800
+sim_hotkey: 'f6' -> osrs_key=6 at frame 27825
+sim_hotkey: 'f7' -> osrs_key=7 at frame 27850
+sim_hotkey: 'f8' -> osrs_key=8 at frame 27875
+sim_hotkey: 'f9' -> osrs_key=9 at frame 27900
+sim_hotkey: 'f10' -> osrs_key=10 at frame 27925
+sim_hotkey: 'f11' -> osrs_key=11 at frame 27950
+sim_hotkey: 'f12' -> osrs_key=12 at frame 27975
+sim_hotkey: 'escape' -> osrs_key=13 at frame 28000
+torirs_perf: window=55 frame_p95=4.86ms
+sim_hotkey: 'f1' -> osrs_key=1 at frame 28025
+sim_hotkey: 'f2' -> osrs_key=2 at frame 28050
+sim_hotkey: 'f3' -> osrs_key=3 at frame 28075
+sim_hotkey: 'f4' -> osrs_key=4 at frame 28100
+sim_hotkey: 'f5' -> osrs_key=5 at frame 28125
+sim_hotkey: 'f6' -> osrs_key=6 at frame 28150
+sim_hotkey: 'f7' -> osrs_key=7 at frame 28175
+sim_hotkey: 'f8' -> osrs_key=8 at frame 28200
+sim_hotkey: 'f9' -> osrs_key=9 at frame 28225
+sim_hotkey: 'f10' -> osrs_key=10 at frame 28250
+sim_hotkey: 'f11' -> osrs_key=11 at frame 28275
+sim_hotkey: 'f12' -> osrs_key=12 at frame 28300
+sim_hotkey: 'escape' -> osrs_key=13 at frame 28325
+sim_hotkey: 'f1' -> osrs_key=1 at frame 28350
+sim_hotkey: 'f2' -> osrs_key=2 at frame 28375
+sim_hotkey: 'f3' -> osrs_key=3 at frame 28400
+sim_hotkey: 'f4' -> osrs_key=4 at frame 28425
+sim_hotkey: 'f5' -> osrs_key=5 at frame 28450
+sim_hotkey: 'f6' -> osrs_key=6 at frame 28475
+sim_hotkey: 'f7' -> osrs_key=7 at frame 28500
+torirs_perf: window=56 frame_p95=4.86ms
+sim_hotkey: 'f8' -> osrs_key=8 at frame 28525
+sim_hotkey: 'f9' -> osrs_key=9 at frame 28550
+sim_hotkey: 'f10' -> osrs_key=10 at frame 28575
+sim_hotkey: 'f11' -> osrs_key=11 at frame 28600
+sim_hotkey: 'f12' -> osrs_key=12 at frame 28625
+sim_hotkey: 'escape' -> osrs_key=13 at frame 28650
+sim_hotkey: 'f1' -> osrs_key=1 at frame 28675
+sim_hotkey: 'f2' -> osrs_key=2 at frame 28700
+sim_hotkey: 'f3' -> osrs_key=3 at frame 28725
+sim_hotkey: 'f4' -> osrs_key=4 at frame 28750
+sim_hotkey: 'f5' -> osrs_key=5 at frame 28775
+sim_hotkey: 'f6' -> osrs_key=6 at frame 28800
+sim_hotkey: 'f7' -> osrs_key=7 at frame 28825
+sim_hotkey: 'f8' -> osrs_key=8 at frame 28850
+sim_hotkey: 'f9' -> osrs_key=9 at frame 28875
+sim_hotkey: 'f10' -> osrs_key=10 at frame 28900
+sim_hotkey: 'f11' -> osrs_key=11 at frame 28925
+sim_hotkey: 'f12' -> osrs_key=12 at frame 28950
+sim_hotkey: 'escape' -> osrs_key=13 at frame 28975
+sim_hotkey: 'f1' -> osrs_key=1 at frame 29000
+torirs_perf: window=57 frame_p95=4.68ms
+sim_hotkey: 'f2' -> osrs_key=2 at frame 29025
+sim_hotkey: 'f3' -> osrs_key=3 at frame 29050
+sim_hotkey: 'f4' -> osrs_key=4 at frame 29075
+sim_hotkey: 'f5' -> osrs_key=5 at frame 29100
+sim_hotkey: 'f6' -> osrs_key=6 at frame 29125
+sim_hotkey: 'f7' -> osrs_key=7 at frame 29150
+sim_hotkey: 'f8' -> osrs_key=8 at frame 29175
+sim_hotkey: 'f9' -> osrs_key=9 at frame 29200
+sim_hotkey: 'f10' -> osrs_key=10 at frame 29225
+sim_hotkey: 'f11' -> osrs_key=11 at frame 29250
+sim_hotkey: 'f12' -> osrs_key=12 at frame 29275
+sim_hotkey: 'escape' -> osrs_key=13 at frame 29300
+sim_hotkey: 'f1' -> osrs_key=1 at frame 29325
+sim_hotkey: 'f2' -> osrs_key=2 at frame 29350
+sim_hotkey: 'f3' -> osrs_key=3 at frame 29375
+sim_hotkey: 'f4' -> osrs_key=4 at frame 29400
+sim_hotkey: 'f5' -> osrs_key=5 at frame 29425
+sim_hotkey: 'f6' -> osrs_key=6 at frame 29450
+sim_hotkey: 'f7' -> osrs_key=7 at frame 29475
+sim_hotkey: 'f8' -> osrs_key=8 at frame 29500
+torirs_perf: window=58 frame_p95=4.75ms
+sim_hotkey: 'f9' -> osrs_key=9 at frame 29525
+sim_hotkey: 'f10' -> osrs_key=10 at frame 29550
+sim_hotkey: 'f11' -> osrs_key=11 at frame 29575
+sim_hotkey: 'f12' -> osrs_key=12 at frame 29600
+sim_hotkey: 'escape' -> osrs_key=13 at frame 29625
+sim_hotkey: 'f1' -> osrs_key=1 at frame 29650
+sim_hotkey: 'f2' -> osrs_key=2 at frame 29675
+sim_hotkey: 'f3' -> osrs_key=3 at frame 29700
+sim_hotkey: 'f4' -> osrs_key=4 at frame 29725
+sim_hotkey: 'f5' -> osrs_key=5 at frame 29750
+sim_hotkey: 'f6' -> osrs_key=6 at frame 29775
+sim_hotkey: 'f7' -> osrs_key=7 at frame 29800
+sim_hotkey: 'f8' -> osrs_key=8 at frame 29825
+sim_hotkey: 'f9' -> osrs_key=9 at frame 29850
+sim_hotkey: 'f10' -> osrs_key=10 at frame 29875
+sim_hotkey: 'f11' -> osrs_key=11 at frame 29900
+sim_hotkey: 'f12' -> osrs_key=12 at frame 29925
+sim_hotkey: 'escape' -> osrs_key=13 at frame 29950
+sim_hotkey: 'f1' -> osrs_key=1 at frame 29975
+post-boot: busy_frames=1 busy_steps=32 (frames that used the whole budget with work still queued)
+torirs_perf: window=59 frame_p95=5.08ms
+
+=== torirs_perf report ===
+frames=30000 ring=2048 over_20ms=56 (0.2%) eff_fps=231.5
+frame_ns mean=4319298 p50=4253000 p95=4874000 max=11601000  (budget=20000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async             52223       2000     186000     842000
+logic            224919     189000     378000    2622000
+cs2               42357          0     155000     809000
+layout               89          0       1000       9000
+interact          22176      21000      30000      90000
+emit             177370     169000     281000    1069000
+paint            355330     347000     396000    1716000
+build            355572     348000     396000    1716000
+render          3089363    3055000    3406000    8408000
+present          141437     138000     156000    1022000
+server             1457       1000       2000      85000
+residual        -142995  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                        1537213       750.59
+uitree_find_id_probes                 2591686      1265.47
+uitree_find_child                       12440         6.07
+uitree_find_child_hit                    3665         1.79
+uitree_find_child_ceil_miss              8775         4.28
+uitree_walk_emit                      5885952      2874.00
+uitree_walk_hit                       1454080       710.00
+uitree_walk_hover                      212992       104.00
+uitree_emit_skip                      5382144      2628.00
+uitree_layout_resolve                    1142         0.56
+uitree_layout_skip                        571         0.28
+uitree_layout_nodes                   4049532      1977.31
+uitree_layout_node_skip               4047546      1976.34
+uitree_layout_depth_recompute             571         0.28
+uitree_ensure_layout                    32759        16.00
+uitree_cc_deleteall                       571         0.28
+uitree_apply_geo                       212015       103.52
+uitree_apply_content                   208012       101.57
+uitree_apply_hook                        1065         0.52
+uitree_apply_other                    1027934       501.92
+uitree_components                    14524416      7092.00
+uitree_capacity                      16777216      8192.00
+uitree_free_list                         6144         3.00
+uitree_node_bytes                 29125246976  14221312.00
+cs2_scripts                             17130         8.36
+cs2_opcodes                           1551763       757.70
+cs2_host_ops                           207720       101.43
+cs2_cycles                            1551763       757.70
+cs2_vm_acquire                          17130         8.36
+cs2_vm_pool_hit                         17130         8.36
+cs2_vm_init_ns                       10749000      5248.54
+cs2_frame_pool_hit                      33542        16.38
+cache_sprite_hit                            6         0.00
+painter_pops                         17201292      8399.07
+painter_gate_rejects                  7507533      3665.79
+painter_pushes                       17201292      8399.07
+painter_push_dedup                    7531597      3677.54
+painter_drain_events                     8192         4.00
+painter_commands                     11145263      5442.02
+painter_tiles_remaining_set           8857600      4325.00
+scene_elements                       34129241     16664.67
+scene_anim_list                        176439        86.15
+zone_map_count                         129024        63.00
+zone_map_capacity                      524288       256.00
+npc_slot_max                           133120        65.00
+cache_model_size                       650369       317.56
+cache_sprite_size                      317476       155.02
+
+torirs_perf: wrote /Users/matthewevers/Documents/git_repos/3draster/tools/perf/results/4c9c7faf-drift-ui.csv
+=== end torirs_perf ===
+
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varbit load: 20411 types (19008 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+InterfaceOpen done: iface=161 pack_components=99 tree_components=1068 onloads=6 inv_hooks=0 var_hooks=8 mounts=0
