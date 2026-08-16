@@ -285,6 +285,18 @@ struct RS_Ref
     int is_local;
     int is_property_key;
     TSNode node;
+
+    /*
+     * A qualified name is two names — `fletching_table:product` is a column
+     * declared inside a table, `bankmain:items` a component inside an
+     * interface — and both halves are worth reaching. `container` is the left
+     * half, and `requalified` is the whole name with the left half re-spelled
+     * canonically, which is what turns the decompiled `interface_774:48` into
+     * the `toa_partydetails:48` the index holds. Empty when the name carries
+     * no colon.
+     */
+    char container[512];
+    char requalified[512];
 };
 
 /** Strip a sigil and any leading dot: `~.chatnpc` -> `.chatnpc`, `%x` -> `x`. */
@@ -296,6 +308,37 @@ ref_set_name(struct RS_Ref* ref, const char* text, int strip_sigil)
     if( strip_sigil && *p )
         p++;
     snprintf(ref->name, sizeof(ref->name), "%s", p);
+}
+
+/**
+ * Fill in `container` and `requalified` for a name carrying a colon.
+ *
+ * The hint is dropped for a qualified name: whatever the left half is, the
+ * whole is a member of it, and a hint derived from the syntax around it (a
+ * command's argument, say) would exclude the very kind being looked for.
+ */
+static void
+split_qualified(struct RS_Ref* ref)
+{
+    char* colon = strchr(ref->name, ':');
+    size_t left_length;
+    const char* canonical;
+
+    if( !colon )
+        return;
+
+    left_length = (size_t)(colon - ref->name);
+    if( !left_length || !colon[1] )
+        return;
+
+    memcpy(ref->container, ref->name, left_length);
+    ref->container[left_length] = '\0';
+    if( ref->hint != RS_KIND_COMMAND )
+        ref->hint = RS_KIND_UNKNOWN;
+
+    canonical = RS_IndexCanonical(&g_index, ref->container);
+    if( canonical )
+        snprintf(ref->requalified, sizeof(ref->requalified), "%s:%s", canonical, colon + 1);
 }
 
 static struct RS_Ref
@@ -400,6 +443,8 @@ resolve_ref(const struct RS_Doc* doc, TSNode node)
          * the same command: the dot lives in the operand, not in the name. */
         if( ref.hint == RS_KIND_COMMAND && ref.name[0] == '.' )
             memmove(ref.name, ref.name + 1, strlen(ref.name));
+
+        split_qualified(&ref);
     }
     else if( strcmp(type, "coord") == 0 || strcmp(type, "number") == 0 )
     {
@@ -432,35 +477,99 @@ kind_matches(enum RS_Kind symbol_kind, enum RS_Kind hint)
  * bare name that is both an interface and a loc really is both, and the caller
  * shows all of them rather than choosing.
  */
+/**
+ * Does this site USE the name rather than declare it?
+ *
+ * `[opheldu,bow_string]` is a handler bound to an obj, and a `.spawn` row is a
+ * placement of one; neither is where `bow_string` comes from. They are worth
+ * offering — "who handles this?" is a real question — but after the
+ * declaration, or go-to-definition on an obj with a dozen handlers never
+ * reaches the obj.
+ *
+ * The bracketed spelling `[opheldu,bow_string]` is excluded: that name IS the
+ * script's own, so for it the script is the declaration.
+ */
 static int
-ref_symbols(struct RS_Ref* ref, const struct RS_Symbol** out, int capacity)
+symbol_is_use_site(const struct RS_Symbol* symbol)
+{
+    if( symbol->kind == RS_KIND_SPAWN )
+        return 1;
+    return symbol->kind == RS_KIND_TRIGGER_SCRIPT && symbol->name[0] != '[';
+}
+
+/**
+ * Append every symbol called `name`, best first.
+ *
+ * Best is: the hint's own kind before any other, and a declaration before a
+ * site that merely uses the name.
+ */
+static int
+collect_named(
+    const char* name,
+    enum RS_Kind hint,
+    const struct RS_Symbol** out,
+    int capacity,
+    int written)
 {
     int first = 0;
     int count;
-    int written = 0;
-    int pass;
+    int rank;
     int i;
+    int j;
+
+    if( !name || !*name )
+        return written;
+
+    count = RS_IndexFind(&g_index, name, &first);
+    for( rank = 0; rank < 4 && written < capacity; rank++ )
+    {
+        /* A hint of UNKNOWN matches everything, so the two "wrong kind" ranks
+         * would repeat the first two. */
+        if( hint == RS_KIND_UNKNOWN && rank >= 2 )
+            break;
+
+        for( i = 0; i < count && written < capacity; i++ )
+        {
+            const struct RS_Symbol* symbol = &g_index.symbols[g_index.order[first + i]];
+            int symbol_rank = (kind_matches(symbol->kind, hint) ? 0 : 2) +
+                              (symbol_is_use_site(symbol) ? 1 : 0);
+            int duplicate = 0;
+
+            if( symbol_rank != rank )
+                continue;
+            for( j = 0; j < written; j++ )
+            {
+                if( out[j] == symbol )
+                    duplicate = 1;
+            }
+            if( duplicate )
+                continue;
+            out[written++] = symbol;
+        }
+    }
+    return written;
+}
+
+/**
+ * Every symbol a reference could mean, most specific first.
+ *
+ * For a plain name that is the name itself. For a qualified one it is the
+ * member, then the member under the container's canonical spelling, then the
+ * container — `fletching_table:product` answers with the column's own
+ * declaration AND the table it lives in, because the reader clicking it wanted
+ * one of the two and which one is not knowable from the click.
+ */
+static int
+ref_symbols(struct RS_Ref* ref, const struct RS_Symbol** out, int capacity)
+{
+    int written = 0;
 
     if( !ref->valid || ref->is_local || ref->is_property_key )
         return 0;
 
-    count = RS_IndexFind(&g_index, ref->name, &first);
-    for( pass = 0; pass < 2 && written < capacity; pass++ )
-    {
-        for( i = 0; i < count && written < capacity; i++ )
-        {
-            const struct RS_Symbol* symbol = &g_index.symbols[g_index.order[first + i]];
-            int matches = kind_matches(symbol->kind, ref->hint);
-
-            if( pass == 0 ? !matches : matches )
-                continue;
-            /* A trigger script named for its subject is a handler, not the
-             * declaration of the name; it is offered after everything else. */
-            out[written++] = symbol;
-        }
-        if( ref->hint == RS_KIND_UNKNOWN )
-            break;
-    }
+    written = collect_named(ref->name, ref->hint, out, capacity, written);
+    written = collect_named(ref->requalified, RS_KIND_UNKNOWN, out, capacity, written);
+    written = collect_named(ref->container, RS_KIND_UNKNOWN, out, capacity, written);
     return written;
 }
 
@@ -1645,7 +1754,9 @@ publish_diagnostics(const struct RS_Doc* doc)
                     }
                 }
 
-                if( what && !name_resolves(ref.name, ref.hint) )
+                if( what && !name_resolves(ref.name, ref.hint) &&
+                    !(ref.container[0] && (name_resolves(ref.requalified, RS_KIND_UNKNOWN) ||
+                                           name_resolves(ref.container, RS_KIND_UNKNOWN))) )
                 {
                     char message[512];
 

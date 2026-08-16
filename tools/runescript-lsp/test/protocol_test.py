@@ -303,6 +303,45 @@ def main():
     check(any("[opheldu,bow_string]" == entry["name"] for entry in symbols),
           "the script header is a document symbol", json.dumps(symbols)[:200])
 
+    print("\nbuilt-in commands")
+    hover = server.request("textDocument/hover", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("db_getfield"),
+    })
+    text = json.dumps(hover)
+    check("dbrow $row" in text and "dbcolumn $column" in text,
+          "a built-in command hovers with its declared argument names", text[:300])
+    hover = server.request("textDocument/hover", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("mes("),
+    })
+    text = json.dumps(hover)
+    check("string $text" in text, "and with its signature", text[:300])
+    check("chat" in text.lower() or "message" in text.lower(),
+          "and with the description engine.rs2 gives it", text[:400])
+
+    print("\nqualified names")
+    # `fletching_table:product` is a column declared inside a table. Clicking it
+    # has to reach both: the column's own line, and the table it lives in.
+    definition = server.request("textDocument/definition", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("fletching_table:product"),
+    })
+    targets = [(os.path.basename(entry["uri"]), entry["range"]["start"]["line"] + 1)
+               for entry in (definition or [])]
+    check(("test.dbtable", 4) in targets,
+          "a qualified name reaches the column's own declaration", str(targets))
+    check(("test.dbtable", 2) in targets,
+          "and the table that declares it", str(targets))
+
+    hover = server.request("textDocument/hover", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("fletching_table:product"),
+    })
+    text = json.dumps(hover)
+    check("dbcolumn" in text, "and hovers as a dbcolumn", text[:200])
+    check("namedobj" in text, "carrying the column's declared types", text[:300])
+
     print("\nthe clientscript dialect")
     # A decompiled `.cs2` addresses locals, variables and scripts by id, and
     # its constants come from the decompiler's vocabulary rather than this

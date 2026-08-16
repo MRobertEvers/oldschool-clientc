@@ -12421,6 +12421,35 @@ selftest_useon(
     rsab_p2(&out, SLOT_A);
     rsab_p4(&out, 0);
     mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+
+    /*
+     * Answer the make-menu, if the recipe opened one.
+     *
+     * A skilling use-on does not produce anything on the click any more: it
+     * opens interface 270 and parks on `p_pausebutton` waiting for a product
+     * and a quantity (see interface_skillmulti/scripts/skill_multi.rs2). A
+     * probe that measures the product therefore has to click a cell, or every
+     * converted recipe reads as an unbound rung — which is the same "nothing
+     * happened" this stanza exists to tell apart from a real dispatch bug.
+     *
+     * The first registered resume button is cell `a`, and sub 1 is quantity 1:
+     * one item, which is what the old immediate behaviour produced and what
+     * the counts below are written against.
+     */
+    if( player->active_script && player->resume_button_count > 0 )
+    {
+        int uid = player->resume_buttons[0];
+        uint8_t resume[6] = {
+            (uint8_t)(uid >> 24), (uint8_t)(uid >> 16), (uint8_t)(uid >> 8), (uint8_t)uid, 0, 1,
+        };
+
+        mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, sizeof(resume));
+        /* The batch loops behind a p_delay, so the item lands on a later tick
+         * than the click. Four is comfortably past the two every converted
+         * recipe uses. */
+        for( int t = 0; t < 4; t++ )
+            mock230_world_tick(srv);
+    }
     player->active_script = NULL;
 }
 

@@ -67,18 +67,71 @@ separately, because they answer different questions:
 
 Go-to-definition offers all of them rather than choosing one.
 
+### Qualified names
+
+`fletching_table:product` is a column declared inside a table, `bankmain:items`
+a component inside an interface. Clicking one reaches both halves, most
+specific first:
+
+```
+fletching_table:product
+    fletching.dbtable:21   column=product,namedobj,int   — the column
+    fletching.dbtable:18   [fletching_table]             — the table
+    pack/dbtable.alloc:43  22=fletching_table            — the table's id
+```
+
+A declaration always sorts ahead of a site that merely uses the name:
+`[opheldu,bow_string]` is a handler bound to an obj, not where the obj comes
+from, so go-to-definition on an obj with a dozen handlers still reaches the obj
+first.
+
+The decompiled client corpus writes `interface_774:48`, where 774 is an id and
+the cache calls that interface `toa_partydetails`. `pack/3_interfaces.pack`
+supplies an `interface_<id>` alias for every interface, and a qualified lookup
+re-spells the left half through it before searching — so
+`interface_774:48` lands on the component's line in
+`interfaces/toa_partydetails.compack`.
+
+### Built-in commands
+
 The engine's own vocabulary comes from the tables that define it, not from a
 copy: server opcode names and arity from `src/serverscript/ss_meta.c`, client
 command names and typed prototypes from `3rd/rscache/src/cs2`, trigger words
 from `src/serverscript/ss_trigger.h`. A command renamed in the engine is
 renamed here on the next build.
 
+Names and arity are not a signature, though — "pops 3 int" does not answer
+"what does `inv_del` take?". The argument names and the descriptions come from
+the reference server's own `content/scripts/engine.rs2`, which declares every
+command as `[command,name](args)(returns)` with a `// info:` line above it:
+
+> **command** `inv_del`
+> ```runescript
+> inv_del(inv $inv, obj $obj, int $count)
+> ```
+> Delete an $count of an object from an inventory
+>
+> `.inv_del` reads the secondary pointer.
+>
+> _server opcode 4307_
+
+366 server commands, 345 of them with a description, plus 262 client-opcode
+summaries taken from `tools/cs2_gen_opcodes/opcode_docs.py`. The table is
+generated and checked in:
+
+```bash
+python3 tools/runescript-lsp/gen_command_docs.py [path-to-LostCity_Server]
+```
+
+A command the reference does not declare — this tree adds a few — keeps the
+arity line, which is what it had before.
+
 ## What it does
 
 | request | what you get |
 | --- | --- |
-| hover | the namespace, the id, the declaring file, the signature, and the `//` block above the declaration |
-| definition / declaration | every site that declares the name |
+| hover | the namespace, the id, the declaring file, the signature, and the `//` block above the declaration; for a built-in, the declared argument names and what the command does |
+| definition / declaration | every site that declares the name, declarations before use sites; for a qualified name, the member and its container |
 | references | every use, across the workspace |
 | document & workspace symbols | scripts and records |
 | completion | sigil-aware — `~` offers procs, `^` constants, `%` variables, `$` the locals this script declares; inside a config file, the keys that file type actually uses |
@@ -144,7 +197,7 @@ Sent as `initializationOptions`, and again on `workspace/didChangeConfiguration`
 ## Testing
 
 ```bash
-make -C tools/runescript-lsp test                        # fixture suite, 33 checks
+make -C tools/runescript-lsp test                        # fixture suite, 40 checks
 python3 tools/runescript-lsp/test/content_tree_test.py   # against OSRS-Content
 ```
 
@@ -154,21 +207,23 @@ a working diagnostic from an absent one. `content_tree_test.py` runs the same
 questions against content nobody wrote for the test, and SKIPs when
 `OSRS-Content/` is not present.
 
-Both suites were checked against a mutated build — with the diagnostic
-settings forced off, three checks fail — so the assertions are known to be
-capable of failing.
+Both suites were checked against mutated builds — with the diagnostic settings
+forced off three checks fail, and with the qualified-name split removed the
+container half stops resolving — so the assertions are known to be capable of
+failing.
 
 ---
 
 ## Layout
 
 ```
-src/server.c     the protocol loop, and one handler per request
-src/index.c      the workspace index and the engine's built-in vocabulary
-src/doc.c        open documents, their trees, and the line table
-src/json.c       a read-only JSON DOM, sized for request bodies
-src/util.c       buffers, paths, and the UTF-8 <-> UTF-16 column conversion
-src/platform.c   directory walking and binary stdio, per platform
+src/server.c            the protocol loop, and one handler per request
+src/index.c             the workspace index and the engine's built-in vocabulary
+src/doc.c               open documents, their trees, and the line table
+src/json.c              a read-only JSON DOM, sized for request bodies
+src/util.c              buffers, paths, and the UTF-8 <-> UTF-16 column conversion
+src/platform.c          directory walking and binary stdio, per platform
+src/command_docs.gen.h  generated by gen_command_docs.py; do not edit
 ```
 
 Two notes on things that look like choices and are not:
@@ -188,5 +243,11 @@ carries a trigger, a subject, an argument list and a return list, and picking
 those out with a scanner would be re-implementing the grammar one regex at a
 time.
 
-Indexing the full `OSRS-Content/osrs239-content` tree: 15,536 files, ~690,000
-names, 2.7 s, 176 MB resident.
+**Header dependencies are tracked, and have to be.** The Makefile compiles with
+`-MMD -MP` and includes the resulting `.d` files. Without that, a header edit
+rebuilds nothing: `struct RS_Symbol` grew a field once, `index.o` was rebuilt
+and `server.o` was not, and a silent struct-size mismatch read as a segfault a
+long way from the edit.
+
+Indexing the full `OSRS-Content/osrs239-content` tree: 16,664 files, ~800,000
+names, 3.5 s, 200 MB resident.

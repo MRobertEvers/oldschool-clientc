@@ -62,6 +62,7 @@ enum RS_Kind
     RS_KIND_VARS,
     RS_KIND_DBTABLE,
     RS_KIND_DBROW,
+    RS_KIND_DBCOLUMN, /**< always qualified: `fletching_table:product` */
     RS_KIND_INTERFACE,
     RS_KIND_COMPONENT,
     RS_KIND_CATEGORY,
@@ -114,6 +115,17 @@ struct RS_Symbol
 
     char* detail; /**< signature, value text, or the record's `name=` field. */
     char* doc;    /**< the `//` block immediately above the definition. */
+
+    /**
+     * The name this one is a second spelling of, or NULL.
+     *
+     * The decompiled client corpus addresses an interface by id —
+     * `interface_774:48` — where the cache calls 774 `toa_partydetails`. The
+     * alias resolves on its own, but its *members* are indexed under the real
+     * name, so a qualified lookup has to re-spell the left half before it can
+     * find the right one. This is what it re-spells to.
+     */
+    char* canonical;
 };
 
 struct RS_Index
@@ -201,6 +213,14 @@ RS_OriginName(enum RS_Origin origin);
 /** True when this kind can be written with a `%` sigil. */
 int
 RS_KindIsVariable(enum RS_Kind kind);
+
+/**
+ * The canonical spelling of `name`, or NULL when it is already canonical.
+ *
+ * Used to turn `interface_774:48` into `toa_partydetails:48`.
+ */
+const char*
+RS_IndexCanonical(struct RS_Index* index, const char* name);
 
 /** The property keys seen in files with this extension. */
 int

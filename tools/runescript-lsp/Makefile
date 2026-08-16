@@ -29,7 +29,12 @@ endif
 
 # Wall/Wextra, but not -Werror: the generated parsers are not ours to keep
 # warning-free, and a grammar regeneration must not break the build.
-CFLAGS := -std=c11 $(CFLAGS_OPT) -Wall -Wextra -Wno-unused-parameter \
+# -MMD -MP writes a .d beside each .o listing the headers it read, and the
+# include at the bottom feeds them back to make. Without it a header edit
+# rebuilds nothing: `struct RS_Symbol` grew a field once and index.o was
+# rebuilt while server.o was not, which is a silent struct-size mismatch and
+# reads as a segfault a long way from the edit.
+CFLAGS := -std=c11 $(CFLAGS_OPT) -MMD -MP -Wall -Wextra -Wno-unused-parameter \
           -I$(SRC_DIR) \
           -I$(ROOT)/3rd/tree-sitter/include \
           -I$(ROOT)/src \
@@ -55,7 +60,7 @@ OBJS := $(OBJ_DIR)/lib.o $(OBJ_DIR)/parser_runescript.o $(OBJ_DIR)/parser_runeco
         $(OBJ_DIR)/ss_meta.o $(OBJ_DIR)/cs2_command.o $(OBJ_DIR)/cs2_types.o \
         $(OBJ_DIR)/cs2_support.o
 
-.PHONY: all clean test grammars install
+.PHONY: all clean test grammars command-docs install
 
 all: $(BIN)
 
@@ -72,30 +77,38 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 # include root: a generated parser includes "tree_sitter/parser.h" from beside
 # itself, which is not the same header as the runtime's public api.h.
 $(OBJ_DIR)/lib.o: $(TS_RUNTIME) | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/3rd/tree-sitter/include \
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/tree-sitter/include \
 	      -I$(ROOT)/3rd/tree-sitter/src -c $< -o $@
 
 $(OBJ_DIR)/parser_runescript.o: $(TS_SCRIPT) | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/tools/tree-sitter-runescript/src -c $< -o $@
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/tools/tree-sitter-runescript/src -c $< -o $@
 
 $(OBJ_DIR)/parser_runeconfig.o: $(TS_CONFIG) | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/tools/tree-sitter-runeconfig/src -c $< -o $@
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/tools/tree-sitter-runeconfig/src -c $< -o $@
 
 $(OBJ_DIR)/ss_meta.o: $(ROOT)/src/serverscript/ss_meta.c | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/src -c $< -o $@
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/src -c $< -o $@
 
 $(OBJ_DIR)/cs2_command.o: $(ROOT)/3rd/rscache/src/cs2/cs2_command.c | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
 	      -c $< -o $@
 
 $(OBJ_DIR)/cs2_types.o: $(ROOT)/3rd/rscache/src/cs2/cs2_types.c | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
 	      -c $< -o $@
 
 # cs2_types.c formats a script name through the library's arena allocator.
 $(OBJ_DIR)/cs2_support.o: $(ROOT)/3rd/rscache/src/cs2/cs2_support.c | $(OBJ_DIR)
-	$(CC) -std=c11 $(CFLAGS_OPT) -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
+	$(CC) -std=c11 $(CFLAGS_OPT) -MMD -MP -I$(ROOT)/3rd/rscache/src -I$(ROOT)/3rd/rscache/include \
 	      -c $< -o $@
+
+# Regenerate the command signature/description table from the reference
+# server's engine.rs2. Needs that tree; the output is checked in so that
+# building does not.
+#   make -C tools/runescript-lsp command-docs REF=../../../LostCity_Server
+REF ?= $(ROOT)/../LostCity_Server
+command-docs:
+	python3 gen_command_docs.py $(REF)
 
 # Regenerate both parsers from their grammars. Needs Node; the outputs are
 # checked in so that building does not.
@@ -108,3 +121,5 @@ test: $(BIN)
 
 clean:
 	rm -rf $(OBJ_DIR) $(BIN)
+
+-include $(OBJS:.o=.d)

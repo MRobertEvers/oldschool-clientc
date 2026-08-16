@@ -21,6 +21,14 @@
 
 static int g_fail = 0;
 
+/* Column ids as the compiler emits them: (table << 12) | (column << 4). The
+ * values matter only in that the recorder and the fixture agree. */
+enum
+{
+    DBCOL_STRING = (7 << 12) | (0 << 4),
+    DBCOL_INT = (7 << 12) | (1 << 4),
+};
+
 #define CHECK(cond, msg)                                                       \
     do                                                                         \
     {                                                                          \
@@ -110,6 +118,29 @@ record_command(struct SSVM_State* state, int opcode, int dot)
         if( !SSVM_PopInt(state, &value) )
             return 1;
         record->last_int_arg = value;
+        return 1;
+    }
+
+    /*
+     * `db_getfield(row, table:column, index)` — the one command whose return
+     * type is decided by DATA, so the recorder answers the way the real handler
+     * does: the column says which stack the value lands on. Keyed on the column
+     * id the compiler emitted, because that id is the only thing the runtime
+     * has to go on either.
+     */
+    case SS_OP_DB_GETFIELD:
+    {
+        int32_t index;
+        int32_t column;
+        int32_t row;
+
+        if( !SSVM_PopInt(state, &index) || !SSVM_PopInt(state, &column) ||
+            !SSVM_PopInt(state, &row) )
+            return 1;
+        if( column == DBCOL_STRING )
+            SSVM_PushStr(state, "Air");
+        else
+            SSVM_PushInt(state, 55);
         return 1;
     }
 
@@ -242,6 +273,16 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * 451, and SEQ sorts before SPOTANIM. See test_spotanim_argument_hint. */
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 2660, SSC_SYM_SEQ, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 451, SSC_SYM_SPOTANIM, NULL);
+    /*
+     * Two `table:column` references, carrying the declared types the `.dbtable`
+     * loader puts in `text`. That text is the compiler's only way to know which
+     * stack a `db_getfield` on the column pushes onto — see
+     * test_dbcolumn_return_type.
+     */
+    SSC_SymbolsAdd(&fixture->symbols, "rc_table:name", DBCOL_STRING, SSC_SYM_DBCOLUMN,
+                   "string");
+    SSC_SymbolsAdd(&fixture->symbols, "rc_table:level", DBCOL_INT, SSC_SYM_DBCOLUMN,
+                   "int,int,LIST");
     SSC_SymbolsAdd(&fixture->symbols, "max_coins", 0, SSC_SYM_CONSTANT, "2147000000");
     SSC_SymbolsAdd(&fixture->symbols, "greeting", 0, SSC_SYM_CONSTANT, "\"Well met!\"");
     /*
@@ -1634,6 +1675,47 @@ test_errors(void)
         printf("  note: could not clean up %s\n", dir);
 }
 
+/*
+ * `db_getfield`'s return type comes from the column, not from the opcode table.
+ *
+ * `ss_meta.gen.h` says DB_GETFIELD pushes one INT, because that is the common
+ * case and an opcode table cannot say more — the column decides (ss_meta.h,
+ * `runtime_typed`). Inside a string literal the compiler appends TOSTRING to
+ * anything it believes is an int, so a `string` column was converted a second
+ * time: the value was already on the string stack and TOSTRING popped an empty
+ * int stack. `runecraft.rs2:95` — "You hold the <…name…> Talisman towards the
+ * mysterious ruins." — aborted there, after the animation and the sound, with
+ * nothing said to the player.
+ *
+ * Both directions are asserted, because the fix is "trust the column" and the
+ * int case is the one a wrong column type would break instead.
+ */
+static void
+test_dbcolumn_return_type(void)
+{
+    struct Fixture fixture;
+
+    printf("db_getfield's return type comes from the column\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "mes(\"the <db_getfield(0, rc_table:name, 0)> talisman\");\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "mes(\"level <db_getfield(0, rc_table:level, 0)>\");\n",
+                         "dbcolumn return type") )
+        return;
+
+    if( run_script(&fixture, "[proc,s0]", NULL, 0, NULL, "dbcolumn string column") )
+        CHECK_EQ(strcmp(fixture.record.last_message, "the Air talisman"), 0,
+                 "a string column joins the literal with no conversion");
+    if( run_script(&fixture, "[proc,s1]", NULL, 0, NULL, "dbcolumn int column") )
+        CHECK_EQ(strcmp(fixture.record.last_message, "level 55"), 0,
+                 "an int column still gets its TOSTRING");
+
+    fixture_close(&fixture);
+}
+
 int
 main(void)
 {
@@ -1664,6 +1746,7 @@ main(void)
     test_proc_param_kind_hint();
     test_param_type_shadowing();
     test_script_name_argument();
+    test_dbcolumn_return_type();
     test_errors();
 
     if( g_fail )

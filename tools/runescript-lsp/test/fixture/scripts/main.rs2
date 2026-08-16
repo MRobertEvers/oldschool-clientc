@@ -7,6 +7,7 @@ if ($ok = true) {
 } else {
     mes(^dm_default);
 }
+db_getfield($count, fletching_table:product, 0);
 ~missing_proc($count);
 mes(^no_such_constant);
 $undeclared = 1;
