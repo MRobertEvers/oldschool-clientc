@@ -333,7 +333,46 @@ destination flags, mirroring clientscripts 3105–3108.
 
 ---
 
-## 6. Open / deliberately not done
+## 6. Verification
+
+**Selftest.** `mock230 selftest: a canoe is chopped, shaped, floated and
+paddled` (`mock230_world.c`) drives the whole chain through the real packets at
+the real Lumbridge station: `OPLOC1` on the station until the tree falls,
+`IF_BUTTON1` on `canoeing:log` to shape it, `OPLOC1` to float it, `OPLOC1` to
+board, then two destination clicks — Edgeville, which a log canoe must be
+refused, and the Champions' Guild, which it must reach. It asserts the player
+is seated at 1817,4514 on the way past, which is the only thing that
+distinguishes "rode the cutscene" from "teleported straight there".
+
+Both halves were mutation-tested rather than assumed:
+
+| mutation | result |
+|---|---|
+| `canoe_station.dbrow` Lumbridge coord moved one tile | `FAIL chopping the station should leave a fallen tree (state 10), got 0` |
+| `^canoe_reach_log` 1 → 3 | `FAIL a log canoe asked for Edgeville should be refused, not flown` + the player found at 1817,4514 |
+
+The suite is otherwise clean. Note that this section pins `srv->rng`, as the
+woodcutting section above it already does, so it shifts the draws every later
+section sees — a pre-existing flaky npc-pursuit check changes answer either
+way, in both directions, with and without this content.
+
+**The reach rule** in `~canoe_reach_allowed` was checked cell by cell against
+clientscripts 3105–3108: all 220 cells (4 canoe types × 10 stations × 5–6
+destinations) agree, with zero mismatches.
+
+**By eye,** through the real client under `SDL_VIDEODRIVER=dummy` with
+`TORIRS_NET_CHEAT="canoeride 4"`: the ride seats the player in the waka on
+`m28_70`, the camera locks to the bank shot, `canoeing_rowing` plays, the tree
+and bullrush npcs drift past, `cam_reset` restores the follow camera and the
+player lands at Barbarian Village with "Your canoe sinks behind you."
+`::canoecave 4` shows the same with the cave scenery closing over the channel.
+
+One trap worth writing down: **use `MOCK230_SAVES` for these runs.** A run that
+ends mid-ride saves the player sitting in the canoe at 1817,4514, and the next
+run logs in there — which reads exactly like a cutscene that never exits. The
+first two attempts at this verification chased that and not the code.
+
+## 7. Open / deliberately not done
 
 - The five River Dougne assistants have no entry in the generated world spawn
   roster (`tools/gen_spawns.py` rewrites that directory wholesale from an

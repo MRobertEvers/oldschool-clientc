@@ -7798,6 +7798,7 @@ handle_window_status(
     struct Mock230Player* player = srv->active_player;
     int window_mode;
     int layout_mode;
+    int dropdown_choice;
     int width;
     int height;
     int32_t args[1];
@@ -7812,14 +7813,15 @@ handle_window_status(
         fprintf(stderr,
                 "mock230: <- WINDOW_STATUS window=%d canvas=%dx%d layout=%d\n",
                 window_mode, width, height, player->client_layout_mode);
+    /* Consumed by this packet whatever it turns out to mean, and before the
+     * revision branch that may not want it: a choice that survives its own
+     * WINDOW_STATUS came from some other dropdown, and leaving it latched
+     * would let it decide the NEXT layout change. */
+    dropdown_choice = player->settings_dropdown_choice;
+    player->settings_dropdown_choice = -1;
+
     if( srv->wire && srv->wire->revision >= 239 )
     {
-        /* Consumed here whatever this packet turns out to mean: a choice that
-         * survives its own WINDOW_STATUS is a choice from some other dropdown,
-         * and leaving it latched would let it decide the NEXT layout change. */
-        int const dropdown_choice = player->settings_dropdown_choice;
-
-        player->settings_dropdown_choice = -1;
         if( window_mode != 1 && window_mode != 2 )
             return;
         if( window_mode == 1 )
@@ -24266,6 +24268,247 @@ mock230_world_selftest(void)
                 player->inv_dirty = 0xfffffffu;
                 player->stat_level[woodcutting] = saved_level;
                 player->stat_boosted[woodcutting] = saved_level;
+            }
+            if( owned )
+                mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: a canoe is chopped, shaped, floated and paddled\n");
+    {
+        /*
+         * The whole canoe chain, driven through the real packets, at the real
+         * Lumbridge station. docs/CANOES.md is the map of what it is exercising.
+         *
+         * There are four things here that a clean `sscompile` says nothing
+         * about and that this is here to catch:
+         *
+         *  1. **The station is identified by `loc_coord`, not `loc_type`.** All
+         *     ten stations share one set of multiloc children, so a trigger is
+         *     bound to `canoestation_tree` and the station comes out of a
+         *     `db_find` on the loc's own tile. One transposed coordinate in
+         *     `canoe_station.dbrow` and the click is a silent no-op — the exact
+         *     fingerprint [[p-oploc-multiloc-op-check]] describes.
+         *  2. **The op arrives on the resolved child.** `handle_oploc` checks
+         *     the op against the varbit-resolved loc, so the chop only works if
+         *     `canoestation_tree` really is what state 0 resolves to and really
+         *     does carry `op1`.
+         *  3. **State 11 and not state 1 is what the travel map wants.** The
+         *     multiloc has two in-water bands and only the upper one
+         *     (11..14) makes clientscript 3104 offer a destination.
+         *  4. **Reach is enforced server-side.** The client greys out a
+         *     destination it will not allow; the assertion below sends the
+         *     click anyway.
+         *
+         * The chop is a random roll, so the loop is ticked to a deadline rather
+         * than a fixed count, and the deadline is generous: at 60 Woodcutting
+         * with a rune axe a roll lands every four ticks and almost never fails.
+         */
+        int owned = 0;
+        int loaded = srv->scripts_ok;
+
+        if( !loaded )
+        {
+            loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            if( !loaded )
+                loaded =
+                    mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            owned = loaded != 0;
+        }
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture canoe_capture;
+            /* Lumbridge: the station loc's own south-west tile, which is both
+             * the OPLOC target and the key `canoe_station.dbrow` is written
+             * against, and the bank tile the player stands on to reach it. */
+            const int station_x = 3241;
+            const int station_z = 3235;
+            const int stand_x = 3243;
+            const int stand_z = 3237;
+            int station_loc =
+                mock230_content_symbol(MOCK230_PACK_LOC, "canoeing_canoestation_lumbridge");
+            int state_bit =
+                mock230_content_symbol(MOCK230_PACK_VARBIT, "canoestation_state_lumbridge");
+            int type_bit = mock230_content_symbol(MOCK230_PACK_VARBIT, "canoe_type");
+            int from_bit = mock230_content_symbol(MOCK230_PACK_VARBIT, "canoe_startfrom");
+            int log_cell = mock230_content_symbol(MOCK230_PACK_COMPONENT, "canoeing:log");
+            int dest_guild =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "canoe_map_lum:destination_2");
+            int dest_edge =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "canoe_map_lum:destination_4");
+            int axe = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_axe");
+            int woodcutting = mock230_content_symbol(MOCK230_PACK_STAT, "woodcutting");
+
+            SELFTEST_CHECK(station_loc >= 0, "the Lumbridge canoe station should be in the cache");
+            SELFTEST_CHECK(state_bit >= 0, "canoestation_state_lumbridge should be a cache varbit");
+            SELFTEST_CHECK(type_bit >= 0, "canoe_type should be a cache varbit");
+            SELFTEST_CHECK(from_bit >= 0, "canoe_startfrom should be a cache varbit");
+            SELFTEST_CHECK(log_cell >= 0, "canoeing:log should resolve as a component");
+            SELFTEST_CHECK(dest_guild >= 0, "canoe_map_lum:destination_2 should resolve");
+
+            if( station_loc >= 0 && state_bit >= 0 && type_bit >= 0 && from_bit >= 0 &&
+                log_cell >= 0 && dest_guild >= 0 && dest_edge >= 0 && axe >= 0 && woodcutting >= 0 )
+            {
+                uint8_t oploc[6] = { (uint8_t)(station_x >> 8), (uint8_t)station_x,
+                                     (uint8_t)(station_z >> 8), (uint8_t)station_z,
+                                     (uint8_t)(station_loc >> 8), (uint8_t)station_loc };
+                struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+                int saved_level;
+                int saved_xp;
+                int state;
+                int seat_seen = 0;
+                int refused = 0;
+
+                memcpy(saved_inv, player->inv, sizeof(saved_inv));
+                saved_level = player->stat_level[woodcutting];
+                saved_xp = player->stat_xp_tenths[woodcutting];
+                selftest_park_player(srv, stand_x, stand_z);
+                selftest_clear_inv(player);
+                selftest_give(player, axe, 1);
+                player->stat_level[woodcutting] = 60;
+                player->stat_boosted[woodcutting] = 60;
+                mock230_varbit_set(srv, state_bit, 0);
+                srv->rng = 0xca20e001u;
+
+                /* ---- Chop-down. State 0 -> 10, through the falling state. */
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                for( int tick = 0; tick < 40; tick++ )
+                {
+                    mock230_world_tick(srv);
+                    if( mock230_varbit_get(player, state_bit) == 10 )
+                        break;
+                }
+                state = mock230_varbit_get(player, state_bit);
+                SELFTEST_CHECK(state == 10,
+                               "chopping the station should leave a fallen tree (state 10), got %d",
+                               state);
+                SELFTEST_CHECK(mock230_varbit_get(player, from_bit) == 1,
+                               "and canoe_startfrom should name Lumbridge, got %d",
+                               mock230_varbit_get(player, from_bit));
+
+                /* ---- Shape. The "Make Log canoe" op is on a cc_create'd child
+                 * of canoeing:log, so the click carries sub 0. */
+                if( state == 10 )
+                {
+                    uint8_t button[6] = { (uint8_t)(log_cell >> 24), (uint8_t)(log_cell >> 16),
+                                          (uint8_t)(log_cell >> 8),  (uint8_t)log_cell,
+                                          0,                         0 };
+
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, 6);
+                    for( int tick = 0; tick < 8; tick++ )
+                        mock230_world_tick(srv);
+                    state = mock230_varbit_get(player, state_bit);
+                    SELFTEST_CHECK(state == 1,
+                                   "shaping a log canoe should leave state 1, got %d", state);
+                    SELFTEST_CHECK(player->stat_xp_tenths[woodcutting] > saved_xp,
+                                   "and it should pay Woodcutting xp");
+                    SELFTEST_CHECK(mock230_varbit_get(player, type_bit) == 1,
+                                   "and canoe_type should be the log, got %d",
+                                   mock230_varbit_get(player, type_bit));
+                }
+
+                /* ---- Float. State 1 -> 5 (the launch splash) -> 11. */
+                if( state == 1 )
+                {
+                    mock230_world_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                    for( int tick = 0; tick < 12; tick++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( mock230_varbit_get(player, state_bit) == 11 )
+                            break;
+                    }
+                    state = mock230_varbit_get(player, state_bit);
+                    SELFTEST_CHECK(state == 11,
+                                   "floating the log canoe should settle it at state 11 — the "
+                                   "band clientscript 3104 will offer a destination for — got %d",
+                                   state);
+                }
+
+                /* ---- Board, then ask for somewhere a log canoe cannot reach.
+                 * Edgeville is three stops from Lumbridge; the client greys it
+                 * out, and the server has to refuse it anyway. */
+                if( state == 11 )
+                {
+                    uint8_t far_button[6] = { (uint8_t)(dest_edge >> 24), (uint8_t)(dest_edge >> 16),
+                                              (uint8_t)(dest_edge >> 8),  (uint8_t)dest_edge,
+                                              0xff,                       0xff };
+
+                    mock230_world_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
+                    for( int tick = 0; tick < 6; tick++ )
+                        mock230_world_tick(srv);
+
+                    mock230_capture_begin(srv, &canoe_capture);
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, far_button, 6);
+                    for( int tick = 0; tick < 6; tick++ )
+                        mock230_world_tick(srv);
+                    mock230_capture_end(srv);
+
+                    for( int i = mock230_capture_find(&canoe_capture, 90 /* MESSAGE_GAME */, 0);
+                         i >= 0; i = mock230_capture_find(&canoe_capture, 90, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet = &canoe_capture.packets[i];
+
+                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                            continue;
+                        if( strstr((const char*)packet->data + 1, "travel that far") )
+                            refused++;
+                    }
+                    SELFTEST_CHECK(refused > 0,
+                                   "a log canoe asked for Edgeville should be refused, not flown");
+                    SELFTEST_CHECK(player->x == stand_x && player->z == stand_z,
+                                   "and the player should not have moved, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(mock230_varbit_get(player, state_bit) == 11,
+                                   "and the canoe should still be waiting in the water");
+                }
+
+                /* ---- Now somewhere it can reach: the Champions' Guild, one
+                 * stop downstream. The ride goes through m28_70 — the cutscene
+                 * square — so the seat tile is sampled on the way past. That
+                 * sample is the only proof the backdrop is really being visited
+                 * rather than the player being teleported straight across. */
+                if( mock230_varbit_get(player, state_bit) == 11 )
+                {
+                    uint8_t go[6] = { (uint8_t)(dest_guild >> 24), (uint8_t)(dest_guild >> 16),
+                                      (uint8_t)(dest_guild >> 8),  (uint8_t)dest_guild,
+                                      0xff,                        0xff };
+
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, go, 6);
+                    for( int tick = 0; tick < 30; tick++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( player->x == 1817 && player->z == 4514 )
+                            seat_seen = 1;
+                        if( player->x == 3199 && player->z == 3344 )
+                            break;
+                    }
+                    SELFTEST_CHECK(seat_seen,
+                                   "the ride should seat the player in the m28_70 canoe at "
+                                   "1817,4514, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(player->x == 3199 && player->z == 3344,
+                                   "and land them at the Champions' Guild, got %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(mock230_varbit_get(player, state_bit) == 0,
+                                   "and the canoe should have sunk, leaving a tree, got %d",
+                                   mock230_varbit_get(player, state_bit));
+                }
+
+                mock230_varbit_set(srv, state_bit, 0);
+                mock230_varbit_set(srv, type_bit, 0);
+                mock230_varbit_set(srv, from_bit, 0);
+                mock230_world_interaction_clear(srv);
+                selftest_park_player(srv, stand_x, stand_z);
+                memcpy(player->inv, saved_inv, sizeof(saved_inv));
+                player->inv_dirty = 0xfffffffu;
+                player->stat_level[woodcutting] = saved_level;
+                player->stat_boosted[woodcutting] = saved_level;
+                player->stat_xp_tenths[woodcutting] = saved_xp;
             }
             if( owned )
                 mock230_scripts_free(srv);

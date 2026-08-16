@@ -534,6 +534,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # interaction to the next rung.
     "TRIGGER_DECLINE": (11044, 0, 0, 0, 0),
 
+    # npc_facing_coord(coord)(boolean)
+    #
+    # Whether the active NPC's persistent 8-way facing direction points into
+    # the half-plane containing the supplied tile. Content can already test
+    # sight and walking reach, but neither answers the Storerooms rule that a
+    # patrolling guard only notices a door while looking toward it.
+    "NPC_FACING_COORD": (11045, 1, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -791,6 +799,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["active_player"]),

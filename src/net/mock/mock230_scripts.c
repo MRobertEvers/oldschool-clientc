@@ -567,6 +567,49 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
     return missing;
 }
 
+/*
+ * Remove every host-side owner of one parked state, then return it to the VM
+ * pool while its environment is still alive.
+ *
+ * A state normally has exactly one owner, but clearing every matching slot
+ * makes teardown safe even if an earlier parking bug left two references to
+ * it.  In particular, world_delay states are not player- or npc-owned: merely
+ * clearing active_script cannot reach them.
+ */
+static void
+discard_parked_state(
+    struct Mock230Server* srv,
+    struct SSVM_State* state)
+{
+    if( !state )
+        return;
+
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        if( srv->players[i].active_script == state )
+        {
+            srv->players[i].active_script = NULL;
+            srv->players[i].resume_button_count = 0;
+        }
+    }
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active_script == state )
+            srv->npcs[i].active_script = NULL;
+    }
+    for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+    {
+        if( srv->world_queue[i].state == state )
+        {
+            srv->world_queue[i].state = NULL;
+            srv->world_queue[i].delay = 0;
+            srv->world_queue[i].active = 0;
+        }
+    }
+
+    SSVM_StateRelease(state);
+}
+
 void
 mock230_scripts_free(struct Mock230Server* srv)
 {
@@ -579,15 +622,22 @@ mock230_scripts_free(struct Mock230Server* srv)
      * pointer. The resume buttons go with it — they only mean anything to the
      * script that registered them.
      *
-     * Every player's, not the active one's: this runs at load and at shutdown,
-     * when there is no "whose turn it is" at all, and with a pool a second
-     * player's parked state would outlive the env it points into.
+     * Every owner class, not only the active player: this runs at load and at
+     * shutdown, when there is no "whose turn it is" at all.  A crop respawn is
+     * parked in world_queue, for example; leaving that slot live resumes a
+     * state whose env and provider were freed here.  Adding an unrelated proc
+     * merely changed the allocator layout enough to turn that latent UAF into
+     * an invalid host-command call during a later world tick.
      */
     for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
     {
-        srv->players[i].active_script = NULL;
+        discard_parked_state(srv, srv->players[i].active_script);
         srv->players[i].resume_button_count = 0;
     }
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        discard_parked_state(srv, srv->npcs[i].active_script);
+    for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+        discard_parked_state(srv, srv->world_queue[i].state);
 
     if( srv->script_env )
     {
@@ -4102,6 +4152,31 @@ mock230_script_command(
             return 1;
         }
         SSVM_PushInt(state, coord_pack(npc->level, npc->x, npc->z));
+        return 1;
+    }
+
+    case SS_OP_NPC_FACING_COORD:
+    {
+        int32_t target;
+        struct Mock230Npc* npc = active_npc(state);
+        static const int dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+        static const int dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
+        int tx;
+        int tz;
+
+        if( !SSVM_PopInt(state, &target) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_facing_coord with no active npc");
+            return 1;
+        }
+        tx = coord_x(target) - npc->x;
+        tz = coord_z(target) - npc->z;
+        SSVM_PushInt(state,
+                     coord_level(target) == npc->level && (tx != 0 || tz != 0) &&
+                         npc->face_dir >= 0 && npc->face_dir < 8 &&
+                         tx * dx[npc->face_dir] + tz * dz[npc->face_dir] > 0);
         return 1;
     }
 

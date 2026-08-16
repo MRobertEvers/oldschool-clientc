@@ -251,6 +251,9 @@ struct RS_CS2InvTransmitHook
      *  once when first dispatched visible, then only when the serial advances
      *  (TS parity: node.lastChangedInvCount vs cycles.changedInvCount). */
     uint32_t last_seen_serial;
+    /** A matching container changed while this hook was hidden. An unhide pass
+     *  resumes only hooks carrying this bit, not every globally stale hook. */
+    uint8_t pending_unhide;
 };
 
 struct RS_CS2VarTransmitHook
@@ -267,6 +270,8 @@ struct RS_CS2VarTransmitHook
     int trigger_count;
     /** var_change_serial this hook last fired for (0 = never fired). */
     uint32_t last_seen_serial;
+    /** A matching varp changed while this hook was hidden. */
+    uint8_t pending_unhide;
 };
 
 /*

@@ -3947,7 +3947,7 @@ exec_widget_set_model_angle(
 
 /* Acquire the inv-transmit hook slot for component_id. Re-registration for the
  * same component reuses its entry (the new script supersedes the old) while
- * preserving last_seen_serial — a transmit script re-registering itself must not
+ * preserving its dispatch state — a transmit script re-registering itself must not
  * re-arm and re-fire every pump (TS parity: reassigning node.onInvTransmit does
  * not reset lastChangedInvCount).
  *
@@ -3985,8 +3985,10 @@ rs_cs2_acquire_inv_transmit_hook(
         if( hook->component_id == component_id )
         {
             uint32_t const last_seen = hook->last_seen_serial;
+            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
             hook->last_seen_serial = last_seen;
+            hook->pending_unhide = pending_unhide;
             return hook;
         }
     }
@@ -4052,8 +4054,10 @@ rs_cs2_acquire_var_transmit_hook(
         if( hook->component_id == component_id )
         {
             uint32_t const last_seen = hook->last_seen_serial;
+            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
             hook->last_seen_serial = last_seen;
+            hook->pending_unhide = pending_unhide;
             return hook;
         }
     }

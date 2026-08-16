@@ -38,7 +38,9 @@
  *   1. Each dirty flag, set ALONE, opens the guard.
  *   2. Each dirty flag, set ALONE, is cleared by the pump — the starvation half.
  *      A flag that survives its own pump is one that will accumulate.
- *   3. stat_transmit_dirty specifically reaches a queued dispatch task, driven
+ *   3. stat_transmit_dirty specifically reaches exactly its queued dispatch
+ *      task — not the wildcard var dispatch that used to fan a stat-only XP
+ *      update out through every visible var listener — driven
  *      through RS_CS2Host_NotifyStatChanged rather than by poking the field, so
  *      that the notify -> flag -> guard -> task chain is covered end to end.
  *      This is the XP-drop channel.
@@ -52,6 +54,7 @@
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_cs2_host.h"
+#include "game/task_cs2_run.h"
 #include "inv/inv_manager.h"
 #include "task_runner.h"
 #include "ui/uitree.h"
@@ -136,6 +139,21 @@ queued_count(struct Fixture const* fx)
     int n = 0;
     for( t = fx->runner.queue->head; t; t = t->next )
         n++;
+    return n;
+}
+
+static int
+queued_named_count(
+    struct Fixture const* fx,
+    char const* name)
+{
+    struct ToriRS_Task const* t;
+    int n = 0;
+    for( t = fx->runner.queue->head; t; t = t->next )
+    {
+        if( strcmp(t->name, name) == 0 )
+            n++;
+    }
     return n;
 }
 
@@ -309,7 +327,12 @@ test_each_flag_alone(void)
             RS_CS2_TransmitsPending(&fx.host) == 0,
             "%s alone leaves the host quiet afterwards",
             c->name);
-        CHECK(queued_count(&fx) > 0, "%s alone queues at least one dispatch", c->name);
+        CHECK(
+            queued_count(&fx) == (i == 0 ? 2 : 1),
+            "%s alone queues only its dispatch%s, got %d",
+            c->name,
+            i == 0 ? "es (inv + var on unhide)" : "",
+            queued_count(&fx));
 
         fixture_free(&fx);
     }
@@ -345,7 +368,13 @@ test_stat_notify_reaches_a_dispatch(void)
 
     RS_CS2_PumpTransmits(&fx.host, &fx.runner);
 
-    CHECK(queued_count(&fx) > 0, "the pump queues a dispatch, got %d tasks", queued_count(&fx));
+    CHECK(queued_count(&fx) == 1, "the pump queues one dispatch, got %d tasks", queued_count(&fx));
+    CHECK(
+        queued_named_count(&fx, "CS2StatTransmitDispatch") == 1,
+        "the queued task is the stat dispatch");
+    CHECK(
+        queued_named_count(&fx, "CS2VarTransmitDispatch") == 0,
+        "a stat-only XP update does not fan out through every var hook");
     CHECK(fx.host.stat_transmit_dirty == 0, "and consumes the flag rather than accumulating it");
 
     /* A second, immediately following quiet tick must not re-dispatch: that is
@@ -569,6 +598,27 @@ test_script_varp_write_notifies_on_change_only(void)
     fixture_free(&fx);
 }
 
+static void
+test_var_trigger_ids_are_not_reinterpreted_as_varbits(void)
+{
+    struct RS_CS2VarTransmitHook hook;
+    int changed = 1105;
+
+    printf("pump: var trigger ids remain varps when their number also names a varbit\n");
+
+    memset(&hook, 0, sizeof(hook));
+    hook.trigger_ids[0] = 1055;
+    hook.trigger_count = 1;
+
+    CHECK(
+        !RS_CS2_VarTransmitTriggersMatch(&hook, &changed, 1),
+        "varp 1105 does not falsely match trigger varp 1055");
+    changed = 1055;
+    CHECK(
+        RS_CS2_VarTransmitTriggersMatch(&hook, &changed, 1),
+        "varp 1055 still matches its exact trigger");
+}
+
 int
 main(void)
 {
@@ -581,6 +631,7 @@ main(void)
     test_clear_hooks_preserves_compass_on_op();
     test_dynamic_drag_target_uses_parent_address();
     test_script_varp_write_notifies_on_change_only();
+    test_var_trigger_ids_are_not_reinterpreted_as_varbits();
 
     if( g_fail )
     {

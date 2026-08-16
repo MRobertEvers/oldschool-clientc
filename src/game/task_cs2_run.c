@@ -1445,6 +1445,7 @@ struct Task_CS2InvTransmitDispatch
 
     struct RS_CS2Host* host;
     int container_id;
+    int unhide_only;
     int hook_index;
 };
 
@@ -1483,7 +1484,8 @@ Task_CS2InvTransmitDispatch_Run(
          self->hook_index++ )
     {
         hook = &self->host->inv_transmit_hooks[self->hook_index];
-        if( !hook_matches_container(hook, self->container_id) )
+        if( self->unhide_only ? !hook->pending_unhide
+                              : !hook_matches_container(hook, self->container_id) )
             continue;
         if( hook->script_id <= 0 )
             continue;
@@ -1492,17 +1494,27 @@ Task_CS2InvTransmitDispatch_Run(
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
         {
             hook->last_seen_serial = self->host->inv_change_serial;
+            hook->pending_unhide = 0;
             continue;
         }
-        /* Hidden: skip WITHOUT advancing so the hook fires once when unhidden
-         * (TS parity: hidden nodes are skipped before counter sync). */
+        /* A real matching change that reaches a hidden hook records explicit
+         * pending work. A later unhide pass can then resume precisely this hook
+         * instead of treating every hook behind the global serial as stale. */
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
+        {
+            if( !self->unhide_only )
+            {
+                hook->pending_unhide = 1;
+                hook->last_seen_serial = self->host->inv_change_serial;
+            }
             continue;
+        }
         /* Already fired for the current inv state — the per-hook serial gate that
          * makes widgets-loaded re-traversals free (TS lastChangedInvCount). */
-        if( hook->last_seen_serial >= self->host->inv_change_serial )
+        if( !self->unhide_only && hook->last_seen_serial >= self->host->inv_change_serial )
             continue;
         hook->last_seen_serial = self->host->inv_change_serial;
+        hook->pending_unhide = 0;
 
 #if UITREE_CLICK_DEBUG
         fprintf(
@@ -1571,6 +1583,17 @@ CreateTask_CS2InvTransmitDispatch(
     return &self->task;
 }
 
+struct ToriRS_Task*
+CreateTask_CS2InvTransmitUnhideDispatch(
+    struct RS_CS2Host* host)
+{
+    struct Task_CS2InvTransmitDispatch* self =
+        (struct Task_CS2InvTransmitDispatch*)CreateTask_CS2InvTransmitDispatch(host, -1);
+    self->unhide_only = 1;
+    strcpy(self->task.name, "CS2InvTransmitUnhideDispatch");
+    return &self->task;
+}
+
 /* =========================================================================
  * Var-transmit dispatch
  * ========================================================================= */
@@ -1586,28 +1609,12 @@ struct Task_CS2VarTransmitDispatch
      *  var_count == 0 means "every hook", the pre-filter behavior. */
     int var_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
     int var_count;
+    int unhide_only;
     int hook_index;
 };
 
-/** Does `var_id` name the varbit whose base varp is `changed_id`? A hook may
- *  list varbit triggers while the change notification carries the base varp
- *  (VarPManager_SetVarbitOptimistic writes through the base), so matching on the
- *  raw id alone would silently stop such a hook from ever re-running. */
-static int
-var_trigger_is_varbit_of(
-    struct RS_CS2Host const* host,
-    int trigger_id,
-    int changed_id)
-{
-    struct VarPManager const* varps = host->varps;
-    if( !varps || trigger_id < 0 || trigger_id >= varps->varbit_count )
-        return 0;
-    return varps->varbit_types[trigger_id].basevar == changed_id;
-}
-
-static int
-hook_matches_var(
-    struct RS_CS2Host const* host,
+int
+RS_CS2_VarTransmitTriggersMatch(
     struct RS_CS2VarTransmitHook const* hook,
     int const* var_ids,
     int var_count)
@@ -1623,8 +1630,14 @@ hook_matches_var(
     {
         for( int v = 0; v < var_count; v++ )
         {
-            if( hook->trigger_ids[i] == var_ids[v] ||
-                var_trigger_is_varbit_of(host, hook->trigger_ids[i], var_ids[v]) )
+            /* Transmit trigger arrays contain VARP ids. A varbit write is
+             * announced as its base varp by RS_CS2Host_ScriptWriteVarbit and
+             * the network VarPManager callback, so there is nothing to resolve
+             * here. Treating the same numeric id as a possible varbit creates
+             * false matches: the gameframe watches varp 1055, while varbit
+             * 1055 happens to live in varp 1105 (combat level). Every level-up
+             * therefore used to run toplevel_redraw and rebuild 1,024 widgets. */
+            if( hook->trigger_ids[i] == var_ids[v] )
                 return 1;
         }
     }
@@ -1647,7 +1660,9 @@ Task_CS2VarTransmitDispatch_Run(
          self->hook_index++ )
     {
         hook = &self->host->var_transmit_hooks[self->hook_index];
-        if( !hook_matches_var(self->host, hook, self->var_ids, self->var_count) )
+        if( self->unhide_only
+                ? !hook->pending_unhide
+                : !RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count) )
             continue;
         if( hook->script_id <= 0 )
             continue;
@@ -1656,15 +1671,26 @@ Task_CS2VarTransmitDispatch_Run(
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
         {
             hook->last_seen_serial = self->host->var_change_serial;
+            hook->pending_unhide = 0;
             continue;
         }
-        /* Hidden: skip WITHOUT advancing so the hook fires once when unhidden. */
+        /* Record only a relevant update as pending. Global var_change_serial
+         * advances for unrelated varps too, so serial staleness alone cannot
+         * decide what an unhide should replay. */
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
+        {
+            if( !self->unhide_only )
+            {
+                hook->pending_unhide = 1;
+                hook->last_seen_serial = self->host->var_change_serial;
+            }
             continue;
+        }
         /* Already fired for the current var state (TS lastChangedVarpCount gate). */
-        if( hook->last_seen_serial >= self->host->var_change_serial )
+        if( !self->unhide_only && hook->last_seen_serial >= self->host->var_change_serial )
             continue;
         hook->last_seen_serial = self->host->var_change_serial;
+        hook->pending_unhide = 0;
 
         {
             char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];
@@ -1726,6 +1752,17 @@ CreateTask_CS2VarTransmitDispatchSet(
         self->var_count = var_count;
     }
     PT_INIT(&self->pt);
+    return &self->task;
+}
+
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitUnhideDispatch(
+    struct RS_CS2Host* host)
+{
+    struct Task_CS2VarTransmitDispatch* self =
+        (struct Task_CS2VarTransmitDispatch*)CreateTask_CS2VarTransmitDispatchSet(host, NULL, 0);
+    self->unhide_only = 1;
+    strcpy(self->task.name, "CS2VarTransmitUnhideDispatch");
     return &self->task;
 }
 

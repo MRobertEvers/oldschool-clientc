@@ -269,37 +269,56 @@ RS_CS2_PumpTransmits(
 
     runner->frame_settle_pending = 1;
 
-    /* Inv hooks re-run on unhide OR a container change. The container filter
+    /* Inv hooks re-run on a container change. If a matching change reached a
+     * hidden hook, the hook records that fact and the unhide pass below resumes
+     * precisely that deferred work. The container filter
      * mirrors the var one: a plain UPDATE_INV only re-runs the hooks that list
-     * that container as a trigger, while an unhide (which says nothing about
-     * what changed) re-checks everything. Dispatching only on unhide was the
+     * that container as a trigger. Dispatching only on unhide was the
      * bug that left a server-driven inventory permanently blank — the paint
      * script ran once at build time against an empty container and nothing
      * ever asked it to run again. */
-    if( host->widgets_loaded_dirty || host->inv_transmit_dirty )
+    if( host->inv_transmit_dirty )
     {
         int container = -1;
-        if( !host->widgets_loaded_dirty && !host->inv_changed_all &&
-            host->inv_changed_count == 1 )
+        if( !host->inv_changed_all && host->inv_changed_count == 1 )
             container = host->inv_changed_ids[0];
         task = CreateTask_CS2InvTransmitDispatch(host, container);
         assert(task);
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2InvTransmitUnhideDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
 
-    /* An unhide has to re-check every hook (a widget that was hidden through any
-     * number of value changes must repaint). A plain value change only re-runs
-     * the hooks that listed one of the changed vars as a trigger — otherwise
-     * rev230's per-tick clock varc drags every hook's script along with it. */
+    /* An unhide resumes hooks that recorded a relevant update while hidden. A
+     * plain value change only re-runs the hooks that listed one of the changed
+     * vars as a trigger — otherwise
+     * rev230's per-tick clock varc drags every hook's script along with it.
+     *
+     * The value-change branch must also be gated on its actual cause. The dispatch
+     * used to be unconditional once *any* dirty flag opened the pump. On a
+     * stat-only update, var_changed_count is zero, and zero deliberately means
+     * "all hooks" for an unhide. Consequently a stat-only XP update could run
+     * every visible var-transmit listener despite changing no var at all. */
+    if( host->var_transmit_dirty )
     {
         int const* ids = host->var_changed_ids;
         int count = host->var_changed_count;
-        if( host->widgets_loaded_dirty || host->var_changed_all )
+        if( host->var_changed_all )
         {
             ids = NULL;
             count = 0;
         }
         task = CreateTask_CS2VarTransmitDispatchSet(host, ids, count);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2VarTransmitUnhideDispatch(host);
         assert(task);
         ToriRS_TaskQueue_Add(runner->queue, task);
     }

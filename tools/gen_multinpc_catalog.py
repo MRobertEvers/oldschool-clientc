@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Catalog every `multinpc` shell in the npc cache: which varp/varbit picks its
-live variant, whether that shell is actually spawned in the world (so is
-invisible today, per [[world-spawn-roster]] / the gertrude+veos bug), and
-whether any quest script already writes the switch.
+live variant, whether that shell is actually spawned in the world, and
+whether any quest script already references the switch.
 
     tools/gen_multinpc_catalog.py \
         --content OSRS-Content/osrs239-content \
@@ -10,25 +9,25 @@ whether any quest script already writes the switch.
 
 A `multinpc` record is a shell: no `model*=` of its own, just `multivarp=` or
 `multivarbit=` naming the switch and `multinpc1..N=` pointing at the variants
-that actually have a model. Nothing in the engine currently reads that switch
-and substitutes the right variant before a spawn reaches NPC_INFO, so every
-spawn of a shell id renders nothing — see the session that found this on
-Gertrude/Veos. Fixing the engine is one piece; the other is that some of these
-switches are never written by *any* quest script, so even a correct engine
-would show the wrong (usually the "hidden") variant forever. This script tells
-the two apart.
+that actually have a model. The engine resolves those transforms before a
+spawn reaches NPC_INFO; the remaining content problem is switches never
+referenced by any quest script whose value-0 target is hidden. Those shells
+still resolve correctly -- to no npc. This script tells genuine hidden
+defaults apart from switches such as Edmond's, where value 0 intentionally
+shows one placement and hides another.
 
 Output, under `--out-dir`:
 
   - `multinpc_shells.csv`   one row per shell record (2.4k+): base id, switch,
                             variant chain, whether it's in the world spawn
-                            roster, how many places in `server/scripts/`
-                            reference the switch by name.
+                            roster, its value-0 target/visibility, and how many
+                            places in `server/scripts/` reference the switch.
   - `multinpc_switches.csv` one row per *unique* varp/varbit (~600): how many
                             shells key off it, whether any of them is spawned,
-                            whether content ever writes it. Sorted worst-first:
-                            spawned-and-never-written switches are the npcs
-                            that are invisible in the game right now.
+                            whether content ever references it, plus aggregate
+                            value-0 visibility across its spawned shells.
+                            Sorted worst-first: unreferenced `all_hidden`
+                            switches precede mixed and already-visible ones.
 
 Content cannot declare a varbit (see [[content-cannot-declare-varbits]]) so
 every switch name here already resolves in `configs/all.varp`/`all.varbit` --
@@ -158,6 +157,14 @@ def variant_summary(variants):
     return "; ".join(parts)
 
 
+def default_variant(variants):
+    """Value 0 selects multinpc1 (the first config entry)."""
+    if not variants:
+        return None
+    _idx, target, _display = variants[0]
+    return target
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--content", required=True, help="path to osrs239-content")
@@ -177,13 +184,15 @@ def main():
 
     shells_csv = os.path.join(args.out_dir, "multinpc_shells.csv")
     with open(shells_csv, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(
             [
                 "base",
                 "switch_type",
                 "switch_name",
                 "is_spawned",
+                "default_target",
+                "default_visible",
                 "variant_count",
                 "variants",
                 "content_ref_count",
@@ -197,6 +206,8 @@ def main():
                     shell["switch_type"],
                     shell["switch_name"],
                     "yes" if shell["base"] in spawn_names else "no",
+                    default_variant(shell["variants"]) or "(hidden)",
+                    "yes" if default_variant(shell["variants"]) is not None else "no",
                     len(shell["variants"]),
                     variant_summary(shell["variants"]),
                     len(refs),
@@ -209,11 +220,19 @@ def main():
         key = (shell["switch_type"], shell["switch_name"])
         entry = by_switch.setdefault(
             key,
-            {"shells": [], "spawned_shells": [], "variant_count": 0},
+            {
+                "shells": [],
+                "spawned_shells": [],
+                "spawned_default_visible": [],
+                "variant_count": 0,
+            },
         )
         entry["shells"].append(shell["base"])
         if shell["base"] in spawn_names:
             entry["spawned_shells"].append(shell["base"])
+            entry["spawned_default_visible"].append(
+                default_variant(shell["variants"]) is not None
+            )
         entry["variant_count"] += len([v for v in shell["variants"] if v[1] is not None])
 
     switches_csv = os.path.join(args.out_dir, "multinpc_switches.csv")
@@ -222,10 +241,29 @@ def main():
         refs = content_refs.get(switch_name, [])
         is_spawned = bool(entry["spawned_shells"])
         has_content = bool(refs)
+        default_states = entry["spawned_default_visible"]
+        if default_states and all(default_states):
+            spawned_default_state = "all_visible"
+        elif default_states and any(default_states):
+            spawned_default_state = "mixed"
+        elif default_states:
+            spawned_default_state = "all_hidden"
+        else:
+            spawned_default_state = "not_spawned"
         # Worst first: spawned in the world right now, but no script ever
-        # sets the switch -- these are invisible in-game today with zero
-        # content coverage, per the gertrude/veos finding.
-        priority = 0 if (is_spawned and not has_content) else (1 if is_spawned else 2)
+        # references the switch. Within that group, shells that all resolve to
+        # hidden at value 0 are the actionable visibility gaps; mixed switches
+        # often express mutually-exclusive placements and need quest-specific
+        # analysis rather than a blanket default.
+        if is_spawned and not has_content:
+            visibility_priority = {
+                "all_hidden": 0,
+                "mixed": 1,
+                "all_visible": 2,
+            }[spawned_default_state]
+            priority = visibility_priority
+        else:
+            priority = 3 if is_spawned else 4
         rows.append(
             (
                 priority,
@@ -235,6 +273,7 @@ def main():
                 entry["variant_count"],
                 "yes" if is_spawned else "no",
                 ", ".join(sorted(entry["spawned_shells"])),
+                spawned_default_state,
                 len(refs),
                 "; ".join(refs[:3]),
             )
@@ -242,7 +281,7 @@ def main():
     rows.sort(key=lambda r: (r[0], -r[3]))
 
     with open(switches_csv, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(
             [
                 "switch_type",
@@ -251,6 +290,7 @@ def main():
                 "variant_count",
                 "spawned_in_world",
                 "spawned_shell_bases",
+                "spawned_default_state",
                 "content_ref_count",
                 "sample_content_refs",
             ]
@@ -258,11 +298,21 @@ def main():
         for row in rows:
             writer.writerow(row[1:])
 
-    gap_count = sum(1 for r in rows if r[0] == 0)
-    spawned_count = sum(1 for r in rows if r[0] <= 1)
+    gap_count = sum(
+        1
+        for r in rows
+        if r[5] == "yes" and r[8] == 0
+    )
+    hidden_gap_count = sum(
+        1
+        for r in rows
+        if r[5] == "yes" and r[7] == "all_hidden" and r[8] == 0
+    )
+    spawned_count = sum(1 for r in rows if r[5] == "yes")
     print(f"shells: {len(shells)}  unique switches: {len(by_switch)}", file=sys.stderr)
     print(f"switches spawned in world: {spawned_count}", file=sys.stderr)
-    print(f"switches spawned AND never written by content (gaps): {gap_count}", file=sys.stderr)
+    print(f"switches spawned AND never referenced by content (gaps): {gap_count}", file=sys.stderr)
+    print(f"gaps whose spawned shells are all hidden at value 0: {hidden_gap_count}", file=sys.stderr)
     print(f"wrote {shells_csv}", file=sys.stderr)
     print(f"wrote {switches_csv}", file=sys.stderr)
 

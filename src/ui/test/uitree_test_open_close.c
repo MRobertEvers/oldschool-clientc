@@ -235,6 +235,72 @@ test_open_close_steady(void)
     UITree_Free(tree);
 }
 
+void
+test_mounted_component_inherits_container_hidden(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t gameframe;
+    int32_t side_slot;
+    int32_t side_root;
+    int32_t account_slot;
+    int32_t account_root;
+    int32_t account_hook;
+
+    printf("TEST: mounted component inherits container hidden\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 0;
+    gameframe = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (161 << 16) | 78;
+    side_slot = UITree_Push(tree, gameframe, &spec);
+
+    spec.component_id = (629 << 16) | 0;
+    side_root = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (629 << 16) | 43;
+    account_slot = UITree_Push(tree, side_root, &spec);
+
+    spec.component_id = (712 << 16) | 0;
+    account_root = UITree_Push(tree, -1, &spec);
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = (712 << 16) | 2;
+    account_hook = UITree_Push(tree, account_root, &spec);
+
+    TEST_ASSERT(
+        gameframe >= 0 && side_slot >= 0 && side_root >= 0 && account_slot >= 0 &&
+            account_root >= 0 && account_hook >= 0,
+        "nested mounted fixture builds");
+    UITree_InterfaceParentSet(tree, (161 << 16) | 78, 629, 1);
+    UITree_InterfaceParentSet(tree, (629 << 16) | 43, 712, 1);
+
+    TEST_ASSERT(
+        !UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "visible mount chain leaves child visible");
+
+    tree->components[side_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden outer mount container hides nested interface child");
+
+    tree->components[side_slot].behavior.hide = 0;
+    tree->components[account_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden inner mount container hides mounted interface child");
+
+    tree->components[account_slot].behavior.hide = 0;
+    tree->components[account_root].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "pack-local hidden ancestor still hides child");
+
+    UITree_Free(tree);
+}
+
 /* Compass-shaped case: gameframe dynamic child keeps on_op when a sibling
  * pack (bank) is cleared — the live failure was menu ops without on_op. */
 void

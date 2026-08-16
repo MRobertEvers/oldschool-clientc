@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 struct RS_CS2Host;
+struct RS_CS2VarTransmitHook;
 struct CS2VM2_Script;
 
 /**
@@ -59,6 +60,11 @@ CreateTask_CS2InvTransmitDispatch(
     struct RS_CS2Host* host,
     int container_id);
 
+/** Resume inv hooks that missed a matching change while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2InvTransmitUnhideDispatch(
+    struct RS_CS2Host* host);
+
 /**
  * Run registered var-transmit hooks whose triggers match var_id
  * (or all hooks when var_id < 0).
@@ -76,6 +82,19 @@ CreateTask_CS2VarTransmitDispatch(
 struct ToriRS_Task*
 CreateTask_CS2VarTransmitDispatchSet(
     struct RS_CS2Host* host,
+    int const* var_ids,
+    int var_count);
+
+/** Resume var hooks that missed a matching change while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitUnhideDispatch(
+    struct RS_CS2Host* host);
+
+/** True when a var-transmit hook's compiled varp trigger set intersects the
+ * changed base-varp ids. A zero-sized side is the wildcard form. */
+int
+RS_CS2_VarTransmitTriggersMatch(
+    struct RS_CS2VarTransmitHook const* hook,
     int const* var_ids,
     int var_count);
 

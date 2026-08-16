@@ -471,10 +471,11 @@
 #define SS_OP_NPC_SETFOLLOWER 11042
 #define SS_OP_NPC_FINDFOLLOWER 11043
 #define SS_OP_TRIGGER_DECLINE 11044
+#define SS_OP_NPC_FACING_COORD 11045
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11045
+#define SS_OPCODE_MAX 11046
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 449
+#define SS_OPCODE_COUNT 450
 
 #endif

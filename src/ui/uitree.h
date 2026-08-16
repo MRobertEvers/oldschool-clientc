@@ -1734,7 +1734,7 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id);
 
-/** Ancestor hide check for InvTransmit gating. */
+/** Ancestor hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(
     struct UITree const* tree,

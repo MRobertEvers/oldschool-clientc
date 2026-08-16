@@ -3981,13 +3981,44 @@ UITree_ComponentOrAncestorHidden(
     int component_id)
 {
     int32_t idx;
+    int group;
+    int mount_hops = 0;
     assert(tree);
     idx = UITree_FindByComponentId(tree, component_id);
     while( idx >= 0 && (uint32_t)idx < tree->component_count )
     {
-        if( tree->components[idx].behavior.hide )
-            return 1;
-        idx = tree->components[idx].parent;
+        group = (tree->components[idx].component_id >> 16) & 0xffff;
+
+        /* Walk the component's pack-local parents first. InterfaceParent
+         * mounts are not represented by UITreeComponent::parent: the mounted
+         * group's roots stay in the root list and the mount table supplies the
+         * cross-interface edge at draw time. A visibility query has to follow
+         * that same edge or a hook in an inactive side tab looks visible and
+         * reacts to every transmit. The account-summary tab is particularly
+         * expensive: its var listener rebuilds roughly a thousand dynamic
+         * widgets when combat level changes on an XP update. */
+        do
+        {
+            if( tree->components[idx].behavior.hide )
+                return 1;
+            idx = tree->components[idx].parent;
+        } while( idx >= 0 && (uint32_t)idx < tree->component_count );
+
+        /* Continue at the container this interface group is mounted into.
+         * Nested mounts (gameframe -> side tab -> account summary) are common,
+         * hence the loop rather than a single lookup. Guard malformed mount
+         * cycles even though InterfaceParent construction should forbid them. */
+        idx = -1;
+        for( int i = 0; i < tree->interface_parent_count; i++ )
+        {
+            if( tree->interface_parents[i].group_id == group )
+            {
+                idx = UITree_FindByComponentId(tree, tree->interface_parents[i].container_uid);
+                break;
+            }
+        }
+        if( idx < 0 || ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
+            break;
     }
     return 0;
 }

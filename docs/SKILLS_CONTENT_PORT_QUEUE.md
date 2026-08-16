@@ -147,7 +147,7 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 20 | Slayer | `skill_slayer/` | [Slayer](https://oldschool.runescape.wiki/w/Slayer) · [Training](https://oldschool.runescape.wiki/w/Slayer/Training) | done | Masters/assign/kill/points/ops/rewards IF live (KRONOS); finish #123–130 |
 | 21 | Farming | `skill_farming/` | [Farming](https://oldschool.runescape.wiki/w/Farming) · [Training](https://oldschool.runescape.wiki/w/Farming/Training) | done | Classic patches (SCAPE2009 §1a–1g) live; finish #131–138 |
 | 22 | Construction | `skill_construction/` | [Construction](https://oldschool.runescape.wiki/w/Construction) · [Training](https://oldschool.runescape.wiki/w/Construction/Training) | done | Live POH 4a+4b; finish #139–145 redirects; do not park tree |
-| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | done | Snare/box/impling/falconry+Puro live (SCAPE2009); finish #146–153; **Audit roster complete** |
+| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | done | Snare/box/impling/falconry+Puro live (SCAPE2009); finish #146–153; plan: [`HUNTER_COMPLETION_PLAN.md`](HUNTER_COMPLETION_PLAN.md) |
 
 ## Finish queue
 
@@ -303,14 +303,14 @@ unblocked row per tick.
 | 143 | Servant / house party / visitor mode | wiki+cache | pending | Wiki servants + friend visits absent |
 | 144 | Gilded altar / POH prayer furniture | SCAPE2009 | blocked | Already Skills #25 → POH remainder; do not edit live tree from Prayer lane |
 | 145 | Construction training furniture (oak larders/mahogany tables/…) | SCAPE2009 | blocked | Beyond garden plants — furniture catalogue → §4c owner |
-| 146 | Expanded bird snare / box-trap prey | SCAPE2009 | pending | Crimson swift + grey chin first; other birds/chins/ferrets absent |
-| 147 | Butterfly netting / barehand | wiki+cache | pending | Wiki butterflies; net used for baby impling only |
-| 148 | Salamander / deadfall / tracking remainder | SCAPE2009 | pending | Salamander net deferred (2c); polar kebbit trails deferred (2d); deadfall absent |
-| 149 | Impling jar loot + higher implings | SCAPE2009 | pending | Baby catch live; jar loot stub; higher implings + Elnock shop deferred (Puro §8) |
-| 150 | Falconry polish (projectile / zone leave) | SCAPE2009 | pending | Catch+retrieve live; projectile visual + zone cleanup deferred |
-| 151 | Hunter cape / camouflage gear | wiki+cache | pending | Skillcape perk + gear catch-rate bonuses absent |
-| 152 | Bird houses / Herbiboar / Hunter Guild | wiki → Kronos | blocked | Post-2009 Fossil Island + Avium Savannah stay KRONOS lane |
-| 153 | Aerial / drift-net / crab trapping | wiki → Kronos | blocked | Post-2009 techniques stay KRONOS (also Fishing #70 overlap) |
+| 146 | Expanded bird snare / box-trap prey | SCAPE2009+wiki | pending | Five birds + ferret/grey/red chin live but singleton trap ownership is wrong; add jerboa, black chin, Letvek. See [`HUNTER_COMPLETION_PLAN.md`](HUNTER_COMPLETION_PLAN.md) H1/H3/H10 |
+| 147 | Butterfly netting / barehand | wiki+cache | pending | Four classic butterflies live with obsolete barehand gates; add sunlight/moonlight moths and current release rules. See Hunter plan §3.3 |
+| 148 | Salamander / deadfall / tracking remainder | SCAPE2009+wiki | pending | Four salamanders + four deadfalls + four partial kebbit trails live; add tecu, fox, monkey, razorback, Herbiboar and complete graphs. See Hunter plan §§3.1/3.5/3.7 |
+| 149 | Impling jar loot + higher implings | SCAPE2009+wiki | pending | Baby–dragon, loot tables, and Puro live; add surface/Puro XP split, direct loot, barehand, Crystal/Lucky, tracker/spawner audit. See Hunter plan §3.4 |
+| 150 | Falconry polish (projectile / zone leave) | SCAPE2009 | pending | Three kebbits, projectile, catch and retrieve live; audit Matthias rental, logout/zone cleanup, ownership races, and rumour hooks. See Hunter plan §3.9 |
+| 151 | Hunter cape / clothing / horn | wiki+cache | pending | Cape and fur exchange absent; camouflage is weight-only, while guild outfit affects catches; horn implementation lacks success boost/doubling. See Hunter plan §§5.4/6 |
+| 152 | Bird houses / Herbiboar / Hunter Guild / modern prey | wiki+cache | pending | Cache has Fossil/Avium/Guild and 2026 Vampyrium assets; implement per-player sites, Rumours, Savannah roster, Letvek/Stymphike. Wyrmscraig goats need a newer cache. See Hunter plan §§4.1/5/7/8 |
+| 153 | Aerial / drift-net / crab trapping | wiki+cache | pending | Cache has aerial spots, drift-net states, and crab guide/assets; implement as shared Hunter/Fishing/Sailing slices with authoritative adjacent gates. See Hunter plan §§4.2–4.4 |
 | 154 | Crafting spinning remainder | wiki+cache | done | Spinning wheel extended from 2 to 10 rows (crossbow string ×5 sources, linen/magic string, rope, hemp/cotton yarn), `spinning.dbtable`, bound to all 9 wheel placements via cache category 971. See CRAFTING_COMPLETION_PLAN.md §1.1/S3 |
 | 155 | Crafting silver casting remainder | wiki+cache | done | Plain silver Tiara (distinct from the gold tiara in #46) + silver bolts (unf), both previously unreachable. See CRAFTING_COMPLETION_PLAN.md §1.15/S9 |
 | 156 | Crafting leather/dragonhide shields + spiky vambraces | wiki+cache | done | Hard leather shield + 4 dragonhide shields (leather-on-wooden-shield + hammer + nails), spiky vambraces (kebbit claws on any vambraces). Depended on Fletching's wooden shields, which had already landed. See CRAFTING_COMPLETION_PLAN.md §1.4–§1.5/S10 |
