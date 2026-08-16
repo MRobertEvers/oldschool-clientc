@@ -3178,6 +3178,23 @@ UITree_ApplyModelTransparent(
 }
 
 bool
+UITree_ApplyModelOffset(
+    struct UITree* tree,
+    int component_id,
+    int x_offset,
+    int y_offset)
+{
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
+    int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+        return false;
+    tree->components[idx].u.rs_model.x_offset = x_offset;
+    tree->components[idx].u.rs_model.y_offset = y_offset;
+    UITree_MarkNodeDirty(tree, idx);
+    return true;
+}
+
+bool
 UITree_ApplyModelAngle(
     struct UITree* tree,
     int component_id,

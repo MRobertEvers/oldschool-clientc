@@ -3237,7 +3237,13 @@ exec_set_object(
 
         if( model_idx >= 0 && tree->components[model_idx].type == UIELEM_RS_MODEL )
         {
-            int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, obj_id);
+            /* The stack variant, when the obj has one. Baking the BASE model
+             * for a stackable asks for a model the loader never fetched — the
+             * make-menu's `arrow_shaft` cell drew nothing while the bows
+             * beside it drew fine, because `count` is ^max_32bit_int and the
+             * loader had resolved the "many" variant. */
+            int render_obj = provider ? ObjModelLoad_RenderObjId(provider, obj_id, count) : obj_id;
+            int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, render_obj);
 
             if( obj_model > 0 )
             {
@@ -3265,15 +3271,23 @@ exec_set_object(
                  * divide by here.
                  */
                 struct ToriRS_Objtype* objtype =
-                    provider ? CacheProvider_ObjtypeGet(provider, obj_id) : NULL;
+                    provider ? CacheProvider_ObjtypeGet(provider, render_obj) : NULL;
 
                 if( objtype )
+                {
                     (void)UITree_ApplyModelAngle(
                         tree,
                         component_id,
                         objtype->xan2d,
                         objtype->yan2d,
                         objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
+                    /* The offsets are the other half of the same composition
+                     * and are not optional: `arrow_shaft` carries yof2d -29,
+                     * and without it the shaft projects clean out of its cell
+                     * — the fletching menu's first cell drew nothing at all. */
+                    (void)UITree_ApplyModelOffset(
+                        tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
+                }
                 return CS2VM_EXECNO_OK;
             }
             /* No model for this obj — fall through to the icon, which is at

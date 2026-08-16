@@ -1419,6 +1419,18 @@ UITree_ApplyModelAngle(
     int yan,
     int zoom);
 
+/** Set a MODEL widget's 2D offsets (reference modelOffsetX/Y). Part of an
+ * objtype's own presentation rather than a widget property: an obj icon is
+ * composed from zoom2d, the three angles AND xof2d/yof2d, and dropping the
+ * offsets leaves off-centre models — `arrow_shaft` carries yof2d -29 and
+ * projects clean out of its cell without it. */
+bool
+UITree_ApplyModelOffset(
+    struct UITree* tree,
+    int component_id,
+    int x_offset,
+    int y_offset);
+
 bool
 UITree_ApplyModelRotateSpeed(
     struct UITree* tree,

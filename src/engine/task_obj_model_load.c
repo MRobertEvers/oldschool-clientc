@@ -168,6 +168,21 @@ obj_model_face_count(
 }
 
 int
+ObjModelLoad_RenderObjId(
+    struct CacheProvider* provider,
+    int obj_id,
+    int count)
+{
+    int count_obj_id;
+
+    assert(provider);
+    if( obj_id <= 0 )
+        return obj_id;
+    count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
+    return count_obj_id > 0 ? count_obj_id : obj_id;
+}
+
+int
 ObjModelLoad_NeedsWork(
     struct CacheProvider* provider,
     int obj_id,

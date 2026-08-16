@@ -11257,6 +11257,22 @@ mock230_world_tick(struct Mock230Server* srv)
     }
 
 #undef BD_MARK
+
+    if( getenv("MOCK230_DOORWATCH") )
+    {
+        static int last = -2;
+        int pd = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");
+        int slot = mock230_scene_find_loc(3226, 3223, 0, pd);
+        struct Mock230SceneLoc* l = mock230_scene_loc(slot);
+        int now = l ? l->loc_id : -1;
+
+        if( now != last )
+        {
+            fprintf(stderr, "  DOORWATCH tick=%d slot=%d loc=%d (was %d)\n", srv->tick, slot, now,
+                    last);
+            last = now;
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */

@@ -187,6 +187,37 @@ def read_pack(path):
     return raw, mapping
 
 
+def ported_layers(tree, ns):
+    """Every imported lane's symbol file for `ns`, in lane order.
+
+    An imported lane mints ids of its own, outside the rank-0 cache's member
+    compacks, and states them in `ported/<lane>/pack/<ns>.alloc` beside
+    `ported/<lane>/configs/all.<ns>.compack`. Every other reader already layers
+    them over the ordinary symbols — `mock230_content.c: load_ported_pack_symbols`,
+    `cp_names.c: cp_names_load_ported_allocs`, and sscompile's `--pack` list — so
+    this tool has to see them too, or it allocates a *second* id for a name a lane
+    has already bound.
+
+    Which is what it did: `prayer_curses_0` is varp 5705 in
+    `ported/rs558_ancient_curses`, and this tool, seeing only the base tree,
+    appended `6353=prayer_curses_0` to `pack/varp.alloc`. Both readers then
+    refused the tree — 2 of the 15 content load errors that failed
+    `mock230 --selftest`'s "the content tree should load clean" — and
+    `make mock230-servpack` would not pack at all.
+    """
+    root = os.path.join(tree, 'ported')
+    if not os.path.isdir(root):
+        return []
+    layers = []
+    for lane in sorted(os.listdir(root)):
+        if lane.startswith('.') or not os.path.isdir(os.path.join(root, lane)):
+            continue
+        lane_tree = os.path.join(root, lane)
+        layers.append(pack_path(lane_tree, ns))
+        layers.append(alloc_path(lane_tree, ns))
+    return layers
+
+
 def other_layers(tree, ns):
     """({name: id}, highest_id) for every layer this tool does not own.
 
@@ -200,14 +231,17 @@ def other_layers(tree, ns):
     - **the high-water mark**, which has to be the highest id *anyone* claims.
       Reading only the current location would allocate on top of ids a previous
       layout had already given out.
+
+    "Anyone" includes the imported lanes — see `ported_layers`. Their bands sit
+    below the base ledger's mark in every server-owned namespace today, so
+    counting them costs no id; what it buys is that a lane band which grows past
+    the mark cannot be allocated over.
     """
     known = {}
     highest = -1
-    for layer in (pack_path(tree, ns),):
+    for layer in [pack_path(tree, ns)] + ported_layers(tree, ns):
         if not os.path.exists(layer):
             continue
-        # (kept as a loop: the cache layer used to be several files, and a
-        # future one — a second ledger, say — slots in here.)
         with open(layer, encoding='utf-8', errors='replace') as handle:
             for line in handle:
                 line = line.strip()

@@ -23,6 +23,14 @@ clip_intersect(
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Height of the obj-icon raster, and the reference an obj drawn as a MODEL is
+ * scaled against. The rasteriser's canvas is 36x32 (bridge_rasterize_obj_icon,
+ * ItemIconRenderer.OSRS_SPRITE_W/H); the height is the one that matters here
+ * because a cell is scaled by its smaller side.
+ */
+#define UITREE_OBJ_ICON_RASTER_H 32
+
 static int
 host_scrollbar_scene(struct UITreeHost const* host)
 {
@@ -458,6 +466,32 @@ UITree_EmitFill(
         out->kind = UITREE_EMIT_MODEL;
         out->model_id = model_id;
         out->model_zoom = component->u.rs_model.zoom;
+        /*
+         * An OBJ bound to a MODEL widget fills the widget; an obj icon fills a
+         * 36x32 raster. Both go through the same projection, whose focal
+         * length is the fixed WIDGET_MODEL_ZOOM3D of 512 — so the drawn size
+         * depends only on the camera distance `zoom`, and a bigger box just
+         * adds margin around an icon-sized model rather than showing a bigger
+         * one. Scaling the distance by the box restores the proportion the
+         * objtype's own `zoom2d` was authored for.
+         *
+         * `skillmulti` is where this shows: its cells are 65px and up (they
+         * grow as the product count falls), so an arrow shaft drawn at icon
+         * distance was a thin line in the middle of a large empty button.
+         *
+         * Gated on `item_id` because only the CS2 CC_SETOBJECT path sets it.
+         * The server IF_SETOBJECT path (`App_SetInterfaceObjModel`, the
+         * combat tab's wielded weapon) binds the same kind of model but
+         * carries its own wire zoom and never sets `item_id`, so it keeps the
+         * distance it asked for.
+         */
+        if( component->item_id > 0 )
+        {
+            int const box = w < h ? w : h;
+
+            if( box > 0 )
+                out->model_zoom = component->u.rs_model.zoom * UITREE_OBJ_ICON_RASTER_H / box;
+        }
         out->model_xan = component->u.rs_model.xan;
         out->model_yan = component->u.rs_model.yan;
         out->model_zan = component->u.rs_model.zan;
