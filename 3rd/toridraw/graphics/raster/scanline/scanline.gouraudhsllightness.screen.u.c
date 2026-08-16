@@ -21,6 +21,7 @@
  */
 
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "graphics/raster/scanline/scanline_common.h"
 #include "graphics/raster/scanline/span/scanline.span.solid.u.c"
 #include "graphics/shared_tables.h"
@@ -74,8 +75,11 @@ scanline_gouraud_plane(
     colors[2] = color2_hsl16;
 
     int color_top = colors[tri->perm[0]];
-    out->base_ish8 =
-        out->step_x_ish8 + (color_top << 8) - tri->xa * out->step_x_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    out->base_ish8 = toridraw_wrap_sub(
+        toridraw_wrap_add(out->step_x_ish8, color_top << 8),
+        toridraw_wrap_mul(tri->xa, out->step_x_ish8));
 }
 
 static inline void
@@ -120,7 +124,8 @@ raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
         int r_ish16 = edges.r_ish16[seg];
         int r_step = edges.r_step[seg];
         int offset = edges.y0[seg] * stride;
-        int hsl_ish8 = plane.base_ish8 + step_y_ish8 * (edges.y0[seg] - tri.ya);
+        int hsl_ish8 = toridraw_wrap_add(
+            plane.base_ish8, toridraw_wrap_mul(step_y_ish8, edges.y0[seg] - tri.ya));
 
         if( scanline_segment_no_hclip(l_ish16, l_step, r_ish16, r_step, rows, screen_width) )
         {
@@ -138,7 +143,7 @@ raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
 
                 l_ish16 += l_step;
                 r_ish16 += r_step;
-                hsl_ish8 += step_y_ish8;
+                hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_ish8);
                 offset += stride;
             }
         }
@@ -158,7 +163,7 @@ raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
 
                 l_ish16 += l_step;
                 r_ish16 += r_step;
-                hsl_ish8 += step_y_ish8;
+                hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_ish8);
                 offset += stride;
             }
         }
@@ -208,7 +213,8 @@ raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
         int r_ish16 = edges.r_ish16[seg];
         int r_step = edges.r_step[seg];
         int offset = edges.y0[seg] * stride;
-        int hsl_ish8 = plane.base_ish8 + step_y_ish8 * (edges.y0[seg] - tri.ya);
+        int hsl_ish8 = toridraw_wrap_add(
+            plane.base_ish8, toridraw_wrap_mul(step_y_ish8, edges.y0[seg] - tri.ya));
 
         if( scanline_segment_no_hclip(l_ish16, l_step, r_ish16, r_step, rows, screen_width) )
         {
@@ -227,7 +233,7 @@ raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
 
                 l_ish16 += l_step;
                 r_ish16 += r_step;
-                hsl_ish8 += step_y_ish8;
+                hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_ish8);
                 offset += stride;
             }
         }
@@ -248,7 +254,7 @@ raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
 
                 l_ish16 += l_step;
                 r_ish16 += r_step;
-                hsl_ish8 += step_y_ish8;
+                hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_ish8);
                 offset += stride;
             }
         }

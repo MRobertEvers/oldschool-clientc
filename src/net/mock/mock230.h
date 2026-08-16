@@ -2864,6 +2864,30 @@ struct Mock230Player
      *  absolute placement (move op 3) rather than a step direction. */
     int place_dirty;
 
+    /**
+     * The `place_dirty` placement is short enough to animate — clear the *jump*
+     * bit and let the client glide there on foot.
+     *
+     * `PathingEntity.jump` in the reference, inverted so that the default (0)
+     * is the snap every other `place_dirty` site wants and only `p_teleport`
+     * has to opt out. Ash on the pair: "p_teleport() — a command that
+     * 'forcibly' moves the player and enables walk animations if the distance
+     * is short ... p_telejump() is an alternative command that forcibly moves
+     * the player and never plays walk animations" (docs/ASH_MOVEMENT_CORPUS.md
+     * §14). The reference reaches the same place from the other side:
+     * `teleport()` raises `jump` only on a plane change, and
+     * `validateDistanceWalked()` raises it when the tick moved more than two
+     * tiles.
+     *
+     * Firemaking is what this is for. `~push_player` steps you off the fire
+     * with `p_teleport(movecoord(coord, -1, 0, 0))`, and with the jump bit
+     * nailed to 1 the player blinked one tile sideways instead of walking.
+     *
+     * Cleared with `place_dirty`, in the same end-of-tick reset — it describes
+     * one placement, and a stale glide would animate the next teleport.
+     */
+    int tele_glide;
+
     /*
      * ── What this client has been told about ─────────────────────────
      *

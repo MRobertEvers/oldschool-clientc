@@ -21,6 +21,8 @@
  * screen-centre uv bias - happens once here.
  */
 
+#include "graphics/int_wrap.h"
+
 /* ------------------------------------------------------------ per-pixel */
 
 #if SLT_FACE_ALPHA
@@ -125,7 +127,9 @@ SLT_SPAN_FN(
     int step_bv8 = step_bv_dx * 8;
     int step_cw8 = step_cw_dx * 8;
 #if SLT_SHADE_INTERP
-    int step_shade8 = step_shade8bit_dx_ish8 * 8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    int step_shade8 = toridraw_wrap_mul(step_shade8bit_dx_ish8, 8);
 #endif
 
     while( blocks-- > 0 )
@@ -169,7 +173,7 @@ SLT_SPAN_FN(
         cw += step_cw8;
         offset += 8;
 #if SLT_SHADE_INTERP
-        shade8bit_ish8 += step_shade8;
+        shade8bit_ish8 = toridraw_wrap_add(shade8bit_ish8, step_shade8);
 #endif
     }
 
@@ -239,7 +243,7 @@ SLT_SPAN_FN(
     int step_v = ((end_v - curr_v) * (1 << texture_shift)) / count;
 
 #if SLT_SHADE_INTERP
-    int step_shade8 = step_shade8bit_dx_ish8 * 8;
+    int step_shade8 = toridraw_wrap_mul(step_shade8bit_dx_ish8, 8);
 #endif
 
     while( blocks-- > 0 )
@@ -260,7 +264,7 @@ SLT_SPAN_FN(
         v_scan += step_v * 8;
         offset += 8;
 #if SLT_SHADE_INTERP
-        shade8bit_ish8 += step_shade8;
+        shade8bit_ish8 = toridraw_wrap_add(shade8bit_ish8, step_shade8);
 #endif
     }
 
@@ -403,8 +407,9 @@ SLT_FN(
     shades[1] = shade7bit_b;
     shades[2] = shade7bit_c;
 
-    int shade_base_ish8 =
-        (shades[tri.perm[0]] << 9) - shade_xhat_ish8 * tri.xa + shade_xhat_ish8;
+    int shade_base_ish8 = toridraw_wrap_add(
+        toridraw_wrap_sub(shades[tri.perm[0]] << 9, toridraw_wrap_mul(shade_xhat_ish8, tri.xa)),
+        shade_xhat_ish8);
 #else
     int shade_xhat_ish8 = 0;
     int shade_yhat_ish8 = 0;
@@ -431,7 +436,8 @@ SLT_FN(
         int cw = cw_base + uv_yhat * dy;
 
 #if SLT_SHADE_INTERP
-        int shade_ish8 = shade_base_ish8 + shade_yhat_ish8 * (row - tri.ya);
+        int shade_ish8 = toridraw_wrap_add(
+            shade_base_ish8, toridraw_wrap_mul(shade_yhat_ish8, row - tri.ya));
 #else
         int shade_ish8 = shade_base_ish8;
 #endif
@@ -467,7 +473,7 @@ SLT_FN(
                     ov_xhat,
                     uo_xhat,
                     uv_xhat,
-                    shade_ish8 + shade_xhat_ish8 * x_start,
+                    toridraw_wrap_add(shade_ish8, toridraw_wrap_mul(shade_xhat_ish8, x_start)),
                     shade_xhat_ish8,
                     texels,
                     texture_shift,
@@ -483,7 +489,7 @@ SLT_FN(
             bv += uo_yhat;
             cw += uv_yhat;
 #if SLT_SHADE_INTERP
-            shade_ish8 += shade_yhat_ish8;
+            shade_ish8 = toridraw_wrap_add(shade_ish8, shade_yhat_ish8);
 #endif
             offset += stride;
         }

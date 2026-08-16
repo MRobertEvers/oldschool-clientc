@@ -1,3 +1,4 @@
+#include "graphics/int_wrap.h"
 #include "graphics/tori_compat.h"
 
 #ifndef TORIDRAW_RASTER_ZBUF_SCREEN_U_C
@@ -162,7 +163,9 @@ zbuf_row_advance(
     const struct ToriDraw_ZbufRowStep* d)
 {
     s->key_at_x0 += d->key_dy;
-    s->hsl_ish8 += d->hsl_dy_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    s->hsl_ish8 = toridraw_wrap_add(s->hsl_ish8, d->hsl_dy_ish8);
     s->au += d->au_dy;
     s->bv += d->bv_dy;
     s->cw += d->cw_dy;
@@ -212,7 +215,8 @@ zbuf_span(
         return;
 
     float key = s->key_at_x0 + s->key_step_dx * (float)x_start;
-    int hsl_ish8 = s->hsl_ish8 + s->hsl_step_dx_ish8 * x_start;
+    int hsl_ish8 = toridraw_wrap_add(
+        s->hsl_ish8, toridraw_wrap_mul(s->hsl_step_dx_ish8, x_start));
     int shade8_ish8 = s->shade8_ish8 + s->step_shade8_dx_ish8 * x_start;
 
     /* The texture numerators are stated at the centre column, so walk them from
@@ -300,7 +304,7 @@ zbuf_span(
         }
 
         key += s->key_step_dx;
-        hsl_ish8 += s->hsl_step_dx_ish8;
+        hsl_ish8 = toridraw_wrap_add(hsl_ish8, s->hsl_step_dx_ish8);
         shade8_ish8 += s->step_shade8_dx_ish8;
         au += s->step_au_dx;
         bv += s->step_bv_dx;
@@ -391,7 +395,9 @@ raster_zbuf_screen_ordered(
             gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
         d.hsl_dy_ish8 =
             gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
-        s.hsl_ish8 = s.hsl_step_dx_ish8 + (tri->shade[0] << 8) - (x0 * s.hsl_step_dx_ish8);
+        s.hsl_ish8 = toridraw_wrap_sub(
+            toridraw_wrap_add(s.hsl_step_dx_ish8, tri->shade[0] << 8),
+            toridraw_wrap_mul(x0, s.hsl_step_dx_ish8));
     }
     else if( tri->mode == TORIDRAW_ZBUF_MODE_FLAT )
     {
@@ -495,7 +501,7 @@ raster_zbuf_screen_ordered(
         if( y1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
         s.key_at_x0 -= d.key_dy * (float)y0;
-        s.hsl_ish8 -= d.hsl_dy_ish8 * y0;
+        s.hsl_ish8 = toridraw_wrap_sub(s.hsl_ish8, toridraw_wrap_mul(d.hsl_dy_ish8, y0));
         s.shade8_ish8 -= d.shade8_dy_ish8 * y0;
 
         y0 = 0;

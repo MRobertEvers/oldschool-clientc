@@ -664,13 +664,33 @@ script_kind_allowed(const struct SSVM_Script* script, const char* expect)
     return 0;
 }
 
-/* Release a state and clear whichever slot was holding it. */
+/*
+ * Forget every parked-slot reference to this state, without ending it.
+ *
+ * A resumed script does not have to suspend the same way twice, and where it
+ * parks the second time is not where it parked the first. `world_delay` inside
+ * a proc that an earlier `p_delay` had parked on a player moves the state to
+ * the world queue — and the player's slot, left pointing at it, holds the
+ * player's one script seat for the whole of the delay.
+ *
+ * Firemaking is where that bit: `~push_player` p_delays, and on resume
+ * `~firemaking_success` `world_delay`s for the fire's ~100-200 tick lifetime.
+ * For all of those ticks the player looked busy, so every later `~push_player`
+ * was dropped by the one-parked-script rule below and no fire was ever lit
+ * again — "dropping [proc,push_player], which suspended while
+ * [proc,firemaking_success] waits", once per attempt.
+ *
+ * The reference has the same clear: `Player.executeScript` assigns
+ * `this.activeScript = script` only for SUSPENDED/PAUSEBUTTON/COUNTDIALOG and
+ * sets it to null on WORLD_SUSPENDED and NPC_SUSPENDED.
+ *
+ * Searched rather than addressed: a state can be parked on any player, and the
+ * one whose turn it is now is not necessarily the one it belongs to — a
+ * world-queued script resumes in phase 1, before anybody's turn.
+ */
 static void
-release_parked(struct Mock230Server* srv, struct SSVM_State* state)
+unpark(struct Mock230Server* srv, struct SSVM_State* state)
 {
-    /* Searched rather than addressed: a state can be parked on any player, and
-     * the one whose turn it is now is not necessarily the one it belongs to —
-     * a world-queued script resumes in phase 1, before anybody's turn. */
     for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
     {
         if( srv->players[i].active_script == state )
@@ -681,6 +701,13 @@ release_parked(struct Mock230Server* srv, struct SSVM_State* state)
         if( srv->npcs[i].active_script == state )
             srv->npcs[i].active_script = NULL;
     }
+}
+
+/* Release a state and clear whichever slot was holding it. */
+static void
+release_parked(struct Mock230Server* srv, struct SSVM_State* state)
+{
+    unpark(srv, state);
     SSVM_StateRelease(state);
 }
 
@@ -846,6 +873,8 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
             SSVM_StateRelease(state);
             return 0;
         }
+        /* It may have been parked on an npc last time round — see `unpark`. */
+        unpark(srv, state);
         srv->active_player->active_script = state;
         return 1;
 
@@ -865,6 +894,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
             SSVM_StateRelease(state);
             return 0;
         }
+        unpark(srv, state);
         srv->npcs[slot].active_script = state;
         return 1;
     }
@@ -877,6 +907,9 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
          * take, which is what the reference does. Popping it in the command
          * would work equally well, but matching keeps content portable. */
         SSVM_PopInt(state, &delay);
+        /* The world queue owns it from here, so whoever was holding a seat for
+         * it must let go — see `unpark`. This is the firemaking fix. */
+        unpark(srv, state);
         for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
         {
             if( srv->world_queue[i].active )
@@ -3904,6 +3937,23 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `p_teleport` and `p_telejump` move the same distance; they differ only in
+     * what the client is told to do about it.
+     *
+     * "p_teleport() — a command that 'forcibly' moves the player and enables
+     * walk animations if the distance is short, so it's good for doors like
+     * that. | p_telejump() is an alternative command that forcibly moves the
+     * player and never plays walk animations." — Ash, quoted in
+     * docs/ASH_MOVEMENT_CORPUS.md §14. The reference splits them at
+     * `Player.teleJump` (teleport, then `jump = true`) versus
+     * `PathingEntity.teleport` (jump only on a plane change).
+     *
+     * The two shared one body here, which nailed the wire's jump bit to 1 for
+     * both. Firemaking is where that shows: `~push_player` steps you off the
+     * fire one tile with `p_teleport`, and the player blinked sideways instead
+     * of walking.
+     */
     case SS_OP_P_TELEPORT:
     case SS_OP_P_TELEJUMP:
     {
@@ -3913,6 +3963,8 @@ mock230_script_command(
             return 1;
         {
             int was_level = player->level;
+            int was_x = player->x;
+            int was_z = player->z;
 
             player->x = coord_x(coord);
             player->z = coord_z(coord);
@@ -3922,6 +3974,13 @@ mock230_script_command(
              * the new position — both of which the tick handles off
              * place_dirty. */
             player->place_dirty = 1;
+            /* Two tiles is the reference's own threshold
+             * (`validateDistanceWalked`), and a plane change is a jump there
+             * whatever the distance, because the client has no way to walk
+             * between floors. */
+            player->tele_glide =
+                opcode == SS_OP_P_TELEPORT && player->level == was_level &&
+                abs(player->x - was_x) <= 2 && abs(player->z - was_z) <= 2;
             player->waypoint_index = -1;
             /*
              * A plane change is the case place_dirty does not cover. The scene

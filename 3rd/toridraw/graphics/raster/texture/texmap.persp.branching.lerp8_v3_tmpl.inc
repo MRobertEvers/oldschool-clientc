@@ -51,6 +51,8 @@
  * drawing. The caller does.
  */
 
+#include "graphics/int_wrap.h"
+
 #ifndef TMAP_ZBUF
 #define TMAP_ZBUF 0
 #endif
@@ -263,8 +265,11 @@ TMAP_FN(
 
     int shade8bit_yhat_ish8 = ((dx_AC * dblend_ab - dx_AB * dblend_ac) << 9) / sarea;
     int shade8bit_xhat_ish8 = ((dy_AB * dblend_ac - dy_AC * dblend_ab) << 9) / sarea;
-    int shade8bit_edge_ish8 =
-        (sh[0] << 9) - shade8bit_xhat_ish8 * sx[0] + shade8bit_xhat_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    int shade8bit_edge_ish8 = toridraw_wrap_add(
+        toridraw_wrap_sub(sh[0] << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, sx[0])),
+        shade8bit_xhat_ish8);
 
     int step_edge_x_AC_ish16 = 0;
     int step_edge_x_AB_ish16 = 0;
@@ -292,7 +297,8 @@ TMAP_FN(
          * argument in graphics/raster/zbuffer/zbuf.screen.u.c. */
         if( ry1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * ry0;
-        shade8bit_edge_ish8 -= shade8bit_yhat_ish8 * ry0;
+        shade8bit_edge_ish8 = toridraw_wrap_sub(
+            shade8bit_edge_ish8, toridraw_wrap_mul(shade8bit_yhat_ish8, ry0));
         ry0 = 0;
     }
     if( ry1 < 0 )
@@ -358,7 +364,7 @@ TMAP_FN(
         au += uv.step_au_dy;                                                                       \
         bv += uv.step_bv_dy;                                                                       \
         cw += uv.step_cw_dy;                                                                       \
-        shade8bit_edge_ish8 += shade8bit_yhat_ish8;                                                \
+        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);        \
         offset += stride;                                                                          \
         TMAP_ZADVANCE();                                                                           \
     } while( 0 )

@@ -191,6 +191,40 @@ hd_materials_build(void)
     g_hd_mat_count = maxid + 1;
 }
 
+/*
+ * Put a wrapper in the scene's texture map — or take one out, with NULL.
+ *
+ * The map OWNS every entry it holds: ToriDraw_TextureMapSet frees the outgoing
+ * wrapper through ToriDraw_TextureFree, which frees `texels` as well as the
+ * struct. Ours never own their pixels — they are a second view of a
+ * g_textures[] buffer that the HD material table points at too, and that this
+ * file frees — so the outgoing wrapper's pointer has to come out BEFORE the map
+ * is allowed to drop it, leaving the map an empty shell to free.
+ *
+ * Without that detach every texture set change frees each texel buffer twice
+ * (once here, once under ToriDraw_TextureFree). In wasm that does not fault
+ * where it happens: it corrupts dlmalloc's free lists and the next unrelated
+ * allocation — a model adopted several npcs later — walks off the end of linear
+ * memory instead. It is a single call site either way, so both directions go
+ * through here rather than being spelled out twice.
+ */
+static void
+ev_texture_map_put(int id, struct ToriDraw_Texture* tex)
+{
+    struct ToriDraw_TextureMap* map;
+    struct ToriDraw_Texture* old;
+
+    assert(g_scene);
+    assert(id >= 0);
+    assert(id < TORIDRAW_TEXTURE_ID_CAPACITY);
+
+    map = &ToriDraw_SceneTexState(g_scene)->texture_map;
+    old = ToriDraw_TextureMapGet(map, id);
+    if( old )
+        old->texels = NULL;
+    ToriDraw_TextureMapSet(map, id, tex);
+}
+
 static void
 ev_clear_textures(void)
 {
@@ -198,13 +232,7 @@ ev_clear_textures(void)
     {
         if( g_scene && g_textures[i].id >= 0 &&
             g_textures[i].id < TORIDRAW_TEXTURE_ID_CAPACITY )
-        {
-            /* The scene's map frees whatever it holds, and it holds wrappers
-             * pointing at our texels — so drop its reference before we free
-             * the pixels underneath it. */
-            ToriDraw_TextureMapSet(
-                &ToriDraw_SceneTexState(g_scene)->texture_map, g_textures[i].id, NULL);
-        }
+            ev_texture_map_put(g_textures[i].id, NULL);
         free(g_textures[i].texels);
     }
     free(g_textures);
@@ -259,21 +287,19 @@ ev_set_textures(const uint8_t* data, int len)
 
         /*
          * The classic raster reads through the scene. The wrapper is a second
-         * view of the same pixels, not a copy — which is why ev_clear_textures
-         * has to unhook it before freeing them.
+         * view of the same pixels, not a copy — which is why the map is never
+         * allowed to own them; see ev_texture_map_put.
          */
         if( g_scene && wt.id >= 0 && wt.id < TORIDRAW_TEXTURE_ID_CAPACITY )
         {
             struct ToriDraw_Texture* tex =
                 (struct ToriDraw_Texture*)calloc(1, sizeof(*tex));
-            if( tex )
-            {
-                tex->texels = slot->texels;
-                tex->width = wt.size;
-                tex->height = wt.size;
-                tex->opaque = (wt.gate == 0);
-                ToriDraw_TextureMapSet(&ToriDraw_SceneTexState(g_scene)->texture_map, wt.id, tex);
-            }
+            assert(tex);
+            tex->texels = slot->texels;
+            tex->width = wt.size;
+            tex->height = wt.size;
+            tex->opaque = (wt.gate == 0);
+            ev_texture_map_put(wt.id, tex);
         }
     }
 

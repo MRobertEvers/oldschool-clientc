@@ -435,7 +435,12 @@ web/ev_wasm.js: $(EM_SRCS) $(EM_HEADERS)
 #                  memory, so the module needs materially more than the 64MB
 #                  the plain build starts at.
 #   STACK_SIZE     every instrumented frame carries redzones; the default 64KB
-#                  stack overflows inside the raster.
+#                  stack overflows inside the raster, and so did 4MB — ev_render
+#                  holds the raster's scratch on the stack, so the redzone
+#                  multiplier lands on a frame that is already large. 16MB is
+#                  the headroom, not a measurement; raise it again rather than
+#                  reading "stack overflow in ev_render" as a finding, because
+#                  in this lane it is an artifact of the instrumentation.
 #   STACK_OVERFLOW_CHECK=2  a wasm stack overflow otherwise walks silently into
 #                  static data, which is itself memory corruption and would be
 #                  attributed to whatever it landed on.
@@ -488,7 +493,7 @@ web/ev_wasm_san.js: $(EM_SRCS) $(EM_HEADERS) $(EM_SAN_STAMP)
 		-o $@ $(EM_SRCS) \
 		$(EM_LINK) \
 		-sINITIAL_MEMORY=268435456 -sASSERTIONS=1 \
-		-sSTACK_SIZE=4194304 -sSTACK_OVERFLOW_CHECK=2
+		-sSTACK_SIZE=16777216 -sSTACK_OVERFLOW_CHECK=2
 
 -include $(wildcard $(BUILD)/*.d)
 

@@ -1,4 +1,5 @@
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "graphics/shade.h"
 
 #include <assert.h>
@@ -167,7 +168,10 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
     step_bv_dx *= 8;
     step_cw_dx *= 8;
 
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, screen_x0));
 
     steps = screen_x1 - screen_x0;
 
@@ -183,7 +187,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
-    int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
+    int lerp8_shade_step = toridraw_wrap_shl(step_shade8bit_dx_ish8, 3);
     int shade;
 
     /* Block k's end-of-block uv is block k+1's start-of-block uv, so carry it
@@ -275,7 +279,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
         bv += step_bv_dx;
         cw += step_cw_dx;
         offset += 8;
-        shade8bit_ish8 += lerp8_shade_step;
+        shade8bit_ish8 = toridraw_wrap_add(shade8bit_ish8, lerp8_shade_step);
     }
 
     if( lerp8_last_steps == 0 )
@@ -400,7 +404,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
     step_bv_dx *= 8;
     step_cw_dx *= 8;
 
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, screen_x0));
 
     steps = screen_x1 - screen_x0;
 
@@ -416,7 +421,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
 
     int lerp8_steps = steps >> 3;
     int lerp8_last_steps = steps & 0x7;
-    int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
+    int lerp8_shade_step = toridraw_wrap_shl(step_shade8bit_dx_ish8, 3);
     int shade;
 
     /* Carry the block-end uv forward, and guard only the draw rather than the
@@ -501,7 +506,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
         bv += step_bv_dx;
         cw += step_cw_dx;
         offset += 8;
-        shade8bit_ish8 += lerp8_shade_step;
+        shade8bit_ish8 = toridraw_wrap_add(shade8bit_ish8, lerp8_shade_step);
     }
 
     if( lerp8_last_steps == 0 )
@@ -660,7 +665,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
 
     int steps = x1 - x0;
     int offset = pixel_offset + x0;
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
 
     int blocks = steps >> 3;
     int remaining = steps & 7;
@@ -754,7 +760,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
         bv += step_bv8;
         cw += step_cw8;
         offset += 8;
-        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+        shade8bit_ish8 =
+            toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
     }
 
     if( remaining > 0 && (cw >> texture_shift) != 0 )
@@ -857,7 +864,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
 
     int steps = x1 - x0;
     int offset = pixel_offset + x0;
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
 
     int blocks = steps >> 3;
     int remaining = steps & 7;
@@ -952,7 +960,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
         bv += step_bv8;
         cw += step_cw8;
         offset += 8;
-        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+        shade8bit_ish8 =
+            toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
     }
 
     if( remaining > 0 && (cw >> texture_shift) != 0 )
@@ -1337,7 +1346,8 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
     cw += step_cw_dx * adjust;
 
     int offset = pixel_offset + x0;
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
 
     int width = x1 - x0;
 
@@ -1392,7 +1402,8 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
         u_scan += step_u * 8;
         v_scan += step_v * 8;
         offset += 8;
-        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+        shade8bit_ish8 =
+            toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
     }
 
     if( remaining > 0 )
@@ -1448,7 +1459,8 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
     cw += step_cw_dx * adjust;
 
     int offset = pixel_offset + x0;
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
 
     int width = x1 - x0;
 
@@ -1503,7 +1515,8 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
         u_scan += step_u * 8;
         v_scan += step_v * 8;
         offset += 8;
-        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+        shade8bit_ish8 =
+            toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
     }
 
     if( remaining > 0 )

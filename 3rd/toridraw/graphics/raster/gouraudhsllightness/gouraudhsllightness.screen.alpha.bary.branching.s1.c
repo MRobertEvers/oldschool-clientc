@@ -3,6 +3,7 @@
 
 #include "graphics/alpha.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 
 #include "graphics/shared_tables.h"
@@ -37,7 +38,10 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
         return;
 
     offset += x_start;
-    color_hsl16_ish8 += x_start * color_step_hsl16_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    color_hsl16_ish8 = toridraw_wrap_add(
+        color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
 
@@ -48,7 +52,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
         rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
         pixel_buffer[offset] = rgb_blend;
         offset += 1;
-        color_hsl16_ish8 += color_step_hsl16_ish8;
+        color_hsl16_ish8 = toridraw_wrap_add(color_hsl16_ish8, color_step_hsl16_ish8);
     }
 }
 
@@ -112,7 +116,9 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
     int edge_x_AB_ish16 = x0 << 16;
     int edge_x_BC_ish16 = x1 << 16;
 
-    int hsl_ish8 = step_x_hsl_ish8 + (color0_hsl16 << 8) - (x0 * step_x_hsl_ish8);
+    int hsl_ish8 = toridraw_wrap_sub(
+        toridraw_wrap_add(step_x_hsl_ish8, color0_hsl16 << 8),
+        toridraw_wrap_mul(x0, step_x_hsl_ish8));
 
     if( y0 < 0 )
     {
@@ -126,7 +132,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
         if( y1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
 
-        hsl_ish8 -= step_y_hsl_ish8 * y0;
+        hsl_ish8 = toridraw_wrap_sub(hsl_ish8, toridraw_wrap_mul(step_y_hsl_ish8, y0));
 
         y0 = 0;
     }
@@ -172,7 +178,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
-            hsl_ish8 += step_y_hsl_ish8;
+            hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_hsl_ish8);
 
             offset += stride;
         }
@@ -193,7 +199,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
-            hsl_ish8 += step_y_hsl_ish8;
+            hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_hsl_ish8);
             offset += stride;
         }
     }
@@ -218,7 +224,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
-            hsl_ish8 += step_y_hsl_ish8;
+            hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_hsl_ish8);
             offset += stride;
         }
 
@@ -238,7 +244,7 @@ raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered(
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
-            hsl_ish8 += step_y_hsl_ish8;
+            hsl_ish8 = toridraw_wrap_add(hsl_ish8, step_y_hsl_ish8);
             offset += stride;
         }
     }

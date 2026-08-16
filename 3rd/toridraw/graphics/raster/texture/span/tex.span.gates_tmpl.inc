@@ -45,6 +45,8 @@
  * behind the same test that decides to draw.
  */
 
+#include "graphics/int_wrap.h"
+
 /* ------------------------------------------------------------- depth */
 
 #ifndef TS2_ZBUF
@@ -312,7 +314,10 @@ TS2_SPAN_FN(
 
     int steps = x1 - x0;
     int offset = pixel_offset + x0;
-    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    shade8bit_ish8 = toridraw_wrap_add(
+        shade8bit_ish8, toridraw_wrap_mul(step_shade8bit_dx_ish8, x0));
 
 #if TS2_ZBUF
     /*
@@ -420,7 +425,8 @@ TS2_SPAN_FN(
         bv += step_bv8;
         cw += step_cw8;
         offset += 8;
-        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+        shade8bit_ish8 =
+            toridraw_wrap_add(shade8bit_ish8, toridraw_wrap_shl(step_shade8bit_dx_ish8, 3));
 #if TS2_ZBUF
         zx += 8;
 #endif

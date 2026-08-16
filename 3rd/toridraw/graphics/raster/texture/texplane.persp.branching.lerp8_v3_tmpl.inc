@@ -27,6 +27,8 @@
  * is anchored to the p/m/n vertices the projector named and must not move.
  */
 
+#include "graphics/int_wrap.h"
+
 #ifndef TSFA_ZBUF
 #define TSFA_ZBUF 0
 #endif
@@ -153,7 +155,11 @@ TSFA_ORDERED(
     int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) << 9) / sarea_abc;
     int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) << 9) / sarea_abc;
 
-    int shade8bit_edge_ish8 = (shade7bit_a << 9) - shade8bit_xhat_ish8 * x0 + shade8bit_xhat_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    int shade8bit_edge_ish8 = toridraw_wrap_add(
+        toridraw_wrap_sub(shade7bit_a << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, x0)),
+        shade8bit_xhat_ish8);
 
     int au = 0;
     int bv = 0;
@@ -170,7 +176,8 @@ TSFA_ORDERED(
          * the plain v3 kernel and the full argument in zbuf.screen.u.c. */
         if( y1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
-        shade8bit_edge_ish8 -= shade8bit_yhat_ish8 * y0;
+        shade8bit_edge_ish8 = toridraw_wrap_sub(
+            shade8bit_edge_ish8, toridraw_wrap_mul(shade8bit_yhat_ish8, y0));
 
         y0 = 0;
     }
@@ -233,7 +240,7 @@ TSFA_ORDERED(
         au += vOVPlane_normal_yhat;                                                                \
         bv += vUOPlane_normal_yhat;                                                                \
         cw += vUVPlane_normal_yhat;                                                                \
-        shade8bit_edge_ish8 += shade8bit_yhat_ish8;                                                \
+        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);        \
         offset += stride;                                                                          \
         TSFA_ZADVANCE();                                                                           \
     } while( 0 )

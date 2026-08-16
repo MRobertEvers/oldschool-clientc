@@ -2,6 +2,7 @@
 #define TEXSHADEBLEND_AFFINE_TEXOPAQUE_BRANCHING_LERP8_U_C
 
 #include "graphics/dash_restrict.h"
+#include "graphics/int_wrap.h"
 #include "graphics/shade.h"
 
 #include <stdint.h>
@@ -141,7 +142,11 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
         // Java: var48 = (arg6 << 9) - arg3 * var31 + var31
         // Where arg6 = shade0 (0-127), arg3 = x0, var31 = shade_step_x_ish9
         // shade0 << 9 converts 0-127 to ish9 format (0-65024)
-        int shade_start = (shade0 << 9) - x0 * shade_step_x_ish9 + shade_step_x_ish9;
+        /* Modular: the reference client relies on int wraparound here, and an edge-on
+         * triangle reaches the overflow. See graphics/int_wrap.h. */
+        int shade_start = toridraw_wrap_add(
+            toridraw_wrap_sub(shade0 << 9, toridraw_wrap_mul(x0, shade_step_x_ish9)),
+            shade_step_x_ish9);
 
         int x_left_ish16;
         int x_right_ish16 = x_left_ish16 = x0 << 16;
@@ -149,7 +154,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
         {
             x_right_ish16 -= y0 * step_x02_ish16;
             x_left_ish16 -= y0 * step_x01_ish16;
-            shade_start -= y0 * shade_step_y_ish9;
+            shade_start = toridraw_wrap_sub(shade_start, toridraw_wrap_mul(y0, shade_step_y_ish9));
             y0 = 0;
         }
 
@@ -200,7 +205,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
                     origin_x);
                 x_right_ish16 += step_x02_ish16;
                 x_left_ish16 += step_x01_ish16;
-                shade_start += shade_step_y_ish9;
+                shade_start = toridraw_wrap_add(shade_start, shade_step_y_ish9);
                 offset += stride;
                 u_val += u_plane_z;
                 v_val += v_plane_z;
@@ -229,7 +234,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
                     origin_x);
                 x_right_ish16 += step_x02_ish16;
                 x_mid_ish16 += step_x12_ish16;
-                shade_start += shade_step_y_ish9;
+                shade_start = toridraw_wrap_add(shade_start, shade_step_y_ish9);
                 offset += stride;
                 u_val += u_plane_z;
                 v_val += v_plane_z;
@@ -263,7 +268,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
                     origin_x);
                 x_right_ish16 += step_x02_ish16;
                 x_left_ish16 += step_x01_ish16;
-                shade_start += shade_step_y_ish9;
+                shade_start = toridraw_wrap_add(shade_start, shade_step_y_ish9);
                 offset += stride;
                 u_val += u_plane_z;
                 v_val += v_plane_z;
@@ -292,7 +297,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
                     origin_x);
                 x_right_ish16 += step_x02_ish16;
                 x_mid_ish16 += step_x12_ish16;
-                shade_start += shade_step_y_ish9;
+                shade_start = toridraw_wrap_add(shade_start, shade_step_y_ish9);
                 offset += stride;
                 u_val += u_plane_z;
                 v_val += v_plane_z;

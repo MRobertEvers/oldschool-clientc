@@ -3591,8 +3591,20 @@ mock230_send_player_info(struct Mock230Player* player)
         {
             int dx = player->x - player->v5_last_x;
             int dz = player->z - player->v5_last_z;
+            /*
+             * A short `p_teleport` is a placement the client should *walk*.
+             * v5 has no jump bit to lower — its opcode 3 IS the jump — so the
+             * glide is expressed by declining to use it and letting the delta
+             * fall through to WALK/RUN below, which is what those opcodes are
+             * for. `tele_glide` already bounds the move to two tiles on one
+             * plane; the delta is re-tested because it is measured against
+             * what this client was last told, not against where the op found
+             * the player. See `tele_glide`.
+             */
+            int glide = player->tele_glide && player->level == player->v5_last_level &&
+                        dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 && (dx != 0 || dz != 0);
 
-            if( player->place_dirty || player->level != player->v5_last_level )
+            if( !glide && (player->place_dirty || player->level != player->v5_last_level) )
             {
                 movement = MOCK239_PLAYER_TELEPORT;
                 movement_value = coord;
@@ -3750,7 +3762,11 @@ mock230_send_player_info(struct Mock230Player* player)
         rsab_pbit(&buf, 2, player->level);
         rsab_pbit(&buf, 7, local_x & 0x7f);
         rsab_pbit(&buf, 7, local_z & 0x7f);
-        rsab_pbit(&buf, 1, 1); /* jump: snap rather than glide */
+        /* jump: snap rather than glide. Cleared for a short `p_teleport` —
+         * see `tele_glide`. The client already reads this: op-3 with the bit
+         * down and a delta inside the scene pushes a walk step
+         * (`World_EntityPathingJump`), so the player walks off the tile. */
+        rsab_pbit(&buf, 1, player->tele_glide ? 0 : 1);
         rsab_pbit(&buf, 1, extended);
     }
     else if( player->move_count == 2 )

@@ -10898,6 +10898,9 @@ phase_cleanup_player(struct Mock230Player* player)
      * one tick, and every recipient's PLAYER_INFO has to have been written
      * before it is dropped. mock230_send_player_info used to clear it. */
     player->place_dirty = 0;
+    /* With it: `tele_glide` qualifies one placement. Left set, the *next*
+     * teleport — a ladder, a lodestone — would ask the client to walk there. */
+    player->tele_glide = 0;
     /*
      * `move_dirs`/`move_count` are NOT cleared here, and must not be: they are
      * read by every *other* player's PLAYER_INFO in phase 10, and phase 5 rewrites
@@ -23545,6 +23548,142 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: a chop announces the action, not each swing\n");
+    {
+        /*
+         * `[oploc1,_tree]` and `[oploc3,_tree]` share a body, and the ONE thing
+         * that must differ between them is whether "You swing your axe at the
+         * tree." is printed. Both were bound to the same label once, and because
+         * the tick after a roll re-arms `%action_delay` through the *same*
+         * `%action_delay < map_clock` branch the click takes, the chat filled up
+         * with one announcement per log.
+         *
+         * So this is a message-count test, not a "does woodcutting work" test:
+         * the cadence is arithmetic (arm at T, roll at T+3, re-arm at T+4) and
+         * the window below is chosen to straddle exactly one re-arm. Nothing
+         * here asserts a log was cut — the success roll is random and would make
+         * the assertion random with it.
+         *
+         * Willow at level 30 with a bronze axe, deliberately: the roll is the
+         * only nondeterminism the window can see, and this is the cheapest tree
+         * whose success chance is low enough that the 1/8 deplete behind it
+         * almost never fires. `srv->rng` is pinned rather than inherited so the
+         * result does not depend on how many draws the sections above happened
+         * to make. The "still chopping" check below is what keeps a deplete
+         * honest: it turns the vacuous pass into a visible failure.
+         */
+        /* Unlike ::fishingrun above, this section sits in the middle of the
+         * suite rather than at the end of it: the sections after this one are
+         * still running against the pack whoever loaded it left in place, so
+         * loading is conditional and only a load made HERE is freed. An
+         * unconditional load/free pair here takes the provider out from under
+         * them and the next trigger aborts in SSVM_ProviderGetByName. */
+        int owned = 0;
+        int loaded = srv->scripts_ok;
+
+        if( !loaded )
+        {
+            loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            if( !loaded )
+                loaded =
+                    mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            owned = loaded != 0;
+        }
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture chop_capture;
+            int willow = mock230_content_symbol(MOCK230_PACK_LOC, "willowtree");
+            int axe = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_axe");
+            int woodcutting = mock230_content_symbol(MOCK230_PACK_STAT, "woodcutting");
+            const int tree_x = 3223;
+            const int tree_z = 3218;
+            /* Trees are centrepieces; the shape decides which slot on the tile
+             * the loc occupies, and a wall shape would let the player stand
+             * inside it. */
+            const int tree_shape = 10;
+            int saved_level = -1;
+            int swings = 0;
+
+            SELFTEST_CHECK(willow >= 0, "willowtree should be in the cache, got %d", willow);
+            SELFTEST_CHECK(axe >= 0, "bronze_axe should be in the cache, got %d", axe);
+            SELFTEST_CHECK(woodcutting >= 0, "stat.pack should name woodcutting, got %d",
+                           woodcutting);
+
+            if( willow >= 0 && axe >= 0 && woodcutting >= 0 )
+            {
+                uint8_t payload[6] = { (uint8_t)(tree_x >> 8), (uint8_t)tree_x,
+                                       (uint8_t)(tree_z >> 8), (uint8_t)tree_z,
+                                       (uint8_t)(willow >> 8), (uint8_t)willow };
+                int placed;
+
+                selftest_park_player(srv, tree_x - 1, tree_z);
+                selftest_clear_inv(player);
+                selftest_give(player, axe, 1);
+                saved_level = player->stat_level[woodcutting];
+                player->stat_level[woodcutting] = 30;
+                player->stat_boosted[woodcutting] = 30;
+                srv->rng = 0x5eed1234u;
+
+                placed = mock230_world_loc_set(srv, tree_x, tree_z, 0, tree_shape, willow, 0,
+                                               MOCK230_LOC_SET_ADD);
+                SELFTEST_CHECK(placed >= 0, "a willow should stand next to the player, got %d",
+                               placed);
+
+                mock230_capture_begin(srv, &chop_capture);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                /* Six ticks: the click arms at 0, the roll lands at 3, and the
+                 * re-arm — the tick that used to reprint — is at 4. */
+                for( int tick = 0; tick < 6; tick++ )
+                    mock230_world_tick(srv);
+                mock230_capture_end(srv);
+
+                SELFTEST_CHECK(!chop_capture.overflow,
+                               "the capture should hold every message of the chop");
+
+                for( int i = mock230_capture_find(&chop_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                     i = mock230_capture_find(&chop_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &chop_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "swing your axe") )
+                        swings++;
+                }
+
+                SELFTEST_CHECK(swings == 1,
+                               "the chop should announce itself once across the re-arm tick, "
+                               "got %d",
+                               swings);
+                /* Without this, a tree that depleted on the roll would pass the
+                 * count above for the wrong reason: the loop it is counting
+                 * would never have reached its second cycle. */
+                SELFTEST_CHECK(player->interaction.kind != MOCK230_INTERACT_NONE,
+                               "and the player should still be chopping six ticks in");
+
+                {
+                    int slot = mock230_scene_find_loc_exact(tree_x, tree_z, 0, tree_shape);
+
+                    if( slot >= 0 )
+                        mock230_scene_remove_loc(slot);
+                }
+                mock230_world_interaction_clear(srv);
+                selftest_clear_inv(player);
+                player->stat_level[woodcutting] = saved_level;
+                player->stat_boosted[woodcutting] = saved_level;
+            }
+            if( owned )
+                mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: authored loc ops\n");
     {
         /*
@@ -35234,6 +35373,162 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::fishingrun should report no failures");
             SELFTEST_CHECK(said_ok, "::fishingrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    /*
+     * Lighting a fire: the step off the tile, and the fire after it.
+     *
+     * `[label,light_logs_ground]` (skill_firemaking/scripts/firemaking.rs2)
+     * ends a successful roll with two proc calls in a row, and each one used to
+     * hit a different engine bug:
+     *
+     *   ~push_player(obj_coord)      -- p_teleport one tile, then p_delay(0)
+     *   ~firemaking_success(...)     -- loc_add(fire), then world_delay(~150)
+     *
+     * 1. `p_teleport` and `p_telejump` shared one opcode body, so the wire's
+     *    jump bit was nailed to 1 and the player *blinked* a tile sideways
+     *    instead of walking off the fire. Ash names the pair explicitly:
+     *    p_teleport "enables walk animations if the distance is short",
+     *    p_telejump "never plays walk animations"
+     *    (docs/ASH_MOVEMENT_CORPUS.md §14).
+     *
+     * 2. `world_delay` parked the state in the world queue without releasing
+     *    the player's one script seat, so for the fire's whole ~100-200 tick
+     *    life the player looked busy. Every later `~push_player` was dropped by
+     *    the one-parked-script rule — "dropping [proc,push_player], which
+     *    suspended while [proc,firemaking_success] waits" — and its `p_delay(0)`
+     *    never returned, so `~firemaking_success` never ran again. One fire per
+     *    two minutes, and every attempt after it a one-tile blink and nothing
+     *    else.
+     *
+     * The second fire is the whole point of this stanza: the first one lit
+     * before the fix too.
+     *
+     * Mutation: restore either half — send `1` for the jump bit, or drop the
+     * `unpark` in run_or_park's SSVM_WORLD_SUSPENDED arm — and this goes red.
+     */
+    fprintf(stderr, "mock230 selftest: lighting a fire steps off it, twice\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture fire_capture;
+            int logs = mock230_content_symbol(MOCK230_PACK_OBJ, "logs");
+            int tinderbox = mock230_content_symbol(MOCK230_PACK_OBJ, "tinderbox");
+            int fire_loc = mock230_content_symbol(MOCK230_PACK_LOC, "fire");
+            int firemaking = mock230_content_symbol(MOCK230_PACK_STAT, "firemaking");
+            int action_delay = mock230_world_varp("action_delay");
+            /* Two tiles apart, so the second round's logs do not land on the
+             * first fire — `~area_allow_loc_add` would refuse that tile. */
+            int fire_x[2] = { g_home_x, g_home_x + 2 };
+            int fire_z[2] = { g_home_z, g_home_z };
+            int lit[2] = { 0, 0 };
+            int stepped_off[2] = { 0, 0 };
+            int named = logs > 0 && tinderbox > 0 && fire_loc > 0 && firemaking >= 0;
+            int seat_free_while_burning = 1;
+            int glides = 0;
+            int snaps = 0;
+
+            for( int round = 0; round < 2 && named; round++ )
+            {
+                struct Mock230Player* p = srv->active_player;
+
+                selftest_clear_ground(srv);
+                selftest_park_player(srv, fire_x[round], fire_z[round]);
+                selftest_clear_inv(p);
+                selftest_give(p, tinderbox, 1);
+                p->stat_level[firemaking] = 99;
+                p->stat_boosted[firemaking] = 99;
+                if( action_delay >= 0 )
+                    p->varps[action_delay] = 0;
+                mock230_world_obj_add(srv, logs, 1, fire_x[round], fire_z[round], 0,
+                                      mock230_ids()->lootdrop_duration);
+                /* Settle the park's own placement out of the way first — it is
+                 * a teleport too, and its jump bit is not the one under test. */
+                mock230_world_tick(srv);
+                mock230_world_tick(srv);
+
+                if( round == 0 )
+                    mock230_capture_begin(srv, &fire_capture);
+                {
+                    uint8_t payload[6] = {
+                        (uint8_t)(fire_x[round] >> 8), (uint8_t)fire_x[round],
+                        (uint8_t)(fire_z[round] >> 8), (uint8_t)fire_z[round],
+                        (uint8_t)(logs >> 8),          (uint8_t)logs
+                    };
+
+                    mock230_world_handle(p, PKTOUT_NAME_OPOBJ4, payload, 6);
+                }
+                /* The roll is `stat_random(firemaking, 64, 512)` and a miss
+                 * re-issues through `p_opobj(4)`, so leave room for several
+                 * four-tick attempts. */
+                for( int t = 0; t < 60 && !lit[round]; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( mock230_zone_loc_find_id(srv, fire_x[round], fire_z[round], 0,
+                                                 fire_loc) )
+                        lit[round] = 1;
+                }
+                if( round == 0 )
+                    mock230_capture_end(srv);
+
+                stepped_off[round] = p->x != fire_x[round] || p->z != fire_z[round];
+                /* `~firemaking_success` belongs to the world queue now, not to
+                 * the player. A seat still held here is bug 2 exactly. */
+                if( p->active_script )
+                    seat_free_while_burning = 0;
+            }
+
+            /*
+             * The jump bit, read off the wire. The rev-230 local-player section
+             * opens the bit stream: has-update(1), op(2), level(2), x(7), z(7),
+             * jump(1) — so byte 2 bit 4 is the answer whenever the op is 3.
+             */
+            for( int i = mock230_capture_find_named(&fire_capture, PKT_NAME_PLAYER_INFO, 0);
+                 i >= 0;
+                 i = mock230_capture_find_named(&fire_capture, PKT_NAME_PLAYER_INFO, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &fire_capture.packets[i];
+
+                if( packet->len < 3 )
+                    continue;
+                if( !(packet->data[0] & 0x80) )
+                    continue;
+                if( ((packet->data[0] >> 5) & 0x3) != 3 )
+                    continue;
+                if( packet->data[2] & 0x10 )
+                    snaps++;
+                else
+                    glides++;
+            }
+
+            SELFTEST_CHECK(named,
+                           "logs, tinderbox, the fire loc and the firemaking stat should "
+                           "all be named (%d/%d/%d/%d)",
+                           logs, tinderbox, fire_loc, firemaking);
+            SELFTEST_CHECK(lit[0], "the first fire lights");
+            SELFTEST_CHECK(stepped_off[0], "and ~push_player steps the player off it");
+            SELFTEST_CHECK(glides > 0,
+                           "that step goes out as a p_teleport the client walks — jump "
+                           "clear (%d glide(s), %d snap(s))",
+                           glides, snaps);
+            SELFTEST_CHECK(snaps == 0, "and nothing in the window snaps, got %d", snaps);
+            SELFTEST_CHECK(seat_free_while_burning,
+                           "world_delay hands the state to the world queue and frees the "
+                           "player's script seat");
+            SELFTEST_CHECK(lit[1],
+                           "so a second fire lights while the first is still burning");
+            SELFTEST_CHECK(stepped_off[1], "and steps the player off that one too");
             mock230_scripts_free(srv);
         }
     }
