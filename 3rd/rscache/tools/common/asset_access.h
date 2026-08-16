@@ -96,6 +96,36 @@ tool_dat2_npc_load_checked(
     int npc_id,
     int* out_exact);
 
+/**
+ * Called once per npc, with the record owned by the walker.
+ *
+ * Return 0 to stop the walk — which is how a caller that can be cancelled gets
+ * out without waiting for 16,000 records.
+ */
+typedef int (*Tool_Dat2NpcVisitor)(
+    int npc_id,
+    struct RSCache_Dat2ConfigNpc* npc,
+    void* user);
+
+/**
+ * Every dat2 NPC, decoded group by group.
+ *
+ * Not the same thing as calling tool_dat2_npc_load in a loop, and the
+ * difference is not small: a single load decodes the whole group archive its id
+ * lives in and throws the other records away, so a full sweep re-decodes each
+ * group once per record it contains. On an OldSchool cache that is 256 records
+ * per group and turns a seconds-long sweep into a nine-minute one; on the RS2
+ * layout, where all npcs share one archive, it is worse still.
+ *
+ * Records are freed after `visit` returns, so a caller that needs one must copy
+ * what it wants out of it.
+ */
+int
+tool_dat2_npc_walk_all(
+    struct Tool_Dat2Cache* c,
+    Tool_Dat2NpcVisitor visit,
+    void* user);
+
 /** Decode one dat1 NPC. Caller frees with RSCache_Dat1ConfigNpcFree. */
 struct RSCache_Dat1ConfigNpc*
 tool_dat1_npc_load(

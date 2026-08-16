@@ -993,6 +993,24 @@ async function reloadForCache() {
   state.npcs = await res.json();
   renderNpcList();
   document.getElementById('npcCount').textContent = `${state.npcs.length} npcs`;
+
+  /*
+   * The subject too, not just the list. Its id means something else in this
+   * cache — a different creature, or none — and its animations belonged to the
+   * cache that was open. Leaving them up puts the previous cache's sequence ids
+   * under this cache's name, which is a lie the panel has no way to caveat.
+   *
+   * The rig list comes back empty and `rigs_pending`, because the walk over the
+   * new cache has only just started; watchRigs asks again when it lands.
+   */
+  if (state.mode === 'npc' && state.npcId !== null) {
+    await selectNpc(state.npcId);
+  } else if (state.mode === 'player') {
+    state.detail = await (await fetch('/api/rig/0.json')).json();
+    renderAnimList();
+    await rebuildPlayer();
+  }
+
   watchRigs();
 }
 

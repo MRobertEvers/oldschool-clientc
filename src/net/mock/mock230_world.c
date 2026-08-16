@@ -35583,6 +35583,90 @@ mock230_world_selftest(void)
                                    real);
                 }
 
+                /*
+                 * And her death must WIN THE SLOT it is sent into.
+                 *
+                 * The deferral above is only half of what the ending needs.
+                 * She coughs worms for the whole intermission that precedes
+                 * it, and rs2012_seq_16747 is not a one-shot: `framestep=8` on
+                 * eight frames loops back to frame 0 and runs its full replay
+                 * count, so it is still playing when the fourth artefact is
+                 * restored. It carries forcedpriority=6 and 16742 carries no
+                 * priority at all, which is the reference default of 5, and
+                 * the client's gate is `wanted >= incumbent`
+                 * (world_apply_primary_animation, src/world/world.c). Sent on
+                 * the restoration tick her death was refused outright and she
+                 * went on coughing until the retype snapped her to the
+                 * sleeping idle — "there is no dying animation".
+                 *
+                 * The fix is the one the reference already uses:
+                 * rs2012_seq_16748, the stop-cough, is priority 6 and it ENDS
+                 * (12 frames, no framestep), so it displaces the loop and
+                 * leaves the slot empty behind it. Three things are pinned —
+                 * that the step exists as its own queue, that the wait covers
+                 * 16748's own length, and that the priorities that make the
+                 * whole arrangement necessary are the ones actually reaching
+                 * the server.
+                 */
+                if( srv->scripts_ok )
+                {
+                    int const stored =
+                        mock230_content_constant_int("rs2012_qbd_stopcough_anim_ticks", -1);
+                    /* Same queue arithmetic as the retype above. */
+                    int const real = stored + 1;
+                    int const cough =
+                        mock230_content_symbol(MOCK230_PACK_SEQ, "rs2012_seq_16747");
+                    int const stop =
+                        mock230_content_symbol(MOCK230_PACK_SEQ, "rs2012_seq_16748");
+                    int const die =
+                        mock230_content_symbol(MOCK230_PACK_SEQ, "rs2012_seq_16742");
+
+                    SELFTEST_CHECK(
+                        SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_death]") != NULL,
+                        "the QBD death animation must stay deferred in "
+                        "[queue,rs2012_qbd_death]; sent on the restoration tick it is "
+                        "refused by the still-looping worm cough and she never dies");
+                    SELFTEST_CHECK(stored >= 0,
+                                   "^rs2012_qbd_stopcough_anim_ticks must be declared, got %d",
+                                   stored);
+                    /* 16748 is 60 cache cycles at ~30 cycles a tick, so two
+                     * ticks; anything shorter sends 16742 into a slot the
+                     * stop-cough still owns and it is refused a second time. */
+                    SELFTEST_CHECK(stored < 0 || (real >= 3 && real <= 5),
+                                   "the deferred QBD death waits %d real tick(s); "
+                                   "rs2012_seq_16748 is 60 cycles = 2 ticks, so this must "
+                                   "be 3..5 — shorter and her death is refused, longer and "
+                                   "she stands idle between the cough and the collapse",
+                                   real);
+
+                    if( cough >= 0 && stop >= 0 && die >= 0 &&
+                        mock230_seq_priority_known(cough) &&
+                        mock230_seq_priority_known(stop) && mock230_seq_priority_known(die) )
+                    {
+                        SELFTEST_CHECK(mock230_seq_priority(stop) >=
+                                           mock230_seq_priority(cough),
+                                       "the QBD stop-cough (seq %d, priority %d) must reach "
+                                       "the worm cough's priority (seq %d, %d) or nothing "
+                                       "can end the eruption",
+                                       stop, mock230_seq_priority(stop), cough,
+                                       mock230_seq_priority(cough));
+                        SELFTEST_CHECK(mock230_seq_priority(die) <
+                                           mock230_seq_priority(cough),
+                                       "the QBD death (seq %d, priority %d) is expected to "
+                                       "rank BELOW the worm cough (seq %d, %d) — if the lane "
+                                       "ever gives it its own priority the stop-cough step "
+                                       "is no longer load-bearing and this whole arrangement "
+                                       "should be revisited",
+                                       die, mock230_seq_priority(die), cough,
+                                       mock230_seq_priority(cough));
+                    }
+                    else
+                    {
+                        fprintf(stderr,
+                                "  SKIP  QBD death priority requires the rs2012 lane\n");
+                    }
+                }
+
                 /* The ordinary production-shaped debug command remains gated.
                  * The manifest command bypasses only that check and does not
                  * turn the QA account into a level-60 Summoner. */

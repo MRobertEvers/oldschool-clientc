@@ -1,8 +1,9 @@
 # entity_viewer — which animations apply to an npc, and what they look like
 
-Three things: a catalog of npc→animation matches, a browser viewer that plays
-them, and a command-line harness that measures a weapon swing against the
-graphic attached to it.
+Three things: a browser viewer that works out which animations apply to an npc
+in whichever cache is open and plays them, an offline catalog that adds the
+content team's names and the guesses those make possible, and a command-line
+harness that measures a weapon swing against the graphic attached to it.
 
 ```sh
 make -C tools/entity_viewer                     # ev_catalog + ev_server + ev_swing
@@ -11,7 +12,8 @@ make -C tools/entity_viewer wasm                # web/ev_wasm.js + .wasm (needs 
 tools/entity_viewer/run.sh                      # checks freshness, then serves
 # -> http://127.0.0.1:8099/
 
-# The catalog is optional and takes about five minutes; it adds rig matching.
+# The catalog is optional and takes about five minutes; it adds the gameval
+# names and the name-similarity guesses. Rig matching no longer needs it.
 mkdir -p out/osrs239_anims
 tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
     --names OSRS-Content/osrs239-content --out out/osrs239_anims
@@ -22,6 +24,72 @@ the equipment and graphic pickers need, and it points at the content tree so an
 exported asset that has since been *edited* is drawn as the game draws it rather
 than as the cache still holds it. Without it the npc half works exactly as
 before.
+
+## The animation lists come from the open cache, in the background
+
+Switching caches starts a **rig walk** over the newly opened one: every sequence
+swept to its framemap, framemaps that decode to the identical rig unified, then
+every npc read for the sequences it seeds from. That is where the animation
+lists come from now, for every cache, whether or not anyone ever built a catalog
+for it.
+
+It replaced an arrangement that was wrong in a way nothing on screen said: rig
+matching came only from the `--catalog` CSVs, which describe the ONE cache the
+server booted with. Switching away dropped them and nothing took their place, so
+**every npc in the new cache listed no animations at all** — and rs634 and
+rs727, which have no catalog anywhere, were in that state permanently. An empty
+list is indistinguishable from "this npc has none" by looking at it.
+
+The walk takes 1.5 s on rs634, 5 s on rs643, 9 s on rs727 and 10 s on osrs239,
+so it runs on a worker thread with its own cache handle while the server keeps
+answering. It publishes **twice**, because the two halves are worth very
+different waits:
+
+| Lands | What it enables |
+|---|---|
+| the sequence sweep, ~1–10 s | one npc's animation list — its own rigs come from its own record, which is a single decode |
+| the npc pass behind it | the `rig/maybe` badges on every row of the npc list |
+
+The page polls `GET /api/rigs.json` and refreshes each panel as its half
+arrives; while a walk is running the panels say so rather than showing an empty
+list. A second switch abandons the first walk — the worker finds out at its next
+progress callback, and a result can only be published while it is still the
+current generation, so a slow walk over the cache you just left can never land
+on top of the one you are looking at.
+
+Nothing is cached to disk. Unlike the index, the walk is seconds rather than
+tenths, and it is a background job nobody waits on, so a staleness fingerprint
+would be more machinery than the thing it saves.
+
+```sh
+make -C tools/entity_viewer ev_rig_probe
+tools/entity_viewer/ev_rig_probe cache.void634 void634 cache.rs727_preeoc rs727
+```
+
+The probe checks the symptom as a number (how many npcs reach a rig at all, and
+that the precomputed badge count equals the list the server emits), that one npc
+resolves from the sequence half alone, and — with a second cache given — that
+switching mid-walk publishes the second cache's answer and not the first's.
+
+### It is not the same walk ev_catalog does
+
+The catalog also decodes every npc's **models**, to answer `animaya_skinned` and
+`strict_covers`. That is its five minutes, and it buys two columns. The viewer
+answers `animaya_skinned` for the one npc being looked at instead, where it
+costs a few milliseconds.
+
+The other difference is that a full sweep must not call `tool_dat2_npc_load` per
+id: a single load decodes the whole group archive the id lives in and throws the
+rest away, so a sweep re-decodes each group once per record it contains. That is
+256 records per group on an OldSchool cache — it made the npc pass over
+cache.osrs239 take **537 seconds**, against 72 ms through
+`tool_dat2_npc_walk_all`, which decodes each group once.
+
+Where the live walk and an older catalog disagree, it is nearly always rig
+canonicalisation: 267 osrs239 npcs match more sequences now than
+`out/osrs239_anims` says, because CSVs written before rigs were unified kept
+byte-identical framemaps under separate ids. The Skeletal Wyvern's rig 817 and
+the natural-history display case's 1470 are the same rig.
 
 ## Caches
 
@@ -42,8 +110,10 @@ is what the entry is stored with.
 Searching npcs, sequences and models runs against a per-cache **index** built
 directly from the cache in about a tenth of a second, not against the catalog.
 That is the whole reason adding a cache is instant: requiring a catalog first
-would make it a five-minute wait. Without a catalog the npc list and the model
-still work; what is missing is the rig matching.
+would make it a five-minute wait. Without a catalog the npc list, the model and
+the animations all still work — the animations come from the rig walk above.
+What is missing is the gameval names and the name-similarity guesses, which are
+content rather than cache and have nowhere else to come from.
 
 ### The index is cached in the cache
 
@@ -388,9 +458,11 @@ the viewer greys out a skeletal row an npc cannot play.
 **Rigging matches — concrete.** An animation frame addresses bones by index into
 a *framemap* (the rig). A sequence built against one rig, applied to a model
 skinned for another, moves the wrong vertices — so sharing a rig is the hard
-precondition for an animation applying at all. `ev_catalog` walks from an npc's
-own idle/walk/turn/run/crawl sequences (and its BasType on RS2) to the framemaps
-those use, then collects every other sequence built on the same framemaps.
+precondition for an animation applying at all. The walk goes from an npc's own
+idle/walk/turn/run/crawl sequences (and its BasType on RS2) to the framemaps
+those use, then collects every other sequence built on the same framemaps. Both
+`ev_catalog` and the server's own background walk do this; the viewer reads the
+latter, so the lists follow whichever cache is open (see above).
 
 This is a *possibility* set, and its selectivity depends entirely on the rig.
 Framemap 0 is the shared human rig with 3,905 sequences on it, so every human
@@ -438,6 +510,7 @@ An npc's rigging matches are `npc_rigs ⋈ framemap_seqs` on framemap id.
          │  GET /api/npc/<id>.model  (ev_wire bytes)│
          │  GET /api/seq/<id>.anim   (ev_wire bytes)│
          │  GET /api/npc/<id>.json   (its two lists)│
+         │  GET /api/rigs.json       (walk progress)│
          └──────────────────────────────────────────┘
 ```
 

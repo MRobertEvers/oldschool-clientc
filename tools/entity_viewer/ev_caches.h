@@ -23,9 +23,11 @@
  * a coffee break, so this builds a much smaller index directly from the cache:
  * npc ids and names, and the id lists for sequences and models.
  *
- * That is enough to *find* things. The catalog, when one is present for the
- * active cache, still supplies the rig matching on top. The two are independent
- * and either can be absent.
+ * That is enough to *find* things. Which animations apply to what is a third
+ * thing again — ev_rigs.h, computed per cache in the background, because tying
+ * it to the catalog tied it to one cache. The catalog, when one is present for
+ * the active cache, adds the gameval names and the name-similarity guesses on
+ * top. All three are independent and any can be absent.
  */
 
 #include "asset_access.h"

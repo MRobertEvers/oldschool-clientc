@@ -2,7 +2,8 @@
  * ev_server — the entity viewer's cache half.
  *
  * The browser cannot open a 216 MB cache, so this does: it holds the cache, the
- * catalog ev_catalog produced, and answers three kinds of request.
+ * rig walk over it (ev_rigs.h), the catalog ev_catalog produced, and answers
+ * three kinds of request.
  *
  *   GET /api/npcs.json          every npc, for the picker
  *   GET /api/npc/<id>.json      one npc's animation lists (rig matches, name guesses)
@@ -17,9 +18,15 @@
  *   GET /api/rigs.json           how far along the active cache's rig walk is
  *   GET /<anything else>        static files from the web directory
  *
- * Single-threaded and blocking on purpose: one viewer, one browser tab, and a
- * request is a cache read that takes milliseconds. Concurrency here would buy
- * nothing and cost the ability to reason about the cache handle.
+ * Request handling is single-threaded and blocking on purpose: one viewer, one
+ * browser tab, and a request is a cache read that takes milliseconds.
+ * Concurrency here would buy nothing and cost the ability to reason about the
+ * cache handle.
+ *
+ * The one thing that does run alongside is the rig walk, and it holds a cache
+ * handle of its own precisely so that reasoning still stands — it shares no
+ * state with the handlers except the finished index, which is handed over
+ * between requests. See ev_rigs.h.
  *
  * Usage:
  *   ev_server --rev osrs239 <cache_dir> --catalog <dir> [--port 8099] [--web DIR]
@@ -87,12 +94,14 @@ struct NpcRow
     int name_match_seqs;
 };
 
+/* No `in_rig` here, though the CSV has the column: whether the rig walk found a
+ * guess too is answered against THIS cache's walk when the row is served, and
+ * keeping the catalog's answer beside it would be a second, staler one. */
 struct NameMatchRow
 {
     int npc_id;
     int seq_id;
     int score;
-    int in_rig;
 };
 
 static struct SeqRow* g_seqs = NULL;
@@ -416,7 +425,6 @@ load_catalog(const char* dir)
         int m_npc = csv_col(&h, "npc_id");
         int m_seq = csv_col(&h, "seq_id");
         int m_score = csv_col(&h, "score");
-        int m_rig = csv_col(&h, "in_rig_set");
 
         while( fgets(line, sizeof(line), f) )
         {
@@ -431,8 +439,6 @@ load_catalog(const char* dir)
             g_name_matches[g_name_match_count].npc_id = atoi(csv_get(fields, n, m_npc));
             g_name_matches[g_name_match_count].seq_id = atoi(csv_get(fields, n, m_seq));
             g_name_matches[g_name_match_count].score = atoi(csv_get(fields, n, m_score));
-            g_name_matches[g_name_match_count].in_rig =
-                strcmp(csv_get(fields, n, m_rig), "true") == 0 ? 1 : 0;
             g_name_match_count++;
         }
     }
@@ -739,6 +745,20 @@ handle_npc_json(int fd, int npc_id)
     {
         if( g_name_matches[i].npc_id != npc_id )
             continue;
+        /*
+         * Whether the rig list above already has it, decided against THAT list
+         * rather than against the catalog's `in_rig` column. The page hides the
+         * corroborated ones, so a stale column shows a sequence twice — and the
+         * column goes stale easily, because the catalog CSVs were written by
+         * whichever ev_catalog built them and rig canonicalisation post-dates
+         * some of them.
+         */
+        int in_rig = 0;
+        int fm = ev_rigs_seq_framemap(rigs, g_name_matches[i].seq_id);
+        for( int k = 0; fm >= 0 && k < row.framemap_count; k++ )
+            if( row.framemaps[k] == fm )
+                in_rig = 1;
+
         str_add(&s, first ? "{" : ",{");
         first = 0;
         str_add(
@@ -746,7 +766,7 @@ handle_npc_json(int fd, int npc_id)
             "\"seq\":%d,\"score\":%d,\"in_rig\":%s,\"name\":",
             g_name_matches[i].seq_id,
             g_name_matches[i].score,
-            g_name_matches[i].in_rig ? "true" : "false");
+            in_rig ? "true" : "false");
         str_add_json(&s, seq_name(g_name_matches[i].seq_id));
         str_add(&s, "}");
     }

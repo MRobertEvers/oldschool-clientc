@@ -332,7 +332,9 @@ test_identities(int* plain_buf, int* got)
 
             struct ToriDraw_TexSampler s;
             ToriDraw_TexSamplerInit(&s, cases[c].variant_tex, TEX_W);
-            /* Neutral throughout: opaque face, identity tint, repeat both. */
+            /* Neutral throughout: opaque face, identity tint, and the init's
+             * default addressing — which is the plain kernels' own, so the
+             * comparison below is against a kernel that samples identically. */
 
             buf_fill(got, BG);
             cases[c].variant(got + GUARD, TEXGEOM(t, tv), &s);
@@ -723,6 +725,11 @@ test_clamp_end_to_end(int* buf_repeat, int* buf_clamp)
     struct ToriDraw_TexSampler rep, cla;
     ToriDraw_TexSamplerInit(&rep, edge_tex, TEX_W);
     ToriDraw_TexSamplerInit(&cla, edge_tex, TEX_W);
+    /* Both modes are set explicitly on both samplers. Leaning on the init's
+     * defaults here would silently turn this into a one-axis check the day a
+     * default moves, which is exactly what it is here to detect. */
+    rep.clamp_s = 0;
+    rep.clamp_t = 0;
     cla.clamp_s = 1;
     cla.clamp_t = 1;
 
@@ -763,6 +770,78 @@ test_clamp_end_to_end(int* buf_repeat, int* buf_clamp)
     }
 }
 
+/*
+ * The same question asked of u ALONE.
+ *
+ * test_clamp_end_to_end above passes on a renderer that ignores clamp_s
+ * entirely, because v wrapping is enough to make the two images differ. It did:
+ * every span clamped u whatever the sampler said, so a repeating material
+ * sampled one column for every coordinate past the texture edge and smeared it
+ * along the whole span. On the rs643 TzTok-Jad, whose mapped faces are 97.7%
+ * outside 0..1, that was the model's horizontal streaking.
+ *
+ * A texture that varies along u and is constant along v removes v from the
+ * answer: any difference at all is u addressing, and no difference means u is
+ * being addressed one way in both modes.
+ */
+static void
+test_clamp_u_axis(int* buf_repeat, int* buf_clamp)
+{
+    printf("clamp_s alone changes what a span off the edge samples\n");
+
+    static int u_tex[TEX_LEN];
+    for( int v = 0; v < TEX_W; v++ )
+        for( int u = 0; u < TEX_W; u++ )
+            u_tex[u + v * TEX_W] =
+                (int)(0xFF000000u | (unsigned)(0x00010101 * (u + 1)));
+
+    static const struct Tri t = { "interior", { 40, 150, 90 }, { 20, 35, 120 } };
+    const struct TexVerts* tv = &g_texverts;
+
+    struct ToriDraw_TexSampler rep, cla;
+    ToriDraw_TexSamplerInit(&rep, u_tex, TEX_W);
+    ToriDraw_TexSamplerInit(&cla, u_tex, TEX_W);
+    /* v identical on both, so only s can move a pixel. */
+    rep.clamp_s = 0;
+    rep.clamp_t = 0;
+    cla.clamp_s = 1;
+    cla.clamp_t = 0;
+
+    buf_fill(buf_repeat, BG);
+    buf_fill(buf_clamp, BG);
+    raster_texplane_persp_texalpha_branching_lerp8_v3(
+        buf_repeat + GUARD, TEXGEOM(&t, tv), &rep);
+    raster_texplane_persp_texalpha_branching_lerp8_v3(
+        buf_clamp + GUARD, TEXGEOM(&t, tv), &cla);
+
+    if( !guard_intact(buf_repeat, "clamp_s (repeat pass)", t.name) )
+        return;
+    if( !guard_intact(buf_clamp, "clamp_s (clamp pass)", t.name) )
+        return;
+
+    long differ = 0, covered = 0;
+    for( int p = 0; p < H * W; p++ )
+    {
+        if( RGB(buf_repeat[GUARD + p]) == BG && RGB(buf_clamp[GUARD + p]) == BG )
+            continue;
+        covered++;
+        if( RGB(buf_repeat[GUARD + p]) != RGB(buf_clamp[GUARD + p]) )
+            differ++;
+    }
+
+    if( differ == 0 )
+    {
+        printf("  FAIL clamp_s: u is addressed identically in both modes over %ld px"
+               " - clamp_s does nothing\n", covered);
+        g_fail++;
+    }
+    else
+    {
+        printf("  ok   %ld of %ld covered px differ on u addressing alone\n",
+               differ, covered);
+    }
+}
+
 int
 main(void)
 {
@@ -783,6 +862,7 @@ main(void)
     test_zero_coverage_is_untouched(got);
     test_sampler_contracts();
     test_clamp_end_to_end(got, aux);
+    test_clamp_u_axis(got, aux);
 
     if( g_fail )
     {

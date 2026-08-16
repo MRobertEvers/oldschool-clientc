@@ -84,6 +84,23 @@ tex_span_u_quotient(int au, float inv_w, int texture_width)
 }
 
 /**
+ * u under the address mode the material actually asks for.
+ *
+ * `clamp_s` is the sampler's own field, so this is the one place that decides
+ * what `repeat` means for u. Getting it wrong is not subtle at the pixel level
+ * and is very subtle at the code level: a clamped u pins every coordinate past
+ * the edge to one column, so a face whose mapping leaves 0..1 draws that column
+ * smeared along the whole span. On a rock surface that reads as horizontal
+ * streaking, and the uv itself measures perfectly healthy while it happens.
+ */
+static inline int
+tex_span_u_quotient_mode(int au, int w, float inv_w, int texture_width, int clamp_s)
+{
+    return clamp_s ? tex_span_u_quotient(au, inv_w, texture_width)
+                   : tex_span_wrapped_quotient(au, w, inv_w);
+}
+
+/**
  * True when an 8-pixel linear fit between a block's two endpoints is worth
  * drawing. Because a passing fit is bounded by one tile, it also guarantees the
  * step and scan arithmetic that draws it stays inside int.

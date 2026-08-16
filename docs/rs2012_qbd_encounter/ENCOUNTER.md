@@ -150,15 +150,32 @@ whole family without fighting for it.
    resumes combat in phase n+1 — her **first attack comes 20 ticks after the
    restoration**, giving the player the documented breather. The first
    restoration switches music to 1118 *Queen Black Dragon*.
-6. **Completion**: artefact 4 → return-to-sleep sequence (16742), every
-   surviving add removed, reward stairs (70790) appear, coffer rolled once
-   into the persistent ten-slot `rs2012_qbd_rewardinv`. 16742 is her death
-   animation and it is played on the **awake** npc: the retype to
-   `rs2012_qbd_sleeping` is deferred `^rs2012_qbd_sleep_anim_ticks` into
-   `[queue,rs2012_qbd_sleep]`, because `npc_changetype` clears the transient
-   animation and the wire writes SEQUENCE before TRANSFORMATION — issuing both
-   on one tick renders as an instant snap to the sleeping idle with no death at
-   all. Same rule, same reason as the wake swap in step 2 above.
+6. **Completion**: artefact 4 → every surviving add removed, the finished
+   southern floor (70837 at (22,24) and 70840 at (34,24), both `^loc_west`)
+   and the reward stairs (70790 at (31,29), `^loc_west`) appear, artefact 1's
+   restored loc (70778) is deleted because the 5x-scaled staircase reaches over
+   its tile, and the coffer is rolled once into the persistent ten-slot
+   `rs2012_qbd_rewardinv`. open727 also spawns 70775 under the stairwell; it
+   has no home here, see §2.1. Her death is **three ticks' work**, not one:
+
+   | tick | what | why not sooner |
+   |---|---|---|
+   | 0 | stop-cough 16748, claws revert to the default form | — |
+   | +`^rs2012_qbd_stopcough_anim_ticks` | death 16742, `[queue,rs2012_qbd_death]` | 16742 is priority 5 and everything before it is priority 6; the client gate is `wanted >= incumbent`, so it is refused until 16748 has ended |
+   | +`^rs2012_qbd_sleep_anim_ticks` | retype to `rs2012_qbd_sleeping`, `[queue,rs2012_qbd_sleep]` | `npc_changetype` clears the transient animation and the wire writes SEQUENCE before TRANSFORMATION, so the two on one tick render as an instant snap |
+
+   The stop-cough is load-bearing, not cosmetic. She coughs worms for the whole
+   intermission and 16747 is `framestep=8` over eight frames — it loops, and it
+   is still playing when the artefact is restored, so without 16748 displacing
+   it her death is dropped and she goes on coughing until the retype. The
+   restoration must also close the fight for good: `%rs2012_qbd_active` stays 1
+   until the player takes the stairs, so the `[ai_queue3]` emergency pool
+   restore is gated on `%rs2012_qbd_reward_ready` as well — otherwise it heals
+   her a life point back, re-opens a fifth intermission, and the re-armed worm
+   cough steals the death animation two ticks in.
+
+   `::rs2012qbdfinish` drives this whole ending on demand; playing up to it
+   kills an unattended QA account long before it is on screen.
 7. **Departure at any point** (teleport/logout/death): the one-tick lifecycle
    watchdog tears down queues, timers, locks, HUD, music, and owned NPCs. An
    unclaimed coffer survives everything.
