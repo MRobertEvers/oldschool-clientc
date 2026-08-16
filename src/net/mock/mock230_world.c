@@ -1980,6 +1980,15 @@ run_energy_tick(
             weight_kg = 64;
         drain = 67 + (67 * weight_kg) / 64;
 
+        /* Stamina potion: wiki says drain is cut 70% while `%stamina_active`
+         * is armed. Content owns the duration countdown
+         * (player/scripts/consumption/inferno_potions.rs2's
+         * `[timer,stamina_expire]`) and only ever writes 0 or 1 here; this is
+         * the one piece of the effect a script cannot express, since
+         * run-energy drain itself has no content-facing op. */
+        if( player->varps[mock230_world_varp("stamina_active")] )
+            drain = drain * 3 / 10;
+
         player->run_energy -= drain;
         if( player->run_energy <= 0 )
         {

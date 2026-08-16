@@ -2095,6 +2095,10 @@ SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
 CURSES_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_rs558_ancient_curses
 CURSES_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
+# Genuinely new items authored outside the cache (HERBLORE_PORT_QUEUE.md
+# slice 30 — herb tar). Same shape as the lanes above: its own pack/obj.alloc
+# + obj.client, registered as its own --pack root below.
+HERBLORE_ITEMS_LANE = $(MOCK230_CONTENT_DIR)/ported/herblore_items
 SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
 SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # Allocate first, then compile.
@@ -2153,6 +2157,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2179,6 +2184,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2208,6 +2214,7 @@ mock230-scripts-curses: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2587,6 +2594,7 @@ mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
