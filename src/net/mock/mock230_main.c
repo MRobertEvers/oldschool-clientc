@@ -82,7 +82,7 @@
  * `no`, `off` and `false` all disable; anything else, including unset, leaves
  * it on.
  */
-static int
+int
 mock230_flag_default_on(const char* name)
 {
     const char* value = getenv(name);
@@ -183,6 +183,7 @@ serve(
     memset(srv, 0, sizeof(*srv));
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
     srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
+    srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
     /*
      * After the memset, not before it.
      *
@@ -292,6 +293,7 @@ serve_js5(
     memset(srv, 0, sizeof(*srv));
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
     srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
+    srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);

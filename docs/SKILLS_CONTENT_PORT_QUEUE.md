@@ -135,7 +135,7 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | #37–40, #42 landed (tiara, pure/daeyalt essence, Kourend dark essence, pouches, Abyss, Ourania, combo runes, cape). Wrath/true-blood altar rows blocked on real coordinates; #41 (GotR) stays a minigame. See RUNECRAFT_COMPLETION_PLAN.md |
 | 9 | Crafting | `skill_crafting/` | [Crafting](https://oldschool.runescape.wiki/w/Crafting) · [Training](https://oldschool.runescape.wiki/w/Crafting/Training) | done | Broad LC suite live (pottery/gems/leather/jewellery/glass/…); finish #43–48 |
 | 10 | Mining | `skill_mining/` | [Mining](https://oldschool.runescape.wiki/w/Mining) · [Training](https://oldschool.runescape.wiki/w/Mining/Training) | done | Clay..runite+blurite+prospect live; finish #49–55; Motherlode→KRONOS done |
-| 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | F2P smelt+anvil live; finish #56–62; Blast Furnace→SCAPE2009 done |
+| 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | SMITHING_COMPLETION_PLAN.md S1–S6,S8,S9,S11,S12,S14 landed; S7 quest-lane, S10 blocked (no Barbarian Training miniquest), S13 (IF 312) separable UI project |
 | 12 | Fishing | `skill_fishing/` | [Fishing](https://oldschool.runescape.wiki/w/Fishing) · [Training](https://oldschool.runescape.wiki/w/Fishing/Training) | done | Full member roster + barbarian + guild + cape/outfit live (#63-65,68 done); #66 movement lands, #67 blocked on Miscellania; Trawler/Tempoross remain #69-70 |
 | 13 | Cooking | `skill_cooking/` | [Cooking](https://oldschool.runescape.wiki/w/Cooking) · [Training](https://oldschool.runescape.wiki/w/Cooking/Training) | done | F2P cook+dough/wine+gnome live; gauntlets/cookomatic wired; finish #71–77 |
 | 14 | Firemaking | `skill_firemaking/` | [Firemaking](https://oldschool.runescape.wiki/w/Firemaking) · [Training](https://oldschool.runescape.wiki/w/Firemaking/Training) | done | Normal→magic logs live; finish #78–84; Wintertodt→KRONOS |
@@ -143,7 +143,7 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 16 | Agility | `skill_agility/` | [Agility](https://oldschool.runescape.wiki/w/Agility) · [Training](https://oldschool.runescape.wiki/w/Agility/Training) | done | Gnome+8 rooftops+MoG+some shortcuts live; finish #92–99 |
 | 17 | Herblore | `skill_herblore/` | [Herblore](https://oldschool.runescape.wiki/w/Herblore) · [Training](https://oldschool.runescape.wiki/w/Herblore/Training) | done | Clean/grind/unf+many finishes live; Drink→#3 family; finish #100–106 |
 | 18 | Thieving | `skill_thieving/` | [Thieving](https://oldschool.runescape.wiki/w/Thieving) · [Training](https://oldschool.runescape.wiki/w/Thieving/Training) | done | Classic pickpocket/stalls/chests/doors live; finish #107–114; PP→SCAPE2009 |
-| 19 | Fletching | `skill_fletching/` | [Fletching](https://oldschool.runescape.wiki/w/Fletching) · [Training](https://oldschool.runescape.wiki/w/Fletching/Training) | done | F2P bows/arrows + darts + opal/pearl/barb bolts live; finish #115–122 |
+| 19 | Fletching | `skill_fletching/` | [Fletching](https://oldschool.runescape.wiki/w/Fletching) · [Training](https://oldschool.runescape.wiki/w/Fletching/Training) | done | Full recipe set landed (bows/crossbows/arrows/bolts/darts/javelins/ogre+brutal/amethyst/mith grapple/ballistae/blowpipe/shields/battlestaff/cape). `map_members` is now a real world flag (`src/net/mock/mock230.h`), members-on by default. `::fletchingrun` selftest passing. Plan: [`FLETCHING_COMPLETION_PLAN.md`](FLETCHING_COMPLETION_PLAN.md); #115–122 done |
 | 20 | Slayer | `skill_slayer/` | [Slayer](https://oldschool.runescape.wiki/w/Slayer) · [Training](https://oldschool.runescape.wiki/w/Slayer/Training) | done | Masters/assign/kill/points/ops/rewards IF live (KRONOS); finish #123–130 |
 | 21 | Farming | `skill_farming/` | [Farming](https://oldschool.runescape.wiki/w/Farming) · [Training](https://oldschool.runescape.wiki/w/Farming/Training) | done | Classic patches (SCAPE2009 §1a–1g) live; finish #131–138 |
 | 22 | Construction | `skill_construction/` | [Construction](https://oldschool.runescape.wiki/w/Construction) · [Training](https://oldschool.runescape.wiki/w/Construction/Training) | done | Live POH 4a+4b; finish #139–145 redirects; do not park tree |
@@ -213,12 +213,12 @@ unblocked row per tick.
 | 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | done | mining_gear.rs2: prospector XP (+2.5% cap), Varrock armour 4 double-ore, mining/superior/expert gloves (deterministic per-rock saves), bracelet of clay (28-charge player varp), cape +1 boost, unidentified minerals (amethyst only). Gem bag/coal bag storage deferred — see MINING_COMPLETION_PLAN.md §6 |
 | 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done (veins/paydirt/hopper/sack) + Mining Guild 60 gate (mining_guild.rs2); remaining post-2009 activities stay KRONOS lane. See MINING_COMPLETION_PLAN.md §9 |
 | 55 | Miscellania mining intercept | LC | done | ~magnus_intercept_ore (miner_magnus.rs2), called from get_ore_normal/get_ore_fast before inv_add — ore-only, same scope as LostCity's own version |
-| 56 | Cannonballs | LC | pending | CONTENT 7g / smelting.rs2 deferred; pairs with Ranged #19 dwarf multicannon |
-| 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | pending | smithing.rs2 deferred list; F2P weapon/armour kinds live bronze→rune |
-| 58 | Dragon sq shield + special anvil products | LC | pending | CONTENT 7g deferred dragon sq; claws already in #57 |
-| 59 | Members bars (blurite/elemental/lovakite) | wiki+cache | pending | smelting table bronze→runite only; blurite ore mineable but no bar |
-| 60 | Smithing IF / batch polish | LC | pending | CONTENT 7g deferred CS2 smithing.if; p_choice menus live |
-| 61 | Smithing gear perks (gauntlets/cape/Smiths' Uniform) | wiki+cache | pending | Goldsmith gauntlets gold XP, cape, anvil tick-speed uniform absent |
+| 56 | Cannonballs | LC | done | XP bug fixed (375→256, was the steel bar rate not the cannonball rate) + Dwarf Cannon quest gate added + looped; SMITHING_COMPLETION_PLAN.md S8 |
+| 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | done | 56 new dbrows via S2's kind-column refactor (deleted six 17-case switches); SMITHING_COMPLETION_PLAN.md S2–S5 |
+| 58 | Dragon sq shield + special anvil products | LC | done | Dragon sq already lived; dragonfire shield assembly new, godsword blade combine chain found already implemented (missing level-80 gate + XP, now fixed) — SMITHING_COMPLETION_PLAN.md S12 |
+| 59 | Members bars (blurite/elemental/lovakite) | wiki+cache | done | Blurite smelt+anvil products landed (SMITHING_COMPLETION_PLAN.md S6); elemental metal scoped to quest_elemental_workshop (S7, not this lane); lovakite is a Kourend-lane furnace, out of scope |
+| 60 | Smithing IF / batch polish | LC | pending | p_choice menus now cover all 31 product kinds (S2's menu chain); real IF 312 client UI still not wired — SMITHING_COMPLETION_PLAN.md S13 |
+| 61 | Smithing gear perks (gauntlets/cape/Smiths' Uniform) | wiki+cache | done | Imcando hammer, Smithing cape gold-XP bonus, Varrock armour double-smelt landed; Smiths' Uniform is a 2022 Giants' Foundry reward, out of era — SMITHING_COMPLETION_PLAN.md S9 |
 | 62 | Blast Furnace remainder | SCAPE2009 | blocked | Enter+machine already SCAPE2009 §13/13b done; breakage/belt NPCs stay that lane |
 | 63 | Members fish (shark/monkfish/big-net/karambwan/angler/dark crab/eels) | LC | done | FISHING_COMPLETION_PLAN.md S1-S9,S13; monkfish/anglerfish/dark crab/cave eel/frogspawn/infernal eel/sacred eel/rainbow fish live, table-driven; shark/karambwan/big-net already live |
 | 64 | Barbarian / barehand fishing | wiki+cache | done | FISHING_COMPLETION_PLAN.md S9; leaping trout/salmon/sturgeon live (dual Fishing+Agility+Strength gate, off-skill xp); barehand harpoon not wiki-documented, not attempted |
@@ -272,14 +272,14 @@ unblocked row per tick.
 | 112 | Thieving cape / gloves of silence / dodgy necklace | wiki+cache | pending | Success/stun/double-loot gear absent |
 | 113 | Coin pouches | wiki+cache | pending | Wiki pouch stack loot model vs direct coin drops |
 | 114 | Pyramid Plunder remainder | SCAPE2009 | blocked | Entrance+rooms SCAPE2009 §7/7b done; snake charm deferred on that lane |
-| 115 | Maple+ bow cut/string | LC | pending | cut_logs/bows F2P normal→willow only; maple/yew/magic deferred |
-| 116 | Mithril+ arrows | LC | pending | arrows.rs2 bronze→steel only; mithril+ deferred |
-| 117 | Crossbow stocks / limbs / unfinished bolts | LC | pending | CONTENT 8r deferred crossbow; bolts tip assembly only (opal/pearl/barb) |
-| 118 | Gem bolt tips remainder | LC | pending | CONTENT 13r deferred tips beyond opal/pearl/barb; enchant combat →#22 |
-| 119 | Ogre / brutal arrows | LC | pending | darts.rs2 ogre/proto deferred; SCAPE2009 Zogre brutal arrows deferred |
-| 120 | Amethyst / dragon ammo + javelins | wiki+cache | pending | Wiki high-tier ammo; no amethyst/dragon/javelin fletch rows |
-| 121 | Broad arrows / bolts | wiki+cache | pending | Wiki Slayer-point unlock training; no broad tip assembly |
-| 122 | Fletching cape / bowstring spool | wiki+cache | pending | Skillcape perk + spool AFK aid absent |
+| 115 | Maple+ bow cut/string | LC | done | Maple/yew/magic cut+string landed, FLETCHING S3 |
+| 116 | Mithril+ arrows | LC | done | Mithril/adamant/rune arrowheads landed, FLETCHING S4 |
+| 117 | Crossbow stocks / limbs / unfinished bolts | LC | done | **Premise corrected**: not "unexpressible" — every part exists as `xbows_crossbow_{stock,limbs,unstrung}_*`, `xbows_crossbow_string`, `*_unfeathered`. 8 stocks/limbs/strings + 9 metal bolt tiers landed, FLETCHING S5+S6 |
+| 118 | Gem bolt tips remainder | LC | done | jade→onyx tip cutting + their tipped bolts landed, FLETCHING S8; enchant combat →#22 still open |
+| 119 | Ogre / brutal arrows | LC | done | Composite ogre bow + 6 brutal arrow tiers landed, FLETCHING S7 (no `nails_steel` obj exists, so no Steel tier — documented, not guessed) |
+| 120 | Amethyst / dragon ammo + javelins | wiki+cache | done | Amethyst 4-way chisel menu, dragon arrow/dart/javelin, 8 javelin tiers landed, FLETCHING S9 |
+| 121 | Broad arrows / bolts | wiki+cache | done | Landed, FLETCHING S10 — level-gated only; no Slayer reward-unlock convention exists in `skill_slayer/` to gate against |
+| 122 | Fletching cape / bowstring spool | wiki+cache | done | Worn Boost perk landed, FLETCHING S14 (`skillcape_boost.rs2`); spool is 2025 Vale Totems → KRONOS, search-for-grapple perk not implemented |
 | 123 | Konar location-restricted tasks | Kronos | pending | Masters assign live; Konar areas column wire deferred (KRONOS §3) |
 | 124 | Monster specials remainder (mirror/gargoyle/banshee/…) | SCAPE2009/Kronos | pending | Rockslug+lizard finishers live (SCAPE2009 §3e); mirror/smash/earmuffs deferred |
 | 125 | Superior unique loot / full type map | Kronos | pending | Bigger and Badder spawn+credit stub (KRONOS §40); loot deferred |

@@ -6117,6 +6117,109 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "useon", 5) == 0 )
+    {
+        /*
+         * `::useon <a> <b>` — "use A on B", where B is the one clicked second,
+         * the way the OPHELDU body orders them.
+         *
+         * The only other way to reach the four-rung resolver is a real client
+         * with both items in the backpack, which is why the resolver could
+         * swallow a whole family of pairs unnoticed: every skill selftest calls
+         * its recipe `~proc` directly and never dispatches at all. Both items
+         * are given first if absent, because "did this pair dispatch" is the
+         * question and "do I happen to be holding them" is not.
+         *
+         * Reversing the arguments is a different test, not the same one — rung 2
+         * is what makes one binding answer either order, so a pair that works one
+         * way round and not the other is the interesting result. Run it both ways.
+         */
+        char arg_a[64] = { 0 };
+        char arg_b[64] = { 0 };
+        char suggest[256] = { 0 };
+        int a;
+        int b;
+        int slot_a = -1;
+        int slot_b = -1;
+        struct Mock230Container* row;
+
+        if( sscanf(text, "useon %63s %63s", arg_a, arg_b) != 2 )
+        {
+            say(srv, "Usage: ::useon <item_a> <item_b>   (b is the one clicked second)");
+            return;
+        }
+        a = cheat_obj_from_name(arg_a, suggest, sizeof(suggest));
+        if( a < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg_a, suggest);
+            else
+                say(srv, "No item named '%s'.", arg_a);
+            return;
+        }
+        suggest[0] = '\0';
+        b = cheat_obj_from_name(arg_b, suggest, sizeof(suggest));
+        if( b < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg_b, suggest);
+            else
+                say(srv, "No item named '%s'.", arg_b);
+            return;
+        }
+
+        row = mock230_container_resolve(srv, player, mock230_ids()->inv_backpack);
+        if( !row )
+        {
+            say(srv, "No backpack container.");
+            return;
+        }
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        {
+            if( player->inv[i].obj_id == a && slot_a < 0 )
+                slot_a = i;
+            else if( player->inv[i].obj_id == b && slot_b < 0 )
+                slot_b = i;
+        }
+        if( slot_a < 0 || slot_b < 0 )
+        {
+            if( slot_a < 0 )
+                mock230_container_add(row, a, 1, 0);
+            if( slot_b < 0 )
+                mock230_container_add(row, b, 1, 0);
+            slot_a = slot_b = -1;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( player->inv[i].obj_id == a && slot_a < 0 )
+                    slot_a = i;
+                else if( player->inv[i].obj_id == b && slot_b < 0 )
+                    slot_b = i;
+            }
+        }
+        if( slot_a < 0 || slot_b < 0 )
+        {
+            say(srv, "No room to hold both items.");
+            return;
+        }
+
+        {
+            uint8_t body[16];
+            struct RSAreaBuf out;
+
+            rsab_wrap(&out, body, sizeof(body));
+            rsab_p2(&out, b);
+            rsab_p2(&out, slot_b);
+            rsab_p4(&out, 0);
+            rsab_p2(&out, a);
+            rsab_p2(&out, slot_a);
+            rsab_p4(&out, 0);
+            fprintf(stderr, "mock230: ::useon %s(%d,slot %d) on %s(%d,slot %d)\n", arg_a, a,
+                    slot_a, arg_b, b, slot_b);
+            mock230_world_handle(player, PKTOUT_NAME_OPHELDU, body, (int)rsab_len(&out));
+        }
+        return;
+    }
+
     if( strncmp(text, "give", 4) == 0 )
     {
         /*
@@ -12237,6 +12340,130 @@ selftest_count(
 }
 
 /*
+ * Drive one "use A on B" all the way through the packet handler.
+ *
+ * `a` is picked up first and `b` is clicked second, which is the orientation the
+ * OPHELDU body carries: the *clicked* obj leads the payload and the dragged one
+ * follows. Both objs are planted in fixed, distinct slots — the resolver moves
+ * `last_slot` alongside `last_item`, so a shared slot would hide a half-done
+ * swap.
+ *
+ * This exists because nothing else in the tree drives use-on dispatch. Every
+ * skill selftest calls its recipe `~proc` directly, which is why the four-rung
+ * resolver could swallow a whole family of pairs (gem-tipped bolts above bronze)
+ * with every suite green. A probe that asserts a *product* rather than a varp is
+ * the only kind that answers "did the click reach the script that makes this".
+ */
+/*
+ * Drive one "use A on B" all the way through the packet handler.
+ *
+ * `a` is picked up first and `b` is clicked second, which is the orientation the
+ * OPHELDU body carries: the *clicked* obj leads the payload and the dragged one
+ * follows. Both objs are planted in fixed, distinct slots — the resolver moves
+ * `last_slot` alongside `last_item`, so a shared slot would hide a half-done
+ * swap.
+ *
+ * This exists because nothing else in the tree drives use-on dispatch. Every
+ * skill selftest calls its recipe `~proc` directly, which is why the four-rung
+ * resolver could swallow a whole family of pairs (gem-tipped bolts above bronze)
+ * with every suite green. A probe that asserts a *product* rather than a varp is
+ * the only kind that answers "did the click reach the script that makes this".
+ */
+static void
+selftest_useon(
+    struct Mock230Server* srv,
+    int a,
+    int a_count,
+    int b,
+    int b_count,
+    const int* stats,
+    int stat_count)
+{
+    struct Mock230Player* player = srv->active_player;
+    enum
+    {
+        SLOT_A = 24,
+        SLOT_B = 25
+    };
+    uint8_t payload[16];
+    struct RSAreaBuf out;
+
+    /*
+     * Start from an empty backpack, no parked script, and the levels re-asserted.
+     *
+     * All three are load-bearing, and the third is the one that is easy to miss:
+     * `stat_advance` recomputes the level from experience, so a *successful*
+     * recipe undoes a level written straight into `stat_level` and every probe
+     * after the first meets a level gate instead of a rung. That reads exactly
+     * like a resolver bug — the first pair works, later ones do not — which is
+     * why the level goes through `mock230_combat_set_level` (level, boost AND
+     * experience) and is re-asserted per dispatch rather than once per stanza.
+     *
+     * The park matters for the same reason: a recipe that refuses with `~mesbox`
+     * leaves the player busy, so the next probe would measure `canAccess`. A park
+     * carried out of the section costs failures in unrelated ones (see the
+     * Thieving fixture's own note).
+     */
+    player->active_script = NULL;
+    for( int i = 0; i < stat_count; i++ )
+        if( stats[i] >= 0 )
+            mock230_combat_set_level(player, stats[i], 99);
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        inv_set(player, i, -1, 0);
+    inv_set(player, SLOT_A, a, a_count);
+    inv_set(player, SLOT_B, b, b_count);
+
+    rsab_wrap(&out, payload, sizeof(payload));
+    rsab_p2(&out, b);
+    rsab_p2(&out, SLOT_B);
+    rsab_p4(&out, 0);
+    rsab_p2(&out, a);
+    rsab_p2(&out, SLOT_A);
+    rsab_p4(&out, 0);
+    mock230_world_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+    player->active_script = NULL;
+}
+
+/*
+ * Both click orders of the same pair.
+ *
+ * Every claim about the resolver is a claim about *both* orders — rung 2 exists
+ * so that one binding answers either — so a probe that only drags A onto B tests
+ * half of it, and the half it tests is the one that was already working.
+ *
+ * Returns a two-bit answer rather than a boolean, because "one order works and
+ * the other does not" is the single most likely state and has to be readable as
+ * such: bit 0 is A-dragged-onto-B, bit 1 is B-dragged-onto-A.
+ */
+static int
+selftest_useon_both(
+    struct Mock230Server* srv,
+    int a,
+    int a_count,
+    int b,
+    int b_count,
+    int product,
+    const int* stats,
+    int stat_count)
+{
+    struct Mock230Player* player = srv->active_player;
+    int result = 0;
+
+    selftest_useon(srv, a, a_count, b, b_count, stats, stat_count);
+    if( selftest_count(player, product) > 0 )
+        result |= 1;
+
+    selftest_useon(srv, b, b_count, a, a_count, stats, stat_count);
+    if( selftest_count(player, product) > 0 )
+        result |= 2;
+
+    player->active_script = NULL;
+    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        inv_set(player, i, -1, 0);
+    return result;
+}
+
+/*
  * Prayer, as the selftest can reach it now that the engine has no prayer module.
  *
  * One name does both jobs, which is not a coincidence and is worth stating: a
@@ -12308,6 +12535,7 @@ mock230_world_selftest(void)
     const struct Mock230Ids* ids = mock230_ids();
 
     memset(srv, 0, sizeof(*srv));
+    srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
     /*
      * The revision under test, from the same selector the server uses.
      *
@@ -31413,6 +31641,142 @@ mock230_world_selftest(void)
                 }
             }
 
+            /*
+             * ---- the resolver against real recipes ------------------------
+             *
+             * Everything above drives the resolver with three inert objs and
+             * asserts a varp. That proves the rungs fire; it cannot prove they
+             * fire on the pair a *player* would try, because the tree's real
+             * bindings are what compete for those. These five pairs are the
+             * competition, one per shape, each asserted by the product landing
+             * in the backpack and each in BOTH click orders.
+             *
+             * Levels are lifted to 99 for the duration: a level gate answers
+             * with the same "nothing happened" a missed rung does, and this
+             * stanza is about dispatch.
+             */
+            {
+                int stats[2] = { mock230_content_symbol(MOCK230_PACK_STAT, "fletching"),
+                                 mock230_content_symbol(MOCK230_PACK_STAT, "crafting") };
+                int fletching = stats[0];
+                int crafting = stats[1];
+                int saved_level[2] = { 0, 0 };
+                int saved_xp[2] = { 0, 0 };
+
+                struct
+                {
+                    const char* a;
+                    int a_count;
+                    const char* b;
+                    int b_count;
+                    const char* product;
+                    int want;
+                    const char* what;
+                } pairs[] = {
+                    /*
+                     * Rungs 1 and 2, one type binding each side. `bows.rs2`
+                     * binds both `bow_string` and all twelve unstrung bows, so
+                     * this passes on either rung — which is the point: it is the
+                     * control that says the harness itself works.
+                     */
+                    { "bow_string", 1, "unstrung_magic_longbow", 1, "magic_longbow", 3,
+                      "stringing a magic longbow" },
+
+                    /*
+                     * Rung 1/2 across lanes: the chisel hub lives in Crafting and
+                     * `uncut_ruby` has no binding of its own, so only rung 2
+                     * answers one of the two orders.
+                     */
+                    { "chisel", 1, "uncut_ruby", 1, "ruby", 3, "cutting a ruby with a chisel" },
+
+                    /*
+                     * Rung 1/2 into a category *body*: `[opheldu,feather]` is the
+                     * only binding, and it switches on the tip's category rather
+                     * than naming tiers.
+                     */
+                    { "feather", 10, "amethyst_dart_tip", 10, "amethyst_dart", 3,
+                      "feathering amethyst dart tips" },
+
+                    /*
+                     * THE DEFECT. Neither obj is type-bound, so both orders land
+                     * on rung 3/4 — and the first category binding reached
+                     * consumes the click whether or not it recognises the pair.
+                     * Tips-onto-bolts reaches `weapon_poison.rs2`'s
+                     * `[opheldu,_bolts]`, which knows about poison and nothing
+                     * else; bolts-onto-tips reaches `bolts.rs2`'s
+                     * `[opheldu,_bolttips]`, whose body is written for the
+                     * type-rung orientation and so reads the wrong half of the
+                     * pair. Both answer "Nothing interesting happens."
+                     */
+                    { "xbows_bolt_tips_onyx", 10, "xbows_crossbow_bolts_runite", 10,
+                      "xbows_crossbow_bolts_runite_tipped_onyx", 3, "tipping runite bolts with onyx" },
+
+                    /*
+                     * The guard on the fix: `[opheldu,_bolts]` must keep
+                     * answering the pair it was written for. Bronze `bolt` is the
+                     * one bolt the poison table maps.
+                     */
+                    { "weapon_poison", 1, "bolt", 10, "poison_bolt", 3, "poisoning bronze bolts" },
+                };
+
+                int saved_verbose = srv->verbose;
+                struct Mock230Item saved_inv_useon[MOCK230_INV_SLOTS];
+
+                memcpy(saved_inv_useon, player->inv, sizeof(saved_inv_useon));
+                if( getenv("MOCK230_USEON_TRACE") )
+                    srv->verbose = 1;
+                SELFTEST_CHECK(fletching >= 0 && crafting >= 0,
+                               "fletching and crafting should resolve in pack/stat.pack, got %d/%d",
+                               fletching, crafting);
+                for( size_t i = 0; i < sizeof(stats) / sizeof(stats[0]); i++ )
+                    if( stats[i] >= 0 )
+                    {
+                        saved_level[i] = player->stat_level[stats[i]];
+                        saved_xp[i] = player->stat_xp_tenths[stats[i]];
+                    }
+
+                for( size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]) &&
+                                       !getenv("MOCK230_NO_USEON_PROBE");
+                     i++ )
+                {
+                    int a = mock230_content_symbol(MOCK230_PACK_OBJ, pairs[i].a);
+                    int b = mock230_content_symbol(MOCK230_PACK_OBJ, pairs[i].b);
+                    int product = mock230_content_symbol(MOCK230_PACK_OBJ, pairs[i].product);
+                    int got;
+
+                    SELFTEST_CHECK(a > 0 && b > 0 && product > 0,
+                                   "%s: every obj should resolve by name (%s=%d %s=%d %s=%d)",
+                                   pairs[i].what, pairs[i].a, a, pairs[i].b, b, pairs[i].product,
+                                   product);
+                    if( a <= 0 || b <= 0 || product <= 0 )
+                        continue;
+
+                    got = selftest_useon_both(srv, a, pairs[i].a_count, b, pairs[i].b_count,
+                                              product, stats,
+                                              (int)(sizeof(stats) / sizeof(stats[0])));
+                    /* 3 = both orders. 1 or 2 = one order only, which is a rung
+                     * that answers in one direction — the shape a swap bug and a
+                     * one-sided binding both take. 0 = neither. */
+                    SELFTEST_CHECK(got == pairs[i].want,
+                                   "%s should work in both click orders, got %s (%d)",
+                                   pairs[i].what,
+                                   got == 3 ? "both"
+                                            : got == 1 ? "only <a> onto <b>"
+                                                       : got == 2 ? "only <b> onto <a>" : "neither",
+                                   got);
+                }
+
+                for( size_t i = 0; i < sizeof(stats) / sizeof(stats[0]); i++ )
+                    if( stats[i] >= 0 )
+                    {
+                        mock230_combat_set_level(player, stats[i], saved_level[i]);
+                        player->stat_xp_tenths[stats[i]] = saved_xp[i];
+                    }
+                player->active_script = NULL;
+                srv->verbose = saved_verbose;
+                memcpy(player->inv, saved_inv_useon, sizeof(saved_inv_useon));
+            }
+
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 inv_set(player, i, -1, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -35451,6 +35815,114 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::fletchingrun\n");
+    {
+        /*
+         * The fletching_table/fletch_bow_table/crossbow_limb_table build
+         * (skill_fletching/scripts/fletching_selftest.rs2,
+         * docs/FLETCHING_COMPLETION_PLAN.md). Same shape as `::fishingrun`
+         * just above: asserted on the OK line, run unconditionally, because
+         * `::fletchingrun` only ever touches `inv` and one stat's boosted
+         * level and restores both itself before its last line runs.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture fletchingrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &fletchingrun_capture);
+            mock230_scripts_run_debugproc(srv, "fletchingrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&fletchingrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&fletchingrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &fletchingrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "fletchingrun OK", 15) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "fletchingrun FAIL", 17) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::fletchingrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::fletchingrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::smithingrun\n");
+    {
+        /*
+         * The smithing dbtable `kind`-column refactor and gear-perk procs
+         * (skill_smithing/scripts/smithing_selftest.rs2,
+         * docs/SMITHING_COMPLETION_PLAN.md). Same shape as `::fishingrun`
+         * above: asserted on the OK line, run unconditionally, because
+         * `::smithingrun` only ever touches `inv`/`worn` and restores both
+         * itself before its last line runs.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture smithingrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &smithingrun_capture);
+            mock230_scripts_run_debugproc(srv, "smithingrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&smithingrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&smithingrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &smithingrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "smithingrun OK", 14) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "smithingrun FAIL", 16) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::smithingrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::smithingrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     /*
      * Farming: rake -> compost -> plant -> water, on a real allotment.
      *
@@ -35642,6 +36114,70 @@ mock230_world_selftest(void)
                 mock230_varbit_set(srv, vb_state, 0);
                 mock230_varbit_set(srv, vb_show, 0);
                 selftest_clear_inv(player);
+            }
+
+            /*
+             * A second farming area, because one proves nothing about the part
+             * that was Falador-only.
+             *
+             * Catherby's north allotment is `farming_veg_patch_3`, permanent
+             * varbit 710 — but it remorphs off `farming_transmit_a`, the SAME
+             * transmit varbit Falador's veg_1 uses. Every farming area reuses
+             * the same five transmit varbits, so the two assertions that matter
+             * are that raking here moves 710 and NOT 708, and that the shared
+             * `_a` follows the patch the player is actually standing in.
+             *
+             * Mutation: drop the `inzone` guard from `~farming_allot_set` (which
+             * is how the Falador-only setters it replaced were written) and the
+             * 708 assertion goes red.
+             */
+            {
+                int patch3 = mock230_content_symbol(MOCK230_PACK_LOC, "farming_veg_patch_3");
+                int vb710 = mock230_content_symbol(MOCK230_PACK_VARBIT, "varbit_710");
+                int slot3 = -1;
+
+                selftest_park_player(srv, 2805, 3466);
+                for( int s = 0; slot3 < 0; s++ )
+                {
+                    struct Mock230SceneLoc* l = mock230_scene_loc(s);
+
+                    if( !l )
+                        break;
+                    if( l->active && l->loc_id == patch3 )
+                        slot3 = s;
+                }
+                SELFTEST_CHECK(slot3 >= 0, "Catherby's north allotment should be in the scene");
+
+                if( slot3 >= 0 )
+                {
+                    struct Mock230SceneLoc* l = mock230_scene_loc(slot3);
+                    int px = l->x, pz = l->z, sx = l->size_x, sz = l->size_z;
+
+                    selftest_clear_inv(player);
+                    inv_set(player, 0, rake, 1);
+                    mock230_varbit_set(srv, vb710, 0);
+                    mock230_varbit_set(srv, vb_state, 0);
+                    mock230_varbit_set(srv, vb_show, 0);
+
+                    mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, patch3, px, pz,
+                                                  0, sx, sz);
+                    mock230_world_process_interaction(srv);
+                    selftest_settle(srv, 60);
+
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb710) == 3,
+                                   "raking Catherby should clear varbit 710 to weeded, got %d",
+                                   mock230_varbit_get(player, vb710));
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_state) == 0,
+                                   "and must not touch Falador's varbit 708, which reads %d",
+                                   mock230_varbit_get(player, vb_state));
+                    SELFTEST_CHECK(mock230_varbit_get(player, vb_show) == 3,
+                                   "the shared transmit_a should follow the area the player is "
+                                   "standing in, got %d", mock230_varbit_get(player, vb_show));
+
+                    mock230_varbit_set(srv, vb710, 0);
+                    mock230_varbit_set(srv, vb_show, 0);
+                    selftest_clear_inv(player);
+                }
             }
             mock230_scripts_free(srv);
         }

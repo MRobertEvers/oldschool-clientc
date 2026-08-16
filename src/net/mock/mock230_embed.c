@@ -90,6 +90,7 @@ mock230_embed_start(char const* rev_name)
     mock230_shop_seed(&embed->srv);
 
     embed->srv.verbose = getenv("MOCK230_VERBOSE") != NULL;
+    embed->srv.members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
     /*
      * Which bytes this world writes (and which login block it expects). The
      * caller's revision wins — the embed serves exactly one client, in this

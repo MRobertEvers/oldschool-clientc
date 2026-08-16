@@ -8049,14 +8049,15 @@ mock230_script_command(
     }
 
     /*
-     * `map_members` gates the members-only branches in LostCity's drop tables,
-     * which are ported here verbatim. The mock is a free world, so this is a
-     * constant — but it has to *exist*, because the alternative is deleting
-     * every `if (map_members = ^true)` from content that is otherwise a
-     * character-for-character copy of the reference's.
+     * `map_members` gates the members-only branches in LostCity's drop tables
+     * and, at this era, the whole of Fletching (every one of its `[label,…]`
+     * entry points opens on this check). `srv->members_world` defaults to 1
+     * (members) at construction — content ported from the reference expects
+     * a members world — with `MOCK230_MEMBERS_WORLD=0` available to force a
+     * free world for testing.
      */
     case SS_OP_MAP_MEMBERS:
-        SSVM_PushInt(state, 0);
+        SSVM_PushInt(state, srv->members_world != 0);
         return 1;
 
     /* ---- map instances -------------------------------------------- */

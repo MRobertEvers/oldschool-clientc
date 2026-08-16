@@ -1464,6 +1464,17 @@ struct SSVM_Provider;
 struct SSVM_Env;
 struct SSVM_State;
 
+/*
+ * A boolean server flag that is ON unless the environment turns it off —
+ * `0`/`no`/`off`/`false` disable; anything else, including unset, leaves it
+ * on. Shared by every server-construction site (mock230_main.c's two serve
+ * loops, mock230_embed.c, the selftest's world in mock230_world.c) so a flag
+ * like `members_world` defaults the same way regardless of which host built
+ * the struct.
+ */
+int
+mock230_flag_default_on(const char* name);
+
 int
 mock230_split_init(
     struct SSVM_State* state,
@@ -3398,6 +3409,13 @@ struct Mock230Server
     struct Mock230Player* active_player;
 
     int tick;
+
+    /** Whether `map_members` reports this as a members world to content.
+     *  Defaults to 1 (members) at construction — content ported from the
+     *  reference is written for a members world, and `SS_OP_MAP_MEMBERS`
+     *  used to be a hardcoded constant for exactly that reason. Set
+     *  `MOCK230_FREE_WORLD=1` to force it to 0 for free-world testing. */
+    int members_world;
 
     /** 1 once mock230_world_init has built the scene and the entities. Both
      *  hosts call that on every login, so this is what stops the second one
