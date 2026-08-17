@@ -91,38 +91,6 @@ is actually placed on, one by following Kronos' own neighbouring tile (the Al
 Kharid zipline descends to plane 1, not the plane 3 its loc sits at), and one
 by dropping a Canifis mark spawn whose tile is blocked floor in this cache.
 
-### A14 Ape Atoll — the research, so the next session starts warm
-
-The course is the cache's `100_ilm_*` set (the Isle map's own prefix, not an
-`apeatoll_` one — which is why a name search finds nothing). Every obstacle's
-`name=` field again matches the wiki's:
-
-| # | loc | name= / op | placement | XP |
-|---|---|---|---|---|
-| 1 | `100_ilm_stepping_stone` | Stepping stone / Jump-to | 2754,2742,0 | 40 |
-| 2 | `100_ilm_climbable_tree` | Tropical tree / Climb | 2753,2741,0 | 40 |
-| 3 | `100_ilm_monkeybars_start` → `..._end` | Monkeybars / Swing Across | 2752→2747, 2741, **plane 2** | 40 |
-| 4 | `100_ilm_cliff_climb_1` | Skull slope / Climb-up | 2746,2741,0 | 60 |
-| 5 | `100_ilm_rope_swing` | Rope / Swing | 2752,2731,0 | 100 |
-| 6 | `100_ilm_agility_tree_base` | Tropical tree / Climb-down | 2757,2734,0 | 0 |
-
-with `100_ilm_climbable_tree_top` (2752,2740,1) and `..._leaf` (2753,2739,2)
-as the tree's own upper stages, and 300 more for the completed lap — 580 in
-total, matching the page.
-
-**Why it is not authored here.** Its platforms are one to two tiles wide and
-the route crosses three planes: (2753,2742,0) and (2751,2731,0) and
-(2757,2735,0) are standable, but the obvious landings beside the monkey bars
-and the skull slope are not, and the walkable tiles at plane 2 sit at
-(2749..2750, 2741) between bar segments rather than at either end. That is a
-course where a landing one tile out puts a player somewhere they cannot leave,
-and it wants the geometry read carefully rather than inferred at the end of a
-long session.
-
-Everything needed is above: the locs, the ops, the placements, the XP and the
-two tools. Probe the plane-1 and plane-2 tiles around 2746..2753, 2739..2742
-first — that is the whole of the difficulty.
-
 ### Implementation progress (2026-08-17)
 
 | slice | state |
@@ -135,6 +103,9 @@ first — that is the whole of the difficulty.
 | A9 Wilderness course | **done** for the course — `wilderness_course.rs2`, 571.4 per lap, level-52 gate over the door category, lap ticket. The 150k dispenser, its loot and the lap counter are not implemented |
 | A13 Shayzien basic | **done** — `shayzien_course.rs2`, 153.5 XP a lap. The cache's own `name=` fields match the wiki's obstacle names one-to-one, which settled the route; the descent from plane 3 to plane 2 at the monkey bars is forced by the next obstacle's placement plane. Marks and pet wired. The advanced course (45, crossbow + grapple zipline) is A13b |
 | A13b Shayzien advanced | **done** — `shayzien_advanced.rs2`, the 485-XP branch off the shared first three obstacles, gated on 45 Agility and a worn mith grapple for its two Beams. The crossbow half of that requirement is not checked: this tree has no "any crossbow" predicate, and refusing a rune crossbow because a list is incomplete is worse than checking the half that is unambiguous |
+| A14 Ape Atoll | **done** — `apeatoll_course.rs2`, 580 XP a lap including the 300 completion bonus the wiki gates on a full in-order lap. The obstacles are the cache's `100_ilm_*` set; the corridor is one to two tiles wide across three planes, so it was mapped tile by tile rather than inferred. Unboostable 48 (`stat_base`), greegree checked worn |
+| A15 Werewolf course | **partial** — `werewolf_course.rs2`, the 350 XP of obstacles, all five, with the hurdles and pipes paying per lane (3 x 20 and 2 x 7.5, the only split that reproduces both the per-obstacle figures and the total). Destinations are relative to `loc_coord` so a player keeps their lane. The stick — `waa_stick`, 380 XP handed to the Agility Trainer, more than half the course's 730 — needs that NPC and a ground-spawn lifetime and is the remainder |
+| A16 Penguin course | **done** — `penguin_course.rs2`, 540 XP a lap. The Crusher is the plan's only `[opnpc1,...]` obstacle: the wiki calls it an NPC and the cache agrees, carrying no crusher loc at all. Destinations are relative throughout, which also sidesteps the fact that the stepping stones are locs the player stands *on* — blocked in the collision map, correct in game |
 | A12 Yanille dungeon | **done** — the dungeon was already ported except its monkey bars (57, 20 XP), which are now in `areas/area_yanille/scripts/agility_dungeon.rs2`; that file's ledge roll moved onto the shared curve |
 | A18 Grace's shop | **partial** — `grace.rs2` exchanges marks for all six graceful pieces and amylase packs at the published prices. The recolours are deferred: each is gated behind its own Kourend quest and there is no recolour state to hang them on |
 | A6 Pollnivneach rooftop | **done** — `rooftop_pollnivneach.rs2`, the ninth rooftop, 890 XP a lap. No corpus has this course, so every landing tile is derived from the cache's own collision map and checked standable by the new `make -C src walkable-probe`; the hard-Desert-diary variant and the market stall's failure curve are deferred for want of published data |

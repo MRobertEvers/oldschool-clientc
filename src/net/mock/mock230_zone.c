@@ -399,6 +399,36 @@ mock230_zone_event_last_id(
     return id;
 }
 
+int
+mock230_zone_event_last(
+    struct Mock230Server* srv,
+    int kind,
+    int id,
+    struct Mock230ZoneEvent* out)
+{
+    struct Mock230ZoneMap* map = map_of(srv, 0);
+    int found = 0;
+
+    assert(out);
+    if( !map )
+        return 0;
+    for( int i = 0; i < map->dirty_count; i++ )
+    {
+        const struct Mock230Zone* zone = map->dirty[i];
+
+        for( int e = 0; e < zone->event_count; e++ )
+        {
+            const struct Mock230ZoneEvent* event = &zone->events[e];
+
+            if( event->kind != kind || (id >= 0 && event->id != id) )
+                continue;
+            *out = *event;
+            found = 1;
+        }
+    }
+    return found;
+}
+
 void
 mock230_zone_map_stats(
     struct Mock230Server const* srv,

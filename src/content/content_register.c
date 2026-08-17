@@ -187,6 +187,13 @@ static const struct ContentNamespace k_defaults[] = {
     { "varbit",                CONTENT_NAMES_CACHE,    1,   4,  25000,  -1 },
     { "varc",                  CONTENT_NAMES_CACHE,    0,  15,   2000,  -1 },
     /*
+     * Per-NPC variables. Like vars below, this is a wholly authored namespace:
+     * the cache has no config group or gameval archive for it. The id is an
+     * index into Mock230Npc.script_vars, and pack/varn.alloc is its complete
+     * name table.
+     */
+    { "varn",                  CONTENT_NAMES_AUTHORED, 1,  -1,      0,  -1 },
+    /*
      * World-shared variables. The one namespace in the `%name` domain the cache
      * names nothing in: there is no `vars` config group and no gameval archive,
      * so every id here was allocated by this tree from 0 and the ledger

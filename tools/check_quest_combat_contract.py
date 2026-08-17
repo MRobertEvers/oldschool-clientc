@@ -129,6 +129,11 @@ MOCK_WORLD = ROOT / "src/net/mock/mock230_world.c"
 MOCK_ENCODE = ROOT / "src/net/mock/mock230_encode.c"
 MOCK_SCRIPTS = ROOT / "src/net/mock/mock230_scripts.c"
 MOCK_NPC_OPS = ROOT / "src/net/mock/mock230_ops_npc.c"
+MOCK_CONTENT = ROOT / "src/net/mock/mock230_content.c"
+MOCK_CONTENT_HEADER = ROOT / "src/net/mock/mock230_content.h"
+CONTENT_REGISTER = ROOT / "src/content/content_register.c"
+CONTENT_INI = ROOT / "OSRS-Content/osrs239-content/content.ini"
+VARN_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varn.alloc"
 
 
 def require(condition: bool, message: str) -> None:
@@ -344,6 +349,46 @@ def check_owned_npc_runtime() -> None:
             "owned NPC script lookup: find-all/find/finduid visibility gates missing")
     require(npc_ops.count("mock230_world_npc_visible_to") >= 2,
             "owned NPC iterator lookup: zone/hunt visibility gates missing")
+
+    require_text(
+        CONTENT_REGISTER.read_text(),
+        ('{ "varn",', "CONTENT_NAMES_AUTHORED", '{ "vars",'),
+        "NPC/world variable namespace registry",
+    )
+    require_text(
+        CONTENT_INI.read_text(),
+        ("[namespace:varn]", "[namespace:vars]", "names     = authored"),
+        "NPC/world variable namespace declarations",
+    )
+    require_text(
+        MOCK_CONTENT_HEADER.read_text(),
+        ("MOCK230_PACK_VARN", "MOCK230_PACK_VARS"),
+        "NPC/world variable pack kinds",
+    )
+    require_text(
+        MOCK_CONTENT.read_text(),
+        (
+            '[MOCK230_PACK_VARN] = "varn"',
+            '[MOCK230_PACK_VARS] = "vars"',
+            "highest >= MOCK230_NPC_VAR_MAX",
+            "highest >= MOCK230_VARS_COUNT",
+        ),
+        "NPC/world variable allocation bounds",
+    )
+    require_text(
+        scripts,
+        (
+            "case SS_OP_PUSH_VARN:", "npc->script_vars[varn]",
+            "case SS_OP_POP_VARN:", "push_varn with no active npc",
+            "pop_varn with no active npc",
+        ),
+        "NPC-local variable VM",
+    )
+    require_text(
+        VARN_ALLOC.read_text(),
+        ("=chompy_baiter", "=chompy_target_toad"),
+        "NPC-local variable allocation ledger",
+    )
 
 
 def check_witches_experiment() -> None:
@@ -1369,7 +1414,8 @@ def check_big_chompy() -> None:
             "npc_add($spawn, chompybird, 100);", "npc_setowner;",
             "queue(chompy_rantz_misses, add(15, random(10)), 0);",
             "[ai_queue4,chompybird]", ".npc_find(npc_coord, bloated_toad, 10",
-            "[ai_timer,chompybird]", "npc_setmode(playerescape);",
+            "[ai_timer,chompybird]", "if (npc_hastarget = true)",
+            "npc_setmode(playerescape);",
             "[apnpc5,chompybird]", "[opnpc5,chompybird]",
             "$bow ! ogre_bow & $bow ! zogre_bow",
             "[proc,chompy_valid_ammo](obj $ammo)(boolean)",

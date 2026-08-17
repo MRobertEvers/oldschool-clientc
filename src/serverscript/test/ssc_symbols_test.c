@@ -197,11 +197,6 @@ test_completeness(void)
 
         if( kind == SSC_SYM_CONSTANT || kind == SSC_SYM_SCRIPT )
             continue;
-        /* `varn`/`vars` are language keywords whose register rows were removed as
-         * dead — no tree declares one, and neither had a pack file or a reader.
-         * They come back the moment content needs them. */
-        if( kind == SSC_SYM_VARN || kind == SSC_SYM_VARS )
-            continue;
         /* These four are the language's own vocabulary, not content namespaces:
          * npc modes, loc shapes, script var types and db columns are spelled by
          * the compiler, so no pack file backs them. */

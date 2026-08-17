@@ -1,7 +1,9 @@
 # Pyramid Plunder
 
-> Written 2026-08-17. **Not yet implemented** — this plan describes finishing
-> an existing partial implementation, not a green field.
+> Written 2026-08-17; **implemented the same day** — see §13 for what shipped
+> and §14 for what is still unverified. The plan below is kept as written
+> because the measurements in it are the spec; §13 records the three places
+> where building it proved the plan wrong.
 >
 > **Behaviour authority (wiki):**
 > [Pyramid Plunder](https://oldschool.runescape.wiki/w/Pyramid_Plunder) ·
@@ -702,3 +704,147 @@ the entrance rotation — dissolves into a `map_clock` expression.
 
 Phases 1, 3, 5 and 6 are pure content edits to one 729-line file and cover
 most of the defect list.
+
+---
+
+## 13. What shipped (2026-08-17)
+
+### 13.1 The engine gap was real, and it is closed
+
+§8.1 called world-shared state the one genuine blocker and was right about the
+diagnosis and wrong about the remedy — it recommended deriving the entrance
+from `map_clock` and deferring the doors. Both halves are now implemented
+properly instead, because the engine change turned out to be small:
+
+| Layer | Change |
+|---|---|
+| `src/net/mock/mock230.h` | `MOCK230_VARS_COUNT` (256) and `Mock230Server.vars[]` |
+| `src/net/mock/mock230_scripts.c` | `SS_OP_PUSH_VARS` / `SS_OP_POP_VARS` handlers |
+| `src/content/content_register.c` | a `vars` row, `shared_var_domain = 1`, base 0 |
+| `tools/ss_allocate.py` | `vars` added to `SERVER_NAMESPACES` |
+| `OSRS-Content/.../pack/vars.alloc` | the ledger, created by the allocator |
+
+The compiler already knew `vars` — `SSC_SYM_VARS`, `ssc_compile.c:395` — so
+`%name = 1` had been producing legal bytecode that fell through to the
+unhandled-opcode abort for as long as the namespace existed. Nothing in the
+tree used it, so nothing had noticed.
+
+**The pure-`map_clock` idea in §8.1(a) is a trap** and was rejected during
+implementation: a rotation that is a pure function of the world clock is
+*predictable*, so every world would open its north door in the same minute of
+its life. The shipped version stores the roll **and** the epoch it belongs to
+(`ntk_shared_entrance`, `ntk_shared_entrance_epoch`), which keeps it random,
+shared, and on a 25-minute boundary at once.
+
+The tomb doors did not have to be deferred: `ntk_shared_door1..8` are rerolled
+by `~ntk_reroll_shared_doors` on any player's entry to room 1, exactly as the
+wiki describes.
+
+### 13.2 Three things the plan got wrong
+
+- **The overlay was never broken.** §3.5 flagged `varptriggers=822` against a
+  timer count on varp 821 as a probable dead repaint. Disassembling
+  clientscripts 971/477/480/481/482 shows **both** varps are wired: 971
+  registers `ntk_timer_resynch(...){var821}` on the bar, and `varptriggers=822`
+  feeds the *text*. The bar even interpolates locally (`clientclock - t0)/30`,
+  one step per game tick) between transmits. No change was needed, and the
+  planned "fix" would have been damage.
+- **The room coords were already right.** §6.3 listed `^ntk_room1..8` as
+  unverified. Clustering the 103 urn / 32 door / 8 chest / 8 sarcophagus
+  placements into eight connected components puts every one of the eight
+  constants inside its own room's bounding box. Only `^ntk_guardian_room` was
+  wrong.
+- **`ntk_urn_rough_*` is settled, not open.** §11 row 1 wondered what those 8
+  placements were. Its multiloc keys off **`burgh_inn_colapsed_wall`** — the
+  *In Aid of the Myreque* rubble varbit — which is the wiki's trivia note about
+  the lobby sarcophagus opening after that quest. Decoration. Not wired.
+
+### 13.3 The urn table, derived rather than guessed
+
+§11 row 1 asked for a derivation and it closes tighter than expected. Subtract
+the chest and sarcophagus tables (both exact) from the main article's "Rooms"
+column and **every artefact range is accounted for except the ivory comb
+(rooms 1–2)** — which is the proof that urns have a pool of their own. The urn
+drop list also names no pottery at all.
+
+So the urn table is the same 1/4–1/2–1/4 sliding window the other two provably
+use, on the pottery-free seven-rung ladder starting at the ivory comb, anchored
+so the ladder's ends match the two ranges the article states exactly. Result:
+**ivory comb 1–2, golden scarab 5–8 and golden statuette 7–8 land exactly**;
+the other four are proper subsets; every item in the wiki's urn list is
+reachable. Provisional, but constrained on five sides.
+
+### 13.4 Files
+
+| File | |
+|---|---|
+| `.../minigame_pyramidplunder/scripts/plunder.rs2` | rewritten, 729 → ~1250 lines |
+| `.../configs/plunder.constant` | rewritten — roll endpoints, measured geometry, multiloc states |
+| `.../configs/plunder.varp` | `ntk_doors_tried`, `ntk_sarc_looted` added |
+| `.../configs/plunder.vars` | **new** — 10 world-shared vars |
+| `.../configs/plunder.npc` | **new** — mummy ×5 and scarab swarm combat blocks |
+| `.../scripts/plunder_selftest.rs2` | **new** — 9 assertion procs |
+| `src/net/mock/mock230_world.c` | selftest hookup for `vars` and for plunder |
+| `OSRS-Content/.../selftest.rs2` | `selftest_vars_write` / `_read` |
+
+### 13.5 Defect list status
+
+Of the 38 defects in §6, **35 are fixed**. The three that are not:
+
+- **§6.19 Rocky** — the pet does not exist as an obj anywhere in the tree
+  (`grep -i rocky configs/all.obj.compack` is empty), so the roll would be a
+  call to nothing. Out of scope, as §9 already said.
+- **§6.37 sceptre charges/teleports** and **§6.38 Simon Templeton** — phases 7
+  and 8, deliberately their own slices.
+
+One defect was found *during* implementation and is not in the §6 list: the
+sarcophagus's sceptre roll has to live on the **Open**, not the Search, because
+"the pharaoh's sceptre only attempts to drop if a mummy does not spawn" and the
+mummy is decided on the Open. Putting it on the Search — the obvious reading of
+"upon searching the sarcophagus" — makes the two wiki sentences unsatisfiable.
+
+### 13.6 Verification
+
+`mock230 --selftest` now runs ten new assertions. All pass, and **all were
+shown to fail** by mutating the implementation back to its previous values
+(the discipline in `verify-blocker-and-failing-test`):
+
+| Mutation | Caught by |
+|---|---|
+| `vars` stored per-player instead of per-world | `a SECOND player sees the shared vars write, got 0` |
+| chest XP back to `urn_xp * 66 / 100` | XP tables (10 failures) |
+| sceptre room 1 back to 1500 | sceptre rates (1 failure) |
+| a gold rung in the room-1 chest window | room 1 pays no gold (56 failures) |
+| charmed-search XP back to 66% | check + search invariant (8 failures) |
+| `^ntk_guardian_room` back to `2_30_69_48_4` | guardian room (1034 tiles, wrong plane) |
+
+The `vars` mutation is the sharpest of these: storing per-player still passes
+the *same-player* read-back and fails only the cross-player check, which is why
+that test needs two players to mean anything.
+
+Content compiles clean (23,838 scripts) and `plunder.npc` loads with zero
+content errors.
+
+---
+
+## 14. Still unverified
+
+- **The sarcophagus "impossible" levels are off by two.** The wiki says
+  Strength 1–7 cannot open room 8; the shipped curve makes 1–5 impossible and
+  gives 6–7 a 1–2/256 chance. The single interpolation helper is verified
+  *exactly* against five charted Thieving percentages, so it was kept rather
+  than forked for one prose sentence — but the divergence is real and is at the
+  level nobody plays.
+- **The spear-trap curve is still a stand-in** (§11 row 4). It uses the tomb
+  door's endpoints, stated once in `plunder.constant` so a measurement replaces
+  it in one place.
+- **The charmed-urn search curve** reuses the Check-for-Snakes endpoints
+  (§11 row 2). It has to beat the uncharmed rate and has to stop being worth it
+  around level 51; that is the constraint it was chosen against, not a measurement.
+- **Per-spawner aggression** is `npc_setmode(opplayer2)` on the tick of the
+  spawn, which names the right player only because the opener *is* the active
+  player at that instant. A second player attacking the same mummy has not been
+  tested.
+- **Nothing has been driven end-to-end in a live client.** The assertions cover
+  the tables, the curve, the slot scheme, the shared vars and the geometry;
+  they do not cover the feel of a run.

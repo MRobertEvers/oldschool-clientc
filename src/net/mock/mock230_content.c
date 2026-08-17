@@ -719,6 +719,8 @@ pack_kind_name(enum Mock230PackKind kind)
         [MOCK230_PACK_INV] = "inv",
         [MOCK230_PACK_VARP] = "varp",
         [MOCK230_PACK_VARBIT] = "varbit",
+        [MOCK230_PACK_VARN] = "varn",
+        [MOCK230_PACK_VARS] = "vars",
         /* The archive index of cache index 3; see content_register.h `cache_index`. */
         [MOCK230_PACK_INTERFACE] = "3_interfaces",
         [MOCK230_PACK_COMPONENT] = "component",
@@ -808,6 +810,8 @@ pack_kind_is_config(enum Mock230PackKind kind)
     case MOCK230_PACK_COMPONENT:
     case MOCK230_PACK_STAT:
     case MOCK230_PACK_CATEGORY:
+    case MOCK230_PACK_VARN:
+    case MOCK230_PACK_VARS:
     /* Sound effects are cache index 4 and get an archive-level pack, the same
      * shape as interfaces above: there is no `configs/all.synth`, because a
      * sound effect is a whole archive rather than a file inside one. */
@@ -4037,6 +4041,43 @@ mock230_content_load(const char* dir)
                 highest,
                 MOCK230_VARP_COUNT,
                 highest - MOCK230_VARP_COUNT + 1);
+    }
+
+    /* Per-NPC and world variables are authored allocation ledgers too. Refuse
+     * the tree at boot if either one outgrows the array its bytecode indexes. */
+    {
+        int highest = -1;
+        int count = mock230_content_symbol_walk(MOCK230_PACK_VARN, -1, NULL, NULL);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = -1;
+
+            mock230_content_symbol_walk(MOCK230_PACK_VARN, i, &id, NULL);
+            if( id > highest )
+                highest = id;
+        }
+        if( highest >= MOCK230_NPC_VAR_MAX )
+            CONTENT_ERROR(
+                "the tree declares varn %d and Mock230Npc.script_vars holds %d\n",
+                highest, MOCK230_NPC_VAR_MAX);
+    }
+    {
+        int highest = -1;
+        int count = mock230_content_symbol_walk(MOCK230_PACK_VARS, -1, NULL, NULL);
+
+        for( int i = 0; i < count; i++ )
+        {
+            int id = -1;
+
+            mock230_content_symbol_walk(MOCK230_PACK_VARS, i, &id, NULL);
+            if( id > highest )
+                highest = id;
+        }
+        if( highest >= MOCK230_VARS_COUNT )
+            CONTENT_ERROR(
+                "the tree declares vars %d and Mock230Server.vars holds %d\n",
+                highest, MOCK230_VARS_COUNT);
     }
 
     /* After the packs (a default names its animations by symbol) and before the

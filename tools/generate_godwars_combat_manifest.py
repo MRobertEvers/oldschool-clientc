@@ -140,10 +140,11 @@ BODYGUARD = {
     "godwars_ancient_black_demon": ("magic", "16", "demon_attack", "godwars_black_demon_fireball_spot", "godwars_black_demon_fireball_proj", "none"),
 }
 
-# These two exact handlers cast spell-table god spells. Their authored NPC
-# overlays predate that handler and still carry generic projectile params which
-# the production path deliberately never reads; the dbrow supplies a delayed
-# target graphic instead.
+# These two exact PLAYER handlers cast spell-table god spells. Their authored
+# NPC overlays predate that handler; the player path deliberately ignores those
+# generic projectile params and the dbrow supplies a delayed target graphic.
+# The dungeon-war path is different: gwd_war_swing explicitly reads the overlay,
+# so attack_rows restores those assets when it emits the NPC-target row.
 SPELL_ATTACKS = {
     "godwars_spiritual_zamorak_mage":
         ("magic", "19", "human_casting", "zamorak_flame"),
@@ -273,9 +274,19 @@ def attack_rows(gameval: str, params: dict[str, str], aligned_ambient: bool) -> 
         })
     if aligned_ambient:
         base = rows[0].copy()
+        weak_mage = gameval.endswith("_mage") and "spiritual_" in gameval
         base.update({
             "attack_name": "dungeon_war", "player_or_npc_target": "npc",
-            "max_hit": "1" if gameval.endswith("_mage") and "spiritual_" in gameval else base["max_hit"],
+            "style": "ranged" if weak_mage else {
+                "0": "stab", "1": "slash", "2": "crush",
+                "3": "ranged", "4": "magic",
+            }.get(params.get("damagetype", "2"), params.get("damagetype", "2")),
+            "max_hit": "1" if weak_mage else base["max_hit"],
+            "attack_seq": params["attack_anim"],
+            "start_spotanim": params.get("proj_launch", "none"),
+            "projectile": params.get("proj_travel", "none"),
+            "impact_spotanim": params.get("proj_impact", "none"),
+            "sound": params.get("attack_sound", "none"),
             "prayer_rule": "not applicable", "secondary_effect": "marks NPC final blow; no player loot/KC",
         })
         rows.append(base)

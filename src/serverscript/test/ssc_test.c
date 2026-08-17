@@ -1247,6 +1247,8 @@ test_proc_param_kind_hint(void)
         { "[proc,s1]", 2100, "an `int` parameter resolves unhinted" },
         { "[proc,s2]", 451,
           "a `spotanim` parameter resolves the spotanim, not its seq" },
+        { "[proc,s3]", 451,
+          "fixed command arguments preserve a later `spotanim` parameter hint" },
     };
 
     printf("bare names in ~proc arguments\n");
@@ -1261,6 +1263,9 @@ test_proc_param_kind_hint(void)
                          "[proc,take_spotanim](spotanim $graphic)\n"
                          "spotanim_map($graphic, 0_50_50, 0, 0);\n"
                          "\n"
+                         "[proc,take_projectile](coord $from, coord $to, int $uid, spotanim $graphic)\n"
+                         "spotanim_map($graphic, $to, 0, 0);\n"
+                         "\n"
                          "[proc,noop]()\n"
                          "\n"
                          "[proc,s0]\n"
@@ -1270,7 +1275,10 @@ test_proc_param_kind_hint(void)
                          "~take_int(hitpoints);\n"
                          "\n"
                          "[proc,s2]\n"
-                         "~take_spotanim(tzhaar_rock_smash);\n",
+                         "~take_spotanim(tzhaar_rock_smash);\n"
+                         "\n"
+                         "[proc,s3]\n"
+                         "~take_projectile(npc_coord, coord, uid, tzhaar_rock_smash);\n",
                          "proc param kind hint") )
         return;
 

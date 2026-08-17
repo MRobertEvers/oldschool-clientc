@@ -112,7 +112,7 @@ by the existence of code. As of the audit date, the repository now has:
   travel, or impact graphics. Runtime NPC metadata accepts those projectile and
   poison parameters, and ranged max-hit includes cache ammunition strength.
 - [x] `MOCK230_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
-  the isolated 22,193-script build (the current tree excluding unrelated
+  the isolated 22,194-script build (the current tree excluding unrelated
   in-flight Fight Caves and Zulrah compiler failures) it reconstructs the four classic map-square
   roster and proves all **69** unique NPCs retain authored combat, cadence, and
   attack/defend/death sequences. It separately proves the four bosses retain
@@ -127,6 +127,30 @@ by the existence of code. As of the audit date, the repository now has:
   attack pass corrected the Saradomin wizard and Zamorak spiritual mage
   metadata from staff-pummel to the `human_casting` sequence actually used by
   their god-spell dbrows.
+- [x] The generated ledger now also emits
+  `src/net/mock/mock230_gwd_manifest.gen.h`, making all **126** reviewed classic
+  attack paths a runtime oracle instead of a CSV-only review artifact. The
+  focused VM resolves every NPC, sequence, projectile, launch graphic, impact
+  graphic, synth, cadence, and exact player/NPC handler against the revision-239
+  packs. It then executes all **53** ambient player hooks, all **51** aligned
+  NPC-target hooks, all **12** bodyguards, and every original-general branch,
+  observing the exact animation, launch graphic, projectile config, target UID,
+  sound, and landing graphic each row declares.
+- [x] Projectile traces now inspect the same current-tick zone record consumed
+  by the wire encoder. Every classic targeted projectile is required to use
+  source/destination heights 40/36, launch delay 32, the authored
+  `32 + distance * 5` end cycle, peak/arc 15/11, and the correct signed player
+  or positive NPC target encoding. Delayed bodyguard impacts must use the
+  production `max(duration / 30, 1)` landing tick (accounting for the queue's
+  one-tick storage clock), and dungeon-war target impacts must carry the exact
+  projectile duration.
+- [x] K'ril's 2/27 prayer-smash selection still runs through the live boss
+  selector, while its shared melee branch is factored into a deterministic
+  production procedure for acceptance testing. The focused lane proves the
+  slam reuses `godwars_zamorak_attack`, emits
+  `godwars_zamorak_avatar_attack`, deals 35–49 through protection prayer,
+  halves 80 current Prayer to 40 without a spectral shield, and queues exactly
+  one severity-76 poison job.
 - [x] The bodyguard execution pass corrected seven flattened runtime animation
   records to their distinct scripted attacks: Steelwill's sonic cast,
   Grimspike's axe throw, Skree's cannon cast, Geerin's spear throw, Kilisa's
@@ -157,9 +181,13 @@ by the existence of code. As of the audit date, the repository now has:
   generals and all 12 bodyguards.
 - [x] The runtime lane also dispatches all **51** aligned ambient NPC-vs-NPC
   attack triggers with real primary/secondary NPC contexts, observes their
-  authored attack sequences, and verifies their damage queues complete. This
-  exposed and fixed a shared `gwd_war_swing` fall-through which had made every
-  successful dungeon-war attack abort after queuing its hit.
+  complete audiovisual launch/impact traces, and verifies their damage queues
+  complete. This exposed and fixed both a shared `gwd_war_swing` fall-through
+  which had made successful attacks abort after queuing their hit and a pointer
+  bug which read travel/impact parameters from the victim after `npc_finduid`,
+  causing every ranged or magic dungeon-war soldier to animate but fire no
+  projectile. Attacker-owned projectile parameters are now captured before the
+  active-NPC switch.
 - [x] The runtime lane executes **173** representative boundary rolls: every
   ordinary row for all four classic bosses, all four bodyguard tables, and all
   four Ancient Prison combatants. It also executes every one of Nex's 19
@@ -241,6 +269,15 @@ by the existence of code. As of the audit date, the repository now has:
   fixed delay remains only for owner-bound private replacement queues. The
   current server-band comparison has no GWD mismatch; its two remaining stale
   records are unrelated NPCs.
+- [x] The attack trace found two further data-path defects. Named
+  `attack_sound`/`defend_sound`/`death_sound` values were previously passed to
+  `atoi`, silently becoming synth 0; the content loader now accepts checked
+  symbolic synth names while preserving legacy numeric IDs. Separately,
+  procedure calls stopped applying later typed-parameter hints after an earlier
+  command expression, so K'ril's magic projectile name (both sequence 7080 and
+  spotanim 1225) compiled as the sequence. Fixed command return arity now keeps
+  parameter position exact, with a compiler regression fixture matching the
+  `npc_coord, coord, uid, spotanim` projectile-helper signature.
 
 The remaining acceptance work is runtime-focused: Turmoil's unpublished drain
 amount/transfer timing and Ice Prison's unpublished
@@ -603,22 +640,24 @@ range, attack_seq, defend_seq, death_seq, move_seq, projectile, start_spotanim,
 impact_spotanim, sound, launch_tick, impact_tick, hitsplat_tick, aoe_shape,
 forced_move, secondary_effect, prayer_rule, player_or_npc_target`.
 
-- [ ] Inventory symbolic assets from `configs/all.npc`, `all.seq`, spotanim,
+- [x] Inventory symbolic assets from `configs/all.npc`, `all.seq`, spotanim,
   projectile, sound, and DB rows. Never hard-code numeric cache IDs in scripts.
-- [ ] Reconcile the current generated animation file. In particular, explicitly
+- [x] Reconcile the current generated animation file. In particular, explicitly
   resolve missing overlays for the Saradomin priest, Feral Vampyre, some GWD
   goblins/knights, and Saradomin/Zamorak spiritual variants.
-- [ ] Verify that visually shared bodyguard animations still launch distinct
+- [x] Verify that visually shared bodyguard animations still launch distinct
   magic/ranged effects. Replace the current generic Armadyl bodyguard attack
   binding where it cannot represent melee, magic, and ranged faithfully.
 - [ ] Record and test every Graardor/Kree/Zilyana/K'ril cry and sound, Kree
   whirlwind, K'ril slam/poison, all Nex voice lines, phase transitions, cough,
   dash, shadow tiles, blood marks/reavers, ice objects, overheads, Wrath, and
   scoreboard effects.
-- [ ] Add a test-only trace that logs selected attack, animation, projectile,
-  target UID, launch/impact/damage ticks, effect, and final cooldown. Use it to
-  compare a deterministic replay against the manifest without making production
-  combat noisy.
+- [x] Add a test-only trace for all 126 classic attack rows which observes the
+  selected attack, animation, launch/impact assets, sound, target UID, and
+  projectile/landing timing without making production combat noisy.
+- [ ] Extend that trace to every Nex auto/special and record damage/effect tick
+  plus final cooldown after advancing the delayed queues; retain deterministic
+  replay artifacts suitable for client/video comparison.
 
 ## Implementation sequence
 

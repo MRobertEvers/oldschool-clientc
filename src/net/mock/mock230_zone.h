@@ -603,6 +603,16 @@ mock230_zone_event_last_id(
     struct Mock230Server* srv,
     int kind);
 
+/** Copy the last current-tick event matching `kind` and optional `id` into
+ *  `out`. Returns 1 when found, 0 otherwise. The queued event remains owned by
+ *  the zone map and is not consumed. */
+int
+mock230_zone_event_last(
+    struct Mock230Server* srv,
+    int kind,
+    int id,
+    struct Mock230ZoneEvent* out);
+
 /** Growth gauges for the perf harness: how many zones the map holds and the
  *  hash table capacity (never shrinks during a session). */
 void

@@ -108,7 +108,10 @@ main(void)
           "an npc record is a member of one of them, not an archive");
     check(ContentRegister_Find(&reg, "animset") == NULL,
           "`animset` is gone: index 0 is the animations");
-    check(ContentRegister_Find(&reg, "varn") == NULL, "and varn was never read");
+    ns = ContentRegister_Find(&reg, "varn");
+    check(ns && ns->names == CONTENT_NAMES_AUTHORED,
+          "varn is an authored server namespace");
+    check(ns && ns->shared_var_domain, "and varn shares the percent-name domain");
 
     /*
      * The other direction: archive 10 names dbtables, so they are not authored.

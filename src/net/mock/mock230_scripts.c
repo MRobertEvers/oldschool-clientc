@@ -4863,6 +4863,50 @@ mock230_script_command(
         return 1;
     }
 
+    /* Per-NPC variables. The operand is the id allocated in pack/varn.alloc;
+     * values live on the active runtime NPC and therefore survive changetype
+     * while remaining isolated from every other NPC instance. */
+    case SS_OP_PUSH_VARN:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+        int varn = state->script->int_operands[state->pc] & 0xffff;
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "push_varn with no active npc");
+            return 1;
+        }
+        if( varn < 0 || varn >= MOCK230_NPC_VAR_MAX )
+        {
+            SSVM_Abort(state, "varn %d is outside the mock's range", varn);
+            return 1;
+        }
+        SSVM_PushInt(state, npc->script_vars[varn]);
+        return 1;
+    }
+
+    case SS_OP_POP_VARN:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+        int varn = state->script->int_operands[state->pc] & 0xffff;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "pop_varn with no active npc");
+            return 1;
+        }
+        if( varn < 0 || varn >= MOCK230_NPC_VAR_MAX )
+        {
+            SSVM_Abort(state, "varn %d is outside the mock's range", varn);
+            return 1;
+        }
+        npc->script_vars[varn] = value;
+        return 1;
+    }
+
     /*
      * World-shared variables.
      *

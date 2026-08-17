@@ -140,9 +140,14 @@ struct SSC_Compiler
      *  argument that *is* a call can be scored by what it actually pushed.
      *  -1 when that callee declared no header. */
     /** Set by parse_command on every command it compiles; an enclosing argument
-     *  list reads and clears it per argument to learn that the argument was a
-     *  call whose pushed count is not known here. */
+     *  list reads and clears it per argument to distinguish a direct command
+     *  expression from an ordinary one. */
     int saw_command_call;
+    /** Fixed return arity of the most recently compiled command, or -1 for a
+     *  runtime-typed command such as db_getfield. Unlike procedures, command
+     *  arity comes from ss_meta. */
+    int last_command_int_returns;
+    int last_command_str_returns;
     int last_call_int_returns;
     int last_call_str_returns;
     int name_count;
@@ -627,15 +632,6 @@ parse_call(
         int saved_saw_command = compiler->saw_command_call;
         const uint8_t* param_kinds =
             script_id < compiler->name_count ? compiler->name_param_kinds[script_id] : NULL;
-        if( strcmp(bare_name, "player_projectile") == 0 )
-            fprintf(stderr,
-                    "ssc debug: call %s id=%d count=%d kinds=%d,%d,%d,%d,%d\n",
-                    bare_name, script_id, compiler->name_count,
-                    param_kinds ? param_kinds[0] : -1,
-                    param_kinds ? param_kinds[1] : -1,
-                    param_kinds ? param_kinds[2] : -1,
-                    param_kinds ? param_kinds[3] : -1,
-                    param_kinds ? param_kinds[4] : -1);
 
         compiler->arg_is_script_name = 0;
         compiler->arg_script_trigger = NULL;
@@ -660,9 +656,14 @@ parse_call(
                  * turn into a confident wrong number.
                  */
                 int arg_is_call = compiler->lexer.current.kind == SSC_TOK_PROC;
+                int arg_is_command =
+                    compiler->lexer.current.kind == SSC_TOK_IDENT &&
+                    SSVM_OpcodeFromName(compiler->lexer.current.text) >= 0;
 
                 compiler->last_call_int_returns = -1;
                 compiler->last_call_str_returns = -1;
+                compiler->last_command_int_returns = -1;
+                compiler->last_command_str_returns = -1;
                 compiler->saw_command_call = 0;
                 compiler->arg_kind_hint =
                     (param_kinds && param_index_known && param_index < SS_MAX_PARAM_TYPES)
@@ -676,6 +677,14 @@ parse_call(
                                    compiler->last_call_str_returns;
                     pushed_ints += compiler->last_call_int_returns;
                     pushed_strs += compiler->last_call_str_returns;
+                }
+                else if( arg_is_command &&
+                         compiler->last_command_int_returns >= 0 )
+                {
+                    param_index += compiler->last_command_int_returns +
+                                   compiler->last_command_str_returns;
+                    pushed_ints += compiler->last_command_int_returns;
+                    pushed_strs += compiler->last_command_str_returns;
                 }
                 else if( arg_is_string )
                 {
@@ -694,7 +703,8 @@ parse_call(
                  * hint has to as well, because a wrong hint resolves silently
                  * where a wrong count is at worst reported. */
                 if( (arg_is_call && compiler->last_call_int_returns < 0) ||
-                    compiler->saw_command_call )
+                    (arg_is_command && compiler->last_command_int_returns < 0) ||
+                    (!arg_is_command && compiler->saw_command_call) )
                     param_index_known = 0;
                 if( SSC_LexIsPunct(&compiler->lexer, "," ) )
                 {
@@ -1185,10 +1195,12 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     /* Commands carry a one-byte operand that is the dot flag, never an id. */
     emit(compiler, opcode, dot ? 1 : 0);
     /* Tell an enclosing argument list that one of its arguments was a command.
-     * A command's pushed count is not tracked the way a proc's declared return
-     * arity is — `db_getfield` on a `coord,coord` column pushes two and says
-     * nothing — so the enclosing count becomes a lower bound. */
+     * Fixed signatures keep their exact return arity. Runtime-typed commands
+     * (`db_getfield`, params, enum) remain unknown because data chooses both the
+     * stack and, for DB columns, the number of values. */
     compiler->saw_command_call = 1;
+    compiler->last_command_int_returns = meta->runtime_typed ? -1 : meta->int_out;
+    compiler->last_command_str_returns = meta->runtime_typed ? -1 : meta->str_out;
 
     if( is_string )
         *is_string = column_types ? dbcolumn_first_type_is_string(column_types)
@@ -1625,10 +1637,6 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         if( compiler->arg_kind_hint != SSC_SYM_UNKNOWN )
         {
             symbol = SSC_SymbolsFind(compiler->symbols, text, compiler->arg_kind_hint);
-            if( strcmp(text, "godwars_zamorak_magic_attack_proj") == 0 )
-                fprintf(stderr, "ssc debug: %s hint=%d resolved=%d kind=%d\n", text,
-                        compiler->arg_kind_hint, symbol ? symbol->value : -1,
-                        symbol ? symbol->kind : -1);
             if( symbol )
             {
                 emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);

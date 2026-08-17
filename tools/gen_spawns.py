@@ -119,6 +119,9 @@ NPC_SPAWN_EXCLUSIONS = {
     ("arena_scorpion", 2608, 3159, 0),
     ("arena_bouncer", 2608, 3162, 0),
     ("arena_ogre", 2608, 3165, 0),
+    # Priest in Peril's Temple Guardian has been instanced since 2017. The
+    # quest zone creates one owner-private actor for each eligible player.
+    ("priestperilguarddog", 3405, 9902, 0),
 }
 
 

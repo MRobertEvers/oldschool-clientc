@@ -12088,6 +12088,7 @@ selftest_gwd_player_attack_trace(
     const struct Mock230Capture* capture)
 {
     int attack_seq;
+    int projectile_end_delay = -1;
 
     SELFTEST_CHECK(row != NULL, "GWD player attack has a manifest row");
     if( !row )
@@ -12111,6 +12112,7 @@ selftest_gwd_player_attack_trace(
     }
     if( strcmp(row->projectile, "none") != 0 )
     {
+        struct Mock230ZoneEvent event;
         const int projectile = mock230_content_symbol(
             MOCK230_PACK_SPOTANIM, row->projectile);
         const int exact_events = mock230_zone_event_count(
@@ -12127,6 +12129,28 @@ selftest_gwd_player_attack_trace(
             mock230_content_symbol_name(
                 MOCK230_PACK_SPOTANIM,
                 mock230_zone_event_last_id(srv, MOCK230_ZONE_EV_PROJANIM)));
+        if( mock230_zone_event_last(
+                srv, MOCK230_ZONE_EV_PROJANIM, projectile, &event) )
+        {
+            int dx = event.dx_offset < 0 ? -event.dx_offset : event.dx_offset;
+            int dz = event.dz_offset < 0 ? -event.dz_offset : event.dz_offset;
+            int distance = dx > dz ? dx : dz;
+
+            projectile_end_delay = 32 + distance * 5;
+            SELFTEST_CHECK(
+                event.start_delay == 32 &&
+                    event.end_delay == projectile_end_delay &&
+                    event.target == -srv->active_player->pid - 1 &&
+                    event.src_height == 40 && event.dst_height == 36 &&
+                    event.peak == 15 && event.arc == 11,
+                "%s/%s projectile timing/geometry is 32..%d, target %d, "
+                "heights 40/36, peak/arc 15/11 (got %d..%d target %d "
+                "%d/%d %d/%d)",
+                row->gameval, row->attack_name, projectile_end_delay,
+                -srv->active_player->pid - 1, event.start_delay,
+                event.end_delay, event.target, event.src_height,
+                event.dst_height, event.peak, event.arc);
+        }
     }
     if( strcmp(row->sound, "none") != 0 )
     {
@@ -12152,6 +12176,21 @@ selftest_gwd_player_attack_trace(
 
             found += queue->active && queue->script_id == impact_script->id &&
                      queue->argc >= 1 && queue->args[0] == impact;
+            if( queue->active && queue->script_id == impact_script->id &&
+                queue->argc >= 1 && queue->args[0] == impact &&
+                projectile_end_delay >= 0 )
+            {
+                int want_delay = projectile_end_delay / 30;
+
+                if( want_delay < 1 )
+                    want_delay = 1;
+                SELFTEST_CHECK(
+                    queue->delay == want_delay + 1,
+                    "%s/%s landing graphic is scheduled after %d tick(s) "
+                    "(queue clock stores %d, got %d)",
+                    row->gameval, row->attack_name, want_delay,
+                    want_delay + 1, queue->delay);
+            }
         }
         if( srv->active_player->spotanim_id == impact )
             found++;
@@ -12160,6 +12199,94 @@ selftest_gwd_player_attack_trace(
             "%s/%s trace queues one landing graphic %s (%d), got %d",
             row->gameval, row->attack_name, row->impact_spotanim, impact,
             found);
+    }
+}
+
+/* The dungeon war shares NPC config assets with the player-facing attacks but
+ * has its own target encoding and landing path. Trace those directly so the 51
+ * ai_opnpc2 hooks cannot pass merely because the matching player hook worked. */
+static void
+selftest_gwd_npc_attack_trace(
+    struct Mock230Server* srv,
+    const struct Mock230GwdManifestAttack* row,
+    const struct Mock230Npc* attacker,
+    const struct Mock230Npc* target,
+    int target_slot,
+    const struct Mock230Capture* capture)
+{
+    int attack_seq;
+
+    SELFTEST_CHECK(row != NULL, "GWD NPC attack has a manifest row");
+    if( !row )
+        return;
+    attack_seq = mock230_content_symbol(MOCK230_PACK_SEQ, row->attack_seq);
+    SELFTEST_CHECK(
+        attacker && attacker->anim_id == attack_seq,
+        "%s/dungeon_war trace launches animation %s (%d, got %d)",
+        row->gameval, row->attack_seq, attack_seq,
+        attacker ? attacker->anim_id : -1);
+    if( strcmp(row->start_spotanim, "none") != 0 )
+    {
+        int start = mock230_content_symbol(
+            MOCK230_PACK_SPOTANIM, row->start_spotanim);
+
+        SELFTEST_CHECK(
+            attacker && attacker->spotanim_id == start,
+            "%s/dungeon_war trace launches start graphic %s (%d, got %d)",
+            row->gameval, row->start_spotanim, start,
+            attacker ? attacker->spotanim_id : -1);
+    }
+    if( strcmp(row->projectile, "none") != 0 )
+    {
+        struct Mock230ZoneEvent event;
+        int projectile = mock230_content_symbol(
+            MOCK230_PACK_SPOTANIM, row->projectile);
+        int found = mock230_zone_event_last(
+            srv, MOCK230_ZONE_EV_PROJANIM, projectile, &event);
+
+        SELFTEST_CHECK(
+            found,
+            "%s/dungeon_war trace queues projectile %s (%d)",
+            row->gameval, row->projectile, projectile);
+        if( found )
+        {
+            int dx = event.dx_offset < 0 ? -event.dx_offset : event.dx_offset;
+            int dz = event.dz_offset < 0 ? -event.dz_offset : event.dz_offset;
+            int distance = dx > dz ? dx : dz;
+            int duration = 32 + distance * 5;
+
+            SELFTEST_CHECK(
+                event.start_delay == 32 && event.end_delay == duration &&
+                    event.target == target_slot + 1 &&
+                    event.src_height == 40 && event.dst_height == 36 &&
+                    event.peak == 15 && event.arc == 11,
+                "%s/dungeon_war projectile timing/geometry is 32..%d, "
+                "target %d, heights 40/36, peak/arc 15/11",
+                row->gameval, duration, target_slot + 1);
+            if( strcmp(row->impact_spotanim, "none") != 0 )
+            {
+                int impact = mock230_content_symbol(
+                    MOCK230_PACK_SPOTANIM, row->impact_spotanim);
+
+                SELFTEST_CHECK(
+                    target && target->spotanim_id == impact &&
+                        target->spotanim_height_delay == duration,
+                    "%s/dungeon_war target receives impact %s (%d) at %d "
+                    "cycles (got %d at %d)",
+                    row->gameval, row->impact_spotanim, impact, duration,
+                    target ? target->spotanim_id : -1,
+                    target ? target->spotanim_height_delay : -1);
+            }
+        }
+    }
+    if( strcmp(row->sound, "none") != 0 )
+    {
+        int sound = mock230_content_symbol(MOCK230_PACK_SYNTH, row->sound);
+
+        SELFTEST_CHECK(
+            selftest_capture_synth_count(capture, srv->wire, sound) > 0,
+            "%s/dungeon_war trace emits sound %s (%d)",
+            row->gameval, row->sound, sound);
     }
 }
 
@@ -13996,8 +14123,13 @@ mock230_world_selftest(void)
 
                 memset(seen, 0, sizeof(seen));
                 spawns = mock230_content_npc_spawns(&spawn_count);
-                player->x = 44 * 64 + 32;
-                player->z = 83 * 64 + 32;
+                /* Keep these direct-hook fixtures inside the player's current
+                 * build area. npc_finduid deliberately rejects actors outside
+                 * it; placing a synthetic dungeon-war pair at the real GWD
+                 * coordinates without rebuilding the scene would test that
+                 * visibility guard instead of their attack. */
+                player->x = 426 * 8;
+                player->z = 408 * 8;
                 player->level = 0;
                 player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
                 player->max_hitpoints = 99;
@@ -14071,21 +14203,36 @@ mock230_world_selftest(void)
                         strcmp(symbol, "godwars_icefiend_1") != 0 &&
                         strcmp(symbol, "godwars_pyrefiend_1") != 0 )
                     {
+                        int war_ran;
+
                         srv->npcs[slot].anim_id = -1;
+                        srv->npcs[slot].spotanim_id = -1;
+                        srv->npcs[war_target].spotanim_id = -1;
+                        srv->npcs[war_target].spotanim_height_delay = 0;
                         memset(srv->npcs[war_target].queue, 0,
                                sizeof(srv->npcs[war_target].queue));
                         srv->npcs[war_target].hitpoints =
                             srv->npcs[war_target].max_hitpoints;
+                        mock230_zone_reset(srv);
+                        mock230_capture_begin(srv, &attack_capture);
+                        war_ran = mock230_scripts_run_trigger_npc2(
+                            srv, SS_TRIGGER_AI_OPNPC2, npc_id, -1,
+                            slot, war_target);
+                        mock230_capture_end(srv);
                         SELFTEST_CHECK(
-                            mock230_scripts_run_trigger_npc2(
-                                srv, SS_TRIGGER_AI_OPNPC2, npc_id, -1,
-                                slot, war_target) == MOCK230_TRIGGER_RAN,
+                            war_ran == MOCK230_TRIGGER_RAN,
                             "%s exact NPC-target attack hook executes", symbol);
                         SELFTEST_CHECK(
                             def && srv->npcs[slot].anim_id == def->attack_anim,
                             "%s NPC-target attack selects authored animation %d (got %d)",
                             symbol, def ? def->attack_anim : -1,
                             srv->npcs[slot].anim_id);
+                        selftest_gwd_npc_attack_trace(
+                            srv,
+                            selftest_gwd_manifest_find(
+                                symbol, "dungeon_war", 1),
+                            &srv->npcs[slot], &srv->npcs[war_target],
+                            war_target, &attack_capture);
                         war_count++;
                     }
                     for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
@@ -14295,6 +14442,80 @@ mock230_world_selftest(void)
                     classic_attack_cases[i].npc, classic_attack_cases[i].anim_a,
                     classic_attack_cases[i].anim_b, seen);
                 srv->npcs[slot].active = 0;
+            }
+
+            /* The prayer-smash shares K'ril's melee animation, so random
+             * branch coverage cannot distinguish it from an ordinary swing.
+             * Invoke the factored production branch directly and pin its
+             * audiovisual launch, guaranteed damage band, prayer drain and
+             * poison severity. The live selector above still owns the 2/27
+             * probability. */
+            {
+                static struct Mock230Capture kril_slam_capture;
+                const struct SSVM_Script* poison =
+                    SSVM_ProviderGetByName(srv->scripts, "[queue,poison_player]");
+                int npc_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "godwars_zamorak_avatar");
+                int32_t slam_args[1] = { 1 };
+                int slot;
+                int poison_jobs = 0;
+
+                player->x = 45 * 64 + 45;
+                player->z = 83 * 64 + 10;
+                player->level = 2;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->hitpoints = 99;
+                player->stat_level[MOCK230_STAT_PRAYER] = 80;
+                player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                memset(player->queue, 0, sizeof(player->queue));
+                slot = mock230_world_npc_spawn(
+                    srv, npc_id, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(slot >= 0,
+                               "K'ril spawns for deterministic prayer-smash");
+                if( slot >= 0 )
+                {
+                    srv->npcs[slot].spawn_pending = 0;
+                    srv->npcs[slot].combat_target = player->pid;
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &kril_slam_capture);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,gwd_kril_melee]", slot,
+                            slam_args, 1),
+                        "K'ril deterministic prayer-smash executes");
+                    mock230_capture_end(srv);
+                    selftest_gwd_player_attack_trace(
+                        srv,
+                        selftest_gwd_manifest_find(
+                            "godwars_zamorak_avatar", "prayer_slam", 0),
+                        &srv->npcs[slot], &kril_slam_capture);
+                    SELFTEST_CHECK(
+                        player->hitpoints >= 50 && player->hitpoints <= 64,
+                        "K'ril prayer-smash deals guaranteed 35-49 damage "
+                        "(99 -> %d)",
+                        player->hitpoints);
+                    SELFTEST_CHECK(
+                        player->stat_boosted[MOCK230_STAT_PRAYER] == 40,
+                        "K'ril prayer-smash halves current Prayer 80 -> %d",
+                        player->stat_boosted[MOCK230_STAT_PRAYER]);
+                    for( int q = 0; poison && q < MOCK230_QUEUE_MAX; q++ )
+                    {
+                        const struct Mock230Queued* queue = &player->queue[q];
+
+                        poison_jobs += queue->active &&
+                                       queue->script_id == poison->id &&
+                                       queue->argc >= 1 && queue->args[0] == 76;
+                    }
+                    SELFTEST_CHECK(
+                        poison_jobs == 1,
+                        "K'ril prayer-smash queues one poison severity 76 job "
+                        "(got %d)",
+                        poison_jobs);
+                    srv->npcs[slot].active = 0;
+                }
+                memset(player->queue, 0, sizeof(player->queue));
             }
 
             /* Kree's close melee is conditional on the player not targeting

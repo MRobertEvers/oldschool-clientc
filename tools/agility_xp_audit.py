@@ -62,6 +62,12 @@ COURSES = {
         "Shayzien_Agility_Course", 485.0),
     "skill_agility/scripts/apeatoll_course.rs2": (
         "Ape_Atoll_Agility_Course", 580.0),
+    # 350, not the page's 730: the other 380 is the stick hand-in, which needs
+    # the Agility Trainer NPC and a ground-spawn lifetime (A15 follow-up).
+    "skill_agility/scripts/werewolf_course.rs2": (
+        "Werewolf_Agility_Course", 350.0),
+    "skill_agility/scripts/penguin_course.rs2": (
+        "Penguin_Agility_Course", 540.0),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is
@@ -79,6 +85,11 @@ OFF_SKILL = {
 #   file -> [(xp_tenths_of_the_shared_call, times_run_per_lap)]
 SHARED_TRIGGERS = {
     "skill_agility/scripts/barbarian_course.rs2": [(137, 3)],
+    # Werewolf's three hurdle rows are one `[oploc1,werewolf_hurdle_*]` block,
+    # jumped once each per lap: 3 x 20 is the wiki's single "Hurdle 60".
+    "skill_agility/scripts/werewolf_course.rs2": [(200, 3)],
+    # Penguin's four icicle pillars share one trigger, 40 each.
+    "skill_agility/scripts/penguin_course.rs2": [(400, 4)],
 }
 
 # Every way a course script grants Agility experience. `~agility_force_move`
