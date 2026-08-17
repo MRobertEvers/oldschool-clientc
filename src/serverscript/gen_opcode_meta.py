@@ -606,6 +606,12 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "REMOTE_VIEW_START": (11058, 2, 0, 0, 0),
     "REMOTE_VIEW_END": (11059, 0, 0, 0, 0),
 
+    # stat_xp(stat)(int) — raw experience in RuneScript's tenths-of-XP unit.
+    # The mock already stores the exact value for persistence and level-up
+    # calculations; exposing a read is needed for content rules keyed to the
+    # 200,000,000 XP cap (notably Wintertodt's Phoenix modifier).
+    "STAT_XP": (11060, 1, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

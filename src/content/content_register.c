@@ -186,6 +186,20 @@ static const struct ContentNamespace k_defaults[] = {
     { "varp",                  CONTENT_NAMES_CACHE,    1,   3,   5725,  -1 },
     { "varbit",                CONTENT_NAMES_CACHE,    1,   4,  25000,  -1 },
     { "varc",                  CONTENT_NAMES_CACHE,    0,  15,   2000,  -1 },
+    /*
+     * World-shared variables. The one namespace in the `%name` domain the cache
+     * names nothing in: there is no `vars` config group and no gameval archive,
+     * so every id here was allocated by this tree from 0 and the ledger
+     * `pack/vars.alloc` is the whole namespace rather than a layer over one.
+     *
+     * `shared_var_domain` is 1 for the same reason it is on varp and varbit —
+     * `%name` resolves across all four, so a `vars` name colliding with a varbit
+     * name would silently answer the wrong lookup.
+     *
+     * Base 0 because nothing else claims the space; `ss_allocate.py` still takes
+     * `max(floor, high-water + 1)`, so the floor being the bottom costs nothing.
+     */
+    { "vars",                  CONTENT_NAMES_AUTHORED, 1,  -1,      0,  -1 },
     /* ---- asset tables ------------------------------------------------ */
     /*
      * Idx-addressed rather than config records, but the same three axes apply:

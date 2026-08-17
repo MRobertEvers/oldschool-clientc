@@ -4857,6 +4857,51 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * World-shared variables.
+     *
+     * The counterpart to VARP: same `%name` syntax, same operand encoding, but
+     * the value lives on the world and not on the player. There is no
+     * transmission and no dirty mark — a varp write is *reported* to the client
+     * because the client holds a copy, and nothing holds a copy of these.
+     *
+     * These two opcodes compiled and did not run for as long as `vars` existed:
+     * the symbol kind, the opcode numbers and the compiler's emit table were all
+     * present, so `%some_shared_thing = 1` produced valid bytecode that fell
+     * through to the unhandled-opcode abort. Content therefore could not use
+     * world state at all, and the mechanics that needed it — Pyramid Plunder's
+     * world-shared entrance door and tomb doors — were written per-player, which
+     * is not a smaller version of the mechanic but a different one.
+     */
+    case SS_OP_PUSH_VARS:
+    {
+        int vars = state->script->int_operands[state->pc] & 0xffff;
+
+        if( vars < 0 || vars >= MOCK230_VARS_COUNT )
+        {
+            SSVM_Abort(state, "vars %d is outside the mock's range", vars);
+            return 1;
+        }
+        SSVM_PushInt(state, srv->vars[vars]);
+        return 1;
+    }
+
+    case SS_OP_POP_VARS:
+    {
+        int vars = state->script->int_operands[state->pc] & 0xffff;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) )
+            return 1;
+        if( vars < 0 || vars >= MOCK230_VARS_COUNT )
+        {
+            SSVM_Abort(state, "vars %d is outside the mock's range", vars);
+            return 1;
+        }
+        srv->vars[vars] = value;
+        return 1;
+    }
+
     /* ---- config --------------------------------------------------- */
 
     case SS_OP_OC_NAME:
@@ -9097,6 +9142,24 @@ mock230_script_command(
         return 1;
     }
 
+    /* Exact accumulated experience in the same tenths-of-XP unit accepted by
+     * stat_advance. Unlike stat/stat_base this is not derived from a level, so
+     * level-99 accounts at the 200m cap remain distinguishable. */
+    case SS_OP_STAT_XP:
+    {
+        int32_t stat;
+
+        if( !SSVM_PopInt(state, &stat) )
+            return 1;
+        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "stat_xp %d is not a skill", stat);
+            return 1;
+        }
+        SSVM_PushInt(state, player->stat_xp_tenths[stat]);
+        return 1;
+    }
+
     /*
      * stat_heal(stat, constant, percent) — the reference's formula, verbatim.
      *
@@ -10441,4 +10504,78 @@ mock230_scripts_run_proc_on_npc(
         return 0;
     }
     return mock230_scripts_run_hook_on_npc(srv, script, npc_slot);
+}
+
+int
+mock230_scripts_run_proc_args_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    const int32_t* args,
+    int argc)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return 0;
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, NULL, 0);
+    if( !state )
+        return 0;
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( npc_slot < 0 || npc_slot >= MOCK230_NPC_MAX || !srv->npcs[npc_slot].active )
+    {
+        SSVM_StateRelease(state);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
+    state->host_tag = npc_slot + 1;
+    return run_or_park(srv, state);
+}
+
+int
+mock230_scripts_run_proc_int_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    const int32_t* args,
+    int argc,
+    int32_t* out)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+    enum SSVM_Exec status;
+
+    if( !srv->scripts_ok || !out )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return 0;
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, NULL, 0);
+    if( !state )
+        return 0;
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( npc_slot < 0 || npc_slot >= MOCK230_NPC_MAX || !srv->npcs[npc_slot].active )
+    {
+        SSVM_StateRelease(state);
+        return 0;
+    }
+    SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
+    state->host_tag = npc_slot + 1;
+    status = SSVM_Execute(state);
+    if( status == SSVM_ABORTED )
+        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+    if( status != SSVM_FINISHED || state->isp < 1 )
+    {
+        SSVM_StateRelease(state);
+        return 0;
+    }
+    *out = state->int_stack[state->isp - 1];
+    SSVM_StateRelease(state);
+    return 1;
 }

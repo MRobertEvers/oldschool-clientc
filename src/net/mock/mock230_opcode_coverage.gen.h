@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    264  host commands
+ *    265  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      5  host commands (player)
  *     11  host commands (poh)
- *    393  total, of 464 declared opcodes
+ *    394  total, of 465 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 393
-#define MOCK230_OPCODE_DECLARED_COUNT 464
+#define MOCK230_OPCODE_COVERAGE_COUNT 394
+#define MOCK230_OPCODE_DECLARED_COUNT 465
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11060
+#define MOCK230_OPCODE_VALUE_LIMIT 11061
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -434,6 +434,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11057, /* SS_OP_LOC_ADD_OP (host commands) */
     11058, /* SS_OP_REMOTE_VIEW_START (host commands (player)) */
     11059, /* SS_OP_REMOTE_VIEW_END (host commands (player)) */
+    11060, /* SS_OP_STAT_XP (host commands) */
 };
 
 #endif

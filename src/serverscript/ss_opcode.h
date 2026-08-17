@@ -486,10 +486,11 @@
 #define SS_OP_LOC_ADD_OP 11057
 #define SS_OP_REMOTE_VIEW_START 11058
 #define SS_OP_REMOTE_VIEW_END 11059
+#define SS_OP_STAT_XP 11060
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11060
+#define SS_OPCODE_MAX 11061
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 464
+#define SS_OPCODE_COUNT 465
 
 #endif

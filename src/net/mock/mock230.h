@@ -430,6 +430,24 @@ enum
      */
     MOCK230_VARP_SERVER_HEADROOM = 1024,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
+    /*
+     * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per
+     * world rather than one per player.
+     *
+     * The cache names none of these: `vars` is an authored namespace allocated
+     * from 0 by tools/ss_allocate.py into `pack/vars.alloc`, so this is a pure
+     * server-side id space and 256 is a ceiling on how many facts a world can
+     * hold, not an echo of anything in the cache. It is checked at boot the way
+     * MOCK230_VARP_COUNT is, rather than trusted: a `vars` id past the end would
+     * otherwise abort the first script that touched it.
+     *
+     * What wants this is state that is the *world's* and not a player's, which
+     * before now had nowhere to live and so was written per-player and silently
+     * diverged between two players standing in the same room — Pyramid Plunder's
+     * correct entrance (one door for everyone, rerolled every 25 minutes) and its
+     * per-room correct tomb door are the first two.
+     */
+    MOCK230_VARS_COUNT = 256,
     /* Ground items. The world roster is 2,256 obj spawns
      * (docs/ITEM_AND_NPCS.md); a busy fight adds a handful per kill, and those
      * expire.
@@ -3489,6 +3507,18 @@ struct Mock230Server
      * have forced. See mock230_container.h.
      */
     struct Mock230Container world_containers[MOCK230_WORLD_CONTAINER_MAX];
+
+    /**
+     * World-shared variables — the `vars` half of the `%name` domain.
+     *
+     * Zeroed with the world, never saved and never transmitted: a shared var is
+     * a fact about *this* world's run, and a client is told about it only
+     * through whatever a script chooses to write into a varp. There is no
+     * per-player copy and no dirty set, which is the whole point — two players
+     * reading the same id read the same value in the same tick.
+     */
+    int32_t vars[MOCK230_VARS_COUNT];
+
     /** Whose turn it is — see the header comment. Never "the player". */
     struct Mock230Player* active_player;
 
@@ -5541,6 +5571,27 @@ mock230_scripts_run_proc_on_npc(
     struct Mock230Server* srv,
     const char* name,
     int npc_slot);
+
+/** Named NPC-context proc with integer arguments, for deterministic encounter
+ * branches whose public trigger normally supplies the values indirectly. */
+int
+mock230_scripts_run_proc_args_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    const int32_t* args,
+    int argc);
+
+/** Value-returning counterpart for rules that need both the active player and
+ * an active NPC (target-selection/caps in focused encounter tests). */
+int
+mock230_scripts_run_proc_int_on_npc(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    const int32_t* args,
+    int argc,
+    int32_t* out);
 
 /** Say a content-owned message: runs `[proc,<name>]`, optionally with one
  *  string argument (an obj or skill name the engine had to look up). Silent

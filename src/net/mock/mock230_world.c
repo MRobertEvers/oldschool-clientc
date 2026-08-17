@@ -13467,6 +13467,41 @@ mock230_world_selftest(void)
             "godwars_saradomin_centaur", "godwars_ancient_greater_demon",
             "godwars_ancient_lesser_demon", "godwars_ancient_black_demon",
         };
+        static const struct
+        {
+            const char* npc;
+            const char* label;
+            int x, z, level;
+            const char* anim_a;
+            const char* anim_b;
+        } classic_attack_cases[] = {
+            { "godwars_bandos_avatar", "[label,gwd_graardor_attack]",
+              44 * 64 + 52, 83 * 64 + 45, 2,
+              "godwars_bandos_attack", "godwars_bandos_ranged" },
+            { "godwars_saradomin_avatar", "[label,gwd_zilyana_attack]",
+              45 * 64 + 15, 82 * 64 + 15, 0,
+              "godwars_saradomin_attack", "godwars_saradomin_magic_attack" },
+            { "godwars_zamorak_avatar", "[label,gwd_kril_attack]",
+              45 * 64 + 45, 83 * 64 + 10, 2,
+              "godwars_zamorak_attack", "godwars_zamorak_magic_attack" },
+        };
+        static const struct
+        {
+            int phase;
+            int floor;
+            const char* mage;
+            const char* finish_hook;
+            int mage_x, mage_z;
+        } nex_phase_cases[] = {
+            { 1, 2720, "nex_smokemage", "[ai_queue3,nex_smokemage]",
+              45 * 64 + 32, 81 * 64 + 32 },
+            { 2, 2040, "nex_shadowmage", "[ai_queue3,nex_shadowmage]",
+              45 * 64 + 57, 81 * 64 + 32 },
+            { 3, 1360, "nex_bloodmage", "[ai_queue3,nex_bloodmage]",
+              45 * 64 + 57, 81 * 64 + 3 },
+            { 4, 680, "nex_icemage", "[ai_queue3,nex_icemage]",
+              45 * 64 + 32, 81 * 64 + 3 },
+        };
         const char* script_dir = getenv("MOCK230_SCRIPTS");
         int loaded = script_dir && script_dir[0] ? mock230_scripts_load(srv, script_dir) : 0;
         int32_t out = -1;
@@ -13481,6 +13516,168 @@ mock230_world_selftest(void)
                        script_dir ? script_dir : "<unset>");
         if( loaded > 0 )
         {
+            /* The four classic map-square spawn files are the source of truth
+             * for the 69-NPC manifest. Reconstruct that same unique roster
+             * from the loaded runtime and reject any record whose generated
+             * combat baseline or authored animation overlay disappeared. */
+            {
+                const struct Mock230MapNpcSpawn* spawns;
+                const struct Mock230NpcDef* fallback = mock230_content_npc_default();
+                static uint8_t seen[1 << 16];
+                int spawn_count = 0;
+                int roster_count = 0;
+
+                memset(seen, 0, sizeof(seen));
+                spawns = mock230_content_npc_spawns(&spawn_count);
+                for( int i = 0; i < spawn_count; i++ )
+                {
+                    int map_x = spawns[i].x / 64;
+                    int map_z = spawns[i].z / 64;
+                    int npc_id = spawns[i].npc_id;
+                    const char* symbol;
+                    const struct Mock230NpcDef* def;
+
+                    if( (map_x != 44 && map_x != 45) ||
+                        (map_z != 82 && map_z != 83) || npc_id < 0 ||
+                        npc_id >= (int)sizeof(seen) || seen[npc_id] )
+                        continue;
+                    symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
+                    if( !symbol || strncmp(symbol, "godwars_", 8) != 0 )
+                        continue;
+                    seen[npc_id] = 1;
+                    roster_count++;
+                    def = mock230_content_npc(npc_id);
+                    SELFTEST_CHECK(
+                        def && def != fallback && def->authored_combat &&
+                            def->hitpoints > 0 && def->attackrate > 0 &&
+                            def->attack_anim >= 0 && def->defend_anim >= 0 &&
+                            def->death_anim >= 0,
+                        "%s has authored runtime combat, cadence, and three animations",
+                        symbol);
+                }
+                SELFTEST_CHECK(
+                    roster_count == 69,
+                    "classic GWD runtime roster has all 69 unique NPCs, got %d",
+                    roster_count);
+            }
+
+            /* Execute every ambient roster member through its exact trigger.
+             * The 16 bosses/bodyguards are exercised below with their
+             * encounter-aware branches; this closes the other 53 routes and
+             * catches a binding that compiles but never selects the NPC's
+             * authored attack sequence at runtime. */
+            {
+                const struct Mock230MapNpcSpawn* spawns;
+                static uint8_t seen[1 << 16];
+                int spawn_count = 0;
+                int ambient_count = 0;
+                int war_count = 0;
+                int war_target_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "godwars_goblin1");
+                int war_target;
+
+                memset(seen, 0, sizeof(seen));
+                spawns = mock230_content_npc_spawns(&spawn_count);
+                player->x = 44 * 64 + 32;
+                player->z = 83 * 64 + 32;
+                player->level = 0;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                war_target = mock230_world_npc_spawn(
+                    srv, war_target_id, player->x + 2, player->z, player->level);
+                SELFTEST_CHECK(war_target >= 0,
+                               "GWD faction-war target spawns for exact hooks");
+                if( war_target >= 0 )
+                    srv->npcs[war_target].spawn_pending = 0;
+                for( int i = 0; i < spawn_count; i++ )
+                {
+                    int map_x = spawns[i].x / 64;
+                    int map_z = spawns[i].z / 64;
+                    int npc_id = spawns[i].npc_id;
+                    const char* symbol;
+                    const struct Mock230NpcDef* def;
+                    char hook[160];
+                    int encounter = 0;
+                    int slot;
+
+                    if( (map_x != 44 && map_x != 45) ||
+                        (map_z != 82 && map_z != 83) || npc_id < 0 ||
+                        npc_id >= (int)sizeof(seen) || seen[npc_id] )
+                        continue;
+                    symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
+                    if( !symbol || strncmp(symbol, "godwars_", 8) != 0 )
+                        continue;
+                    seen[npc_id] = 1;
+                    for( size_t j = 0;
+                         j < sizeof(classic_boss_defs) / sizeof(classic_boss_defs[0]); j++ )
+                        if( strcmp(symbol, classic_boss_defs[j].npc) == 0 )
+                            encounter = 1;
+                    for( size_t j = 0;
+                         j < sizeof(classic_bodyguards) / sizeof(classic_bodyguards[0]); j++ )
+                        if( strcmp(symbol, classic_bodyguards[j]) == 0 )
+                            encounter = 1;
+                    if( encounter )
+                        continue;
+
+                    def = mock230_content_npc(npc_id);
+                    slot = mock230_world_npc_spawn(
+                        srv, npc_id, player->x + 1, player->z, player->level);
+                    SELFTEST_CHECK(slot >= 0, "%s spawns for exact attack trigger", symbol);
+                    if( slot < 0 )
+                        continue;
+                    ambient_count++;
+                    srv->npcs[slot].spawn_pending = 0;
+                    srv->npcs[slot].combat_target = player->pid;
+                    snprintf(hook, sizeof(hook), "[ai_opplayer2,%s]", symbol);
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->hitpoints = 99;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(srv, hook, slot),
+                        "%s exact player-attack hook executes", symbol);
+                    SELFTEST_CHECK(
+                        def && srv->npcs[slot].anim_id == def->attack_anim,
+                        "%s selects authored attack animation %d (got %d)",
+                        symbol, def ? def->attack_anim : -1,
+                        srv->npcs[slot].anim_id);
+                    if( war_target >= 0 &&
+                        strcmp(symbol, "godwars_icefiend_1") != 0 &&
+                        strcmp(symbol, "godwars_pyrefiend_1") != 0 )
+                    {
+                        srv->npcs[slot].anim_id = -1;
+                        memset(srv->npcs[war_target].queue, 0,
+                               sizeof(srv->npcs[war_target].queue));
+                        srv->npcs[war_target].hitpoints =
+                            srv->npcs[war_target].max_hitpoints;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_trigger_npc2(
+                                srv, SS_TRIGGER_AI_OPNPC2, npc_id, -1,
+                                slot, war_target) == MOCK230_TRIGGER_RAN,
+                            "%s exact NPC-target attack hook executes", symbol);
+                        SELFTEST_CHECK(
+                            def && srv->npcs[slot].anim_id == def->attack_anim,
+                            "%s NPC-target attack selects authored animation %d (got %d)",
+                            symbol, def ? def->attack_anim : -1,
+                            srv->npcs[slot].anim_id);
+                        war_count++;
+                    }
+                    for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                        player->queue[q].active = 0;
+                    for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                        player->engine_queue[q].active = 0;
+                    srv->npcs[slot].active = 0;
+                }
+                SELFTEST_CHECK(
+                    ambient_count == 53,
+                    "all 53 ambient GWD player-attack hooks execute, got %d",
+                    ambient_count);
+                SELFTEST_CHECK(
+                    war_count == 51,
+                    "all 51 aligned ambient GWD NPC-target hooks execute, got %d",
+                    war_count);
+                if( war_target >= 0 )
+                    srv->npcs[war_target].active = 0;
+            }
+
             for( size_t i = 0;
                  i < sizeof(classic_boss_defs) / sizeof(classic_boss_defs[0]); i++ )
             {
@@ -13538,6 +13735,266 @@ mock230_world_selftest(void)
                         def->death_anim >= 0 && def->attack_sound >= 0,
                     "%s merges non-default stats, three animations, and attack sound",
                     classic_bodyguards[i]);
+            }
+
+            /* Execute the real boss labels, not copies of their random tables.
+             * Repetition observes both branches of each two-style selector;
+             * queues are cleared between samples because this lane is checking
+             * selection/assets, not advancing delayed hits. */
+            for( size_t i = 0;
+                 i < sizeof(classic_attack_cases) / sizeof(classic_attack_cases[0]); i++ )
+            {
+                int npc_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, classic_attack_cases[i].npc);
+                int anim_a = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, classic_attack_cases[i].anim_a);
+                int anim_b = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, classic_attack_cases[i].anim_b);
+                int seen = 0;
+                int slot;
+
+                player->x = classic_attack_cases[i].x;
+                player->z = classic_attack_cases[i].z;
+                player->level = classic_attack_cases[i].level;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->hitpoints = 99;
+                player->combat_target = -1;
+                slot = mock230_world_npc_spawn(
+                    srv, npc_id, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(slot >= 0, "%s spawns for attack selection",
+                               classic_attack_cases[i].npc);
+                if( slot < 0 )
+                    continue;
+                srv->npcs[slot].spawn_pending = 0;
+                srv->npcs[slot].combat_target = player->pid;
+                for( int sample = 0; sample < 96 && seen != 3; sample++ )
+                {
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->hitpoints = 99;
+                    srv->npcs[slot].anim_id = -1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, classic_attack_cases[i].label, slot),
+                        "%s attack sample executes", classic_attack_cases[i].npc);
+                    if( srv->npcs[slot].anim_id == anim_a )
+                        seen |= 1;
+                    else if( srv->npcs[slot].anim_id == anim_b )
+                        seen |= 2;
+                    for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                        player->queue[q].active = 0;
+                    for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                        player->engine_queue[q].active = 0;
+                }
+                SELFTEST_CHECK(
+                    seen == 3,
+                    "%s executes both authored attack animations %s/%s (mask %d)",
+                    classic_attack_cases[i].npc, classic_attack_cases[i].anim_a,
+                    classic_attack_cases[i].anim_b, seen);
+                srv->npcs[slot].active = 0;
+            }
+
+            /* Kree's close melee is conditional on the player not targeting
+             * him; targeting him switches the same real label to wind magic/
+             * ranged. Exercise both sides explicitly instead of waiting on an
+             * impossible random transition. */
+            {
+                int npc_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "godwars_armadyl_avatar");
+                int claw = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, "godwars_armadyl_avatar_claw_attack");
+                int wind = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, "godwars_armadyl_avatar_wind_attack");
+                int slot;
+
+                player->x = 44 * 64 + 15;
+                player->z = 82 * 64 + 53;
+                player->level = 2;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->hitpoints = 99;
+                slot = mock230_world_npc_spawn(
+                    srv, npc_id, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(slot >= 0, "Kree'arra spawns for target-aware selection");
+                if( slot >= 0 )
+                {
+                    srv->npcs[slot].spawn_pending = 0;
+                    srv->npcs[slot].combat_target = player->pid;
+                    player->combat_target = -1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[label,gwd_kree_attack]", slot) &&
+                            srv->npcs[slot].anim_id == claw,
+                        "Kree'arra uses claws when adjacent and not targeted");
+                    player->combat_target = slot;
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->hitpoints = 99;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,gwd_player_targets_boss]", slot,
+                            NULL, 0, &out) && out == 1,
+                        "Kree'arra target comparison sees the player's target, got %d",
+                        out);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[label,gwd_kree_attack]", slot) &&
+                            srv->npcs[slot].anim_id == wind,
+                        "Kree'arra uses a wind attack when targeted (got anim %d, want %d)",
+                        srv->npcs[slot].anim_id, wind);
+                    srv->npcs[slot].active = 0;
+                }
+                player->combat_target = -1;
+                for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                    player->queue[q].active = 0;
+                for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                    player->engine_queue[q].active = 0;
+                player->x = 426 * 8;
+                player->z = 408 * 8;
+                player->level = 0;
+            }
+
+            /* A phase boundary is enforced inside the actual player-hit
+             * preparation funnel. Test both ways a boundary is reached: a hit
+             * crossing it and a hit received while Nex is already exactly on
+             * it. The first return value is the only damage the combat engine
+             * may queue; every later same-tick attempt sees the intermission
+             * and returns zero, so simultaneous attacks cannot skip a mage. */
+            {
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int dash = mock230_content_symbol(MOCK230_PACK_SEQ, "nex_dash_attack");
+
+                for( size_t i = 0;
+                     i < sizeof(nex_phase_cases) / sizeof(nex_phase_cases[0]); i++ )
+                {
+                    int slot = mock230_world_npc_spawn(
+                        srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+                    SELFTEST_CHECK(slot >= 0, "Nex phase %d crossing actor spawns",
+                                   nex_phase_cases[i].phase);
+                    if( slot < 0 )
+                        continue;
+                    srv->npcs[slot].spawn_pending = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_initialize_actor]", slot),
+                        "Nex phase %d crossing actor initializes",
+                        nex_phase_cases[i].phase);
+                    srv->npcs[slot].script_vars[0] = nex_phase_cases[i].phase;
+                    srv->npcs[slot].hitpoints = nex_phase_cases[i].floor + 100;
+                    args[0] = 200;
+                    args[1] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,nex_prepare_player_hit]", slot,
+                            args, 2, &out) && out == 100,
+                        "Nex phase %d crossing hit caps at %d HP (got %d)",
+                        nex_phase_cases[i].phase, nex_phase_cases[i].floor, out);
+                    SELFTEST_CHECK(
+                        srv->npcs[slot].script_vars[1] == nex_phase_cases[i].phase &&
+                            srv->npcs[slot].anim_id == dash,
+                        "Nex phase %d crossing starts its mage intermission and dash",
+                        nex_phase_cases[i].phase);
+                    args[0] = 5000;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,nex_prepare_player_hit]", slot,
+                            args, 2, &out) && out == 0,
+                        "Nex phase %d intermission rejects a simultaneous hit",
+                        nex_phase_cases[i].phase);
+
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_initialize_actor]", slot),
+                        "Nex phase %d exact-threshold actor reinitializes",
+                        nex_phase_cases[i].phase);
+                    srv->npcs[slot].script_vars[0] = nex_phase_cases[i].phase;
+                    srv->npcs[slot].hitpoints = nex_phase_cases[i].floor;
+                    args[0] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,nex_prepare_player_hit]", slot,
+                            args, 2, &out) && out == 0 &&
+                            srv->npcs[slot].script_vars[1] == nex_phase_cases[i].phase,
+                        "Nex phase %d enters intermission from exact %d HP",
+                        nex_phase_cases[i].phase, nex_phase_cases[i].floor);
+                    srv->npcs[slot].active = 0;
+                }
+            }
+
+            /* Walk one actor through all four real mage-finish procedures.
+             * Before activation each mage is immune; while active it accepts
+             * ordinary damage and applies Nex's 50-plus-small-tail cap. */
+            {
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int soulsplit_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "nex_soulsplit");
+                int turmoil = mock230_content_symbol(MOCK230_PACK_SEQ, "nex_turmoil");
+                int boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+
+                SELFTEST_CHECK(boss >= 0, "Nex ordered phase-transition actor spawns");
+                if( boss >= 0 )
+                {
+                    srv->npcs[boss].spawn_pending = 0;
+                    mock230_scripts_run_proc_on_npc(
+                        srv, "[proc,nex_initialize_actor]", boss);
+                    for( size_t i = 0;
+                         i < sizeof(nex_phase_cases) / sizeof(nex_phase_cases[0]); i++ )
+                    {
+                        int mage_id = mock230_content_symbol(
+                            MOCK230_PACK_NPC, nex_phase_cases[i].mage);
+                        int mage = mock230_world_npc_spawn(
+                            srv, mage_id, nex_phase_cases[i].mage_x,
+                            nex_phase_cases[i].mage_z, 0);
+
+                        SELFTEST_CHECK(mage >= 0, "%s spawns for phase gating",
+                                       nex_phase_cases[i].mage);
+                        if( mage < 0 )
+                            continue;
+                        srv->npcs[mage].spawn_pending = 0;
+                        args[0] = 25;
+                        args[1] = 1;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int_on_npc(
+                                srv, "[proc,nex_prepare_player_hit]", mage,
+                                args, 2, &out) && out == 0,
+                            "%s is immune before its intermission", nex_phase_cases[i].mage);
+                        srv->npcs[boss].script_vars[1] = nex_phase_cases[i].phase;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int_on_npc(
+                                srv, "[proc,nex_prepare_player_hit]", mage,
+                                args, 2, &out) && out == 25,
+                            "%s accepts damage during its intermission",
+                            nex_phase_cases[i].mage);
+                        args[0] = 100;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int_on_npc(
+                                srv, "[proc,nex_prepare_player_hit]", mage,
+                                args, 2, &out) && out >= 50 && out <= 55,
+                            "%s applies the 50-plus-tail damage cap (got %d)",
+                            nex_phase_cases[i].mage, out);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_on_npc(
+                                srv, nex_phase_cases[i].finish_hook, mage),
+                            "%s death queue executes", nex_phase_cases[i].mage);
+                        SELFTEST_CHECK(
+                            srv->npcs[boss].script_vars[0] ==
+                                    nex_phase_cases[i].phase + 1 &&
+                                srv->npcs[boss].script_vars[1] == 0 &&
+                                srv->npcs[boss].script_vars[2] == 0 &&
+                                srv->npcs[boss].script_vars[3] == 0,
+                            "%s advances exactly one phase and clears cadence state",
+                            nex_phase_cases[i].mage);
+                        srv->npcs[mage].active = 0;
+                    }
+                    SELFTEST_CHECK(
+                        srv->npcs[boss].type == soulsplit_id &&
+                            srv->npcs[boss].script_vars[5] == 1 &&
+                            srv->npcs[boss].anim_id == turmoil,
+                        "Glacies death enters Zaros with Soul Split and Turmoil assets");
+                    srv->npcs[boss].active = 0;
+                }
             }
 
             tiers[0] = mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_hard");

@@ -179,14 +179,33 @@ def check_content_contract() -> None:
         "inv_total(inv, $shard) = $cost",
     ):
         require(CRAFT, needle, "native recipe dispatch")
+    for needle in (
+        "%gauntlet_combo_tick ! map_clock", "%gauntlet_combo_tick = map_clock;",
+        "%gauntlet_eat_delay = add(map_clock, $delay);", "%action_delay = %gauntlet_eat_delay;",
+    ):
+        require(CRAFT, needle, "crystal-paddlefish combo timing")
     for npc in DATA["npc_roster"]:
         require(GATHER, f"[ai_queue3,{npc}]", f"{npc} death handler")
         require(GATHER, npc, f"{npc} spawn")
     for npc in ("crystal_dragon", "crystal_dark_beast", "crystal_dragon_hm", "crystal_dark_beast_hm"):
         require(MONSTERS, f"[ai_opplayer2,{npc}]", f"{npc} combat AI")
         require(NPC_CONFIG, f"[{npc}]", f"{npc} NPC overlay")
+    for npc in DATA["npc_roster"]:
+        require(MONSTERS, f"[ai_spawn,{npc}]", f"{npc} heartbeat startup")
+        require(MONSTERS, f"[ai_timer,{npc}]", f"{npc} aggression")
+    require(MONSTERS, "[ai_spawn,crystal_hunllef_crystals]", "tornado heartbeat startup")
+    require(MONSTERS, "npc_settimer(1);", "Gauntlet actor heartbeat")
     for needle in DATA["drop_contract_fragments"]:
         require(GATHER, needle, "enemy drop contract")
+    for needle in (
+        "[proc,gauntlet_spawn_random_resources]", "[proc,gauntlet_spawn_resource]",
+        "$count = random(6);", "$count = random(3);", "random(5)",
+        "loc_change($depleted, ^max_32bit_int);",
+        "obj_add_private(npc_coord, $item, $amount, ^lootdrop_duration, 100);",
+        "if (inv_freespace(inv) < $spaces)",
+        "[proc,gauntlet_light_node_group]", "~gauntlet_light_node_group($clicked);",
+    ):
+        require(GATHER, needle, "room resource population")
 
     junk = proc_body(REWARDS, "gauntlet_roll_junk")
     for obj in DATA["junk_rewards"]:
@@ -210,8 +229,15 @@ def check_content_contract() -> None:
         require(prepare, denominator, "tertiary denominator")
     require(prepare, "if ($hm = 1) { $clue_rate = 19; } else { $clue_rate = 23; }", "Elite clue-rate reward")
     require(prepare, "inv_total(collection_transmit, gauntletpet)", "durable pet ownership")
+    require(prepare, "%pet_insurance_gauntlet = 0", "insured pet ownership")
+    require(prepare, "%pet_menagerie_gauntlet = 0", "menagerie pet ownership")
     require(prepare, "inv_total(worn, gauntlet_crystalline_cape)", "worn cape ownership")
+    require(prepare, "inv_total(collection_transmit, gauntlet_crystalline_cape)", "durable cape ownership")
     require(INV_CONFIG, "[gauntlet_pending_reward]\nsize=12", "immutable pending rewards")
+    deliver = proc_body(REWARDS, "gauntlet_deliver_reward")
+    require(deliver, "oc_tradeable($item) = true", "untradeable reward retention")
+    require(deliver, "Your unclaimed reward remains safely in the chest.", "pending reward continuation")
+    require(deliver, "~gauntlet_pet_award", "automatic Youngllef follower award")
 
     ids = {int(value) for value in re.findall(r"~ca_task_complete\((\d+)\)", PROGRESS)}
     assert ids == set(DATA["combat_achievement_ids"]), f"CA ids drifted: {sorted(ids)}"
@@ -221,8 +247,16 @@ def check_content_contract() -> None:
         "inv_movetoslot(worn, gauntlet_holding_worn, $slot, $slot);",
         "inv_movetoslot(gauntlet_holding_worn, worn, $slot, $slot);",
         "midi_song(^gauntlet_music_track);", "midi_song(-1);",
+        "%summoning_pet_active = 1", "%gauntlet_pet_active = 1", "npc_findowned = true",
     ):
         require(CORE, needle, "session/layout contract")
+    for needle in (
+        "[proc,gauntlet_pet_spawn]", "[timer,gauntlet_pet_follow]",
+        "[opheld5,gauntletpet]", "[opnpc4,gauntlet_pet]",
+        "[opnpc3,gauntlet_pet]", "[opnpc1,gauntlet_pet]",
+        "%total_completed_gauntlet_hm > 0", "%pet_insurance_gauntlet = 1",
+    ):
+        require(PROGRESS, needle, "Youngllef follower lifecycle")
     constants = (GAUNTLET / "configs" / "gauntlet.constant").read_text()
     require(constants, "^gauntlet_music_track = 650", "cache music dbrow contract")
     for needle in (

@@ -1582,6 +1582,7 @@ npc_config_key(
 static int g_npc_default_pass;
 
 static void load_npc_config(const char* path);
+static int has_suffix(const char* name, const char* suffix);
 
 static void
 load_npc_default_config(const char* path)
@@ -1589,6 +1590,25 @@ load_npc_default_config(const char* path)
     g_npc_default_pass = 1;
     load_npc_config(path);
     g_npc_default_pass = 0;
+}
+
+/* Generated cache/stat/rig exports are the baseline; authored area files are
+ * overlays on top. A single alphabetical walk puts `areas/` before `npc/` and
+ * therefore lets a generated fallback overwrite the deliberate attack anim an
+ * area selected. cachepack uses the baseline-then-overlay order too, so these
+ * two callbacks keep the text runtime and its server band byte-for-byte peers. */
+static void
+load_npc_generated_config(const char* path)
+{
+    if( has_suffix(path, ".generated.npc") )
+        load_npc_config(path);
+}
+
+static void
+load_npc_authored_config(const char* path)
+{
+    if( !has_suffix(path, ".generated.npc") )
+        load_npc_config(path);
 }
 
 static void
@@ -3564,23 +3584,13 @@ mock230_scandir(
 }
 
 /**
- * Recursively load every `.npc` then every `.loc`; the two passes keep a door
- * config free to name a loc declared in another file.
+ * Recursively load every matching config in deterministic path order.
  *
  * Sorted via `mock230_scandir`, not `readdir` walked as it comes: `readdir` makes no
  * ordering promise at all, it hands back entries in whatever order the
- * filesystem's directory storage happens to hold them, and two files that
- * declare a block for the same npc are not merged (`mock230_content_npc`
- * returns the *first* match in load order — see the comment above
- * `g_npc_defs`). "areas/ sorts before general/, which is precisely the order
- * that happens" a few hundred lines up is an assumption this function was not
- * actually keeping: it read correctly on whatever filesystem order that
- * comment was measured against, and broke the moment a second generated
- * `.npc` file landed beside an existing one in the same directory and readdir
- * happened to hand it back first — the npcs both blocks name then silently
- * lost every field only the *other* block set. Sorting makes the order the
- * comment already promises actually true, rather than true by filesystem
- * coincidence.
+ * filesystem's directory storage happens to hold them. Sorting makes overlay
+ * order reproducible; NPCs additionally split generated baselines from authored
+ * overlays at the call site below.
  */
 static void
 walk_configs(
@@ -3983,7 +3993,8 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".varp", load_varp_config);
     /* `[default]` first, then the roster — see load_npc_default_config. */
     walk_configs(path, ".npc", load_npc_default_config);
-    walk_configs(path, ".npc", load_npc_config);
+    walk_configs(path, ".npc", load_npc_generated_config);
+    walk_configs(path, ".npc", load_npc_authored_config);
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
     /* After .obj: a stockN= line names an obj and resolves it against

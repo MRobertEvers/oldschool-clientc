@@ -89,6 +89,12 @@ SERVER_NAMESPACES = (
     # the reference computes in `[proc,player_combat_stat]`; before the promotion
     # no tool would hand those varps an id.
     'varp',
+    # `vars` — world-shared variables — is swept because the cache names none of
+    # them. There is no `vars` config group to layer over, so unlike every other
+    # namespace here the alloc ledger IS the namespace: a `[block]` with no line
+    # in `pack/vars.alloc` resolves to nothing at all, and `%name = 1` fails to
+    # compile rather than writing somewhere wrong.
+    'vars',
 )
 
 

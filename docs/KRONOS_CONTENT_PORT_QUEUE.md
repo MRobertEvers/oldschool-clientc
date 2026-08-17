@@ -89,7 +89,7 @@ re-arm. Stop only when the user stops the loop.
 | 7a | skill_construction: house enter/leave | done | → SCAPE2009 §4a (live — do not `.rs2.skip`) |
 | 7b | skill_construction: build hotspot core | done | → SCAPE2009 §4b (live — do not edit/park from Kronos) |
 | 8 | minigame: Barrows | blocked | → SCAPE2009 §5 |
-| 9 | minigame: Fight Caves | done | Wave table + shared-map enter/exit (`minigame_fightcave/`); Kronos/2009 remainder algorithm; Tz-Kek split; Jad reward cape+tokkul; Jad healers deferred; **instance/DynamicMap still needed for concurrent players** |
+| 9 | minigame: Fight Caves | partial | Wave table + shared-map enter/exit (`minigame_fightcave/`); Kronos/2009 remainder algorithm; Tz-Kek split; Jad reward cape+tokkul. **Jad + Yt-HurKot healers have since landed** (`fightcave_jad.rs2`, `docs/bosses/jad.md` §1). Still open: instance, death/logout/pause, the five wave monsters' mechanics, spawn rotations, `N·(N+1)` tokkul — see `docs/minigames/FIGHT_CAVES.md` |
 | 10 | minigame: Pest Control | blocked | → SCAPE2009 §6 |
 | 11 | minigame: Warriors' Guild | done | `minigame_warriorsguild/`: entrance Att+Str≥130 or 99; cyclops door 100 tokens + Kamfreena entry dial; 10/min drain; 1/50 bronze→rune drop; stairs; policy 2009scape (LC none); animator/dummy/catapult/token earn + basement dragon deferred |
 | 12 | minigame: Wintertodt | done | `minigame_wintertodt/`: Ignisia unlock, Doors of Dinh (FM50), tool chests, chop/fletch/light/feed/fix + herb pot; points + debug crate; storm HP/cold/pyro heal/HUD/crate loot deferred; no new opcodes |
@@ -181,7 +181,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 | 4 | (none) | Confirm arms = varbit writes + points | confirmed — no new opcode |
 | 5a | softtimer / growth clock | Patch growth between logins | softtimer exists — confirm wall-clock |
 | 7a | instance / dynamic map | POH | measure — may block |
-| 9 | instance / dynamic map | Fight Caves multiplayer isolation (shared map used for single-player) | soft — content landed on shared region 9551 |
+| 9 | instance / dynamic map | Fight Caves multiplayer isolation (shared map used for single-player) | **unblocked** — `map_instance_*` shipped; `~map_instance_from_square(0_37_79_0_0)` is the port, Inferno is the template |
 | 11 | (none) | Doors/tokens/drops/softtimer already expressible | confirmed — no new opcode |
 | 12 | (none) | Enter/actions expressible with loc_change + softtimer later | confirmed — no new opcode |
 | 13 | (none) | Hopper/sack/veins expressible via cache varbits + loc_change | confirmed — no new opcode |
@@ -268,7 +268,7 @@ Record new Server VM opcodes **before** inventing C content hooks. Format:
 - slice 2 done: kill credit + points — `mock230_world_npc_died` → `[proc,slayer_on_npc_kill]`; membership `slayer_task_member` (category seed); finish awards Kronos streak points; `%slayer_tasks_completed_1` perm+transmit; no new opcodes
 - slice 3 done: remaining masters — `slayer_masters.rs2` Talk/Assignment/Rewards for all cache masters; combat/slayer gates from skill_features; weighted assign filters `min_comlevel`; Konar location deferred; no new opcodes
 - slice 4 done: Cancel/Block/Store/Unblock — `~slayer_confirm` arms; blocked slots per master (CS2 8025); cancel 30pts; block prices from CS2 823; Store/Swap behind unlock 51; no new opcodes
-- slice 9 done: Fight Caves wave table + shared-map loop — enter/exit locs, remainder spawn algorithm, Tz-Kek split, Jad cape; healers + true instance deferred
+- slice 9 partial: Fight Caves wave table + shared-map loop — enter/exit locs, remainder spawn algorithm, Tz-Kek split, Jad cape. Jad + healers landed later (`docs/bosses/jad.md` §5.1); true instance, session lifecycle, wave-monster mechanics and rotations still open — `docs/minigames/FIGHT_CAVES.md`
 - slice 11 done: Warriors' Guild cyclops core — entrance gate, Kamfreena entry dial, token take/drain, defender progression drops, WG stairs; activities rooms + basement dragon deferred; `make mock230-scripts` 4132; pack 0 errors; no new opcodes
 - slice 12 done: Wintertodt core loop — Ignisia, doors, chests, bruma chop/fletch, brazier light/feed/fix, herb→potion; storm/cold/HUD deferred; scripts 4195; pack 0 errors; no new opcodes
 - slice 13 done: Motherlode Mine core — enter/exit, paydirt veins, hopper→sack varbit, strut repair, sack loot table, rockfall; water NPC path / upper floor deferred; scripts 4241; pack 0 errors; no new opcodes

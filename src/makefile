@@ -2138,6 +2138,13 @@ check-crystal-set-contract:
 check-gauntlet-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_gauntlet_contract.py
 
+# Every Agility course against the per-lap experience its own wiki page states.
+# The XP lives in triggers rather than a table, so ::agilityrun cannot see it
+# and only this can: four courses were paying the wrong amount when it was
+# written, and nothing in the tree noticed.
+check-agility-xp:
+	@cd $(REPO_ROOT) && python3 tools/agility_xp_audit.py --tree $(MOCK230_CONTENT_DIR)
+
 check-godwars-manifest:
 	@cd $(REPO_ROOT) && python3 tools/generate_godwars_combat_manifest.py --check
 
@@ -2178,7 +2185,7 @@ test-mock230-poh: $(OBJ_DIR)
 # — add that symbol, rather than the whole directory.
 SUMMONING_VARBIT_STAGE = $(REPO_ROOT)/build/summoning-varbit-stage
 
-mock230-scripts: sscompile check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract
+mock230-scripts: sscompile check-crystal-set-contract check-agility-xp check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
 	@mkdir -p $(SUMMONING_VARBIT_STAGE)
 	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/

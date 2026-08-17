@@ -1155,6 +1155,18 @@ rs_cs2_call_on_resize_push(
             (unsigned)component_id);
         return;
     }
+    if( getenv("TORIRS_RESIZE_DEBUG") )
+    {
+        int dup = 0;
+        for( int q = 0; q < host->call_on_resize_count; q++ )
+        {
+            int s2 = (host->call_on_resize_head + q) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
+            if( host->call_on_resize[s2] == component_id )
+                dup = 1;
+        }
+        fprintf(stderr, "callonresize: push com=0x%08x queued=%d dup=%d\n",
+                (unsigned)component_id, host->call_on_resize_count, dup);
+    }
     slot = (host->call_on_resize_head + host->call_on_resize_count) %
            RS_CS2_HOST_CALL_ON_RESIZE_MAX;
     host->call_on_resize[slot] = component_id;

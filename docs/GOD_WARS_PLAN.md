@@ -62,7 +62,10 @@ by the existence of code. As of the audit date, the repository now has:
   specials, contribution loot, overhead rotation, Wrath, scoreboard, cleanup,
   and the cache animations/projectiles/spotanims/sounds named in this plan.
 - [x] Script compilation in an isolated content tree plus deterministic
-  `check-godwars-manifest` and `check-godwars-contract` build gates.
+  `check-godwars-manifest` and `check-godwars-contract` build gates. The full
+  target passed during this audit, but the latest rerun is blocked before GWD
+  validation by unrelated Fight Caves work whose existing
+  `^fightcave_spawn_0` constant is not discovered by the compiler.
 - [x] Four-map-square lifecycle triggers which keep the KC overlay present
   while moving within the dungeon and atomically clear all five counters plus
   the overlay only after a real departure.
@@ -108,6 +111,46 @@ by the existence of code. As of the audit date, the repository now has:
   coordinates, non-instance-aware Nex loot, and missing faction-war launch,
   travel, or impact graphics. Runtime NPC metadata accepts those projectile and
   poison parameters, and ranged max-hit includes cache ammunition strength.
+- [x] `MOCK230_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
+  the isolated 22,175-script build (the current tree excluding only that
+  unrelated Fight Caves file) it reconstructs the four classic map-square
+  roster and proves all **69** unique NPCs retain authored combat, cadence, and
+  attack/defend/death sequences. It separately proves the four bosses retain
+  their exact stats and authored sounds; executes both attack-selection
+  branches for Graardor, Kree'arra, Zilyana, and K'ril (including Kree'arra's
+  target-aware claw/wind split); verifies all 12 bodyguards' non-default
+  stats/assets; executes the exact player-attack hook for each of the other 53
+  ambient NPCs and observes its authored attack sequence; checks every Combat
+  Achievement KC/fee reduction; isolates public/private coordinates and loot
+  lifetimes; and executes spectral prayer-drain mitigation. That exhaustive
+  attack pass corrected the Saradomin wizard and Zamorak spiritual mage
+  metadata from staff-pummel to the `human_casting` sequence actually used by
+  their god-spell dbrows.
+- [x] The runtime lane also dispatches all **51** aligned ambient NPC-vs-NPC
+  attack triggers with real primary/secondary NPC contexts, observes their
+  authored attack sequences, and verifies their damage queues complete. This
+  exposed and fixed a shared `gwd_war_swing` fall-through which had made every
+  successful dungeon-war attack abort after queuing its hit.
+- [x] The runtime lane executes **173** representative boundary rolls: every
+  ordinary row for all four classic bosses, all four bodyguard tables, and all
+  four Ancient Prison combatants. It also executes every one of Nex's 19
+  regular categories (including both paired supply rows), all six unique-table
+  outcomes, quantity bounds, contribution flooring/MVP scaling, and private
+  ownership. These are deterministic row-reachability tests, not a substitute
+  for the still-required probability and multiplayer tests below.
+- [x] The same real-VM lane exercises every Nex phase floor twice: a hit which
+  crosses the threshold and a hit received at the exact threshold. It proves
+  damage is capped at 2,720/2,040/1,360/680 HP, a concurrent follow-up cannot
+  skip the intermission, inactive phase mages are immune, active mages accept
+  damage with the 50-plus-small-tail cap, each death queue advances exactly one
+  phase and resets cadence state, and Glacies transitions to the Soul Split
+  Zaros form with the Turmoil animation.
+- [x] Runtime testing found and fixed two engine/compiler faults that made
+  source-only review unreliable: floor-object commands now resolve a typed
+  `namedobj` when an NPC shares its name (`shark` object 385 versus NPC 1830),
+  and repeated NPC config blocks now merge generated stat/rig baselines before
+  authored area overlays. The current server-band comparison has no GWD
+  mismatch; its two remaining stale records are unrelated NPCs.
 
 The remaining acceptance work is runtime-focused: nearest-player/defence
 tie-breaking is scripted but still needs multiplayer trace validation;
