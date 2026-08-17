@@ -59,11 +59,11 @@ Current explicit blockers, which must not be papered over with guessed IDs:
 
 Verification at this checkpoint:
 
-- isolated clean-overlay RuneScript compile: **20,522 scripts**;
+- isolated clean-overlay RuneScript compile: **20,523 scripts**;
 - spawn/config loader: clean after adding the required `==== NPC ====` headers
   to Letvek and Hunter Guild spawn files;
-- `::hunterrun` now checks trap registry contracts, modern creature rows,
-  crystal loot cardinality/ranges, current butterfly rules, bird houses,
+- `mock230 --selftest` now invokes `::hunterrun`, which checks trap registry
+  contracts, modern creature rows, crystal loot cardinality/ranges, current butterfly rules, bird houses,
   antelope pits, sandworms, and both complete Uzer/Feldip tracking graphs;
 - broad `mock230 --selftest` reaches completion with the same two unrelated,
   pre-existing movement failures (Hans walking and stopped-player chase).
@@ -92,7 +92,7 @@ end-to-end slices:
 | Bird snare | five classic birds | `bird_snare.rs2`, `bird_snare.dbrow` |
 | Box trap | ferret, chinchompa, red chinchompa | `box_trap.rs2`, `box_trap.dbrow` |
 | Butterflies | four classic butterflies, including an obsolete barehand model | `butterfly.rs2`, `butterflies.dbrow` |
-| Tracking | polar/common/feldip/desert trails; two trails lack complete coordinate graphs | `polar_trail.rs2`, `common_trail.rs2`, `desert_jungle_trail.rs2` |
+| Tracking | polar/common/feldip/desert trails; two trails initially lacked complete coordinate graphs | `polar_trail.rs2`, `common_trail.rs2`, `desert_trail.rs2`, `feldip_trail.rs2` |
 | Deadfall | four classic kebbits | `deadfall.rs2`, `deadfall.dbrow` |
 | Falconry | spotted, dark, and dashing kebbits | `falconry.rs2`, `falconry.dbrow` |
 | Implings | baby through dragon, net + jar only | `impling.rs2`, `implings.dbrow`, `impling_loot.dbrow` |

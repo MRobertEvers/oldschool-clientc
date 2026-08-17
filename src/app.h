@@ -1510,7 +1510,9 @@ App_WorldSpawnSyncedNpc(
  * NPC, `npc_id` unchanged when it does not name a shell or on a lookup miss.
  * This synchronous helper only follows already-resident configs; packet and
  * live-remorph paths use CreateTask_NpcMultiLoad so a cold cache cannot strand
- * the entity on its wrapper. Depth-capped at 4, matching the catalog walk. */
+ * the entity on its wrapper. Interface chatheads retain the shell id but use
+ * this same per-client resolution before binding the selected child's head.
+ * Depth-capped at TORIRS_NPC_MULTI_MAX_DEPTH, matching the catalog walk. */
 int
 App_NpctypeResolveMultiId(
     struct App* app,

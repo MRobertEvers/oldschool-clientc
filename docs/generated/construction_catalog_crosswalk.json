@@ -21292,7 +21292,16 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_fencing7",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post"
+        },
+        {
+          "built_loc": "poh_fencing7",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post_m"
+        }
+      ],
       "built_locs": [
         {
           "id": 5907,
@@ -25125,7 +25134,36 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_theme_zen_outer_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_outercorner"
+        },
+        {
+          "built_loc": "poh_theme_zen_inner_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_innercorner"
+        },
+        {
+          "built_loc": "poh_theme_zen_edge",
+          "empty_loc": "poh_superior_garden_hotspot_theme_edge"
+        },
+        {
+          "built_loc": "poh_theme_zen_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_1"
+        },
+        {
+          "built_loc": "poh_theme_zen_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_2"
+        },
+        {
+          "built_loc": "poh_theme_zen_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_3"
+        },
+        {
+          "built_loc": "poh_theme_zen_path_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_pathcorner"
+        }
+      ],
       "built_locs": [
         {
           "id": 29247,
@@ -25180,7 +25218,36 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_theme_zanaris_outer_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_outercorner"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_inner_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_innercorner"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_edge",
+          "empty_loc": "poh_superior_garden_hotspot_theme_edge"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_1"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_2"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_path",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_3"
+        },
+        {
+          "built_loc": "poh_theme_zanaris_path_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_pathcorner"
+        }
+      ],
       "built_locs": [
         {
           "id": 29253,
@@ -25240,7 +25307,36 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_theme_tzhaar_outer_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_outercorner"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_inner_corner",
+          "empty_loc": "poh_superior_garden_hotspot_theme_innercorner"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_edge",
+          "empty_loc": "poh_superior_garden_hotspot_theme_edge"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_path_1",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_1"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_path_2",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_2"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_path_3",
+          "empty_loc": "poh_superior_garden_hotspot_theme_path_3"
+        },
+        {
+          "built_loc": "poh_theme_tzhaar_path_4",
+          "empty_loc": "poh_superior_garden_hotspot_theme_pathcorner"
+        }
+      ],
       "built_locs": [
         {
           "id": 29261,
@@ -25300,7 +25396,16 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_redwood_fence_post",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post"
+        },
+        {
+          "built_loc": "poh_redwood_fence_post_m",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post_m"
+        }
+      ],
       "built_locs": [
         {
           "id": 29262,
@@ -25350,7 +25455,16 @@
       }
     },
     {
-      "auxiliary_locs": [],
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_obsidian_fence_post",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post"
+        },
+        {
+          "built_loc": "poh_obsidian_fence_post_m",
+          "empty_loc": "poh_superior_garden_hotspot_fence_post_m"
+        }
+      ],
       "built_locs": [
         {
           "id": 29267,
@@ -25408,14 +25522,6 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 29111,
-          "symbol": "poh_invisible_garden_bench_teak_left"
-        },
-        {
-          "id": 29112,
-          "symbol": "poh_invisible_garden_bench_teak_right"
-        },
-        {
           "id": 29270,
           "symbol": "poh_garden_bench_teak_left"
         },
@@ -25454,8 +25560,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Teak_garden_bench",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 540,
+            "page": "Teak garden bench",
+            "revision_id": 14913760
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Teak garden bench",
         "revision_id": 14913760,
         "revision_timestamp": "2025-06-01T20:15:57Z"
@@ -25503,8 +25615,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Gnome_bench",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 840,
+            "page": "Gnome bench",
+            "revision_id": 14913497
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Gnome bench",
         "revision_id": 14913497,
         "revision_timestamp": "2025-06-01T19:40:41Z"
@@ -25552,8 +25670,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Marble_decorative_bench",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 3000,
+            "page": "Marble decorative bench",
+            "revision_id": 14913594
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Marble decorative bench",
         "revision_id": 14913594,
         "revision_timestamp": "2025-06-01T19:53:32Z"
@@ -25616,8 +25740,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Obsidian_decorative_bench",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 2331,
+            "page": "Obsidian decorative bench",
+            "revision_id": 14913663
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Obsidian decorative bench",
         "revision_id": 14913663,
         "revision_timestamp": "2025-06-01T20:00:32Z"
@@ -53291,7 +53421,7 @@
     "referenced_furniture": 512,
     "room_hotspot_references": 202,
     "room_template_placements": 1013,
-    "runtime_auxiliary_loc_pairs": 17,
+    "runtime_auxiliary_loc_pairs": 44,
     "runtime_furniture_rows": 525,
     "runtime_hotspot_loc_rows": 220,
     "tables": {
@@ -53301,9 +53431,9 @@
       "skill_features": 213
     },
     "unreferenced_furniture": 13,
-    "wiki_furniture_direct_id_matches": 459,
+    "wiki_furniture_direct_id_matches": 455,
     "wiki_furniture_matches": 525,
-    "wiki_furniture_symbolic_reconciliations": 66,
+    "wiki_furniture_symbolic_reconciliations": 70,
     "wiki_furniture_unresolved": 0,
     "wiki_snapshot_entries": 493
   },
@@ -53320,6 +53450,11 @@
           "page": "Menagerie",
           "rule": "A pet arena includes its mat, and an outdoor habitat includes the matching terrain feature in addition to its ground tiles.",
           "url": "https://oldschool.runescape.wiki/w/Menagerie"
+        },
+        {
+          "page": "Superior garden",
+          "rule": "Themes, fences, and paired seating are single furniture transactions with multiple distinct cache scenery locs.",
+          "url": "https://oldschool.runescape.wiki/w/Superior_garden"
         }
       ],
       "reviewed_at": "2026-08-16"

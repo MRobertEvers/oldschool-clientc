@@ -301,6 +301,11 @@ struct ToriRS_Location
  */
 #define TORIRS_PARAM_ZBUFFER_MODEL 2730 /* param.alloc: 2730=zbuffer_model */
 
+/* Maximum number of nested NpcType.multiNpc selections followed for one
+ * effective type. Shared by world entities and interface chatheads so the two
+ * cannot disagree about which child a shell names. */
+#define TORIRS_NPC_MULTI_MAX_DEPTH 4
+
 struct ToriRS_Npctype
 {
     int id;

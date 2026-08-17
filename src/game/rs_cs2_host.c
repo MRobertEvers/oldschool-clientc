@@ -271,9 +271,65 @@ rs_cs2_model_ready(
     return provider && CacheProvider_ModelHas(provider, model_id);
 }
 
-/* True when the npctype is resident and every non-negative chathead model id
- * is resident. Empty/missing heads count as ready so we do not yield forever —
- * EnsureNpcHead still returns -1 and the widget stays unchanged. */
+/* Resolve a resident multiNpc chain under this client's vars. false means a
+ * config in the selected chain is still cold; true with -1 means the selected
+ * positional entry intentionally hides the NPC. */
+static bool
+rs_cs2_npc_multi_resolve(
+    struct RS_CS2Host* host,
+    int npc_id,
+    int* out_npc_id)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+
+    assert(out_npc_id);
+    *out_npc_id = npc_id;
+    for( int depth = 0; depth <= TORIRS_NPC_MULTI_MAX_DEPTH && npc_id >= 0; depth++ )
+    {
+        struct ToriRS_Npctype* npc;
+        int next;
+
+        if( !provider || !CacheProvider_NpctypeHas(provider, npc_id) )
+            return false;
+        npc = CacheProvider_NpctypeGet(provider, npc_id);
+        assert(npc);
+        if( npc->transform_count <= 0 || !npc->transforms )
+        {
+            *out_npc_id = npc_id;
+            return true;
+        }
+        next = host->varps
+                   ? VarPManager_ResolveTransform(
+                         host->varps,
+                         npc->transforms,
+                         npc->transform_count,
+                         npc->transform_varbit,
+                         npc->transform_varp)
+                   : npc->transforms[npc->transform_count - 1];
+        if( next < 0 )
+        {
+            *out_npc_id = -1;
+            return true;
+        }
+        if( next == npc_id )
+        {
+            *out_npc_id = npc_id;
+            return true;
+        }
+        if( depth == TORIRS_NPC_MULTI_MAX_DEPTH )
+        {
+            *out_npc_id = npc_id;
+            return true;
+        }
+        npc_id = next;
+    }
+    *out_npc_id = npc_id;
+    return true;
+}
+
+/* True when the selected npctype is resident and every non-negative chathead
+ * model id is resident. Empty/missing heads count as ready so we do not yield
+ * forever — EnsureNpcHead still returns -1 and the widget stays unchanged. */
 static bool
 rs_cs2_npc_head_ready(
     struct RS_CS2Host* host,
@@ -281,13 +337,16 @@ rs_cs2_npc_head_ready(
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Npctype* npc;
+    int resolved_npc_id;
     int i;
 
     if( npc_id < 0 )
         return true;
-    if( !provider || !CacheProvider_NpctypeHas(provider, npc_id) )
+    if( !rs_cs2_npc_multi_resolve(host, npc_id, &resolved_npc_id) )
         return false;
-    npc = CacheProvider_NpctypeGet(provider, npc_id);
+    if( resolved_npc_id < 0 )
+        return true;
+    npc = CacheProvider_NpctypeGet(provider, resolved_npc_id);
     assert(npc);
     if( !npc->heads || npc->heads_count <= 0 )
         return true;
@@ -3809,17 +3868,24 @@ exec_widget_set_model_kind(
             return CS2VM_EXECNO_OK;
         }
         {
-            int scene_model =
-                UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
+            int resolved_npc_id = request.model_id;
+            int scene_model;
             bool applied = false;
+            (void)rs_cs2_npc_multi_resolve(
+                host, request.model_id, &resolved_npc_id);
+            scene_model = resolved_npc_id < 0
+                              ? -1
+                              : UITreeSceneBridge_EnsureNpcHead(
+                                    host->bridge, resolved_npc_id);
             if( scene_model >= 0 )
                 applied = UITree_ApplyModel(
                     rs_cs2_tree(host), request.component_id, scene_model);
             if( getenv("TORIRS_NPC_HEAD_DEBUG") )
                 fprintf(
                     stderr,
-                    "npc_head: npc=%d component=0x%08x scene=%d applied=%d\n",
+                    "npc_head: npc=%d resolved=%d component=0x%08x scene=%d applied=%d\n",
                     request.model_id,
+                    resolved_npc_id,
                     (unsigned)request.component_id,
                     scene_model,
                     (int)applied);

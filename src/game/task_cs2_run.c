@@ -135,6 +135,8 @@ struct Task_CS2Run
     /* Persistent index for TASK_CS2_YIELD_NPC_HEAD head-model load loop
      * (protothread-safe; mirrors Task_AppIfHead.model_i). */
     int yield_i;
+    int yield_npc_id;
+    int yield_npc_depth;
     int started;
 
     /*
@@ -674,6 +676,8 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->await_id = -1;
     self->await_id2 = -1;
     self->yield_i = 0;
+    self->yield_npc_id = -1;
+    self->yield_npc_depth = 0;
 
     switch( self->pending.kind )
     {
@@ -1181,13 +1185,49 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
         {
-            /* IF1 Task_AppIfHead parity: npctype first, then each chathead model.
-             * Re-fetch the npctype after every await — the pointer may move. */
-            PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            /* IF1 Task_AppIfHead parity: load and resolve the multiNpc shell
+             * first, then load the selected child's chathead models. Every
+             * loop index/id is persistent because each await may resume on a
+             * later frame and provider cache insertions may move pointers. */
+            self->yield_npc_id = self->await_id;
+            for( self->yield_npc_depth = 0;
+                 self->yield_npc_depth <= TORIRS_NPC_MULTI_MAX_DEPTH &&
+                 self->yield_npc_id >= 0;
+                 self->yield_npc_depth++ )
+            {
+                int next;
+                struct ToriRS_Npctype* npc;
+
+                PT_TASK_AWAITSELF_IF(
+                    CreateTask_NpcLoad(self->provider, self->yield_npc_id));
+                npc = CacheProvider_NpctypeGet(
+                    self->provider, self->yield_npc_id);
+                if( !npc || npc->transform_count <= 0 || !npc->transforms )
+                    break;
+                next = self->host->varps
+                           ? VarPManager_ResolveTransform(
+                                 self->host->varps,
+                                 npc->transforms,
+                                 npc->transform_count,
+                                 npc->transform_varbit,
+                                 npc->transform_varp)
+                           : npc->transforms[npc->transform_count - 1];
+                if( next < 0 || next == self->yield_npc_id )
+                {
+                    self->yield_npc_id = next;
+                    break;
+                }
+                if( self->yield_npc_depth == TORIRS_NPC_MULTI_MAX_DEPTH )
+                    break;
+                self->yield_npc_id = next;
+            }
             for( self->yield_i = 0;; self->yield_i++ )
             {
                 struct ToriRS_Npctype* npc =
-                    CacheProvider_NpctypeGet(self->provider, self->await_id);
+                    self->yield_npc_id < 0
+                        ? NULL
+                        : CacheProvider_NpctypeGet(
+                              self->provider, self->yield_npc_id);
                 if( !npc || self->yield_i >= npc->heads_count )
                     break;
                 if( npc->heads[self->yield_i] < 0 )

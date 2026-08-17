@@ -36634,6 +36634,58 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::hunterrun\n");
+    {
+        /*
+         * Hunter's deterministic content contracts include the shared trap
+         * registry, current creature rows, bird houses, impling loot and both
+         * authored tracking graphs. The debugproc restores every trap slot and
+         * temporary pit varbit it touches before reporting its aggregate result.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture hunterrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &hunterrun_capture);
+            mock230_scripts_run_debugproc(srv, "hunterrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&hunterrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&hunterrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &hunterrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "hunterrun OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "hunterrun FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::hunterrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::hunterrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::fishingrun\n");
     {
         /*

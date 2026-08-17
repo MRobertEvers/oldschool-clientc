@@ -3186,19 +3186,9 @@ app_sync_textures_poll(struct App* app)
     }
 }
 
-enum
-{
-    APP_MULTINPC_MAX_DEPTH = 4,
-};
-
-/*
- * A multiNpc cannot be resolved before its wrapper config is resident. The
- * packet path used to try exactly that, get a cache miss, and permanently
- * spawn the model-less wrapper. Keep the config walk and its asset waits in a
- * reusable task so initial adds, server retypes and local-var remorphs all obey
- * the same cold-cache-safe rule.
- */
-struct Task_NpcMultiLoad
+/* Load and resolve only the config chain. Body and interface-head consumers
+ * deliberately share this step, then await their own distinct model sets. */
+struct Task_NpcMultiResolve
 {
     struct ToriRS_Task task;
     struct pt pt;
@@ -3207,26 +3197,24 @@ struct Task_NpcMultiLoad
     int* out_npc_id;
     int current_npc_id;
     int depth;
-    int hidden;
-    int model_i;
-    int seq_i;
 };
 
 static int
-Task_NpcMultiLoad_Run(
+Task_NpcMultiResolve_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IO* io)
 {
-    struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
+    struct Task_NpcMultiResolve* self = (struct Task_NpcMultiResolve*)base;
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
 
     self->current_npc_id = self->base_npc_id;
-    self->hidden = 0;
     *self->out_npc_id = self->base_npc_id;
 
-    for( self->depth = 0; self->depth <= APP_MULTINPC_MAX_DEPTH; self->depth++ )
+    for( self->depth = 0;
+         self->depth <= TORIRS_NPC_MULTI_MAX_DEPTH && self->current_npc_id >= 0;
+         self->depth++ )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->current_npc_id));
         {
@@ -3244,23 +3232,91 @@ Task_NpcMultiLoad_Run(
                 npctype->transform_varp);
             if( next < 0 )
             {
-                self->hidden = 1;
+                self->current_npc_id = -1;
                 break;
             }
-            if( next == self->current_npc_id )
+            if( next == self->current_npc_id ||
+                self->depth == TORIRS_NPC_MULTI_MAX_DEPTH )
                 break;
             self->current_npc_id = next;
         }
     }
 
-    if( !self->hidden )
+    *self->out_npc_id = self->current_npc_id;
+    PT_END(&self->pt);
+}
+
+static void
+Task_NpcMultiResolve_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_NpcMultiResolve_VTable = {
+    .run = Task_NpcMultiResolve_Run,
+    .free = Task_NpcMultiResolve_Free,
+};
+
+static struct ToriRS_Task*
+CreateTask_NpcMultiResolve(
+    struct App* app,
+    int base_npc_id,
+    int* out_npc_id)
+{
+    struct Task_NpcMultiResolve* task;
+
+    assert(app && out_npc_id);
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_NpcMultiResolve_VTable;
+    strncpy(task->task.name, "NpcMultiResolve", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->base_npc_id = base_npc_id;
+    task->out_npc_id = out_npc_id;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/*
+ * A multiNpc cannot be resolved before its wrapper config is resident. The
+ * packet path used to try exactly that, get a cache miss, and permanently
+ * spawn the model-less wrapper. Keep the config walk and its asset waits in a
+ * reusable task so initial adds, server retypes and local-var remorphs all obey
+ * the same cold-cache-safe rule.
+ */
+struct Task_NpcMultiLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int base_npc_id;
+    int* out_npc_id;
+    int resolved_npc_id;
+    int model_i;
+    int seq_i;
+};
+
+static int
+Task_NpcMultiLoad_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+
+    PT_TASK_AWAITSELF_IF(
+        CreateTask_NpcMultiResolve(app, self->base_npc_id, &self->resolved_npc_id));
+
+    if( self->resolved_npc_id >= 0 )
     {
         /* The terminal config was loaded by the walk above. Load its complete
          * body and movement set before the caller mounts/replaces the model. */
         for( self->model_i = 0;; self->model_i++ )
         {
             struct ToriRS_Npctype* npctype =
-                CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
+                CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
             if( !npctype || self->model_i >= npctype->models_count )
                 break;
             PT_TASK_AWAITSELF_IF(
@@ -3270,7 +3326,7 @@ Task_NpcMultiLoad_Run(
         {
             int seq_id = -1;
             struct ToriRS_Npctype* npctype =
-                CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
+                CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
             if( npctype )
             {
                 int seqs[5] = {
@@ -3287,7 +3343,7 @@ Task_NpcMultiLoad_Run(
         }
     }
 
-    *self->out_npc_id = self->hidden ? -1 : self->current_npc_id;
+    *self->out_npc_id = self->resolved_npc_id;
     PT_END(&self->pt);
 }
 
@@ -3330,7 +3386,7 @@ app_npc_transform_depends_on_varp(
 {
     int npc_id = base_npc_id;
 
-    for( int depth = 0; depth <= APP_MULTINPC_MAX_DEPTH && npc_id >= 0; depth++ )
+    for( int depth = 0; depth <= TORIRS_NPC_MULTI_MAX_DEPTH && npc_id >= 0; depth++ )
     {
         struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, npc_id);
         int next;
@@ -11877,6 +11933,7 @@ struct Task_AppIfHead
     enum AppIfHeadKind kind;
     int component_id;
     int npc_id;
+    int resolved_npc_id;
     int model_i;
     int slot_i;
     int head_ids[APP_IFHEAD_MAX_HEADS]; /* player: idk + worn-obj head model ids to load */
@@ -11896,19 +11953,29 @@ Task_AppIfHead_Run(
 
     if( self->kind == APP_IFHEAD_NPC )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
+        /* IF_SETNPCHEAD carries the NPC type the server is talking through.
+         * For a multiNpc that is the model-less shell, just like NPC_INFO.
+         * Resolve it under this client's vars before asking for chathead
+         * models. The resolver also makes every selected config
+         * resident, so a cold child cannot be mistaken for a terminal shell. */
+        PT_TASK_AWAITSELF_IF(
+            CreateTask_NpcMultiResolve(app, self->npc_id, &self->resolved_npc_id));
+        if( self->resolved_npc_id < 0 )
+            PT_EXIT(&self->pt); /* positional -1: intentionally hidden */
         /* Load each head model (re-derived from persistent model_i; -1 slots
          * are skipped — reference NpcType.getHead ignores them). */
         for( self->model_i = 0;; self->model_i++ )
         {
-            struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, self->npc_id);
+            struct ToriRS_Npctype* npc =
+                CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
             if( !npc || self->model_i >= npc->heads_count )
                 break;
             if( npc->heads[self->model_i] < 0 )
                 continue;
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
         }
-        scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->npc_id);
+        scene_id =
+            UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->resolved_npc_id);
     }
     else if( self->kind == APP_IFHEAD_OBJ )
     {
@@ -12469,7 +12536,14 @@ app_if_head_poll(struct App* app)
         }
         else
         {
-            scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, head->npc_id);
+            /* Keep the stored id as the shell, matching IfType.model1Id, but
+             * resolve it every time the binding is retried. The selected child
+             * owns the actual heads/recolours and is the bridge cache key. */
+            int resolved_npc_id = App_NpctypeResolveMultiId(app, head->npc_id);
+            scene_id = resolved_npc_id < 0
+                           ? -1
+                           : UITreeSceneBridge_EnsureNpcHead(
+                                 &app->bridge, resolved_npc_id);
         }
         if( scene_id < 0 )
             continue; /* assets not composited yet — retry next frame */
@@ -17827,7 +17901,7 @@ App_NpctypeResolveMultiId(
 {
     assert(app);
 
-    for( int guard = 0; guard < 4 && npc_id >= 0; guard++ )
+    for( int guard = 0; guard < TORIRS_NPC_MULTI_MAX_DEPTH && npc_id >= 0; guard++ )
     {
         struct ToriRS_Npctype* npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
         int resolved;

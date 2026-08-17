@@ -8,9 +8,11 @@
 #include "app.h"
 #include "asyncio.h"
 #include "engine/cache_provider.h"
+#include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
 #include "test_harness.h"
+#include "toridraw_scene.h"
 #include "world.h"
 
 #include <stdio.h>
@@ -18,6 +20,52 @@
 #include <string.h>
 
 int g_failures;
+
+struct HeadLoadTrace
+{
+    int npc_ids[8];
+    int npc_count;
+    int model_ids[8];
+    int model_count;
+};
+
+static struct HeadLoadTrace g_head_load_trace;
+
+static struct ToriRS_Task*
+trace_npc_load(
+    struct CacheProvider* provider,
+    int npc_id)
+{
+    (void)provider;
+    if( g_head_load_trace.npc_count < (int)(sizeof(g_head_load_trace.npc_ids) /
+                                             sizeof(g_head_load_trace.npc_ids[0])) )
+        g_head_load_trace.npc_ids[g_head_load_trace.npc_count++] = npc_id;
+    return NULL;
+}
+
+static struct ToriRS_Task*
+trace_model_load(
+    struct CacheProvider* provider,
+    int model_id)
+{
+    (void)provider;
+    if( g_head_load_trace.model_count < (int)(sizeof(g_head_load_trace.model_ids) /
+                                               sizeof(g_head_load_trace.model_ids[0])) )
+        g_head_load_trace.model_ids[g_head_load_trace.model_count++] = model_id;
+    return NULL;
+}
+
+static int
+trace_has_id(
+    int const* ids,
+    int count,
+    int wanted)
+{
+    for( int i = 0; i < count; i++ )
+        if( ids[i] == wanted )
+            return 1;
+    return 0;
+}
 
 static void
 run_task_to_done(struct ToriRS_Task* task)
@@ -359,6 +407,80 @@ test_multinpc_resolution_is_per_player(void)
     CacheProvider_FreeEngineCaches(&provider);
 }
 
+/* IF_SETNPCHEAD names the actor's server type. For a multiNpc actor that is
+ * the shell, which intentionally has no heads of its own; the selected child
+ * owns the chathead model. This test stops at the provider request seam — a
+ * missing fake model makes composition return -1, but the requested id proves
+ * the async loader walked through the shell instead of accepting empty heads. */
+static void
+test_multinpc_interface_head_loads_selected_child(void)
+{
+    printf("TEST: multiNpc interface head loads selected child\n");
+
+    struct App app;
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct VarPType varp_type = { 0 };
+    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
+    struct ToriRS_Npctype* child = calloc(1, sizeof(*child));
+    struct ToriRS_IO* io;
+
+    memset(&app, 0, sizeof(app));
+    memset(&provider, 0, sizeof(provider));
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));
+    vtable.Task_NpcLoad = trace_npc_load;
+    vtable.Task_ModelLoad = trace_model_load;
+    provider.vtable = &vtable;
+    CacheProvider_InitEngineCaches(&provider);
+
+    VarPManager_Init(&app.varps);
+    TEST_ASSERT(
+        VarPManager_SetVarpTypes(&app.varps, &varp_type, 1),
+        "chathead fixture varps initialized");
+    app.provider = &provider;
+    app.exec_runner.queue = ToriRS_TaskQueue_New();
+    io = ToriRS_IO_New();
+    app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
+    UITreeSceneBridge_Init(&app.bridge, app.scene, &provider);
+
+    shell->transform_varbit = -1;
+    shell->transform_varp = 0;
+    shell->transform_count = 2;
+    shell->transforms = malloc(2 * sizeof(*shell->transforms));
+    shell->transforms[0] = 101;
+    shell->transforms[1] = 101;
+    child->transform_varbit = -1;
+    child->transform_varp = -1;
+    child->heads_count = 1;
+    child->heads = malloc(sizeof(*child->heads));
+    child->heads[0] = 777;
+    CacheProvider_NpctypeAdd(&provider, 100, shell);
+    CacheProvider_NpctypeAdd(&provider, 101, child);
+
+    App_SetInterfaceNpcHead(&app, 0x12340056, 100);
+    TEST_ASSERT(
+        ToriRS_TaskQueue_Run(app.exec_runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
+        "multiNpc chathead load task completes");
+    TEST_ASSERT(
+        trace_has_id(
+            g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 100) &&
+            trace_has_id(g_head_load_trace.npc_ids, g_head_load_trace.npc_count, 101),
+        "chathead loader requests both the shell and selected child configs");
+    TEST_ASSERT(
+        g_head_load_trace.model_count == 1 && g_head_load_trace.model_ids[0] == 777,
+        "chathead loader requests the selected child's head model");
+
+    free(app.if_heads);
+    UITreeSceneBridge_Free(&app.bridge);
+    ToriDraw_SceneFree(app.scene);
+    ToriRS_IO_Free(io);
+    ToriRS_TaskQueue_Free(app.exec_runner.queue);
+    VarPManager_Free(&app.varps);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 int
 main(void)
 {
@@ -368,6 +490,7 @@ main(void)
     test_player_info_count_zero_despawns_others();
     test_player_info_unresolvable_entry_keeps_list_positions();
     test_multinpc_resolution_is_per_player();
+    test_multinpc_interface_head_loads_selected_child();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

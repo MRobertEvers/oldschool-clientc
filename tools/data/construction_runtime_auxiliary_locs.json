@@ -12,6 +12,11 @@
         "page": "Menagerie",
         "url": "https://oldschool.runescape.wiki/w/Menagerie",
         "rule": "A pet arena includes its mat, and an outdoor habitat includes the matching terrain feature in addition to its ground tiles."
+      },
+      {
+        "page": "Superior garden",
+        "url": "https://oldschool.runescape.wiki/w/Superior_garden",
+        "rule": "Themes, fences, and paired seating are single furniture transactions with multiple distinct cache scenery locs."
       }
     ]
   },
@@ -32,6 +37,12 @@
     "poh_menagerie_habitat_2": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_2"]],
     "poh_menagerie_habitat_3": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_3"]],
     "poh_menagerie_habitat_4": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_4"]],
-    "poh_menagerie_habitat_5": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_5"]]
+    "poh_menagerie_habitat_5": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_5"]],
+    "poh_superior_garden_theme_zen": [["poh_superior_garden_hotspot_theme_outercorner", "poh_theme_zen_outer_corner"], ["poh_superior_garden_hotspot_theme_innercorner", "poh_theme_zen_inner_corner"], ["poh_superior_garden_hotspot_theme_edge", "poh_theme_zen_edge"], ["poh_superior_garden_hotspot_theme_path_1", "poh_theme_zen_path"], ["poh_superior_garden_hotspot_theme_path_2", "poh_theme_zen_path"], ["poh_superior_garden_hotspot_theme_path_3", "poh_theme_zen_path"], ["poh_superior_garden_hotspot_theme_pathcorner", "poh_theme_zen_path_corner"]],
+    "poh_superior_garden_theme_zanaris": [["poh_superior_garden_hotspot_theme_outercorner", "poh_theme_zanaris_outer_corner"], ["poh_superior_garden_hotspot_theme_innercorner", "poh_theme_zanaris_inner_corner"], ["poh_superior_garden_hotspot_theme_edge", "poh_theme_zanaris_edge"], ["poh_superior_garden_hotspot_theme_path_1", "poh_theme_zanaris_path"], ["poh_superior_garden_hotspot_theme_path_2", "poh_theme_zanaris_path"], ["poh_superior_garden_hotspot_theme_path_3", "poh_theme_zanaris_path"], ["poh_superior_garden_hotspot_theme_pathcorner", "poh_theme_zanaris_path_corner"]],
+    "poh_superior_garden_theme_tzhaar": [["poh_superior_garden_hotspot_theme_outercorner", "poh_theme_tzhaar_outer_corner"], ["poh_superior_garden_hotspot_theme_innercorner", "poh_theme_tzhaar_inner_corner"], ["poh_superior_garden_hotspot_theme_edge", "poh_theme_tzhaar_edge"], ["poh_superior_garden_hotspot_theme_path_1", "poh_theme_tzhaar_path_1"], ["poh_superior_garden_hotspot_theme_path_2", "poh_theme_tzhaar_path_2"], ["poh_superior_garden_hotspot_theme_path_3", "poh_theme_tzhaar_path_3"], ["poh_superior_garden_hotspot_theme_pathcorner", "poh_theme_tzhaar_path_4"]],
+    "poh_fencing7": [["poh_superior_garden_hotspot_fence_post", "poh_fencing7"], ["poh_superior_garden_hotspot_fence_post_m", "poh_fencing7"]],
+    "poh_superior_garden_redwood_fence": [["poh_superior_garden_hotspot_fence_post", "poh_redwood_fence_post"], ["poh_superior_garden_hotspot_fence_post_m", "poh_redwood_fence_post_m"]],
+    "poh_superior_garden_obsidian_fence": [["poh_superior_garden_hotspot_fence_post", "poh_obsidian_fence_post"], ["poh_superior_garden_hotspot_fence_post_m", "poh_obsidian_fence_post_m"]]
   }
 }
