@@ -52,8 +52,9 @@ decor_buildmap_get_wall_offset(
     int z,
     int level)
 {
-    /* Build-only (freed at build end): a runtime loc spawn has none. No prior
-     * wall offset was recorded, so report 0 (no displacement). */
+    /* Build-only (freed at build end). A runtime loc spawn has no build map at
+     * all; that case is answered by the caller (world_scenery.u.c's
+     * scenery_decor_* shims), so reaching here without one is a bug. */
     assert(build_map);
     int index = buildmap_idx(build_map, x, z, level);
     return build_map->offsets[index];

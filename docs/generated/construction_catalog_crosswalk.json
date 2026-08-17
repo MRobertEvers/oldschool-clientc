@@ -9,6 +9,10 @@
         }
       ],
       "experience": 58,
+      "flatpack": {
+        "id": 8496,
+        "symbol": "poh_flatpack_armchair1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -59,6 +63,10 @@
         }
       ],
       "experience": 87,
+      "flatpack": {
+        "id": 8498,
+        "symbol": "poh_flatpack_armchair2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -109,6 +117,10 @@
         }
       ],
       "experience": 87,
+      "flatpack": {
+        "id": 8500,
+        "symbol": "poh_flatpack_armchair3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -159,6 +171,10 @@
         }
       ],
       "experience": 120,
+      "flatpack": {
+        "id": 8502,
+        "symbol": "poh_flatpack_armchair4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -204,6 +220,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 8504,
+        "symbol": "poh_flatpack_armchair5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -249,6 +269,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 8506,
+        "symbol": "poh_flatpack_armchair6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -294,6 +318,10 @@
         }
       ],
       "experience": 280,
+      "flatpack": {
+        "id": 8508,
+        "symbol": "poh_flatpack_armchair7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armchair_hotspot"
@@ -347,6 +375,7 @@
         }
       ],
       "experience": 30,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "rug_hotspot"
@@ -400,6 +429,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "rug_hotspot",
@@ -454,6 +484,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "rug_hotspot",
@@ -513,6 +544,7 @@
         }
       ],
       "experience": 283,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "rug_hotspot",
@@ -578,6 +610,7 @@
         }
       ],
       "experience": 82,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_rug_hotspot",
@@ -630,6 +663,10 @@
         }
       ],
       "experience": 115,
+      "flatpack": {
+        "id": 8510,
+        "symbol": "poh_flatpack_bookcase1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bookcase_hotspot"
@@ -680,6 +717,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 8512,
+        "symbol": "poh_flatpack_bookcase2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bookcase_hotspot"
@@ -725,6 +766,10 @@
         }
       ],
       "experience": 420,
+      "flatpack": {
+        "id": 8514,
+        "symbol": "poh_flatpack_bookcase3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bookcase_hotspot"
@@ -770,6 +815,7 @@
         }
       ],
       "experience": 30,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fireplace_hotspot"
@@ -827,6 +873,7 @@
         }
       ],
       "experience": 40,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fireplace_hotspot"
@@ -884,6 +931,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fireplace_hotspot"
@@ -937,6 +985,7 @@
         }
       ],
       "experience": 132,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "curtains_hotspot"
@@ -1000,6 +1049,7 @@
         }
       ],
       "experience": 225,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "curtains_hotspot"
@@ -1058,6 +1108,7 @@
         }
       ],
       "experience": 315,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "curtains_hotspot"
@@ -1108,6 +1159,7 @@
         }
       ],
       "experience": 487,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "curtains_hotspot"
@@ -1169,6 +1221,7 @@
         }
       ],
       "experience": 40,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1223,6 +1276,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1277,6 +1331,7 @@
         }
       ],
       "experience": 80,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1335,6 +1390,7 @@
         }
       ],
       "experience": 80,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1388,6 +1444,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1441,6 +1498,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1494,6 +1552,7 @@
         }
       ],
       "experience": 160,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stove_hotspot"
@@ -1543,6 +1602,7 @@
         }
       ],
       "experience": 87,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1597,6 +1657,7 @@
         }
       ],
       "experience": 147,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1656,6 +1717,7 @@
         }
       ],
       "experience": 147,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1715,6 +1777,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1769,6 +1832,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1823,6 +1887,7 @@
         }
       ],
       "experience": 330,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1877,6 +1942,7 @@
         }
       ],
       "experience": 930,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_shelf_hotspot"
@@ -1932,6 +1998,10 @@
         }
       ],
       "experience": 87,
+      "flatpack": {
+        "id": 8516,
+        "symbol": "poh_flatpack_beerbarrel1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -1986,6 +2056,10 @@
         }
       ],
       "experience": 91,
+      "flatpack": {
+        "id": 8518,
+        "symbol": "poh_flatpack_beerbarrel2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -2045,6 +2119,10 @@
         }
       ],
       "experience": 184,
+      "flatpack": {
+        "id": 8520,
+        "symbol": "poh_flatpack_beerbarrel3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -2099,6 +2177,10 @@
         }
       ],
       "experience": 184,
+      "flatpack": {
+        "id": 8522,
+        "symbol": "poh_flatpack_beerbarrel4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -2153,6 +2235,10 @@
         }
       ],
       "experience": 224,
+      "flatpack": {
+        "id": 8524,
+        "symbol": "poh_flatpack_beerbarrel5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -2212,6 +2298,10 @@
         }
       ],
       "experience": 224,
+      "flatpack": {
+        "id": 8526,
+        "symbol": "poh_flatpack_beerbarrel6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "barrel_hotspot"
@@ -2271,6 +2361,7 @@
         }
       ],
       "experience": 15,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cat_basket_hotspot"
@@ -2316,6 +2407,7 @@
         }
       ],
       "experience": 58,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cat_basket_hotspot"
@@ -2366,6 +2458,7 @@
         }
       ],
       "experience": 58,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cat_basket_hotspot"
@@ -2421,6 +2514,7 @@
         }
       ],
       "experience": 228,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "larder_hotspot"
@@ -2471,6 +2565,7 @@
         }
       ],
       "experience": 480,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "larder_hotspot"
@@ -2516,6 +2611,7 @@
         }
       ],
       "experience": 750,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "larder_hotspot"
@@ -2570,6 +2666,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sink_hotspot"
@@ -2619,6 +2716,7 @@
         }
       ],
       "experience": 200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sink_hotspot"
@@ -2668,6 +2766,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sink_hotspot"
@@ -2717,6 +2816,7 @@
         }
       ],
       "experience": 11144,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sink_hotspot"
@@ -2772,6 +2872,10 @@
         }
       ],
       "experience": 87,
+      "flatpack": {
+        "id": 8528,
+        "symbol": "poh_flatpack_kitchentable1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_table_hotspot"
@@ -2822,6 +2926,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 8530,
+        "symbol": "poh_flatpack_kitchentable2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_table_hotspot"
@@ -2867,6 +2975,10 @@
         }
       ],
       "experience": 270,
+      "flatpack": {
+        "id": 8532,
+        "symbol": "poh_flatpack_kitchentable3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "kitchen_table_hotspot"
@@ -2912,6 +3024,7 @@
         }
       ],
       "experience": 374,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "spice_rack_hotspot"
@@ -2988,6 +3101,10 @@
         }
       ],
       "experience": 115,
+      "flatpack": {
+        "id": 8548,
+        "symbol": "poh_flatpack_diningtable1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3038,6 +3155,10 @@
         }
       ],
       "experience": 240,
+      "flatpack": {
+        "id": 8550,
+        "symbol": "poh_flatpack_diningtable2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3083,6 +3204,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 8552,
+        "symbol": "poh_flatpack_diningtable3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3128,6 +3253,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 8554,
+        "symbol": "poh_flatpack_diningtable4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3173,6 +3302,10 @@
         }
       ],
       "experience": 600,
+      "flatpack": {
+        "id": 8556,
+        "symbol": "poh_flatpack_diningtable5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3223,6 +3356,10 @@
         }
       ],
       "experience": 840,
+      "flatpack": {
+        "id": 8558,
+        "symbol": "poh_flatpack_diningtable6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3268,6 +3405,10 @@
         }
       ],
       "experience": 3100,
+      "flatpack": {
+        "id": 8560,
+        "symbol": "poh_flatpack_diningtable7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_table_hotspot"
@@ -3328,6 +3469,10 @@
         }
       ],
       "experience": 115,
+      "flatpack": {
+        "id": 8562,
+        "symbol": "poh_flatpack_diningchair1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot"
@@ -3378,6 +3523,10 @@
         }
       ],
       "experience": 240,
+      "flatpack": {
+        "id": 8564,
+        "symbol": "poh_flatpack_diningchair2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot"
@@ -3423,6 +3572,10 @@
         }
       ],
       "experience": 240,
+      "flatpack": {
+        "id": 8566,
+        "symbol": "poh_flatpack_diningchair3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot"
@@ -3476,6 +3629,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 8568,
+        "symbol": "poh_flatpack_diningchair4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot"
@@ -3529,6 +3686,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 8570,
+        "symbol": "poh_flatpack_diningchair5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot",
@@ -3579,6 +3740,10 @@
         }
       ],
       "experience": 560,
+      "flatpack": {
+        "id": 8572,
+        "symbol": "poh_flatpack_diningchair6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot",
@@ -3629,6 +3794,10 @@
         }
       ],
       "experience": 1760,
+      "flatpack": {
+        "id": 8574,
+        "symbol": "poh_flatpack_diningchair7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dining_chairs_hotspot",
@@ -3740,6 +3909,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -3846,6 +4016,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -3952,6 +4123,7 @@
         }
       ],
       "experience": 1020,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -4003,6 +4175,7 @@
         }
       ],
       "experience": 64,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bellpull_hotspot"
@@ -4053,6 +4226,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bellpull_hotspot"
@@ -4103,6 +4277,7 @@
         }
       ],
       "experience": 420,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bellpull_hotspot"
@@ -4158,6 +4333,10 @@
         }
       ],
       "experience": 117,
+      "flatpack": {
+        "id": 8576,
+        "symbol": "poh_flatpack_bed1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4213,6 +4392,10 @@
         }
       ],
       "experience": 210,
+      "flatpack": {
+        "id": 8578,
+        "symbol": "poh_flatpack_bed2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4263,6 +4446,10 @@
         }
       ],
       "experience": 330,
+      "flatpack": {
+        "id": 8580,
+        "symbol": "poh_flatpack_bed3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4313,6 +4500,10 @@
         }
       ],
       "experience": 300,
+      "flatpack": {
+        "id": 8582,
+        "symbol": "poh_flatpack_bed4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4363,6 +4554,10 @@
         }
       ],
       "experience": 480,
+      "flatpack": {
+        "id": 8584,
+        "symbol": "poh_flatpack_bed5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4413,6 +4608,10 @@
         }
       ],
       "experience": 450,
+      "flatpack": {
+        "id": 8586,
+        "symbol": "poh_flatpack_bed6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4463,6 +4662,10 @@
         }
       ],
       "experience": 1330,
+      "flatpack": {
+        "id": 8588,
+        "symbol": "poh_flatpack_bed7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bed_hotspot"
@@ -4518,6 +4721,10 @@
         }
       ],
       "experience": 58,
+      "flatpack": {
+        "id": 8610,
+        "symbol": "poh_flatpack_wardrobe1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4568,6 +4775,10 @@
         }
       ],
       "experience": 120,
+      "flatpack": {
+        "id": 8612,
+        "symbol": "poh_flatpack_wardrobe2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4617,6 +4828,10 @@
         }
       ],
       "experience": 240,
+      "flatpack": {
+        "id": 8614,
+        "symbol": "poh_flatpack_wardrobe3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4662,6 +4877,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 8616,
+        "symbol": "poh_flatpack_wardrobe4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4711,6 +4930,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 8618,
+        "symbol": "poh_flatpack_wardrobe5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4756,6 +4979,10 @@
         }
       ],
       "experience": 420,
+      "flatpack": {
+        "id": 8620,
+        "symbol": "poh_flatpack_wardrobe6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4805,6 +5032,10 @@
         }
       ],
       "experience": 860,
+      "flatpack": {
+        "id": 8622,
+        "symbol": "poh_flatpack_wardrobe7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wardrobe_hotspot"
@@ -4855,6 +5086,10 @@
         }
       ],
       "experience": 30,
+      "flatpack": {
+        "id": 8596,
+        "symbol": "poh_flatpack_dresser1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -4910,6 +5145,10 @@
         }
       ],
       "experience": 61,
+      "flatpack": {
+        "id": 8598,
+        "symbol": "poh_flatpack_dresser2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -4960,6 +5199,10 @@
         }
       ],
       "experience": 121,
+      "flatpack": {
+        "id": 8600,
+        "symbol": "poh_flatpack_dresser3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -5010,6 +5253,10 @@
         }
       ],
       "experience": 181,
+      "flatpack": {
+        "id": 8602,
+        "symbol": "poh_flatpack_dresser4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -5060,6 +5307,10 @@
         }
       ],
       "experience": 182,
+      "flatpack": {
+        "id": 8604,
+        "symbol": "poh_flatpack_dresser5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -5110,6 +5361,10 @@
         }
       ],
       "experience": 281,
+      "flatpack": {
+        "id": 8606,
+        "symbol": "poh_flatpack_dresser6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -5160,6 +5415,10 @@
         }
       ],
       "experience": 582,
+      "flatpack": {
+        "id": 8608,
+        "symbol": "poh_flatpack_dresser7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "mirror_hotspot"
@@ -5215,6 +5474,10 @@
         }
       ],
       "experience": 142,
+      "flatpack": {
+        "id": 8590,
+        "symbol": "poh_flatpack_clock1"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "clock_hotspot"
@@ -5265,6 +5528,10 @@
         }
       ],
       "experience": 202,
+      "flatpack": {
+        "id": 8592,
+        "symbol": "poh_flatpack_clock2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "clock_hotspot"
@@ -5315,6 +5582,10 @@
         }
       ],
       "experience": 602,
+      "flatpack": {
+        "id": 8594,
+        "symbol": "poh_flatpack_clock3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "clock_hotspot"
@@ -5370,6 +5641,7 @@
         }
       ],
       "experience": 595,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "clock_hotspot"
@@ -5437,6 +5709,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "party_game_hotspot"
@@ -5486,6 +5759,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "party_game_hotspot"
@@ -5536,6 +5810,7 @@
         }
       ],
       "experience": 1200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "party_game_hotspot"
@@ -5590,6 +5865,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "prize_chest_hotspot"
@@ -5639,6 +5915,7 @@
         }
       ],
       "experience": 660,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "prize_chest_hotspot"
@@ -5693,6 +5970,7 @@
         }
       ],
       "experience": 860,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "prize_chest_hotspot"
@@ -5749,6 +6027,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "attack_stone_hotspot"
@@ -5794,6 +6073,7 @@
         }
       ],
       "experience": 200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "attack_stone_hotspot"
@@ -5839,6 +6119,7 @@
         }
       ],
       "experience": 2000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "attack_stone_hotspot"
@@ -5884,6 +6165,7 @@
         }
       ],
       "experience": 176,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elemental_balance_hotspot"
@@ -5944,6 +6226,7 @@
         }
       ],
       "experience": 252,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elemental_balance_hotspot"
@@ -6004,6 +6287,7 @@
         }
       ],
       "experience": 356,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elemental_balance_hotspot"
@@ -6068,6 +6352,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "ranging_game_hotspot"
@@ -6113,6 +6398,7 @@
         }
       ],
       "experience": 290,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "ranging_game_hotspot"
@@ -6167,6 +6453,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "ranging_game_hotspot"
@@ -6229,6 +6516,7 @@
         }
       ],
       "experience": 420,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_ring_hotspot"
@@ -6291,6 +6579,7 @@
         }
       ],
       "experience": 570,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_ring_hotspot"
@@ -6353,6 +6642,7 @@
         }
       ],
       "experience": 630,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_ring_hotspot"
@@ -6403,6 +6693,7 @@
         }
       ],
       "experience": 720,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_ring_hotspot"
@@ -6456,6 +6747,7 @@
         }
       ],
       "experience": 1000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_ring_hotspot"
@@ -6506,6 +6798,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "weapon_rack_hotspot"
@@ -6557,6 +6850,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "weapon_rack_hotspot"
@@ -6602,6 +6896,7 @@
         }
       ],
       "experience": 440,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "weapon_rack_hotspot"
@@ -6652,6 +6947,7 @@
         }
       ],
       "experience": 660,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_dummy_hotspot"
@@ -6709,6 +7005,7 @@
         }
       ],
       "experience": 220,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_dummy_hotspot"
@@ -6761,6 +7058,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "combat_dummy_hotspot"
@@ -6818,6 +7116,7 @@
         }
       ],
       "experience": 680,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stair_hotspot"
@@ -6872,6 +7171,7 @@
         }
       ],
       "experience": 680,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5645,
@@ -6924,6 +7224,7 @@
         }
       ],
       "experience": 680,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5646,
@@ -6976,6 +7277,7 @@
         }
       ],
       "experience": 980,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stair_hotspot"
@@ -7036,6 +7338,7 @@
         }
       ],
       "experience": 980,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5648,
@@ -7094,6 +7397,7 @@
         }
       ],
       "experience": 980,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5649,
@@ -7148,6 +7452,7 @@
         }
       ],
       "experience": 1040,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stair_hotspot"
@@ -7202,6 +7507,7 @@
         }
       ],
       "experience": 3200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stair_hotspot"
@@ -7256,6 +7562,7 @@
         }
       ],
       "experience": 3200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5652,
@@ -7308,6 +7615,7 @@
         }
       ],
       "experience": 3200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 5653,
@@ -7356,6 +7664,7 @@
         }
       ],
       "experience": 4400,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "stair_hotspot"
@@ -7406,6 +7715,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7457,6 +7767,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7508,6 +7819,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5657,
@@ -7559,6 +7871,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7615,6 +7928,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5659,
@@ -7666,6 +7980,7 @@
         }
       ],
       "experience": 211,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7722,6 +8037,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7775,6 +8091,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7828,6 +8145,7 @@
         }
       ],
       "experience": 224,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7884,6 +8202,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7937,6 +8256,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -7990,6 +8310,7 @@
         }
       ],
       "experience": 243,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8046,6 +8367,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8099,6 +8421,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8152,6 +8475,7 @@
         }
       ],
       "experience": 357,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8208,6 +8532,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8261,6 +8586,7 @@
         }
       ],
       "experience": 389,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8317,6 +8643,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8370,6 +8697,7 @@
         }
       ],
       "experience": 1103,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8431,6 +8759,7 @@
         }
       ],
       "experience": 1103,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8492,6 +8821,7 @@
         }
       ],
       "experience": 1103,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8553,6 +8883,7 @@
         }
       ],
       "experience": 1103,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "monster_trophy_hotspot"
@@ -8614,6 +8945,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -8665,6 +8997,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -8716,6 +9049,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5679,
@@ -8767,6 +9101,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -8818,6 +9153,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5681,
@@ -8869,6 +9205,7 @@
         }
       ],
       "experience": 151,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -8925,6 +9262,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -8978,6 +9316,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9031,6 +9370,7 @@
         }
       ],
       "experience": 230,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9087,6 +9427,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9140,6 +9481,7 @@
         }
       ],
       "experience": 350,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9196,6 +9538,7 @@
         }
       ],
       "experience": 239,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9257,6 +9600,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -9310,6 +9654,7 @@
         }
       ],
       "experience": 135,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_trophy_hotspot"
@@ -9374,6 +9719,7 @@
         }
       ],
       "experience": 150,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_trophy_hotspot"
@@ -9438,6 +9784,7 @@
         }
       ],
       "experience": 165,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_trophy_hotspot"
@@ -9502,6 +9849,7 @@
         }
       ],
       "experience": 135,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "castlewars_trophy_hotspot"
@@ -9562,6 +9910,7 @@
         }
       ],
       "experience": 135,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "castlewars_trophy_hotspot"
@@ -9622,6 +9971,7 @@
         }
       ],
       "experience": 135,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "castlewars_trophy_hotspot"
@@ -9682,6 +10032,7 @@
         }
       ],
       "experience": 190,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "runecrafting_trophy_hotspot"
@@ -9756,6 +10107,7 @@
         }
       ],
       "experience": 212,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "runecrafting_trophy_hotspot"
@@ -9830,6 +10182,7 @@
         }
       ],
       "experience": 247,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "runecrafting_trophy_hotspot"
@@ -9904,6 +10257,7 @@
         }
       ],
       "experience": 211,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portrait_hotspot"
@@ -9954,6 +10308,7 @@
         }
       ],
       "experience": 211,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portrait_hotspot"
@@ -10004,6 +10359,7 @@
         }
       ],
       "experience": 211,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portrait_hotspot"
@@ -10054,6 +10410,7 @@
         }
       ],
       "experience": 311,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portrait_hotspot"
@@ -10104,6 +10461,7 @@
         }
       ],
       "experience": 314,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "landscape_hotspot"
@@ -10154,6 +10512,7 @@
         }
       ],
       "experience": 314,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "landscape_hotspot"
@@ -10204,6 +10563,7 @@
         }
       ],
       "experience": 314,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "landscape_hotspot"
@@ -10254,6 +10614,7 @@
         }
       ],
       "experience": 464,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "landscape_hotspot"
@@ -10304,6 +10665,7 @@
         }
       ],
       "experience": 464,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "landscape_hotspot"
@@ -10354,6 +10716,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "quest_trophy_hotspot"
@@ -10404,6 +10767,7 @@
         }
       ],
       "experience": 290,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "quest_trophy_hotspot"
@@ -10454,6 +10818,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "quest_trophy_hotspot"
@@ -10504,6 +10869,7 @@
         }
       ],
       "experience": 370,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "quest_trophy_hotspot"
@@ -10554,6 +10920,7 @@
         }
       ],
       "experience": 187,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sword_trophy_hotspot"
@@ -10604,6 +10971,7 @@
         }
       ],
       "experience": 194,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sword_trophy_hotspot"
@@ -10654,6 +11022,7 @@
         }
       ],
       "experience": 202,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "sword_trophy_hotspot"
@@ -10704,6 +11073,7 @@
         }
       ],
       "experience": 211,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "map_trophy_hotspot"
@@ -10754,6 +11124,7 @@
         }
       ],
       "experience": 451,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "map_trophy_hotspot"
@@ -10804,6 +11175,7 @@
         }
       ],
       "experience": 591,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "map_trophy_hotspot"
@@ -10854,6 +11226,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -10899,6 +11272,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -10944,6 +11318,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -10989,6 +11364,7 @@
         }
       ],
       "experience": 960,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -11039,6 +11415,7 @@
         }
       ],
       "experience": 960,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -11089,6 +11466,7 @@
         }
       ],
       "experience": 960,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -11139,6 +11517,7 @@
         }
       ],
       "experience": 1160,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -11189,6 +11568,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -11257,6 +11637,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11314,6 +11695,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11371,6 +11753,7 @@
         }
       ],
       "experience": 390,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11433,6 +11816,7 @@
         }
       ],
       "experience": 590,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11495,6 +11879,7 @@
         }
       ],
       "experience": 910,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11562,6 +11947,7 @@
         }
       ],
       "experience": 1030,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11624,6 +12010,7 @@
         }
       ],
       "experience": 2230,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "altar_hotspot"
@@ -11683,6 +12070,7 @@
         }
       ],
       "experience": 80,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -11732,6 +12120,7 @@
         }
       ],
       "experience": 58,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -11786,6 +12175,7 @@
         }
       ],
       "experience": 124,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -11840,6 +12230,7 @@
         }
       ],
       "experience": 46,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -11894,6 +12285,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -11948,6 +12340,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -12010,6 +12403,7 @@
         }
       ],
       "experience": 1600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "incense_burner_hotspot"
@@ -12088,6 +12482,7 @@
         }
       ],
       "experience": 244,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_window_hotspot"
@@ -12422,6 +12817,7 @@
         }
       ],
       "experience": 4,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_window_hotspot"
@@ -12751,6 +13147,7 @@
         }
       ],
       "experience": 5,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_window_hotspot"
@@ -12812,6 +13209,7 @@
         }
       ],
       "experience": 40,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "statue_hotspot"
@@ -12873,6 +13271,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "statue_hotspot"
@@ -12934,6 +13333,7 @@
         }
       ],
       "experience": 1500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "statue_hotspot"
@@ -12979,6 +13379,7 @@
         }
       ],
       "experience": 323,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_instrument_hotspot"
@@ -13034,6 +13435,7 @@
         }
       ],
       "experience": 480,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_instrument_hotspot"
@@ -13084,6 +13486,7 @@
         }
       ],
       "experience": 680,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "chapel_instrument_hotspot"
@@ -13139,6 +13542,7 @@
         }
       ],
       "experience": 143,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "workbench_hotspot"
@@ -13194,6 +13598,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "workbench_hotspot"
@@ -13244,6 +13649,7 @@
         }
       ],
       "experience": 440,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "workbench_hotspot"
@@ -13299,6 +13705,7 @@
         }
       ],
       "experience": 140,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "workbench_hotspot"
@@ -13356,6 +13763,7 @@
         }
       ],
       "experience": 140,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "workbench_hotspot"
@@ -13413,6 +13821,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crafting_table_hotspot"
@@ -13465,6 +13874,7 @@
         }
       ],
       "experience": 1,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crafting_table_hotspot"
@@ -13517,6 +13927,7 @@
         }
       ],
       "experience": 2,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crafting_table_hotspot"
@@ -13569,6 +13980,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crafting_table_hotspot"
@@ -13616,6 +14028,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tool_store_hotspot"
@@ -13663,6 +14076,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tool_store_hotspot"
@@ -13710,6 +14124,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tool_store_hotspot"
@@ -13757,6 +14172,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tool_store_hotspot"
@@ -13804,6 +14220,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tool_store_hotspot"
@@ -13851,6 +14268,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "repair_bench_hotspot"
@@ -13896,6 +14314,7 @@
         }
       ],
       "experience": 260,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "repair_bench_hotspot"
@@ -13946,6 +14365,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "repair_bench_hotspot"
@@ -13996,6 +14416,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "heraldry_bench_hotspot"
@@ -14041,6 +14462,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "heraldry_bench_hotspot"
@@ -14086,6 +14508,7 @@
         }
       ],
       "experience": 510,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "heraldry_bench_hotspot"
@@ -14136,6 +14559,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14181,6 +14605,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14226,6 +14651,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14271,6 +14697,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14316,6 +14743,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14361,6 +14789,7 @@
         }
       ],
       "experience": 580,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14411,6 +14840,7 @@
         }
       ],
       "experience": 580,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14461,6 +14891,7 @@
         }
       ],
       "experience": 1800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lectern_hotspot"
@@ -14516,6 +14947,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14561,6 +14993,7 @@
         }
       ],
       "experience": 270,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14606,6 +15039,7 @@
         }
       ],
       "experience": 570,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14656,6 +15090,7 @@
         }
       ],
       "experience": 570,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14706,6 +15141,7 @@
         }
       ],
       "experience": 960,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14761,6 +15197,7 @@
         }
       ],
       "experience": 1320,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14811,6 +15248,7 @@
         }
       ],
       "experience": 1420,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "globe_hotspot"
@@ -14861,6 +15299,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crystalball_hotspot"
@@ -14911,6 +15350,7 @@
         }
       ],
       "experience": 580,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crystalball_hotspot"
@@ -14966,6 +15406,7 @@
         }
       ],
       "experience": 890,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "crystalball_hotspot"
@@ -15021,6 +15462,7 @@
         }
       ],
       "experience": 30,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wallchart_hotspot"
@@ -15066,6 +15508,7 @@
         }
       ],
       "experience": 45,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wallchart_hotspot"
@@ -15111,6 +15554,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wallchart_hotspot"
@@ -15156,6 +15600,7 @@
         }
       ],
       "experience": 16,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "wallchart_hotspot"
@@ -15212,6 +15657,7 @@
         }
       ],
       "experience": 121,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "telescope_hotspot"
@@ -15262,6 +15708,7 @@
         }
       ],
       "experience": 181,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "telescope_hotspot"
@@ -15312,6 +15759,7 @@
         }
       ],
       "experience": 281,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "telescope_hotspot"
@@ -15362,6 +15810,7 @@
         }
       ],
       "experience": 270,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_hotspot"
@@ -15407,6 +15856,7 @@
         }
       ],
       "experience": 420,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_hotspot"
@@ -15456,6 +15906,7 @@
         }
       ],
       "experience": 1500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_hotspot"
@@ -15505,6 +15956,7 @@
         }
       ],
       "experience": 1500,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "portal_hotspot"
@@ -15552,6 +16004,7 @@
         }
       ],
       "experience": 40,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_focus_hotspot"
@@ -15597,6 +16050,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_focus_hotspot"
@@ -15646,6 +16100,7 @@
         }
       ],
       "experience": 2000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_focus_hotspot"
@@ -15695,6 +16150,7 @@
         }
       ],
       "experience": 2000,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "portal_focus_hotspot"
@@ -15746,6 +16202,7 @@
         }
       ],
       "experience": 2000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_nexus_hotspot"
@@ -15793,6 +16250,7 @@
         }
       ],
       "experience": 2600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_nexus_hotspot"
@@ -15849,6 +16307,7 @@
         }
       ],
       "experience": 2600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "portal_nexus_hotspot"
@@ -15905,6 +16364,7 @@
         }
       ],
       "experience": 2600,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "portal_nexus_hotspot"
@@ -15972,6 +16432,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "amulet_hotspot"
@@ -16044,6 +16505,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "amulet_hotspot"
@@ -16099,6 +16561,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16149,6 +16612,7 @@
         }
       ],
       "experience": 1450,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16199,6 +16663,7 @@
         }
       ],
       "experience": 2200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16249,6 +16714,7 @@
         }
       ],
       "experience": 1700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16304,6 +16770,7 @@
         }
       ],
       "experience": 7003.5,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16364,6 +16831,7 @@
         }
       ],
       "experience": 15000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16417,6 +16885,7 @@
         }
       ],
       "experience": 25000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throne_hotspot"
@@ -16486,6 +16955,7 @@
         }
       ],
       "experience": 700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throneroom_cage_hotspot"
@@ -16531,6 +17001,7 @@
         }
       ],
       "experience": 1100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throneroom_cage_hotspot"
@@ -16576,15 +17047,36 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 6521,
-          "symbol": "deserttreasure_pitfall"
+          "id": 13684,
+          "symbol": "poh_floordecor_brimhaven"
         },
         {
-          "id": 40423,
-          "symbol": "roundtable_wide"
+          "id": 13685,
+          "symbol": "poh_floordecor_yanille"
+        },
+        {
+          "id": 13686,
+          "symbol": "poh_floordecor_lumbridge"
+        },
+        {
+          "id": 13687,
+          "symbol": "poh_floordecor_pollnivneach"
+        },
+        {
+          "id": 13688,
+          "symbol": "poh_floordecor_rellekka"
+        },
+        {
+          "id": 13689,
+          "symbol": "poh_floordecor_rimmington"
+        },
+        {
+          "id": 27072,
+          "symbol": "poh_floordecor_deathly"
         }
       ],
       "experience": 770,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throneroom_cage_hotspot"
@@ -16619,8 +17111,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Trapdoor",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 770,
+            "page": "Trapdoor",
+            "revision_id": 15015457
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Trapdoor",
         "revision_id": 15015457,
         "revision_timestamp": "2025-11-05T05:37:20Z"
@@ -16635,6 +17133,7 @@
         }
       ],
       "experience": 2700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throneroom_cage_hotspot"
@@ -16685,6 +17184,7 @@
         }
       ],
       "experience": 4700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "throneroom_cage_hotspot"
@@ -16795,6 +17295,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -16901,6 +17402,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -17007,6 +17509,7 @@
         }
       ],
       "experience": 420,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -17113,6 +17616,7 @@
         }
       ],
       "experience": 420,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "all_wall_crest_hotspot"
@@ -17158,6 +17662,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lever_hotspot"
@@ -17203,6 +17708,7 @@
         }
       ],
       "experience": 450,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lever_hotspot"
@@ -17248,6 +17754,7 @@
         }
       ],
       "experience": 700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "lever_hotspot"
@@ -17297,6 +17804,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "trapdoor_hotspot"
@@ -17346,6 +17854,7 @@
         }
       ],
       "experience": 450,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "trapdoor_hotspot"
@@ -17395,6 +17904,7 @@
         }
       ],
       "experience": 700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "trapdoor_hotspot"
@@ -17448,6 +17958,7 @@
         }
       ],
       "experience": 623,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "oubliette_trap_hotspot"
@@ -17506,6 +18017,7 @@
         }
       ],
       "experience": 326,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "oubliette_trap_hotspot"
@@ -17556,6 +18068,7 @@
         }
       ],
       "experience": 357,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "oubliette_trap_hotspot"
@@ -17606,6 +18119,7 @@
         }
       ],
       "experience": 387,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "oubliette_trap_hotspot"
@@ -17659,6 +18173,7 @@
         }
       ],
       "experience": 640,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_cage_hotspot"
@@ -17717,6 +18232,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_cage_hotspot"
@@ -17775,6 +18291,7 @@
         }
       ],
       "experience": 400,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_cage_hotspot"
@@ -17828,6 +18345,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_cage_hotspot"
@@ -17881,6 +18399,7 @@
         }
       ],
       "experience": 603,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_cage_hotspot"
@@ -17931,6 +18450,7 @@
         }
       ],
       "experience": 223,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -17976,6 +18496,7 @@
         }
       ],
       "experience": 273,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18021,6 +18542,7 @@
         }
       ],
       "experience": 316,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18066,6 +18588,7 @@
         }
       ],
       "experience": 387,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18111,6 +18634,7 @@
         }
       ],
       "experience": 447,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18156,6 +18680,7 @@
         }
       ],
       "experience": 1000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18201,6 +18726,7 @@
         }
       ],
       "experience": 2236,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "guard_hotspot"
@@ -18246,6 +18772,7 @@
         }
       ],
       "experience": 243,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_lighting_hotspot"
@@ -18296,6 +18823,7 @@
         }
       ],
       "experience": 244,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_lighting_hotspot"
@@ -18346,6 +18874,7 @@
         }
       ],
       "experience": 246,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_lighting_hotspot"
@@ -18401,6 +18930,7 @@
         }
       ],
       "experience": 300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_ladder_hotspot"
@@ -18446,6 +18976,7 @@
         }
       ],
       "experience": 450,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_ladder_hotspot"
@@ -18491,6 +19022,7 @@
         }
       ],
       "experience": 700,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_ladder_hotspot"
@@ -18536,6 +19068,7 @@
         }
       ],
       "experience": 4,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_decor_hotspot"
@@ -18581,6 +19114,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_decor_hotspot"
@@ -18626,6 +19160,7 @@
         }
       ],
       "experience": 246,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_decor_hotspot"
@@ -18676,6 +19211,7 @@
         }
       ],
       "experience": 223,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_trap_hotspot"
@@ -18721,6 +19257,7 @@
         }
       ],
       "experience": 273,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_trap_hotspot"
@@ -18766,6 +19303,7 @@
         }
       ],
       "experience": 316,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_trap_hotspot"
@@ -18811,6 +19349,7 @@
         }
       ],
       "experience": 387,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_trap_hotspot"
@@ -18856,6 +19395,7 @@
         }
       ],
       "experience": 447,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_trap_hotspot"
@@ -18905,6 +19445,7 @@
         }
       ],
       "experience": 600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_door_hotspot"
@@ -18954,6 +19495,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_door_hotspot"
@@ -19008,6 +19550,7 @@
         }
       ],
       "experience": 2000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "dungeon_door_hotspot"
@@ -19057,6 +19600,7 @@
         }
       ],
       "experience": 143,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_hotspot"
@@ -19111,6 +19655,7 @@
         }
       ],
       "experience": 340,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_hotspot"
@@ -19171,6 +19716,7 @@
         }
       ],
       "experience": 530,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_hotspot"
@@ -19231,6 +19777,7 @@
         }
       ],
       "experience": 860,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_hotspot"
@@ -19285,6 +19832,7 @@
         }
       ],
       "experience": 1000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_hotspot"
@@ -19330,6 +19878,7 @@
         }
       ],
       "experience": 707,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19375,6 +19924,7 @@
         }
       ],
       "experience": 866,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19420,6 +19970,7 @@
         }
       ],
       "experience": 2738,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19465,6 +20016,7 @@
         }
       ],
       "experience": 2236,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19510,6 +20062,7 @@
         }
       ],
       "experience": 3162,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19555,6 +20108,7 @@
         }
       ],
       "experience": 5000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "elite_guard_hotspot"
@@ -19604,6 +20158,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot",
@@ -19650,6 +20205,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_centerpiece_hotspot"
@@ -19695,6 +20251,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_centerpiece_hotspot"
@@ -19740,6 +20297,7 @@
         }
       ],
       "experience": 150,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_centerpiece_hotspot"
@@ -19790,6 +20348,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot",
@@ -19836,6 +20395,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "formal_garden_centerpiece_hotspot",
@@ -19887,6 +20447,7 @@
         }
       ],
       "experience": 31,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -19940,6 +20501,7 @@
         }
       ],
       "experience": 44,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -19989,6 +20551,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -20038,6 +20601,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -20087,6 +20651,7 @@
         }
       ],
       "experience": 122,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -20136,6 +20701,7 @@
         }
       ],
       "experience": 141,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -20185,6 +20751,7 @@
         }
       ],
       "experience": 223,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tree_hotspot"
@@ -20230,6 +20797,7 @@
         }
       ],
       "experience": 31,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_1_hotspot"
@@ -20275,6 +20843,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_1_hotspot"
@@ -20320,6 +20889,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_1_hotspot"
@@ -20365,6 +20935,7 @@
         }
       ],
       "experience": 31,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_2_hotspot"
@@ -20410,6 +20981,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_2_hotspot"
@@ -20455,6 +21027,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_big_2_hotspot"
@@ -20500,6 +21073,7 @@
         }
       ],
       "experience": 31,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_1_hotspot"
@@ -20545,6 +21119,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_1_hotspot"
@@ -20590,6 +21165,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_1_hotspot"
@@ -20635,6 +21211,7 @@
         }
       ],
       "experience": 31,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_2_hotspot"
@@ -20680,6 +21257,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_2_hotspot"
@@ -20725,6 +21303,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "plant_small_2_hotspot"
@@ -20770,6 +21349,7 @@
         }
       ],
       "experience": 651,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "tipjar_hotspot"
@@ -20830,6 +21410,7 @@
         }
       ],
       "experience": 1200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot"
@@ -20880,6 +21461,7 @@
         }
       ],
       "experience": 500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot"
@@ -20925,6 +21507,7 @@
         }
       ],
       "experience": 1000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot"
@@ -20970,6 +21553,7 @@
         }
       ],
       "experience": 1500,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot"
@@ -21015,6 +21599,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21060,6 +21645,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21105,6 +21691,7 @@
         }
       ],
       "experience": 200,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21150,6 +21737,7 @@
         }
       ],
       "experience": 220,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21200,6 +21788,7 @@
         }
       ],
       "experience": 640,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21250,6 +21839,7 @@
         }
       ],
       "experience": 940,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot"
@@ -21309,6 +21899,7 @@
         }
       ],
       "experience": 4000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_1_hotspot",
@@ -21363,6 +21954,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21416,6 +22008,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21469,6 +22062,7 @@
         }
       ],
       "experience": 122,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21522,6 +22116,7 @@
         }
       ],
       "experience": 141,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21575,6 +22170,7 @@
         }
       ],
       "experience": 158,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21628,6 +22224,7 @@
         }
       ],
       "experience": 223,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21681,6 +22278,7 @@
         }
       ],
       "experience": 316,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "hedge_hotspot"
@@ -21730,6 +22328,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -21780,6 +22379,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -21830,6 +22430,7 @@
         }
       ],
       "experience": 122,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -21880,6 +22481,7 @@
         }
       ],
       "experience": 70,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_2_hotspot",
@@ -21930,6 +22532,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_2_hotspot",
@@ -21980,6 +22583,7 @@
         }
       ],
       "experience": 122,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_2_hotspot",
@@ -22026,6 +22630,10 @@
         }
       ],
       "experience": 240,
+      "flatpack": {
+        "id": 9843,
+        "symbol": "poh_flatpack_cape_rack"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22073,6 +22681,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 9844,
+        "symbol": "poh_flatpack_cape_rack2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22120,6 +22732,10 @@
         }
       ],
       "experience": 560,
+      "flatpack": {
+        "id": 9845,
+        "symbol": "poh_flatpack_cape_rack3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22167,6 +22783,10 @@
         }
       ],
       "experience": 860,
+      "flatpack": {
+        "id": 9846,
+        "symbol": "poh_flatpack_cape_rack4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22219,6 +22839,10 @@
         }
       ],
       "experience": 500,
+      "flatpack": {
+        "id": 9847,
+        "symbol": "poh_flatpack_cape_rack5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22266,6 +22890,10 @@
         }
       ],
       "experience": 1000,
+      "flatpack": {
+        "id": 9848,
+        "symbol": "poh_flatpack_cape_rack6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "cape_rack_hotspot"
@@ -22313,6 +22941,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 9852,
+        "symbol": "poh_flatpack_magic_wardrobe"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22364,6 +22996,10 @@
         }
       ],
       "experience": 360,
+      "flatpack": {
+        "id": 9853,
+        "symbol": "poh_flatpack_magic_wardrobe2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22411,6 +23047,10 @@
         }
       ],
       "experience": 270,
+      "flatpack": {
+        "id": 9854,
+        "symbol": "poh_flatpack_magic_wardrobe3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22462,6 +23102,10 @@
         }
       ],
       "experience": 540,
+      "flatpack": {
+        "id": 9855,
+        "symbol": "poh_flatpack_magic_wardrobe4"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22513,6 +23157,10 @@
         }
       ],
       "experience": 560,
+      "flatpack": {
+        "id": 9856,
+        "symbol": "poh_flatpack_magic_wardrobe5"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22560,6 +23208,10 @@
         }
       ],
       "experience": 720,
+      "flatpack": {
+        "id": 9857,
+        "symbol": "poh_flatpack_magic_wardrobe6"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22616,6 +23268,10 @@
         }
       ],
       "experience": 500,
+      "flatpack": {
+        "id": 9858,
+        "symbol": "poh_flatpack_magic_wardrobe7"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "magic_wardrobe_hotspot"
@@ -22667,6 +23323,10 @@
         }
       ],
       "experience": 120,
+      "flatpack": {
+        "id": 9849,
+        "symbol": "poh_flatpack_toy_box"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "toy_box_hotspot"
@@ -22716,6 +23376,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 9850,
+        "symbol": "poh_flatpack_toy_box2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "toy_box_hotspot"
@@ -22765,6 +23429,10 @@
         }
       ],
       "experience": 280,
+      "flatpack": {
+        "id": 9851,
+        "symbol": "poh_flatpack_toy_box3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "toy_box_hotspot"
@@ -22814,6 +23482,10 @@
         }
       ],
       "experience": 120,
+      "flatpack": {
+        "id": 9862,
+        "symbol": "poh_flatpack_treasure_chest"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_chest_hotspot"
@@ -22865,6 +23537,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 9863,
+        "symbol": "poh_flatpack_treasure_chest2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_chest_hotspot"
@@ -22916,6 +23592,10 @@
         }
       ],
       "experience": 280,
+      "flatpack": {
+        "id": 9864,
+        "symbol": "poh_flatpack_treasure_chest3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "treasure_chest_hotspot"
@@ -22967,6 +23647,10 @@
         }
       ],
       "experience": 120,
+      "flatpack": {
+        "id": 9865,
+        "symbol": "poh_flatpack_fancy_dress_box"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fancy_dress_box_hotspot"
@@ -23018,6 +23702,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 9866,
+        "symbol": "poh_flatpack_fancy_dress_box2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fancy_dress_box_hotspot"
@@ -23069,6 +23757,10 @@
         }
       ],
       "experience": 280,
+      "flatpack": {
+        "id": 9867,
+        "symbol": "poh_flatpack_fancy_dress_box3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fancy_dress_box_hotspot"
@@ -23120,6 +23812,10 @@
         }
       ],
       "experience": 180,
+      "flatpack": {
+        "id": 9859,
+        "symbol": "poh_flatpack_armour_case"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_case_box_hotspot"
@@ -23171,6 +23867,10 @@
         }
       ],
       "experience": 270,
+      "flatpack": {
+        "id": 9860,
+        "symbol": "poh_flatpack_armour_case2"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_case_box_hotspot"
@@ -23222,6 +23922,10 @@
         }
       ],
       "experience": 420,
+      "flatpack": {
+        "id": 9861,
+        "symbol": "poh_flatpack_armour_case3"
+      },
       "hidden_in_build_menu": 0,
       "hotspots": [
         "armour_case_box_hotspot"
@@ -23269,6 +23973,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23316,6 +24021,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23363,6 +24069,7 @@
         }
       ],
       "experience": 560,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23410,6 +24117,7 @@
         }
       ],
       "experience": 1560,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23462,6 +24170,7 @@
         }
       ],
       "experience": 160,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23514,6 +24223,7 @@
         }
       ],
       "experience": 158,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pethouse_hotspot"
@@ -23571,6 +24281,7 @@
         }
       ],
       "experience": 124,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "scratchingpost_hotspot"
@@ -23621,6 +24332,7 @@
         }
       ],
       "experience": 204,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "scratchingpost_hotspot"
@@ -23676,6 +24388,7 @@
         }
       ],
       "experience": 304,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "scratchingpost_hotspot"
@@ -23736,6 +24449,7 @@
         }
       ],
       "experience": 139,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pet_combatring_hotspot"
@@ -23796,6 +24510,7 @@
         }
       ],
       "experience": 199,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pet_combatring_hotspot"
@@ -23856,6 +24571,7 @@
         }
       ],
       "experience": 299,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "pet_combatring_hotspot"
@@ -23911,6 +24627,7 @@
         }
       ],
       "experience": 198,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "petlist_hotspot"
@@ -23966,6 +24683,7 @@
         }
       ],
       "experience": 182,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "petfeeder_hotspot"
@@ -24016,6 +24734,7 @@
         }
       ],
       "experience": 272,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "petfeeder_hotspot"
@@ -24066,6 +24785,7 @@
         }
       ],
       "experience": 862,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "petfeeder_hotspot"
@@ -24134,6 +24854,7 @@
         }
       ],
       "experience": 37,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "habitat_hotspot"
@@ -24197,6 +24918,7 @@
         }
       ],
       "experience": 51,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "habitat_hotspot"
@@ -24260,6 +24982,7 @@
         }
       ],
       "experience": 181,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "habitat_hotspot"
@@ -24323,6 +25046,7 @@
         }
       ],
       "experience": 271,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "habitat_hotspot"
@@ -24391,6 +25115,7 @@
         }
       ],
       "experience": 46,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "habitat_hotspot"
@@ -24449,6 +25174,7 @@
         }
       ],
       "experience": 350,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24498,6 +25224,7 @@
         }
       ],
       "experience": 535,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24556,6 +25283,7 @@
         }
       ],
       "experience": 1770,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24615,6 +25343,7 @@
         }
       ],
       "experience": 3000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24673,6 +25402,7 @@
         }
       ],
       "experience": 1770,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24720,6 +25450,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "garden_teleport_hotspot"
@@ -24810,6 +25541,7 @@
         }
       ],
       "experience": 181,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "topiary_hotspot"
@@ -24859,6 +25591,7 @@
         }
       ],
       "experience": 706,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "restoration_pool_hotspot"
@@ -24923,6 +25656,7 @@
         }
       ],
       "experience": 850,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "restoration_pool_hotspot"
@@ -24974,6 +25708,7 @@
         }
       ],
       "experience": 900,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "restoration_pool_hotspot"
@@ -25025,6 +25760,7 @@
         }
       ],
       "experience": 1950,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "restoration_pool_hotspot"
@@ -25085,6 +25821,7 @@
         }
       ],
       "experience": 3107,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "restoration_pool_hotspot"
@@ -25171,6 +25908,7 @@
         }
       ],
       "experience": 474,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "theme_hotspot"
@@ -25255,6 +25993,7 @@
         }
       ],
       "experience": 316,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "theme_hotspot"
@@ -25344,6 +26083,7 @@
         }
       ],
       "experience": 4464,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "theme_hotspot"
@@ -25413,6 +26153,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_2_hotspot"
@@ -25472,6 +26213,7 @@
         }
       ],
       "experience": 2741,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "fencing_2_hotspot"
@@ -25531,6 +26273,7 @@
         }
       ],
       "experience": 540,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_bench_hotspot"
@@ -25586,6 +26329,7 @@
         }
       ],
       "experience": 840,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_bench_hotspot"
@@ -25641,6 +26385,7 @@
         }
       ],
       "experience": 3000,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_bench_hotspot"
@@ -25696,6 +26441,7 @@
         }
       ],
       "experience": 2331,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "garden_bench_hotspot"
@@ -25762,6 +26508,7 @@
         }
       ],
       "experience": 1490,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "spell_altar_hotspot"
@@ -25822,6 +26569,7 @@
         }
       ],
       "experience": 1957,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "spell_altar_hotspot"
@@ -25882,6 +26630,7 @@
         }
       ],
       "experience": 3888,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "spell_altar_hotspot"
@@ -25959,6 +26708,7 @@
         }
       ],
       "experience": 3445,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "spell_altar_hotspot"
@@ -26038,6 +26788,7 @@
         }
       ],
       "experience": 3445,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5995,
@@ -26115,6 +26866,7 @@
         }
       ],
       "experience": 3445,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [],
       "id": 5996,
@@ -26175,6 +26927,7 @@
         }
       ],
       "experience": 504,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "adventurelog_hotspot"
@@ -26230,6 +26983,7 @@
         }
       ],
       "experience": 1100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "adventurelog_hotspot"
@@ -26285,6 +27039,7 @@
         }
       ],
       "experience": 1160,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "adventurelog_hotspot"
@@ -26376,6 +27131,7 @@
         }
       ],
       "experience": 605,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "jewllerybox_hotspot"
@@ -26512,6 +27268,7 @@
         }
       ],
       "experience": 1350,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "jewllerybox_hotspot"
@@ -26677,6 +27434,7 @@
         }
       ],
       "experience": 2680,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "jewllerybox_hotspot"
@@ -26734,6 +27492,7 @@
         }
       ],
       "experience": 1483,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bosslair_hotspot"
@@ -26789,6 +27548,7 @@
         }
       ],
       "experience": 5300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "achievement_display_hotspot"
@@ -26844,6 +27604,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "achievement_display_hotspot"
@@ -26899,6 +27660,7 @@
         }
       ],
       "experience": 800,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "achievement_display_hotspot"
@@ -26949,6 +27711,7 @@
         }
       ],
       "experience": 310,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "questlist_hotspot"
@@ -27427,6 +28190,7 @@
         }
       ],
       "experience": 86,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_trophy_pedestal_hotspot"
@@ -27910,6 +28674,7 @@
         }
       ],
       "experience": 2106,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_trophy_pedestal_hotspot"
@@ -27978,6 +28743,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_rug_hotspot"
@@ -28031,6 +28797,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_rug_hotspot"
@@ -28075,6 +28842,10 @@
     {
       "auxiliary_locs": [],
       "built_locs": [
+        {
+          "id": 41131,
+          "symbol": "poh_leaguehall_rug_trailblazer_01"
+        },
         {
           "id": 41132,
           "symbol": "poh_leaguehall_rug_trailblazer_02"
@@ -28169,6 +28940,7 @@
         }
       ],
       "experience": 60,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_rug_hotspot"
@@ -28203,8 +28975,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Trailblazer_rug_(Construction)",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 60,
+            "page": "Trailblazer rug (Construction)",
+            "revision_id": 14913794
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Trailblazer rug (Construction)",
         "revision_id": 14913794,
         "revision_timestamp": "2025-06-01T20:17:07Z"
@@ -28223,6 +29001,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_trophy_hotspot"
@@ -28272,6 +29051,7 @@
         }
       ],
       "experience": 1440,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_trophy_hotspot"
@@ -28346,6 +29126,7 @@
         }
       ],
       "experience": 40,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bannerstand_hotspot"
@@ -28415,6 +29196,7 @@
         }
       ],
       "experience": 1300,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "bannerstand_hotspot"
@@ -28525,6 +29307,7 @@
         }
       ],
       "experience": 240,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "outfitstand_hotspot"
@@ -28630,6 +29413,7 @@
         }
       ],
       "experience": 860,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "outfitstand_hotspot"
@@ -28680,6 +29464,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_statue_hotspot"
@@ -28725,6 +29510,7 @@
         }
       ],
       "experience": 3600,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_statue_hotspot"
@@ -28775,6 +29561,7 @@
         }
       ],
       "experience": 120,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_statue_hotspot"
@@ -28825,6 +29612,7 @@
         }
       ],
       "experience": 310,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "league_accomplishment_hotspot"
@@ -28883,6 +29671,7 @@
         }
       ],
       "experience": 1,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -28945,6 +29734,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -29007,6 +29797,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "flower_1_hotspot",
@@ -29065,6 +29856,7 @@
         }
       ],
       "experience": 715,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [],
       "id": 6026,
@@ -29119,6 +29911,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "all_wall_crest_hotspot",
@@ -29179,6 +29972,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot",
@@ -29233,6 +30027,7 @@
         }
       ],
       "experience": 180,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "icon_hotspot"
@@ -29289,6 +30084,7 @@
         }
       ],
       "experience": 0,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "incense_burner_hotspot"
@@ -29343,6 +30139,7 @@
         }
       ],
       "experience": 250,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29404,6 +30201,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29457,6 +30255,7 @@
         }
       ],
       "experience": 250,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29518,6 +30317,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29571,6 +30371,7 @@
         }
       ],
       "experience": 250,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29632,6 +30433,7 @@
         }
       ],
       "experience": 280,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29685,6 +30487,7 @@
         }
       ],
       "experience": 354,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29746,6 +30549,7 @@
         }
       ],
       "experience": 357,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29807,6 +30611,7 @@
         }
       ],
       "experience": 360,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "fish_trophy_hotspot"
@@ -29872,6 +30677,7 @@
         }
       ],
       "experience": 100,
+      "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
         "formal_garden_centerpiece_hotspot",
@@ -29931,6 +30737,7 @@
         }
       ],
       "experience": 25000,
+      "flatpack": null,
       "hidden_in_build_menu": 1,
       "hotspots": [
         "throne_hotspot"
@@ -53422,6 +54229,7 @@
     "room_hotspot_references": 202,
     "room_template_placements": 1013,
     "runtime_auxiliary_loc_pairs": 44,
+    "runtime_flatpack_rows": 82,
     "runtime_furniture_rows": 525,
     "runtime_hotspot_loc_rows": 220,
     "tables": {
@@ -53431,9 +54239,9 @@
       "skill_features": 213
     },
     "unreferenced_furniture": 13,
-    "wiki_furniture_direct_id_matches": 455,
+    "wiki_furniture_direct_id_matches": 453,
     "wiki_furniture_matches": 525,
-    "wiki_furniture_symbolic_reconciliations": 70,
+    "wiki_furniture_symbolic_reconciliations": 72,
     "wiki_furniture_unresolved": 0,
     "wiki_snapshot_entries": 493
   },
@@ -53461,6 +54269,12 @@
     },
     "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
     "construction": "https://oldschool.runescape.wiki/w/Construction",
+    "flatpacks": "tools/data/construction_runtime_flatpacks.json",
+    "flatpacks_wiki_source": {
+      "page": "Flatpack",
+      "policy": "The Wiki's obtainable flatpack list is joined explicitly to revision-239 furniture rows and object symbols. The 20 cache-only Study flatpacks in the Wiki's Unobtainable section are deliberately excluded.",
+      "url": "https://oldschool.runescape.wiki/w/Flatpack"
+    },
     "level_up_table": "https://oldschool.runescape.wiki/w/Construction/Level_up_table",
     "player_owned_house": "https://oldschool.runescape.wiki/w/Player-owned_house",
     "policy": "Wiki links are review targets; cache IDs remain implementation authority.",

@@ -561,6 +561,30 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "POH_ROOM_SET": (11055, 3, 0, 1, 0),
     "POH_ROOM_REMOVE": (11056, 1, 0, 1, 0),
 
+    # loc_add_op(coord, loc, int angle, locshape shape, int duration,
+    #            int opslot, string optext)
+    #
+    # `loc_add`, plus the one thing LOC_ADD_CHANGE_V2 can say and `loc_add`
+    # cannot: this PLACEMENT's right-click menu is a single option, `optext` on
+    # slot `opslot`, whatever the loctype declares.
+    #
+    # The reference has no equivalent and could not: at rev 254 a loc's menu is
+    # a property of its type, full stop, so the only way to change one is to
+    # become a different type — which is exactly what LostCity's doors do, via
+    # `loc_param(next_loc_stage)` and a second cache record per door. This
+    # cache does not have that second record for 182 of its placed doors (see
+    # docs/DOORS_GATES_QUEUE.md), and OldSchool does not need one: since rev 228
+    # the add packet carries an opFlags mask and a list of replacement labels,
+    # and the 239 gamepack applies both per scene loc (deob class69/class108).
+    # One record can therefore be "Open" on the tile the map put it on and
+    # "Close" on the tile it swung to.
+    #
+    # Narrow on purpose. The wire can replace all five slots independently and
+    # a general form would be eleven arguments, ten of which every call site
+    # would pass empty; "this placement offers exactly one thing" is the whole
+    # of what content has to say, and it says it without a sentinel.
+    "LOC_ADD_OP": (11057, 6, 1, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -855,6 +879,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
+    # None, and that matches LOC_ADD (3000), whose require mask is 0x000: the
+    # command names its own coord and needs no active anything. Listed rather
+    # than omitted so the assert in the writer stays a whitelist.
+    "LOC_ADD_OP": (0, 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

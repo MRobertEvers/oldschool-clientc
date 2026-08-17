@@ -266,9 +266,9 @@ osrs239_read_zone_sub(
          * packet. Checking the count after the fact would be too late: the
          * codec reads it and loops on it in the same call.
          *
-         * The op text is borrowed into the payload and dropped, because
-         * PktLocAddChange has no home for replacement right-click options. The
-         * hand-written decoder read and freed them for the same reason.
+         * The op text is borrowed from the buffer, so it is COPIED into the
+         * packet here rather than kept as a pointer: the payload outlives the
+         * buffer by the time the exec layer reads it.
          */
         Rsprot_MsgLocAddChangeV2_opsElem ops[256];
         MsgLocAddChangeV2 m;
@@ -278,9 +278,30 @@ osrs239_read_zone_sub(
         if( !zone_run(c, rsprot_loc_add_change_v2_out,
                       rsprot_loc_add_change_v2_out_count, &m) )
             return 0;
+        memset(&out->_loc_add_change, 0, sizeof(out->_loc_add_change));
         out->_loc_add_change.info = m.loc_properties_packed;
         out->_loc_add_change.pos = m.coord_in_zone_packed;
         out->_loc_add_change.loc_id = m.id;
+        out->_loc_add_change.op_flags = m.op_flags;
+        /*
+         * `key` is the ONE-based op number, not the slot index. The wire byte
+         * is the zero-based slot (the reference indexes its five-slot array
+         * with it, unadjusted) and the codec's `RSPROT_XFORM(..., -1)` adds one
+         * back on the way in, so the array index is `key - 1`. Taking `key`
+         * for the index shifts every replacement one slot along, which reads
+         * as the label landing on the wrong menu row rather than as a decode
+         * fault. Anything outside the five slots is dropped, as the reference
+         * drops it.
+         */
+        for( int i = 0; i < m.ops_count; i++ )
+        {
+            int slot = ops[i].key - 1;
+
+            if( slot < 0 || slot >= 5 || !ops[i].value )
+                continue;
+            snprintf(out->_loc_add_change.ops[slot],
+                     sizeof(out->_loc_add_change.ops[slot]), "%s", ops[i].value);
+        }
         return 1;
     }
 

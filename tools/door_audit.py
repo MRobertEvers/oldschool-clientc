@@ -153,6 +153,15 @@ def build_rows(tree):
     doubledoors_path = os.path.join(tree, "server", "scripts", "doors", "configs", "doubledoors.loc")
     if os.path.exists(doubledoors_path):
         doors.update(parse_blocks(doubledoors_path))
+    # doors_selfstage.loc states `category=door_selfstage` and NO next_loc_stage,
+    # because a self-staging door has no partner to name — it swings by re-adding
+    # itself with its op renamed. Read here so those rows count as covered; this
+    # file is generated FROM this tool (--write-selfstage), so a row appearing in
+    # both the queue's gap list and here would be a loop, not coverage.
+    selfstage_path = os.path.join(tree, "server", "scripts", "doors", "configs",
+                                  "doors_selfstage.loc")
+    if os.path.exists(selfstage_path):
+        doors.update(parse_blocks(selfstage_path))
     bound = load_script_bindings(tree)
     placed, shapes = load_placements(tree)
 
@@ -515,7 +524,7 @@ A loc only appears here if it is **placed on a map** — the cache names
 thousands of things "door" or "gate" that are furniture (excluded) or never
 placed (excluded); neither can be clicked.
 
-Coverage means one of four things now, in descending order of how OSRS-like
+Coverage means one of five things now, in descending order of how OSRS-like
 the result is:
 
 1. **Paired in `doors.loc`/`doubledoors.loc`** — swings via the generic
@@ -523,18 +532,27 @@ the result is:
    for a confirmed two-leaf door, the `_door_left_*`/`_door_right_*`
    handlers (`doors/scripts/doubledoors.rs2`, ported from LostCity, which
    also swings the opposite leaf). This is what a real door does.
+1b. **Self-staging (`doors_selfstage.loc`)** — the same swing, for a door
+   the cache gives no opened counterpart. It re-adds *itself* at the swung
+   tile with its right-click menu replaced: LOC_ADD_CHANGE_V2 carries a
+   per-placement op mask and op labels, so one record offers "Open" where
+   the map put it and "Close" where it swung to. This is what OldSchool
+   itself does — the 239 gamepack keeps both on its scene loc and its menu
+   builder applies them over the loctype's (deob class69/class108) — and it
+   is why the walk-through bucket below is now fifteen rows rather than
+   182. `doors/scripts/doors_selfstage.rs2` has the full reasoning.
 2. **Bound to a named script** (`[oplocN,<name>]` somewhere in
    `server/scripts`) — a quest, minigame, or skill-specific mechanism
    (`skill_thieving/scripts/doors/locked_door.rs2`, `general_use/scripts/
    gates.rs2`, and so on).
 3. **Walk-through fallback** (`general_use/scripts/
-   door_walkthrough_fallback.rs2`) — a door with an Open action but no
-   discoverable opened variant anywhere in the cache under any naming
-   convention this tool tried. The door cannot visually swing (there is
-   nothing to swing *to*), so the player passes through instead of being
-   stuck at a scenery loc with a dead click. Same fallback this tree
-   already used for memberfencegate_l/r, thieving locked doors, and
-   several quests before this pass existed.
+   door_walkthrough_fallback.rs2`) — what is left once (1b) has taken every
+   door a swing is right for: a shape with no direction to swing in, an op
+   that is not Open, or a puzzle/maze mechanism that moves its own door.
+   The player passes through instead of being stuck at a scenery loc with a
+   dead click. Same fallback this tree already used for
+   memberfencegate_l/r, thieving locked doors, and several quests before
+   this pass existed.
 4. **Eternal-lock fallback** (`general_use/scripts/
    door_locked_fallback.rs2`) — same situation as (3), but the loc's own
    name says "locked" and letting the player through for free would be
@@ -564,7 +582,7 @@ def write_queue(rows, buckets, path):
     lines.append("|---|---|")
     lines.append(f"| door/gate-named cache records | {len(rows)} |")
     lines.append(f"| placed on a map | {sum(len(v) for k, v in buckets.items() if k != 'unplaced')} |")
-    lines.append(f"| paired in doors.loc | {len(buckets['paired'])} |")
+    lines.append(f"| paired or self-staging (doors.loc + doors_selfstage.loc) | {len(buckets['paired'])} |")
     lines.append(f"| bound to a named script | {len(buckets['script_bound'])} |")
     lines.append(f"| inert (no interactive op) | {len(buckets['inert'])} |")
     lines.append(f"| **gap: swing (Open/Close/etc.)** | **{len(swing_gap)}** |")
@@ -602,10 +620,160 @@ def write_queue(rows, buckets, path):
     print(f"wrote {path}: {len(swing_gap)} swing gaps, {len(enter_gap)} out-of-scope, {len(other_gap)} other")
 
 
+# ----------------------------------------------------------------------------
+# Self-staging doors
+# ----------------------------------------------------------------------------
+#
+# A door with an Open op, placed only on a wall, and with no second cache record
+# to become. `doors/scripts/doors_selfstage.rs2` swings it in place by renaming
+# its own op on the swung placement (LOC_ADD_CHANGE_V2's opFlags/ops), so it
+# needs no partner — but it must still be told apart from a door that is
+# *deliberately* inert, one that is quest- or skill-gated, and one that is part
+# of a puzzle with its own mechanism.
+
+# Shapes `~door_open` / `~door_close` can answer. Everything else is either
+# scenery that IS the door (centrepiece, grounddecor) or a wall DECORATION, and
+# neither has a direction to swing in.
+SWING_SHAPES = {0, 9}  # wall_straight, wall_diagonal
+
+# An op that means the door is gated on something this pass does not have: a
+# key, a quest stage, a thieving check, or a payment. Swinging it open for free
+# is not "better than nothing", it is removing the gate.
+GATED_OPS = {"pick-lock", "picklock", "unlock", "lock"}
+GATED_OP_PREFIXES = ("quick-pay", "pay")
+
+# Same judgement from the loc's own name, for the records whose gate is not
+# spelled as an op. "locked"/"unopenable" state it outright; the puzzle words
+# name mechanisms (Rogues' Den obstacle course, the macro maze) whose doors are
+# moved by something other than a click.
+GATED_NAME_WORDS = ("locked", "unopenable", "puzzle", "maze", "obstacle")
+
+
+def selfstage_reason(row):
+    """None when the row may self-stage, else why it may not."""
+    if row["placed"] == 0:
+        return "not placed"
+    shapes = set(row["shapes"])
+    if not shapes <= SWING_SHAPES:
+        return "placed on a non-wall shape " + repr(sorted(shapes - SWING_SHAPES))
+    if row["ops"].get("op1") != "Open":
+        return "op1 is not Open"
+    for op in row["ops"].values():
+        low = op.lower()
+        if low in GATED_OPS or low.startswith(GATED_OP_PREFIXES):
+            return f"carries a gated op ({op})"
+    for word in GATED_NAME_WORDS:
+        if word in row["name"].lower():
+            return f"name says {word}"
+    return None
+
+
+SELFSTAGE_HEADER = """\
+// Doors that swing without becoming a different loc.
+//
+// DERIVED — regenerate with:
+//     tools/door_audit.py --tree OSRS-Content/osrs239-content \\
+//         --write-selfstage OSRS-Content/osrs239-content/server/scripts/doors/configs/doors_selfstage.loc
+//
+// Every record here has an `Open` op, is placed only as `wall_straight` or
+// `wall_diagonal`, and has NO opened counterpart anywhere in the cache — so
+// `doors.loc` cannot pair it and `doors/scripts/doors.rs2` can never reach it.
+// `doors/scripts/doors_selfstage.rs2` swings it in place instead, using the
+// per-placement op override LOC_ADD_CHANGE_V2 carries; read that file first,
+// it is where the mechanism is explained.
+//
+// Excluded on purpose, and the tool states each rule rather than a list:
+//
+//   * anything carrying Pick-lock / Unlock / Lock / a Quick-Pay, and anything
+//     whose own name says "locked" or "unopenable" — these are gated on a key,
+//     a quest stage, a thieving check or a payment, and swinging them free is
+//     removing the gate, not implementing the door. They keep
+//     `general_use/scripts/door_locked_fallback.rs2`.
+//   * "puzzle" / "maze" / "obstacle" records — the Rogues' Den course and the
+//     macro maze move their doors by something other than a click.
+//   * anything another content `.loc` already files under a category. A loc has
+//     one category and the last file read wins, so claiming one of Enakhra's
+//     statue-limb doors here would take it out of `enakhraslament.loc` and
+//     unbind the puzzle it belongs to — the door would swing and the quest
+//     would stop working.
+//   * anything placed on a shape that is not a wall. There is no direction to
+//     swing a centrepiece, a ground decoration or a wall decoration in, which
+//     is exactly the arm `~door_open` refuses.
+//
+// A name here must NOT also carry an `[oploc1,<name>]` binding anywhere in
+// `server/scripts` — a name binding wins over a category one, so the two
+// together are a door that silently keeps the old behaviour.
+"""
+
+
+def load_content_categories(tree, skip):
+    """Loc names some other content `.loc` already files under a category.
+
+    A loc has ONE category, and the last `.loc` read wins. Filing an Enakhra
+    statue-limb door under `door_selfstage` therefore takes it out of
+    `enakhraslament.loc`'s own category and silently unbinds the quest — the
+    door still swings, and the puzzle it belongs to stops working. So a name
+    another file has already claimed is not eligible, whatever its shape.
+    """
+    claimed = {}
+    for p in glob.glob(os.path.join(tree, "server", "scripts", "**", "*.loc"), recursive=True):
+        if os.path.abspath(p) == os.path.abspath(skip):
+            continue
+        rel = os.path.relpath(p, tree).replace("\\", "/")
+        cur = None
+        with open(p, encoding="utf8", errors="replace") as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("[") and s.endswith("]"):
+                    cur = s[1:-1]
+                elif s.startswith("category=") and cur:
+                    claimed[cur] = rel
+    return claimed
+
+
+SELFSTAGE_CATEGORY = "door_selfstage"
+
+
+def cmd_write_selfstage(rows, buckets, tree, path):
+    claimed = load_content_categories(tree, path)
+    eligible = []
+    for row in rows:
+        # This file's OWN output does not disqualify a row — `build_rows` reads
+        # it back so the queue counts these as covered, and treating that as
+        # "already categorised" would make the second regeneration emit nothing.
+        # Every other category does disqualify: a loc has one, and the last
+        # `.loc` read wins.
+        if row["cat"] and row["cat"] != SELFSTAGE_CATEGORY:
+            continue
+        if row["name"] in claimed:
+            continue  # another content .loc already gives it a category
+        # Script-bound rows are eligible only when the binding is one of the two
+        # fallbacks this replaces; anything else is a real mechanism.
+        if row["scripts"] and any(
+            not s.endswith("door_walkthrough_fallback.rs2") for s in row["scripts"]
+        ):
+            continue
+        if selfstage_reason(row) is None:
+            eligible.append(row)
+
+    eligible.sort(key=lambda r: (-r["placed"], r["name"]))
+    lines = [SELFSTAGE_HEADER]
+    for row in eligible:
+        lines.append(f"[{row['name']}]")
+        lines.append(f"category={SELFSTAGE_CATEGORY}")
+        lines.append("")
+    with open(path, "w", encoding="utf8") as f:
+        f.write("\n".join(lines))
+    print(f"wrote {path}: {len(eligible)} self-staging doors")
+    return eligible
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tree", required=True, help="osrs239-content tree")
     ap.add_argument("--write-queue", metavar="PATH", help="write the markdown queue doc")
+    ap.add_argument("--write-selfstage", metavar="PATH",
+                    help="write doors_selfstage.loc (the category=door_selfstage block list)")
     ap.add_argument("--suggest-pairs", action="store_true", help="propose open/close partners by naming convention")
     ap.add_argument("--suggest-double-leaf", action="store_true",
                     help="find doors placed as two leaves and wired as two single doors")
@@ -620,6 +788,8 @@ def main():
 
     if args.suggest_pairs:
         cmd_suggest_pairs(rows, buckets, args.tree)
+    elif args.write_selfstage:
+        cmd_write_selfstage(rows, buckets, args.tree, args.write_selfstage)
     elif args.write_queue:
         write_queue(rows, buckets, args.write_queue)
     else:

@@ -13,10 +13,14 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 3,
+    MOCK230_POH_SCHEMA_VERSION = 4,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
+    MOCK230_POH_GROUND_LEVEL = 1,
+    MOCK230_POH_UPPER_LEVEL = 2,
+    /* https://oldschool.runescape.wiki/w/Servant%27s_money_bag */
+    MOCK230_POH_MONEY_BAG_MAX = 3000000,
 };
 
 enum Mock230PohField
@@ -37,6 +41,10 @@ enum Mock230PohField
     MOCK230_POH_FIELD_FAMILY_CREST = 13,
     MOCK230_POH_FIELD_HEAD_TROPHIES = 14,
     MOCK230_POH_FIELD_FISH_TROPHIES = 15,
+    MOCK230_POH_FIELD_SPICE_RED = 16,
+    MOCK230_POH_FIELD_SPICE_ORANGE = 17,
+    MOCK230_POH_FIELD_SPICE_BROWN = 18,
+    MOCK230_POH_FIELD_SPICE_YELLOW = 19,
 };
 
 enum Mock230PohRoomField
@@ -93,6 +101,10 @@ struct Mock230PohState
     int family_crest;
     int head_trophies;
     int fish_trophies;
+    int spice_red;
+    int spice_orange;
+    int spice_brown;
+    int spice_yellow;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

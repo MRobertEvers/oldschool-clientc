@@ -1707,6 +1707,32 @@ App_WorldLocChange(
     int angle);
 
 /**
+ * `App_WorldLocChange` carrying the PLACEMENT's own right-click menu — the
+ * op mask and replacement labels LOC_ADD_CHANGE_V2 added at rev 228.
+ *
+ * `op_flags` is a 5-bit shown mask (bit 0 = op1); `ops[i]`, when non-empty,
+ * replaces the loctype's label for slot i — including on a slot the loctype
+ * leaves empty, which is what lets one loc record offer "Open" where the map
+ * placed it and "Close" where a door script swung it to.
+ *
+ * A separate entry point rather than two more parameters on the one above,
+ * because every other caller — a varp remorphing a multiloc, the loc editor —
+ * is placing a loc that means what its type means. `App_WorldLocChange` is
+ * that case spelled once, and it passes an all-shown mask and no labels.
+ */
+void
+App_WorldLocChangeOps(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle,
+    int op_flags,
+    const char ops[5][32]);
+
+/**
  * Zone LOC_MERGE / P_LOCMERGE: schedule a timed hide of the loc on this tile
  * (countdown LocChange) and mark the player so the loc model rides with them
  * for [start_cycle, end_cycle) client ticks from now.

@@ -341,7 +341,7 @@ def main() -> int:
         # Goad's own target-setting logic is the shared `summoning_familiar_command_attack`
         # (the same free "Attack" command the familiar panel's badge issues) rather
         # than an inline copy, so the commanded marker is asserted on that proc.
-        goad = definition(scripts, "proc,summoning_familiar_special_target_execute")
+        goad = definition(scripts, "proc,summoning_spirit_graahk_special")
         command_attack = definition(scripts, "proc,summoning_familiar_command_attack")
         expect("~summoning_familiar_command_attack($target)" in goad,
                "Goad no longer routes through the shared command-attack proc")

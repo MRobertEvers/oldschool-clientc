@@ -10,7 +10,7 @@ A loc only appears here if it is **placed on a map** — the cache names
 thousands of things "door" or "gate" that are furniture (excluded) or never
 placed (excluded); neither can be clicked.
 
-Coverage means one of four things now, in descending order of how OSRS-like
+Coverage means one of five things now, in descending order of how OSRS-like
 the result is:
 
 1. **Paired in `doors.loc`/`doubledoors.loc`** — swings via the generic
@@ -18,18 +18,27 @@ the result is:
    for a confirmed two-leaf door, the `_door_left_*`/`_door_right_*`
    handlers (`doors/scripts/doubledoors.rs2`, ported from LostCity, which
    also swings the opposite leaf). This is what a real door does.
+1b. **Self-staging (`doors_selfstage.loc`)** — the same swing, for a door
+   the cache gives no opened counterpart. It re-adds *itself* at the swung
+   tile with its right-click menu replaced: LOC_ADD_CHANGE_V2 carries a
+   per-placement op mask and op labels, so one record offers "Open" where
+   the map put it and "Close" where it swung to. This is what OldSchool
+   itself does — the 239 gamepack keeps both on its scene loc and its menu
+   builder applies them over the loctype's (deob class69/class108) — and it
+   is why the walk-through bucket below is now fifteen rows rather than
+   182. `doors/scripts/doors_selfstage.rs2` has the full reasoning.
 2. **Bound to a named script** (`[oplocN,<name>]` somewhere in
    `server/scripts`) — a quest, minigame, or skill-specific mechanism
    (`skill_thieving/scripts/doors/locked_door.rs2`, `general_use/scripts/
    gates.rs2`, and so on).
 3. **Walk-through fallback** (`general_use/scripts/
-   door_walkthrough_fallback.rs2`) — a door with an Open action but no
-   discoverable opened variant anywhere in the cache under any naming
-   convention this tool tried. The door cannot visually swing (there is
-   nothing to swing *to*), so the player passes through instead of being
-   stuck at a scenery loc with a dead click. Same fallback this tree
-   already used for memberfencegate_l/r, thieving locked doors, and
-   several quests before this pass existed.
+   door_walkthrough_fallback.rs2`) — what is left once (1b) has taken every
+   door a swing is right for: a shape with no direction to swing in, an op
+   that is not Open, or a puzzle/maze mechanism that moves its own door.
+   The player passes through instead of being stuck at a scenery loc with a
+   dead click. Same fallback this tree already used for
+   memberfencegate_l/r, thieving locked doors, and several quests before
+   this pass existed.
 4. **Eternal-lock fallback** (`general_use/scripts/
    door_locked_fallback.rs2`) — same situation as (3), but the loc's own
    name says "locked" and letting the player through for free would be
@@ -51,10 +60,10 @@ tracked separately below rather than silently dropped.
 |---|---|
 | door/gate-named cache records | 3096 |
 | placed on a map | 1836 |
-| paired in doors.loc | 390 |
-| bound to a named script | 403 |
-| inert (no interactive op) | 836 |
-| **gap: swing (Open/Close/etc.)** | **93** |
+| paired or self-staging (doors.loc + doors_selfstage.loc) | 604 |
+| bound to a named script | 245 |
+| inert (no interactive op) | 833 |
+| **gap: swing (Open/Close/etc.)** | **40** |
 | gap: Enter/Pass-through (out of scope) | 113 |
 | gap: other op | 1 |
 
@@ -70,26 +79,12 @@ tracked separately below rather than silently dropped.
 | 5184 | `fenk_door_arch` |  | 5 | op1=Open | pending |
 | 5185 | `fenk_door_arch_mirror` |  | 5 | op1=Open | pending |
 | 2417 | `kr_opendoubledoor_l` | Large door | 2 | op1=Close | pending |
-| 2705 | `combodoor` | Door | 2 | op1=Open | pending |
 | 4465 | `castlewars_saradomin_sidedoor` | Door | 2 | op1=Unlock | pending |
-| 10045 | `fai_varrock_cook_guild_door` | Door | 2 | op1=Open | pending |
-| 11151 | `enakh_b+w_arm` | Door | 2 | op1=Open | pending |
-| 11152 | `enakh_b+w_leg` | Door | 2 | op1=Open | pending |
-| 11763 | `hos_grape_odddoor` | Door | 2 | op1=Open | pending |
-| 22007 | `brain_living_lower_door` | Door | 2 | op1=Open | pending |
-| 24560 | `vm_fencegate_l` | Gate | 2 | op1=Open | pending |
-| 24561 | `vm_fencegate_r` | Gate | 2 | op1=Open | pending |
-| 80 | `arena_jeremydoor` | Prison Gate | 1 | op1=Open | pending |
-| 82 | `fightarena_door2` | Door | 1 | op1=Open | pending |
 | 2109 | `slayertower_door_arch` |  | 1 | op1=Open | pending |
 | 2110 | `slayertower_door_arch_mirror` |  | 1 | op1=Open | pending |
-| 2259 | `zqshilogateclosedl` | Metal gate | 1 | op1=Open | pending |
-| 2260 | `zqshilogateclosedr` | Metal gate | 1 | op1=Open | pending |
 | 3765 | `troll_celldoor_eadgar` | Cell Door | 1 | op1=Unlock | pending |
 | 3767 | `troll_celldoor_godric` | Cell Door | 1 | op1=Unlock | pending |
 | 3780 | `troll_stronghold_prison_door_closed` | Prison Door | 1 | op1=Unlock | pending |
-| 4148 | `viking_bard_backstage_door` | Door | 1 | op1=Open | pending |
-| 4962 | `hauntedmine_boss_door` | Door | 1 | op1=Open | pending |
 | 5501 | `favour_prisondoor` | Door | 1 | op1=Open, op5=Pick-lock | pending |
 | 6553 | `dt_ancient_temple_door_open` | Doorway | 1 | op1=Open | pending |
 | 6555 | `dt_ancient_temple_door_open_mirror` | Doorway | 1 | op1=Open | pending |
@@ -100,20 +95,9 @@ tracked separately below rather than silently dropped.
 | 8960 | `dagannoth_pressure_door3` | Door | 1 | op1=Open | pending |
 | 9038 | `tbwcu_bamboo_door_l` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
 | 9039 | `tbwcu_bamboo_door_r` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
-| 9319 | `pattern_door_d` | Door | 1 | op1=Open | pending |
-| 9398 | `newbie_door1` | Door | 1 | op1=Open | pending |
-| 9709 | `newbie_door2` | Door | 1 | op1=Open | pending |
-| 9719 | `newbiedoor5_l` | Gate | 1 | op1=Open | pending |
-| 9720 | `newbiedoor5_r` | Gate | 1 | op1=Open | pending |
-| 9721 | `newbie_door6` | Door | 1 | op1=Open | pending |
-| 9722 | `newbie_door7` | Door | 1 | op1=Open | pending |
-| 11057 | `enakh_door_k_sigil` | Door | 1 | op1=Open | pending |
-| 11064 | `enakh_door_left_arm` | Door | 1 | op1=Open | pending |
-| 11196 | `boardgames_runeversi_door_experienced` | Door | 1 | op1=Open | pending |
 | 14974 | `mm_door_unopenable` | Bamboo Door | 1 | op1=Open | pending |
 | 14983 | `macro_maze_walllow_safe4` | Gate | 1 | op1=Open | pending |
 | 18359 | `slug2_dungeon_door_close` | Wall | 1 | op1=Push | pending |
-| 19843 | `eaglepeak_gate` |  | 1 | op1=Open | pending |
 | 20341 | `contact_barricade` | Gate | 1 | op1=Open | pending |
 | 21068 | `peng_base_blast_door` | Door | 1 | op1=Open | pending |
 | 21400 | `frisd_town_wall_door_locked` | Large door | 1 | op1=Open | pending |
@@ -121,40 +105,12 @@ tracked separately below rather than silently dropped.
 | 22945 | `dorgesh_bonedoor_entrance` | Bone door | 1 | op1=Open | pending |
 | 25526 | `qip_obs_door_left` | Door | 1 | op1=Open | pending |
 | 25527 | `qip_obs_door_right` | Door | 1 | op1=Open | pending |
-| 27445 | `hosidius_tithe_farm_door` | Farm door | 1 | op1=Open | pending |
-| 29486 | `hillgiant_boss_entrance_r` | Gate | 1 | op1=Open | pending |
-| 29487 | `hillgiant_boss_entrance_l` | Gate | 1 | op1=Open | pending |
-| 30114 | `mistmyst_door_opal` | Door | 1 | op1=Open | pending |
-| 30164 | `tut2_survival_entry` | Door | 1 | op1=Open | pending |
-| 30167 | `tut2_nav_entry` | Door | 1 | op1=Open | pending |
-| 30387 | `castlewars_doubledoorl` | Large door | 1 | op1=Open | pending |
-| 30388 | `castlewars_doubledoorr` | Large door | 1 | op1=Open | pending |
 | 34840 | `hosdun_grubby_door_locked` | Grubby Door | 1 | op1=Pick-lock | pending |
-| 34843 | `hosdun_east_door` | Temple Door | 1 | op1=Open | pending |
-| 35795 | `sote_prison_door` | Cell door | 1 | op1=Open | pending |
-| 37953 | `tut2_combat_entry_l` | Gate | 1 | op1=Open | pending |
-| 37954 | `tut2_combat_entry_r` | Gate | 1 | op1=Open | pending |
-| 37961 | `tut2_bank_exit` | Door | 1 | op1=Open | pending |
-| 37963 | `tut2_prayer_exit_l` | Door | 1 | op1=Open | pending |
-| 37964 | `tut2_prayer_exit_r` | Door | 1 | op1=Open | pending |
-| 38012 | `myq5_prisoner_door` | Cell door | 1 | op1=Open | pending |
 | 41537 | `camdozaal_vault_door` | Vault Door | 1 | op1=Open | pending |
-| 42840 | `nex_frozen_door_outer_1` | Frozen Door | 1 | op1=Open | pending |
-| 42841 | `nex_frozen_door_outer_2` | Frozen Door | 1 | op1=Open | pending |
-| 42931 | `nex_frozen_door_inner_1` | Frozen Door | 1 | op1=Open | pending |
-| 42932 | `nex_frozen_door_inner_2` | Frozen Door | 1 | op1=Open | pending |
 | 42933 | `nex_outer_prison_door` | Door | 1 | op1=Open | pending |
 | 42934 | `nex_inner_prison_door` | Door | 1 | op1=Open | pending |
 | 43278 | `lotg_crypt_exit` | Gate | 1 | op1=Open | pending |
-| 50510 | `mah3_zemouregal_fort_door` | Doors | 1 | op1=Open | pending |
-| 50511 | `mah3_zemouregal_fort_door2` | Doors | 1 | op1=Open | pending |
 | 53902 | `luc2_mov_door_rune_back` | Old battered door | 1 | op1=Open | pending |
-| 60018 | `last_light_doorway` | Door | 1 | op1=Open | pending |
-| 61827 | `sangvesti_myrmel_manor_door` | Myrmel door | 1 | op1=Open | pending |
-| 61832 | `sangvesti_fancy_house_1_door` | Shadum door | 1 | op1=Open | pending |
-| 61834 | `sangvesti_vitur_manor_door` | Vitur door | 1 | op1=Open | pending |
-| 61835 | `sangvesti_vitur_manor_door_m` | Vitur door | 1 | op1=Open | pending |
-| 61845 | `sangvesti_fancy_house_3_back_door` | Door | 1 | op1=Open | pending |
 
 ## Enter/Pass-through doorways — out of scope, tracked only
 

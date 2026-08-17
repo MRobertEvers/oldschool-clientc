@@ -446,8 +446,11 @@ exec_zone_sub_packet_at(
          * changeLocAvailable gate in locChangeDoQueue). */
         struct PktLocAddChange const* pkt = payload;
         zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
-        App_WorldLocChange(
-            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
+        /* The op mask and replacement labels ride along: they describe THIS
+         * placement, so they cannot be recovered from the loc id later. */
+        App_WorldLocChangeOps(
+            app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
+            pkt->op_flags, pkt->ops);
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(
                 stderr,

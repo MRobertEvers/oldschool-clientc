@@ -159,6 +159,32 @@ def load_auxiliary_locs(
     return result, payload.get("wiki_source", {})
 
 
+def load_flatpacks(
+    path: Path, furniture_symbols: set[str], obj_name_to_id: dict[str, int]
+) -> tuple[dict[str, str], dict[str, object]]:
+    """Load the reviewed furniture-row to revision-239 flatpack-object map."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw_rows = payload.get("rows")
+    if not isinstance(raw_rows, dict):
+        raise CatalogError(f"{path}: missing rows object")
+    if len(raw_rows) != 82:
+        raise CatalogError(
+            f"{path}: expected all 82 obtainable revision-239 flatpacks; "
+            "the Wiki's 20 cache-only Study flatpacks must remain excluded"
+        )
+    unknown_furniture = set(raw_rows) - furniture_symbols
+    if unknown_furniture:
+        raise CatalogError(f"{path}: unknown furniture rows {sorted(unknown_furniture)}")
+    unknown_objects = sorted(set(map(str, raw_rows.values())) - set(obj_name_to_id))
+    if unknown_objects:
+        raise CatalogError(f"{path}: unknown flatpack objects {unknown_objects}")
+    if len(set(raw_rows.values())) != len(raw_rows):
+        raise CatalogError(f"{path}: a flatpack object is mapped more than once")
+    return {str(key): str(value) for key, value in raw_rows.items()}, payload.get(
+        "wiki_source", {}
+    )
+
+
 def wiki_title_index(snapshot: dict[str, object]) -> dict[str, list[dict[str, object]]]:
     result: dict[str, list[dict[str, object]]] = defaultdict(list)
     for entry in snapshot["entries"]:
@@ -274,12 +300,13 @@ def generate(
     wiki_snapshot_path: Path,
     reconciliations_path: Path,
     auxiliary_locs_path: Path,
+    flatpacks_path: Path,
 ) -> dict[str, object]:
     summary = validate(content)
     configs = content / "configs"
     rows = read_blocks(configs / "all.dbrow")
     row_id_to_name, row_name_to_id = read_compack(configs / "all.dbrow.compack")
-    obj_id_to_name, _ = read_compack(configs / "all.obj.compack")
+    obj_id_to_name, obj_name_to_id = read_compack(configs / "all.obj.compack")
     loc_id_to_name, _ = read_compack(configs / "all.loc.compack")
     loc_by_name = {block.name: block for block in read_blocks(configs / "all.loc")}
     wiki_snapshot, wiki_by_item_id = load_wiki_snapshot(wiki_snapshot_path)
@@ -293,6 +320,9 @@ def generate(
     furniture_symbols = {row.name for row in furniture}
     auxiliary_locs, auxiliary_wiki_source = load_auxiliary_locs(
         auxiliary_locs_path, furniture_symbols, loc_by_name
+    )
+    flatpacks, flatpack_wiki_source = load_flatpacks(
+        flatpacks_path, furniture_symbols, obj_name_to_id
     )
     unknown_reconciliations = set(reconciliations) - furniture_symbols
     if unknown_reconciliations:
@@ -405,6 +435,14 @@ def generate(
                     for loc_id in sorted(set(built_ids))
                 ],
                 "auxiliary_locs": auxiliary_locs.get(row.name, []),
+                "flatpack": (
+                    {
+                        "id": obj_name_to_id[flatpacks[row.name]],
+                        "symbol": flatpacks[row.name],
+                    }
+                    if row.name in flatpacks
+                    else None
+                ),
                 "experience": experience,
                 "wiki": wiki_entry.get("wiki") if wiki_entry else wiki_search(display_name),
                 "wiki_match": (
@@ -514,6 +552,8 @@ def generate(
             "reconciliations": str(reconciliations_path),
             "auxiliary_locs": str(auxiliary_locs_path),
             "auxiliary_locs_wiki_source": auxiliary_wiki_source,
+            "flatpacks": str(flatpacks_path),
+            "flatpacks_wiki_source": flatpack_wiki_source,
             "construction": "https://oldschool.runescape.wiki/w/Construction",
             "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
             "level_up_table": "https://oldschool.runescape.wiki/w/Construction/Level_up_table",
@@ -532,6 +572,7 @@ def generate(
             ),
             "room_template_placements": len(template_placements),
             "runtime_auxiliary_loc_pairs": sum(map(len, auxiliary_locs.values())),
+            "runtime_flatpack_rows": len(flatpacks),
         },
         "furniture": sorted(furniture_records, key=lambda item: item["id"]),
         "hotspots": sorted(hotspot_records, key=lambda item: item["id"]),
@@ -544,11 +585,12 @@ def generate(
 
 
 def render(
-    content: Path, wiki_snapshot: Path, reconciliations: Path, auxiliary_locs: Path
+    content: Path, wiki_snapshot: Path, reconciliations: Path,
+    auxiliary_locs: Path, flatpacks: Path
 ) -> str:
     return (
         json.dumps(
-            generate(content, wiki_snapshot, reconciliations, auxiliary_locs),
+            generate(content, wiki_snapshot, reconciliations, auxiliary_locs, flatpacks),
             indent=2,
             ensure_ascii=False,
             sort_keys=True,
@@ -606,6 +648,8 @@ def render_runtime_rows(crosswalk: dict[str, object]) -> str:
                 "data=auxiliary_loc,"
                 f"{auxiliary['empty_loc']},{auxiliary['built_loc']}"
             )
+        if furniture["flatpack"] is not None:
+            lines.append(f"data=flatpack,{furniture['flatpack']['symbol']}")
         lines.append("")
 
     placements_by_loc: dict[str, list[tuple[str, int, int, int, int, int]]] = defaultdict(list)
@@ -667,6 +711,11 @@ def main() -> int:
         default=Path("tools/data/construction_runtime_auxiliary_locs.json"),
     )
     parser.add_argument(
+        "--flatpacks",
+        type=Path,
+        default=Path("tools/data/construction_runtime_flatpacks.json"),
+    )
+    parser.add_argument(
         "--runtime-output",
         type=Path,
         default=Path(
@@ -682,6 +731,7 @@ def main() -> int:
             args.wiki_snapshot,
             args.reconciliations,
             args.auxiliary_locs,
+            args.flatpacks,
         )
         generated = json.dumps(
             crosswalk, indent=2, ensure_ascii=False, sort_keys=True

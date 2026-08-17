@@ -53,8 +53,13 @@ def main() -> int:
         orbs_interface = ORBS_INTERFACE.read_text(encoding="utf-8")
         special_manifest = SPECIAL_MANIFEST.read_text(encoding="utf-8")
         combat_profiles = COMBAT_PROFILES.read_text(encoding="utf-8")
-        execute = definition(scripts, "proc,summoning_familiar_special_execute")
-        target_execute = definition(scripts, "proc,summoning_familiar_special_target_execute")
+        execute_dispatch = definition(scripts, "proc,summoning_familiar_special_execute")
+        target_execute_dispatch = definition(scripts, "proc,summoning_familiar_special_target_execute")
+        # Familiar effects now live in one module per familiar. Keep the broad
+        # source-level assertions below, while checking dispatch coverage from
+        # the two intentionally-small routing procedures.
+        execute = text
+        target_execute = text
         xp = definition(scripts, "proc,summoning_familiar_special_xp")
         target_kinds = definition(scripts, "proc,summoning_familiar_special_target_kinds")
         # Self-cast specials fire from the Summoning orb's plain click, not the
@@ -75,13 +80,17 @@ def main() -> int:
         }
         execute_types = {
             int(value)
-            for condition in re.findall(r"if \(([^\n]*)\) \{", execute)
-            for value in re.findall(r"\$type = (\d+)", condition)
+            for value in re.findall(
+                r"if \(\$type = (\d+)\) return\(~summoning_[a-z0-9_]+_special\(\$type\)\);",
+                execute_dispatch,
+            )
         }
         target_execute_types = {
             int(value)
-            for condition in re.findall(r"if \(([^\n]*)\) \{", target_execute)
-            for value in re.findall(r"\$type = (\d+)", condition)
+            for value in re.findall(
+                r"if \(\$type = (\d+) & .*\) return\(~summoning_[a-z0-9_]+_special\(\$type, \$kind\)\);",
+                target_execute_dispatch,
+            )
         }
         xp_rows = {
             int(kind): int(value)
@@ -90,7 +99,7 @@ def main() -> int:
         reconstructed = {16, 50, 52, 56, 58, 64, 65}
         expect(execute_types | target_execute_types == set(expected_xp),
                "implemented special handlers drifted from their XP rows")
-        scorpion = execute[execute.index("if ($type = 9)"):execute.index("if ($type = 11)")]
+        scorpion = definition(scripts, "proc,summoning_spirit_scorpion_special")
         expect("npc_var_set(^summoning_npcvar_charged_attack, 1);" in scorpion and
                "return(true);" in scorpion,
                "Spirit Scorpion does not arm its generation-local charge")
@@ -182,25 +191,25 @@ def main() -> int:
                "summoning_special_move_talon_beast_deadly_claw" in execute and
                execute.count("npc_queue(2, $first, add(2, divide($distance, 2)));") == 1,
                "Deadly Claw lacks its admitted attack sequence or first delayed hit")
-        talon = execute[execute.index("if ($type = 57)"):execute.index("if ($type = 45)")]
+        talon = definition(scripts, "proc,summoning_talon_beast_special")
         expect(talon.count("npc_queue(2,") == 3 and talon.count("randominc(8)") == 3 and
                "npc_combat_stat(npc_stat(magic), npc_param(magicattack))" in talon and
                "npc_defence_roll(^magic_style)" in talon,
                "Deadly Claw does not retain three independently accurate delayed magic hits")
-        spike_shot = execute[execute.index("if ($type = 63)"):execute.index("if ($type = 25)")]
+        spike_shot = definition(scripts, "proc,summoning_spirit_dagannoth_special")
         expect("SpiritDagannothNPC.java: Spike Shot (reconstructed source gap)" in spike_shot and
                "summoning_special_move_spirit_dagannoth_spike_shot" in spike_shot and
                "npc_combat_stat(npc_stat(ranged), npc_param(rangeattack))" in spike_shot and
                "npc_defence_roll(^ranged_style)" in spike_shot and "randominc(18)" in spike_shot and
                "if ($damage > 0) npc_freeze(4);" in spike_shot,
                "Spike Shot lacks its ranged source profile, max hit, admitted visual, or landed stun")
-        doomsphere = execute[execute.index("if ($type = 41)"):execute.index("if ($type = 10)")]
+        doomsphere = definition(scripts, "proc,summoning_karamthulhu_overlord_special")
         expect("KaramthulhuOverlordNPC.java: Doomsphere Device (reconstructed source gap)" in doomsphere and
                "summoning_special_move_karamthulhu_doomsphere_device" in doomsphere and
                "npc_combat_stat(npc_stat(magic), npc_param(magicattack))" in doomsphere and
                "npc_defence_roll(^magic_style)" in doomsphere and "randominc(16)" in doomsphere,
                "Doomsphere Device lacks its period magic profile, max hit, or admitted visual")
-        mantis = execute[execute.index("if ($type = 55)"):execute.index("if ($type = 10)")]
+        mantis = definition(scripts, "proc,summoning_praying_mantis_special")
         expect("PrayingMantisNPC.java: Mantis Strike (reconstructed source gap)" in mantis and
                "summoning_special_move_praying_mantis_mantis_strike" in mantis and
                "npc_combat_stat(npc_stat(magic), npc_param(magicattack))" in mantis and
@@ -375,7 +384,7 @@ def main() -> int:
                "if ($count < 5" in target_execute and
                "summoning_cohort_phoenix_seq_11092" in target_execute,
                "Rise From the Ashes lacks its selected-ashes transaction, inverse-health cap, full heal, or bounded burst")
-        forge = target_execute[target_execute.index("if ($type = 56"):target_execute.index("if ($type = 58")]
+        forge = definition(scripts, "proc,summoning_forge_regent_special")
         expect("ForgeRegentNPC.java: Inferno" in forge and
                ".inv_freespace(inv) < 1" in forge and
                "p_delay(2);" in forge and
@@ -384,7 +393,7 @@ def main() -> int:
                "inv_add(inv, $remove, 1);" in forge and
                "summoning_special_move_forge_regent_inferno_target_gfx" in forge,
                "Inferno lacks its delayed max-20 magic hit or atomic one-item disarm")
-        ent = target_execute[target_execute.index("if ($type = 58"):target_execute.index("if ($type = 64")]
+        ent = definition(scripts, "proc,summoning_giant_ent_special")
         expect("GiantEntNPC: Acorn Missile (period reconstruction)" in ent and
                "npc_huntall($anchor, 1, 0);" in ent and "if ($count < 3" in ent and
                "randominc(17)" in ent and "random(4) = 0" in ent and
@@ -392,14 +401,14 @@ def main() -> int:
                "summoning_special_move_giant_ent_acorn_missile_projectile" in ent and
                "summoning_special_move_giant_ent_acorn_missile_impact_gfx" in ent,
                "Acorn Missile lacks its reconstructed three-target/max-17/acorn contract or assets")
-        lava = target_execute[target_execute.index("if ($type = 64"):target_execute.index("if ($type = 65")]
+        lava = definition(scripts, "proc,summoning_lava_titan_special")
         expect("LavaTitanNPC: Ebon Thunder (period reconstruction)" in lava and
                "randominc(14)" in lava and
                "%sa_energy = max(sub(%sa_energy, 100), 0);" in lava and
                "summoning_special_move_geyser_titan_boil" in lava and
                "summoning_special_move_lava_titan_ebon_thunder_gfx" in lava,
                "Ebon Thunder lacks its max-14 magic hit, exact ten-point drain, or later-source visuals")
-        swamp = target_execute[target_execute.index("if ($type = 65"):target_execute.index("if ($type = 13")]
+        swamp = definition(scripts, "proc,summoning_swamp_titan_special")
         expect("SwampTitanNPC: Swamp Plague (period reconstruction)" in swamp and
                "npc_huntall($anchor, 1, 0);" in swamp and "if ($count < 6" in swamp and
                "randominc(20)" in swamp and "random(4) = 0" in swamp and
@@ -472,8 +481,12 @@ def main() -> int:
         expect("ObsidianGolemNPC.java: Volcanic Strength" in execute and
                "spotanim_npc(summoning_special_move_obsidian_golem_volcanic_strength_gfx, 0, 0);" in execute,
                "Volcanic Strength lacks the source familiar graphic")
-        expect("if ($type = 59 | $type = 60 | $type = 61)" in execute,
-               "the Titan's Constitution family is not shared")
+        titan_constitution = "\n".join(
+            definition(scripts, f"proc,summoning_{name}_special")
+            for name in ("fire_titan", "moss_titan", "ice_titan")
+        )
+        expect(titan_constitution.count("add(stat_base(hitpoints), 8)") == 3,
+               "each elemental titan does not own Titan's Constitution behavior")
         normal_tick = definition(scripts, "proc,summoning_familiar_normal_combat_tick")
         # The target resolution and the leash check moved into
         # `~summoning_familiar_engagement` when auto-assist gave every combat
@@ -494,13 +507,15 @@ def main() -> int:
                "the shared engagement gate lost its leash or generation checks")
         expect("npc_findcombat = false" in auto_assist,
                "auto-assist no longer reads the owner's combat target")
-        expect("%summoning_familiar_type != 76" in normal_tick and
-               "~summoning_familiar_engagement($familiar)" in normal_tick and
-               "npc_finduid($familiar) = false" in normal_tick and
-               "npc_walk($target_coord)" in normal_tick and
-               "npc_var_set(^summoning_npcvar_charged_attack, 0)" in normal_tick and
-               "npc_queue(2, $extra_one, 0);" in normal_tick and
-               "npc_queue(2, $extra_two, 0);" in normal_tick,
+        iron_tick = definition(scripts, "proc,summoning_iron_titan_normal_combat_tick")
+        expect("%summoning_familiar_type = 76" in normal_tick and
+               "~summoning_iron_titan_normal_combat_tick" in normal_tick and
+               "~summoning_familiar_engagement($familiar)" in iron_tick and
+               "npc_finduid($familiar) = false" in iron_tick and
+               "npc_walk($target_coord)" in iron_tick and
+               "npc_var_set(^summoning_npcvar_charged_attack, 0)" in iron_tick and
+               "npc_queue(2, $extra_one, 0);" in iron_tick and
+               "npc_queue(2, $extra_two, 0);" in iron_tick,
                "Iron Titan lacks a generation-safe multiway normal swing or its two charged hits")
         expect("IronTitanNPC.java: Iron Within" in execute and
                "summoning_special_move_iron_titan_swing" in execute and
@@ -541,7 +556,8 @@ def main() -> int:
                "summoning_steel_titan_normal_combat_tick" in normal_tick and
                "npc_var_set(^summoning_npcvar_steel_next_style, random(3));" in steel_tick and
                "npc_queue(2, $extra_three, $impact_delay);" in steel_tick and
-               "summoning_special_move_steel_titan_projectile" in steel_tick,
+               "summoning_special_move_steel_titan_ranged_projectile" in steel_tick and
+               "summoning_special_move_steel_titan_magic_projectile" in steel_tick,
                "Steel of Legends lacks its one-shot state, style cycle, three extras, or projectile")
         graahk_tick = definition(scripts, "proc,summoning_spirit_graahk_normal_combat_tick")
         engagement = definition(scripts, "proc,summoning_familiar_engagement")
@@ -586,12 +602,16 @@ def main() -> int:
         expect("add(stat_base(hitpoints), 8)" in execute and
                "You are already at maximum hitpoints!" in execute,
                "Titan's Constitution does not validate its overheal ceiling")
-        expect("if ($type = 18 | $type = 19 | $type = 20 | $type = 21)" in execute and
-               "p_delay(2);" in execute and "p_telejump(0_41_35_41_34);" in execute,
+        call_to_arms = "\n".join(
+            definition(scripts, f"proc,summoning_{name}_special")
+            for name in ("void_ravager", "void_spinner", "void_torcher", "void_shifter")
+        )
+        expect(call_to_arms.count("p_delay(2);") == 4 and
+               call_to_arms.count("p_telejump(0_41_35_41_34);") == 4,
                "Call to Arms does not retain its shared delayed Pest Control teleport")
-        expect("summoning_special_move_call_to_arms_start" in execute and
-               "summoning_special_move_call_to_arms_end" in execute and
-               "npc_findowned2 = false" in execute,
+        expect("summoning_special_move_call_to_arms_start" in call_to_arms and
+               "summoning_special_move_call_to_arms_end" in call_to_arms and
+               "npc_findowned2 = false" in call_to_arms,
                "Call to Arms lacks its remapped visuals or delayed familiar revalidation")
         # The special move's target cursor lives on the Summoning orb now, not
         # the familiar panel's badge — that badge is the free "Attack" command

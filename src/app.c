@@ -11634,6 +11634,13 @@ struct Task_AppSpawn
      * attached graphic belongs to (stable, scene-unique key to re-find the live
      * entity when the async load lands). */
     int entity_element_id;
+    /* APP_SPAWN_LOC_CHANGE: the placement's own right-click menu, carried
+     * across the async model wait because the scenery entity it lands on does
+     * not exist until then. `loc_op_flags` is the 5-bit shown mask and
+     * `loc_ops[i]` the replacement label for slot i ("" = keep the loctype's).
+     * See App_WorldLocChangeOps. */
+    int loc_op_flags;
+    char loc_ops[5][32];
     /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
      * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
      * carry the source and destination levels. */
@@ -11652,6 +11659,55 @@ struct Task_AppSpawn
     int loc_angle;
     int loc_model_j;
 };
+
+/*
+ * Apply a LOC_ADD_CHANGE_V2 placement menu onto the scenery entity the change
+ * just spawned.
+ *
+ * Order is the reference's (deob class108), and each step matters:
+ *
+ *   1. a slot the mask clears is GONE, whatever either side calls it. The
+ *      reference `continue`s before it has read a label at all, so a swung
+ *      door does not keep offering "Open" beside its "Close".
+ *   2. a replacement label wins over the loctype's, and wins on a slot the
+ *      loctype left EMPTY too — which is the whole mechanism: it is how a
+ *      single cache record grows an option it never declared.
+ *
+ * `code` is left alone. It is the op slot the click reports, and the override
+ * renames a row rather than moving it.
+ */
+static void
+app_loc_change_apply_ops(
+    struct App* app,
+    const struct Task_AppSpawn* self)
+{
+    int idx;
+    struct WorldEntity_Scenery* sc;
+
+    assert(app);
+    assert(self);
+    if( self->loc_id < 0 )
+        return; /* a pure delete has no placement to describe */
+    idx = World_SceneryFindAt(app->world, self->tile_x, self->tile_z, self->level,
+                              self->loc_shape);
+    if( idx < 0 )
+        return; /* the spawn was refused (unknown loc, off-scene) — nothing to dress */
+    sc = World_EntityPoolGet(&app->world->entities.scenery, idx);
+    if( !sc )
+        return;
+
+    for( int i = 0; i < 5; i++ )
+    {
+        if( (self->loc_op_flags & (1 << i)) == 0 )
+        {
+            sc->actions[i].name[0] = '\0';
+            continue;
+        }
+        if( self->loc_ops[i][0] == '\0' )
+            continue;
+        snprintf(sc->actions[i].name, sizeof(sc->actions[i].name), "%s", self->loc_ops[i]);
+    }
+}
 
 static int
 Task_AppSpawn_Run(
@@ -11873,6 +11929,17 @@ Task_AppSpawn_Run(
                 self->loc_id,
                 self->loc_shape,
                 self->loc_angle);
+            /*
+             * The placement's own menu, over the loctype's.
+             *
+             * After the spawn and not before it: the scenery entity is created
+             * by ApplyLocChange with the loctype's actions copied in, so this
+             * is the only point where both the entity and the override exist.
+             * The reference does the same thing in the same order — its scene
+             * loc carries the mask and the labels, and the menu builder reads
+             * the loctype first and lets the placement win (deob class108).
+             */
+            app_loc_change_apply_ops(app, self);
             app_sync_textures(app);
             app->need_redraw = 1;
         }
@@ -12967,12 +13034,34 @@ App_WorldLocChange(
     int shape,
     int angle)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+
+    /* All five bits: the loctype's menu, unchanged. Not a "no data" stand-in —
+     * it is the real menu of every loc placed by anything but a door script. */
+    App_WorldLocChangeOps(app, scene_x, scene_z, level, loc_id, shape, angle, 0x1f, none);
+}
+
+void
+App_WorldLocChangeOps(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle,
+    int op_flags,
+    const char ops[5][32])
+{
     struct Task_AppSpawn* task;
     assert(app);
+    assert(ops);
     task = app_spawn_task_new(app, APP_SPAWN_LOC_CHANGE, scene_x, scene_z, level);
     task->loc_id = loc_id;
     task->loc_shape = shape;
     task->loc_angle = angle;
+    task->loc_op_flags = op_flags;
+    memcpy(task->loc_ops, ops, sizeof(task->loc_ops));
     ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
 }
 
@@ -17456,7 +17545,10 @@ app_world_apply_entity_anim_tracks(
     {
         struct ToriDraw_Animation* pa =
             ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
-        if( app_anim_playable(pa) )
+        /* Not registered yet: `app_request_entity_seq` above only queues the
+         * load, so the first ticks after a spawn legitimately have no
+         * animation. That is the caller's condition — the predicate asserts. */
+        if( pa && app_anim_playable(pa) )
         {
             app_element_set_anim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
@@ -17492,7 +17584,7 @@ app_world_apply_entity_anim_tracks(
     {
         struct ToriDraw_Animation* sa =
             ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
-        if( app_anim_playable(sa) )
+        if( sa && app_anim_playable(sa) )
         {
             app_element_set_anim(el, sa);
             el->anim_seq_id = anim->secondary.anim_id;

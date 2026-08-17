@@ -197,6 +197,101 @@ world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
     }
 }
 
+/*
+ * Shade / occluder / decor accumulators: build-only, and the scenery_add_*
+ * family below has two callers.
+ *
+ * A static build allocates all three in WorldBuilder_Rebuild*Begin and frees
+ * them once their bake has been applied. A runtime loc spawn
+ * (WorldBuilder_ApplyLocChange -> scenery_add, `scenery_runtime_spawn`) reuses
+ * that same code with no build in flight: there is no accumulator to write to,
+ * and nothing downstream would read one — the spawned loc is drawn by
+ * world_cycle's per-frame scenery pass and lit on the spot
+ * (scenery_register_sharelight). "Is a build in flight?" is knowledge the
+ * builder holds and the maps do not, so the test lives here, at the one point
+ * every scenery_add_* writer passes through, rather than in the map modules —
+ * they assert their pointer, so a genuine bad pointer still stops there.
+ */
+static void
+scenery_shade_wall(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int orientation,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_wall(builder->shademap, sx, sz, slevel, orientation, shade);
+}
+
+static void
+scenery_shade_wall_corner(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int orientation,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_wall_corner(builder->shademap, sx, sz, slevel, orientation, shade);
+}
+
+static void
+scenery_shade_sized(
+    struct WorldBuilder* builder,
+    int sx,
+    int sz,
+    int slevel,
+    int size_x,
+    int size_z,
+    int shade)
+{
+    if( !builder->shademap )
+        return;
+    shademap2_set_sized(builder->shademap, sx, sz, slevel, size_x, size_z, shade);
+}
+
+static void
+scenery_occluder_mark(struct WorldBuilder* builder, int x, int z, int level, uint16_t bits)
+{
+    if( !builder->occluder_buildmap )
+        return;
+    occluder_buildmap_or_mark(builder->occluder_buildmap, x, z, level, bits);
+}
+
+static void
+scenery_decor_set_wall_offset(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    int wall_offset)
+{
+    if( !builder->decor_buildmap )
+        return;
+    decor_buildmap_set_wall_offset(builder->decor_buildmap, x, z, level, wall_offset);
+}
+
+static void
+scenery_decor_add_element(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    int element_id,
+    int orientation,
+    enum DecorDisplacementKind displacement_kind)
+{
+    if( !builder->decor_buildmap )
+        return;
+    decor_buildmap_add_element(
+        builder->decor_buildmap, x, z, level, element_id, orientation, displacement_kind);
+}
+
 static inline enum MinimapWallFlag
 orientation_wall_flag(int orientation)
 {
@@ -1008,32 +1103,32 @@ scenery_add_wall_single(
         switch( orientation )
         {
         case 0: /* WEST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 1: /* NORTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 2: /* EAST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 3: /* SOUTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
@@ -1042,8 +1137,8 @@ scenery_add_wall_single(
         }
     }
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1051,8 +1146,8 @@ scenery_add_wall_single(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall(
-            builder->shademap,
+        scenery_shade_wall(
+            builder,
             scene_x,
             scene_z,
             map_loc->chunk_pos_level,
@@ -1094,8 +1189,8 @@ scenery_add_wall_tri_corner(
     scenery_record_runtime_wall(
         builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1103,8 +1198,8 @@ scenery_add_wall_tri_corner(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall_corner(
-            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
+        scenery_shade_wall_corner(
+            builder, scene_x, scene_z, map_loc->chunk_pos_level, orientation, 50);
     }
 
     scenery_register_sharelight(
@@ -1168,8 +1263,8 @@ scenery_add_wall_two_sides(
     scenery_record_runtime_wall(
         builder, element_id2, WALL_B, ROTATION_WALL_TYPE[next_orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1186,56 +1281,56 @@ scenery_add_wall_two_sides(
         switch( orientation )
         {
         case 0: /* WEST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 1: /* NORTH */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z + 1,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
             break;
         case 2: /* EAST */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x + 1,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_X_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
             break;
         case 3: /* SOUTH — both marks land on the same tile in the reference */
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
                 OCCLUDER_MARK_WALL_ALONG_Z_ALL_LEVELS);
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,
@@ -1274,8 +1369,8 @@ scenery_add_wall_rect_corner(
     scenery_record_runtime_wall(
         builder, element_id, WALL_A, ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1283,8 +1378,8 @@ scenery_add_wall_rect_corner(
 
     if( config_loc->shadowed )
     {
-        shademap2_set_wall_corner(
-            builder->shademap,
+        scenery_shade_wall_corner(
+            builder,
             scene_x,
             scene_z,
             map_loc->chunk_pos_level,
@@ -1335,8 +1430,8 @@ scenery_add_wall_decor_inside(
         0,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1390,8 +1485,8 @@ scenery_add_wall_decor_outside(
         0,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1445,8 +1540,8 @@ scenery_add_wall_decor_diagonal_outside(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1501,8 +1596,8 @@ scenery_add_wall_decor_diagonal_inside(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1592,8 +1687,8 @@ scenery_add_wall_decor_diagonal_double(
         THROUGHWALL,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, inside_element_id));
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1601,8 +1696,8 @@ scenery_add_wall_decor_diagonal_double(
         outside_orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
-    decor_buildmap_add_element(
-        builder->decor_buildmap,
+    scenery_decor_add_element(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1644,8 +1739,8 @@ scenery_add_wall_diagonal(
         1,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id));
 
-    decor_buildmap_set_wall_offset(
-        builder->decor_buildmap,
+    scenery_decor_set_wall_offset(
+        builder,
         scene_x,
         scene_z,
         map_loc->chunk_pos_level,
@@ -1714,8 +1809,8 @@ scenery_add_normal(
         shade = 30;
     if( config_loc->shadowed )
     {
-        shademap2_set_sized(
-            builder->shademap, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
+        scenery_shade_sized(
+            builder, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, shade);
     }
 
     scenery_register_sharelight(
@@ -1765,8 +1860,8 @@ scenery_add_roof(
             shape != RSCACHE_LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER &&
             map_loc->chunk_pos_level > 0 )
         {
-            occluder_buildmap_or_mark(
-                builder->occluder_buildmap,
+            scenery_occluder_mark(
+                builder,
                 scene_x,
                 scene_z,
                 map_loc->chunk_pos_level,

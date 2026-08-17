@@ -5344,10 +5344,16 @@ mock230_script_command(
      * scripted sequence, leave me alone" and `npc_attackdelay` is "my weapon is
      * on cooldown". Only the first should stop damage landing.
      *
-     * Written straight to `attack_clock`, which is the field
-     * `mock230_combat_npc_tick` counts down before firing the swing trigger —
-     * the same one it seeds from `attackrate`, so a handler that states its own
+     * Written straight to `attack_clock`, the deadline
+     * `mock230_combat_npc_tick` reads before firing the swing trigger and the
+     * same one it arms from `attackrate` — so a handler that states its own
      * cadence overrides the record's for that swing and nothing else changes.
+     *
+     * `srv->tick + $ticks`, because the field is a deadline and not a count of
+     * ticks remaining (see its declaration in mock230.h). This is the same
+     * arithmetic the reference writes for the same claim,
+     * `%npc_action_delay = add(map_clock, <n>)`, and it is what makes
+     * `npc_attackdelay(4)` mean four ticks rather than five.
      */
     case SS_OP_NPC_ATTACKDELAY:
     {
@@ -5361,7 +5367,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_attackdelay with no active npc");
             return 1;
         }
-        npc->attack_clock = ticks > 0 ? ticks : 0;
+        npc->attack_clock = srv->tick + (ticks > 0 ? ticks : 0);
         return 1;
     }
 
@@ -6534,6 +6540,95 @@ mock230_script_command(
          * or `loc_del` in the same script addresses it without a `loc_find`.
          * Outside the scene window there is no slot — the loc lives only in
          * the ZoneMap — so the handle names the record instead. */
+        if( slot >= 0 )
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+        else
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                           mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                                                          coord_level(coord), shape));
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+        return 1;
+    }
+
+    /*
+     * loc_add_op(coord, loc, angle, shape, duration, opslot, optext)
+     *
+     * `loc_add`, plus this placement's own right-click menu: exactly one
+     * option, `optext` on slot `opslot`, with every other slot hidden. The two
+     * fields LOC_ADD_CHANGE_V2 carries and LOC_ADD_CHANGE did not.
+     *
+     * Deliberately a *separate* case from SS_OP_LOC_ADD rather than a shared
+     * body with a menu argument, because the two say different things about the
+     * same tile and the difference is worth reading at the call site: `loc_add`
+     * places a loc that means what its type means, and this one places a loc
+     * whose menu belongs to where it is standing.
+     */
+    case SS_OP_LOC_ADD_OP:
+    {
+        int32_t coord;
+        int32_t loc_id;
+        int32_t shape;
+        int32_t angle;
+        int32_t duration;
+        int32_t op_slot;
+        const char* op_text = NULL;
+        struct Mock230LocOps ops;
+        int slot;
+
+        if( !SSVM_PopStr(state, &op_text) )
+            return 1;
+        if( !SSVM_PopInt(state, &op_slot) )
+            return 1;
+        if( !SSVM_PopInt(state, &duration) )
+            return 1;
+        if( !SSVM_PopInt(state, &shape) )
+            return 1;
+        if( !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !SSVM_PopInt(state, &loc_id) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+
+        if( op_slot < 1 || op_slot > 5 )
+        {
+            SSVM_Abort(state, "loc_add_op: op slot %d is not 1..5", op_slot);
+            return 1;
+        }
+        assert(op_text);
+        if( op_text[0] == '\0' )
+        {
+            /* An empty label is not "no override" here — it is a menu with one
+             * slot shown and nothing in it, which the client draws as a loc
+             * that cannot be clicked. A caller that wants the loctype's own
+             * menu has `loc_add`. */
+            SSVM_Abort(state, "loc_add_op: empty op text for loc %d — use loc_add", loc_id);
+            return 1;
+        }
+        if( strlen(op_text) >= MOCK230_LOC_OP_TEXT_MAX )
+        {
+            SSVM_Abort(state, "loc_add_op: op text '%s' is longer than %d", op_text,
+                       MOCK230_LOC_OP_TEXT_MAX - 1);
+            return 1;
+        }
+
+        memset(&ops, 0, sizeof(ops));
+        ops.flags = 1 << (op_slot - 1);
+        snprintf(ops.name[op_slot - 1], sizeof(ops.name[op_slot - 1]), "%s", op_text);
+
+        if( !mock230_world_loc_set_ops(srv, coord_x(coord), coord_z(coord),
+                                       coord_level(coord), shape, loc_id, angle,
+                                       MOCK230_LOC_SET_ADD, &ops) )
+        {
+            SSVM_Abort(state,
+                       "loc_add_op %d at %d,%d failed — unknown loc or outside the scene",
+                       loc_id, coord_x(coord), coord_z(coord));
+            return 1;
+        }
+        slot = mock230_scene_find_loc_exact(coord_x(coord), coord_z(coord),
+                                            coord_level(coord), shape);
+        mock230_world_loc_revert_queue(srv, duration, -1, shape, angle, coord_x(coord),
+                                       coord_z(coord), coord_level(coord));
         if( slot >= 0 )
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
         else

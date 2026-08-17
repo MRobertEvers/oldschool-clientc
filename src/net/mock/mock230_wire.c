@@ -877,12 +877,45 @@ w239_zone_payload(
      * same field; ALL_SHOWN is what a server that has nothing to hide sends.
      */
     case PKT_NAME_LOC_ADD_CHANGE:
-        rsab_p1_alt1(buf, 0);
-        rsab_p1_alt3(buf, OSRS239_LOC_OPS_ALL_SHOWN);
+    {
+        /*
+         * The override list, and it is what makes a door with only one cache
+         * record able to say "Close".
+         *
+         * The key on the wire is the ZERO-based slot index. RSProt keys its map
+         * by the 1-based op number and writes `p1 key - 1`
+         * (LocAddChangeV2Encoder; the generated codec spells the same thing as
+         * `RSPROT_XFORM(x, U1, elem->key, -1)`), and the 239 gamepack indexes
+         * its five-slot array with the byte it read, unadjusted. Writing the
+         * 1-based number here would rename the slot one along, silently.
+         *
+         * Only slots that carry a replacement are sent. The client keeps the
+         * loctype's own label for every slot the list does not mention, so an
+         * empty list is exactly "use the cache's menu" — which is why a
+         * placement with nothing to override still encodes as count 0 rather
+         * than as five empty strings.
+         */
+        int count = 0;
+
+        for( int i = 0; i < 5; i++ )
+        {
+            if( event->ops.name[i][0] != '\0' )
+                count++;
+        }
+        rsab_p1_alt1(buf, count);
+        for( int i = 0; i < 5; i++ )
+        {
+            if( event->ops.name[i][0] == '\0' )
+                continue;
+            rsab_p1(buf, i);
+            rsab_pjstr(buf, event->ops.name[i], RSAB_JSTR_NUL);
+        }
+        rsab_p1_alt3(buf, event->ops.flags & OSRS239_LOC_OPS_ALL_SHOWN);
         rsab_p1_alt1(buf, props);
         rsab_p1_alt2(buf, pos);
         rsab_p2_alt3(buf, id);
         return 1;
+    }
 
     /* LocDelEncoder: p1 locProperties, p1Alt2 coordInZone. */
     case PKT_NAME_LOC_DEL:

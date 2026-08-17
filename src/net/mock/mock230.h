@@ -2355,6 +2355,37 @@ struct Mock230Npc
      */
     int combat_target_npc;
     uint16_t combat_target_npc_gen;
+    /**
+     * The tick this npc's next swing is due on — a DEADLINE in `srv->tick`,
+     * not a countdown of ticks remaining.
+     *
+     * It is the reference's `%npc_action_delay` and it is spelled the same way:
+     * `%npc_action_delay = add(map_clock, npc_param(attackrate))` to arm it and
+     * `if (%npc_action_delay > map_clock) return;` to read it (LostCity
+     * skill_combat/scripts/npc/npc_combat_melee.rs2 and the ~60 monster scripts
+     * that gate on it). So `attack_clock = srv->tick + attackrate` and
+     * `if (srv->tick < npc->attack_clock) return;`, which is also how
+     * `poison_clock` and `death_tick` are written two fields down.
+     *
+     * **It was a countdown and it was off by one.** `if (clock > 0) { clock--;
+     * return; }` spends `attackrate` whole ticks and only then lets the tick
+     * *after* them swing, so every npc in the game attacked every
+     * `attackrate + 1` ticks: measured on the Inferno's Jad, a record saying 8
+     * produced swings 9 apart and the melee branch's 4 produced 5. The bug is
+     * invisible in isolation — nothing looks wrong about a monster hitting you
+     * — and it silently made every attack speed in the tree a lie, including
+     * the wiki-sourced ones content had just been corrected to.
+     *
+     * A deadline rather than a fixed countdown because the ±1 has to live in
+     * one place or it lives in all of them: `npc_attackdelay`, the flinch and
+     * every `= 0` would each need their own correction, and the one that got
+     * it wrong would be a second silent off-by-one.
+     *
+     * Zero means "no deadline pending", i.e. swing at the first opportunity —
+     * tick 0 is always in the past, so the existing `= 0` sites
+     * (`npc_attackplayer`, `npc_attacknpc`, `maybe_aggress`,
+     * `mock230_combat_stop_npc`, respawn) keep meaning exactly what they meant.
+     */
     int attack_clock;
     /**
      * When the next step of the death sequence is due; -1 while alive.
@@ -4120,6 +4151,32 @@ mock230_world_loc_set(
     int loc_id,
     int angle,
     enum Mock230LocSetKind kind);
+
+/**
+ * `mock230_world_loc_set` with the placement's own right-click menu attached
+ * (struct Mock230LocOps) — the LOC_ADD_CHANGE_V2 opFlags/ops fields.
+ *
+ * A separate entry point rather than a tenth parameter on the one above,
+ * because every existing caller — trees regrowing, crops advancing, the revert
+ * queue — places a loc that means exactly what its loctype means, and threading
+ * a "no menu" argument through all of them would say the opposite of what those
+ * call sites are: they are not declining to override, they have nothing to
+ * override. `mock230_world_loc_set` is that case spelled once.
+ *
+ * `ops` is required. It is meaningless on a removal (`loc_id < 0`), which
+ * carries no menu on the wire; pass the default there.
+ */
+int
+mock230_world_loc_set_ops(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int loc_id,
+    int angle,
+    enum Mock230LocSetKind kind,
+    const struct Mock230LocOps* ops);
 
 /** Re-apply every recorded loc change to a scene that has just been rebuilt
  *  from the cache. Without this the server forgets its own doors whenever the

@@ -33,6 +33,67 @@ struct Mock230Player;
 /* Locs                                                                */
 /* ------------------------------------------------------------------ */
 
+/** Every op slot the loctype declares is shown — what a placement with nothing
+ *  to hide carries, and what LOC_DEL's own reference call passes. */
+#define MOCK230_LOC_OPS_ALL_SHOWN 0x1f
+/** Longest replacement menu label. "Close"/"Open" are the whole of the current
+ *  use; the cache's own longest loc op is 22 characters. */
+#define MOCK230_LOC_OP_TEXT_MAX 32
+
+/**
+ * A right-click menu that belongs to one PLACEMENT of a loc, not to its type.
+ *
+ * These are LOC_ADD_CHANGE_V2's two extra fields, and they are the mechanism
+ * the official client implements for a door that has no second cache record to
+ * become. The 239 gamepack (`class69`, deob `src_osrs239_rl1_12_33`) keeps both
+ * per scene loc and the loc menu builder (`class108`) reads them in this order:
+ *
+ *   1. skip op slot i entirely unless `flags` bit i is set    (class69.method1514)
+ *   2. take the loctype's own label for slot i                (class393.method8819)
+ *   3. REPLACE it with `name[i]` when the placement carries one (class69.method1518/1532)
+ *
+ * Step 3 fires on a slot the loctype leaves empty too — the row appears because
+ * the override is non-NULL, not because the cache declared an op. That is what
+ * lets one cache record be "Open" on the tile the map put it on and "Close" on
+ * the tile it swung to, with no second loc id anywhere.
+ *
+ * `flags` = MOCK230_LOC_OPS_ALL_SHOWN and every `name` empty is the neutral
+ * value: it is what a placement that overrides nothing carries, and it encodes
+ * on the wire as the zero op-count the client reads as "use the loctype's own".
+ */
+struct Mock230LocOps
+{
+    /** 5-bit mask of which op slots are SHOWN; bit 0 is op1. Zero is legal and
+     *  means "hide every option" — a loc that draws, blocks and cannot be
+     *  clicked. */
+    int flags;
+    /** Replacement label per op slot, or "" for "leave the loctype's own". */
+    char name[5][MOCK230_LOC_OP_TEXT_MAX];
+};
+
+/** The neutral value: show everything, override nothing. Not a "missing ops"
+ *  sentinel — it is the real menu of every loc the map placed. */
+void
+mock230_loc_ops_default(struct Mock230LocOps* ops);
+
+/** 1 when `ops` is the neutral value, i.e. nothing needs to reach the wire. */
+int
+mock230_loc_ops_is_default(const struct Mock230LocOps* ops);
+
+/**
+ * The label this PLACEMENT shows for `op_num` (1..5), or NULL when the slot is
+ * hidden or empty.
+ *
+ * `type_op` is what the loctype says, which the caller reads because this file
+ * deliberately knows nothing about the content tree (see the overlay note
+ * below). Steps 1-3 above, in that order.
+ */
+const char*
+mock230_loc_ops_label(
+    const struct Mock230LocOps* ops,
+    int op_num,
+    const char* type_op);
+
 struct Mock230SceneLoc
 {
     int loc_id;
@@ -51,6 +112,12 @@ struct Mock230SceneLoc
      *  addressable. `changed` used to be here; see mock230_scene.c on why the
      *  flag could not survive the rebuild it existed for. */
     int is_static;
+    /** This placement's own menu (see struct Mock230LocOps). A map-square loc
+     *  carries the neutral value; only a `loc_add_ops` puts anything else here.
+     *  Held on the scene as well as in the ZoneMap because the OPLOC validator
+     *  reads the scene — a click on an op the placement invented has to be
+     *  accepted, and a click on one it hid has to be dropped. */
+    struct Mock230LocOps ops;
 };
 
 /**
@@ -157,6 +224,28 @@ mock230_scene_add_loc(
     int loc_id,
     int shape,
     int angle);
+
+/** Install this placement's own menu on a live scene slot (see
+ *  struct Mock230LocOps). Asserts the slot is live — a menu with nothing to
+ *  hang it on is a caller bug, not an empty case. */
+void
+mock230_scene_loc_set_ops(
+    int slot,
+    const struct Mock230LocOps* ops);
+
+/**
+ * The label the PLACEMENT at `slot` shows for `op_num` (1..5), or NULL.
+ *
+ * The click validator's question, as against `mock230_scene_loc_op`'s: that
+ * one answers for the *type* (cache plus content overlay) and cannot see an op
+ * a single placement invented or hid. `slot` < 0 falls back to the type alone,
+ * which is what a click on a loc outside the scene window has to be judged on.
+ */
+const char*
+mock230_scene_loc_placement_op(
+    int slot,
+    int loc_id,
+    int op_num);
 
 /** Remove a loc (`loc_del`), freeing its collision. A map-square loc leaves a
  *  tombstone behind; a `loc_add`ed one frees its slot for reuse. Returns 0 when

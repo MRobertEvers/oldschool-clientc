@@ -1053,8 +1053,10 @@ WorldBuilder_ApplyLocChange(
              * but suppress its single-slot painter registration (it would assert
              * on the baked static slot and be truncated next frame anyway) — the
              * spawned loc is drawn via world_cycle's per-frame scenery pass. The
-             * shade/decor/sharelight accumulators are build-only (freed at build
-             * end) and NULL-guarded, so those calls are safe no-ops here. */
+             * shade/occluder/decor/sharelight accumulators are build-only (freed
+             * at build end); world_scenery.u.c's scenery_shade_/scenery_occluder_/
+             * scenery_decor_ shims answer for their absence, so those calls are
+             * safe no-ops here. */
             painter_set_suppress_slot_registration(builder->world->painter, 1);
             scenery_add(builder, &ml, cfg, scene_x, scene_z);
             painter_set_suppress_slot_registration(builder->world->painter, 0);

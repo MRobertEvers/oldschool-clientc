@@ -51,8 +51,9 @@ shademap2_in_bounds(
     int level)
 {
     /* The shademap is build-only (freed at build end). A runtime loc spawn
-     * (WorldBuilder_ApplyLocChange) has none, and doesn't need shade bake — all
-     * shademap writers gate on this, so a NULL map makes them no-ops. */
+     * (WorldBuilder_ApplyLocChange) has none and needs no shade bake; that case
+     * is answered by the caller (world_scenery.u.c's scenery_shade_* shims), so
+     * reaching here without a map is a bug. */
     assert(shademap);
     return sx >= 0 && sx < shademap->width && sz >= 0 && sz < shademap->height && level >= 0 &&
            level < shademap->levels;

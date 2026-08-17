@@ -55,6 +55,26 @@ main(void)
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_HEAD_TROPHIES, 0x200) &&
               !mock230_poh_set(&poh, MOCK230_POH_FIELD_FISH_TROPHIES, 0x10),
           "unknown trophy bits are rejected");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_SPICE_RED, 17) &&
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_SPICE_ORANGE, 23) &&
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_SPICE_BROWN, 31) &&
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_SPICE_YELLOW, 47),
+          "all four spice-rack dose counters can be stored");
+    check(mock230_poh_get(&poh, MOCK230_POH_FIELD_SPICE_RED) == 17 &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_SPICE_ORANGE) == 23 &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_SPICE_BROWN) == 31 &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_SPICE_YELLOW) == 47,
+          "all four spice-rack dose counters round-trip");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_SPICE_RED, -1),
+          "negative spice doses are rejected");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_MONEY_BAG,
+                          MOCK230_POH_MONEY_BAG_MAX) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_MONEY_BAG) ==
+                  MOCK230_POH_MONEY_BAG_MAX,
+          "the servant money bag stores its exact 3,000,000 coin cap");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_MONEY_BAG,
+                           MOCK230_POH_MONEY_BAG_MAX + 1),
+          "the servant money bag rejects values above its Wiki cap");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);
@@ -94,6 +114,24 @@ main(void)
           "moving a room onto an occupied cell is rejected");
     check(!mock230_poh_room_set(&poh, 99, MOCK230_POH_ROOM_X, 1),
           "an invalid room cannot be edited");
+
+    {
+        int upper = mock230_poh_room_add(
+            &poh, 102, 4, 4, MOCK230_POH_UPPER_LEVEL, 0, 4);
+
+        check(upper >= 0, "an upper room can be added over ground-floor support");
+        check(mock230_poh_room_add(
+                  &poh, 103, 1, 1, MOCK230_POH_UPPER_LEVEL, 0, 0) < 0,
+              "an unsupported upper room is rejected");
+        check(mock230_poh_room_add(&poh, 104, 4, 4, 3, 0, 0) < 0,
+              "a third-storey room is rejected");
+        check(!mock230_poh_room_remove(&poh, parlour),
+              "a supporting ground-floor room cannot be removed");
+        check(!mock230_poh_room_set(&poh, parlour, MOCK230_POH_ROOM_X, 3),
+              "a supporting ground-floor room cannot move away");
+        check(mock230_poh_room_remove(&poh, upper),
+              "an upper room can be removed before its support");
+    }
 
     check(mock230_poh_decoration_set(&poh, garden, 2, 300, 0, 0) &&
               mock230_poh_decoration_set(&poh, parlour, 3, 301, 0, 0),

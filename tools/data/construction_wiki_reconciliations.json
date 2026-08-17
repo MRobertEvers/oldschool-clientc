@@ -2,6 +2,35 @@
   "policy": "Symbolic cache-to-Wiki reconciliation only. Numeric XP and object IDs must be fetched from the cited Wiki page revision, never copied here.",
   "rows": {
     "poh_rug_deadman": {"page": "Deadman rug"},
+    "poh_leaguehall_rug_trailblazer": {
+      "page": "Trailblazer rug (Construction)",
+      "built_loc_symbols": [
+        "poh_leaguehall_rug_trailblazer_01",
+        "poh_leaguehall_rug_trailblazer_02",
+        "poh_leaguehall_rug_trailblazer_03",
+        "poh_leaguehall_rug_trailblazer_04",
+        "poh_leaguehall_rug_trailblazer_05",
+        "poh_leaguehall_rug_trailblazer_06",
+        "poh_leaguehall_rug_trailblazer_07",
+        "poh_leaguehall_rug_trailblazer_08",
+        "poh_leaguehall_rug_trailblazer_09",
+        "poh_leaguehall_rug_trailblazer_10",
+        "poh_leaguehall_rug_trailblazer_11",
+        "poh_leaguehall_rug_trailblazer_12",
+        "poh_leaguehall_rug_trailblazer_13",
+        "poh_leaguehall_rug_trailblazer_14",
+        "poh_leaguehall_rug_trailblazer_15",
+        "poh_leaguehall_rug_trailblazer_16",
+        "poh_leaguehall_rug_trailblazer_17",
+        "poh_leaguehall_rug_trailblazer_18",
+        "poh_leaguehall_rug_trailblazer_19",
+        "poh_leaguehall_rug_trailblazer_20",
+        "poh_leaguehall_rug_trailblazer_21",
+        "poh_leaguehall_rug_trailblazer_22",
+        "poh_leaguehall_rug_trailblazer_23",
+        "poh_leaguehall_rug_trailblazer_24"
+      ]
+    },
     "poh_stairs_teak": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
     "poh_stairs_teak_up": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
     "poh_stairs_teak_down": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
@@ -9,6 +38,18 @@
     "poh_kitchen_rack_1": {"page": "Spice rack"},
     "poh_prize_chest_3": {"page": "Mahogany prize chest"},
     "poh_weapon_rack_1": {"page": "Glove rack"},
+    "poh_throne_room_cage_3": {
+      "page": "Trapdoor",
+      "built_loc_symbols": [
+        "poh_floordecor_brimhaven",
+        "poh_floordecor_yanille",
+        "poh_floordecor_lumbridge",
+        "poh_floordecor_pollnivneach",
+        "poh_floordecor_rellekka",
+        "poh_floordecor_rimmington",
+        "poh_floordecor_deathly"
+      ]
+    },
     "poh_combat_dummy_upgraded_1_undead": {"page": "Ornate undead combat dummy", "built_loc_symbols": ["poh_combat_dummy_upgraded_1_undead"], "experience_strategy": "upgrade_recipe"},
     "poh_trophy_head_blank_teak": {"page": "Teak display (head trophy)"},
     "poh_trophy_head_blank_mahogany": {"page": "Mahogany display (head trophy)"},

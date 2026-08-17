@@ -440,12 +440,14 @@ mock230_zone_loc_changed(
     int angle,
     int base_loc_id,
     int base_angle,
-    int over_base)
+    int over_base,
+    const struct Mock230LocOps* ops)
 {
     struct Mock230Zone* zone = zone_at(srv, x, z, level);
     struct Mock230ZoneLoc* loc;
     struct Mock230ZoneEvent event;
 
+    assert(ops);
     if( !zone )
         return;
 
@@ -471,12 +473,14 @@ mock230_zone_loc_changed(
     loc->loc_id = loc_id;
     loc->angle = angle;
     loc->over_base = over_base;
+    loc->ops = *ops;
 
     memset(&event, 0, sizeof(event));
     event.receiver_pid = -1;
     event.pos = zone_pos(x, z);
     event.shape = shape;
     event.angle = angle;
+    mock230_loc_ops_default(&event.ops);
     if( loc_id < 0 )
     {
         event.kind = MOCK230_ZONE_EV_LOC_DEL;
@@ -485,6 +489,8 @@ mock230_zone_loc_changed(
     {
         event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
         event.id = loc_id;
+        /* LOC_DEL has no room for a menu, so only the add carries it. */
+        event.ops = *ops;
     }
     queue_event(srv, zone, &event);
 
@@ -1341,6 +1347,7 @@ write_state(
         event.pos = zone_pos(loc->x, loc->z);
         event.shape = loc->shape;
         event.angle = loc->angle;
+        mock230_loc_ops_default(&event.ops);
         if( loc->loc_id < 0 )
         {
             event.kind = MOCK230_ZONE_EV_LOC_DEL;
@@ -1349,6 +1356,9 @@ write_state(
         {
             event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
             event.id = loc->loc_id;
+            /* The whole reason the record carries a menu: this is the only path
+             * a client that arrived after the change is built from. */
+            event.ops = loc->ops;
         }
         mock230_send_zone_sub(player, &event);
     }

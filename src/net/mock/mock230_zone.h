@@ -62,6 +62,11 @@
 
 #include <stdint.h>
 
+/* For struct Mock230LocOps: a zone loc record and the LOC_ADD_CHANGE event it
+ * queues both carry the placement's own menu, and the scene holds the same
+ * type. One definition, in the file that owns the loc. */
+#include "mock230_scene.h"
+
 struct Mock230Server;
 struct Mock230Player;
 struct Mock230PlayerZone;
@@ -148,6 +153,9 @@ struct Mock230ZoneEvent
     int id;
     int shape, angle;
     int count, old_count;
+    /** LOC_ADD_CHANGE only: the placement's own menu, written as
+     *  LOC_ADD_CHANGE_V2's opCount/ops/opFlags. Neutral for every other kind. */
+    struct Mock230LocOps ops;
     /** LOC_MERGE: start/end cycles, player slot, AABB offsets from the loc tile. */
     int start_cycle, end_cycle;
     int player_pid;
@@ -220,6 +228,11 @@ struct Mock230ZoneLoc
      *  rather than replace the square's loc, or removing this one again leaves
      *  the tile empty — see mock230_scene_add_loc. */
     int over_base;
+    /** The placement's own menu, replayed to every client that arrives after
+     *  the change. Without it here a door opened before you logged in would be
+     *  drawn open and still offer "Open", because the zone state is the only
+     *  memory a late client is built from. */
+    struct Mock230LocOps ops;
 };
 
 /* ------------------------------------------------------------------ */
@@ -382,6 +395,10 @@ mock230_playerzonemap_find(
  * only read when the record is created (-1 for a loc the square does not have).
  * When the new state matches the base the record is retired, because "the same
  * as the cache" is not a difference worth replaying.
+ *
+ * `ops` is the placement's own right-click menu. Required, not optional: every
+ * placement has a menu, and the one a caller with nothing to override passes is
+ * `mock230_loc_ops_default`, not NULL.
  */
 void
 mock230_zone_loc_changed(
@@ -394,7 +411,8 @@ mock230_zone_loc_changed(
     int angle,
     int base_loc_id,
     int base_angle,
-    int over_base);
+    int over_base,
+    const struct Mock230LocOps* ops);
 
 /**
  * Queue LOC_ANIM for the loc at (x,z,level) with the given shape/angle and seq.

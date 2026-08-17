@@ -32,6 +32,12 @@ parse_debug(void)
 static void
 read_loc_add_change(struct RSCache_Buffer* b, struct PktLocAddChange* p)
 {
+    memset(p, 0, sizeof(*p));
+    /* The classic layout is LOC_ADD_CHANGE, not V2: no op mask and no
+     * replacement labels, so the placement's menu is exactly the loctype's.
+     * All five bits set says that, and it is the right answer here rather than
+     * a stand-in — the revision genuinely cannot narrow the menu. */
+    p->op_flags = 0x1f;
     p->pos = g1(b);
     p->info = g1(b);
     p->loc_id = g2(b);

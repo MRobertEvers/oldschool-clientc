@@ -741,6 +741,14 @@ CS2VM2_PushStrFrameLocal(
     assert(vm);
     assert(frame);
 
+    /* A string local that was never assigned. The reference's frame is a
+     * `String[]` of nulls and pushing one is legal there — a script that
+     * declares `def_string $s;` and pushes it before any write is ordinary
+     * cache code, not a contract violation, so it cannot reach StrPool_Dup's
+     * assert. "" is the value every reader downstream already handles. */
+    if( !frame->str_locals[idx] )
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
     /* An array HANDLE rides string locals and the string stack as a raw
      * pointer — strdup'ing it would copy the struct's leading bytes as "text"
      * and the callee's array ops would resolve nothing (the spellbook sort

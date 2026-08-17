@@ -4,7 +4,7 @@ Plan to take `OSRS-Content/osrs239-content/server/scripts/skill_hunter/`
 from its current broad-but-incomplete port to the complete current
 [Hunter](https://oldschool.runescape.wiki/w/Hunter) skill.
 
-The OSRS Wiki snapshot checked on **2026-08-16** is the gameplay authority for
+The OSRS Wiki snapshot checked on **2026-08-17** is the gameplay authority for
 levels, XP, rewards, traps, locations, success modifiers, and quest gates. The
 checked-in cache is the naming and interaction authority:
 
@@ -35,11 +35,11 @@ starting point; this section is the authoritative current status.
 
 | slice | current result |
 |---|---|
-| Owned traps and shared rewards | Complete: six player-owned slots, mixed-method cap, Wilderness allowance, one-deadfall cap, expiry/recovery, bait/smoke, outfit, horn, rumours, and pouch routing. |
-| Classic methods | Complete gameplay loops for bird snares, box/net/magic/rabbit traps, deadfalls, pitfalls, falconry, butterflies/moths, implings, and all five kebbit-tracking families. Uzer and Feldip now use their full cache-authored ten-node/fifteen-link graphs, reveal each traversed footprint segment, never reuse a link, and extend a three-link route to four only when needed to reach one of the six valid catch endpoints. |
+| Owned traps and shared rewards | Complete: six player-owned slots, mixed-method cap, Wilderness allowance, one-deadfall cap, expiry/recovery, bait/smoke, outfit, horn, rumours, and pouch routing. Published per-creature success curves now replace the old shared approximation for all five snare birds, all three chinchompas, Tecu salamanders, and all five deadfalls; deadfalls can fail instead of always succeeding. Cache-backed creatures whose Wiki pages have no success chart retain an explicit legacy fallback. |
+| Classic methods | Complete gameplay loops for bird snares, box/net/magic/rabbit traps, deadfalls, pitfalls, falconry, butterflies/moths, implings, and all five kebbit-tracking families. Implings use their exact twelve published curves. Black warlock, Sunlight moth, and Moonlight moth use their distinct published curves, including Sunlight's lack of a barehand bonus; the three classic butterflies whose Wiki pages explicitly lack chart data retain an isolated fallback. Uzer and Feldip now use their full cache-authored ten-node/fifteen-link graphs, reveal each traversed footprint segment, never reuse a link, and extend a three-link route to four only when needed to reach one of the six valid catch endpoints. |
 | Modern creatures | Complete: jerboa, black chinchompa, pyre fox, tecu salamander, sunlight/moonlight moths and antelopes, Razor-backed kebbit, Herbiboar, maniacal monkey, Letvek, and Stymphike. The 26 Letvek spawns use the current Wiki coordinates. |
 | Passive/hybrid methods | Complete gameplay loops for all nine bird houses, aerial fishing, drift-net fishing, all three crab tiers, sandworm castings, and moss lizards. Drift nets include passive Fishing-only catches and fossil/clue-fallback pre-rolls. |
-| Hunter Guild | Complete Guild NPC placement, all six retained Rumour assignments/task blocking, Gilman reset, pity/parts, sacks, milestones/lore, outfit, huntsman's kit, meat/fur pouches, whistles, 14-stop quetzal transport, shops, fur clothing, gloves of silence, crossbows/bolts, Hunter Kit, cape, and horn of plenty. |
+| Hunter Guild and Puro-Puro equipment | Complete Guild NPC placement, all six retained Rumour assignments/task blocking, Gilman reset, pity/parts, sacks, milestones/lore, outfit, huntsman's kit, meat/fur pouches, whistles, 14-stop quetzal transport, shops, fur clothing, gloves of silence, crossbows/bolts, Hunter Kit, cape, and horn of plenty. Quetzal whistle charges now live on each item instance, survive upgrades, drain from the selected whistle, fill from Pitri's raw-meat interaction, respect the direct-to-Guild setting, and include perfected reclaim plus 50,000-coin unlimited replacements. Puro-Puro jar-generator charge likewise lives on the item, survives banking, and Elnock recharges an already-owned generator for the normal exchange. Lucky implings now choose the five clue tiers uniformly and make one exact ordinary reward roll from 991 cache-backed Wiki outcomes; master clues, Bloodhound, Mimic, and casket tertiary rolls are correctly excluded. |
 | Adjacent transport/raid hooks | Giant-eagle routes already belong to Eagles' Peak. All seven Chambers bat NPCs now have exact level/XP/reward catch handlers; their normal placement remains owned by the broader unfinished Chambers room generator. |
 
 Current explicit blockers, which must not be papered over with guessed IDs:
@@ -47,32 +47,46 @@ Current explicit blockers, which must not be papered over with guessed IDs:
 1. **Wyrmscraig goat hunting:** this cache has only generic/desert goat items;
    it lacks the Wyrmscraig goat, Geoff, Mr McGroot, goat-pit locs, spikes, fur,
    hoof, and horn records. Goat Rumours therefore remain disabled.
-2. **Lucky impling loot:** catching and storing lucky implings works, but this
-   repository has no Treasure Trails state or reward tables. Opening preserves
-   the jar and reports that dependency instead of silently consuming it or
-   awarding an invented table. Crystal implings have their full current
-   eighteen-entry main table and the representable elven-signet tertiary; the
-   unusable elite-clue tertiary is suppressed for the same reason.
-3. **Adjacent world systems:** full Chambers room generation and Fossil Island
+2. **Adjacent world systems:** full Chambers room generation and Fossil Island
    underwater oxygen/weight rules remain with their owning systems. Hunter's
    NPC/loc interactions are ready to bind when those systems land.
+3. **Treasure Trails:** no general clue state/step/reward subsystem exists in
+   this content tree. Crystal implings therefore suppress their 1/50 elite
+   clue tertiary and drift-net fishing uses the documented pufferfish fallback
+   when its medium clue bottle roll succeeds. Existing clue containers would
+   be unusable until that adjacent subsystem lands.
+
+Lucky impling loot is no longer blocked on a full Treasure Trails state
+machine. The [Lucky impling](https://oldschool.runescape.wiki/w/Lucky_impling)
+rule only needs one ordinary roll from an equally selected easy, medium, hard,
+elite, or master reward list. The generated tables flatten the five current
+reward-casket pages into exact integer weights (211/192/233/182/173 outcomes),
+with a reproducible generator that verifies every tier sums to one and every
+reward maps to a real cache object. Crystal implings still suppress their
+unusable elite-clue tertiary until Treasure Trails itself exists.
 
 Verification at this checkpoint:
 
-- isolated clean-overlay RuneScript compile: **20,523 scripts**;
+- isolated clean-overlay RuneScript compile: **20,541 scripts**;
 - spawn/config loader: clean after adding the required `==== NPC ====` headers
   to Letvek and Hunter Guild spawn files;
-- `mock230 --selftest` now invokes `::hunterrun`, which checks trap registry
-  contracts, modern creature rows, crystal loot cardinality/ranges, current butterfly rules, bird houses,
-  antelope pits, sandworms, and both complete Uzer/Feldip tracking graphs;
-- broad `mock230 --selftest` reaches completion with the same two unrelated,
-  pre-existing movement failures (Hans walking and stopped-player chase).
+- `mock230 --selftest` invokes `::hunterrun`, which checks trap registry
+  contracts, modern creature rows, exact published trap/impling/butterfly
+  success-curve points, crystal loot cardinality/ranges, all five exact
+  Lucky-impling table cardinalities/weight sums, current butterfly rules,
+  bird houses, antelope pits, sandworms, both complete
+  Uzer/Feldip tracking graphs, independent same-tier whistle charges, and
+  per-item jar-generator charge storage;
+- the isolated broad self-test reaches completion with `::hunterrun` passing.
+  The moving worktree currently has unrelated God Wars config-loader errors in
+  addition to the two pre-existing movement failures (Hans walking and
+  stopped-player chase).
 
-Remaining delivery plan is dependency-driven: import a post-2026-07-29 cache
-and implement H10b from the already-recorded Wiki rules; land Treasure Trails
-and route lucky/crystal/clue-bottle rolls into its single-roll API; then bind
-the Chambers bat handlers from the raid room generator and run the client
-interaction matrix in section 11.
+Remaining delivery is dependency-driven: import a post-2026-07-29 cache and
+implement H10b from the already-recorded Wiki rules; land Treasure Trails and
+route crystal/clue-bottle clue rolls into it; then bind the Chambers bat
+handlers from the raid room generator and run the client interaction matrix in
+section 11.
 
 Where Wiki summary tables disagree with a dedicated current page, record the
 conflict and use the dedicated creature/method page. This matters today for

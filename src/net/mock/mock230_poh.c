@@ -63,6 +63,14 @@ mock230_poh_get(
         return poh->head_trophies;
     case MOCK230_POH_FIELD_FISH_TROPHIES:
         return poh->fish_trophies;
+    case MOCK230_POH_FIELD_SPICE_RED:
+        return poh->spice_red;
+    case MOCK230_POH_FIELD_SPICE_ORANGE:
+        return poh->spice_orange;
+    case MOCK230_POH_FIELD_SPICE_BROWN:
+        return poh->spice_brown;
+    case MOCK230_POH_FIELD_SPICE_YELLOW:
+        return poh->spice_yellow;
     default:
         return 0;
     }
@@ -132,7 +140,7 @@ mock230_poh_set(
         poh->servant_last_task = value;
         return 1;
     case MOCK230_POH_FIELD_MONEY_BAG:
-        if( value < 0 )
+        if( value < 0 || value > MOCK230_POH_MONEY_BAG_MAX )
             return 0;
         poh->money_bag = value;
         return 1;
@@ -150,6 +158,26 @@ mock230_poh_set(
         if( value < 0 || value > 0xf )
             return 0;
         poh->fish_trophies = value;
+        return 1;
+    case MOCK230_POH_FIELD_SPICE_RED:
+        if( value < 0 )
+            return 0;
+        poh->spice_red = value;
+        return 1;
+    case MOCK230_POH_FIELD_SPICE_ORANGE:
+        if( value < 0 )
+            return 0;
+        poh->spice_orange = value;
+        return 1;
+    case MOCK230_POH_FIELD_SPICE_BROWN:
+        if( value < 0 )
+            return 0;
+        poh->spice_brown = value;
+        return 1;
+    case MOCK230_POH_FIELD_SPICE_YELLOW:
+        if( value < 0 )
+            return 0;
+        poh->spice_yellow = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -173,13 +201,25 @@ mock230_poh_room_add(
     if( poh->room_count < 0 || poh->room_count >= MOCK230_POH_ROOM_MAX )
         return -1;
     if( dbrow < 0 || x < 0 || x >= MOCK230_POH_GRID_MAX || z < 0 ||
-        z >= MOCK230_POH_GRID_MAX || level < 0 || level > 3 || rotation < 0 ||
+        z >= MOCK230_POH_GRID_MAX || level < 0 ||
+        level > MOCK230_POH_UPPER_LEVEL || rotation < 0 ||
         rotation > 3 || door_mask < 0 || door_mask > 15 )
         return -1;
     for( int i = 0; i < poh->room_count; i++ )
     {
         if( poh->rooms[i].x == x && poh->rooms[i].z == z &&
             poh->rooms[i].level == level )
+            return -1;
+    }
+    if( level == MOCK230_POH_UPPER_LEVEL )
+    {
+        int supported = 0;
+
+        for( int i = 0; i < poh->room_count; i++ )
+            if( poh->rooms[i].x == x && poh->rooms[i].z == z &&
+                poh->rooms[i].level == MOCK230_POH_GROUND_LEVEL )
+                supported = 1;
+        if( !supported )
             return -1;
     }
 
@@ -254,7 +294,7 @@ mock230_poh_room_set(
         candidate.z = value;
         break;
     case MOCK230_POH_ROOM_LEVEL:
-        if( value < 0 || value > 3 )
+        if( value < 0 || value > MOCK230_POH_UPPER_LEVEL )
             return 0;
         candidate.level = value;
         break;
@@ -280,6 +320,28 @@ mock230_poh_room_set(
             poh->rooms[i].level == candidate.level )
             return 0;
     }
+    if( candidate.level == MOCK230_POH_UPPER_LEVEL )
+    {
+        int supported = 0;
+
+        for( int i = 0; i < poh->room_count; i++ )
+            if( i != room && poh->rooms[i].x == candidate.x &&
+                poh->rooms[i].z == candidate.z &&
+                poh->rooms[i].level == MOCK230_POH_GROUND_LEVEL )
+                supported = 1;
+        if( !supported )
+            return 0;
+    }
+    if( poh->rooms[room].level == MOCK230_POH_GROUND_LEVEL &&
+        (candidate.level != MOCK230_POH_GROUND_LEVEL ||
+         candidate.x != poh->rooms[room].x || candidate.z != poh->rooms[room].z) )
+    {
+        for( int i = 0; i < poh->room_count; i++ )
+            if( i != room && poh->rooms[i].x == poh->rooms[room].x &&
+                poh->rooms[i].z == poh->rooms[room].z &&
+                poh->rooms[i].level == MOCK230_POH_UPPER_LEVEL )
+                return 0;
+    }
     poh->rooms[room] = candidate;
     return 1;
 }
@@ -293,6 +355,12 @@ mock230_poh_room_remove(
 
     if( room < 0 || room >= poh->room_count )
         return 0;
+    if( poh->rooms[room].level == MOCK230_POH_GROUND_LEVEL )
+        for( int i = 0; i < poh->room_count; i++ )
+            if( i != room && poh->rooms[i].x == poh->rooms[room].x &&
+                poh->rooms[i].z == poh->rooms[room].z &&
+                poh->rooms[i].level == MOCK230_POH_UPPER_LEVEL )
+                return 0;
 
     /* Decorations name their owning room by slot. Drop the removed room's
      * decorations and shift later references alongside the compacted room
@@ -409,9 +477,12 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         !boolean_value(poh->default_build_mode) || poh->grid_size < 3 ||
         poh->grid_size > 7 || poh->servant_type < 0 || poh->servant_type > 15 ||
         poh->servant_paid < 0 || poh->servant_last_task < -1 || poh->money_bag < 0 ||
+        poh->money_bag > MOCK230_POH_MONEY_BAG_MAX ||
         poh->family_crest < -1 || poh->family_crest > 15 ||
         poh->head_trophies < 0 || poh->head_trophies > 0x1ff ||
         poh->fish_trophies < 0 || poh->fish_trophies > 0xf ||
+        poh->spice_red < 0 || poh->spice_orange < 0 ||
+        poh->spice_brown < 0 || poh->spice_yellow < 0 ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )
@@ -423,13 +494,25 @@ mock230_poh_validate(const struct Mock230PohState* poh)
 
         if( room->dbrow < 0 || room->x < 0 || room->x >= MOCK230_POH_GRID_MAX ||
             room->z < 0 || room->z >= MOCK230_POH_GRID_MAX || room->level < 0 ||
-            room->level > 3 || room->rotation < 0 || room->rotation > 3 ||
+            room->level > MOCK230_POH_UPPER_LEVEL || room->rotation < 0 ||
+            room->rotation > 3 ||
             room->door_mask < 0 || room->door_mask > 15 )
             return 0;
         for( int j = 0; j < i; j++ )
         {
             if( poh->rooms[j].x == room->x && poh->rooms[j].z == room->z &&
                 poh->rooms[j].level == room->level )
+                return 0;
+        }
+        if( room->level == MOCK230_POH_UPPER_LEVEL )
+        {
+            int supported = 0;
+
+            for( int j = 0; j < poh->room_count; j++ )
+                if( poh->rooms[j].x == room->x && poh->rooms[j].z == room->z &&
+                    poh->rooms[j].level == MOCK230_POH_GROUND_LEVEL )
+                    supported = 1;
+            if( !supported )
                 return 0;
         }
     }

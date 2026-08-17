@@ -4975,19 +4975,28 @@ handle_oploc(
 
     mock230_world_clear_pending_action(srv);
 
-    /* LostCity OpLocHandler: validate ops against the multiloc-resolved child
-     * before latching. Hidden / missing ops are a lagging client — drop. */
+    /* The footprint decides what counts as "beside it": a two-tile gate is
+     * reachable from tiles a one-tile door is not. The slot is also what the op
+     * is validated against below, so it has to be found first. */
+    slot = mock230_scene_find_loc(tile_x, tile_z, srv->active_player->level, loc_id);
+    loc = mock230_scene_loc(slot);
+
+    /*
+     * LostCity OpLocHandler: validate ops against the multiloc-resolved child
+     * before latching. Hidden / missing ops are a lagging client — drop.
+     *
+     * Judged against the PLACEMENT and not just the type, because
+     * LOC_ADD_CHANGE_V2 lets one placement hide an op its loctype declares and
+     * offer one it does not. A door that swung open and renamed its op to
+     * "Close" sends a perfectly legitimate click that the type-only check
+     * rejects, silently, as a lagging client.
+     */
     resolved = mock230_loc_resolve_transform(srv->active_player, loc_id);
     if( resolved < 0 )
         return;
-    op = mock230_scene_loc_op(resolved, op_num);
+    op = mock230_scene_loc_placement_op(slot, resolved, op_num);
     if( !op || strcmp(op, "hidden") == 0 )
         return;
-
-    /* The footprint decides what counts as "beside it": a two-tile gate is
-     * reachable from tiles a one-tile door is not. */
-    slot = mock230_scene_find_loc(tile_x, tile_z, srv->active_player->level, loc_id);
-    loc = mock230_scene_loc(slot);
     if( loc )
     {
         tile_x = loc->x;
@@ -10215,6 +10224,24 @@ mock230_world_loc_set(
     int angle,
     enum Mock230LocSetKind kind)
 {
+    struct Mock230LocOps ops;
+
+    mock230_loc_ops_default(&ops);
+    return mock230_world_loc_set_ops(srv, x, z, level, shape, loc_id, angle, kind, &ops);
+}
+
+int
+mock230_world_loc_set_ops(
+    struct Mock230Server* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int loc_id,
+    int angle,
+    enum Mock230LocSetKind kind,
+    const struct Mock230LocOps* ops)
+{
     int slot = mock230_scene_find_loc_exact(x, z, level, shape);
     struct Mock230SceneLoc* existing = mock230_scene_loc(slot);
     /*
@@ -10231,6 +10258,8 @@ mock230_world_loc_set(
     int existing_active = existing && existing->active;
     int existing_angle = existing ? existing->angle : angle;
     int over_base = 0;
+
+    assert(ops);
 
     /*
      * A tile the scene window does not cover. The reference has no such case —
@@ -10267,7 +10296,7 @@ mock230_world_loc_set(
         /* No scene out here, so nothing is standing underneath to preserve —
          * `base_id` stays -1 unless an earlier in-scene change captured it. */
         mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
-                                 0);
+                                 0, ops);
         return 1;
     }
 
@@ -10291,29 +10320,42 @@ mock230_world_loc_set(
         revealed = mock230_scene_loc(mock230_scene_find_loc_exact(x, z, level, shape));
         if( revealed && revealed->active )
         {
+            /* The uncovered loc's own menu, not the caller's: this is the map
+             * square's loc reappearing, and what it offers is what its loctype
+             * offers. Passing the removal's `ops` here would leave a closed
+             * door wearing the open one's "Close". */
             mock230_zone_loc_changed(srv, x, z, level, shape, revealed->loc_id,
-                                     revealed->angle, base_id, base_angle, 0);
+                                     revealed->angle, base_id, base_angle, 0,
+                                     &revealed->ops);
             return 1;
         }
     }
     else if( kind == MOCK230_LOC_SET_ADD )
     {
-        if( mock230_scene_add_loc(x, z, level, loc_id, shape, angle) < 0 )
+        int added = mock230_scene_add_loc(x, z, level, loc_id, shape, angle);
+
+        if( added < 0 )
             return 0;
+        mock230_scene_loc_set_ops(added, ops);
         over_base = existing_active;
     }
     else if( existing )
     {
         if( !mock230_scene_replace_loc(slot, loc_id, angle) )
             return 0;
+        mock230_scene_loc_set_ops(slot, ops);
     }
-    else if( mock230_scene_add_loc(x, z, level, loc_id, shape, angle) < 0 )
+    else
     {
-        return 0;
+        int added = mock230_scene_add_loc(x, z, level, loc_id, shape, angle);
+
+        if( added < 0 )
+            return 0;
+        mock230_scene_loc_set_ops(added, ops);
     }
 
     mock230_zone_loc_changed(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
-                             over_base);
+                             over_base, ops);
     return 1;
 }
 
@@ -10340,9 +10382,17 @@ reapply_loc(
      * to keep standing underneath, or removing this one again leaves the tile
      * empty and the wall a door swung past never comes back. */
     if( loc->over_base || !mock230_scene_loc(slot) )
-        mock230_scene_add_loc(loc->x, loc->z, loc->level, loc->loc_id, loc->shape, loc->angle);
-    else
-        mock230_scene_replace_loc(slot, loc->loc_id, loc->angle);
+        slot = mock230_scene_add_loc(loc->x, loc->z, loc->level, loc->loc_id, loc->shape,
+                                     loc->angle);
+    else if( !mock230_scene_replace_loc(slot, loc->loc_id, loc->angle) )
+        return;
+    if( slot < 0 )
+        return;
+    /* The rebuild re-read the scene from the cache, so the slot is back to its
+     * loctype's menu; the ZoneMap record is where the placement's own survived.
+     * Without this the first scene rebuild after a door opened would leave it
+     * drawn open and offering "Open" again. */
+    mock230_scene_loc_set_ops(slot, &loc->ops);
 }
 
 void
@@ -11668,7 +11718,20 @@ selftest_park_player(
     player->dest_x = -1;
     player->dest_z = -1;
     player->combat_target = -1;
+    /*
+     * Topped up THROUGH the sync, because `hitpoints` and
+     * `stat_boosted[HITPOINTS]` are one number and a bare assignment to the
+     * first leaves the second holding whatever the last fight left there.
+     *
+     * That desync used to survive into later sections and the one that checks
+     * the two agree ("the hitpoints stat should track the player's hitpoints")
+     * passed or failed on whether the previous section's last npc swing landed
+     * before or after this call — so it was a real, if latent, harness fault
+     * that only surfaced when the npc attack clock stopped being a tick slow
+     * than the record and every fight in the suite shifted by one.
+     */
     player->hitpoints = player->max_hitpoints;
+    mock230_combat_sync_hitpoints(player);
     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
         srv->npcs[i].combat_target = -1;
     /* A section that repositions the player is starting over, so anything the
@@ -14126,6 +14189,14 @@ mock230_world_selftest(void)
                  * that the command reaches `attack_clock` at all — if it did
                  * not, every one of those 38 monsters would swing on the
                  * record's rate instead of its own and nothing would say so.
+                 *
+                 * `attack_clock` is a DEADLINE in `srv->tick`, so
+                 * `npc_attackdelay(7)` is "swing seven ticks from now" and the
+                 * field reads `srv->tick + 7`. It used to be a countdown and
+                 * this used to assert a bare 7 — which passed while the swing
+                 * it bought was eight ticks away, because the countdown was
+                 * spent before it was tested. Asserting the deadline is the
+                 * same claim written where the off-by-one cannot hide.
                  */
                 {
                     uint16_t delay_ops[] = {
@@ -14151,10 +14222,10 @@ mock230_world_selftest(void)
                         SELFTEST_CHECK(
                             mock230_scripts_run_hook_on_npc(srv, &delay_script, first),
                             "npc_attackdelay executes through the host VM");
-                        SELFTEST_CHECK(srv->npcs[first].attack_clock == 7,
-                                       "npc_attackdelay(7) should set the combat attack "
-                                       "clock, got %d",
-                                       srv->npcs[first].attack_clock);
+                        SELFTEST_CHECK(srv->npcs[first].attack_clock == srv->tick + 7,
+                                       "npc_attackdelay(7) should put the next swing seven "
+                                       "ticks out — attack_clock should be %d, got %d",
+                                       srv->tick + 7, srv->npcs[first].attack_clock);
                         SELFTEST_CHECK(srv->npcs[first].delayed_until <= srv->tick,
                                        "and must NOT park the npc — a parked npc drains no "
                                        "queue, which is the whole reason this command "
@@ -19902,6 +19973,56 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(npc->x != start_x || npc->z != start_z,
                                "which means it had to move, and it did not (%d,%d)", npc->x,
                                npc->z);
+
+                /*
+                 * And it swings on its record's attack speed exactly — the
+                 * engine-level statement of what the Inferno's Jad stanza says
+                 * about one boss, on the default lane, about the most ordinary
+                 * monster in the game.
+                 *
+                 * `attack_clock` is a deadline in `srv->tick` and it is
+                 * re-armed on the swing tick and no other, so the gap between
+                 * two arms IS the attack speed. It used to be a countdown
+                 * spent before it was tested, which made every npc in the tree
+                 * swing every `attackrate + 1` ticks — a fault with no symptom
+                 * anyone would report, since a monster hitting you looks the
+                 * same either way, and one that silently made every attack
+                 * speed in the content tree a lie. The reference is a deadline
+                 * too: `%npc_action_delay = add(map_clock, npc_param(attackrate))`
+                 * read by `if (%npc_action_delay > map_clock) return;`.
+                 */
+                {
+                    int rate = npc->def ? npc->def->attackrate : 0;
+                    int previous = npc->attack_clock;
+                    int first_arm = -1;
+                    int gap = -1;
+                    /* Two arms is the whole measurement, so the budget is two
+                     * cycles and a tick of slack. Every tick spent here is a
+                     * tick the rest of the suite also runs, and a probe long
+                     * enough to expire someone else's respawn timer measures
+                     * this correctly by breaking a section four screens down. */
+                    int budget = rate * 2 + 2;
+
+                    for( int i = 0; i < budget && gap < 0; i++ )
+                    {
+                        player->hitpoints = player->max_hitpoints;
+                        mock230_combat_sync_hitpoints(player);
+                        mock230_world_tick(srv);
+                        if( npc->attack_clock > previous )
+                        {
+                            if( first_arm >= 0 )
+                                gap = srv->tick - first_arm;
+                            else
+                                first_arm = srv->tick;
+                        }
+                        previous = npc->attack_clock;
+                    }
+                    SELFTEST_CHECK(rate > 0 && gap == rate,
+                                   "a cow's swings must be its record's %d ticks apart, got "
+                                   "%d — one over is the attack clock counting down before it "
+                                   "is tested rather than holding a deadline",
+                                   rate, gap);
+                }
 
                 player_set_occupancy(player, 0);
                 npc->combat_target = -1;
@@ -35531,6 +35652,282 @@ mock230_world_selftest(void)
                                        "goes, not whenever a nine-tick timer next fires (got "
                                        "target %d, npc target %d)",
                                        j->combat_target, j->combat_target_npc);
+
+                        /*
+                         * And it swings on the record's attack speed, with no
+                         * AP redirect in front of it.
+                         *
+                         * This is the one place in the tree that measures an
+                         * npc's swing INTERVAL end to end, which makes it the
+                         * regression fence for both halves of what used to sit
+                         * between `attackrate` and the tick a player is hit on:
+                         *
+                         *  1. `[ai_opplayer2,inferno_jad_finalwave]` was
+                         *     `npc_setmode(applayer2)` with the swing in
+                         *     `[ai_applayer2]`. `npc_dispatch_combat_applayer_
+                         *     mode` runs ahead of the clock and returns without
+                         *     spending it, so OP armed the mode at T, AP swung
+                         *     at T+1 for free, and the wait only then began:
+                         *     two ticks a swing. Both Jad copies now state the
+                         *     swing in `[ai_opplayer2]`, which is not an
+                         *     adjacency trigger here — it fires anywhere inside
+                         *     the record's `attackrange`.
+                         *  2. `attack_clock` was a countdown spent before it
+                         *     was tested, so a reload of N bought N+1 ticks and
+                         *     EVERY npc in the game attacked one tick slower
+                         *     than its record. It is now the reference's
+                         *     deadline (`%npc_action_delay = add(map_clock,
+                         *     attackrate)`); see its declaration in mock230.h.
+                         *
+                         * Together those made a Jad whose record says 8 swing
+                         * every eleven ticks. What is asserted is the gap
+                         * between consecutive swings, and the legal answers are
+                         * exactly the two numbers content states: 8 from the
+                         * record for a ranged or magic swing, or 4 for a bite
+                         * (`^inferno_jad_melee_rate`, the wiki's "can attack
+                         * with melee every 4 ticks"). Which one comes up is a
+                         * die roll, so both are accepted — but nothing else is,
+                         * and 9, 10 or 11 are what the two faults above look
+                         * like from here.
+                         */
+                        {
+                            int const jad_melee_rate = 4;
+                            /* The CONTENT record's rate (`param=attackrate,8`
+                             * in inferno.npc), not `mock230_npcinfo()`'s, which
+                             * is the cache row and answers 4 for everything
+                             * this cache does not state. */
+                            int rate = j->def ? j->def->attackrate : 0;
+                            int previous_deadline = j->attack_clock;
+                            int last_swing = -1;
+                            int swings = 0;
+                            int bad_gap = -1;
+                            int ap_mode_seen = 0;
+
+                            for( int probe = 0; probe < 60; probe++ )
+                            {
+                                player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                                player->hitpoints = 900;
+                                mock230_combat_sync_hitpoints(player);
+                                mock230_world_tick(srv);
+                                if( j->mode >= MOCK230_NPCMODE_APPLAYER1 &&
+                                    j->mode <= MOCK230_NPCMODE_APPLAYER5 )
+                                    ap_mode_seen = 1;
+                                /* The deadline moving forward IS the swing: it
+                                 * is re-armed on the tick the trigger fires and
+                                 * on no other. */
+                                if( j->attack_clock > previous_deadline )
+                                {
+                                    if( last_swing >= 0 )
+                                    {
+                                        int gap = srv->tick - last_swing;
+
+                                        if( gap != rate && gap != jad_melee_rate )
+                                            bad_gap = gap;
+                                        swings++;
+                                    }
+                                    last_swing = srv->tick;
+                                }
+                                previous_deadline = j->attack_clock;
+                            }
+                            SELFTEST_CHECK(!ap_mode_seen,
+                                           "Jad must swing from [ai_opplayer2] itself — an AP "
+                                           "mode in front of the swing costs two ticks of the "
+                                           "record's attack speed");
+                            SELFTEST_CHECK(swings >= 3,
+                                           "and must keep swinging: %d measured intervals over "
+                                           "60 ticks, expected at least 3",
+                                           swings);
+                            SELFTEST_CHECK(bad_gap < 0,
+                                           "and every gap between swings must be one content "
+                                           "states — %d (the record's attack speed) or %d "
+                                           "(melee) — got %d. One over means the attack clock "
+                                           "is a countdown again; two over means the AP "
+                                           "redirect is back",
+                                           rate, jad_melee_rate, bad_gap);
+                        }
+                        j->active = 0;
+                    }
+                }
+
+                /*
+                 * ---- The OTHER cave ----
+                 *
+                 * TzTok-Jad on wave 63 of the TzHaar Fight Cave, and its four
+                 * Yt-HurKot. The whole encounter was unimplemented — wave 63
+                 * stood a 250-hitpoint monster up with no script at all, so the
+                 * engine's default melee swing was Jad's entire moveset and the
+                 * healer type was something nothing ever spawned — so this is
+                 * first coverage rather than a regression fence, and it pins
+                 * the three claims the wiki makes that a reader cannot check by
+                 * eye:
+                 *
+                 *  1. the record the port authored is the record the server
+                 *     reads. The authored `.npc` block has to land in front of
+                 *     the two GENERATED files that also used to name this npc,
+                 *     which is a directory-order question and therefore worth
+                 *     asking out loud;
+                 *  2. four healers, and exactly four, at half health — not the
+                 *     Inferno's five or three; and
+                 *  3. a healer's heal is the flat +5 the Fight Caves set has
+                 *     and NOT the Inferno set's 15-24 roll. Those are two
+                 *     numbers for one creature at two levels, the port has to
+                 *     choose per cave, and getting them crossed is invisible
+                 *     until someone counts hitpoints.
+                 *
+                 * `::fightcave <wave>` is the fixture, added beside `::inferno`
+                 * for this. The cave is a shared map square rather than an
+                 * instance, so the zone is the arena's own — local (32,32) of
+                 * map square 37,79 is tile (2400, 5088), zone (300, 636).
+                 */
+                {
+                    int jad_type =
+                        mock230_content_symbol(MOCK230_PACK_NPC, "tzhaar_fightcave_swarm_boss");
+                    int healer_type = mock230_content_symbol(
+                        MOCK230_PACK_NPC, "tzhaar_fightcave_swarm_boss_cleric");
+                    int jad = -1;
+
+                    selftest_reset_world(srv, player, 300, 636);
+                    SELFTEST_CHECK(jad_type >= 0 && healer_type >= 0,
+                                   "the Fight Caves boss and healer must both resolve "
+                                   "(got %d / %d)",
+                                   jad_type, healer_type);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "fightcave 63"),
+                                   "::fightcave 63 should stage the final wave");
+                    for( int tick = 0; tick < 12 && jad < 0; tick++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
+                                                 0);
+                        mock230_world_tick(srv);
+                        jad = selftest_find_npc(srv, jad_type);
+                    }
+                    SELFTEST_CHECK(jad >= 0, "wave 63 should stand TzTok-Jad up");
+                    if( jad >= 0 )
+                    {
+                        struct Mock230Npc* j = &srv->npcs[jad];
+                        int healers = 0;
+                        int healer = -1;
+                        int before;
+
+                        /*
+                         * The record. `hitpoints` and `attackrate` come from
+                         * the wiki infobox and were already right in the
+                         * generated block; `attackrange` is the one the
+                         * generator cannot produce — the infobox has no such
+                         * field — and is the reason the authored block exists
+                         * at all: "can hit the player from up to 15 tiles
+                         * away".
+                         */
+                        SELFTEST_CHECK(j->def && j->def->attackrate == 8,
+                                       "TzTok-Jad's attack speed is 8 ticks, got %d",
+                                       j->def ? j->def->attackrate : -1);
+                        SELFTEST_CHECK(j->def && j->def->attackrange == 15,
+                                       "and its attack range is 15 tiles, got %d — an "
+                                       "authored .npc block that lost the directory-order "
+                                       "race against combat_stats.generated.npc reads the "
+                                       "default here",
+                                       j->def ? j->def->attackrange : -1);
+                        SELFTEST_CHECK(j->max_hitpoints == 250,
+                                       "and it has 250 hitpoints, got %d", j->max_hitpoints);
+
+                        /*
+                         * Half health, to the tick. "They spawn when their
+                         * respective Jad falls to or below 50% of their maximum
+                         * hitpoints" — so the hit that leaves it on exactly
+                         * half is the hit that summons, which is what `<=`
+                         * buys over `<`.
+                         *
+                         * Driven through the damage QUEUE rather than
+                         * `mock230_combat_hit_npc`, because that function
+                         * subtracts hitpoints directly and the summon lives in
+                         * `[ai_queue2]` — the rung every hit the player lands
+                         * actually arrives on.
+                         */
+                        j->hitpoints = 250 / 2 + 1;
+                        mock230_scripts_run_trigger_lastint(srv, SS_TRIGGER_AI_QUEUE2, jad_type,
+                                                            -1, jad, 1);
+                        for( int tick = 0; tick < 4; tick++ )
+                            mock230_world_tick(srv);
+                        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                        {
+                            if( srv->npcs[i].active && srv->npcs[i].type == healer_type )
+                            {
+                                healers++;
+                                healer = i;
+                            }
+                        }
+                        SELFTEST_CHECK(healers == 4,
+                                       "four Yt-HurKot spawn at half health, got %d — the "
+                                       "Inferno's counts are five and three and belong to the "
+                                       "other cave",
+                                       healers);
+
+                        if( healer >= 0 )
+                        {
+                            /*
+                             * One healer, and one out of Jad's reach on its
+                             * own. Jad spawns on the rotation's south-east
+                             * point and the healers' south-east corner IS that
+                             * tile, so a set of four routinely lands one of
+                             * them against Jad — which is faithful, and which
+                             * makes a naive "+5?" measurement read +10, because
+                             * the engine's own `[ai_opnpc2]` fires beside the
+                             * one this drives.
+                             */
+                            for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                                if( srv->npcs[i].active &&
+                                    srv->npcs[i].type == healer_type && i != healer )
+                                    srv->npcs[i].active = 0;
+                            srv->npcs[healer].x = j->x + 30;
+                            srv->npcs[healer].combat_target_npc = -1;
+                            srv->npcs[healer].combat_target = -1;
+                            before = j->hitpoints;
+                            mock230_scripts_run_trigger_npc2(srv, SS_TRIGGER_AI_OPNPC2,
+                                                             healer_type, -1, healer, jad);
+                            for( int tick = 0; tick < 2; tick++ )
+                                mock230_world_tick(srv);
+                            SELFTEST_CHECK(j->hitpoints == before + 5,
+                                           "a Fight Caves Yt-HurKot heals a flat +5 (Mod Ash, "
+                                           "quoted on [[Yt-HurKot]]) — %d -> %d, expected %d. "
+                                           "15-24 here means the Inferno set's roll reached "
+                                           "the wrong cave",
+                                           before, j->hitpoints, before + 5);
+                        }
+
+                        /*
+                         * And a Jad healed back to full re-arms the summon:
+                         * "If they successfully restore all of Jad's health
+                         * before being killed, another set of healers will
+                         * spawn when Jad reaches 150 hp or less health." The
+                         * latch is an npc_var on Jad and reaching full is the
+                         * only thing that clears it — the one place the Fight
+                         * Caves healers differ from the Inferno's in kind
+                         * rather than in number.
+                         */
+                        j->hitpoints = j->max_hitpoints;
+                        mock230_scripts_run_trigger_npc2(srv, SS_TRIGGER_AI_OPNPC2, healer_type,
+                                                         -1, healer >= 0 ? healer : jad, jad);
+                        for( int tick = 0; tick < 3; tick++ )
+                            mock230_world_tick(srv);
+                        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == healer_type )
+                                srv->npcs[i].active = 0;
+                        j->hitpoints = 250 / 2 + 1;
+                        mock230_scripts_run_trigger_lastint(srv, SS_TRIGGER_AI_QUEUE2, jad_type,
+                                                            -1, jad, 1);
+                        for( int tick = 0; tick < 4; tick++ )
+                            mock230_world_tick(srv);
+                        healers = 0;
+                        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == healer_type )
+                                healers++;
+                        SELFTEST_CHECK(healers == 4,
+                                       "a Jad healed to full summons a second set when it "
+                                       "drops to half again, got %d",
+                                       healers);
+                        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == healer_type )
+                                srv->npcs[i].active = 0;
                         j->active = 0;
                     }
                 }

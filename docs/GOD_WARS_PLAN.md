@@ -39,9 +39,65 @@ Wiki page, exact revision ID, and fetch date in the convention established by
 `docs/NPC_WIKI_DROPTABLES_PLAN.md`; names alone are never sufficient to join a
 cache NPC to a Wiki version.
 
-## Current repository baseline and known gaps
+## Implementation snapshot
 
-The existing implementation lives in
+This document remains the acceptance plan; checked boxes below are not waived
+by the existence of code. As of the audit date, the repository now has:
+
+- [x] A generated [classic combat ledger](../OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv)
+  covering all **69** main-dungeon gamevals and **126** distinct player/NPC
+  attack paths, with a build-failing one-handler-per-NPC check.
+- [x] Explicit original-general/bodyguard combat, room AOE/assist/reset logic,
+  individual regular/unique/tertiary tables, faction KC, altars, and audiovisual
+  bindings in `areas/area_godwars`; the public doors also report exact bounded
+  room occupancy through their cache-defined Peek option.
+- [x] Explicit ambient four-way NPC warfare, player attribution, exact Gorak
+  prayer/stat-drain behavior, Aviansie melee rules, generated versioned drops,
+  and applicable non-Wilderness tertiaries.
+- [x] Frozen Door progression, Ancient Prison population, Zaros essence,
+  Ashuelot services, Ancient Forge, death bank, the four Zarosian soldier drop
+  tables, and their specials/Ancient Magicks effects.
+- [x] A reachable public Nex actor with spawn transform, phase floors/mages,
+  partial-prayer autos, three-hit melee sequences, all eight named phase
+  specials, contribution loot, overhead rotation, Wrath, scoreboard, cleanup,
+  and the cache animations/projectiles/spotanims/sounds named in this plan.
+- [x] Script compilation in an isolated content tree plus deterministic
+  `check-godwars-manifest` and `check-godwars-contract` build gates.
+- [x] Four-map-square lifecycle triggers which keep the KC overlay present
+  while moving within the dungeon and atomically clear all five counters plus
+  the overlay only after a real departure.
+- [x] The frozen surface's ten-tick all-skill/run/special drain and the complete
+  permanent [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
+  build: quest, 60 Construction/66 Firemaking, tool alternatives, exact salts,
+  cache animation/sound, 600/300 XP, transform varbit, and chill immunity.
+- [x] All six [Ghommal's hilt](https://oldschool.runescape.wiki/w/Ghommal%27s_hilt)
+  Trollheim options, with the documented 3/5/unlimited daily allowances,
+  runeday reset, large-boulder arrival, and intentional Troll Stronghold bypass.
+- [x] Zamorak's ice-river crossing uses the cache-native double-swim sequence,
+  swim/splash sounds and a three-tick exact move before applying the
+  northbound Prayer drain.
+- [x] [Saradomin's light](https://oldschool.runescape.wiki/w/Saradomin%27s_light)
+  has its confirmation transcript, single-item consumption, duplicate guard,
+  and permanent cache varbit; it removes the client-driven fortress darkness
+  without suppressing the crossing's Prayer drain.
+- [x] Armadyl's grapple shortcut keeps its unboostable level/equipment gates
+  and now uses the cache's fast fire-and-climb sequence, player graphic,
+  grapple projectile/sound, and a seven-tick exact move instead of teleporting.
+- [x] Bandos's gong accepts the normal and Imcando hammers, every metal
+  warhammer, Dragon warhammer variants, and both Elder mauls; each selects its
+  held-model-correct `godwars_hammer_gong_*` sequence with embedded gong sound.
+
+The remaining acceptance work is runtime-focused: nearest-player/defence
+tie-breaking is scripted but still needs multiplayer trace validation;
+Turmoil's unpublished drain amount/transfer timing and Ice Prison's unpublished
+fixed defence roll need primary-source evidence; private-room and high-player-count
+teardown require a room-instance owner; and the statistical,
+tick-trace, relog/restart, and multiplayer soak matrix at the end of this plan
+must still be executed. These are intentionally left unchecked below.
+
+## Audit-start repository baseline and known gaps
+
+At the start of this audit, the implementation lived in
 `OSRS-Content/osrs239-content/server/scripts/areas/area_godwars/`, with classic
 spawns in `areas/world/configs/m44_82.spawn`, `m44_83.spawn`, `m45_82.spawn`, and
 `m45_83.spawn`. It is useful scaffolding, but it is not the acceptance baseline:
@@ -90,7 +146,7 @@ associated projectile/spotanim/sound and impact tick; a plain generic
 | Bandos | [Sergeant Strongstack](https://oldschool.runescape.wiki/w/Sergeant_Strongstack) (`godwars_sergeant_goblin1`) | 5 ticks; crush, max 15 | sergeant melee attack/defend/death and sounds | rev. 15298419 |
 | Bandos | [Sergeant Steelwill](https://oldschool.runescape.wiki/w/Sergeant_Steelwill) (`godwars_sergeant_goblin2`) | 5 ticks; magic, max 15 | magic cast, projectile, impact, defend/death | rev. 15298417 |
 | Bandos | [Sergeant Grimspike](https://oldschool.runescape.wiki/w/Sergeant_Grimspike) (`godwars_sergeant_goblin3`) | 5 ticks; ranged, max 21 | ranged attack, projectile, impact, defend/death | rev. 15298415 |
-| Armadyl | [Kree'arra](https://oldschool.runescape.wiki/w/Kree%27arra) (`godwars_armadyl_avatar`) | 3 ticks; room-wide ranged 69 or magic 21 while attacked; magical melee 25 only when not under attack; attacks knock back and can freeze | wind/claw attacks, ranged bolt and magic visuals, whirlwind impact, forced movement, defend/death, cry | rev. 15298481 |
+| Armadyl | [Kree'arra](https://oldschool.runescape.wiki/w/Kree%27arra) (`godwars_armadyl_avatar`) | 3 ticks; room-wide ranged 69 or ranged-magic 21 while attacked; the latter rolls Magic accuracy against Ranged defence and Protect from Missiles; magical melee 25 only when not under attack; both wind attacks can knock back | wind/claw attacks, grey ranged bolt and blue magic whirlwind visuals, impact sound, forced movement, defend/death, cry | rev. 15298481 |
 | Armadyl | [Flight Kilisa](https://oldschool.runescape.wiki/w/Flight_Kilisa) (`godwars_armadyl_bodyguard_kilisa`) | 5 ticks; slash, max 15 | melee swoop/strike, defend/death | rev. 15298482 |
 | Armadyl | [Wingman Skree](https://oldschool.runescape.wiki/w/Wingman_Skree) (`godwars_armadyl_bodyguard_skree`) | 5 ticks; magic, max 16 | cast, projectile/impact, defend/death | rev. 15298484 |
 | Armadyl | [Flockleader Geerin](https://oldschool.runescape.wiki/w/Flockleader_Geerin) (`godwars_armadyl_bodyguard_geerin`) | 5 ticks; ranged, max 25 | ranged attack, projectile/impact, defend/death | rev. 15298486 |
@@ -152,8 +208,8 @@ equipment changes. Neutral creatures neither protect nor award faction KC.
 
 ### Ancient Prison and Nex roster
 
-Revision 239 contains these cache records even though the server does not spawn
-or script them yet:
+Revision 239 contains the following records, which form the implemented Ancient
+Prison/Nex roster and the acceptance contract for later regression testing:
 
 | Role | Cache NPC(s) | Complete combat/interaction contract | Drops |
 |---|---|---|---|
@@ -170,15 +226,19 @@ Nex attack checklist, including every animation/effect path:
 - [ ] **Shared targeting:** spawn intro; nearest/lowest-relevant-defence target
   selection; melee triple follow-up while the target remains adjacent; magic in
   Smoke/Blood/Ice/Zaros and ranged in Shadow; correct partial prayer reduction;
-  8-tick out-of-combat leap; run/leap pathing over the room pits.
-- [ ] **Smoke (3,400–2,720 HP):** Smoke Barrage and poison; “Let the virus flow
-  through you” cough application, adjacency spread, stat drain, immunity timer,
-  cough graphics/sounds; “There is no escape” centre teleport and dash/trample
-  for up to 50 with forced movement and safe-line handling; Fumus activation.
+  spectral-spirit-shield halving with odd-drain random rounding; 8-tick
+  out-of-combat leap; run/leap pathing over the room pits.
+- [ ] **Smoke (3,400–2,720 HP):** Smoke Barrage and poison; opening “Let the
+  virus flow through you” cough application, adjacency spread, stat drain,
+  duration reset, raw highest-attack-bonus selection and cough graphics/sounds;
+  random six-tile Drag with a 1/4 base or protected 1/8 chance; “There is no escape” centre teleport and
+  dash/trample for up to 50 with forced movement and safe-line handling; Fumus
+  activation.
 - [ ] **Shadow (2,720–2,040):** ranged shadow shot whose damage and darkness
   scale with distance; prayer drain on a successful shot; “Embrace darkness”
-  room darkening and adjacent damage; targeted Shadow Smash warning tiles and
-  delayed eruption up to 50; Umbra activation.
+  room darkening and adjacent damage; one Shadow Smash warning tile per player
+  (including overlapping stacked shadows) and delayed eruption up to 50; Umbra
+  activation.
 - [ ] **Blood (2,040–1,360):** 3x3 Blood Barrage, healing and prayer drain;
   “A siphon will solve this” kneel/immunity window, team-size-capped Blood
   Reaver summons, damage-to-Nex healing, and surviving-reaver consumption;
@@ -335,8 +395,9 @@ Source: Nex revision 15293911, plus Jagex's
   rope transitions; Zamorak 70 Hitpoints, river crossing, prayer drain, and
   darkness/Saradomin's-light state. Enforce boostability exactly as the Wiki
   specifies.
-- [ ] **Boss doors:** base 40 KC, Combat Achievement reductions, ecumenical key
-  consumption, atomic entry, no double charge, peek count, public/private room
+- [ ] **Boss doors:** base 40 KC; Hard/Elite/Master/Grandmaster reductions to
+  35/30/25/15; prefer sufficient KC before consuming a one-use ecumenical key;
+  atomic entry, no double charge, peek count, public/private room
   selection, room capacity, re-entry/death behavior, and no door escape from
   inside.
 - [ ] **Boss rooms:** multi-combat targeting, damage attribution, kill credit,
@@ -348,9 +409,11 @@ Source: Nex revision 15293911, plus Jagex's
   teleport allowed in combat; Nex altar also restores HP, run, and special
   energy when an eligible Zaros item is worn.
 - [ ] **Frozen Door/Ancient Prison:** four conditional key pieces, key assembly,
-  one-time door unlock, permanent access state, entry requirements, Zaros KC,
-  ancient ceremonial bypass, safe rooms, Ashuelot bank/collect, ancient forge,
-  logout relocation, chest/death-bank rules, barriers, and Nex instance entry.
+  one-time door unlock, permanent access state, 70 Agility/Hitpoints/Ranged/
+  Strength requirements with only Hitpoints boostable, Zaros KC, ecumenical-key
+  access, and a regression proving ancient ceremonial robes do **not** bypass
+  KC in OSRS; safe rooms, Ashuelot bank/collect, ancient forge, logout
+  relocation, chest/death-bank rules, barriers, and Nex instance entry.
 - [ ] **Godsword loop:** shard drops, shard combinations in all valid orders,
   blade completion, all four original hilts, Ancient hilt, smithing/anvil and
   dismantle behavior, and special-attack compatibility tests.
@@ -460,8 +523,9 @@ drop ledgers pass deterministic and multiplayer tests.
 ### Phase 5 — Frozen Door and Ancient Prison population
 
 Implement key acquisition/assembly/unlock, maps and barriers, Zaros faction
-combatants and exact drops, KC/robes access, safe rooms, Ashuelot, bank/collect,
-death bank, forge, logout rules, and Nex-room instance allocation.
+combatants and exact drops, KC/ecumenical-key access (including the OSRS robes
+non-bypass rule), safe rooms, Ashuelot, bank/collect, death bank, forge, logout
+rules, and Nex-room instance allocation.
 
 Exit gate: permanent unlock and a complete Ancient Prison trip survive relog,
 restart, death, reclaim, and concurrent-player tests.
@@ -528,6 +592,10 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
 - [Ancient Prison](https://oldschool.runescape.wiki/w/Ancient_Prison)
 - [Nex](https://oldschool.runescape.wiki/w/Nex) and [Nex strategies](https://oldschool.runescape.wiki/w/Nex/Strategies)
 - [God equipment and aggression protection](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#God_equipment)
+- [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
+  and the [old fire-pit recipe](https://oldschool.runescape.wiki/w/Old_fire_pit)
+- [Ghommal's hilt teleport tiers](https://oldschool.runescape.wiki/w/Ghommal%27s_hilt)
+- [Saradomin's light and Zamorakian darkness](https://oldschool.runescape.wiki/w/Saradomin%27s_light)
 - [Godsword shard 1](https://oldschool.runescape.wiki/w/Godsword_shard_1), [shard 2](https://oldschool.runescape.wiki/w/Godsword_shard_2), and [shard 3](https://oldschool.runescape.wiki/w/Godsword_shard_3)
 - Original boss/bodyguard and ambient family pages linked directly in the roster
   tables above; those links, not this summary, define the complete drop rows.

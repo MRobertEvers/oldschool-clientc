@@ -298,11 +298,32 @@ struct PktUpdateZoneFullFollows
     int level;  /* header plane, or -1 when absent */
 };
 
+/** Longest replacement loc menu label the client keeps, matching
+ *  WorldEntityFacet_Action.name. Anything longer is truncated rather than
+ *  dropped: a shortened menu row is legible, a missing one is a dead click. */
+#define PKT_LOC_OP_TEXT_MAX 32
+
 struct PktLocAddChange
 {
     int pos;   /* g1: x = base_x + (pos>>4)&7, z = base_z + pos&7 */
     int info;  /* g1: shape = info>>2, angle = info&3 */
     int loc_id; /* g2 */
+    /*
+     * The two fields LOC_ADD_CHANGE_V2 added at rev 228, and they belong to
+     * this PLACEMENT rather than to the loctype.
+     *
+     * `op_flags` is a 5-bit mask of which right-click options are SHOWN (bit 0
+     * is op1); `ops[i]` REPLACES the loctype's label for slot i when non-empty,
+     * including on a slot the loctype leaves empty. The reference applies them
+     * in that order — mask first as a veto, then the loctype's label, then the
+     * override (deob `src_osrs239_rl1_12_33`: class69.method1514/1518/1532, read
+     * by the loc menu builder in class108).
+     *
+     * A revision with no such fields fills `op_flags` with all five bits and
+     * leaves `ops` empty, which is the same menu the loctype alone describes.
+     */
+    int op_flags;
+    char ops[5][PKT_LOC_OP_TEXT_MAX];
 };
 
 struct PktLocDel

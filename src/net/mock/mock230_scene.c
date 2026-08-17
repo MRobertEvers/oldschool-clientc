@@ -662,6 +662,9 @@ record_loc_at(
     /* From the map square, which is what makes its slot a tombstone rather than
      * reusable once something removes it — see mock230_scene_add_loc. */
     loc->is_static = 1;
+    /* The map square carries no menu of its own: what this loc offers is what
+     * its loctype offers. */
+    mock230_loc_ops_default(&loc->ops);
 
     apply_loc_collision(loc, 1);
 }
@@ -1442,8 +1445,46 @@ mock230_scene_add_loc(
     /* Not from the map square, so its slot is free to be handed out again once
      * something removes it. */
     loc->is_static = 0;
+    /* Neutral until a caller says otherwise. A reused slot still holds the
+     * previous occupant's menu, so this is a reset and not an initialisation:
+     * without it, the second loc to land in a recycled slot would inherit the
+     * first one's overrides. */
+    mock230_loc_ops_default(&loc->ops);
     apply_loc_collision(loc, 1);
     return (int)(loc - g_locs);
+}
+
+void
+mock230_scene_loc_set_ops(
+    int slot,
+    const struct Mock230LocOps* ops)
+{
+    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+    assert(ops);
+    assert(loc);
+    assert(loc->active);
+    loc->ops = *ops;
+}
+
+const char*
+mock230_scene_loc_placement_op(
+    int slot,
+    int loc_id,
+    int op_num)
+{
+    const struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+    const char* type_op = mock230_scene_loc_op(loc_id, op_num);
+
+    if( op_num < 1 || op_num > 5 )
+        return NULL;
+    /* No slot is a legitimate runtime state, not a contract violation: a loc
+     * beyond the scene window lives only in the ZoneMap, and the click on it
+     * still has to be judged against something. The type is what the client
+     * drew it from in that case, because nothing overrode it. */
+    if( !loc )
+        return type_op;
+    return mock230_loc_ops_label(&loc->ops, op_num, type_op);
 }
 
 int

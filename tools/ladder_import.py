@@ -101,12 +101,44 @@ SPIRAL_GROUP = "climb_spiral_middle"
 # `trap_door` is not a spelling variant worth being clever about — it is one
 # record, `champions_trap_door_open`, and it climbed down un-animated for exactly
 # as long as the keyword list said `trapdoor` and the cache said `trap_door`.
+#
+# The veto reads the cache's `name=` as well as the symbol, and that is the half
+# that was missing
+# ------------------------------------------------------------------------
+# A symbol is this port's name for a record, not the cache's: `port/names.map`
+# resolves what it can and the rest is inherited from whichever tree the name
+# came from. The cache's own `name=` — the words the player reads in the menu —
+# is the only statement in the file about what the thing IS.
+#
+# They disagree, and they disagree in exactly the direction that matters. Five
+# records carry `ladder` in the symbol and say **Stairs** in the cache
+# (`domeladderdown`, `obs_dungeonladderdown` and the three
+# `slp_church_crypt_south_ladder_*`), so a symbol-only test animated five
+# staircases. It runs the other way too, and more often — 44 records the symbol
+# calls a staircase, a slope or nothing in particular say **Ladder**,
+# **Rope ladder**, **Vine ladder** or **Trapdoor** in the cache
+# (`dorgesh_cavewall_slope_steps` is the clearest: a `steps` symbol on a record
+# whose menu says Ladder).
+#
+# So the display name joins the test on the veto side only, which is the scoped
+# half: a record whose menu says Stairs is not a ladder whatever its symbol
+# claims. Adding the display name to the KEYWORDS side as well would animate
+# those 44, which is a behaviour change nobody has asked for — it is written up
+# in `ladders_stairs/README.md` instead.
+#
+# Only `stair` is read out of the display name. `steps` is not a reliable token
+# on either side: `dorgesh_cavewall_slope_steps` displays Ladder, and
+# `agility_pyramid_steps1` displays Stairs — the word says nothing on its own.
 LADDER_KEYWORDS = ("ladder", "trapdoor", "trap_door", "manhole", "hatch")
 LADDER_VETO = ("stair",)
+DISPLAY_VETO = ("stair",)
 
 
-def is_ladder(name):
+def is_ladder(name, record):
     if any(veto in name for veto in LADDER_VETO):
+        return False
+    display = record.get("name", "").lower()
+    if any(veto in display for veto in DISPLAY_VETO):
         return False
     return any(keyword in name for keyword in LADDER_KEYWORDS)
 
@@ -271,7 +303,7 @@ def classify(records):
         if not ops:
             continue
         verbs = set(ops.values())
-        suffix = "_ladder" if is_ladder(name) else ""
+        suffix = "_ladder" if is_ladder(name, record) else ""
         if len(verbs) == 1:
             grouped[name] = (SINGLE_VERB_GROUP[next(iter(verbs))] + suffix, ops)
         elif ops == SPIRAL:
@@ -395,7 +427,7 @@ def main():
         )
         # Same ladder/stairs axis the categories carry, spelled as the proc name
         # instead: a name binding has no category to hang a suffix on.
-        ladder = "_ladder" if is_ladder(name) else ""
+        ladder = "_ladder" if is_ladder(name, records[name]) else ""
         for slot, verb in sorted(ops.items()):
             script.append(
                 "[oploc%d,%s] %s\n"
@@ -412,6 +444,37 @@ def main():
         sys.stdout.write(
             "// shadowed by hand-authored .rs2 triggers: %s\n" % ", ".join(sorted(rs2_shadowed))
         )
+        # The symbol-vs-display disagreement, both ways. The veto half is
+        # already acted on (those records are in the un-animated groups above);
+        # the keyword half is NOT, and is the standing work queue that
+        # `ladders_stairs/README.md` points at. Printing both is what makes the
+        # README's "one command" true, and what makes the queue shrink
+        # visibly if anyone works it.
+        vetoed = sorted(
+            (name, records[name].get("name", ""))
+            for name in grouped
+            if any(k in name for k in LADDER_KEYWORDS)
+            and not any(v in name for v in LADDER_VETO)
+            and any(v in records[name].get("name", "").lower() for v in DISPLAY_VETO)
+        )
+        unclaimed = sorted(
+            (name, records[name].get("name", ""))
+            for name in grouped
+            if not is_ladder(name, records[name])
+            and any(k in records[name].get("name", "").lower() for k in LADDER_KEYWORDS)
+        )
+        sys.stdout.write(
+            "\n// display says stairs, symbol says ladder — %d, ANIMATION REMOVED "
+            "by DISPLAY_VETO:\n" % len(vetoed)
+        )
+        for name, display in vetoed:
+            sys.stdout.write("//   %-48s %s\n" % (name, display))
+        sys.stdout.write(
+            "\n// display says ladder, symbol does not — %d, still UN-ANIMATED "
+            "(open queue, see README):\n" % len(unclaimed)
+        )
+        for name, display in unclaimed:
+            sys.stdout.write("//   %-48s %s\n" % (name, display))
         return 0
     if args.check:
         for path, want in ((out_path, text), (script_path, script_text)):

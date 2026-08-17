@@ -816,20 +816,20 @@ mock230_combat_hit_npc(
          * Switching a fight from an npc to a person is not a new fight, and the
          * flinch below is only for one that is.
          *
-         * `attack_clock` is ONE counter and both combat branches spend it, so
+         * `attack_clock` is ONE deadline and both combat branches read it, so
          * an npc that has been shooting another npc arrives here mid-cycle —
          * part way through a cooldown it has already paid for. Reseeding it
          * shortened that cooldown, and a shortened cooldown is a whole extra
          * swing: the Inferno's adds shot the shield, took a hit, and hit the
-         * player before the shot they had just made was due to repeat. The
-         * running clock carries over instead, so the first swing at the person
-         * lands where the next swing at the npc would have.
+         * player before the shot they had just made was due to repeat. Leaving
+         * the deadline alone carries it over, so the first swing at the person
+         * lands on the tick the next swing at the npc would have.
          */
         int was_fighting_npc = npc->combat_target_npc >= 0;
 
         npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
         if( !was_fighting_npc )
-            npc->attack_clock = npc_def(npc)->attackrate / 2;
+            npc->attack_clock = srv->tick + npc_def(npc)->attackrate / 2;
         /*
          * A person outranks whatever npc it was fighting.
          *
@@ -1843,12 +1843,9 @@ npc_vs_npc_tick(
         return 1;
     }
 
-    if( npc->attack_clock > 0 )
-    {
-        npc->attack_clock--;
+    if( srv->tick < npc->attack_clock )
         return 1;
-    }
-    npc->attack_clock = npc_def(npc)->attackrate;
+    npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
     mock230_scripts_run_trigger_npc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
                                      target_slot);
     return 1;
@@ -2007,12 +2004,9 @@ mock230_combat_npc_tick(
     if( npc_dispatch_combat_applayer_mode(srv, npc, slot) )
         return;
 
-    if( npc->attack_clock > 0 )
-    {
-        npc->attack_clock--;
+    if( srv->tick < npc->attack_clock )
         return;
-    }
-    npc->attack_clock = npc_def(npc)->attackrate;
+    npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
 
     /*
      * The npc's swing is content's — [ai_opplayer2,<npc>] owns it and does
