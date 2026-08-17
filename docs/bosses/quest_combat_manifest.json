@@ -1453,15 +1453,140 @@
       "encounter_summary": "Ranalph Devere (92) twice, Irvig Senay (100) twice, San Tojalon (106) twice, Nezikchened (187) three times",
       "plan_line": 99,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Legends%27_Quest?oldid=15293032",
+          "revision": 15293032,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Legends%27_Quest/Quick_guide?oldid=15231427",
+          "revision": 15231427,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Legends%27_Quest?oldid=15263273",
+          "revision": 15263273,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Nezikchened?oldid=15242487",
+          "revision": 15242487,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ranalph_Devere?oldid=15215908",
+          "revision": 15215908,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Irvig_Senay?oldid=15215870",
+          "revision": 15215870,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/San_Tojalon?oldid=15276414",
+          "revision": 15276414,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Viyeldi?oldid=15276415",
+          "revision": 15276415,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Holy_water?oldid=15290188",
+          "revision": 15290188,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Binding_book?oldid=15303420",
+          "revision": 15303420,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Golden_bowl?oldid=15184878",
+          "revision": 15184878,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Yommi_tree_seeds?oldid=15184984",
+          "revision": 15184984,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Bravery_potion?oldid=15185855",
+          "revision": 15185855,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Yommi_tree?oldid=15201240",
+          "revision": 15201240,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "nezikchened",
+        "echned_zekin",
+        "viyeldi",
+        "ranalph_devere",
+        "irvig_senay",
+        "san_tojalon",
+        "ungadulu_bad",
+        "ungadulu_good",
+        "gujuo",
+        "boulder_legends"
+      ],
+      "item_gamevals": [
+        "book_of_binding",
+        "vial_empty",
+        "vial_enchanted",
+        "holy_water",
+        "goldbowl_empty",
+        "goldbowlbless_empty",
+        "goldbowlbless_pure",
+        "yommiseeds",
+        "yommiseeds_germ",
+        "bravery_pot",
+        "darkdagger",
+        "glowingdagger",
+        "holyforce",
+        "thtotempole",
+        "thtotempolegift",
+        "rune_axe",
+        "dragon_axe",
+        "magic_logs",
+        "logs"
+      ],
+      "loc_gamevals": [
+        "lqfirewall_straight/diagonal",
+        "lgwaterpool",
+        "fertilesoil",
+        "yommitree_baby/sapling/adult/felled/trimmed/totem and rotten variants",
+        "lg_totem_pole_evil",
+        "lg_totem_pole_good",
+        "damaged_earth"
+      ],
+      "trigger_handlers": [
+        "opnpc2/apnpc2/ai_opplayer2/ai_applayer2/ai_queue3:nezikchened",
+        "ai_queue3:ranalph_devere/irvig_senay/san_tojalon",
+        "opnpcu:ungadulu_bad/echned_zekin/viyeldi",
+        "opheld1:holyforce",
+        "opheldu:book_of_binding/goldbowlbless_pure/yommiseeds",
+        "oplocu:lgwaterpool/fertilesoil/Yommi states/lg_totem_pole_evil"
+      ],
+      "loot_contract": "All three Nezikchened versions have no ordinary, ash or bones drop. The first death advances the fire encounter and performs the authored last-ditch magic hit; the second advances the water encounter; the final advances the totem encounter. The short final route summons owner-private San Tojalon, Irvig Senay and Ranalph Devere in order before Nezikchened; completed heroes persist across retreat. The heroes' first cave versions grant their one crystal only if the player owns none, while final versions grant no loot. Holy Water is single-use, uses its custom Nezikchened maximum hit and applies one non-stacking 5% Defence drain. Authored books, daggers, force card, bowls, seeds, totems and gilded totem are interaction rewards, never generic boss drops.",
+      "test_ids": [
+        "quest-combat-contract:legends-nezikchened",
+        "quest-combat-contract:legends-route-items",
+        "quest-combat-contract:legends-yommi"
+      ],
+      "known_gaps": [
+        "The fire wall is an era-compatible one-action route rather than the live segment-by-segment reignition presentation.",
+        "Some quest-wide guard, gate, barrel-spawn, camera and audio choreography outside the encounter remains marked thin or deferred.",
+        "A real-client three-fight, both dagger branches, retreat/resume, inventory-full, Yommi rot, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-big-chompy-bird-hunting",
@@ -1471,15 +1596,128 @@
       "encounter_summary": "Chompy bird (6); optional wolves (64)",
       "plan_line": 100,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Big_Chompy_Bird_Hunting?oldid=15292269",
+          "revision": 15292269,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Big_Chompy_Bird_Hunting/Quick_guide?oldid=15274013",
+          "revision": 15274013,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Big_Chompy_Bird_Hunting?oldid=15263278",
+          "revision": 15263278,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Chompy_bird?oldid=15236005",
+          "revision": 15236005,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Bloated_toad?oldid=15184286",
+          "revision": 15184286,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ogre_bellows?oldid=15195336",
+          "revision": 15195336,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ogre_bow?oldid=15183145",
+          "revision": 15183145,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ogre_arrow?oldid=15185835",
+          "revision": 15185835,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Wolf_bones?oldid=15270861",
+          "revision": 15270861,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Raw_chompy?oldid=15183679",
+          "revision": 15183679,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cooked_chompy?oldid=15184210",
+          "revision": 15184210,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Rantz?oldid=15196225",
+          "revision": 15196225,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "rantz",
+        "fycie",
+        "bugs",
+        "toad",
+        "bloated_toad",
+        "chompybird",
+        "chompybird_dead",
+        "wolf"
+      ],
+      "item_gamevals": [
+        "achey_tree_logs",
+        "wolf_bones",
+        "wolfbone_arrowheads",
+        "feather",
+        "ogre_arrow_shaft",
+        "ogre_headless_arrow",
+        "ogre_arrow",
+        "empty_ogre_bellows",
+        "filled_ogre_bellow1/2/3",
+        "bloated_toad",
+        "ogre_bow",
+        "raw_chompy",
+        "cooked_chompy",
+        "ruined_chompy",
+        "cooked_s_chompy",
+        "bones",
+        "potato/onion",
+        "equa_leaves/cabbage",
+        "tomato/doogleleaves"
+      ],
+      "loc_gamevals": [
+        "chompybird_chest/chompybird_chest_open",
+        "swampbubbles/swampbubbles_swamp",
+        "chompybird_spitroast_empty",
+        "chompybird_spitroast/cooked/ruined",
+        "rantzogrecaveentrance/rantzogrecaveexitr/rantzogrecaveexitl"
+      ],
+      "trigger_handlers": [
+        "opnpc1/opnpcu:rantz",
+        "opnpcu:toad",
+        "opheld1/4/5:bloated_toad",
+        "ai_queue4:bloated_toad",
+        "opnpc5/apnpc5/ai_queue3:chompybird",
+        "opnpc4:chompybird_dead",
+        "oplocu:chompybird_spitroast_empty",
+        "queue:quest_chompybird_complete"
+      ],
+      "loot_contract": "Each owner-private bloated toad rolls 1/5 every 25 ticks up to four times, bursts after one minute for 1-2 damage to its owner, and can attract one owner-private Chompy 3-10 tiles away. The level-6 Chompy has exact 10/5/5/3/0/0 stats, flees nearby players, expires after 100 ticks, and accepts damage only from an ogre/comp ogre bow with ogre or allowed brutal arrows using the special visible-Ranged/ammo-strength maximum-hit formula. The eligible kill advances the quest or post-quest notch count and creates a two-minute owner-private downed corpse. Pluck grants 10-30 feathers directly plus owner-private raw chompy and bones. Only the player's authored first kill, raw-carcass presentation, three requested seasonings, successful spit cooking and seasoned hand-in complete the quest.",
+      "test_ids": [
+        "quest-combat-contract:big-chompy-bait",
+        "quest-combat-contract:big-chompy-bird",
+        "quest-combat-contract:big-chompy-recipe"
+      ],
+      "known_gaps": [
+        "Rantz's missed shot animates and advances on the authentic delay, but the bird-directed projectile and camera/sound presentation remain reduced.",
+        "Post-quest Chompy hats, Western Provinces double-spawn tiers, elite pet roll and diary reward claims are outside the quest encounter and remain pending in their owning systems.",
+        "A real-client bait ownership, four-roll timing, bow/ammo rejection, corpse timeout, inventory-full, cooking-failure, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-elemental-workshop-i",

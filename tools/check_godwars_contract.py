@@ -59,7 +59,8 @@ def proc_body(text: str, name: str) -> str:
 
 def script_body(text: str, trigger: str, subject: str) -> str:
     match = re.search(
-        rf"^\[{re.escape(trigger)},{re.escape(subject)}\][^\n]*\n(.*?)(?=^\[|\Z)",
+        rf"^\[{re.escape(trigger)},{re.escape(subject)}\][^\n]*\n"
+        rf"(?:^\[[^\n]+\]\n)*(.*?)(?=^\[|\Z)",
         text,
         flags=re.MULTILINE | re.DOTALL,
     )
@@ -348,9 +349,26 @@ def main() -> None:
     assert scaled(100, 50, 100, True) == 55
     assert scaled(85, 40, 100, False) == 34
     require(NEX_DROPS, "^nex_loot_minimum_damage", "Nex eligibility floor")
-    require(NEX_DROPS, "random(43000) < $chance", "1/43 contribution unique")
-    require(NEX_DROPS, "random(500000) < $chance", "1/500 contribution pet")
-    require(NEX_DROPS, "random(48000) <", "1/48 contribution elite clue")
+    personal = proc_body(NEX_DROPS, "nex_personal_loot_code")
+    require(personal, "random(43000) < $unique_chance", "1/43 contribution unique")
+    require(personal, "random(500000) < $unique_chance", "1/500 contribution pet")
+    require(personal, "random(48000) < $base_chance", "1/48 contribution elite clue")
+    require(personal, "$code = calc($code + 2);", "independent Nex pet bit")
+    require(personal, "$code = calc($code + 4);", "independent Nex clue bit")
+    award = proc_body(NEX_DROPS, "nex_award_personal_loot_roll")
+    require(award, "modulo($code, 2) = 1", "Nex unique award bit")
+    require(award, "modulo(divide($code, 2), 2) = 1", "Nex pet award bit")
+    require(award, "if ($code >= 4)", "Nex clue award bit")
+    require(award, "~nex_drop_unique_private($where);", "Nex unique award")
+    require(award, "nexpet", "Nex pet award")
+    require(award, "trail_elite_emote_exp1", "Nex elite clue award")
+    death = script_body(NEX_DROPS, "ai_queue3", "nex")
+    require(death, "def_int $base_chance = divide(multiply($damage, 1000), $total);",
+            "Nex base contribution chance")
+    require(death, "~nex_personal_loot_code($chance, $base_chance)",
+            "Nex personal selector invocation")
+    require(death, "~nex_award_personal_loot_roll($death,",
+            "Nex personal award invocation")
 
     # Each Ancient Prison main table receives rolls 0..125 after its two
     # top-level 1/128 ceremonial/gem slots. Thresholds must be monotonic and

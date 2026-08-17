@@ -42,18 +42,19 @@ standable(struct CollisionMap* cm, int local_x, int local_z)
         return 0;
     if( local_x < 0 || local_x >= cm->size_x || local_z < 0 || local_z >= cm->size_z )
         return 0;
-    {
-        int flags = collision_map_tile(cm, local_x, local_z);
-        /*
-         * A flag word of zero is not an empty tile, it is a tile this scene
-         * has NO DATA for — nothing stamped a floor there, so it is sky or
-         * unloaded map. Reporting it standable is how a course lands a player
-         * inside a building or off the edge of the world, so it is refused.
-         */
-        if( flags == 0 )
-            return 0;
-        return (flags & (COLL_FLAG_LOC | COLL_FLAG_FLOOR_BLOCKED)) == 0;
-    }
+    /*
+     * A flag word of zero is an ORDINARY OPEN TILE, and this is the trap.
+     *
+     * The map's BLOCK setting is what stamps COLL_FLAG_FLOOR (apply_terrain_column
+     * in mock230_scene.c), so FLOOR means "this tile is blocked floor" — the
+     * absence of every flag means nothing blocks it. The middle of Lumbridge's
+     * field reads 0x0. An earlier version of this probe read zero as "no scene
+     * data" and called it blocked, which turned three quarters of every course's
+     * landings into false alarms and nearly had eight working rooftops
+     * "corrected" onto tiles they did not need.
+     */
+    return (collision_map_tile(cm, local_x, local_z)
+            & (COLL_FLAG_LOC | COLL_FLAG_FLOOR_BLOCKED)) == 0;
 }
 
 /*
@@ -120,8 +121,8 @@ main(int argc, char** argv)
         printf("%d %d %d %s flags=0x%x%s%s%s\n", x, z, level,
                standable(cm, lx, lz) ? "standable" : "blocked", flags,
                (flags & COLL_FLAG_LOC) ? " LOC" : "",
-               (flags & COLL_FLAG_FLOOR) ? " NOFLOOR" : "",
-               (flags == 0) ? " (no scene data)" : "");
+               (flags & COLL_FLAG_FLOOR) ? " BLOCKEDFLOOR" : "",
+               (flags == 0) ? " (open)" : "");
     }
 
     if( radius > 0 )

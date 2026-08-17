@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import sys
 from collections import Counter, defaultdict
@@ -23,6 +24,7 @@ CONTENT = ROOT / "OSRS-Content/osrs239-content"
 SCRIPTS = CONTENT / "server/scripts"
 GWD = SCRIPTS / "areas/area_godwars"
 OUT = CONTENT / "wiki/godwars_combat_manifest.csv"
+HEADER = ROOT / "src/net/mock/mock230_gwd_manifest.gen.h"
 SPAWNS = [
     SCRIPTS / "areas/world/configs/m44_82.spawn",
     SCRIPTS / "areas/world/configs/m44_83.spawn",
@@ -104,38 +106,38 @@ AVIAN_MAX = {
 
 SPECIAL_ATTACKS = {
     "godwars_bandos_avatar": [
-        ("melee", "crush", "60", "godwars_bandos_attack", "none", "none", "single", "none", "none", "Protect from Melee blocks"),
-        ("ranged_volley", "ranged", "15-35", "godwars_bandos_ranged", "godwars_bandos_proj", "none", "room rectangle", "none", "independent roll per player", "Protect from Missiles blocks"),
+        ("melee", "crush", "60", "godwars_bandos_attack", "none", "none", "none", "godwars_bandos_avatar_punch", "single", "none", "none", "Protect from Melee blocks"),
+        ("ranged_volley", "ranged", "15-35", "godwars_bandos_ranged", "none", "godwars_bandos_proj", "none", "godwars_bandos_avatar_attack", "room rectangle", "none", "independent roll per player", "Protect from Missiles blocks"),
     ],
     "godwars_armadyl_avatar": [
-        ("ranged_wind", "ranged", "69", "godwars_armadyl_avatar_wind_attack", "godwars_armadyl_bolt_attack_projanim", "none", "room rectangle", "one tile away", "accurate hit knocks back", "Protect from Missiles blocks"),
-        ("magic_wind", "magic", "21", "godwars_armadyl_avatar_wind_attack", "none", "godwars_armadyl_avatar_magic_attack_spotanim", "room rectangle", "none", "none", "Protect from Magic blocks"),
-        ("magical_melee", "magic", "25", "godwars_armadyl_avatar_claw_attack", "none", "none", "single", "none", "only while target is not attacking Kree", "Protect from Magic blocks"),
+        ("ranged_wind", "ranged", "69", "godwars_armadyl_avatar_wind_attack", "none", "godwars_armadyl_bolt_attack_projanim", "none", "godwars_armadyl_ranged", "room rectangle", "one tile away", "accurate hit knocks back", "Protect from Missiles blocks"),
+        ("magic_wind", "magic", "21", "godwars_armadyl_avatar_wind_attack", "godwars_armadyl_avatar_magic_attack_spotanim", "none", "none", "godwars_armadyl_magic_cast", "room rectangle", "none", "none", "Protect from Missiles blocks; rolls Magic accuracy against Ranged defence"),
+        ("magical_melee", "magic", "25", "godwars_armadyl_avatar_claw_attack", "none", "none", "none", "godwars_armadyl_avatar_attack", "single", "none", "only while target is not attacking Kree", "Protect from Magic blocks"),
     ],
     "godwars_saradomin_avatar": [
-        ("melee", "crush", "27", "godwars_saradomin_attack", "none", "none", "single", "none", "none", "Protect from Melee blocks"),
-        ("magic", "magic", "10-20", "godwars_saradomin_magic_attack", "none", "godwars_saradomin_magic_attack_spotanim", "single", "none", "minimum 10 on accurate hit", "Protect from Magic blocks"),
+        ("melee", "crush", "27", "godwars_saradomin_attack", "none", "none", "none", "godwars_saradomin_swordglow", "single", "none", "none", "Protect from Melee blocks"),
+        ("magic", "magic", "10-20", "godwars_saradomin_magic_attack", "godwars_saradomin_magic_attack_spotanim", "none", "none", "godwars_saradomin_magic_castandfire", "single", "none", "minimum 10 on accurate hit", "Protect from Magic blocks"),
     ],
     "godwars_zamorak_avatar": [
-        ("melee", "slash", "46", "godwars_zamorak_attack", "none", "none", "single", "none", "poison severity 16", "Protect from Melee blocks"),
-        ("magic", "magic", "10-30", "godwars_zamorak_magic_attack", "godwars_zamorak_magic_attack_proj", "godwars_zamorak_magic_attack_spotanim", "single", "none", "none", "Protect from Magic blocks"),
-        ("prayer_slam", "slash", "35-49", "godwars_zamorak_attack", "none", "none", "single", "none", "drains half current Prayer; poison", "penetrates Protect from Melee"),
+        ("melee", "slash", "46", "godwars_zamorak_attack", "none", "none", "none", "godwars_zamorak_avatar_attack", "single", "none", "poison severity 16", "Protect from Melee blocks"),
+        ("magic", "magic", "10-30", "godwars_zamorak_magic_attack", "godwars_zamorak_magic_attack_spotanim", "godwars_zamorak_magic_attack_proj", "none", "godwars_zamorak_fire", "single", "none", "none", "Protect from Magic blocks"),
+        ("prayer_slam", "slash", "35-49", "godwars_zamorak_attack", "none", "none", "none", "godwars_zamorak_avatar_attack", "single", "none", "drains half current Prayer; poison", "penetrates Protect from Melee"),
     ],
 }
 
 BODYGUARD = {
-    "godwars_sergeant_goblin1": ("crush", "15", "slice_surface_goblin_sergent_attack", "none", "none"),
-    "godwars_sergeant_goblin2": ("magic", "15", "godwars_sergeant_goblin2_sonic", "godwars_goblin2_sonic_attk_proj", "godwars_goblin2_sonic_impact"),
-    "godwars_sergeant_goblin3": ("ranged", "21", "godwars_sergeant_goblin3_ranged", "godwars_goblin3_handaxe_proj", "none"),
-    "godwars_armadyl_bodyguard_skree": ("magic", "16", "godwars_armadyl_cannon_attack", "godwars_armadyl_bolt_attack_projanim", "godwars_armadyl_bolt_hit_spotanim"),
-    "godwars_armadyl_bodyguard_geerin": ("ranged", "25", "godwars_armadyl_spear_attack", "godwars_armadyl_spear_travel_spotanim", "none"),
-    "godwars_armadyl_bodyguard_kilisa": ("slash", "15", "godwars_armadyl_sword_attack", "none", "none"),
-    "godwars_saradomin_unicorn": ("crush", "15", "unicorn_rework_attack", "none", "none"),
-    "godwars_saradomin_lion": ("magic", "16", "godwars_lion_magic_attack", "godwars_lion_magic_proj", "godwars_lion_magic_impact"),
-    "godwars_saradomin_centaur": ("ranged", "16", "godwars_centaur_attack_ranged", "godwars_centaur_arrow_proj", "none"),
-    "godwars_ancient_greater_demon": ("crush", "15", "demon_attack", "none", "none"),
-    "godwars_ancient_lesser_demon": ("ranged", "21", "godwars_zamorak_bdygrd_ranged", "godwars_zamorak_bdygrd_ranged_proj", "none"),
-    "godwars_ancient_black_demon": ("magic", "16", "demon_attack", "godwars_black_demon_fireball_proj", "none"),
+    "godwars_sergeant_goblin1": ("crush", "15", "slice_surface_goblin_sergent_attack", "none", "none", "none"),
+    "godwars_sergeant_goblin2": ("magic", "15", "godwars_sergeant_goblin2_sonic", "godwars_goblin2_sonic_attk_spot", "godwars_goblin2_sonic_attk_proj", "godwars_goblin2_sonic_impact"),
+    "godwars_sergeant_goblin3": ("ranged", "21", "godwars_sergeant_goblin3_ranged", "godwars_sergeant_goblin3_ranged", "godwars_goblin3_handaxe_proj", "none"),
+    "godwars_armadyl_bodyguard_skree": ("magic", "16", "godwars_armadyl_cannon_attack", "godwars_armadyl_bolt_attack_spotanim", "godwars_armadyl_bolt_attack_projanim", "godwars_armadyl_bolt_hit_spotanim"),
+    "godwars_armadyl_bodyguard_geerin": ("ranged", "25", "godwars_armadyl_spear_attack", "none", "godwars_armadyl_spear_travel_spotanim", "none"),
+    "godwars_armadyl_bodyguard_kilisa": ("slash", "15", "godwars_armadyl_sword_attack", "none", "none", "none"),
+    "godwars_saradomin_unicorn": ("crush", "15", "unicorn_rework_attack", "none", "none", "none"),
+    "godwars_saradomin_lion": ("magic", "16", "godwars_lion_magic_attack", "godwars_lion_magic_spot", "godwars_lion_magic_proj", "godwars_lion_magic_impact"),
+    "godwars_saradomin_centaur": ("ranged", "16", "godwars_centaur_attack_ranged", "godwars_centaur_arrow_launch", "godwars_centaur_arrow_proj", "none"),
+    "godwars_ancient_greater_demon": ("crush", "15", "demon_attack", "none", "none", "none"),
+    "godwars_ancient_lesser_demon": ("ranged", "21", "godwars_zamorak_bdygrd_ranged", "godwars_zamarok_bdygrd_ranged_spot", "godwars_zamorak_bdygrd_ranged_proj", "none"),
+    "godwars_ancient_black_demon": ("magic", "16", "demon_attack", "godwars_black_demon_fireball_spot", "godwars_black_demon_fireball_proj", "none"),
 }
 
 
@@ -206,8 +208,10 @@ def attack_rows(gameval: str, params: dict[str, str], aligned_ambient: bool) -> 
     if gameval in SPECIAL_ATTACKS:
         specs = SPECIAL_ATTACKS[gameval]
     elif gameval in BODYGUARD:
-        style, max_hit, seq, proj, impact = BODYGUARD[gameval]
-        specs = [("primary", style, max_hit, seq, proj, impact, "single", "none", "none", f"Protect from {style.title()} blocks")]
+        style, max_hit, seq, start, proj, impact = BODYGUARD[gameval]
+        specs = [("primary", style, max_hit, seq, start, proj, impact,
+                  params.get("attack_sound", "none"), "single", "none", "none",
+                  f"Protect from {style.title()} blocks")]
     else:
         family = family_of(gameval)
         style_num = params.get("damagetype", "2")
@@ -237,13 +241,17 @@ def attack_rows(gameval: str, params: dict[str, str], aligned_ambient: bool) -> 
             prayer = f"Protect from {('Missiles' if style == 'ranged' else style.title())} blocks"
         elif gameval == "godwars_ancient_saradomin_wizard":
             style, max_hit, prayer = "magic", "20", "Protect from Magic blocks"
-        specs = [("primary", style, max_hit, params.get("attack_anim", "missing"), params.get("proj_travel", "none"), params.get("proj_impact", "none"), "single", "none", effect, prayer)]
+        specs = [("primary", style, max_hit, params.get("attack_anim", "missing"),
+                  params.get("proj_launch", "none"), params.get("proj_travel", "none"),
+                  params.get("proj_impact", "none"), params.get("attack_sound", "none"),
+                  "single", "none", effect, prayer)]
 
     rows = []
-    for name, style, max_hit, seq, proj, impact, aoe, move, effect, prayer in specs:
+    for name, style, max_hit, seq, start, proj, impact, sound, aoe, move, effect, prayer in specs:
         rows.append({
             "attack_name": name, "style": style, "max_hit": str(max_hit),
-            "attack_seq": seq, "projectile": proj, "impact_spotanim": impact,
+            "attack_seq": seq, "start_spotanim": start, "projectile": proj,
+            "impact_spotanim": impact, "sound": sound,
             "aoe_shape": aoe, "forced_move": move, "secondary_effect": effect,
             "prayer_rule": prayer, "player_or_npc_target": "player",
         })
@@ -327,7 +335,9 @@ def build_rows() -> list[dict[str, str]]:
                 "wiki_url": f"https://oldschool.runescape.wiki/w/{title}",
                 "wiki_revision": revision or "checked-in manifest",
                 "spawn_count": str(spawn_counts[gameval]), "faction": faction,
-                "role": role, "attack_speed": p["attackrate"],
+                # Typed server params may spell this as `int,5`; the ledger
+                # records the observable cadence, not the config type tag.
+                "role": role, "attack_speed": p["attackrate"].rsplit(",", 1)[-1],
                 "range": "10" if attack["style"] in {"ranged", "magic"} else "1",
                 "defend_seq": p["defend_anim"], "death_seq": p["death_anim"],
                 "move_seq": p.get("walkanim", "cache ready/walk"),
@@ -359,6 +369,50 @@ def validate(rows: list[dict[str, str]]) -> None:
         raise ValueError("\n".join(errors))
 
 
+def render_header(rows: list[dict[str, str]]) -> str:
+    """Emit the asset/timing half of the reviewed ledger for VM selftests."""
+    lines = [
+        "/* Generated by tools/generate_godwars_combat_manifest.py. */",
+        "#ifndef MOCK230_GWD_MANIFEST_GEN_H",
+        "#define MOCK230_GWD_MANIFEST_GEN_H",
+        "",
+        "struct Mock230GwdManifestAttack {",
+        "    const char* gameval;",
+        "    const char* attack_name;",
+        "    const char* attack_seq;",
+        "    const char* projectile;",
+        "    const char* start_spotanim;",
+        "    const char* impact_spotanim;",
+        "    const char* sound;",
+        "    int attack_speed;",
+        "    int targets_npc;",
+        "};",
+        "",
+        "static const struct Mock230GwdManifestAttack k_mock230_gwd_manifest[] = {",
+    ]
+    for row in rows:
+        values = [
+            row["gameval"], row["attack_name"], row["attack_seq"],
+            row["projectile"], row["start_spotanim"],
+            row["impact_spotanim"], row["sound"],
+        ]
+        quoted = ", ".join(json.dumps(value) for value in values)
+        lines.append(
+            f"    {{ {quoted}, {int(row['attack_speed'])}, "
+            f"{int(row['player_or_npc_target'] == 'npc')} }},"
+        )
+    lines += [
+        "};",
+        "",
+        "#define MOCK230_GWD_MANIFEST_COUNT \\",
+        "    ((int)(sizeof(k_mock230_gwd_manifest) / sizeof(k_mock230_gwd_manifest[0])))",
+        "",
+        "#endif",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="compare generated rows with the checked-in CSV")
@@ -366,16 +420,20 @@ def main() -> int:
     try:
         rows = build_rows()
         validate(rows)
+        header = render_header(rows)
         if args.check:
             with OUT.open(newline="") as fh:
                 existing = list(csv.DictReader(fh))
             if existing != rows:
                 raise ValueError(f"{OUT.relative_to(ROOT)} is stale; regenerate it")
+            if not HEADER.exists() or HEADER.read_text() != header:
+                raise ValueError(f"{HEADER.relative_to(ROOT)} is stale; regenerate it")
         else:
             with OUT.open("w", newline="") as fh:
                 writer = csv.DictWriter(fh, fieldnames=FIELDS, lineterminator="\n")
                 writer.writeheader()
                 writer.writerows(rows)
+            HEADER.write_text(header)
         print(f"God Wars manifest OK: 69 NPCs, {len(rows)} distinct attack rows")
         return 0
     except (OSError, ValueError) as exc:

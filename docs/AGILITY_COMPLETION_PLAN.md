@@ -48,6 +48,49 @@ This document supersedes rows **#92–#99** of
 [SKILLS_CONTENT_PORT_QUEUE.md](SKILLS_CONTENT_PORT_QUEUE.md), which record the
 same gaps at one line each.
 
+### The rooftop courses were unplayable, and nothing could see it
+
+Found while building the landing audit, and the most consequential defect in
+this document. **All 71 coordinates across the eight ported rooftop courses
+were plane 0.** Their own headers name Kronos as the source; every x and z
+matches Kronos exactly, and every plane digit had been dropped to zero.
+
+That is not cosmetic. The obstacles themselves are placed on planes 1–3 —
+Draynor's eight are all at plane 3, Varrock's at 1 and 3, Falador's at 2 and 3,
+and only the first climb of each course sits at plane 0. A player teleported to
+the ground after obstacle one is not on the roof, so **the next obstacle was
+not clickable**: every rooftop course ended at its first wall.
+
+Nothing in the tree could catch it. It compiles, it pays the right XP, the XP
+audit passes, and `::agilityrun` passes, because none of them knows what a map
+square is. `tools/agility_landing_audit.py` catches it by running every coord
+literal through the server's own collision map.
+
+The planes are restored in two passes. Fifty coordinates take the plane Kronos
+states outright. The remaining twenty-one have no Kronos counterpart, and are
+resolved by the rule Kronos' own code implies: a mid-course destination sits on
+the plane its obstacle is placed at (Kronos reaches them with a two-argument
+`stepAbs`, which keeps the player's current plane), while a course's *final*
+obstacle legitimately drops to plane 0 — "you land safely on the ground" — and
+keeps it. That leaves 22 mid-course coordinates lifted onto planes 1–3 and the
+eight finishers on 0.
+
+Every landing in every course is now standable — 172 of 172, checked by
+`tools/agility_landing_audit.py`.
+
+Getting there needed one correction to the audit itself, and it is the trap
+worth remembering: **an empty collision flag word means an ordinary open
+tile**, not missing data. The map's BLOCK setting is what stamps the floor
+flag (`apply_terrain_column`, mock230_scene.c), so no flags at all means
+nothing blocks the tile — the middle of Lumbridge's field reads zero. A version
+of this audit that read zero as "no scene data" called three quarters of every
+course's landings broken, and came close to "correcting" eight working
+rooftops onto tiles they never needed. With the semantics right, the real
+count was fourteen, twelve of which were fixed by taking a plane the obstacle
+is actually placed on, one by following Kronos' own neighbouring tile (the Al
+Kharid zipline descends to plane 1, not the plane 3 its loc sits at), and one
+by dropping a Canifis mark spawn whose tile is blocked floor in this cache.
+
 ### Implementation progress (2026-08-17)
 
 | slice | state |
@@ -61,10 +104,16 @@ same gaps at one line each.
 | A12 Yanille dungeon | **done** — the dungeon was already ported except its monkey bars (57, 20 XP), which are now in `areas/area_yanille/scripts/agility_dungeon.rs2`; that file's ledge roll moved onto the shared curve |
 | A18 Grace's shop | **partial** — `grace.rs2` exchanges marks for all six graceful pieces and amylase packs at the published prices. The recolours are deferred: each is gated behind its own Kourend quest and there is no recolour state to hang them on |
 | A6 Pollnivneach rooftop | **done** — `rooftop_pollnivneach.rs2`, the ninth rooftop, 890 XP a lap. No corpus has this course, so every landing tile is derived from the cache's own collision map and checked standable by the new `make -C src walkable-probe`; the hard-Desert-diary variant and the market stall's failure curve are deferred for want of published data |
+| A23 shortcut experience | **partial** — the 13 category-bound shortcuts whose XP the wiki states unambiguously now pay it (`~agility_shortcut_xp`); they paid nothing before. Rows where the Shortcuts page and the experience table disagree, or where one cache name matches two wiki rows, are deliberately absent |
 | A24 pet + cape | **done** — `agility_pet.rs2` (per-course base chances, `1/(B − level×25)`, rolled on every completed lap beside the mark) and `skillcape_agility.rs2` (the once-a-day energy restore plus a one-minute stamina effect, on `date_runeday`) |
 | everything else | not started |
 
-**A new tool came out of A6.** `walkable_probe` (`make -C src walkable-probe`)
+**Two tools came out of this.** `agility_landing_audit.py` runs every
+destination in every course through the collision map; it is what found the
+plane bug above, and it found eight bad landings in Pollnivneach itself (five
+mis-encoded literals, three on tiles with no floor data).
+
+**The first of them came out of A6.** `walkable_probe` (`make -C src walkable-probe`)
 builds the server's own collision map from real map squares and reports whether
 a tile is standable, printing the neighbourhood as a picture. Authoring a course
 means naming a landing tile per obstacle, and no reference publishes those for

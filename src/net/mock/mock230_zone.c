@@ -352,6 +352,32 @@ mock230_zone_reset(struct Mock230Server* srv)
     map->dirty_count = 0;
 }
 
+int
+mock230_zone_event_count(
+    struct Mock230Server* srv,
+    int kind,
+    int id)
+{
+    struct Mock230ZoneMap* map = map_of(srv, 0);
+    int count = 0;
+
+    if( !map )
+        return 0;
+    for( int i = 0; i < map->dirty_count; i++ )
+    {
+        const struct Mock230Zone* zone = map->dirty[i];
+
+        for( int e = 0; e < zone->event_count; e++ )
+        {
+            const struct Mock230ZoneEvent* event = &zone->events[e];
+
+            if( event->kind == kind && (id < 0 || event->id == id) )
+                count++;
+        }
+    }
+    return count;
+}
+
 void
 mock230_zone_map_stats(
     struct Mock230Server const* srv,

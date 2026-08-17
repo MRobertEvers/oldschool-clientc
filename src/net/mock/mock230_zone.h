@@ -585,6 +585,18 @@ mock230_zone_player_reset(struct Mock230Player* player);
 void
 mock230_zone_reset(struct Mock230Server* srv);
 
+/**
+ * Count current-tick events of `kind`; `id < 0` matches every config id.
+ *
+ * This is an observation seam for deterministic encounter tests. It reads the
+ * same queued records the wire flush consumes and never mutates zone state.
+ */
+int
+mock230_zone_event_count(
+    struct Mock230Server* srv,
+    int kind,
+    int id);
+
 /** Growth gauges for the perf harness: how many zones the map holds and the
  *  hash table capacity (never shrinks during a session). */
 void

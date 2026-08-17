@@ -76,6 +76,32 @@ TOURIST_GENERIC_DROP = CONTENT / "drop_tables/scripts/wiki_mercenary_captain.rs2
 WATCH_GORAD = CONTENT / "quests/quest_itwatchtower/scripts/gorad.rs2"
 WATCH_GREW = CONTENT / "quests/quest_itwatchtower/scripts/grew.rs2"
 WATCH_NPC = CONTENT / "quests/quest_itwatchtower/configs/quest_itwatchtower.npc"
+LEGENDS_NEZI = CONTENT / "quests/quest_legends/scripts/nezikchened.rs2"
+LEGENDS_NPC = CONTENT / "quests/quest_legends/configs/quest_legends.npc"
+LEGENDS_VARP = CONTENT / "quests/quest_legends/configs/quest_legends.varp"
+LEGENDS_VARS = CONTENT / "quests/quest_legends/configs/quest_legends.vars"
+LEGENDS_UNGADULU = CONTENT / "quests/quest_legends/scripts/ungadulu.rs2"
+LEGENDS_ECHNED = CONTENT / "quests/quest_legends/scripts/echned_zekin.rs2"
+LEGENDS_GUJUO = CONTENT / "quests/quest_legends/scripts/gujuo.rs2"
+LEGENDS_BOOK = CONTENT / "quests/quest_legends/scripts/book_of_binding.rs2"
+LEGENDS_BOULDER = CONTENT / "quests/quest_legends/scripts/legends_boulder.rs2"
+LEGENDS_HEROES = (
+    CONTENT / "quests/quest_legends/scripts/san_tojalon.rs2",
+    CONTENT / "quests/quest_legends/scripts/irvig_senay.rs2",
+    CONTENT / "quests/quest_legends/scripts/ranalph_devere.rs2",
+)
+PLAYER_RANGED = CONTENT / "skill_combat/scripts/player/player_ranged.rs2"
+CHOMPY_BIRD = CONTENT / "quests/quest_chompybird/scripts/chompy_bird.rs2"
+CHOMPY_BAIT = CONTENT / "quests/quest_chompybird/scripts/bloated_toad.rs2"
+CHOMPY_RANTZ = CONTENT / "quests/quest_chompybird/scripts/rantz.rs2"
+CHOMPY_RECIPE = CONTENT / "quests/quest_chompybird/scripts/raw_chompy.rs2"
+CHOMPY_NPC = CONTENT / "quests/quest_chompybird/configs/quest_chompybird.npc"
+CHOMPY_VARN = CONTENT / "quests/quest_chompybird/configs/quest_chompybird.varn"
+CHOMPY_ARROWS = CONTENT / "skill_fletching/scripts/ogre_arrows.rs2"
+CHOMPY_CHEST = CONTENT / "quests/quest_chompybird/scripts/ogre_chest.rs2"
+CHOMPY_TOAD = CONTENT / "quests/quest_chompybird/scripts/swamp_toad.rs2"
+CHOMPY_CAVES = CONTENT / "quests/quest_chompybird/scripts/chompy_caves.rs2"
+OSF_RELAY = CONTENT / "quests/quest_onesmallfavour/scripts/onesmallfavour_relay.rs2"
 NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
 NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
@@ -164,6 +190,22 @@ def check_manifest() -> None:
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(watchtower[0][key]),
                 f"Watchtower: empty evidence field {key}")
+    legends = [row for row in rows if row["id"] == "quest-legends-quest"]
+    require(len(legends) == 1,
+            "manifest: expected exactly one Legends' Quest row")
+    require(legends[0]["implementation_status"] == "implementation-in-progress",
+            "Legends' Quest: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(legends[0][key]),
+                f"Legends' Quest: empty evidence field {key}")
+    chompy = [row for row in rows if row["id"] == "quest-big-chompy-bird-hunting"]
+    require(len(chompy) == 1,
+            "manifest: expected exactly one Big Chompy Bird Hunting row")
+    require(chompy[0]["implementation_status"] == "implementation-in-progress",
+            "Big Chompy Bird Hunting: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(chompy[0][key]),
+                f"Big Chompy Bird Hunting: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -1108,6 +1150,279 @@ def check_watchtower() -> None:
     )
 
 
+def check_legends_quest() -> None:
+    npc = LEGENDS_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[nezikchened]", "hitpoints=150", "attack=165", "strength=168",
+            "defence=167", "magic=160", "ranged=160", "respawnrate=500",
+            "param=attackrate,5", "param=damagetype,1",
+            "param=magic_maxhit,18", "param=death_drop,null",
+        ),
+        "Legends' Quest Nezikchened NPC",
+    )
+
+    nezi = LEGENDS_NEZI.read_text()
+    require_text(
+        nezi,
+        (
+            "[opnpc2,nezikchened]", "[apnpc2,nezikchened]",
+            "[ai_opplayer2,nezikchened]", "[ai_applayer2,nezikchened]",
+            "~npc_cast_spell_with_forced_max_hit(^fire_blast, 5, 18);",
+            "[proc,legends_nezikchened_dagger_attack]()(boolean)",
+            "random(10) ! 0", "stat_random(agility, 0, 254)",
+            "max(divide(stat(hitpoints), 4), 1)",
+            "[ai_queue3,nezikchened]", "if (npc_findhero = ^false)",
+            "%legendsquest = ^legends_defeated_nezikchened_fire;",
+            "damage(uid, hitsplat_damage, randominc(20));",
+            "%legendsquest = ^legends_defeated_nezikchened_water;",
+            "%legendsquest = ^legends_defeated_nezikchened_final;",
+            "[label,summon_nezi_part3]", "[label,legends_nezi_summon_ancient_hero]",
+            "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), san_tojalon, 500);",
+            "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), irvig_senay, 500);",
+            "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), ranalph_devere, 500);",
+            "npc_add(map_findsquare(coord, 1, 3, ^map_findsquare_lineofwalk), nezikchened, 500);",
+            "stat_sub(prayer, 0, 75);",
+        ),
+        "Legends' Quest Nezikchened phases",
+    )
+    require(nezi.count("npc_setowner;") == 5,
+            "Legends' Quest: every dynamic Nezikchened/hero spawn must be owner-private")
+    require("obj_add(" not in nezi and "obj_add_private(" not in nezi,
+            "Legends' Quest: Nezikchened must remain no-loot")
+
+    ungadulu = LEGENDS_UNGADULU.read_text()
+    require_text(
+        ungadulu,
+        (
+            "[opnpcu,ungadulu_bad]", "last_useitem = holy_water",
+            "last_useitem ! book_of_binding", "npc_setowner;",
+            "npc_statsub(defence, 0, 5);", "stat_sub(prayer, 0, 90);",
+            "[opheldu,yommiseeds]", "def_int $seed_count = inv_total(inv, yommiseeds);",
+            "inv_del(bank, goldbowlbless_pure, $bank_bowls);",
+            "[oplocu,fertilesoil]", "stat(herblore) < 45",
+            "stat(woodcutting) < 50", "%legendsquest < ^legends_sacred_water_collected",
+            "[oplocu,yommitree_sapling]", "[oplocu,yommitree_adult]",
+            "[oplocu,yommitree_felled]", "[oplocu,yommitree_trimmed]",
+            "[oploc1,yommitree_totem]", "[proc,legends_yommi_axe](obj $axe)(boolean)",
+            "rune_axe, dragon_axe", "[proc,legends_get_yommi_planter]()(player_uid)",
+            "[proc,legends_set_yommi_planter]", "random(10)",
+            "inv_add(inv, magic_logs, 1);",
+        ),
+        "Legends' Quest Ungadulu and Yommi route",
+    )
+    require(ungadulu.count("world_delay(49);") == 5,
+            "Legends' Quest: all five timed Yommi rot windows must remain")
+
+    echned = LEGENDS_ECHNED.read_text()
+    require_text(
+        echned,
+        (
+            "[opheld1,holyforce]", "[label,legends_use_holy_force]",
+            "stat_sub(prayer, divide(stat(prayer), 2), 0);",
+            "npc_statsub(magic, 0, 50);", "[label,summon_nezi_dagger]",
+            "stat_sub(prayer, min(18, stat(prayer)), 0);", "npc_setowner;",
+        ),
+        "Legends' Quest second-route split",
+    )
+
+    book = LEGENDS_BOOK.read_text()
+    require_text(
+        book,
+        (
+            "[opheldu,book_of_binding]", "last_useitem ! vial_empty",
+            "stat(magic) < 10", "stat(prayer) < 10",
+            "stat_sub(prayer, 5, 0);", "stat_sub(magic, 5, 0);",
+            "inv_del(inv, vial_empty, 1);", "inv_add(inv, vial_enchanted, 1);",
+        ),
+        "Legends' Quest enchanted-vial recipe",
+    )
+
+    gujuo = LEGENDS_GUJUO.read_text()
+    require_text(
+        gujuo,
+        (
+            "[oplocu,lg_totem_pole_evil]", "@summon_nezi_part3;",
+            "%legendsquest = ^legends_replaced_totem;", "npc_setowner;",
+            "obj_add_private(coord, thtotempolegift, 1",
+            "[opheldu,goldbowlbless_pure]",
+            "getbit_range(%legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
+            "inv_add(inv, holy_water, 1);", "if ($bowl_uses >= 9)",
+        ),
+        "Legends' Quest bowl and final totem",
+    )
+
+    boulder = LEGENDS_BOULDER.read_text()
+    require_text(
+        boulder,
+        (
+            "[oplocu,lgwaterpool]", "last_useitem = goldbowlbless_empty",
+            "%legendsquest = ^legends_sacred_water_collected;",
+            "last_useitem = vial_enchanted", "inv_add(inv, holy_water, 1);",
+        ),
+        "Legends' Quest deep sacred-water source",
+    )
+
+    vars_text = LEGENDS_VARS.read_text()
+    for spot in range(1, 7):
+        require_text(vars_text, (f"[yommi_spot{spot}]", "type=player_uid"),
+                     f"Legends' Quest Yommi plot {spot}")
+
+    for path, crystal, bit in zip(
+        LEGENDS_HEROES,
+        ("heartcrystal_sectiona", "heartcrystal_sectionb", "heartcrystal_sectionc"),
+        ("legends_defeated_san_final", "legends_defeated_irvig_final", "legends_defeated_ranalph_final"),
+    ):
+        hero = path.read_text()
+        require_text(hero, ("if (npc_findhero = ^false)", f"^{bit}",
+                            f"inv_add(inv, {crystal}, 1);", "@summon_nezi_part3;"),
+                     f"Legends' Quest hero {path.stem}")
+
+    ranged = PLAYER_RANGED.read_text()
+    require_text(
+        ranged,
+        (
+            "$rhand = holy_water & npc_type = nezikchened & $hit = true",
+            "oc_param(holy_water, rangebonus_ammo)",
+            "multiply($holy_base, 16)", "add(divide(multiply($holy_base, 16), 10), 5)",
+            "npc_statsub(defence, 0, 5);",
+            "%legends_nezikchened_holy_water = 2;",
+        ),
+        "Legends' Quest Holy Water combat formula",
+    )
+
+    require_text(
+        LEGENDS_VARP.read_text(),
+        ("[legends_nezikchened_dagger_used]", "[legends_nezikchened_holy_water]"),
+        "Legends' Quest attempt state",
+    )
+
+
+def check_big_chompy() -> None:
+    npc = CHOMPY_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[chompybird]", "hitpoints=10", "attack=5", "strength=5",
+            "defence=3", "magic=0", "ranged=0", "respawnrate=500",
+            "param=attackrate,0", "param=death_drop,null",
+            "[chompybird_dead]",
+        ),
+        "Big Chompy Bird Hunting NPC config",
+    )
+
+    bait = CHOMPY_BAIT.read_text()
+    require_text(
+        bait,
+        (
+            "[opheld1,bloated_toad]", "npc_findexact(coord, bloated_toad)",
+            "npc_add(coord, bloated_toad, 101);", "npc_setowner;",
+            "%chompy_baiter = $baiter;", "npc_queue(4, 0, 25);",
+            "[ai_queue4,bloated_toad]", "last_int = 3 | last_int = 13",
+            "random(5) = 1", "npc_queue(4, $next_state, 25);",
+            "~spawn_chompy_bird(npc_coord, %chompy_baiter);",
+            "damage(uid, hitsplat_damage, add(random(2), 1));",
+        ),
+        "Big Chompy Bird Hunting bait cycle",
+    )
+    require("[proc,spawn_chompy_bird]" not in bait,
+            "Big Chompy Bird Hunting: obsolete thin bird spawn restored")
+
+    bird = CHOMPY_BIRD.read_text()
+    require_text(
+        bird,
+        (
+            "[proc,spawn_chompy_bird](coord $bait, player_uid $baiter)",
+            "map_findsquare($bait, 3, 10, ^map_findsquare_lineofsight)",
+            "npc_add($spawn, chompybird, 100);", "npc_setowner;",
+            "queue(chompy_rantz_misses, add(15, random(10)), 0);",
+            "[ai_queue4,chompybird]", ".npc_find(npc_coord, bloated_toad, 10",
+            "[ai_timer,chompybird]", "npc_setmode(playerescape);",
+            "[apnpc5,chompybird]", "[opnpc5,chompybird]",
+            "$bow ! ogre_bow & $bow ! zogre_bow",
+            "[proc,chompy_valid_ammo](obj $ammo)(boolean)",
+            "multiply(add(stat(ranged), 10), add(oc_param($ammo, rangebonus_ammo), 64))",
+            "~player_hit_npc_prepare($damage, $hit);",
+            "~player_ranged_use_weapon($bow, $ammo)",
+            "[ai_queue3,chompybird]", "queue(chompybird_kill, 0, 0);",
+            "npc_add($death, chompybird_dead, 200);", "[queue,chompybird_kill]",
+            "%chompybird = ^chompybird_player_killed_chompy;",
+            "[opnpc4,chompybird_dead]", "add(random(21), 10)",
+            "obj_add_private(npc_coord, raw_chompy, 1",
+            "obj_add_private(npc_coord, bones, 1",
+        ),
+        "Big Chompy Bird Hunting bird/corpse cycle",
+    )
+    require("gosub(npc_death)" not in bird,
+            "Big Chompy Bird Hunting: generic bird drop hook restored")
+    require(bird.count("npc_setowner;") == 2,
+            "Big Chompy Bird Hunting: bird and corpse must remain owner-private")
+
+    rantz = CHOMPY_RANTZ.read_text()
+    require_text(
+        rantz,
+        (
+            "[proc,chompy_rantz_dialogue]", "inv_total(inv, ogre_arrow) < 6",
+            "inv_del(inv, ogre_arrow, 6);",
+            "%chompybird = ^chompybird_given_arrows;",
+            "%chompybird = ^chompybird_shown_toad;",
+            "%chompybird = ^chompybird_rantz_gave_player_bow;",
+            "%chompybird = ^chompybird_told_to_cook_chompy;",
+            "[opnpcu,rantz]", "[label,chompy_hand_in]",
+            "inv_del(inv, cooked_s_chompy, 1);",
+            "[queue,quest_chompybird_complete]",
+            "stat_advance(fletching, 2620);", "stat_advance(cooking, 14700);",
+            "stat_advance(ranged, 7350);",
+            "~quest_complete_rewards(quest_bigchompybirdhunting",
+        ),
+        "Big Chompy Bird Hunting Rantz route",
+    )
+    require_text(
+        OSF_RELAY.read_text(),
+        ("[opnpc1,rantz]", "~rfd_ogre_rantz_dialogue;", "~chompy_rantz_dialogue;"),
+        "Big Chompy Bird Hunting shared Rantz dispatcher",
+    )
+
+    recipe = CHOMPY_RECIPE.read_text()
+    require_text(
+        recipe,
+        (
+            "[oplocu,chompybird_spitroast_empty]", "stat(cooking) < 30",
+            "[label,cook_chompy_quest]",
+            "^chompybird_varbit_bugs_flavour_start",
+            "^chompybird_varbit_fycie_flavour_start",
+            "def_obj $rantz_item = potato;", "$rantz_item = onion;",
+            "$bugs_item = cabbage;", "$fycie_item = doogleleaves;",
+            "stat_random(cooking, 200, 255)", "inv_add(inv, ruined_chompy, 1);",
+            "inv_add(inv, cooked_s_chompy, 1);",
+            "%chompybird = ^chompybird_chompy_cooked;",
+        ),
+        "Big Chompy Bird Hunting spit recipe",
+    )
+
+    require_text(
+        CHOMPY_ARROWS.read_text(),
+        ("[opheldu,wolf_bones]", "[label,make_ogre_arrows]",
+         "%chompybird_kills = setbit(%chompybird_kills, ^chompybird_varbit_made_arrows);"),
+        "Big Chompy Bird Hunting arrow recipe",
+    )
+    require_text(CHOMPY_CHEST.read_text(),
+                 ("[oploc1,chompybird_chest]", "inv_add(inv, empty_ogre_bellows, 1);"),
+                 "Big Chompy Bird Hunting bellows chest")
+    require_text(CHOMPY_TOAD.read_text(),
+                 ("[opnpcu,toad]", "inv_total(inv, bloated_toad) >= 3",
+                  "~reduce_ogre_bellows($used_bellow);"),
+                 "Big Chompy Bird Hunting toad inflation")
+    require_text(CHOMPY_CAVES.read_text(),
+                 ("[oplocu,swampbubbles]", "[oplocu,swampbubbles_swamp]",
+                  "inv_add(inv, filled_ogre_bellow3, 1);"),
+                 "Big Chompy Bird Hunting swamp gas")
+    require_text(CHOMPY_VARN.read_text(),
+                 ("[chompy_baiter]", "type=player_uid", "[chompy_target_toad]", "type=npc_uid"),
+                 "Big Chompy Bird Hunting actor state")
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -1121,10 +1436,12 @@ def main() -> int:
         check_observatory_quest()
         check_tourist_trap()
         check_watchtower()
+        check_legends_quest()
+        check_big_chompy()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap and Watchtower (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest and Big Chompy Bird Hunting (ok)")
     return 0
 
 

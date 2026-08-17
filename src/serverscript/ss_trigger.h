@@ -179,9 +179,10 @@
 #define SS_TRIGGER_FRIENDLOGIN 179
 #define SS_TRIGGER_FRIENDLOGOUT 180
 #define SS_TRIGGER_PLAYERDEATH 181
+#define SS_TRIGGER_LOCSTEP 182
 
 /** One past the highest trigger id. */
-#define SS_TRIGGER_MAX 182
+#define SS_TRIGGER_MAX 183
 
 /** Distance from an ap trigger to its matching op trigger. */
 #define SS_TRIGGER_AP_TO_OP 7

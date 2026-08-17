@@ -1721,7 +1721,8 @@ trigger_subject_kind(
         *out_kind = MOCK230_PACK_OBJ;
         return 1;
     }
-    if( trigger >= SS_TRIGGER_APLOC1 && trigger <= SS_TRIGGER_AI_OPLOC5 )
+    if( (trigger >= SS_TRIGGER_APLOC1 && trigger <= SS_TRIGGER_AI_OPLOC5) ||
+        trigger == SS_TRIGGER_LOCSTEP )
     {
         *out_kind = MOCK230_PACK_LOC;
         return 1;
@@ -4274,6 +4275,11 @@ mock230_script_command(
         /* Populated only around the per-tile walktrigger call in
          * advance_player. Zero is the RuneScript null coord everywhere else. */
         SSVM_PushInt(state, player->walkstep_coord);
+        return 1;
+
+    case SS_OP_LAST_STEP_COORD:
+        SSVM_PushInt(state,
+                     coord_pack(player->level, player->last_step_x, player->last_step_z));
         return 1;
 
     case SS_OP_WALKTRIGGER:
@@ -8642,8 +8648,8 @@ mock230_script_command(
     /* ---- map instances -------------------------------------------- */
 
     /*
-     * The six map-instance commands. What each one is for, and why there are six
-     * rather than one, is argued in gen_opcode_meta.py beside their declarations
+     * The six core map-instance commands plus their owner/shared-flag metadata.
+     * What each one is for is argued in gen_opcode_meta.py beside its declaration
      * and in mock230_mapinstance.h; this is only the host side.
      *
      * They are thin on purpose. Every one of them is "pop the arguments, call the
@@ -8676,6 +8682,30 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &handle) )
             return 1;
         SSVM_PushInt(state, mock230_mapinstance_owner(handle));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_FLAG_GET:
+    {
+        int32_t handle;
+        int32_t mask;
+
+        if( !SSVM_PopInt(state, &mask) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_flag_get(handle, mask));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_FLAG_SET:
+    {
+        int32_t handle;
+        int32_t mask;
+        int32_t enabled;
+
+        if( !SSVM_PopInt(state, &enabled) || !SSVM_PopInt(state, &mask) ||
+            !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_flag_set(handle, mask, enabled));
         return 1;
     }
 

@@ -112,7 +112,7 @@ by the existence of code. As of the audit date, the repository now has:
   travel, or impact graphics. Runtime NPC metadata accepts those projectile and
   poison parameters, and ranged max-hit includes cache ammunition strength.
 - [x] `MOCK230_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
-  the isolated 22,187-script build (the current tree excluding unrelated
+  the isolated 22,193-script build (the current tree excluding unrelated
   in-flight Fight Caves and Zulrah compiler failures) it reconstructs the four classic map-square
   roster and proves all **69** unique NPCs retain authored combat, cadence, and
   attack/defend/death sequences. It separately proves the four bosses retain
@@ -170,8 +170,35 @@ by the existence of code. As of the audit date, the repository now has:
   must remain below a 250 chi-square guard at 126 degrees of freedom. Nex's
   actual 31-slot selector is sampled 6,200 times and must remain below 60 at 18
   degrees of freedom, proving every published common category retains its
-  authored 2-slot or 1-slot weight. Independent unique and tertiary end-to-end
-  frequency tests remain required below.
+  authored 2-slot or 1-slot weight. The production tertiary selectors are also
+  sampled 250,000 times for each classic boss's independent 1/250 elite clue
+  and 1/5,000 pet rolls, and 12,800 times for the bodyguards' 1/128 hard-clue
+  roll. Forced award codes prove none/clue/pet/both combinations remain
+  independently reachable and privately owned.
+- [x] Nex personal loot now composes three independent production rolls rather
+  than an exclusive branch: contribution-adjusted unique chance over 43,000,
+  contribution-adjusted pet chance over 500,000, and the non-MVP elite-clue
+  chance over 48,000. A 430,000-call real-VM sample guards all three expected
+  frequencies; forced codes exercise all eight unique/pet/clue combinations;
+  and a two-player instance fixture proves two contributors can retain separate
+  private unique awards on the same kill tile. Exact rolls for all six unique
+  outcomes continue to prove the documented 1:2:2:2:2:3 split.
+- [x] A focused private-room lifecycle fixture now builds all five production
+  map-square templates and verifies the four classic quartets and Nex's
+  five-actor starting roster at every exact translated tile. It removes and
+  replaces each classic general twice to prove duplicate suppression, restores
+  Nex's complete roster after a simulated finished encounter, then moves the
+  owner to an unrelated coordinate and dispatches the real lifecycle hook.
+  Every case releases its player ownership state and map reservation while
+  deleting encounter actors and three-hour private floor loot. A second pass
+  reallocates every room and dispatches the global logout trigger, proving all
+  five owners are moved to the faction-correct safe tile and leave a reusable,
+  actor-free reservation. A third pass verifies the two-stage death contract
+  for every room: the faction-correct external grave coordinate is selected,
+  actors are removed while the square remains reserved through the corpse, and
+  post-corpse cleanup finally releases the handle. Multiplayer joining,
+  disconnect with in-flight combat queues, and prolonged soak coverage remain
+  in the unchecked matrix.
 - [x] The same real-VM lane exercises every Nex phase floor twice: a hit which
   crosses the threshold and a hit received at the exact threshold. It proves
   damage is capped at 2,720/2,040/1,360/680 HP, a concurrent follow-up cannot

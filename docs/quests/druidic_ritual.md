@@ -5,7 +5,8 @@ unique symbolic triggers, all four meat conversions, Sanfew's all-items check,
 a dynamic journal, the shared completion scroll, and an accessible Taverley
 Dungeon route. It is playable in outline but is not verified modern. Its start
 and Herblore lesson preserve obsolete LostCity dialogue, completion occurs
-before the lesson instead of after it, completion can be queued more than once,
+before the lesson instead of after it, the completion queue has no
+duplicate-delivery guard,
 item hand-offs are not transactional, the two suits of armour mutate shared
 world state, the reward scroll shows coins that are not a reward, and most
 Herblore training paths work before the quest that is supposed to unlock them.
@@ -139,7 +140,7 @@ Legacy completion can leave several ambiguous cases:
 
 - state 4 is written immediately before XP and quest points are awarded, so a
   process failure can expose completion without all rewards;
-- duplicate zero-delay completion queues can award XP, quest points, and
+- duplicate delivery of the zero-delay completion queue would award XP, quest points, and
   completed-count more than once;
 - `::complete quest_druidicritual` and eight Recruitment Drive debug commands
   write state 4 without the reward path; and

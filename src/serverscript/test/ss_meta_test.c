@@ -72,6 +72,11 @@ test_opcode_names(void)
     CHECK_EQ(SSVM_OpcodeFromName("npc_respawn_remaining"),
              SS_OP_NPC_RESPAWN_REMAINING,
              "compiler command lookup sees dead-NPC respawn clocks");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_flag_set"),
+             SS_OP_MAP_INSTANCE_FLAG_SET,
+             "compiler command lookup sees shared instance flags");
+    CHECK_EQ(SSVM_OpcodeFromName("last_step_coord"), SS_OP_LAST_STEP_COORD,
+             "compiler command lookup sees the previous movement tile");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -182,6 +187,15 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_HITMARK);
     CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "hitmark(uid, hitsplat, amount)");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FLAG_GET);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_flag_get(handle, mask) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FLAG_SET);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_flag_set(handle, mask, enabled) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_LAST_STEP_COORD);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "last_step_coord() -> coord");
 }
 
 static void
@@ -315,7 +329,8 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_FRIENDLOGIN, 179, "friendlogin is rev-230 presence");
     CHECK_EQ(SS_TRIGGER_FRIENDLOGOUT, 180, "friendlogout");
     CHECK_EQ(SS_TRIGGER_PLAYERDEATH, 181, "playerdeath when HP hits 0");
-    CHECK_EQ(SS_TRIGGER_MAX, 182, "trigger table size");
+    CHECK_EQ(SS_TRIGGER_LOCSTEP, 182, "locstep when movement finishes on a loc");
+    CHECK_EQ(SS_TRIGGER_MAX, 183, "trigger table size");
 
     /* The numbered form is a *different* trigger from the op-less click, not a
      * relabelling of it: `[if_button,x]` still answers a plain click and
@@ -326,6 +341,7 @@ test_triggers(void)
              "name of if_button2");
     CHECK_EQ(SSVM_TriggerFromName("if_button2"), SS_TRIGGER_IF_BUTTON2, "if_button2 by name");
     CHECK_EQ(SSVM_TriggerFromName("if_button10"), SS_TRIGGER_IF_BUTTON10, "if_button10 by name");
+    CHECK_EQ(SSVM_TriggerFromName("locstep"), SS_TRIGGER_LOCSTEP, "locstep by name");
 
     CHECK_EQ(strcmp(SSVM_TriggerName(SS_TRIGGER_OPNPC1), "opnpc1"), 0, "name of opnpc1");
     CHECK_EQ(SSVM_TriggerFromName("opnpc1"), SS_TRIGGER_OPNPC1, "opnpc1 by name");

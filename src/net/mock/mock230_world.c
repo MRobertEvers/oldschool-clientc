@@ -13,6 +13,7 @@
  * place that needs to know about the origin zone.
  */
 #include "mock230.h"
+#include "mock230_gwd_manifest.gen.h"
 #include "mock230_music_regions.gen.h"
 
 #include "mock230_container.h"
@@ -2296,6 +2297,46 @@ advance_player(struct Mock230Server* srv)
             player->dest_x = -1;
             player->dest_z = -1;
         }
+    }
+}
+
+/*
+ * Fire the first floor-loc script bound to the tile on which movement ended.
+ *
+ * This intentionally runs once, after the whole walk/run update. A running
+ * turn has two concrete steps, but an underfoot hazard is only entered when the
+ * player finishes on it; firing between the two steps would make a one-tile
+ * trap impossible to run across. Loc footprints can overlap, so walk the
+ * scene's stable slot order and stop after the first script actually binds.
+ */
+static void
+player_process_locstep(struct Mock230Server* srv)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    if( !player || player->steps_taken <= 0 )
+        return;
+
+    for( int slot = 0;; slot++ )
+    {
+        struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+        int type;
+        int result;
+
+        if( !loc )
+            break;
+        if( !loc->active || loc->level != player->level || player->x < loc->x ||
+            player->x >= loc->x + loc->size_x || player->z < loc->z ||
+            player->z >= loc->z + loc->size_z )
+            continue;
+
+        type = mock230_loc_resolve_transform(player, loc->loc_id);
+        if( type < 0 )
+            type = loc->loc_id;
+        result = mock230_scripts_run_trigger_on_loc(
+            srv, SS_TRIGGER_LOCSTEP, type, mock230_loc_category(type), slot);
+        if( result != MOCK230_TRIGGER_NONE )
+            return;
     }
 }
 
@@ -10482,6 +10523,7 @@ phase_player(struct Mock230Player* player)
      * gives controller-style content both tiles of a running tick. */
     advance_player(srv);
     PP_MARK(bd_on, bd_t, PP_ADVANCE);
+    player_process_locstep(srv);
 
     if( player->interaction.kind != MOCK230_INTERACT_NONE )
     {
@@ -12013,6 +12055,102 @@ selftest_capture_synth_count(
             seen++;
     }
     return seen;
+}
+
+static const struct Mock230GwdManifestAttack*
+selftest_gwd_manifest_find(
+    const char* gameval,
+    const char* attack_name,
+    int targets_npc)
+{
+    for( int i = 0; i < MOCK230_GWD_MANIFEST_COUNT; i++ )
+    {
+        const struct Mock230GwdManifestAttack* row =
+            &k_mock230_gwd_manifest[i];
+
+        if( row->targets_npc == targets_npc &&
+            strcmp(row->gameval, gameval) == 0 &&
+            strcmp(row->attack_name, attack_name) == 0 )
+            return row;
+    }
+    return NULL;
+}
+
+/* Assert the synchronous launch half of one real player-facing GWD swing.
+ * Delayed damage/impact remains queued at this point, which is intentional:
+ * it lets the test verify the exact projectile and landing job without
+ * advancing the shared world clock or depending on a random hit. */
+static void
+selftest_gwd_player_attack_trace(
+    struct Mock230Server* srv,
+    const struct Mock230GwdManifestAttack* row,
+    const struct Mock230Npc* npc,
+    const struct Mock230Capture* capture)
+{
+    int attack_seq;
+
+    SELFTEST_CHECK(row != NULL, "GWD player attack has a manifest row");
+    if( !row )
+        return;
+    attack_seq = mock230_content_symbol(MOCK230_PACK_SEQ, row->attack_seq);
+    SELFTEST_CHECK(
+        npc && npc->anim_id == attack_seq,
+        "%s/%s trace launches animation %s (%d, got %d)",
+        row->gameval, row->attack_name, row->attack_seq, attack_seq,
+        npc ? npc->anim_id : -1);
+    if( strcmp(row->start_spotanim, "none") != 0 )
+    {
+        const int start = mock230_content_symbol(
+            MOCK230_PACK_SPOTANIM, row->start_spotanim);
+
+        SELFTEST_CHECK(
+            npc && npc->spotanim_id == start,
+            "%s/%s trace launches start graphic %s (%d, got %d)",
+            row->gameval, row->attack_name, row->start_spotanim, start,
+            npc ? npc->spotanim_id : -1);
+    }
+    if( strcmp(row->projectile, "none") != 0 )
+    {
+        const int projectile = mock230_content_symbol(
+            MOCK230_PACK_SPOTANIM, row->projectile);
+
+        SELFTEST_CHECK(
+            mock230_zone_event_count(
+                srv, MOCK230_ZONE_EV_PROJANIM, projectile) > 0,
+            "%s/%s trace queues projectile %s (%d)",
+            row->gameval, row->attack_name, row->projectile, projectile);
+    }
+    if( strcmp(row->sound, "none") != 0 )
+    {
+        const int sound = mock230_content_symbol(
+            MOCK230_PACK_SYNTH, row->sound);
+
+        SELFTEST_CHECK(
+            selftest_capture_synth_count(capture, srv->wire, sound) > 0,
+            "%s/%s trace emits sound %s (%d)",
+            row->gameval, row->attack_name, row->sound, sound);
+    }
+    if( strcmp(row->impact_spotanim, "none") != 0 )
+    {
+        const struct SSVM_Script* impact_script =
+            SSVM_ProviderGetByName(srv->scripts, "[queue,gwd_bodyguard_impact]");
+        const int impact = mock230_content_symbol(
+            MOCK230_PACK_SPOTANIM, row->impact_spotanim);
+        int found = 0;
+
+        for( int q = 0; impact_script && q < MOCK230_QUEUE_MAX; q++ )
+        {
+            const struct Mock230Queued* queue = &srv->active_player->queue[q];
+
+            found += queue->active && queue->script_id == impact_script->id &&
+                     queue->argc >= 1 && queue->args[0] == impact;
+        }
+        SELFTEST_CHECK(
+            found == 1,
+            "%s/%s trace queues one landing graphic %s (%d), got %d",
+            row->gameval, row->attack_name, row->impact_spotanim, impact,
+            found);
+    }
 }
 
 /* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
@@ -13585,6 +13723,50 @@ mock230_world_selftest(void)
         };
         static const struct
         {
+            int faction;
+            int source_x, source_z, source_level;
+            int exit_x, exit_z, exit_level;
+            int actor_count;
+            struct
+            {
+                const char* npc;
+                int local_x, local_z, level;
+            } actors[5];
+        } private_room_cases[] = {
+            { 1, 44 * 64 + 16, 82 * 64 + 54, 2,
+              44 * 64 + 28, 82 * 64 + 48, 2, 4,
+              { { "godwars_armadyl_avatar", 16, 54, 2 },
+                { "godwars_armadyl_bodyguard_skree", 24, 55, 2 },
+                { "godwars_armadyl_bodyguard_geerin", 12, 51, 2 },
+                { "godwars_armadyl_bodyguard_kilisa", 17, 49, 2 } } },
+            { 2, 44 * 64 + 56, 83 * 64 + 46, 2,
+              44 * 64 + 42, 83 * 64 + 40, 2, 4,
+              { { "godwars_bandos_avatar", 56, 46, 2 },
+                { "godwars_sergeant_goblin1", 50, 46, 2 },
+                { "godwars_sergeant_goblin2", 56, 40, 2 },
+                { "godwars_sergeant_goblin3", 52, 50, 2 } } },
+            { 3, 45 * 64 + 17, 82 * 64 + 21, 0,
+              45 * 64 + 32, 82 * 64 + 20, 0, 4,
+              { { "godwars_saradomin_avatar", 17, 21, 0 },
+                { "godwars_saradomin_unicorn", 23, 13, 0 },
+                { "godwars_saradomin_lion", 16, 16, 0 },
+                { "godwars_saradomin_centaur", 22, 26, 0 } } },
+            { 4, 45 * 64 + 45, 83 * 64 + 10, 2,
+              45 * 64 + 40, 83 * 64 + 24, 2, 4,
+              { { "godwars_zamorak_avatar", 45, 10, 2 },
+                { "godwars_ancient_greater_demon", 52, 16, 2 },
+                { "godwars_ancient_lesser_demon", 39, 15, 2 },
+                { "godwars_ancient_black_demon", 41, 7, 2 } } },
+            { 5, 45 * 64 + 44, 81 * 64 + 18, 0,
+              45 * 64 + 20, 81 * 64 + 19, 0, 5,
+              { { "nex_spawning", 44, 18, 0 },
+                { "nex_smokemage", 32, 32, 0 },
+                { "nex_shadowmage", 57, 32, 0 },
+                { "nex_bloodmage", 57, 3, 0 },
+                { "nex_icemage", 32, 3, 0 } } },
+        };
+        static const struct
+        {
             const char* npc;
             const char* label;
             int x, z, level;
@@ -13705,6 +13887,82 @@ mock230_world_selftest(void)
                     roster_count);
             }
 
+            /* The reviewable CSV is also compiled into this test binary. That
+             * closes a gap source-text checks cannot: a perfectly spelled
+             * symbolic animation/projectile/sound can still be absent from the
+             * revision-239 packs and silently resolve to null at runtime. Pin
+             * all 126 rows to live config ids, authored cadence, and their
+             * exact player/NPC trigger before executing the paths below. */
+            {
+                int resolved_rows = 0;
+
+                SELFTEST_CHECK(
+                    MOCK230_GWD_MANIFEST_COUNT == 126,
+                    "compiled GWD attack ledger has 126 rows, got %d",
+                    MOCK230_GWD_MANIFEST_COUNT);
+                for( int i = 0; i < MOCK230_GWD_MANIFEST_COUNT; i++ )
+                {
+                    const struct Mock230GwdManifestAttack* row =
+                        &k_mock230_gwd_manifest[i];
+                    const int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, row->gameval);
+                    const int attack_seq = mock230_content_symbol(
+                        MOCK230_PACK_SEQ, row->attack_seq);
+                    const int projectile = strcmp(row->projectile, "none") == 0
+                                               ? -1
+                                               : mock230_content_symbol(
+                                                     MOCK230_PACK_SPOTANIM,
+                                                     row->projectile);
+                    const int start = strcmp(row->start_spotanim, "none") == 0
+                                          ? -1
+                                          : mock230_content_symbol(
+                                                MOCK230_PACK_SPOTANIM,
+                                                row->start_spotanim);
+                    const int impact = strcmp(row->impact_spotanim, "none") == 0
+                                           ? -1
+                                           : mock230_content_symbol(
+                                                 MOCK230_PACK_SPOTANIM,
+                                                 row->impact_spotanim);
+                    const int sound = strcmp(row->sound, "none") == 0
+                                          ? -1
+                                          : mock230_content_symbol(
+                                                MOCK230_PACK_SYNTH, row->sound);
+                    const struct Mock230NpcDef* def =
+                        npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+                    char hook[160];
+
+                    snprintf(hook, sizeof(hook), "[%s,%s]",
+                             row->targets_npc ? "ai_opnpc2" : "ai_opplayer2",
+                             row->gameval);
+                    SELFTEST_CHECK(
+                        npc_id >= 0 && attack_seq >= 0 &&
+                            (strcmp(row->projectile, "none") == 0 ||
+                             projectile >= 0) &&
+                            (strcmp(row->start_spotanim, "none") == 0 ||
+                             start >= 0) &&
+                            (strcmp(row->impact_spotanim, "none") == 0 ||
+                             impact >= 0) &&
+                            (strcmp(row->sound, "none") == 0 || sound >= 0),
+                        "%s/%s resolves its animation/projectile/start/impact/"
+                        "sound assets (%d/%d/%d/%d/%d/%d)",
+                        row->gameval, row->attack_name, npc_id, attack_seq,
+                        projectile, start, impact, sound);
+                    SELFTEST_CHECK(
+                        def && def->attackrate == row->attack_speed,
+                        "%s/%s runtime cadence is %d ticks (got %d)",
+                        row->gameval, row->attack_name, row->attack_speed,
+                        def ? def->attackrate : -1);
+                    SELFTEST_CHECK(
+                        SSVM_ProviderGetByName(srv->scripts, hook) != NULL,
+                        "%s/%s retains exact handler %s",
+                        row->gameval, row->attack_name, hook);
+                    resolved_rows++;
+                }
+                SELFTEST_CHECK(
+                    resolved_rows == MOCK230_GWD_MANIFEST_COUNT,
+                    "all compiled GWD attack-ledger rows are runtime audited");
+            }
+
             /* Execute every ambient roster member through its exact trigger.
              * The 16 bosses/bodyguards are exercised below with their
              * encounter-aware branches; this closes the other 53 routes and
@@ -13712,6 +13970,7 @@ mock230_world_selftest(void)
              * authored attack sequence at runtime. */
             {
                 const struct Mock230MapNpcSpawn* spawns;
+                static struct Mock230Capture attack_capture;
                 static uint8_t seen[1 << 16];
                 int spawn_count = 0;
                 int ambient_count = 0;
@@ -13742,6 +14001,7 @@ mock230_world_selftest(void)
                     const struct Mock230NpcDef* def;
                     char hook[160];
                     int encounter = 0;
+                    int ran;
                     int slot;
 
                     if( (map_x != 44 && map_x != 45) ||
@@ -13775,14 +14035,22 @@ mock230_world_selftest(void)
                     snprintf(hook, sizeof(hook), "[ai_opplayer2,%s]", symbol);
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                     player->hitpoints = 99;
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &attack_capture);
+                    ran = mock230_scripts_run_proc_on_npc(srv, hook, slot);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(
-                        mock230_scripts_run_proc_on_npc(srv, hook, slot),
+                        ran,
                         "%s exact player-attack hook executes", symbol);
                     SELFTEST_CHECK(
                         def && srv->npcs[slot].anim_id == def->attack_anim,
                         "%s selects authored attack animation %d (got %d)",
                         symbol, def ? def->attack_anim : -1,
                         srv->npcs[slot].anim_id);
+                    selftest_gwd_player_attack_trace(
+                        srv,
+                        selftest_gwd_manifest_find(symbol, "primary", 0),
+                        &srv->npcs[slot], &attack_capture);
                     if( war_target >= 0 &&
                         strcmp(symbol, "godwars_icefiend_1") != 0 &&
                         strcmp(symbol, "godwars_pyrefiend_1") != 0 )
@@ -13880,6 +14148,7 @@ mock230_world_selftest(void)
                     "%s merges non-default stats, three animations, and attack sound",
                     classic_bodyguards[i]);
             }
+            static struct Mock230Capture bodyguard_capture;
             player->x = 45 * 64 + 24;
             player->z = 82 * 64 + 24;
             player->level = 0;
@@ -13892,6 +14161,7 @@ mock230_world_selftest(void)
                     MOCK230_PACK_NPC, classic_bodyguards[i]);
                 const struct Mock230NpcDef* def = mock230_content_npc(npc_id);
                 char hook[160];
+                int ran;
                 int slot = mock230_world_npc_spawn(
                     srv, npc_id, player->x + 1, player->z, player->level);
 
@@ -13905,8 +14175,12 @@ mock230_world_selftest(void)
                          classic_bodyguards[i]);
                 player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                 player->hitpoints = 99;
+                mock230_zone_reset(srv);
+                mock230_capture_begin(srv, &bodyguard_capture);
+                ran = mock230_scripts_run_proc_on_npc(srv, hook, slot);
+                mock230_capture_end(srv);
                 SELFTEST_CHECK(
-                    mock230_scripts_run_proc_on_npc(srv, hook, slot),
+                    ran,
                     "%s exact bodyguard attack hook executes",
                     classic_bodyguards[i]);
                 SELFTEST_CHECK(
@@ -13914,6 +14188,11 @@ mock230_world_selftest(void)
                     "%s bodyguard attack selects authored animation %d (got %d)",
                     classic_bodyguards[i], def ? def->attack_anim : -1,
                     srv->npcs[slot].anim_id);
+                selftest_gwd_player_attack_trace(
+                    srv,
+                    selftest_gwd_manifest_find(
+                        classic_bodyguards[i], "primary", 0),
+                    &srv->npcs[slot], &bodyguard_capture);
                 for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                     player->queue[q].active = 0;
                 for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -15837,6 +16116,425 @@ mock230_world_selftest(void)
                     mock230_world_mapinstance_free(srv, handle);
                 }
             }
+
+            /* Build each of the five production private-room templates, not a
+             * synthetic empty square. The fixture pins actor identity and
+             * translated placement, exercises classic duplicate-safe respawn
+             * (and Nex's whole-roster reset), then leaves by an unrelated
+             * coordinate so the real lifecycle hook must remove actors, floor
+             * loot, ownership varps, and the reservation in one pass. */
+            {
+                const int instance_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "map_instance_handle");
+                const int faction_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_private_faction");
+
+                SELFTEST_CHECK(
+                    instance_varp >= 0 && faction_varp >= 0,
+                    "private GWD ownership varps resolve (%d/%d)",
+                    instance_varp, faction_varp);
+                for( size_t c = 0;
+                     c < sizeof(private_room_cases) /
+                             sizeof(private_room_cases[0]);
+                     c++ )
+                {
+                    const int32_t source = mock230_coord_pack(
+                        private_room_cases[c].source_level,
+                        private_room_cases[c].source_x,
+                        private_room_cases[c].source_z);
+                    int handle = 0;
+                    int base_x = 0;
+                    int base_z = 0;
+                    int width = 0;
+                    int height = 0;
+                    int roster_ok = 1;
+                    int roster_count = 0;
+
+                    player->x = 426 * 8;
+                    player->z = 408 * 8;
+                    player->level = 0;
+                    mock230_world_set_active(srv, player);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,map_instance_from_square]", &source, 1,
+                            &handle) &&
+                            handle != 0,
+                        "private GWD faction %d allocates its production square",
+                        private_room_cases[c].faction);
+                    if( handle == 0 )
+                        continue;
+                    SELFTEST_CHECK(
+                        mock230_mapinstance_owner(handle) == player->pid + 1,
+                        "private GWD faction %d records its creating player",
+                        private_room_cases[c].faction);
+                    SELFTEST_CHECK(
+                        mock230_mapinstance_bounds(
+                            handle, &base_x, &base_z, &width, &height),
+                        "private GWD faction %d exposes translated bounds",
+                        private_room_cases[c].faction);
+                    if( instance_varp >= 0 )
+                        player->varps[instance_varp] = handle;
+                    if( faction_varp >= 0 )
+                        player->varps[faction_varp] =
+                            private_room_cases[c].faction;
+                    player->x = base_x + 32;
+                    player->z = base_z + 32;
+                    player->level = private_room_cases[c].source_level;
+
+                    args[0] = handle;
+                    args[1] = private_room_cases[c].faction;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv,
+                            private_room_cases[c].faction == 5
+                                ? "[proc,gwd_private_spawn_nex]"
+                                : "[proc,gwd_private_spawn_quartet]",
+                            args,
+                            private_room_cases[c].faction == 5 ? 1 : 2),
+                        "private GWD faction %d spawns its encounter roster",
+                        private_room_cases[c].faction);
+
+                    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                    {
+                        const struct Mock230Npc* npc = &srv->npcs[slot];
+
+                        if( !npc->active ||
+                            mock230_mapinstance_find(npc->x, npc->z) != handle )
+                            continue;
+                        roster_count++;
+                    }
+                    for( int a = 0; a < private_room_cases[c].actor_count; a++ )
+                    {
+                        const int type = mock230_content_symbol(
+                            MOCK230_PACK_NPC,
+                            private_room_cases[c].actors[a].npc);
+                        int matches = 0;
+
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            const struct Mock230Npc* npc = &srv->npcs[slot];
+
+                            if( npc->active && npc->type == type &&
+                                npc->x == base_x +
+                                              private_room_cases[c]
+                                                  .actors[a]
+                                                  .local_x &&
+                                npc->z == base_z +
+                                              private_room_cases[c]
+                                                  .actors[a]
+                                                  .local_z &&
+                                npc->level ==
+                                    private_room_cases[c].actors[a].level )
+                                matches++;
+                        }
+                        if( matches != 1 )
+                            roster_ok = 0;
+                    }
+                    SELFTEST_CHECK(
+                        roster_ok &&
+                            roster_count == private_room_cases[c].actor_count,
+                        "private GWD faction %d has exactly %d actors at the "
+                        "authored translated tiles (got %d)",
+                        private_room_cases[c].faction,
+                        private_room_cases[c].actor_count, roster_count);
+
+                    if( private_room_cases[c].faction < 5 )
+                    {
+                        const int type = mock230_content_symbol(
+                            MOCK230_PACK_NPC,
+                            private_room_cases[c].actors[0].npc);
+                        int removed = 0;
+                        int replacements = 0;
+
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            if( srv->npcs[slot].active &&
+                                srv->npcs[slot].type == type &&
+                                mock230_mapinstance_find(
+                                    srv->npcs[slot].x,
+                                    srv->npcs[slot].z) == handle )
+                            {
+                                srv->npcs[slot].active = 0;
+                                removed = 1;
+                                break;
+                            }
+                        }
+                        args[0] = type;
+                        SELFTEST_CHECK(
+                            removed &&
+                                mock230_scripts_run_proc(
+                                    srv, "[queue,gwd_private_respawn_npc]",
+                                    args, 1) &&
+                                mock230_scripts_run_proc(
+                                    srv, "[queue,gwd_private_respawn_npc]",
+                                    args, 1),
+                            "private GWD faction %d executes duplicate-safe respawn",
+                            private_room_cases[c].faction);
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            if( srv->npcs[slot].active &&
+                                srv->npcs[slot].type == type &&
+                                mock230_mapinstance_find(
+                                    srv->npcs[slot].x,
+                                    srv->npcs[slot].z) == handle )
+                                replacements++;
+                        }
+                        SELFTEST_CHECK(
+                            replacements == 1,
+                            "private GWD faction %d suppresses duplicate boss "
+                            "replacement (got %d)",
+                            private_room_cases[c].faction, replacements);
+                    }
+                    else
+                    {
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            if( srv->npcs[slot].active &&
+                                mock230_mapinstance_find(
+                                    srv->npcs[slot].x,
+                                    srv->npcs[slot].z) == handle )
+                                srv->npcs[slot].active = 0;
+                        }
+                        args[0] = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[queue,gwd_nex_private_reset]", args, 1),
+                            "private Nex executes its whole-roster reset");
+                        roster_count = 0;
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            if( srv->npcs[slot].active &&
+                                mock230_mapinstance_find(
+                                    srv->npcs[slot].x,
+                                    srv->npcs[slot].z) == handle )
+                                roster_count++;
+                        }
+                        SELFTEST_CHECK(
+                            roster_count == 5,
+                            "private Nex reset restores exactly five actors, got %d",
+                            roster_count);
+                    }
+
+                    args[0] = mock230_coord_pack(
+                        player->level, player->x, player->z);
+                    args[1] = 1;
+                    selftest_clear_ground(srv);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_bodyguard_tertiary_roll]", args, 2),
+                        "private GWD faction %d creates an owned floor drop",
+                        private_room_cases[c].faction);
+                    player->x = 426 * 8;
+                    player->z = 408 * 8;
+                    player->level = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[softtimer,gwd_private_lifecycle]", NULL, 0),
+                        "private GWD faction %d departure lifecycle executes",
+                        private_room_cases[c].faction);
+                    roster_count = 0;
+                    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                    {
+                        const struct Mock230Npc* npc = &srv->npcs[slot];
+
+                        if( npc->active && npc->x >= base_x &&
+                            npc->x < base_x + width && npc->z >= base_z &&
+                            npc->z < base_z + height )
+                            roster_count++;
+                    }
+                    SELFTEST_CHECK(
+                        mock230_mapinstance_live_count() == 0 &&
+                            roster_count == 0 &&
+                            (instance_varp < 0 ||
+                             player->varps[instance_varp] == 0) &&
+                            (faction_varp < 0 ||
+                             player->varps[faction_varp] == 0),
+                        "private GWD faction %d departure releases owner, "
+                        "reservation, and actors",
+                        private_room_cases[c].faction);
+                    {
+                        int ground_inside = 0;
+
+                        for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                        {
+                            const struct Mock230GroundObj* obj = &srv->ground[slot];
+
+                            ground_inside +=
+                                obj->active && obj->x >= base_x &&
+                                obj->x < base_x + width && obj->z >= base_z &&
+                                obj->z < base_z + height;
+                        }
+                        SELFTEST_CHECK(
+                            ground_inside == 0,
+                            "private GWD faction %d departure purges floor loot",
+                            private_room_cases[c].faction);
+                    }
+
+                    /* Reuse the just-released pool slot and leave through the
+                     * global logout dispatcher. This is a different failure
+                     * shape from the coordinate watchdog: a disconnected
+                     * player no longer has future softtimer turns, so only
+                     * [logout,_] can return its owned reservation. */
+                    handle = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,map_instance_from_square]", &source, 1,
+                            &handle) &&
+                            handle != 0,
+                        "private GWD faction %d reallocates for logout",
+                        private_room_cases[c].faction);
+                    if( handle != 0 )
+                    {
+                        mock230_mapinstance_bounds(
+                            handle, &base_x, &base_z, &width, &height);
+                        if( instance_varp >= 0 )
+                            player->varps[instance_varp] = handle;
+                        if( faction_varp >= 0 )
+                            player->varps[faction_varp] =
+                                private_room_cases[c].faction;
+                        player->x = base_x + 32;
+                        player->z = base_z + 32;
+                        player->level = private_room_cases[c].source_level;
+                        args[0] = handle;
+                        args[1] = private_room_cases[c].faction;
+                        mock230_scripts_run_proc(
+                            srv,
+                            private_room_cases[c].faction == 5
+                                ? "[proc,gwd_private_spawn_nex]"
+                                : "[proc,gwd_private_spawn_quartet]",
+                            args,
+                            private_room_cases[c].faction == 5 ? 1 : 2);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_trigger_specific(
+                                srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
+                                MOCK230_TRIGGER_RAN,
+                            "private GWD faction %d runs the global logout hook",
+                            private_room_cases[c].faction);
+                        roster_count = 0;
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            const struct Mock230Npc* npc = &srv->npcs[slot];
+
+                            if( npc->active && npc->x >= base_x &&
+                                npc->x < base_x + width && npc->z >= base_z &&
+                                npc->z < base_z + height )
+                                roster_count++;
+                        }
+                        SELFTEST_CHECK(
+                            mock230_mapinstance_live_count() == 0 &&
+                                roster_count == 0 &&
+                                player->x == private_room_cases[c].exit_x &&
+                                player->z == private_room_cases[c].exit_z &&
+                                player->level ==
+                                    private_room_cases[c].exit_level &&
+                                (instance_varp < 0 ||
+                                 player->varps[instance_varp] == 0) &&
+                                (faction_varp < 0 ||
+                                 player->varps[faction_varp] == 0),
+                            "private GWD faction %d logout moves to its safe "
+                            "tile and releases all owned state",
+                            private_room_cases[c].faction);
+                    }
+
+                    /* Death has a two-stage contract: delete combat state and
+                     * preserve the reservation through the visible corpse,
+                     * then release it only after the grave destination has
+                     * been populated outside. Exercise that hand-off for all
+                     * five room kinds without waiting through five copies of
+                     * the generic player-death animation. */
+                    handle = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,map_instance_from_square]", &source, 1,
+                            &handle) &&
+                            handle != 0,
+                        "private GWD faction %d reallocates for death",
+                        private_room_cases[c].faction);
+                    if( handle != 0 )
+                    {
+                        int death_coord = -1;
+                        int held_handle = 0;
+
+                        mock230_mapinstance_bounds(
+                            handle, &base_x, &base_z, &width, &height);
+                        if( instance_varp >= 0 )
+                            player->varps[instance_varp] = handle;
+                        if( faction_varp >= 0 )
+                            player->varps[faction_varp] =
+                                private_room_cases[c].faction;
+                        player->x = base_x + 32;
+                        player->z = base_z + 32;
+                        player->level = private_room_cases[c].source_level;
+                        args[0] = handle;
+                        args[1] = private_room_cases[c].faction;
+                        mock230_scripts_run_proc(
+                            srv,
+                            private_room_cases[c].faction == 5
+                                ? "[proc,gwd_private_spawn_nex]"
+                                : "[proc,gwd_private_spawn_quartet]",
+                            args,
+                            private_room_cases[c].faction == 5 ? 1 : 2);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_private_death_coord]", NULL, 0,
+                                &death_coord) &&
+                                death_coord == mock230_coord_pack(
+                                                   private_room_cases[c]
+                                                       .exit_level,
+                                                   private_room_cases[c].exit_x,
+                                                   private_room_cases[c].exit_z),
+                            "private GWD faction %d redirects its grave to the "
+                            "safe tile",
+                            private_room_cases[c].faction);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_private_on_death]", NULL, 0,
+                                &held_handle) &&
+                                held_handle == handle,
+                            "private GWD faction %d death retains its handle "
+                            "through the corpse",
+                            private_room_cases[c].faction);
+                        roster_count = 0;
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                        {
+                            const struct Mock230Npc* npc = &srv->npcs[slot];
+
+                            if( npc->active && npc->x >= base_x &&
+                                npc->x < base_x + width && npc->z >= base_z &&
+                                npc->z < base_z + height )
+                                roster_count++;
+                        }
+                        SELFTEST_CHECK(
+                            mock230_mapinstance_live_count() == 1 &&
+                                roster_count == 0 &&
+                                (instance_varp < 0 ||
+                                 player->varps[instance_varp] == handle) &&
+                                (faction_varp < 0 ||
+                                 player->varps[faction_varp] == 0),
+                            "private GWD faction %d corpse stage holds only the "
+                            "reservation",
+                            private_room_cases[c].faction);
+                        args[0] = held_handle;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_finish_death]", args, 1),
+                            "private GWD faction %d finishes death teardown",
+                            private_room_cases[c].faction);
+                        SELFTEST_CHECK(
+                            mock230_mapinstance_live_count() == 0 &&
+                                (instance_varp < 0 ||
+                                 player->varps[instance_varp] == 0),
+                            "private GWD faction %d post-corpse stage releases "
+                            "the reservation",
+                            private_room_cases[c].faction);
+                    }
+                }
+                selftest_clear_ground(srv);
+                player->x = 426 * 8;
+                player->z = 408 * 8;
+                player->level = 0;
+                mock230_world_set_active(srv, player);
+            }
             mock230_scripts_free(srv);
         }
         fprintf(stderr, "mock230 God Wars focused selftest: %d failure(s)\n",
@@ -16257,6 +16955,19 @@ mock230_world_selftest(void)
             int old_z = player->z;
             int music_x = -1;
             int music_z = -1;
+
+            SELFTEST_CHECK(mock230_mapinstance_flag_get(handle, 1) == 0,
+                           "a fresh instance should begin with all shared flags clear");
+            SELFTEST_CHECK(mock230_mapinstance_flag_set(handle, 1, 1) == 1 &&
+                               mock230_mapinstance_flag_get(handle, 1) == 1,
+                           "an instance flag should be visible after it is enabled");
+            SELFTEST_CHECK(mock230_mapinstance_flag_get(handle, 2) == 0,
+                           "setting one instance flag must not affect another mask");
+            SELFTEST_CHECK(mock230_mapinstance_flag_set(handle, 1, 0) == 1 &&
+                               mock230_mapinstance_flag_get(handle, 1) == 0,
+                           "an instance flag should clear independently");
+            SELFTEST_CHECK(mock230_mapinstance_flag_set(handle, 0, 1) == 0,
+                           "the zero mask must be rejected");
 
             mock230_mapinstance_base(handle, &base_x, &base_z);
             for( int zx = 0; zx < 8; zx++ )
@@ -18351,6 +19062,70 @@ mock230_world_selftest(void)
                     srv->active_player = first;
                     mock230_world_player_free(srv, second->pid);
                     mock230_world_player_reap(srv);
+                }
+            }
+
+            /*
+             * Pyramid Plunder.
+             *
+             * The minigame's substance is its numbers — the implementation this
+             * replaced had every mechanic in roughly the right shape and almost
+             * every value wrong, imported from a reference that predates three
+             * Jagex reworks, and nothing in the tree could tell. So the tables
+             * are asserted against the wiki's own figures rather than left to be
+             * noticed in play.
+             *
+             * Each proc returns a failure count; the expected values live in
+             * plunder_selftest.rs2 beside the reasoning for each.
+             */
+            {
+                static const struct
+                {
+                    const char* proc;
+                    const char* what;
+                } k_plunder[] = {
+                    { "[proc,selftest_plunder_curve]",
+                      "the success curve reproduces the wiki's five charted percentages" },
+                    { "[proc,selftest_plunder_xp]",
+                      "the urn/chest/door/sarcophagus XP tables match the wiki" },
+                    { "[proc,selftest_plunder_sceptre]",
+                      "the sceptre rates are the post-2023 ones" },
+                    { "[proc,selftest_plunder_artifacts]",
+                      "room 1 pays no gold artefact and room 8 no pottery" },
+                    { "[proc,selftest_plunder_urn_slots]",
+                      "the 15 urn slots address 15 independent states" },
+                    { "[proc,selftest_plunder_urn_xp_split]",
+                      "check + search pays exactly what a plain search pays" },
+                    { "[proc,selftest_plunder_room_coords]",
+                      "the eight rooms are eight different coords" },
+                    { "[proc,selftest_plunder_shared_doors]",
+                      "the shared tomb doors round-trip through vars" },
+                };
+
+                for( size_t i = 0; i < sizeof(k_plunder) / sizeof(k_plunder[0]); i++ )
+                {
+                    int32_t bad = -1;
+                    int ran = mock230_scripts_run_proc_int(
+                        srv, k_plunder[i].proc, NULL, 0, &bad);
+
+                    SELFTEST_CHECK(ran && bad == 0, "plunder: %s (%d failure(s))",
+                                   k_plunder[i].what, bad);
+                }
+
+                /*
+                 * Geometry, separately because the answer is a distance rather
+                 * than a count: `^ntk_guardian_room` named an empty antechamber
+                 * on the wrong plane, so the correct entrance door led nowhere
+                 * near the NPC that runs the minigame.
+                 */
+                {
+                    int32_t dist = -1;
+                    int ran = mock230_scripts_run_proc_int(
+                        srv, "[proc,selftest_plunder_guardian_room]", NULL, 0, &dist);
+
+                    SELFTEST_CHECK(ran && dist >= 0 && dist <= 8,
+                                   "plunder: the guardian room is beside the guardian "
+                                   "(%d tiles; >=1000 means the wrong plane)", dist);
                 }
             }
 
@@ -28030,7 +28805,6 @@ mock230_world_selftest(void)
         }
         else
         {
-            static struct Mock230Capture charter_capture;
             /* The Origin column of charter_ships.tsv: the tile the pathfinder
              * stands a player on to use Port Sarim's jetty. */
             const int jetty_x = 3038;
@@ -28073,6 +28847,36 @@ mock230_world_selftest(void)
                 if( regicide >= 0 )
                     player->varps[regicide] = 0;
 
+                /* ---- Is the op bound to the PARENT at all?
+                 *
+                 * Asked directly, before any walking, because the walk hides
+                 * the answer: an unbound op and an unreachable npc both end as
+                 * "no script parked", and only one of them is a content bug.
+                 * `mock230_scripts_run_trigger` takes the npc TYPE, which for a
+                 * spawned charter trader is the multinpc parent — the ops are
+                 * written on the 24 leaves and mock230 resolves none of them. */
+                SELFTEST_CHECK(mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC4,
+                                                           srv->npcs[slot].type, -1,
+                                                           slot) != MOCK230_TRIGGER_NONE,
+                               "npc %d should have an [opnpc4] — binding only the per-port "
+                               "leaves leaves Charter unbound at every port",
+                               srv->npcs[slot].type);
+                mock230_world_clear_pending_action(srv);
+                mock230_world_interaction_clear(srv);
+
+                /* Trade is bound the same way and breaks the same way, so it is
+                 * asked the same question. `~openshop` itself is the shared proc
+                 * every one of the tree's 278 shops goes through and is covered
+                 * by the shop sections; what is charter-specific is only whether
+                 * the parent carries the binding. */
+                SELFTEST_CHECK(mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC3,
+                                                           srv->npcs[slot].type, -1,
+                                                           slot) != MOCK230_TRIGGER_NONE,
+                               "npc %d should have an [opnpc3] for Trader Stan's Trading Post",
+                               srv->npcs[slot].type);
+                mock230_world_clear_pending_action(srv);
+                mock230_world_interaction_clear(srv);
+
                 /* ---- Refused: Port Tyras needs Regicide, which is at 0 above.
                  * Tirannwn is row 4 of the region menu, Port Tyras row 1 of it. */
                 selftest_npc_payload(player, slot, payload);
@@ -28084,23 +28888,25 @@ mock230_world_selftest(void)
                                "binding that only names the per-port leaves would do nothing "
                                "here, silently");
 
-                mock230_capture_begin(srv, &charter_capture);
                 selftest_charter_choose(srv, 4); /* Tirannwn */
                 selftest_charter_choose(srv, 1); /* Port Tyras */
                 for( int tick = 0; tick < 4; tick++ )
                     mock230_world_tick(srv);
-                mock230_capture_end(srv);
 
-                for( int i = mock230_capture_find(&charter_capture, 90 /* MESSAGE_GAME */, 0);
-                     i >= 0; i = mock230_capture_find(&charter_capture, 90, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* packet = &charter_capture.packets[i];
-
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
-                        continue;
-                    if( strstr((const char*)packet->data + 1, "can't take you to") )
-                        refused++;
-                }
+                /* The refusal is `~chatnpc_anim`, which parks on a continue
+                 * button — so a still-live script here is the positive signal
+                 * that the crew answered, as against the menu having quietly
+                 * fallen off the end. It is deliberately not a text match: the
+                 * line goes to the dialogue interface, not to MESSAGE_GAME, so
+                 * a capture of packet 90 would find nothing and would have
+                 * passed for the wrong reason.
+                 *
+                 * The two checks that follow are the ones that matter, because
+                 * they hold whatever the crew said. */
+                refused = player->active_script != NULL;
+                SELFTEST_CHECK(refused,
+                               "a locked Port Tyras should be answered by the crew, not "
+                               "silently dropped");
                 SELFTEST_CHECK(selftest_count_obj(player, coins) == 5000,
                                "a refused charter must not take the fare, got %d coins",
                                selftest_count_obj(player, coins));

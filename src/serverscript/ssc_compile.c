@@ -2562,7 +2562,8 @@ parse_header(
                 want = SSC_SYM_NPC; /* the npc running the AI, whatever it acts on */
             else if( strncmp(trigger_name, "oploc", 5) == 0 ||
                      strncmp(trigger_name, "aplloc", 6) == 0 ||
-                     strncmp(trigger_name, "opheldloc", 9) == 0 )
+                     strncmp(trigger_name, "opheldloc", 9) == 0 ||
+                     strcmp(trigger_name, "locstep") == 0 )
                 want = SSC_SYM_LOC;
             else if( strncmp(trigger_name, "opnpc", 5) == 0 ||
                      strncmp(trigger_name, "apnpc", 5) == 0 )
@@ -3076,9 +3077,28 @@ finish_script(struct SSC_Compiler* compiler)
 
     /* Every script must end in RETURN: the VM errors when pc runs past the last
      * instruction, so a script without one could never complete. Content is not
-     * required to write it. */
-    if( build->op_count == 0 || build->opcodes[build->op_count - 1] != SS_OP_RETURN )
-        emit(compiler, SS_OP_RETURN, 0);
+     * required to write it.
+     *
+     * Unconditionally, and that is the whole point. This used to skip the
+     * append when the last opcode already WAS a return — which is exactly
+     * wrong for the commonest shape in the tree:
+     *
+     *     [proc,clear_desertheat_timer]
+     *     if (<cond>) {
+     *         ...
+     *         return;
+     *     }
+     *
+     * `parse_if` branches over the body to `op_count`, the body's own last
+     * opcode is the RETURN, so the append was skipped and the not-taken branch
+     * jumped one past the end. The script worked whenever the condition held
+     * and aborted with "ran past the last instruction without a return"
+     * whenever it did not — which for that proc meant every player leaving a
+     * desert map square with the heat timer already off.
+     *
+     * The cost of always appending is one unreachable byte per script that did
+     * not need it. */
+    emit(compiler, SS_OP_RETURN, 0);
 
     index = script_id_for_name(compiler, build->name);
     if( index < 0 )

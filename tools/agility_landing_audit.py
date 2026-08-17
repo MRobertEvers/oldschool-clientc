@@ -11,13 +11,19 @@ of the world.
 This runs every coord literal in the course scripts through `walkable_probe`,
 which builds the server's own collision map from the real map squares.
 
-Two failure modes it catches, both of which it caught for real on the first
-course authored without a corpus (Pollnivneach):
+What it is good for, both earned on the first course authored without a
+corpus (Pollnivneach):
 
   * a mis-encoded literal. The local halves are x%64 and z%64, and computing
     them off the wrong base puts the tile hundreds of tiles away — five of nine.
-  * a tile with NO collision data at all (flag word zero). That is sky, or map
-    the scene never loaded; it is not floor. Three more.
+  * a landing on a tile a loc occupies, or one the map flags as blocked floor.
+
+One trap, paid for once: an empty flag word means an ORDINARY OPEN TILE, not
+missing data. The map's BLOCK setting is what stamps the floor flag, so no
+flags at all means nothing blocks the tile — the middle of Lumbridge's field
+reads zero. A version of this audit that read zero as "no data" reported three
+quarters of every course's landings as broken and nearly had eight working
+rooftop courses "corrected" onto tiles they never needed.
 
     tools/agility_landing_audit.py [--cache cache.osrs239]
 
@@ -64,7 +70,6 @@ def main():
 
     checked = 0
     failures = 0
-    unverifiable = []
     for pattern in SCRIPT_GLOBS:
         for path in sorted(glob.glob(os.path.join(args.tree, pattern))):
             text = open(path, encoding="utf-8").read()
@@ -85,15 +90,6 @@ def main():
                 line = verdict[0] if verdict else "no answer from the probe"
                 if "standable" in line:
                     continue
-                if "no scene data" in line:
-                    # Ambiguous, NOT a failure. A zero flag word means nothing
-                    # stamped this tile — which is true both of open sky and of
-                    # a plane the scene builder does not carry floors for, and
-                    # rooftop courses live on exactly such planes. Reported so
-                    # the count is visible, never failed on.
-                    unverifiable.append(
-                        "%s (%d,%d,%s)" % (os.path.basename(path), x, z, level))
-                    continue
                 print(
                     "agility_landing_audit: %s sends a player to (%d,%d,%s) — %s"
                     % (os.path.basename(path), x, z, level, line),
@@ -101,22 +97,15 @@ def main():
                 )
                 failures += 1
 
-    if unverifiable:
-        print(
-            "agility_landing_audit: %d of %d landings sit on tiles the scene "
-            "builder carries no data for — upper-plane roofs mostly, which it "
-            "does not stamp floors for. Not checkable here; they want the "
-            "client (plan §9.4)." % (len(unverifiable), checked)
-        )
     if failures:
         print(
-            "agility_landing_audit: %d of %d landings are demonstrably blocked"
+            "agility_landing_audit: %d of %d landings are blocked"
             % (failures, checked),
             file=sys.stderr,
         )
         return 1
     print(
-        "agility_landing_audit: %d landings checked, none demonstrably blocked"
+        "agility_landing_audit: %d landings checked, all standable"
         % checked
     )
     return 0

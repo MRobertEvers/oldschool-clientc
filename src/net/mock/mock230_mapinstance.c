@@ -62,6 +62,8 @@ struct Mock230MapInstance
     int active;
     /** Script-visible uid of the player who allocated this reservation. */
     int owner_uid;
+    /** Content-owned, session-local switches shared by everyone in the map. */
+    uint32_t flags;
     /** Absolute south-west tile. */
     int base_x, base_z;
     int zone_w, zone_h;
@@ -414,6 +416,35 @@ mock230_mapinstance_owner(int handle)
     struct Mock230MapInstance* inst = mapinstance_get(handle);
 
     return inst ? inst->owner_uid : 0;
+}
+
+int
+mock230_mapinstance_flag_get(
+    int handle,
+    int mask)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || mask <= 0 )
+        return 0;
+    return (inst->flags & (uint32_t)mask) != 0;
+}
+
+int
+mock230_mapinstance_flag_set(
+    int handle,
+    int mask,
+    int enabled)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || mask <= 0 )
+        return 0;
+    if( enabled )
+        inst->flags |= (uint32_t)mask;
+    else
+        inst->flags &= ~(uint32_t)mask;
+    return 1;
 }
 
 int

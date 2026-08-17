@@ -10,9 +10,9 @@
  * player is teleported into it and the client is told to build its scene out of
  * the copies rather than out of the square it is standing on.
  *
- * Six things content can say (`ss_opcode.h` 11009..11014), and they are the four
- * steps plus two queries that both behaviour references agree on — 2009scape
- * `DynamicRegion` and Kronos `DynamicMap`:
+ * Six core things content can say (`ss_opcode.h` 11009..11014), and they are
+ * the four steps plus two queries that both behaviour references agree on —
+ * 2009scape `DynamicRegion` and Kronos `DynamicMap`:
  *
  *     alloc      reserve WxH zones somewhere unused          -> handle
  *     setchunk   one destination zone <- one source zone, turned
@@ -20,6 +20,11 @@
  *     coord      instance-relative offset -> absolute coord
  *     free       give the reservation back
  *     find       which instance is this coord in?
+ *
+ * Later metadata commands expose the allocating player's uid and a generic
+ * session-local flag bitset. They do not change scene geometry: ownership lets
+ * guest content resolve a host, while flags let every occupant observe shared
+ * modes such as a POH dungeon challenge without persisting them to one player.
  *
  * **LostCity has none of this**, measured rather than assumed: `engine.rs2`
  * declares no map-allocation command (the nearest thing is a commented-out
@@ -145,6 +150,24 @@ mock230_mapinstance_set_owner(
 /** The recorded player uid, or 0 for a dead/unowned reservation. */
 int
 mock230_mapinstance_owner(int handle);
+
+/**
+ * Read or write a content-owned, session-local flag on a live instance.
+ *
+ * This is deliberately a generic bitset rather than POH state: challenge mode
+ * belongs to the current house visit, is observed by every guest, and must not
+ * leak into the owner's durable save. Other instanced content may assign its
+ * own masks. A non-positive mask or dead handle reads false and rejects writes.
+ */
+int
+mock230_mapinstance_flag_get(
+    int handle,
+    int mask);
+int
+mock230_mapinstance_flag_set(
+    int handle,
+    int mask,
+    int enabled);
 
 /** Clear every live reservation owned by this uid; returns the number cleared. */
 int

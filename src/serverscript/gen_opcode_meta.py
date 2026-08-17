@@ -579,6 +579,24 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # engine mechanism; which encounter shares them remains content policy.
     "NPC_RESPAWN_REMAINING": (11063, 3, 0, 1, 0),
 
+    # map_instance_flag_get(int $handle, int $mask)(boolean)
+    # map_instance_flag_set(int $handle, int $mask, boolean $enabled)(boolean)
+    #
+    # Session-local state shared by everyone inside one dynamic map. The engine
+    # owns only the bitset lifetime; content assigns meanings to masks. This is
+    # intentionally not durable POH storage: challenge mode ends with the house
+    # visit, applies to guests as well as the owner, and a reused handle must
+    # begin clear.
+    "MAP_INSTANCE_FLAG_GET": (11064, 2, 0, 1, 0),
+    "MAP_INSTANCE_FLAG_SET": (11065, 3, 0, 1, 0),
+
+    # last_step_coord()(coord)
+    #
+    # The tile occupied before the active player's most recent successful step.
+    # Unlike WALKSTEP_COORD this remains readable after movement, so an
+    # underfoot loc can knock a player back to the side from which they entered.
+    "LAST_STEP_COORD": (11066, 0, 0, 1, 0),
+
     # loc_add_op(coord, loc, int angle, locshape shape, int duration,
     #            int opslot, string optext)
     #
@@ -824,6 +842,10 @@ EXTRA_TRIGGERS: dict[str, int] = {
     # sequence. LostCity has no death trigger — content wrappers queue after
     # damage — but raw SS_OP_DAMAGE / C hit paths still need an event name.
     "PLAYERDEATH": 181,
+    # A floor loc may react when a player finishes movement on its footprint.
+    # This is deliberately a final-tile event, rather than another walktrigger:
+    # running across a one-tile hazard without finishing on it must not fire it.
+    "LOCSTEP": 182,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.
@@ -931,6 +953,9 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
     "MAP_INSTANCE_OWNER": (0, 0),
+    "MAP_INSTANCE_FLAG_GET": (0, 0),
+    "MAP_INSTANCE_FLAG_SET": (0, 0),
+    "LAST_STEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
     # None, and that matches LOC_ADD (3000), whose require mask is 0x000: the
     # command names its own coord and needs no active anything. Listed rather
     # than omitted so the assert in the writer stays a whitelist.
