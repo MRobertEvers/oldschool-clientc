@@ -18,6 +18,8 @@ usage(void)
         "                   [--compare DIR] [--compare-rev NAME]\n"
         "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
+        "  cachepack cs2opt --src DIR [--base DIR] [--rev NAME] [--opt-level N]\n"
+        "                   [--inline-max N] [--out DIR]\n"
         "                   [--assets] [--binary] [--gamevals]\n"
         "  cachepack pack   --src DIR --server-only\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
@@ -258,6 +260,11 @@ main(int argc, char** argv)
     int want_gamevals = 0;
     int want_binary = 0;
     int want_assets = 0;
+    /* CS2 optimizer: `cs2opt` produces the tree, `pack --cs2-opt` consumes it. */
+    int want_cs2_opt = 0;
+    int cs2_opt_level = 2;
+    int cs2_inline_max = 0;
+    const char* cs2_opt_dir = NULL;
     int check_only = 0;
     int server_only = 0;
     const char* digest_dir = NULL;
@@ -286,6 +293,8 @@ main(int argc, char** argv)
             server_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
+        else if( strcmp(arg, "--cs2-opt") == 0 )
+            want_cs2_opt = 1;
         else if( strcmp(arg, "--gamevals") == 0 )
             want_gamevals = 1;
         else if( strcmp(arg, "--raw-assets") == 0 )
@@ -325,6 +334,15 @@ main(int argc, char** argv)
             tmp_dir = argv[++i];
         else if( strcmp(arg, "--warn") == 0 )
             warn_limit = atoi(argv[++i]);
+        else if( strcmp(arg, "--opt-level") == 0 )
+            cs2_opt_level = atoi(argv[++i]);
+        else if( strcmp(arg, "--inline-max") == 0 )
+            cs2_inline_max = atoi(argv[++i]);
+        else if( strcmp(arg, "--cs2-opt-dir") == 0 )
+        {
+            want_cs2_opt = 1;
+            cs2_opt_dir = argv[++i];
+        }
         else
         {
             fprintf(stderr, "cachepack: unknown option %s\n", arg);
@@ -383,6 +401,37 @@ main(int argc, char** argv)
     {
         cp_names_free(&ctx.names);
         return 1;
+    }
+
+    /*
+     * `cs2opt` needs the same open base cache `pack` does — the optimizer reads
+     * table 12 for any script the tree does not carry, and inlines callees from
+     * it — so it is routed here rather than beside `unpack`.
+     */
+    if( strcmp(command, "cs2opt") == 0 )
+    {
+        const char* base = base_dir ? base_dir : cache_dir;
+        if( !base )
+        {
+            fprintf(stderr, "cachepack: cs2opt needs --base (or --cache)\n");
+            cp_names_free(&ctx.names);
+            return 1;
+        }
+        if( !tool_dat2_open(base, &ctx.profile, &ctx.cache) )
+        {
+            cp_names_free(&ctx.names);
+            return 1;
+        }
+        char directory[1400];
+        if( cs2_opt_dir )
+            snprintf(directory, sizeof(directory), "%s", cs2_opt_dir);
+        else if( out_dir )
+            snprintf(directory, sizeof(directory), "%s", out_dir);
+        else
+            snprintf(directory, sizeof(directory), "%s/scripts.opt", src_dir);
+        int ok = cp_cs2_optimize_tree(&ctx, cs2_opt_level, cs2_inline_max, directory);
+        cp_names_free(&ctx.names);
+        return ok ? 0 : 1;
     }
 
     int rc = 1;
@@ -470,6 +519,23 @@ main(int argc, char** argv)
             fprintf(stderr, "cachepack: --out is required for pack\n");
             cp_names_free(&ctx.names);
             return 1;
+        }
+        /*
+         * Armed before anything is written, so a stale optimizer tree stops the
+         * run rather than being discovered halfway through one.
+         */
+        if( want_cs2_opt )
+        {
+            char directory[1400];
+            if( cs2_opt_dir )
+                snprintf(directory, sizeof(directory), "%s", cs2_opt_dir);
+            else
+                snprintf(directory, sizeof(directory), "%s/scripts.opt", src_dir);
+            if( !cp_cs2_use_optimized(&ctx, directory) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
         }
         if( check_only )
         {

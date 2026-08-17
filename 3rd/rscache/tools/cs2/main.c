@@ -19,6 +19,9 @@
 
 #include "cs2/cs2_command.h"
 #include "cs2/cs2_interp.h"
+#include "cs2/cs2_dfa.h"
+#include "cs2/cs2_lower.h"
+#include "cs2/cs2_opt.h"
 #include "cs2/cs2_compile.h"
 #include "cs2/cs2_decompile.h"
 #include "datatypes/clientscript.h"
@@ -29,6 +32,7 @@
 #include "tool_posix_compat.h"
 #include "tool_profile.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -330,6 +334,10 @@ struct options
      * is a bytecode difference, and the only way to read one is to disassemble
      * both sides — which `--raw` mode already does, given the bytes. */
     const char* dump_directory;
+    /** `optimize --level N`; see RSCache_CS2_OptLevel. */
+    int opt_level;
+    /** `optimize --inline-max N`: largest callee inlined, in IR instructions. */
+    int inline_max;
     bool quiet;
     int* ids;
     int id_count;
@@ -344,6 +352,8 @@ usage(void)
         "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 compile   --src (DIR|FILE) [--raw DIR] [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [--dump DIR] [id ...]\n"
+        "  cs2 lower     (--cache DIR | --raw DIR) [--names DIR] [id ...]\n"
+        "  cs2 optimize  (--cache DIR | --raw DIR) [--names DIR] [--level N] [id ...]\n"
         "  cs2 codec     (--cache DIR | --raw DIR) [--dump DIR] [id ...]\n"
         "  cs2 disassemble (--cache DIR | --raw DIR) id ...\n"
         "  cs2 infer-arity (--cache DIR | --raw DIR) [--names DIR] [id ...]\n");
@@ -1390,6 +1400,429 @@ run_disassemble(struct options* options, struct script_store* store, int* ids, i
     return 0;
 }
 
+/*
+ * `lower` — the identity check on the IR.
+ *
+ * Interpret a script into IR, run the expression-rebuilding passes, lower it
+ * straight back to bytecode, and compare with what the cache held. Nothing is
+ * optimized; the whole point is that nothing should change.
+ *
+ * This is the gate the optimizer sits behind. A pass can only be trusted to
+ * preserve a program if the representation it works on preserves the program,
+ * and the only convincing evidence of that is the bytes coming back identical
+ * across a whole cache. Where they do not, the difference is categorised rather
+ * than counted — an unreachable `goto` that was dropped and a mis-emitted
+ * argument order are both "not exact" and only one of them is a bug.
+ */
+enum lower_verdict
+{
+    LOWER_EXACT = 0,
+    LOWER_DIFFERS,
+    LOWER_REFUSED,
+    LOWER_NOT_INTERPRETED,
+    LOWER_VERDICT_COUNT,
+};
+
+static int
+run_lower(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    struct RSCache_CS2_Names names;
+    RSCache_CS2_NamesInit(&names);
+    if( options->names_directory )
+        RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
+    if( store->have_cache )
+        load_param_types_from_cache(store, &names);
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
+
+    struct param_source param_source = { &names };
+    struct RSCache_CS2_DecompileOptions decompile_options;
+    memset(&decompile_options, 0, sizeof(decompile_options));
+    decompile_options.scripts.user = store;
+    decompile_options.scripts.load = store_load;
+    decompile_options.param_types.user = &param_source;
+    decompile_options.param_types.load = param_type_load;
+    decompile_options.db_columns.user = db_columns;
+    decompile_options.db_columns.load = tool_db_columns_lookup;
+    decompile_options.names = &names;
+
+    int counts[LOWER_VERDICT_COUNT];
+    memset(counts, 0, sizeof(counts));
+    int ops_in = 0;
+    int ops_out = 0;
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        const struct RSCache_CS2_Script* original = store_load(store, ids[i]);
+        if( !original )
+            continue;
+
+        char error[512] = { 0 };
+        struct RSCache_CS2_FunctionSet fs;
+        RSCache_CS2_FunctionSetInit(&fs);
+        struct RSCache_CS2_Function* function = NULL;
+        if( RSCache_CS2_Interpret(&fs, &ids[i], 1, &decompile_options, error, (int)sizeof(error)) &&
+            RSCache_CS2_TransformCore(&fs, error, (int)sizeof(error)) )
+            function = RSCache_CS2_FunctionSetGet(&fs, ids[i]);
+        if( !function )
+        {
+            counts[LOWER_NOT_INTERPRETED]++;
+            if( !options->quiet )
+                fprintf(stderr, "INTERP %d: %s\n", ids[i], error[0] ? error : "unknown");
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        struct RSCache_CS2_LowerOptions lower_options;
+        memset(&lower_options, 0, sizeof(lower_options));
+        lower_options.keep_dead_gotos = true;
+        lower_options.preserve_frame_counts = true;
+        lower_options.signature = original->signature;
+
+        struct RSCache_CS2_Script rebuilt;
+        if( !RSCache_CS2_Lower(&fs, function, &lower_options, &rebuilt, error,
+                               (int)sizeof(error)) )
+        {
+            counts[LOWER_REFUSED]++;
+            if( !options->quiet )
+                fprintf(stderr, "LOWER %d: %s\n", ids[i], error[0] ? error : "unknown");
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        ops_in += original->op_count;
+        ops_out += rebuilt.op_count;
+        if( RSCache_CS2_ScriptBytesEqual(original, &rebuilt) )
+        {
+            counts[LOWER_EXACT]++;
+        }
+        else
+        {
+            counts[LOWER_DIFFERS]++;
+            /* One script asked for: print both streams side by side. With a
+             * whole cache the histogram is what is wanted, but a single id is
+             * always someone looking at one divergence. */
+            if( id_count == 1 )
+            {
+                int rows = original->op_count > rebuilt.op_count ? original->op_count
+                                                                 : rebuilt.op_count;
+                for( int j = 0; j < rows; j++ )
+                {
+                    const char* a = j < original->op_count
+                                        ? RSCache_CS2_CommandName(original->opcodes[j])
+                                        : NULL;
+                    const char* b = j < rebuilt.op_count
+                                        ? RSCache_CS2_CommandName(rebuilt.opcodes[j])
+                                        : NULL;
+                    bool same = j < original->op_count && j < rebuilt.op_count &&
+                                original->opcodes[j] == rebuilt.opcodes[j] &&
+                                original->int_operands[j] == rebuilt.int_operands[j];
+                    printf("%c %4d  %-28s %-11d | %-28s %d\n", same ? ' ' : '!', j,
+                           a ? a : "-", j < original->op_count ? original->int_operands[j] : 0,
+                           b ? b : "-", j < rebuilt.op_count ? rebuilt.int_operands[j] : 0);
+                }
+            }
+            if( !options->quiet )
+            {
+                /* Name the first divergence rather than the fact of one: with
+                 * a whole cache differing, the useful output is a histogram of
+                 * causes, and the opcode pair at the split is the cause. */
+                int limit = original->op_count < rebuilt.op_count ? original->op_count
+                                                                  : rebuilt.op_count;
+                int at = -1;
+                for( int j = 0; j < limit; j++ )
+                {
+                    if( original->opcodes[j] != rebuilt.opcodes[j] ||
+                        (original->opcodes[j] != RSCACHE_CS2_OP_PUSH_CONSTANT_STRING &&
+                         original->int_operands[j] != rebuilt.int_operands[j]) )
+                    {
+                        at = j;
+                        break;
+                    }
+                }
+                if( at < 0 && original->op_count != rebuilt.op_count )
+                {
+                    const char* tail = RSCache_CS2_CommandName(
+                        original->op_count > rebuilt.op_count
+                            ? original->opcodes[limit]
+                            : rebuilt.opcodes[limit]);
+                    fprintf(stderr, "DIFFERS %d TAIL %s %+d ops\n", ids[i],
+                            tail ? tail : "?", rebuilt.op_count - original->op_count);
+                }
+                else if( at < 0 )
+                {
+                    fprintf(stderr, "DIFFERS %d TRAILER locals %di/%ds -> %di/%ds\n", ids[i],
+                            original->local_int_count, original->local_string_count,
+                            rebuilt.local_int_count, rebuilt.local_string_count);
+                }
+                else
+                {
+                    const char* was = RSCache_CS2_CommandName(original->opcodes[at]);
+                    const char* now = RSCache_CS2_CommandName(rebuilt.opcodes[at]);
+                    fprintf(stderr, "DIFFERS %d AT %d %s(%d) -> %s(%d) %+d ops\n", ids[i], at,
+                            was ? was : "?", original->int_operands[at],
+                            now ? now : "?", rebuilt.int_operands[at],
+                            rebuilt.op_count - original->op_count);
+                }
+            }
+        }
+        RSCache_CS2_ScriptFree(&rebuilt);
+        RSCache_CS2_FunctionSetFree(&fs);
+    }
+
+    int lowered = counts[LOWER_EXACT] + counts[LOWER_DIFFERS];
+    printf("lower: %d scripts, %d lowered, %d exact (%.2f%% of lowered), %d differ, "
+           "%d refused, %d not interpreted\n",
+           id_count, lowered, counts[LOWER_EXACT],
+           lowered ? 100.0 * counts[LOWER_EXACT] / lowered : 0.0, counts[LOWER_DIFFERS],
+           counts[LOWER_REFUSED], counts[LOWER_NOT_INTERPRETED]);
+    printf("lower: %d ops in, %d ops out\n", ops_in, ops_out);
+
+    tool_db_columns_free(db_columns);
+    RSCache_CS2_NamesFree(&names);
+    return counts[LOWER_DIFFERS] || counts[LOWER_REFUSED] ? 1 : 0;
+}
+
+
+/*
+ * Serve `store_load` the rebuilt script instead of the cache's, for one id.
+ *
+ * The verification step has to interpret the *optimized* bytes while every
+ * other script it reaches — the callees whose signatures it needs — still comes
+ * from the cache. Swapping the one entry is the whole mechanism; the store owns
+ * nothing about the substitute, so restoring is a pointer put back.
+ */
+struct store_override
+{
+    struct script_store* store;
+    struct script_entry* entry;
+    struct RSCache_ClientScript* saved;
+    bool saved_attempted;
+    struct RSCache_ClientScript substitute;
+};
+
+static void
+store_override_begin(
+    struct store_override* override,
+    struct script_store* store,
+    int script_id,
+    struct RSCache_CS2_Script* script)
+{
+    assert(override);
+    assert(store);
+    assert(script);
+    memset(override, 0, sizeof(*override));
+    override->store = store;
+    override->entry = store_find(store, script_id);
+    if( !override->entry )
+        return;
+    override->saved = override->entry->script;
+    override->saved_attempted = override->entry->attempted;
+    override->substitute.script = *script;
+    override->entry->script = &override->substitute;
+    override->entry->attempted = true;
+}
+
+static void
+store_override_end(struct store_override* override)
+{
+    assert(override);
+    if( !override->entry )
+        return;
+    override->entry->script = override->saved;
+    override->entry->attempted = override->saved_attempted;
+}
+
+/*
+ * `optimize` — run the passes and prove the result is still a program.
+ *
+ * Two numbers matter and they are different questions. How much smaller the
+ * bytecode got is the point of the exercise; whether every optimized script
+ * still *decodes* is whether the exercise is allowed to ship, and that is what
+ * the re-interpret below answers. A pass that pops one value too few does not
+ * fail in the lowerer — it produces a perfectly well-formed instruction stream
+ * whose operand stack is one deep at the end — and the interpreter is the thing
+ * that notices.
+ */
+static int
+run_optimize(struct options* options, struct script_store* store, int* ids, int id_count)
+{
+    struct RSCache_CS2_Names names;
+    RSCache_CS2_NamesInit(&names);
+    if( options->names_directory )
+        RSCache_CS2_NamesLoadDirectory(&names, options->names_directory);
+    if( store->have_cache )
+        load_param_types_from_cache(store, &names);
+    struct ToolDbColumns* db_columns = store->have_cache ? tool_db_columns_load(store->disk) : NULL;
+
+    struct param_source param_source = { &names };
+    struct RSCache_CS2_DecompileOptions decompile_options;
+    memset(&decompile_options, 0, sizeof(decompile_options));
+    decompile_options.scripts.user = store;
+    decompile_options.scripts.load = store_load;
+    decompile_options.param_types.user = &param_source;
+    decompile_options.param_types.load = param_type_load;
+    decompile_options.db_columns.user = db_columns;
+    decompile_options.db_columns.load = tool_db_columns_lookup;
+    decompile_options.names = &names;
+
+    struct RSCache_CS2_OptOptions opt_options;
+    RSCache_CS2_OptDefaults(&opt_options, options->opt_level);
+    if( options->inline_max > 0 )
+        opt_options.inline_max_callee_insns = options->inline_max;
+    opt_options.callees = decompile_options;
+
+    struct RSCache_CS2_OptStats totals;
+    memset(&totals, 0, sizeof(totals));
+    int optimized = 0;
+    int unchanged = 0;
+    int skipped = 0;
+    int rejected = 0;
+    int ops_in = 0;
+    int ops_out = 0;
+    int gosubs_in = 0;
+    int gosubs_out = 0;
+
+    for( int i = 0; i < id_count; i++ )
+    {
+        const struct RSCache_CS2_Script* original = store_load(store, ids[i]);
+        if( !original )
+            continue;
+
+        char error[512] = { 0 };
+        struct RSCache_CS2_FunctionSet fs;
+        RSCache_CS2_FunctionSetInit(&fs);
+        struct RSCache_CS2_Function* function = NULL;
+        if( RSCache_CS2_Interpret(&fs, &ids[i], 1, &decompile_options, error, (int)sizeof(error)) &&
+            RSCache_CS2_TransformCore(&fs, error, (int)sizeof(error)) )
+            function = RSCache_CS2_FunctionSetGet(&fs, ids[i]);
+        if( !function )
+        {
+            skipped++;
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        struct RSCache_CS2_OptStats stats;
+        if( !RSCache_CS2_Optimize(&fs, function, &opt_options, &stats, error,
+                                  (int)sizeof(error)) )
+        {
+            skipped++;
+            if( !options->quiet )
+                fprintf(stderr, "OPT %d: %s\n", ids[i], error[0] ? error : "unknown");
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        struct RSCache_CS2_LowerOptions lower_options;
+        memset(&lower_options, 0, sizeof(lower_options));
+        lower_options.preserve_frame_counts = true;
+        lower_options.signature = original->signature;
+
+        struct RSCache_CS2_Script rebuilt;
+        if( !RSCache_CS2_Lower(&fs, function, &lower_options, &rebuilt, error,
+                               (int)sizeof(error)) )
+        {
+            skipped++;
+            if( !options->quiet )
+                fprintf(stderr, "LOWER %d: %s\n", ids[i], error[0] ? error : "unknown");
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        /* The gate: the optimized bytecode has to decode as a program. */
+        struct RSCache_CS2_FunctionSet verify_fs;
+        RSCache_CS2_FunctionSetInit(&verify_fs);
+        struct store_override override;
+        store_override_begin(&override, store, ids[i], &rebuilt);
+        char verify_error[512] = { 0 };
+        bool verified = RSCache_CS2_Interpret(&verify_fs, &ids[i], 1, &decompile_options,
+                                              verify_error, (int)sizeof(verify_error));
+        store_override_end(&override);
+        RSCache_CS2_FunctionSetFree(&verify_fs);
+
+        if( !verified )
+        {
+            rejected++;
+            if( id_count == 1 )
+            {
+                for( int j = 0; j < rebuilt.op_count; j++ )
+                {
+                    const char* name = RSCache_CS2_CommandName(rebuilt.opcodes[j]);
+                    printf("%4d  %-28s %d%s%s\n", j, name ? name : "?",
+                           rebuilt.int_operands[j],
+                           rebuilt.string_operands && rebuilt.string_operands[j] ? "  " : "",
+                           rebuilt.string_operands && rebuilt.string_operands[j]
+                               ? rebuilt.string_operands[j]
+                               : "");
+                }
+            }
+            if( !options->quiet )
+                fprintf(stderr, "VERIFY %d: %s\n", ids[i],
+                        verify_error[0] ? verify_error : "unknown");
+            RSCache_CS2_ScriptFree(&rebuilt);
+            RSCache_CS2_FunctionSetFree(&fs);
+            continue;
+        }
+
+        /*
+         * `--dump DIR` writes DIR/opt/<id>: the optimized bytecode in the
+         * layout `--raw` reads, so it can be disassembled or run without going
+         * through a cache. That matters for anything the packer declines for
+         * unrelated reasons — 550 scripts of this tree have a param the
+         * cachepack side cannot type, and script 2621, the spellbook's sort, is
+         * one of them.
+         */
+        if( options->dump_directory )
+        {
+            struct RSCache_ClientScript dumped;
+            memset(&dumped, 0, sizeof(dumped));
+            dumped.script = rebuilt;
+            uint32_t bound = RSCache_ClientScriptEncodeBound(&dumped);
+            uint8_t* bytes = (uint8_t*)malloc(bound ? bound : 1);
+            assert(bytes);
+            uint32_t written = RSCache_ClientScriptEncodeFlags(
+                &dumped, store->trailer_flags, bytes, bound);
+            if( written )
+                dump_side(options->dump_directory, "opt", ids[i], bytes, (int)written);
+            free(bytes);
+        }
+
+        ops_in += original->op_count;
+        ops_out += rebuilt.op_count;
+        for( int j = 0; j < original->op_count; j++ )
+            gosubs_in += original->opcodes[j] == RSCACHE_CS2_OP_GOSUB_WITH_PARAMS;
+        for( int j = 0; j < rebuilt.op_count; j++ )
+            gosubs_out += rebuilt.opcodes[j] == RSCACHE_CS2_OP_GOSUB_WITH_PARAMS;
+        totals.constants_folded += stats.constants_folded;
+        totals.constants_propagated += stats.constants_propagated;
+        totals.branches_folded += stats.branches_folded;
+        totals.instructions_removed += stats.instructions_removed;
+        totals.calls_inlined += stats.calls_inlined;
+        totals.tail_calls_looped += stats.tail_calls_looped;
+        if( rebuilt.op_count != original->op_count )
+            optimized++;
+        else
+            unchanged++;
+
+        RSCache_CS2_ScriptFree(&rebuilt);
+        RSCache_CS2_FunctionSetFree(&fs);
+    }
+
+    printf("optimize (level %d): %d scripts, %d changed, %d unchanged, %d skipped, "
+           "%d rejected by verification\n",
+           options->opt_level, id_count, optimized, unchanged, skipped, rejected);
+    printf("optimize: ops %d -> %d (%+.2f%%), gosubs %d -> %d\n", ops_in, ops_out,
+           ops_in ? 100.0 * (ops_out - ops_in) / ops_in : 0.0, gosubs_in, gosubs_out);
+    printf("optimize: folded %d, propagated %d, branches %d, removed %d, inlined %d, "
+           "tail-looped %d\n",
+           totals.constants_folded, totals.constants_propagated, totals.branches_folded,
+           totals.instructions_removed, totals.calls_inlined, totals.tail_calls_looped);
+
+    tool_db_columns_free(db_columns);
+    RSCache_CS2_NamesFree(&names);
+    return rejected ? 1 : 0;
+}
+
 static int
 run_roundtrip(struct options* options, struct script_store* store, int* ids, int id_count)
 {
@@ -1520,6 +1953,7 @@ main(int argc, char** argv)
         return 2;
     }
     options.mode = argv[1];
+    options.opt_level = RSCACHE_CS2_OPT_FULL;
 
     int* explicit_ids = NULL;
     int explicit_count = 0;
@@ -1537,6 +1971,10 @@ main(int argc, char** argv)
             options.out_directory = argv[++i];
         else if( strcmp(argv[i], "--dump") == 0 && i + 1 < argc )
             options.dump_directory = argv[++i];
+        else if( strcmp(argv[i], "--level") == 0 && i + 1 < argc )
+            options.opt_level = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--inline-max") == 0 && i + 1 < argc )
+            options.inline_max = atoi(argv[++i]);
         else if( strcmp(argv[i], "--rev") == 0 && i + 1 < argc )
             options.revision_name = argv[++i];
         else if( strcmp(argv[i], "--override") == 0 && i + 1 < argc )
@@ -1690,6 +2128,10 @@ main(int argc, char** argv)
         status = run_infer(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "roundtrip") == 0 )
         status = run_roundtrip(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "lower") == 0 )
+        status = run_lower(&options, &store, ids, id_count);
+    else if( strcmp(options.mode, "optimize") == 0 )
+        status = run_optimize(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "codec") == 0 )
         status = run_codec(&options, &store, ids, id_count);
     else if( strcmp(options.mode, "disassemble") == 0 )

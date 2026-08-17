@@ -120,6 +120,17 @@ RSCache_CS2_EventPropertyOf(const struct RSCache_CS2_Value* value);
 const char*
 RSCache_CS2_EventPropertyLiteral(enum RSCache_CS2_EventProperty property);
 
+/**
+ * The constant a property is spelled as in the bytecode — the inverse of
+ * RSCache_CS2_EventPropertyOf. `event_opbase` is a magic *string* and the other
+ * nine are magic ints, which is why this answers with a Value rather than an
+ * int. False for a property outside the table.
+ */
+bool
+RSCache_CS2_EventPropertyMagic(
+    enum RSCache_CS2_EventProperty property,
+    struct RSCache_CS2_Value* out);
+
 enum RSCache_CS2_ProtoId
 RSCache_CS2_EventPropertyProto(enum RSCache_CS2_EventProperty property);
 
@@ -150,6 +161,17 @@ struct RSCache_CS2_Expr
 
     /* ACCESS, POINTER */
     struct RSCache_CS2_Variable* variable;
+    /**
+     * POINTER, array arguments only: the expression this pointer replaced.
+     *
+     * `cs2_find_array_args_calls` rewrites a proc call's first argument into a
+     * pointer at array 0 so the source reads `~sort($intarray0, ...)`. What the
+     * bytecode actually pushed was the *caller's* handle — an ordinary
+     * `push_string_local` of whichever slot the caller defined its array in,
+     * which is not usually 0. Keeping it means a lowered call still passes the
+     * caller's array rather than confidently passing the wrong one.
+     */
+    struct RSCache_CS2_Expr* pointer_source;
     /** ACCESS only: whether the slot's value was known when it was pushed. */
     bool has_value;
 
@@ -169,10 +191,35 @@ struct RSCache_CS2_Expr
     /** CLIENTSCRIPT: target component, NULL for the cc_* (active) forms. */
     struct RSCache_CS2_Expr* component;
     bool dot;
+    /**
+     * CLIENTSCRIPT: the argument descriptor exactly as the bytecode spelled it.
+     *
+     * Kept because it cannot be rebuilt. The descriptor names each argument's
+     * *type* — `I` for a component, `i` for a plain int — and both live on the
+     * int stack, so regenerating it from the arguments' stack types produces a
+     * different string and therefore different bytes. Arena-owned; NULL on a
+     * node the interpreter did not build.
+     */
+    const char* hook_descriptor;
 
     /* OPERATION, PROC: what the command leaves on the stack. */
     enum RSCache_CS2_StackType* stack_types;
     int stack_type_count;
+
+    /**
+     * OPERATION: the instruction's int operand, exactly as decoded.
+     *
+     * For most commands this is the active-form flag `dot` already records, and
+     * for the rest it is zero — but not for all of them. Opcodes 4123 and 4124
+     * take no arguments and carry a *selector* in the operand, and the decoder
+     * reads neither into the IR, so a lowering that assumed "operand is the dot
+     * flag" rebuilt 22 scripts of cache.osrs239 as a different program.
+     *
+     * `has_raw_operand` distinguishes "decoded, and it was zero" from "this node
+     * was built by a pass and has no instruction behind it".
+     */
+    int raw_operand;
+    bool has_raw_operand;
 };
 
 bool
@@ -250,6 +297,30 @@ struct RSCache_CS2_Insn
      * cache holds one of them.
      */
     bool dead_goto_follows;
+    /**
+     * RETURN: where that deleted `goto` pointed.
+     *
+     * `dead_goto_follows` is enough to reconstruct the *source*, which is all
+     * the decompiler needed. Re-emitting the instruction needs its target too,
+     * so `cs2_remove_dead_code` records it on the way past. Unreachable either
+     * way — this exists so a lowered script can be compared byte for byte with
+     * the one it came from.
+     */
+    struct RSCache_CS2_Insn* dead_goto_target;
+
+    /**
+     * RETURN: this is the script's closing return — the last instruction the
+     * bytecode held.
+     *
+     * Marked at decode because after the fact it is not recognisable. A script
+     * whose source ends in an explicit `return(0)` compiles two identical
+     * `push 0; return` pairs, and if the second is unreachable the dead-code
+     * pass deletes it and leaves a chain that *ends* in something that looks
+     * exactly like an epilogue but is not the one. Comparing the tail said the
+     * epilogue was still there for 196 scripts of cache.osrs239 that had lost
+     * it, so the flag replaces the comparison.
+     */
+    bool is_epilogue_return;
 
     /* Set while decoding, before labels exist; resolved to pointers by
      * cs2_interp's label pass and meaningless afterwards. */
@@ -491,6 +562,28 @@ RSCache_CS2_TypingsForgetVariable(
  * Functions
  * ---------------------------------------------------------------------- */
 
+/**
+ * One instruction of a script's value-producing epilogue.
+ *
+ * The epilogue is the run of pushes immediately before a script's closing
+ * `return`, and it is not decoration: `RSCache_CS2_ScriptReturnTypes` reads it
+ * to learn what the script leaves on the stack, which is how every *caller*
+ * gets typed. It is also almost always unreachable, so the dead-code pass
+ * deletes it — and a script lowered without it declares no return values and
+ * silently mistypes everything that calls it.
+ *
+ * Kept verbatim rather than as types plus defaults, because a slot may be
+ * produced by a zero-argument command (rev 239's opcode 63 is the empty-string
+ * one) and not by a literal at all.
+ */
+struct RSCache_CS2_EpilogueOp
+{
+    int opcode;
+    int operand;
+    /** PUSH_CONSTANT_STRING only; arena-owned windows-1252 bytes. */
+    const char* text;
+};
+
 struct RSCache_CS2_Function
 {
     int id;
@@ -509,6 +602,9 @@ struct RSCache_CS2_Function
     bool preserve_frame_counts;
     int* return_default_values;
     bool* return_default_is_int_constant;
+    /** The closing epilogue, verbatim; see RSCache_CS2_EpilogueOp. */
+    struct RSCache_CS2_EpilogueOp* epilogue;
+    int epilogue_count;
 };
 
 struct RSCache_CS2_FunctionSet
@@ -610,7 +706,8 @@ RSCache_CS2_ExprClientScript(
     struct RSCache_CS2_Expr* arguments,
     struct RSCache_CS2_Expr* triggers,
     bool dot,
-    struct RSCache_CS2_Expr* component);
+    struct RSCache_CS2_Expr* component,
+    const char* hook_descriptor);
 
 /* -------------------------------------------------------------------------
  * Instruction constructors

@@ -10,6 +10,11 @@
 #include "datatypes/dat2_worldmap.h"
 #include "datatypes/maps.h"
 #include "cs2/cs2_compile.h"
+#include "cs2/cs2_dfa.h"
+#include "cs2/cs2_effects.h"
+#include "cs2/cs2_interp.h"
+#include "cs2/cs2_lower.h"
+#include "cs2/cs2_opt.h"
 #include "cs2/cs2_decompile.h"
 #include "cs2/cs2_names.h"
 #include "cs2_db_columns.h"
@@ -2412,6 +2417,56 @@ script_write(
     return 1;
 }
 
+/*
+ * The CS2 optimizer, driven over a whole content tree.
+ *
+ * Lives here rather than in a module of its own because everything it needs is
+ * already here and already agrees with the packer: the same lazy table-12
+ * loader, the same name tables, the same param and dbtable side information.
+ * A driver that resolved scripts its own way could optimize a program the pack
+ * does not ship.
+ */
+struct cp_cs2_opt
+{
+    /** Directory the optimized artifacts live in; NULL disables the read path. */
+    char directory[1200];
+    int level;
+    int inline_max;
+    /** Loaded manifest: per script id, the input fingerprint it was built from. */
+    uint64_t* fingerprint;
+    int fingerprint_count;
+    int loaded;
+};
+
+static struct cp_cs2_opt g_cs2_opt;
+
+/** FNV-1a, the same shape the lossless snapshot's hash uses. */
+static uint64_t
+cp_cs2_hash(uint64_t seed, const void* data, size_t size)
+{
+    const uint8_t* bytes = (const uint8_t*)data;
+    uint64_t hash = seed ? seed : 1469598103934665603ull;
+    for( size_t i = 0; i < size; i++ )
+    {
+        hash ^= bytes[i];
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+/**
+ * The bytes the pack would ship for one script if the optimizer did not exist.
+ *
+ * This is the optimizer's input *and* the thing its freshness is measured
+ * against, so it has to be exactly the packer's own resolution order: the
+ * tree's source where it compiles, the tree's raw bytecode where it does not,
+ * and the base cache where the tree has neither.
+ */
+static struct RSCache_ClientScript*
+cp_cs2_resolve(struct CP_Ctx* ctx, int record_id, const char* path_stem, bool* out_borrowed);
+static void
+cp_cs2_release(struct RSCache_ClientScript* script, bool borrowed);
+
 static uint8_t*
 script_read(
     struct CP_Ctx* ctx,
@@ -2421,6 +2476,56 @@ script_read(
     int* out_file_count,
     int* out_size)
 {
+    /*
+     * An optimized build takes precedence, and only when it is provably fresh.
+     *
+     * Stale here is the worst kind of silent: the bytes load, the client runs
+     * them, and they are a program someone edited away. So a mismatch refuses
+     * rather than falling back — `cachepack pack` turns that into an error
+     * naming `make cs2-opt`, which is a build step someone forgot rather than a
+     * defect they have to find.
+     */
+    if( g_cs2_opt.directory[0] )
+    {
+        char optimized[1700];
+        const char* leaf = strrchr(path_stem, '/');
+        snprintf(optimized, sizeof(optimized), "%s/%s.cs2b", g_cs2_opt.directory,
+                 leaf ? leaf + 1 : path_stem);
+        int optimized_size = 0;
+        uint8_t* bytes = slurp(optimized, &optimized_size);
+        if( bytes )
+        {
+            uint64_t want = record_id < g_cs2_opt.fingerprint_count
+                                ? g_cs2_opt.fingerprint[record_id]
+                                : 0;
+            bool borrowed = false;
+            struct RSCache_ClientScript* input =
+                cp_cs2_resolve(ctx, record_id, path_stem, &borrowed);
+            uint64_t have = 0;
+            if( input )
+            {
+                uint32_t bound = RSCache_ClientScriptEncodeBound(input);
+                uint8_t* encoded = (uint8_t*)malloc(bound ? bound : 1);
+                assert(encoded);
+                uint32_t written =
+                    RSCache_ClientScriptEncode(&ctx->profile, input, encoded, bound);
+                have = cp_cs2_hash(0, encoded, written);
+                free(encoded);
+                cp_cs2_release(input, borrowed);
+            }
+            if( want && want == have )
+            {
+                *out_size = optimized_size;
+                return bytes;
+            }
+            free(bytes);
+            fprintf(stderr,
+                    "cachepack: scripts.opt is stale for script %d; run `make cs2-opt`\n",
+                    record_id);
+            return NULL;
+        }
+    }
+
     char path[1700];
     snprintf(path, sizeof(path), "%s.cs2", path_stem);
     int source_size = 0;
@@ -2466,6 +2571,416 @@ script_read(
     }
     *out_size = (int)written;
     return payload;
+}
+
+
+/* ---- the optimizer driver ------------------------------------------------ */
+
+/*
+ * The CS2 optimizer, driven over a whole content tree.
+ *
+ * Lives here rather than in a module of its own because everything it needs is
+ * already here and already agrees with the packer: the same lazy table-12
+ * loader, the same name tables, the same param and dbtable side information. A
+ * driver that resolved scripts its own way could optimize a program the pack
+ * does not ship.
+ */
+
+static struct RSCache_ClientScript*
+cp_cs2_resolve(struct CP_Ctx* ctx, int record_id, const char* path_stem, bool* out_borrowed)
+{
+    assert(ctx);
+    assert(path_stem);
+    assert(out_borrowed);
+    *out_borrowed = false;
+    if( !cs2_state_ready(ctx) )
+        return NULL;
+
+    char path[1700];
+    snprintf(path, sizeof(path), "%s.cs2", path_stem);
+    int source_size = 0;
+    char* source = (char*)slurp(path, &source_size);
+    if( source )
+    {
+        struct RSCache_CS2_CompileOptions options;
+        memset(&options, 0, sizeof(options));
+        options.scripts.user = &g_cs2;
+        options.scripts.load = cs2_load_script;
+        options.param_types.user = &g_cs2;
+        options.param_types.load = cs2_load_param_type;
+        options.db_columns.user = g_cs2.db_columns;
+        options.db_columns.load = tool_db_columns_lookup;
+        options.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
+
+        struct RSCache_ClientScript* compiled =
+            (struct RSCache_ClientScript*)calloc(1, sizeof(*compiled));
+        assert(compiled);
+        char error[512] = "";
+        bool ok = RSCache_CS2_Compile(source, &options, compiled, error, sizeof(error));
+        free(source);
+        if( ok )
+            return compiled;
+        free(compiled);
+        /* Falls through to the raw form, exactly as the packer does. */
+    }
+
+    snprintf(path, sizeof(path), "%s.cs2b", path_stem);
+    int raw_size = 0;
+    uint8_t* raw = slurp(path, &raw_size);
+    if( raw )
+    {
+        struct RSCache_ClientScript* decoded = RSCache_ClientScriptNewFromDecodeFlags(
+            record_id, raw, raw_size, RSCache_ClientScriptFlags(&ctx->profile));
+        free(raw);
+        if( decoded )
+            return decoded;
+    }
+
+    /* Nothing in the tree: the base cache's own copy is what would ship. It is
+     * owned by the state cache, so the wrapper below is a borrow. */
+    const struct RSCache_CS2_Script* base = cs2_load_script(&g_cs2, record_id);
+    if( !base )
+        return NULL;
+    struct RSCache_ClientScript* copy = (struct RSCache_ClientScript*)calloc(1, sizeof(*copy));
+    assert(copy);
+    copy->script = *base;
+    *out_borrowed = true;
+    return copy;
+}
+
+static void
+cp_cs2_release(struct RSCache_ClientScript* script, bool borrowed)
+{
+    if( !script )
+        return;
+    if( !borrowed )
+        RSCache_ClientScriptFreeInplace(script);
+    free(script);
+}
+
+static uint32_t
+cp_cs2_encoded_size(struct CP_Ctx* ctx, const struct RSCache_ClientScript* script)
+{
+    assert(ctx);
+    assert(script);
+    uint32_t bound = RSCache_ClientScriptEncodeBound(script);
+    uint8_t* encoded = (uint8_t*)malloc(bound ? bound : 1);
+    assert(encoded);
+    uint32_t written = RSCache_ClientScriptEncode(&ctx->profile, script, encoded, bound);
+    free(encoded);
+    return written;
+}
+
+static uint64_t
+cp_cs2_fingerprint(struct CP_Ctx* ctx, const struct RSCache_ClientScript* script)
+{
+    assert(ctx);
+    assert(script);
+    uint32_t bound = RSCache_ClientScriptEncodeBound(script);
+    uint8_t* encoded = (uint8_t*)malloc(bound ? bound : 1);
+    assert(encoded);
+    uint32_t written = RSCache_ClientScriptEncode(&ctx->profile, script, encoded, bound);
+    uint64_t hash = cp_cs2_hash(0, encoded, written);
+    free(encoded);
+    return hash;
+}
+
+int
+cp_cs2_optimize_tree(struct CP_Ctx* ctx, int level, int inline_max, const char* out_directory)
+{
+    assert(ctx);
+    assert(out_directory);
+    if( !cs2_state_ready(ctx) )
+    {
+        fprintf(stderr, "cachepack: no clientscript table to optimize\n");
+        return 0;
+    }
+
+    struct LC_Pack pack;
+    char pack_path[1400];
+    snprintf(pack_path, sizeof(pack_path), "%s/pack/12_clientscripts.pack", ctx->srcdir);
+    if( !lc_pack_load(&pack, pack_path, "12_clientscripts", 1) )
+    {
+        fprintf(stderr, "cachepack: %s is missing\n", pack_path);
+        return 0;
+    }
+    if( ensure_dir_path(out_directory) != 0 )
+    {
+        lc_pack_free(&pack);
+        fprintf(stderr, "cachepack: cannot create %s\n", out_directory);
+        return 0;
+    }
+
+    char manifest_path[1400];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.ini", out_directory);
+    FILE* manifest = fopen(manifest_path, "wb");
+    if( !manifest )
+    {
+        lc_pack_free(&pack);
+        fprintf(stderr, "cachepack: cannot write %s\n", manifest_path);
+        return 0;
+    }
+    fprintf(manifest,
+            "; Generated by `cachepack cs2opt` -- do not edit.\n"
+            ";\n"
+            "; One line per script: <id> = <fingerprint>,<ops before>,<ops after>. The\n"
+            "; fingerprint is of the *input* bytecode, so `cachepack pack --cs2-opt` can\n"
+            "; tell an optimized script that is still current from one whose source has\n"
+            "; moved on. A mismatch fails the pack rather than falling back, because\n"
+            "; shipping a stale script is indistinguishable from shipping a correct one\n"
+            "; until someone notices the bug.\n"
+            "[cs2opt]\n"
+            "version = 1\n"
+            "level = %d\n"
+            "inline_max = %d\n"
+            "effects = %d\n"
+            "\n"
+            "[scripts]\n",
+            level, inline_max, RSCACHE_CS2_EFFECTS_VERSION);
+
+    struct RSCache_CS2_DecompileOptions decompile;
+    memset(&decompile, 0, sizeof(decompile));
+    decompile.scripts.user = &g_cs2;
+    decompile.scripts.load = cs2_load_script;
+    decompile.param_types.user = &g_cs2;
+    decompile.param_types.load = cs2_load_param_type;
+    decompile.db_columns.user = g_cs2.db_columns;
+    decompile.db_columns.load = tool_db_columns_lookup;
+    decompile.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
+
+    struct RSCache_CS2_OptOptions options;
+    RSCache_CS2_OptDefaults(&options, level);
+    if( inline_max > 0 )
+        options.inline_max_callee_insns = inline_max;
+    options.callees = decompile;
+
+    int written = 0;
+    int unchanged = 0;
+    int skipped = 0;
+    int rejected = 0;
+    long long ops_in = 0;
+    long long ops_out = 0;
+    /* Encoded size is the cost side of the trade and the one a web client pays
+     * per boot, so it is reported next to the instruction counts rather than
+     * inferred from them. */
+    long long bytes_in = 0;
+    long long bytes_out = 0;
+    struct RSCache_CS2_OptStats totals;
+    memset(&totals, 0, sizeof(totals));
+
+    for( int id = 0; id < pack.max; id++ )
+    {
+        const char* name = pack.names ? pack.names[id] : NULL;
+        if( !name )
+            continue;
+        char stem[1500];
+        snprintf(stem, sizeof(stem), "%s/scripts/%s", ctx->srcdir, name);
+
+        bool borrowed = false;
+        struct RSCache_ClientScript* input = cp_cs2_resolve(ctx, id, stem, &borrowed);
+        if( !input )
+        {
+            skipped++;
+            if( getenv("CACHEPACK_CS2OPT_VERBOSE") )
+                fprintf(stderr, "cs2opt: script %d: nothing to resolve\n", id);
+            continue;
+        }
+        uint64_t fingerprint = cp_cs2_fingerprint(ctx, input);
+
+        /*
+         * The optimizer reads its input through the same loader its passes use
+         * for callees, so the script being optimized has to *be* the tree's
+         * version for the duration — otherwise a caller would inline the
+         * cache's copy of a proc the tree has since edited.
+         */
+        struct RSCache_ClientScript* saved = g_cs2.scripts[id];
+        uint8_t saved_attempted = g_cs2.attempted[id];
+        g_cs2.scripts[id] = input;
+        g_cs2.attempted[id] = 1;
+
+        char error[512] = "";
+        struct RSCache_CS2_FunctionSet fs;
+        RSCache_CS2_FunctionSetInit(&fs);
+        struct RSCache_CS2_Function* function = NULL;
+        if( RSCache_CS2_Interpret(&fs, &id, 1, &decompile, error, (int)sizeof(error)) &&
+            RSCache_CS2_TransformCore(&fs, error, (int)sizeof(error)) )
+            function = RSCache_CS2_FunctionSetGet(&fs, id);
+
+        struct RSCache_CS2_OptStats stats;
+        memset(&stats, 0, sizeof(stats));
+        struct RSCache_CS2_Script rebuilt;
+        memset(&rebuilt, 0, sizeof(rebuilt));
+        bool have_rebuilt = false;
+        if( function &&
+            RSCache_CS2_Optimize(&fs, function, &options, &stats, error, (int)sizeof(error)) )
+        {
+            struct RSCache_CS2_LowerOptions lower;
+            memset(&lower, 0, sizeof(lower));
+            lower.preserve_frame_counts = true;
+            lower.signature = input->script.signature;
+            have_rebuilt =
+                RSCache_CS2_Lower(&fs, function, &lower, &rebuilt, error, (int)sizeof(error));
+        }
+
+        bool verified = false;
+        if( have_rebuilt )
+        {
+            /* The gate. An optimized script that no longer decodes is a bug in
+             * a pass, and the only honest response is to ship the original. */
+            struct RSCache_ClientScript wrapper;
+            memset(&wrapper, 0, sizeof(wrapper));
+            wrapper.script = rebuilt;
+            g_cs2.scripts[id] = &wrapper;
+            struct RSCache_CS2_FunctionSet verify;
+            RSCache_CS2_FunctionSetInit(&verify);
+            char verify_error[512] = "";
+            verified = RSCache_CS2_Interpret(&verify, &id, 1, &decompile, verify_error,
+                                             (int)sizeof(verify_error));
+            RSCache_CS2_FunctionSetFree(&verify);
+            if( !verified )
+                fprintf(stderr, "cachepack: script %d rejected by verification: %s\n", id,
+                        verify_error[0] ? verify_error : "unknown");
+        }
+        g_cs2.scripts[id] = saved;
+        g_cs2.attempted[id] = saved_attempted;
+
+        if( !function || !have_rebuilt || !verified )
+        {
+            if( have_rebuilt )
+            {
+                rejected++;
+                RSCache_CS2_ScriptFree(&rebuilt);
+            }
+            else
+            {
+                skipped++;
+                if( getenv("CACHEPACK_CS2OPT_VERBOSE") )
+                    fprintf(stderr, "cs2opt: script %d skipped: %s\n", id,
+                            error[0] ? error : "unknown");
+            }
+            RSCache_CS2_FunctionSetFree(&fs);
+            cp_cs2_release(input, borrowed);
+            continue;
+        }
+
+        ops_in += input->script.op_count;
+        ops_out += rebuilt.op_count;
+        {
+            struct RSCache_ClientScript measured;
+            memset(&measured, 0, sizeof(measured));
+            measured.script = rebuilt;
+            bytes_in += cp_cs2_encoded_size(ctx, input);
+            bytes_out += cp_cs2_encoded_size(ctx, &measured);
+        }
+        totals.constants_folded += stats.constants_folded;
+        totals.constants_propagated += stats.constants_propagated;
+        totals.branches_folded += stats.branches_folded;
+        totals.instructions_removed += stats.instructions_removed;
+        totals.calls_inlined += stats.calls_inlined;
+        totals.tail_calls_looped += stats.tail_calls_looped;
+
+        if( RSCache_CS2_ScriptBytesEqual(&input->script, &rebuilt) )
+        {
+            /* Nothing changed: no artifact, and the packer keeps doing for this
+             * script exactly what it already did. */
+            unchanged++;
+            fprintf(manifest, "%d = %016llx,%d,%d\n", id, (unsigned long long)fingerprint,
+                    input->script.op_count, rebuilt.op_count);
+            RSCache_CS2_ScriptFree(&rebuilt);
+            RSCache_CS2_FunctionSetFree(&fs);
+            cp_cs2_release(input, borrowed);
+            continue;
+        }
+
+        struct RSCache_ClientScript out;
+        memset(&out, 0, sizeof(out));
+        out.script = rebuilt;
+        uint32_t bound = RSCache_ClientScriptEncodeBound(&out);
+        uint8_t* encoded = (uint8_t*)malloc(bound ? bound : 1);
+        assert(encoded);
+        uint32_t bytes = RSCache_ClientScriptEncode(&ctx->profile, &out, encoded, bound);
+        if( bytes > 0 )
+        {
+            char path[1700];
+            snprintf(path, sizeof(path), "%s/%s.cs2b", out_directory, name);
+            FILE* file = fopen(path, "wb");
+            if( file )
+            {
+                fwrite(encoded, 1, bytes, file);
+                fclose(file);
+                written++;
+                fprintf(manifest, "%d = %016llx,%d,%d\n", id, (unsigned long long)fingerprint,
+                        input->script.op_count, rebuilt.op_count);
+            }
+            else
+            {
+                fprintf(stderr, "cachepack: cannot write %s\n", path);
+                skipped++;
+            }
+        }
+        free(encoded);
+        RSCache_CS2_ScriptFree(&rebuilt);
+        RSCache_CS2_FunctionSetFree(&fs);
+        cp_cs2_release(input, borrowed);
+    }
+
+    fclose(manifest);
+    lc_pack_free(&pack);
+    printf("cs2opt (level %d, inline<=%d): %d optimized, %d unchanged, %d skipped, %d rejected\n",
+           level, options.inline_max_callee_insns, written, unchanged, skipped, rejected);
+    printf("cs2opt: ops %lld -> %lld (%+.2f%%), bytes %lld -> %lld (%+.2f%%)\n", ops_in,
+           ops_out, ops_in ? 100.0 * (double)(ops_out - ops_in) / (double)ops_in : 0.0,
+           bytes_in, bytes_out,
+           bytes_in ? 100.0 * (double)(bytes_out - bytes_in) / (double)bytes_in : 0.0);
+    printf("cs2opt: folded %d, propagated %d, branches %d, removed %d, inlined %d, "
+           "tail-looped %d\n",
+           totals.constants_folded, totals.constants_propagated, totals.branches_folded,
+           totals.instructions_removed, totals.calls_inlined, totals.tail_calls_looped);
+    return rejected == 0;
+}
+
+/**
+ * Point the script codec at an optimized tree for the rest of this run.
+ *
+ * The manifest is read once here so the per-script check in `script_read` is a
+ * comparison rather than a file parse.
+ */
+int
+cp_cs2_use_optimized(struct CP_Ctx* ctx, const char* directory)
+{
+    assert(ctx);
+    assert(directory);
+    memset(&g_cs2_opt, 0, sizeof(g_cs2_opt));
+    snprintf(g_cs2_opt.directory, sizeof(g_cs2_opt.directory), "%s", directory);
+
+    char manifest_path[1400];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.ini", directory);
+    FILE* file = fopen(manifest_path, "rb");
+    if( !file )
+    {
+        fprintf(stderr, "cachepack: %s is missing; run `make cs2-opt`\n", manifest_path);
+        g_cs2_opt.directory[0] = '\0';
+        return 0;
+    }
+    g_cs2_opt.fingerprint_count = 65536;
+    g_cs2_opt.fingerprint =
+        (uint64_t*)calloc((size_t)g_cs2_opt.fingerprint_count, sizeof(uint64_t));
+    assert(g_cs2_opt.fingerprint);
+    char line[256];
+    while( fgets(line, sizeof(line), file) )
+    {
+        if( line[0] == ';' || line[0] == '[' || line[0] == '\n' )
+            continue;
+        int id = 0;
+        unsigned long long hash = 0;
+        if( sscanf(line, "%d = %llx", &id, &hash) != 2 )
+            continue;
+        if( id >= 0 && id < g_cs2_opt.fingerprint_count )
+            g_cs2_opt.fingerprint[id] = (uint64_t)hash;
+    }
+    fclose(file);
+    g_cs2_opt.loaded = 1;
+    return 1;
 }
 
 /* Trailing 1 is `semantic_only`: the friendly form is source, and compiling source

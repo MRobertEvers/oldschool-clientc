@@ -78,6 +78,27 @@ static const struct cs2_event_info cs2_events[RSCACHE_CS2_EVENT_COUNT] = {
     [RSCACHE_CS2_EVENT_KEYCHAR] = { "event_keychar", RSCACHE_CS2_PROTO_KEYCHAR, NULL, INT_MIN + 9 },
 };
 
+bool
+RSCache_CS2_EventPropertyMagic(
+    enum RSCache_CS2_EventProperty property,
+    struct RSCache_CS2_Value* out)
+{
+    assert(out);
+    if( property < 0 || property >= RSCACHE_CS2_EVENT_COUNT )
+        return false;
+    const struct cs2_event_info* info = &cs2_events[property];
+    memset(out, 0, sizeof(*out));
+    if( info->magic_string )
+    {
+        out->stack_type = RSCACHE_CS2_STACK_STRING;
+        out->string_value = info->magic_string;
+        return true;
+    }
+    out->stack_type = RSCACHE_CS2_STACK_INT;
+    out->int_value = info->magic_int;
+    return true;
+}
+
 enum RSCache_CS2_EventProperty
 RSCache_CS2_EventPropertyOf(const struct RSCache_CS2_Value* value)
 {
@@ -384,7 +405,8 @@ RSCache_CS2_ExprClientScript(
     struct RSCache_CS2_Expr* arguments,
     struct RSCache_CS2_Expr* triggers,
     bool dot,
-    struct RSCache_CS2_Expr* component)
+    struct RSCache_CS2_Expr* component,
+    const char* hook_descriptor)
 {
     struct RSCache_CS2_Expr* expr = cs2_expr_new(arena, RSCACHE_CS2_EXPR_CLIENTSCRIPT);
     expr->opcode = opcode;
@@ -393,6 +415,7 @@ RSCache_CS2_ExprClientScript(
     expr->triggers = triggers;
     expr->dot = dot;
     expr->component = component;
+    expr->hook_descriptor = hook_descriptor;
     return expr;
 }
 

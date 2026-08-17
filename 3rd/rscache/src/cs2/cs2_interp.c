@@ -548,6 +548,9 @@ cs2_translate_basic(
 
     struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
         arena, def_stack_types, info->def_count, opcode, arguments, dot);
+    /* The operand is not always the active-form flag; see Expr::raw_operand. */
+    operation->raw_operand = cs2_operand_int(interp);
+    operation->has_raw_operand = true;
 
     struct RSCache_CS2_TypingList* operation_typing =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation);
@@ -717,6 +720,9 @@ cs2_translate_typed_pop(
 
     struct RSCache_CS2_Expr* operation = RSCache_CS2_ExprOperation(
         arena, def_stack_types, info->def_count, opcode, arguments, dot);
+    /* The operand is not always the active-form flag; see Expr::raw_operand. */
+    operation->raw_operand = cs2_operand_int(interp);
+    operation->has_raw_operand = true;
     struct RSCache_CS2_TypingList* operation_typing =
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation);
     for( int i = 0; i < info->def_count; i++ )
@@ -832,7 +838,10 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
         return NULL;
     }
     struct cs2_hook_desc desc;
-    if( !cs2_parse_hook_desc(desc_value->string_value, &desc) )
+    /* Copied before the pop: the value belongs to the stack slot, which the pop
+     * below releases, and the descriptor has to outlive it (cs2_ir.h). */
+    const char* descriptor_text = desc_value->string_value;
+    if( !cs2_parse_hook_desc(descriptor_text, &desc) )
     {
         {
             /* Name the byte, not the rendering of it: the descriptors are
@@ -1043,7 +1052,8 @@ cs2_translate_clientscript(struct cs2_interp* interp, int opcode)
     struct RSCache_CS2_Expr* triggers_expr =
         RSCache_CS2_ExprFromList(arena, triggers, trigger_count);
     struct RSCache_CS2_Expr* clientscript = RSCache_CS2_ExprClientScript(
-        arena, opcode, hook_script_id, args_expr, triggers_expr, dot, component);
+        arena, opcode, hook_script_id, args_expr, triggers_expr, dot, component,
+        RSCache_CS2_ArenaStrDup(arena, descriptor_text));
     return RSCache_CS2_InsnAssignment(arena, RSCache_CS2_ExprEmpty(arena), clientscript);
 }
 
@@ -1150,6 +1160,9 @@ cs2_translate_variadic_int_result(
         opcode,
         RSCache_CS2_ExprFromList(arena, args, count),
         dot);
+    /* The operand is not always the active-form flag; see Expr::raw_operand. */
+    operation->raw_operand = cs2_operand_int(interp);
+    operation->has_raw_operand = true;
     struct RSCache_CS2_Expr* definition = cs2_push(interp, result_stack, NULL);
     RSCache_CS2_TypingAssign(
         RSCache_CS2_TypingsOfExpr(cs2_typings(interp), operation)->items[0],
@@ -1636,6 +1649,69 @@ cs2_translate_proc(struct cs2_interp* interp)
     return RSCache_CS2_InsnAssignment(arena, definitions, proc);
 }
 
+
+
+/**
+ * The first instruction of the script's unreachable tail, or -1.
+ *
+ * Mirrors what `cs2_remove_dead_code` deletes, computed on the bytecode rather
+ * than the chain: after a `return`, everything up to the next jump target is
+ * unreachable, and when that run has no jump target in it at all it runs to the
+ * end of the script. That last run is the one the lowerer has to put back,
+ * because it holds the epilogue every caller's typing is read from.
+ */
+static int
+cs2_dead_tail_first(const struct RSCache_CS2_Script* script)
+{
+    assert(script);
+    bool* is_target = (bool*)calloc((size_t)script->op_count + 1, sizeof(bool));
+    assert(is_target);
+    for( int pc = 0; pc < script->op_count; pc++ )
+    {
+        int opcode = script->opcodes[pc];
+        const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(opcode);
+        if( info && (info->kind == RSCACHE_CS2_CMD_BRANCH ||
+                     info->kind == RSCACHE_CS2_CMD_BRANCH_COMPARE) )
+        {
+            int target = pc + script->int_operands[pc] + 1;
+            if( target >= 0 && target <= script->op_count )
+                is_target[target] = true;
+            continue;
+        }
+        if( !info || info->kind != RSCACHE_CS2_CMD_SWITCH )
+            continue;
+        int table = script->int_operands[pc];
+        if( table < 0 || table >= script->switch_table_count )
+            continue;
+        for( int i = 0; i < script->switch_tables[table].case_count; i++ )
+        {
+            int target = pc + script->switch_tables[table].cases[i].target_pc + 1;
+            if( target >= 0 && target <= script->op_count )
+                is_target[target] = true;
+        }
+    }
+
+    int first = -1;
+    for( int pc = 0; pc + 1 < script->op_count; pc++ )
+    {
+        if( script->opcodes[pc] != RSCACHE_CS2_OP_RETURN )
+            continue;
+        bool reachable_again = false;
+        for( int q = pc + 1; q < script->op_count; q++ )
+        {
+            if( !is_target[q] )
+                continue;
+            reachable_again = true;
+            break;
+        }
+        if( reachable_again )
+            continue;
+        first = pc + 1;
+        break;
+    }
+    free(is_target);
+    return first;
+}
 
 static struct RSCache_CS2_Insn*
 cs2_translate(struct cs2_interp* interp)
@@ -2241,6 +2317,11 @@ cs2_add_labels(
         }
     }
 
+    /* The closing return, named while its position still says which one it is. */
+    if( count > 0 && instructions[count - 1] &&
+        instructions[count - 1]->kind == RSCACHE_CS2_INSN_RETURN )
+        instructions[count - 1]->is_epilogue_return = true;
+
     struct RSCache_CS2_Insn** labels = (struct RSCache_CS2_Insn**)calloc(
         (size_t)count + 1, sizeof(struct RSCache_CS2_Insn*));
     if( !labels )
@@ -2426,6 +2507,44 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
             break;
         epilogue_first = i;
     }
+    /*
+     * Keep the whole unreachable tail, not just the defaults it implies.
+     *
+     * The lowerer has to put back an instruction *sequence*: a return slot may
+     * be produced by a zero-argument command rather than a literal, and the
+     * region the dead-code pass drops is often larger than the epilogue — a
+     * script whose source ends in an explicit `return(0)` compiles that and then
+     * the implicit epilogue, so two identical copies sit there and only the
+     * second is what `ScriptReturnTypes` reads.
+     *
+     * So the region recorded is exactly the region that pass deletes: the run
+     * after the earliest `return` from which no later instruction is a jump
+     * target. Where there is no such run the epilogue is reachable, still in
+     * the chain, and the classic backwards scan names it.
+     */
+    int dead_tail_first = cs2_dead_tail_first(script);
+    int keep_from = dead_tail_first >= 0 && dead_tail_first < epilogue_first ? dead_tail_first
+                                                                            : epilogue_first;
+    function->epilogue_count = script->op_count - keep_from;
+    if( function->epilogue_count < 0 )
+        function->epilogue_count = 0;
+    function->epilogue = (struct RSCache_CS2_EpilogueOp*)RSCache_CS2_ArenaAlloc(
+        cs2_arena(interp),
+        (size_t)(function->epilogue_count > 0 ? function->epilogue_count : 1) *
+            sizeof(*function->epilogue));
+    for( int i = 0; i < function->epilogue_count; i++ )
+    {
+        int at = keep_from + i;
+        function->epilogue[i].opcode = script->opcodes[at];
+        function->epilogue[i].operand = script->int_operands[at];
+        function->epilogue[i].text =
+            script->opcodes[at] == RSCACHE_CS2_OP_PUSH_CONSTANT_STRING && script->string_operands
+                ? RSCache_CS2_ArenaStrDup(
+                      cs2_arena(interp),
+                      script->string_operands[at] ? script->string_operands[at] : "")
+                : NULL;
+    }
+
     int return_slot = 0;
     for( int i = epilogue_first;
          i < script->op_count - 1 && return_slot < interp->return_type_count;

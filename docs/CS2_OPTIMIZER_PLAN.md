@@ -928,3 +928,236 @@ changes numbers everything else is measured against, so it goes first.
    loaded twice, so §12.3's inline cache is guarded by making a duplicate
    `Add` an assertion (the load task already checks `Has` first) — a
    generation counter is not needed.
+
+---
+
+# Part C — what was built, and what it measured
+
+Implemented 2026-08-17 on branch `worktree-cs2-optimizer`. This section is the
+record of what the plan above turned into, including the places the plan was
+wrong.
+
+## What landed
+
+**Part A — the optimizer** (`3rd/rscache/src/cs2/`)
+
+| file | what it is |
+|---|---|
+| `cs2_lower.c/h` | IR → bytecode. The piece the pipeline never had. |
+| `cs2_cfg.c/h` | blocks, edges, reachability, back edges, local liveness |
+| `cs2_effects.c/h` | per-opcode effect class + a folder transcribed from `cs2vm2` |
+| `cs2_opt.c/h` | the passes and their driver |
+| `cs2_dfa.c/h` | split: `RSCache_CS2_TransformCore` is the prefix the optimizer uses |
+| `test/test_cs2_opt.c` | folding, loop shape, dead stores (24 checks) |
+| `tools/cs2/main.c` | `cs2 lower` (identity gate), `cs2 optimize` (verify + measure) |
+| `tools/cachepack/cp_decode.c` | `cachepack cs2opt` driver; `pack --cs2-opt` read path |
+| `src/makefile` | `cs2-opt`, `cs2-opt-clean`, `cs2-opt-verify`; `mock230-cache CS2_OPT=1` |
+
+Four fields were added to the IR, each because the information genuinely was not
+there and guessing it produced a different program: `Expr::hook_descriptor`,
+`Expr::raw_operand`, `Expr::pointer_source`, `Insn::dead_goto_target` /
+`is_epilogue_return`, plus `Function::epilogue`.
+
+**Part B — the VM** (`src/cs2vm2/`, `src/game/`, `src/engine/`) landed B0–B4 and
+B6 in full, B5 in part. See `src/cs2vm2/OPTIMIZATION_NOTES.md`.
+
+## The identity gate (plan §7.1)
+
+`cs2 lower --cache cache.osrs239 --rev osrs239`:
+
+```
+9724 lowered, 9715 exact (99.91%), 9 differ, 0 refused
+726,057 ops in, 726,057 ops out
+```
+
+The target was ≥99%. The nine that differ are one category, not nine: a local
+read and an adjacent nullary command swapped by `cs2_inline_stack_definitions`.
+Both orders run identically — only `pop_int_local` / `pop_string_local` write a
+frame local and neither instruction is one — and the reordering is the
+decompiler's existing behaviour, which the source path already ships.
+
+Getting there took five real defects, each of which had produced a confident
+wrong answer:
+
+1. **Commands whose operand is not the dot flag.** Opcodes 4123/4124 take no
+   arguments and carry a selector in the operand; the IR did not keep it. 22
+   scripts rebuilt as a different program.
+2. **The array-argument slot.** `cs2_find_array_args_calls` replaces a call's
+   first argument with a pointer at array 0, discarding the handle the caller
+   actually pushed. 20 scripts passed the wrong array.
+3. **The closing epilogue**, deleted as unreachable by the dead-code pass — and
+   it is the only statement of what a script returns, so every *caller*'s typing
+   comes from it. 1,819 scripts.
+4. **Telling the epilogue from an identical earlier return.** A source ending in
+   an explicit `return(0)` compiles two identical `push 0; return` pairs;
+   comparing the tail said the epilogue was still there for 196 scripts that had
+   lost it. Fixed by marking it at decode (`Insn::is_epilogue_return`).
+5. **Array arguments counted in the int bank.** Six scripts' trailers went from
+   `0i/1s` to `1i/1s`.
+
+## The runaway, and what actually catches one
+
+The corpus verification — re-interpreting every optimized script — passed with
+zero rejections while the optimizer was still emitting a script that never
+terminated. `cs2_pass_dead_stores` built its flow graph once and then deleted
+instructions while still asking that graph questions, and among what it removed
+was a loop's `$i = calc($i + 1)`. Script 4731 then ran to `CS2VM_MAX_CYCLES`.
+
+Three things are worth keeping from that:
+
+- **An infinite loop is well-formed bytecode.** It lowers, it re-interprets, it
+  packs. Every static gate in this plan passed it. Only booting the client
+  disagreed, as `cs2_aborts = 1` and ~1,040,000 executed opcodes against a
+  baseline of ~110,000.
+- **The unit test does not reproduce it.** `test_cs2_opt.c`'s loop case was
+  written for exactly this and reintroducing the faulty pass verbatim leaves all
+  24 checks passing — the bug needs a 1,871-instruction script with enough
+  earlier deletions to perturb the block bounds. The test pins the shape; it is
+  not the gate, and its comment now says so.
+- **`make -C src cs2-opt-verify` is the gate.** Optimize the tree, bake a cache,
+  boot headless, fail on a non-zero `cs2_aborts`. It also fails on a stale
+  optimized tree. Run it when touching any pass that deletes or moves anything.
+
+The fix is two-phase: decide against an unmutated graph, then delete. Sound in
+the direction that matters, because removing a dead store can only make more
+stores dead, never fewer — the driver's fixpoint loop picks up the rest.
+
+## Measurements
+
+400-frame headless boot of `manifest_osrs239.ini`, median of 4–5 runs, same
+binary throughout. Static figures are `cachepack cs2opt` over
+`OSRS-Content/osrs239-content` against `cache.osrs239`.
+
+| | executed opcodes | vs base | static ops | table 12 bytes |
+|---|---:|---:|---:|---:|
+| baseline | 109,755 | — | 602,963 | 3,757,857 |
+| **level 1** | **102,097** | **−7.0%** | 582,640 (−3.4%) | 3,643,952 (−3.0%) |
+| level 2 | 102,220 | −6.9% | 602,660 (−0.1%) | 3,764,603 (+0.2%) |
+
+**Level 1 is the default, and the plan was wrong about why.** §5.2 assumed
+inlining would be the large win. It removes 2,554 static call sites — 10.8% of
+them, at the measured `inline_max_callee_insns = 8` — and buys *nothing*
+dynamically on this workload, while making the cache slightly larger instead of
+3% smaller. The procs it inlines are not the ones a login screen runs. Level 2
+stays available and correct; a call-heavy panel is a different workload and
+nobody has measured one.
+
+Wall clock is not a usable signal at this scale: the CS2 stage is ~57 µs of a
+16 ms frame, and run-to-run spread swamps the difference. The opcode count is
+what to quote.
+
+Inline-size sensitivity, level 2 over `cache.osrs239`:
+
+| callee limit | total ops | static gosub sites |
+|---:|---:|---:|
+| 6 | −1.82% | 23,769 → 22,203 |
+| **8** | **−0.04%** | **23,769 → 21,207** |
+| 10 | +2.38% | 23,769 → 20,424 |
+| 24 | +12.62% | 23,769 → 18,535 |
+
+## Gates, as they stand
+
+| gate | command | result |
+|---|---|---|
+| lowering identity | `cs2 lower --cache cache.osrs239 --rev osrs239` | 99.91%, 0 refused |
+| optimizer verification | `cs2 optimize --cache … --level 2` | 9,725 scripts, 0 skipped, 0 rejected |
+| decompiler unchanged | `cs2 roundtrip --cache … --rev osrs239` | 9,724 exact — identical to before |
+| optimizer unit tests | `make -C 3rd/rscache build/test_cs2_opt && ./build/test_cs2_opt` | 24 checks |
+| end-to-end | `make -C src cs2-opt-verify` | no aborts |
+| VM unit tests | `make -C src test-cs2-* OPT=1` | all green (Part B) |
+
+## Not done
+
+- **Loop unrolling (§5.4)** and **recursion unrolling** (copying a non-tail
+  self-call k times). Tail-recursion → loop is implemented and fires 22 times on
+  this corpus; the unrollers are not written.
+- **O3 (§5.6)** — cache-constant folding, CSE, invariant hoisting. Not started.
+- **Slot coalescing (§5.5.3)**. The lowerer sizes frames from what is actually
+  referenced, which recovers part of it; the interference-graph colouring is not
+  written.
+- **String folding.** `cs2_effects.c` folds integer arithmetic only; correct
+  string folding needs a cp1252-exact `lowercase`/`compare` shared with the VM,
+  which does not exist yet.
+- **Inlining array-touching callees** (§6.4). Still excluded: the ambiguity
+  between the IR's array model and the VM's string-local handle is unresolved,
+  and Part B's frame-slice work did not settle it.
+
+## The magic book, and what recursion actually costs
+
+The plan's §5.3 was written for the one deeply recursive thing in this cache:
+`[proc,magic_spellbook_redraw]` (script 2611) lays the spellbook out and sorts
+it with **script 2621**, a quicksort that recurses once per partition and, per
+the note on `CS2VM_MAX_FRAMES`, reaches depth 70 on the standard book.
+
+### Getting at it
+
+Two obstacles, both worth writing down.
+
+**The client will not run it.** The embedded mock server never opens the
+spellbook interface, so no `toplevel_sidebutton_switch` index lays it out —
+probed 0, 3, 6, 9 and 11 through the CS2 harness, and `magic_spellbook_redraw`
+runs on none of them. That is why every earlier number in this document
+measured straight-line UI code and concluded inlining bought nothing: the
+workload that exercises calls was never in the sample.
+
+**The packer will not ship it.** `cachepack cs2opt` skips 550 of this tree's
+scripts because the cachepack-side param loader cannot type their params —
+2621 fails on param 604 — while `tools/cs2` types it fine from the same cache.
+That is a pre-existing gap in `cs2_load_param_types`, not something the
+optimizer introduced, and it is why "after" cannot be read out of a packed
+cache for this script.
+
+So `make -C src bench-spellbook CACHE=<dir|script file> N=<count>` runs the sort
+directly: it assembles a synthetic caller (define the array, fill it, push
+`lo`/`hi`/`key` and the handle, `gosub`), runs it in the real VM, and counts only
+the trace records whose script id is 2621. `cs2 optimize --dump DIR` writes the
+optimized bytes in the layout the bench reads.
+
+### Before and after
+
+Script 2621 from `cache.osrs239`, versus the same script through
+`cs2 optimize --level 2`. Descending input; best of five runs.
+
+| n | gosubs before | gosubs after | opcodes before | opcodes after | depth |
+|---:|---:|---:|---:|---:|---:|
+| 20 | 11 | **6** (−45%) | 2,583 | 2,594 (+0.4%) | 5 → 5 |
+| 60 | 34 | **18** (−47%) | 10,325 | 10,367 (+0.4%) | 7 → 6 |
+| 120 | 71 | **37** (−48%) | 23,978 | 24,072 (+0.4%) | 8 → 7 |
+| 240 | 144 | **74** (−49%) | 55,141 | 55,341 (+0.4%) | 9 → 9 |
+| 480 | 293 | **155** (−47%) | 126,337 | 126,715 (+0.3%) | 11 → 10 |
+
+Statically the script goes 107 → 113 ops and 2 → 1 `gosub` sites.
+
+**Recursive calls halve, and that is the whole of it.** Executed opcodes go
+*up* by 0.4% — the per-iteration argument rebinding is a few more instructions
+than the `gosub` it replaced — and wall time is unchanged inside run-to-run
+noise at every size.
+
+The reason is worth stating plainly, because it is the two halves of this work
+meeting: **Part B already made a call cheap.** §5.3 was written when a frame was
+12,352 bytes and a `gosub` meant memsetting all of it; frames are 40 bytes now,
+so removing half the calls removes half of something that no longer costs much.
+Depth improves by at most one level here, because a midpoint pivot on a reversed
+array partitions evenly — an input that partitions badly would gain more, and
+that is where the headroom against the 128-frame cap would matter.
+
+### What the tail-call pass had to learn
+
+The plan's §5.3 named two shapes and only one was implemented; the corpus needed
+the other.
+
+- **`~self(...); return;`** — the void form — is what a void proc actually
+  compiles to, and it is 2621's. Handling only `return(~self(...))` fired on 2
+  scripts; adding the void form took it to **22**.
+- **A reused frame is not a fresh one.** `gosub` hands the callee zeroed locals;
+  jumping to the top hands it the previous iteration's. Every local read before
+  written now gets re-zeroed, chosen precisely by
+  `RSCache_CS2_CfgLiveAtEntry` rather than by clearing all of them. The original
+  pass did neither and was latently wrong on both shapes.
+- **An array parameter is not rebound.** `RSCache_CS2_VarStackType` calls an
+  array int-typed — true of its elements, false of the handle, which rides a
+  string local — so reading the bank off the argument bound 2621's array through
+  an int temporary and produced a program that popped a string where it wanted
+  an int. The bank comes from the *parameter* now, and an array parameter is
+  left alone entirely: a recursive sort passes the same array down every level,
+  so the binding would be `$arrayN = $arrayN`. Anything else is refused.

@@ -126,7 +126,10 @@ cs2_remove_dead_code(struct cs2_dfa* dfa, struct RSCache_CS2_Function* function)
         /* Record the one thing the deletion destroys that the source needs:
          * whether a `goto` sat here. See RSCache_CS2_Insn::dead_goto_follows. */
         if( insn && insn->kind == RSCACHE_CS2_INSN_GOTO )
+        {
             returned->dead_goto_follows = true;
+            returned->dead_goto_target = insn->label;
+        }
         while( insn && insn->kind != RSCACHE_CS2_INSN_LABEL )
         {
             if( insn->kind == RSCACHE_CS2_INSN_ASSIGNMENT )
@@ -273,6 +276,33 @@ cs2_reorder_args(struct cs2_dfa* dfa, struct RSCache_CS2_Function* function)
  * evidence, so that is what this looks for.
  * ---------------------------------------------------------------------- */
 
+/**
+ * The expression assigned to an operand-stack slot, searching back from `use`.
+ *
+ * A stack slot is defined exactly once, textually before its use, which is what
+ * makes a backwards linear scan the whole of the analysis. NULL when the slot
+ * is not one, or when the definition is not in this function's chain.
+ */
+static struct RSCache_CS2_Expr*
+cs2_stack_definition(
+    struct RSCache_CS2_Function* function,
+    struct RSCache_CS2_Insn* use,
+    struct RSCache_CS2_Expr* slot)
+{
+    (void)function;
+    if( !slot || !cs2_is_stack_access(slot) )
+        return NULL;
+    for( struct RSCache_CS2_Insn* insn = use->prev; insn; insn = insn->prev )
+    {
+        if( insn->kind != RSCACHE_CS2_INSN_ASSIGNMENT )
+            continue;
+        if( insn->definitions != slot )
+            continue;
+        return insn->expression;
+    }
+    return NULL;
+}
+
 static void
 cs2_find_array_args_calls(struct cs2_dfa* dfa, int script_id)
 {
@@ -306,6 +336,17 @@ cs2_find_array_args_calls(struct cs2_dfa* dfa, int script_id)
                 &dfa->fs->arena,
                 RSCache_CS2_VarIntern(dfa->fs, RSCACHE_CS2_VAR_ARRAY, function->id, 0));
 
+            /*
+             * Keep what the call actually pushed; see Expr::pointer_source.
+             *
+             * `items[0]` is still an operand-stack slot at this point — the
+             * inlining pass has not run — and that slot's definition is what
+             * carries the caller's array handle. Recording the slot itself
+             * would name a value that is about to stop existing, so the
+             * definition is looked up now, while the assignment that produced
+             * it is still in the chain.
+             */
+            new_arg->pointer_source = cs2_stack_definition(function, insn, items[0]);
             struct RSCache_CS2_Expr* replaced = items[0];
 
             struct RSCache_CS2_Vec new_args;
@@ -1505,27 +1546,23 @@ cs2_run_function_pass(struct cs2_dfa* dfa, cs2_function_pass pass)
     return true;
 }
 
-bool
-RSCache_CS2_Transform(struct RSCache_CS2_FunctionSet* fs, char* error, int error_capacity)
+/* The expression-rebuilding prefix; see the header for what it deliberately
+ * leaves out and why the optimizer stops here. */
+static bool
+cs2_transform_core(struct cs2_dfa* dfa)
 {
-    struct cs2_dfa dfa;
-    memset(&dfa, 0, sizeof(dfa));
-    dfa.fs = fs;
-    dfa.error = error;
-    dfa.error_capacity = error_capacity;
-
     /* Phase.DEFAULT, in order. */
-    if( !cs2_run_function_pass(&dfa, cs2_remove_dead_code) )
+    if( !cs2_run_function_pass(dfa, cs2_remove_dead_code) )
         return false;
-    if( !cs2_run_function_pass(&dfa, cs2_delete_nops) )
+    if( !cs2_run_function_pass(dfa, cs2_delete_nops) )
         return false;
-    if( !cs2_run_function_pass(&dfa, cs2_reorder_args) )
+    if( !cs2_run_function_pass(dfa, cs2_reorder_args) )
         return false;
-    if( !cs2_run_function_pass(&dfa, cs2_find_array_args) )
+    if( !cs2_run_function_pass(dfa, cs2_find_array_args) )
         return false;
-    if( !cs2_run_function_pass(&dfa, cs2_combine_same_line) )
+    if( !cs2_run_function_pass(dfa, cs2_combine_same_line) )
         return false;
-    if( !cs2_run_function_pass(&dfa, cs2_inline_stack_definitions) )
+    if( !cs2_run_function_pass(dfa, cs2_inline_stack_definitions) )
         return false;
     /* Again, and not redundantly. `cs2_find_array_args_calls` rewrites a proc
      * call's first argument into an array pointer, which strands whatever used
@@ -1534,8 +1571,39 @@ RSCache_CS2_Transform(struct RSCache_CS2_FunctionSet* fs, char* error, int error
      * above have been inlined into it. Twenty scripts in cache.osrs239, every
      * one that passes an array to a proc, otherwise decompile to a `$int0;`
      * statement the language does not have and the compiler refuses. */
-    if( !cs2_run_function_pass(&dfa, cs2_delete_nops) )
+    if( !cs2_run_function_pass(dfa, cs2_delete_nops) )
         return false;
+    return !dfa->failed;
+}
+
+static void
+cs2_dfa_begin(struct cs2_dfa* dfa, struct RSCache_CS2_FunctionSet* fs, char* error, int capacity)
+{
+    assert(dfa);
+    assert(fs);
+    memset(dfa, 0, sizeof(*dfa));
+    dfa->fs = fs;
+    dfa->error = error;
+    dfa->error_capacity = capacity;
+}
+
+bool
+RSCache_CS2_TransformCore(struct RSCache_CS2_FunctionSet* fs, char* error, int error_capacity)
+{
+    struct cs2_dfa dfa;
+    cs2_dfa_begin(&dfa, fs, error, error_capacity);
+    return cs2_transform_core(&dfa);
+}
+
+bool
+RSCache_CS2_Transform(struct RSCache_CS2_FunctionSet* fs, char* error, int error_capacity)
+{
+    struct cs2_dfa dfa;
+    cs2_dfa_begin(&dfa, fs, error, error_capacity);
+    if( !cs2_transform_core(&dfa) )
+        return false;
+    /* The source-only tail: types and identifiers are for the generator, and
+     * the short-circuit operators have no bytecode. */
     if( !cs2_calc_types(&dfa) )
         return false;
     if( !cs2_calc_identifiers(&dfa) )

@@ -28,4 +28,26 @@ RSCache_CS2_Transform(
     char* error,
     int error_capacity);
 
+/**
+ * The prefix of `RSCache_CS2_Transform` that rebuilds expressions, stopping
+ * before the three passes that exist only to print.
+ *
+ * Seven passes run: dead code, nops, argument reordering, array arguments,
+ * same-line combining, stack-definition inlining, nops again. What is left out
+ * is `calc_types`, `calc_identifiers` (which name things for a human reader and
+ * can fail on a script whose types are contradictory but whose *shape* is
+ * perfectly well formed) and `add_short_circuit` (which synthesises the two
+ * operators with no bytecode of their own, RSCACHE_CS2_OP_SS_AND/_OR).
+ *
+ * This is where the optimizer works: the IR is expression trees over labels
+ * and branches, every stack type is still recoverable from the variables
+ * themselves, and nothing in it is un-lowerable. Running the last three passes
+ * would add nodes `cs2_lower.c` cannot emit and refuse scripts that lower fine.
+ */
+bool
+RSCache_CS2_TransformCore(
+    struct RSCache_CS2_FunctionSet* fs,
+    char* error,
+    int error_capacity);
+
 #endif

@@ -331,4 +331,28 @@ cp_assets_name_worldmap(struct CP_Ctx* ctx);
 const char*
 cp_assets_worldmap_member(int file_id);
 
+/* -------------------------------------------------------------------------
+ * The CS2 optimizer
+ *
+ * Two halves of one feature, and deliberately two commands. `cs2opt` writes an
+ * optimized copy of every clientscript *beside* the authored sources;
+ * `pack --cs2-opt` ships those instead of recompiling, and refuses if they are
+ * stale. Nothing under `scripts/` is written by either.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Optimize every script the tree names, into `out_directory`.
+ *
+ * Writes a `.cs2b` per script the passes changed and a `manifest.ini`
+ * fingerprinting what each was built from. Returns 0 when a script failed
+ * verification: that script is left out rather than shipped, so the tree stays
+ * usable, but the run says so.
+ */
+int
+cp_cs2_optimize_tree(struct CP_Ctx* ctx, int level, int inline_max, const char* out_directory);
+
+/** Ship the optimized tree for the rest of this run. False if it is not there. */
+int
+cp_cs2_use_optimized(struct CP_Ctx* ctx, const char* directory);
+
 #endif

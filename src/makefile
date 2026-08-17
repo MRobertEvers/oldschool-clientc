@@ -971,6 +971,10 @@ test-cs2-resume-countdialog: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/resume_countdialog_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_resume_countdialog_test
 
+
+
+
+
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
 # names the unported operation blocking the most textures, which is the number to work
 # against while porting. Run from the repo root so the default cache path resolves.
@@ -2369,7 +2373,126 @@ MOCK230_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
 # Pack then keeps the base bytes. With the tables, trampolines recompile to the
 # real proc id.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
-mock230-cache: check-crystal-set-contract
+# The magic book's sort, out of a real cache.
+#
+#   make -C src bench-spellbook CACHE=<dir> [N=60]
+#
+# Answers the one question the headless boot cannot: what the optimizer does to
+# a recursive script. `magic_spellbook_redraw` sorts the book with script 2621,
+# a quicksort that recurses once per partition, and no sidebutton in the
+# embedded server opens the spellbook — so the client-level numbers only ever
+# measured straight-line UI code.
+.PHONY: bench-spellbook
+bench-spellbook: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/spellbook_bench \
+		cs2vm2/test/spellbook_bench.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/spellbook_bench $(CACHE) $(if $(N),$(N),60)
+
+# The CS2 optimizer.
+#
+# `cs2-opt` writes an optimized copy of every clientscript into
+# `$(MOCK230_CONTENT_DIR)/scripts.opt`, beside the authored `.cs2` sources and
+# never over them. `mock230-cache CS2_OPT=1` then ships those instead of
+# recompiling, and refuses to pack if they are stale — a stale optimized script
+# loads and runs, so falling back silently is the one behaviour that could put a
+# program nobody wrote into a client.
+#
+# Off by default, and level 1 rather than level 2 when it is on. Measured over a
+# 400-frame headless boot of manifest_osrs239.ini, median of 4-5 runs:
+#
+#                executed opcodes   static ops   table 12 bytes
+#   baseline          109,755        602,963       3,757,857
+#   level 1           102,097 -7.0%  582,640 -3.4% 3,643,952 -3.0%
+#   level 2           102,220 -6.9%  602,660 -0.1% 3,764,603 +0.2%
+#
+# Level 2's inlining buys nothing here and costs size: the procs it inlines are
+# not the ones a login screen runs. It stays available because a call-heavy
+# panel is a different workload and nobody has measured one yet. Wall time is
+# noise at this scale — the CS2 stage is ~57us of a 16ms frame — so the opcode
+# count is the number to trust.
+#
+#   make -C src cs2-opt                      # level 1, the measured default
+#   make -C src cs2-opt CS2_OPT_LEVEL=2      # adds inlining and tail recursion
+#   make -C src mock230-cache CS2_OPT=1      # bake a cache that ships them
+CS2_OPT_LEVEL ?= 1
+CS2_OPT_DIR ?= $(MOCK230_CONTENT_DIR)/scripts.opt
+
+.PHONY: cs2-opt cs2-opt-clean
+
+cs2-opt:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	cd $(REPO_ROOT) && \
+		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
+			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
+		fi; \
+		$(CACHEPACK_BIN) cs2opt \
+		--src $(MOCK230_CONTENT_DIR) \
+		$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
+		--rev osrs239 --opt-level $(CS2_OPT_LEVEL) --out $(CS2_OPT_DIR)
+
+cs2-opt-clean:
+	rm -rf $(CS2_OPT_DIR)
+
+# The gate that catches what the static checks cannot.
+#
+# Every optimized script is re-interpreted before it is written, which proves it
+# is still a well-formed program — and says nothing about whether it terminates.
+# An infinite loop lowers, decodes and verifies; the only thing that disagrees
+# with it is a client running it. So: optimize the tree, bake a cache, boot
+# headless, and fail on a non-zero `cs2_aborts`, which is the VM reporting that
+# it cut a script off at CS2VM_MAX_CYCLES.
+#
+# This is not theoretical. A dead-store pass that answered liveness from a flow
+# graph it had already invalidated deleted a loop's `$i = $i + 1` in script
+# 4731; the corpus verification passed, and this is what found it.
+#
+#   make -C src cs2-opt-verify
+CS2_OPT_VERIFY_DIR ?= $(REPO_ROOT)/cache.cs2opt-verify
+CS2_OPT_VERIFY_FRAMES ?= 400
+
+.PHONY: cs2-opt-verify
+
+cs2-opt-verify: torirs cs2-opt
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	rm -rf $(CS2_OPT_VERIFY_DIR)
+	@#
+	@# The pack's own exit code is not the signal here, and gating on it would
+	@# make this target permanently red: `cachepack pack` returns 1 on this tree
+	@# for reasons that predate the optimizer (a handful of obj records carry a
+	@# param value their type will not encode). What this target is asking about
+	@# is the scripts, so it looks for the two things that would be *its* fault:
+	@# an optimized tree the packer judged stale, and a script the VM had to cut
+	@# off. Both are fatal; everything else is somebody else's bug.
+	@cd $(REPO_ROOT) && \
+		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
+			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
+		fi; \
+		$(CACHEPACK_BIN) pack \
+			--src $(MOCK230_CONTENT_DIR) \
+			$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
+			--out $(CS2_OPT_VERIFY_DIR) --rev osrs239 --assets=script \
+			--cs2-opt --cs2-opt-dir $(CS2_OPT_DIR) \
+			> $(CS2_OPT_VERIFY_DIR).pack.log 2>&1 || true; \
+		if grep -q 'scripts.opt is stale' $(CS2_OPT_VERIFY_DIR).pack.log; then \
+			grep -m5 'scripts.opt is stale' $(CS2_OPT_VERIFY_DIR).pack.log; \
+			echo "cs2-opt-verify: FAILED - the optimized tree is stale"; \
+			exit 1; \
+		fi
+	@cd $(REPO_ROOT) && \
+		sed 's|^dir=cache.osrs239|dir=$(CS2_OPT_VERIFY_DIR)|' manifest_osrs239.ini \
+			> $(CS2_OPT_VERIFY_DIR).ini; \
+		SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=$(CS2_OPT_VERIFY_FRAMES) TORIRS_PERF=1 \
+			./src/torirs --manifest $(CS2_OPT_VERIFY_DIR).ini \
+			> $(CS2_OPT_VERIFY_DIR).log 2>&1 || true; \
+		grep -E '^cs2_(scripts|opcodes|host_ops|aborts) ' $(CS2_OPT_VERIFY_DIR).log || true; \
+		if grep -qE '^cs2_aborts ' $(CS2_OPT_VERIFY_DIR).log; then \
+			echo "cs2-opt-verify: FAILED - a script was cut off at CS2VM_MAX_CYCLES"; \
+			echo "cs2-opt-verify: rerun with TORIRS_CS2_PROFILE=1 to name it"; \
+			exit 1; \
+		fi; \
+		echo "cs2-opt-verify: no aborts"
+
+mock230-cache: check-crystal-set-contract $(if $(filter 1,$(CS2_OPT)),cs2-opt,)
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@# --base is optional. With one, the pristine cache is copied and every record
 	@# the tree does not change keeps the bytes it had. Without one, cachepack
@@ -2384,7 +2507,8 @@ mock230-cache: check-crystal-set-contract
 		--src $(MOCK230_CONTENT_DIR) \
 		$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
 		--out $(MOCK230_CACHE_DIR) \
-		--rev osrs239 --assets --binary --gamevals
+		--rev osrs239 --assets --binary --gamevals \
+		$(if $(filter 1,$(CS2_OPT)),--cs2-opt --cs2-opt-dir $(CS2_OPT_DIR),)
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(MOCK230_CACHE_DIR)
 
 # Every dat2 table an OldSchool cache carries, by idx id — the OSRS column of
