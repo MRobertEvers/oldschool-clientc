@@ -118,6 +118,30 @@ mock230_ops_poh(
                 mock230_save_player(player, mock230_save_path(player->display_name)));
         return 1;
 
+    case SS_OP_POH_ROOM_SET:
+    {
+        int32_t room;
+        int32_t field;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &field) ||
+            !SSVM_PopInt(state, &room) )
+            return 1;
+        SSVM_PushInt(
+            state, mock230_poh_room_set(&player->poh, room, field, value));
+        return 1;
+    }
+
+    case SS_OP_POH_ROOM_REMOVE:
+    {
+        int32_t room;
+
+        if( !SSVM_PopInt(state, &room) )
+            return 1;
+        SSVM_PushInt(state, mock230_poh_room_remove(&player->poh, room));
+        return 1;
+    }
+
     default:
         return 0;
     }

@@ -428,12 +428,20 @@ interactive_render_present(
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9)
 {
+    int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
+
+    /* Device option 15 is presentation state, just like option 27's canvas
+     * size. Apply it immediately after the click that changed it and to every
+     * renderer lane; each setter is a no-op while the value is unchanged. */
+    PlatformSDL2_SetInterfaceScaleMode(sdl, interface_scale_mode);
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
     {
         struct ToriRS_Frame frame;
         int progress = 0;
         int pick_armed = 0;
+
+        ToriRS_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -482,6 +490,8 @@ interactive_render_present(
         struct ToriRS_Frame frame;
         int progress = 0;
         int pick_armed = 0;
+
+        ToriRS_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
 
         if( App_IsBooting(app, &progress) )
         {

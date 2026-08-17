@@ -481,10 +481,12 @@
 #define SS_OP_POH_DECOR_SET 11052
 #define SS_OP_POH_DECOR_GET 11053
 #define SS_OP_POH_STATE_COMMIT 11054
+#define SS_OP_POH_ROOM_SET 11055
+#define SS_OP_POH_ROOM_REMOVE 11056
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11055
+#define SS_OPCODE_MAX 11057
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 459
+#define SS_OPCODE_COUNT 461
 
 #endif

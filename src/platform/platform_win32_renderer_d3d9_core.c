@@ -163,6 +163,22 @@ d3d9_ui_rect_equal(const RECT* a, const RECT* b)
         a->bottom == b->bottom;
 }
 
+static D3DTEXTUREFILTERTYPE
+d3d9_ui_filter(struct ToriRS_D3D9 const* renderer)
+{
+    return renderer->interface_scale_mode == 0 ? D3DTEXF_POINT : D3DTEXF_LINEAR;
+}
+
+static void
+d3d9_set_ui_sampler(struct ToriRS_D3D9* renderer, DWORD sampler)
+{
+    D3DTEXTUREFILTERTYPE const filter = d3d9_ui_filter(renderer);
+    IDirect3DDevice9_SetSamplerState(
+        renderer->device, sampler, D3DSAMP_MINFILTER, filter);
+    IDirect3DDevice9_SetSamplerState(
+        renderer->device, sampler, D3DSAMP_MAGFILTER, filter);
+}
+
 static bool
 d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer);
 
@@ -184,8 +200,7 @@ d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAREF, 1u);
     IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, FALSE);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 0u);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -224,7 +239,12 @@ d3d9_ui_flush(struct ToriRS_D3D9* renderer)
     if( batch->uses_sprite_atlas )
         batch->texture = renderer->ui_sprite_atlas_texture;
     if( batch->texture )
+    {
         d3d9_bind_modulated_texture(renderer->device, batch->texture);
+        /* The generic binder restores point sampling for world textures; the
+         * UI choice applies after it so it cannot leak into the 3D pass. */
+        d3d9_set_ui_sampler(renderer, 0u);
+    }
     else
         d3d9_set_no_texture(renderer->device);
     IDirect3DDevice9_SetRenderState(
@@ -1424,8 +1444,7 @@ d3d9_ui_draw_rotmask_native(
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_TEXCOORDINDEX, 0u);
-    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 0u);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -1442,8 +1461,7 @@ d3d9_ui_draw_rotmask_native(
     IDirect3DDevice9_SetTextureStageState(device, 1u, D3DTSS_TEXCOORDINDEX, 1u);
     IDirect3DDevice9_SetTextureStageState(
         device, 1u, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
-    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MINFILTER, D3DTEXF_POINT);
-    IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    d3d9_set_ui_sampler(renderer, 1u);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(device, 1u, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
@@ -5780,6 +5798,7 @@ ToriRS_D3D9_New(int width, int height)
     assert(renderer);
     renderer->width = width;
     renderer->height = height;
+    renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
     renderer->current_batch_slot = -1;
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
@@ -6127,6 +6146,18 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
     d3d9_update_letterbox(renderer);
     renderer->in2d = false;
     d3d9_ui_batch_reset(renderer);
+}
+
+void
+ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
+{
+    if( !renderer )
+        return;
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    renderer->interface_scale_mode = mode;
 }
 
 void

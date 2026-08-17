@@ -68,6 +68,7 @@ struct PlatformSDL2
     int     canvas_follows_window;
     int     resizable_w;
     int     resizable_h;
+    int     interface_scale_mode;
 
     /* Set only for the duration of PollCommands so the WndProc can translate
      * into the caller's bus; the coalesced resize is applied after the pump. */
@@ -263,7 +264,16 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     }
     else
     {
-        SetStretchBltMode(dc, COLORONCOLOR);
+        if( p->interface_scale_mode == 0 )
+            SetStretchBltMode(dc, COLORONCOLOR);
+        else
+        {
+            /* GDI exposes one colour interpolation filter. HALFTONE is its
+             * highest-quality resampler and is the closest native match for
+             * both the Linear and Bicubic settings. */
+            SetStretchBltMode(dc, HALFTONE);
+            SetBrushOrgEx(dc, box.left, box.top, NULL);
+        }
         StretchBlt(
             dc, box.left, box.top, box.right, box.bottom,
             p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
@@ -517,7 +527,23 @@ PlatformSDL2_New(void)
     memset(p, 0, sizeof(*p));
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;
+    p->interface_scale_mode = 2;
     return p;
+}
+
+void
+PlatformSDL2_SetInterfaceScaleMode(struct PlatformSDL2* p, int mode)
+{
+    assert(p);
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    if( p->interface_scale_mode == mode )
+        return;
+    p->interface_scale_mode = mode;
+    if( p->hwnd && p->gdi_frame_valid )
+        InvalidateRect(p->hwnd, NULL, FALSE);
 }
 
 static int

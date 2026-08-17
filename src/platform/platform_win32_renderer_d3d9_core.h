@@ -246,6 +246,9 @@ struct ToriRS_D3D9
     int lb_y;
     int lb_w;
     int lb_h;
+    /* All Settings' interface scaling mode. D3D9's fixed-function UI path
+     * uses point for 0 and its best portable reconstruction, linear, for 1/2. */
+    int interface_scale_mode;
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;

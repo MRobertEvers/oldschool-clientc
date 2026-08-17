@@ -88,6 +88,12 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
+/* All Settings > Display: "Interface scaling mode". The cache's enum_4033
+ * stores these values directly in device option 15. */
+#define RS_CS2_DEVICEOPTION_UI_SCALE_MODE 15
+#define RS_CS2_UI_SCALE_MODE_NEAREST 0
+#define RS_CS2_UI_SCALE_MODE_LINEAR 1
+#define RS_CS2_UI_SCALE_MODE_BICUBIC 2
 /* "Interface scaling" (All Settings > Display). The row is built by cache
  * script_3850 and applied by script_3967 case 79 -> script_3054, whose whole
  * body is `deviceoption_set(27, max(~script3333, min(400, v)))`; the label
@@ -111,6 +117,7 @@ enum RS_CS2SocialSendKind
  * client has to recognise by name are listed. */
 #define RS_CS2_SETTING_CLIENT_LAYOUT 12
 #define RS_CS2_SETTING_UI_SCALE 79
+#define RS_CS2_SETTING_UI_SCALE_MODE 169
 #define RS_CS2_OPTION_MAX 64
 
 /**
@@ -845,6 +852,12 @@ RS_CS2Host_SetOption(
  */
 int
 RS_CS2Host_UiScalePercent(
+    struct RS_CS2Host const* host);
+
+/** The interface presentation filter selected by device option 15. Always one
+ *  of RS_CS2_UI_SCALE_MODE_NEAREST..RS_CS2_UI_SCALE_MODE_BICUBIC. */
+int
+RS_CS2Host_UiScaleMode(
     struct RS_CS2Host const* host);
 
 bool

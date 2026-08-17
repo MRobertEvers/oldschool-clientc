@@ -38,7 +38,18 @@ struct PlatformSDL2
      * been resizable-and-larger, so there is nothing to go back to. */
     int resizable_w;
     int resizable_h;
+    int interface_scale_mode;
 };
+
+static SDL_ScaleMode
+sdl_interface_scale_mode(int mode)
+{
+    if( mode <= 0 )
+        return SDL_ScaleModeNearest;
+    if( mode == 1 )
+        return SDL_ScaleModeLinear;
+    return SDL_ScaleModeBest;
+}
 
 static enum LibToriRS_KeyCode
 sdl_keycode_to_torirs(SDL_Keycode key_code)
@@ -324,6 +335,7 @@ PlatformSDL2_New(void)
     struct PlatformSDL2* platform = malloc(sizeof(struct PlatformSDL2));
     assert(platform);
     memset(platform, 0, sizeof(struct PlatformSDL2));
+    platform->interface_scale_mode = 2;
     return platform;
 }
 
@@ -389,6 +401,8 @@ PlatformSDL2_Init(
         SDL_Quit();
         return false;
     }
+    SDL_SetTextureScaleMode(
+        platform->texture, sdl_interface_scale_mode(platform->interface_scale_mode));
 
     size_t const pixel_count = (size_t)width * (size_t)height;
     platform->pixels = malloc(pixel_count * sizeof(int));
@@ -583,6 +597,8 @@ PlatformSDL2_Resize(
         fprintf(stderr, "SDL_CreateTexture (resize) failed: %s\n", SDL_GetError());
         return false;
     }
+    SDL_SetTextureScaleMode(
+        texture, sdl_interface_scale_mode(platform->interface_scale_mode));
 
     pixel_count = (size_t)width * (size_t)height;
     pixels = malloc(pixel_count * sizeof(int));
@@ -599,6 +615,23 @@ PlatformSDL2_Resize(
     platform->width = width;
     platform->height = height;
     return true;
+}
+
+void
+PlatformSDL2_SetInterfaceScaleMode(
+    struct PlatformSDL2* platform,
+    int mode)
+{
+    assert(platform);
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    if( platform->interface_scale_mode == mode )
+        return;
+    platform->interface_scale_mode = mode;
+    if( platform->texture )
+        SDL_SetTextureScaleMode(platform->texture, sdl_interface_scale_mode(mode));
 }
 
 void

@@ -542,7 +542,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # patrolling guard only notices a door while looking toward it.
     "NPC_FACING_COORD": (11045, 1, 0, 1, 0),
 
-    # ---- durable Player-owned House storage (11046..11054) ---------------
+    # ---- durable Player-owned House storage (11046..11056) ---------------
     #
     # Construction policy remains RuneScript and cache DB data. These commands
     # expose only the versioned player record which content cannot represent in
@@ -558,6 +558,8 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Atomic whole-player write after content has committed inventory, varp,
     # and house mutations in one non-suspending script turn.
     "POH_STATE_COMMIT": (11054, 0, 0, 1, 0),
+    "POH_ROOM_SET": (11055, 3, 0, 1, 0),
+    "POH_ROOM_REMOVE": (11056, 1, 0, 1, 0),
 
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
@@ -851,6 +853,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "POH_DECOR_SET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_DECOR_GET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

@@ -4,22 +4,22 @@ overview: Finish and verify the H.A.M.-related quest chain, then implement the p
 todos:
   - id: quest-audit
     content: Fix quest requirements and blockers, including ordinary H.A.M. pickpocketing, and prove all three H.A.M.-related quests are completable end to end
-    status: pending
+    status: completed
   - id: storeroom-state
     content: Add the post-quest storeroom module and correct quest/post-quest guard and access state across login, reset, and completion
-    status: pending
+    status: completed
   - id: guard-pickpocket
     content: Implement storeroom guard pickpocketing, key rolls, ordinary loot, failure behavior, thieving modifiers, and Rogue outfit doubling
-    status: pending
+    status: completed
   - id: doors-and-detection
     content: Implement the four pick-lock doors, lockpick modifiers, XP, guard sight/detection, and cracked-wall routes
-    status: pending
+    status: completed
   - id: keyed-chests
     content: Implement all six keyed chests with atomic key consumption, exact 150-roll rewards, animations, sound, and reset behavior
-    status: pending
+    status: completed
   - id: verify
     content: Add deterministic content self-tests, compile all scripts, run mock-server tests, and complete clean-save quest/minigame playthroughs
-    status: pending
+    status: in_progress
 isProject: false
 ---
 

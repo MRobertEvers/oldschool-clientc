@@ -112,6 +112,14 @@ PlatformSDL2_Resize(
     int width,
     int height);
 
+/** Select how the logical interface framebuffer is sampled when it is scaled
+ *  into the window: 0 nearest-neighbour, 1 linear, 2 best/bicubic. Backends
+ *  use their closest supported high-quality filter for mode 2. */
+void
+PlatformSDL2_SetInterfaceScaleMode(
+    struct PlatformSDL2* platform,
+    int mode);
+
 /** Map window-pixel mouse coords into the letterboxed logical framebuffer. */
 void
 PlatformSDL2_MapMouse(

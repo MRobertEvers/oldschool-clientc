@@ -43,6 +43,24 @@
  * Helpers
  * ----------------------------------------------------------------------- */
 
+static GLint
+gl3_interface_filter(struct ToriRS_GL3 const* renderer)
+{
+    return renderer->interface_scale_mode == 0 ? GL_NEAREST : GL_LINEAR;
+}
+
+static void
+gl3_set_ui_texture_filter(struct ToriRS_GL3 const* renderer, GLuint texture)
+{
+    GLint filter;
+    if( !texture )
+        return;
+    filter = gl3_interface_filter(renderer);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+}
+
 /*
  * Point the world attributes at `vbo_gpu`, `base_vertex` vertices in.
  *
@@ -286,8 +304,8 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
         return;
 
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -1469,6 +1487,7 @@ gl3_rotmask_dedicated_slot(
 
 static bool
 gl3_rotmask_upload_to_slot(
+    struct ToriRS_GL3* renderer,
     struct GL3RotmaskDedicated* slot,
     uint8_t const* rgba,
     int w,
@@ -1483,8 +1502,8 @@ gl3_rotmask_upload_to_slot(
     if( !slot->texture )
         return false;
     glBindTexture(GL_TEXTURE_2D, slot->texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     if( slot->tex_w != w || slot->tex_h != h )
@@ -1542,7 +1561,7 @@ gl3_sprite_ensure_rotated_masked(
     baked = trspk_sprite_rotmask_bake(&renderer->rotmask_bake, cmd, sp, mask_sp, dst_w, dst_h);
     if( !baked )
         return false;
-    if( !gl3_rotmask_upload_to_slot(slot, (uint8_t const*)baked, dst_w, dst_h) )
+    if( !gl3_rotmask_upload_to_slot(renderer, slot, (uint8_t const*)baked, dst_w, dst_h) )
         return false;
     out_uv[0] = 0.0f;
     out_uv[1] = 0.0f;
@@ -1555,6 +1574,7 @@ gl3_sprite_ensure_rotated_masked(
 
 static bool
 gl3_bake_font_atlas(
+    struct ToriRS_GL3* renderer,
     struct GL3FontSlot* slot,
     int font_id)
 {
@@ -1657,8 +1677,8 @@ gl3_bake_font_atlas(
         return false;
     }
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1747,7 +1767,7 @@ gl3_ensure_font_slot(
     }
     if( slot->font && !slot->baked )
     {
-        if( !gl3_bake_font_atlas(slot, font_id) )
+        if( !gl3_bake_font_atlas(renderer, slot, font_id) )
         {
             struct ToriDraw_Font* font = slot->font;
             fprintf(stderr,
@@ -4556,6 +4576,7 @@ ToriRS_GL3_New(
 
     renderer->width = width;
     renderer->height = height;
+    renderer->interface_scale_mode = 2;
 
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U32);
     renderer->ibo_staging = trspk_ibo_create(TRSPK_GL3_GPU_IBO_INIT, TRSPK_INDEX_FORMAT_U32);
@@ -5009,8 +5030,8 @@ ToriRS_GL3_Init(
             uint32_t const white_pixel = 0xFFFFFFFFu;
             glGenTextures(1, &gl3->white_texture);
             glBindTexture(GL_TEXTURE_2D, gl3->white_texture);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(gl3));
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(gl3));
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexImage2D(
@@ -5039,6 +5060,31 @@ ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y)
     gl3->pick_mouse_x = mouse_x;
     gl3->pick_mouse_y = mouse_y;
     ToriRS_PickHitsReset(&gl3->pick_hits);
+}
+
+void
+ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
+{
+    if( !gl3 )
+        return;
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    if( gl3->interface_scale_mode == mode )
+        return;
+    gl3->interface_scale_mode = mode;
+    if( !gl3->gl_context || !gl3->window )
+        return;
+
+    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    gl3_set_ui_texture_filter(gl3, gl3->sprite_atlas_texture);
+    gl3_set_ui_texture_filter(gl3, gl3->white_texture);
+    for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
+        gl3_set_ui_texture_filter(gl3, gl3->rotmask_slots[i].texture);
+    for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
+        gl3_set_ui_texture_filter(gl3, gl3->font_slots[i].texture);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 struct ToriRS_PickHits const*

@@ -27,6 +27,20 @@ Primary references:
 - [Hunter training](https://oldschool.runescape.wiki/w/Hunter_training)
 - [Hunters' Rumours](https://oldschool.runescape.wiki/w/Hunters%27_Rumours)
 
+### Implementation progress (2026-08-16)
+
+- H1 complete: six-slot player-owned registry; plural bird, box, net, rabbit,
+  magic-box, and pitfall traps; one-deadfall cap; Wilderness bonus slot;
+  independent expiry, recovery, bait, smoke, and ownership checks.
+- H2 underway: shared catch-reward hook and current-Wiki correction pass.
+  Corrected classic XP values and impling surface/Puro splits.
+- H3/H4 underway: embertailed jerboa, black chinchompa, crystal/lucky
+  implings with barehand catches, sunlight/moonlight moths and effects, pyre
+  fox, and tecu salamander are wired to their cache NPC/loc/item records.
+- Verification: `::hunterrun` covers registry and modern-row contracts. The
+  isolated server-script build currently compiles 19,688 scripts. The normal
+  aggregate build is temporarily masked by unrelated dirty Construction work.
+
 Where Wiki summary tables disagree with a dedicated current page, record the
 conflict and use the dedicated creature/method page. This matters today for
 black chinchompa XP (315 on its page and the box-trap page) and impling XP

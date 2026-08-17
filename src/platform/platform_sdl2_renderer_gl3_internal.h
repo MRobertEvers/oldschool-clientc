@@ -331,6 +331,9 @@ struct ToriRS_GL3
     int lb_y;
     int lb_w;
     int lb_h;
+    /* All Settings' interface scaling mode. GL has nearest and linear
+     * sampling; the Bicubic choice uses the highest portable one, linear. */
+    int interface_scale_mode;
 
     struct TRSPK_Atlas atlas;
     /*

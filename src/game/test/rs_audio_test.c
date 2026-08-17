@@ -210,6 +210,9 @@ test_prefs_persistence(void)
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME, 100);
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME, 0);
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 60);
+    RS_CS2Host_SetOption(
+        &host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE,
+        RS_CS2_UI_SCALE_MODE_LINEAR);
     /* Brightness (device option 6) and the default window mode are the two
      * other things the player can move here. The reference keeps one and not
      * the other; see RS_CS2Host_OptionPersists. */
@@ -255,6 +258,9 @@ test_prefs_persistence(void)
         RS_CS2Host_GetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) ==
             60,
         "master volume survives a relaunch");
+    CHECK(
+        RS_CS2Host_UiScaleMode(&host) == RS_CS2_UI_SCALE_MODE_LINEAR,
+        "interface scaling mode survives a relaunch");
     /* Zero is a choice, not an absence: a writer that skipped falsy values
      * would come back at full blast on the one setting the player silenced. */
     CHECK(
@@ -322,6 +328,16 @@ test_prefs_persistence(void)
     CHECK(
         loaded.options[RS_CS2_OPTION_GAME][RS_CS2_GAMEOPTION_MUSIC_VOLUME] == 100,
         "a missing file leaves defaults, not zeroes");
+    CHECK(
+        loaded.options[RS_CS2_OPTION_DEVICE][RS_CS2_DEVICEOPTION_UI_SCALE_MODE] ==
+            RS_CS2_UI_SCALE_MODE_BICUBIC,
+        "a missing file uses the cache's Bicubic scaling default");
+
+    RS_CS2Host_SetOption(
+        &host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE, 99);
+    CHECK(
+        RS_CS2Host_UiScaleMode(&host) == RS_CS2_UI_SCALE_MODE_BICUBIC,
+        "an invalid scaling mode is clamped to the dropdown domain");
     PlatformX_IO_Free(px);
 }
 

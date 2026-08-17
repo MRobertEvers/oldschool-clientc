@@ -30,6 +30,11 @@ ToriRS_GL3_SetViewport(
     int width,
     int height);
 
+void
+ToriRS_GL3_SetInterfaceScaleMode(
+    struct ToriRS_GL3* gl3,
+    int mode);
+
 /**
  * Bring up the GL context and the renderer's resources.
  *

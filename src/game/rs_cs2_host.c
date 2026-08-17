@@ -1229,6 +1229,9 @@ static const struct OptionSpec device_option_spec[] = {
     { 5, true },
     { 6, false },  /* brightness — applied on the spot, never saved */
     { 14, true },  /* draw distance */
+    /* Interface scaling mode (enum_4033: nearest, linear, bicubic). This is
+     * device-local and the All Settings scripts read/write it as option 15. */
+    { RS_CS2_DEVICEOPTION_UI_SCALE_MODE, true },
     { 19, true },  /* master volume — see above */
     { 22, false }, /* retired: the reference discards it on load */
     /* Interface scaling. Persisted: it is a device preference in exactly the
@@ -1334,6 +1337,11 @@ RS_CS2Host_OptionDefault(
      * is a division by zero. */
     if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_UI_SCALE )
         return RS_CS2_UI_SCALE_MIN;
+    /* The cache presents Bicubic as the initial selection. It is value 2 in
+     * enum_4033, not the zero an otherwise untouched option would return. */
+    if( kind == RS_CS2_OPTION_DEVICE &&
+        option_id == RS_CS2_DEVICEOPTION_UI_SCALE_MODE )
+        return RS_CS2_UI_SCALE_MODE_BICUBIC;
     /* Full volume for the per-bus ones: an option nothing has written must not
      * read back as silence, or unmuting would restore nothing. Every other
      * option is zero, which is CS2's answer for an option no script has set. */
@@ -1401,6 +1409,14 @@ RS_CS2Host_SetOption(
         if( table[option_id] != value )
             host->ui_scale_dirty = true;
     }
+    if( kind == RS_CS2_OPTION_DEVICE &&
+        option_id == RS_CS2_DEVICEOPTION_UI_SCALE_MODE )
+    {
+        if( value < RS_CS2_UI_SCALE_MODE_NEAREST )
+            value = RS_CS2_UI_SCALE_MODE_NEAREST;
+        if( value > RS_CS2_UI_SCALE_MODE_BICUBIC )
+            value = RS_CS2_UI_SCALE_MODE_BICUBIC;
+    }
     table[option_id] = value;
     if( !option_is_volume(kind, option_id) )
         return;
@@ -1425,6 +1441,21 @@ RS_CS2Host_UiScalePercent(
         return RS_CS2_UI_SCALE_MIN;
     if( value > RS_CS2_UI_SCALE_MAX )
         return RS_CS2_UI_SCALE_MAX;
+    return value;
+}
+
+int
+RS_CS2Host_UiScaleMode(
+    struct RS_CS2Host const* host)
+{
+    int value;
+
+    assert(host);
+    value = host->device_options[RS_CS2_DEVICEOPTION_UI_SCALE_MODE];
+    if( value < RS_CS2_UI_SCALE_MODE_NEAREST )
+        return RS_CS2_UI_SCALE_MODE_NEAREST;
+    if( value > RS_CS2_UI_SCALE_MODE_BICUBIC )
+        return RS_CS2_UI_SCALE_MODE_BICUBIC;
     return value;
 }
 

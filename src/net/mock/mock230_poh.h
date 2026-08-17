@@ -128,6 +128,18 @@ mock230_poh_room_get(
     int field);
 
 int
+mock230_poh_room_set(
+    struct Mock230PohState* poh,
+    int room,
+    int field,
+    int value);
+
+int
+mock230_poh_room_remove(
+    struct Mock230PohState* poh,
+    int room);
+
+int
 mock230_poh_decoration_set(
     struct Mock230PohState* poh,
     int room,

@@ -86,6 +86,11 @@ ToriRS_D3D9_SetViewport(
     int height);
 
 void
+ToriRS_D3D9_SetInterfaceScaleMode(
+    struct ToriRS_D3D9* d3d9,
+    int mode);
+
+void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* d3d9, int mouse_x, int mouse_y);
 
 struct ToriRS_PickHits const*

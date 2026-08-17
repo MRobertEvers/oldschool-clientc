@@ -1,6 +1,6 @@
 # Construction backend completion plan
 
-> Status: implementation plan; no Construction behavior is changed by this document.
+> Status: active implementation plan; completed slices and remaining gates are tracked below.
 
 ## Goal and coverage contract
 
@@ -42,7 +42,21 @@ Live content is in OSRS-Content/osrs239-content/server/scripts/skill_constructio
 | Storage | Cache inventories/interfaces | [Costume room](https://oldschool.runescape.wiki/w/Costume_room) and [STASH](https://oldschool.runescape.wiki/w/STASH) |
 | External loops | Owning world modules and cache unlocks | [Mahogany Homes](https://oldschool.runescape.wiki/w/Mahogany_Homes), [STASH](https://oldschool.runescape.wiki/w/STASH), [Construction cape](https://oldschool.runescape.wiki/w/Construction_cape) |
 
-Do not manually duplicate 525 furniture definitions or 123 hotspot lists. The exported all.dbtable/all.dbrow grammar is not directly server-authored config grammar, so Phase 0 must add a runtime cache query or generate a deterministic checked-in authored catalog.
+Do not manually duplicate 525 furniture definitions or 123 hotspot lists. The runtime now imports the binary DBTABLE/DBROW records, and sscompile reads the exported `columndef=<index>:` schema directly. `tools/check_construction_catalog.py` validates the cache counts, schemas, tuple shapes, and room → hotspot → furniture references before packing.
+
+## Implementation status
+
+Implemented foundation (2026-08-16):
+
+- Versioned, atomic POH save/load now covers ownership, location/style/access settings, rooms, decorations, servant state, and the servant money bag. Legacy ownership varps migrate on first use. This establishes the durable house required by [Player-owned house](https://oldschool.runescape.wiki/w/Player-owned_house).
+- New houses persist the Wiki-documented starter garden and parlour instead of reconstructing a session-only garden. Room chunks are composed from persisted DB rows and rotations. See [Garden](https://oldschool.runescape.wiki/w/Garden_(Construction)) and [Parlour](https://oldschool.runescape.wiki/w/Parlour).
+- The cache catalog gate covers all 525 furniture rows, 30 room rows, 123 hotspot rows, and all 537 Construction skill-guide rows. The compiler now consumes cache-exported database column schemas without a duplicate handwritten table. See [Constructed items](https://oldschool.runescape.wiki/w/Constructed_items) and [POH rooms](https://oldschool.runescape.wiki/w/Player-owned_house#Rooms).
+- The existing six small-garden plant choices now use a rollback-safe durable decoration transaction and are restored after re-entry. This is the first vertical slice of the generic build/remove system described by [Construction training](https://oldschool.runescape.wiki/w/Construction_training) and [Garden](https://oldschool.runescape.wiki/w/Garden_(Construction)).
+- Durable room set/remove operations now validate edits, reject collisions and invalid records, compact room storage, remove decorations with a deleted room, and reindex later decorations. These are the repository operations needed by the [House Viewer](https://oldschool.runescape.wiki/w/House_Viewer).
+- Interface 370 now has server-authoritative House Options callbacks. Building Mode safely recomposes the occupied instance; teleport-inside, default-build, and door choices persist with rollback; room count, leave, viewer gating, guest, and servant controls all respond. See [House options](https://oldschool.runescape.wiki/w/Settings#House_options).
+- Focused POH model tests, compiler schema tests, catalog validation, and a whole-player save/reload self-test cover this foundation.
+
+Still open: generated hotspot/built-loc crosswalks for the remaining furniture, isolated per-instance scene/collision state, the complete furniture/add-room/House Viewer flows, generic material/tool/XP transactions, all functional furniture families, guest/servant simulation, and external Construction systems. Those remain sequenced below.
 
 ## Target state
 
@@ -192,7 +206,7 @@ Release requires 100% catalog mapping, no unowned dependencies, no session-only 
 | Risk | Required resolution |
 |---|---|
 | One collision scene per world | Per-instance collision/loc/path/LOS isolation is a hard prerequisite for simultaneous POHs and guests. |
-| Exported DB grammar is not server-authored grammar | Choose runtime cache queries or deterministic generated config; never hand-copy hundreds of rows. |
+| Exported DB grammar differs from server-authored grammar | Resolved for compiler/runtime queries by accepting indexed `columndef=` exports; keep the catalog gate mandatory and never hand-copy hundreds of rows. |
 | Furniture rows do not prove every built-loc mapping | Generate from cache/templates, compare old 2009Scape only by symbolic meaning, fail ambiguity, and never copy foreign IDs. |
 | Live Wiki versus revision-239 drift | Pin Wiki review date/cache revision and classify each mismatch as supported, behavior-only, external, or excluded with reason. |
 | Sailing/recent POH additions | Route cache-visible Boats rows to Sailing; gate Wiki-only additions until assets and provenance exist. |
@@ -210,7 +224,7 @@ Release requires 100% catalog mapping, no unowned dependencies, no session-only 
 
 ## Appendix A — complete cache skill-guide inventory (537 entries)
 
-+This inventory is extracted from the revision-239 skill_features table. Counts include the five prose rows because they define the client-visible onboarding contract. Exact cache labels use Wiki search links so name drift and multi-concept rows remain discoverable.
+This inventory is extracted from the revision-239 skill_features table. Counts include the five prose rows because they define the client-visible onboarding contract. Exact cache labels use Wiki search links so name drift and multi-concept rows remain discoverable.
 
 | Section | Rows | Canonical Wiki reference |
 |---|---:|---|

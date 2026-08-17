@@ -203,6 +203,102 @@ mock230_poh_room_get(
 }
 
 int
+mock230_poh_room_set(
+    struct Mock230PohState* poh,
+    int room,
+    int field,
+    int value)
+{
+    struct Mock230PohRoom candidate;
+
+    if( room < 0 || room >= poh->room_count )
+        return 0;
+    candidate = poh->rooms[room];
+    switch( field )
+    {
+    case MOCK230_POH_ROOM_DBROW:
+        if( value < 0 )
+            return 0;
+        candidate.dbrow = value;
+        break;
+    case MOCK230_POH_ROOM_X:
+        if( value < 0 || value >= MOCK230_POH_GRID_MAX )
+            return 0;
+        candidate.x = value;
+        break;
+    case MOCK230_POH_ROOM_Z:
+        if( value < 0 || value >= MOCK230_POH_GRID_MAX )
+            return 0;
+        candidate.z = value;
+        break;
+    case MOCK230_POH_ROOM_LEVEL:
+        if( value < 0 || value > 3 )
+            return 0;
+        candidate.level = value;
+        break;
+    case MOCK230_POH_ROOM_ROTATION:
+        if( value < 0 || value > 3 )
+            return 0;
+        candidate.rotation = value;
+        break;
+    case MOCK230_POH_ROOM_DOOR_MASK:
+        if( value < 0 || value > 15 )
+            return 0;
+        candidate.door_mask = value;
+        break;
+    default:
+        return 0;
+    }
+
+    for( int i = 0; i < poh->room_count; i++ )
+    {
+        if( i == room )
+            continue;
+        if( poh->rooms[i].x == candidate.x && poh->rooms[i].z == candidate.z &&
+            poh->rooms[i].level == candidate.level )
+            return 0;
+    }
+    poh->rooms[room] = candidate;
+    return 1;
+}
+
+int
+mock230_poh_room_remove(
+    struct Mock230PohState* poh,
+    int room)
+{
+    int write = 0;
+
+    if( room < 0 || room >= poh->room_count )
+        return 0;
+
+    /* Decorations name their owning room by slot. Drop the removed room's
+     * decorations and shift later references alongside the compacted room
+     * array. */
+    for( int read = 0; read < poh->decoration_count; read++ )
+    {
+        struct Mock230PohDecoration decoration = poh->decorations[read];
+
+        if( decoration.room == room )
+            continue;
+        if( decoration.room > room )
+            decoration.room--;
+        poh->decorations[write++] = decoration;
+    }
+    if( write < poh->decoration_count )
+        memset(&poh->decorations[write], 0,
+               (size_t)(poh->decoration_count - write) *
+                   sizeof(poh->decorations[0]));
+    poh->decoration_count = write;
+
+    for( int i = room; i + 1 < poh->room_count; i++ )
+        poh->rooms[i] = poh->rooms[i + 1];
+    memset(&poh->rooms[poh->room_count - 1], 0, sizeof(poh->rooms[0]));
+    poh->room_count--;
+    return 1;
+}
+
+int
 mock230_poh_decoration_set(
     struct Mock230PohState* poh,
     int room,

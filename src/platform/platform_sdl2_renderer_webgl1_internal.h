@@ -329,6 +329,8 @@ struct ToriRS_GL3
     int lb_y;
     int lb_w;
     int lb_h;
+    /* 0 nearest, 1 linear, 2 best (linear on WebGL1). */
+    int interface_scale_mode;
 
     struct TRSPK_Atlas atlas;
     /*

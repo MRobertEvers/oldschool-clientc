@@ -72,6 +72,28 @@ main(void)
           "removed decorations are no longer addressable");
     check(mock230_poh_validate(&poh), "a populated record validates");
 
+    check(mock230_poh_room_set(&poh, parlour, MOCK230_POH_ROOM_ROTATION, 3) &&
+              mock230_poh_room_get(&poh, parlour, MOCK230_POH_ROOM_ROTATION) == 3,
+          "a room can be rotated in place");
+    check(!mock230_poh_room_set(&poh, parlour, MOCK230_POH_ROOM_Z, 3),
+          "moving a room onto an occupied cell is rejected");
+    check(!mock230_poh_room_set(&poh, 99, MOCK230_POH_ROOM_X, 1),
+          "an invalid room cannot be edited");
+
+    check(mock230_poh_decoration_set(&poh, garden, 2, 300, 0, 0) &&
+              mock230_poh_decoration_set(&poh, parlour, 3, 301, 0, 0),
+          "room-removal decorations can be staged");
+    check(mock230_poh_room_remove(&poh, garden), "a room can be removed");
+    check(poh.room_count == 1 && poh.decoration_count == 1 &&
+              poh.decorations[0].room == 0 &&
+              poh.decorations[0].furniture_dbrow == 301,
+          "removing a room drops its furniture and reindexes later rooms");
+    check(!mock230_poh_room_remove(&poh, 9),
+          "an invalid room cannot be removed");
+
+    check(mock230_poh_room_add(&poh, 102, 1, 1, 1, 0, 0) == 1,
+          "a second room can be added after compaction");
+
     poh.rooms[1].x = poh.rooms[0].x;
     poh.rooms[1].z = poh.rooms[0].z;
     check(!mock230_poh_validate(&poh), "validation catches overlapping rooms");
