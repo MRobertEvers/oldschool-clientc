@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Bloat
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Pestilent Bloat without anyone in the team taking damage from the following sources: Pestilent flies, Falling body parts or The Pestilent Bloats stomp attack.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 245
+|leagueRegion = Morytania
+}}
+'''Perfect Bloat''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill the [[Pestilent Bloat]] without anyone in the team taking damage from the following sources: [[Strategies#Pestilent_Bloat|Pestilent flies]], [[Strategies#Pestilent_Bloat|Falling body parts]] or The Pestilent Bloats [[Strategies#Pestilent_Bloat|stomp attack]].
+
+== Strategy ==
+Players should avoid immediately entering the arena if Bloat starts by moving north, as they will be flied upon entering the room. Players entering the room later should also wait until Bloat goes down the first time as he may occasionally send a fly from the far side due to line of sight.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

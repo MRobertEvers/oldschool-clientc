@@ -1,0 +1,429 @@
+Theatre of Blood's '''Hard Mode''' is a Theatre of Blood raid with increased difficulty released on [[3 June]] [[2021]]. Similarly to [[Chambers of Xeric/Challenge Mode|Challenge Mode Chambers of Xeric]], the enemies have more health, though their combat stats are usually the same or lower, and the bosses' mechanics are modified.
+
+To attempt a hard mode raid, all participants must have at least one normal mode completion. However, it is not recommended to attempt hard mode until the player is experienced with the tactics required in normal mode, as they are more or less the same as in hard mode.
+
+The chests are still available in hard mode, but they give less points than normal mode - assuming no deaths before or during Sotetseg, the player will usually have an average of 15 points, though the highest is 18.
+==Equipment==
+Compared to regular Theatre of blood, Hard Mode setups are much stricter to make challenge mode times and complete the raid consistently. Inventories bring additional supplies, as you will be taking much more damage, spending more time at each boss, and will receive less supplies over the course of a raid. Non-range roles often opt out of bringing Elite void to save inventory space.
+<tabber>
+Melee=
+[[Scythe of vitur]] is especially powerful for Hard mode due to the importance of quickly killing bosses such as Maiden, Xarpus, and Verzik, as well as completing the raid in the overall challenge time.
+Every role will bring the best melee equipment available, as melee is used predominantly throughout the raid.
+
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Torva full helm}} /  {{plink|Oathplate helm}}
+|head2 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}}{{efn|Can be used in place of a poison weapon for [[Nylocas Athanatos]] and removes the need to bring a [[Sanfew serum]]|name=serp}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 =  {{plink|Oathplate chest}}
+|body2 = {{plink|Torva platebody}}
+|body3 = {{plink|Bandos chestplate}} / {{plink|Blood moon chestplate}}
+|body4 = {{plink|Fighter torso}}
+|legs1 =  {{plink|Oathplate legs}}
+|legs2 = {{plink|Torva platelegs}}
+|legs3 = {{plink|Bandos tassets}} / {{plink|Blood moon tassets}}
+|weapon1 = {{plink|Scythe of vitur}}
+|weapon2 = {{plink|Soulreaper axe}}
+|weapon3 = {{plink|Blade of Saeldor}} & {{plink|Osmumten's fang}}
+|weapon4 = {{plink|Abyssal tentacle}} 
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}} / {{plink|Bandos godsword}}
+}}
+
+'''Notes:'''
+*Raiders should enter the theatre with a one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden 
+*Salve amulet (e) should be dropped after the Bloat room to gain an extra inventory space
+*A [[Swift blade]] or [[Ham joint]] is helpful for the meleers in the Nylo room. However, a fast 4t weapon such as an [[Abyssal tentacle]] will work.
+*All roles should bring both [[dragon claws]], [[crystal halberd]], [[Elder maul]]/[[Dragon warhammer]] and a [[Bandos godsword]] when possible.
+*The rune pouch should contain runes for [[Thralls]] along with a book of the dead. Additional runes can be brought for [[Spellbook Swap]], [[Potshare]], and [[Vengeance]] if inventory space allows.
+{{Notelist}}
+|-|
+
+Mage=
+Freezers will bring additional magic equipment for freezing [[Nylocas Matomenos]] and for [[Nylocas Hagios]]. Non-freeze roles should only bring a [[powered staff]] for [[Nylocas Vasilias|the Nylo boss]] and killing [[Nylocas Hagios|Nylocas]] during Verzik P3.
+{{Recommended equipment
+|style = Magic
+|head1 = Melee Helmet
+|head2 = {{plink|Void mage helm}}{{efn|With full void|name=void}}
+|neck1 = {{plink|Occult necklace}}
+|cape1 = Melee cape
+|cape2 = {{plink|Imbued god cape|pic=Imbued Saradomin cape}}{{efn|If additional magic accuracy is needed, such as with [[Elite void]]|name=magecape}}
+|body1 = {{plink|Ancestral robe top}}/{{plink|Virtus robe top}}
+|body2 = {{plink|Elite void top}}{{efn|name=void}}
+|legs1 = {{plink|Ancestral robe bottom}}/{{plink|Virtus robe bottom}}
+|legs2 = {{plink|Elite void robe}}{{efn|name=void}}
+|weapon1 = {{plink|Eye of ayak}} & {{plink|Kodai wand}}
+|weapon2 = {{plink|Sanguinesti staff}} / {{plink|Trident of the swamp}} & {{plink|Toxic staff of the dead}}
+|weapon3 = {{plink|Trident of the swamp}} & {{plink|Ice ancient sceptre}}
+|shield1 = {{plink|Elidinis' ward (f)}}
+|shield2 = {{plink|Elidinis' ward}}{{efn|If not bringing a defender|name=mageoffhand}}
+|shield3 = {{plink|Book of Darkness}}{{efn|name=magecape}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 =  {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Void knight gloves}}{{efn|name=void}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = See Melee
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Tonalztics of ralos}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}} / {{plink|Bandos godsword}}
+}}
+
+'''Notes:'''
+*In 4 man raids, one freezer (the melee freeze) should additionally take a [[Swift blade]], [[Ham joint]], or other fast melee weapon for the Nylocas waves
+*[[Ice ancient sceptre]] will extend the freeze duration of [[Nylocas Matomenos]], which is helpful for stacking and skipping at Maiden. Otherwise, the additional magic damage is preferred over a longer freeze duration
+*Raiders should enter the theatre with their one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden
+*The [[book of darkness]] can be dropped after Maiden to gain an extra inventory space once the additional magic accuracy is no longer needed.
+*Maging in Elite void can save considerable space when bringing in Elite void ranged as well. Using a Twisted bow at Maiden is also much more forgiving when preparing to freeze nylos.
+*2 Pieces of [[Ancestral robes]] will give an extra Sang/Trident max hit, while 2 pieces of [[Virtus]] will give an extra barrage max hit in most setups. While magic equipment below ancestral/virtus can be used, they are only marginally better than elite void equipment.
+**For 100% freeze rate at Maiden (without a boosted magic level), +103 magic accuracy is required for ancestral/virtus, and +54 magic accuracy is required for void, both assume Augury is active. If using equipment other than this, refer to [[Nylocas Matomenos]] for magic accuracy requirements.
+**Void freezers may need to take off their defender and boots to reach 100% freeze rate. If freezing with a powered staff put it on accurate for an invisible accuracy bonus
+*Freeze roles should take a [[saturated heart]] or [[imbued heart]] for the nylo room. 
+*[[Tonalztics of ralos]] can be used to reduce Maiden to 0 defence in only 2 specs after a single Dragon warhammer or Elder maul to save special attacks for stacking or 30s skip.
+{{Notelist}}
+|-|
+
+Range=
+In addition to full melee gear, the ranger will bring full [[Elite Void Knight equipment|Elite void]] as its damage far exceeds other range equipment on [[Nylocas]]. Other roles can elect to bring full elite void, Masori, or no additional switches besides their range weapon depending on how much additional inventory space is desired.
+
+{{Recommended equipment
+|style = Range
+|head1 = {{plink|Void ranger helm}}{{efn|With full void|name=void}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|body1 = {{plink|Elite void top}}{{efn|name=void}}
+|body2 = {{plink|Masori body (f)}}{{efn|Non-range roles can bring 1-2 pieces of masori instead of full range void to save inventory space|name=masori}}
+|legs1 = {{plink|Elite void robe}}{{efn|name=void}}
+|legs2 = {{plink|Masori chaps (f)}}{{efn|name=masori}}
+|weapon1 = {{plink|Twisted bow}} & {{plink|Toxic blowpipe}}
+|shield1 = {{plink|Twisted buckler}}{{efn|If bringing chinchompas|name=chin}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 =  {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Void knight gloves}}{{efn|name=void}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = See Melee
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}} / {{plink|Bandos godsword}}
+}}
+
+'''Notes:'''
+*Raiders should enter the theatre with a one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden 
+*Toxic blowpipe should be loaded with [[rune dart]]s or better
+*Ranger should bring 15-25 [[black chinchompa]]s and a [[twisted buckler]] to hit groups of [[Nylocas Matomenos]] and [[Nylocas Toxobolos]]
+*The rune pouch and inventory should contain runes for [[Potshare]] and [[Vengeance]]. Additional runes for [[Spellbook Swap]] and [[Thralls]] can be brought if inventory space allows.
+{{Notelist}}
+|-|
+</tabber>
+{| style="clear:both;"
+|+Example setups
+!Melee
+!Mage
+!Ranger
+|-
+|
+{{Equipment
+|align = center
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Dragon arrow
+|weapon = Swift blade
+|torso = Oathplate chest
+|legs = Oathplate legs
+|shield = Avernic defender
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|
+{{Equipment
+|align = center
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Occult necklace
+|ammo = Dragon arrow
+|weapon = Kodai wand
+|torso = Virtus robe top
+|legs = Ancestral robe bottom
+|shield = Elidinis' ward (f)
+|gloves = Confliction gauntlets
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|
+{{Equipment
+|align = center
+|head = Void ranger helm
+|cape = Dizana's quiver
+|neck = Necklace of rupture
+|ammo = Dragon arrow
+|weapon = Black chinchompa
+|torso = Elite void top
+|legs = Elite void robe
+|shield = Twisted buckler
+|gloves = Void knight gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|-
+|
+{{Inventory
+|align=center
+|1=Twisted bow
+|2=Toxic blowpipe
+|3=Sanguinesti staff
+|4=Book of the Dead
+|5=Necklace of rupture
+|6=Bandos godsword
+|7=Crystal halberd 
+|8=Dragon claws
+|9=Elder maul
+|10=Scythe of vitur
+|11=Salve amulet (e)
+|12=Anglerfish
+|13=Guthix rest(4)
+|14=Anglerfish
+|15=Super restore(4)
+|16=Super combat potion(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super combat potion(4)
+|21=Saradomin brew(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Divine super combat potion(4)
+|25=Saradomin brew(4)
+|26=Saradomin brew(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Cosmic rune
+|2=Fire rune
+|3=Death rune
+}}
+|
+{{Inventory
+|align=center
+|1=Twisted bow
+|2=Ferocious gloves
+|3=Torva platelegs
+|4=Dragon claws
+|5=Amulet of rancour
+|6=Torva platebody
+|7=Sanguinesti staff
+|8=Crystal halberd
+|9=Scythe of vitur
+|10=Necklace of rupture
+|11=Toxic blowpipe
+|12=Bandos godsword
+|13=Saturated heart
+|14=Salve amulet (e)
+|15=Elder maul
+|16=Super combat potion(4)
+|17=Guthix rest(4)
+|18=Anglerfish
+|19=Super restore(4)
+|20=Super combat potion(4)
+|21=Saradomin brew(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Divine super combat potion(4)
+|25=Saradomin brew(4)
+|26=Saradomin brew(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Death rune
+|3=Water rune
+|4=Soul rune
+}}
+|
+{{Inventory
+|align=right
+|1=Twisted bow
+|2=Torva full helm
+|3=Torva platebody
+|4=Infernal cape
+|5=Amulet of rancour
+|6=Ferocious gloves
+|7=Torva platelegs 
+|8=Toxic blowpipe
+|9=Elder maul
+|10=Sanguinesti staff 
+|11=Crystal halberd
+|12=Dragon claws
+|13=Scythe of vitur
+|14=Salve amulet (e)
+|15=Anglerfish
+|16=Super combat potion(4)
+|17=Guthix rest(4)
+|18=Anglerfish
+|19=Super restore(4)
+|20=Super combat potion(4)
+|21=Saradomin brew(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Divine super combat potion(4)
+|25=Saradomin brew(4)
+|26=Saradomin brew(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Water rune
+|2=Earth rune
+|3=Death rune
+|4=Astral rune
+}}
+|-
+|
+|}
+''Additional example inventory and role setups can be found here: [[Guide:Theatre of Blood setups#Theatre of Blood (Hard Mode)|Guide:Theatre of Blood setups (Hard mode)]]''
+
+==Bosses==
+===Maiden of Sugadinti===
+The [[blood spawn]]s that appear are now invulnerable to damage and the pools of blood they leave behind will no longer despawn. She will also spawn all eight [[Nylocas Matomenos]] at every interval, which alongside healing her and increasing her damage, also increases her attack speed. Therefore, it is vital to freeze all nylocas, and to a lesser extent, blood spawns, as getting hit by blood spawns will significantly increase the chances of a wipe due to more blood spawns appearing and covering more tiles.
+
+The Maiden's attacks will deal more damage after three auto-attacks on a single target, so teams should rotate accordingly to minimise overall damage.
+
+Freezers often follow the convention of N1234, S12 (clumping S2 and backing up 4s if needed). If the ranger is bringing chinchompas to attack the pile of Nylocas, this allows the south freezer to continue scything maiden earlier. Otherwise, they will continue to barrage the clump of nylocas as normal.
+
+===Pestilent Bloat===
+The boss can change directions multiple times rather than once per rotation. In addition, parts will fall from the ceiling for the entire duration of the fight, so players should watch for falling shadows and be on the move even when attacking. Due to this, bandos godsword drivebys are not recommended, as getting caught by a falling part will likely result in a guaranteed death alongside the ranged attacks. Having radius markers active can help improve reaction times when the boss makes a turn.
+
+===Nylocas===
+All normal nylocas now act similarly to [[Nylocas Vasilias]] - attacking them with the wrong combat style will reflect the damage the player would have dealt back onto them alongside preventing them from being attacked by that player. While the damage is capped to the nylocas' health, it is important not to instinctively AoE clusters of nylocas as this can result in a lot of damage if the team is faring poorly on the waves. 
+
+Three [[Nylocas Prinkipas]] will also spawn during pre-challenge build-up, working similarly to normal mode Vasilias, on the tenth, twentieth and thirtieth wave. The first two should be killed immediately as soon as they appear, with all players ideally dumping a scythe auto and a crystal halberd special attack, as Prinkipas has fairly low health (300/350/400 health); these two attacks alone are usually strong enough to remove 80% of the Prinkipas' health before it changes form, after which one or two players can focus killing on nylocas again. The third one should be ignored until all of the lesser nylocas are killed, as it is more important at this point to preserve the pillars as no further nylocas will appear unless going for the [[Royal Affairs]] achievement.
+
+Hard mode nylocas use a different set of IDs, and using RuneLite's '''Better NPC Highlight''' will help identify them, though they still aggro as in normal mode:
+
+*Small melee: 10797
+*Large melee: 10800
+*Small ranged: 10798
+*Large ranged: 10801
+*Small magic: 10799
+*Large magic: 10802
+[[File:Nylocas Vasilias (Hard Mode) - team movements.mp4|thumb|400px|A team converges and scatters the instant the Nylocas Vasilias uses its second attack, in anticipation of a form change.]]
+Vasilias itself has its ranged and magic attacks imbued with special properties - the ranged attack hits everyone within 3 tiles of its primary target, so players should spread apart to minimise damage. The magic attack instead bounces through the whole team if they are not all on the same tile (known as death-dot). If the attack bounces, it will always hit, ignoring protection prayers and defence bonuses. It deals half damage if within two tiles of the primary target; otherwise it deals increased damage. Therefore, spread at least three tiles away when it is in its ranged form, and death dot when it is in its magic form. Vasilias' attacks are also stronger, capable of one-hitting players with an unprotected attack.
+
+Essentially, after Vasilias' second attack in its mage or range form, the team should converge/scatter respectively to minimize damage taken. In its melee form, players should expect the next style to be ranged as its attack hits faster than the magic style and cannot be as easily reacted to.
+
+===Sotetseg===
+'''Depending on the quadrant the player takes, this will also be their quadrant for both Xarpus and Verzik.'''
+
+Sotetseg's fight is very similar to normal mode, with the exception of the maze and large ball mechanics. Sotetseg now sends all but one player into the Shadow Realm, and those players sent there will now have the maze divided amongst them, based on orb order. 
+
+The tornado can spawn in the shadow realm as well as in the overworld. Once the player that is lowest in orb order passes the 3rd row of tiles, the shadow will spawn INSIDE the shadow realm. However, if the player in the overworld passes the third row it will spawn the tornado BOTH in the shadow realm AND in the overworld. This makes it especially important for the player above to wait on the 3rd row until the last player in the shadow realm begins running.
+
+Soteseg will launch 2 death balls. Rather than having everyone death-dot on the same tile, the players targeted by the balls should stand next to the death-dot tile, while all other players not targeted by them should stand on the death-dot tile. This will spread out damage more consistently, though players should keep their health high to tank the damage.
+
+If a second set of death balls appears, they are often tick-ate as most players' health are too low to safely split the damage. If the entire team heals between rounds, these can be shared the same as above. 
+
+'''Make sure to have a 4-dose stamina potion before leaving this room!'''
+
+===Xarpus===
+[[File:Xarpus (Hard Mode) - phase 3.mp4|thumb|400px|Players in each quadrant attack Xarpus in different intervals. In a 5-Scale team, a quadrant with two players must sync their attacks to prevent killing the other.]]
+As soon as the fight is initiated, Xarpus will spit poison around the edges of the arena, covering up to two tiles' worth from them outside of the three tiles in front of the entrance, resulting in a three tile radius around Xarpus which is left untouched. Learning how to melee Xarpus is essential in hard mode, since there is less room to work with and the boss must reach phase 3 faster. However, as a result of the limited space, Xarpus' Defence is lowered from 250 to 200 and the exhumed tend to spawn in more predictable areas. Players should enter the arena from the middle tile of the barrier to avoid unnecessary damage.
+
+During the stare phase, Xarpus will immediately focus on the quadrant he was attacked from, overriding his natural rotation. The team should spread out on all four quadrants and attack on different ticks to force Xarpus to continually rotate, therefore making it impossible for any player to get hit by the retaliatory attack unless someone stops attacking. In a five man team the quadrant with two players should exercise some caution to avoid killing the other player, or attack on the same tick together.
+
+===Verzik Vitur===
+In phase 1, whenever Verzik damages the pillars, rubble will fall from the ceiling in a 1x1 AoE  up to 3 tiles from the edge of the pillar. Getting caught by one will stun the player and deal up to 35 damage. Simply running from one pillar to the other will be enough to avoid damage from the falling debris.
+
+In phase 2, Verzik's urnbombs will leave behind a pool of poison that lasts for 16 ticks, dealing 9-10 rapid poison damage if stood on (and inflict poison) and deal slightly more damage. Players will need to utilise five tiles to attack Verzik - the main attacking tile, and four other tiles outside of melee range to juggle the poison pools. During the last 35% interval, the Nylocas Matomenos that she spawns will explode and deal damage to any player near them if they are still alive when Verzik summons a new set. The combat nylocas that she spawns will only pop upon being killed or having the player they were following trigger the explosion, though apart from the twisted bow, the player will always max on them. Phase 2 is still dealt with the same way as in normal mode.
+
+<gallery mode="packed" heights="300" style="text-align:left">
+Verzik Vitur (Hard Mode) - phase 1.mp4|Players must constantly move between pillars to avoid falling debris.
+Verzik Vitur (Hard Mode) - phase 2.mp4|During phase 2, players must rotate between a set of tiles to avoid the acid pools.
+</gallery>
+[[File:Verzik Vitur (Hard Mode) - phase 3.mp4|thumb|400px|Verzik will switch targets whenever using a special attack. As such, knowing how to tank Verzik properly is mandatory in Hard Mode.]]
+In phase 3, Verzik will periodically change aggro rather than focusing on one player, so all players should be prepared to tank throughout the entire fight. The charged attack also strikes three times per player, with three tiles to protect them from each strike. The large green ball attack will now instantly kill if there are two or more players in the arena; otherwise, it will function the same as its normal mode variant. The damage will be lowered to 89, 74 and 49 for 1/2/3 bounces respectively. However, experienced teams can bypass the damage by activating [[Redemption]] before the ball would hit. To do this, the player must trigger redemption at low health, such as tanking a tornado, using a [[locator orb]] or other specific self-damaging items; [[Zamorak brew]] does not work.
+
+During phases 2 and 3, the combat nylocas summoned by Verzik will now alternate styles, looping from melee, ranged and magic in that order. They are still dealt with the same way as normal mode.
+[[File:Verzik Vitur (Hard Mode) - phase 3 pogwebs.mp4|thumb|400px|Proficient players will often attempt to finish off Verzik before her yellow charging attack, using a method known as pogwebs to perfectly get into cycle for her enrage phase.]]
+Unlike normal mode, it is not recommended to trigger the 20.0% threshold until after the charged attack ends to avoid having to handle the triple shot and tracking tornadoes at the same time, which will often result in one of the two mechanics damaging the player. While the green ball will be launched with players having to run around, tanking a tornado in this case is much better over getting instantly killed by the green ball if not using the Redemption method, since each tornado only damages the player they were tracking, not other players, and the health Verzik restores is usually low enough that the team can easily negate it. Still, it is recommended to keep health high if the green ball has to be tanked alone, since it and Verzik's increased auto-attacks can deal a lot of damage.
+
+Finally, as a final stand, upon reaching 5% or lower of her health, Verzik will trigger a one-time heal, yelling {{overhead|You think this is over?}} and heal 30% of her health.
+
+==Rewards==
+Completing the Theatre of Blood in Hard Mode grants 15% more common loot. Completing the raid within the target time will give players an additional 15% in common loot, as well as giving players the chance to obtain Hard Mode-exclusive rewards (specifically, the sanguine dust and ornament kits). 
+
+The time thresholds are based on the total raid time, which includes the time between rooms.
+
+{| class="wikitable align-center-1 align-right-2"
+!Players
+!Time
+|-
+|5
+|25:00
+|-
+|4
+|27:00
+|-
+|3
+|30:00
+|-
+|2
+|35:00
+|-
+|1
+|1:10:00
+|}
+
+===Uniques===
+''The unique drop mechanics for Hard Mode are identical to Normal Mode, aside from an overall increased unique chance to 1/7.7 (~13%),{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1485992982906085376|date=25 January 2022|archiveurl=https://reldo.runescape.wiki/i/98998|archivedate=25 January 2022|quote=All assuming no deaths, ToB HM Rates:}} and reduced weighting for the Avernic defender hilt, making the other uniques even more common.{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1485995069085732875|date=25 January 2022|archiveurl=https://archive.is/wALyX|archivedate=25 January 2022|quote=The weighting for Avernic Hilt is decreased by 1, making other items more common.}}''
+
+{{DropsTableHead|bucket=no}}
+{{DropsLineReward|name=Avernic defender hilt|quantity=1|rarity=7/138.6}}
+{{DropsLineReward|name=Ghrazi rapier|quantity=1|rarity=2/138.6}}
+{{DropsLineReward|name=Sanguinesti staff (uncharged)|quantity=1|rarity=2/138.6}}
+{{DropsLineReward|name=Justiciar faceguard|quantity=1|rarity=2/138.6}}
+{{DropsLineReward|name=Justiciar chestguard|quantity=1|rarity=2/138.6}}
+{{DropsLineReward|name=Justiciar legguards|quantity=1|rarity=2/138.6}}
+{{DropsLineReward|name=Scythe of vitur (uncharged)|quantity=1|rarity=1/138.6}}
+{{DropsTableBottom}}
+{{Reflist|group=r}}
+
+===Tertiary===
+{{DropsTableHead|bucket=no}}
+{{DropsLineClue|type=elite|rarity=3.5/25|raritynotes=<ref group="d" name="tertiary">Drop rate scales down based on the individual's performance during the raid.</ref>}}
+{{DropsLineReward|name=Sanguine dust|quantity=1|rarity=1/275}}
+{{DropsLineReward|name=Sanguine ornament kit|quantity=1|rarity=1/150}}
+{{DropsLineReward|name=Holy ornament kit|quantity=1|rarity=1/100}}
+{{DropsLineReward|name=Lil' Zik|quantity=1|rarity=1/500}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}

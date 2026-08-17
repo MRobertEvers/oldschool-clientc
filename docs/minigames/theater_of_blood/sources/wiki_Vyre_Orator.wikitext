@@ -1,0 +1,36 @@
+{{otheruses|def=no|the NPC inside the theatre|Vyre Orator (Theatre of Blood)}}
+{{Infobox NPC
+|version1 = Male
+|version2 = Female
+|name = Vyre Orator
+|image1 = [[File:Vyre Orator (male).png|120px]]
+|image2 = [[File:Vyre Orator (female).png|140px]]
+|release = [[24 May]] [[2018]]
+|update = A Taste of Hope
+|members = Yes
+|race = [[Vampyre]]
+|quest = [[A Night at the Theatre]]
+|location = [[Ver Sinhaza]]
+|gender1 = Male
+|gender2 = Female
+|examine = They have a lot to say.
+|map1 = {{Map|zoom=3|3663,3224|mtype=pin}}
+|map2 = {{Map|zoom=3|3663,3214|mtype=pin}}
+|id1 = 8323,16281
+|id2 = 8324,16282
+|leagueRegion = Morytania
+}}
+{{Synced switch
+|version1 = [[File:Vyre Orator (male) chathead.png|left]]
+|version2 = [[File:Vyre Orator (female) chathead.png|left]]
+}}
+'''Vyre Orators''' are [[vampyre]]s who are found in [[Ver Sinhaza]] welcoming citizens to the [[Theatre of Blood]], encouraging them to participate. They can also be found inside the [[Theatre of Blood]] directing players through it.
+
+[[File:Vyre_Orators.png|thumb|left|300px|The Vyre Orators speaking from the balconies.]]
+
+==Dialogue==
+{{hastranscript|npc}}
+
+{{Vampyres}}
+{{A Night at the Theatre}}
+{{Theatre of Blood}}

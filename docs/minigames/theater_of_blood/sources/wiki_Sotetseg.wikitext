@@ -1,0 +1,151 @@
+{{Infobox Monster
+|defver = 2
+|version1 = Entry
+|version2 = Normal
+|version3 = Hard
+|name = Sotetseg
+|image = [[File:Sotetseg.png|290px]]
+|release1 = [[3 June]] [[2021]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[3 June]] [[2021]]
+|update1 = Theatre of Blood: New Modes
+|update2 = The Theatre of Blood
+|update3 = Theatre of Blood: New Modes
+|members = Yes
+|combat1 = 336
+|combat2 = 995
+|combat3 = 1195
+|size = 5
+|examine = An intruder from the Shadow Realm, corrupted through haemalchemy.
+|xpbonus1 = 15
+|xpbonus2 = 37.5
+|xpbonus3 = 40
+|max hit1 = 20 ([[Melee]]), 22 ([[Ranged]]), 22 ([[Magic]])
+|max hit2 = 45 ([[Melee]]), 50 ([[Ranged]]), 50 ([[Magic]])
+|max hit3 = 45 ([[Melee]]), 50 ([[Ranged]]), 50 ([[Magic]])
+|aggressive = No
+|poisonous = No
+|attack style = [[Crush]], [[Magic]]
+|attack speed = 5
+|hitpoints1 = 2240
+|hitpoints2 = 4000
+|hitpoints3 = 4000
+|scaledhp = Yes
+|att1 = 180
+|att2 = 250
+|att3 = 350
+|str1 = 140
+|str2 = 250
+|str3 = 250
+|def1 = 150
+|def2 = 200
+|def3 = 200
+|mage1 = 150
+|mage2 = 250
+|mage3 = 250
+|range1 = 150
+|range2 = 250
+|range3 = 250
+|attbns = 0
+|strbns1 = 20
+|strbns2 = 48
+|strbns3 = 48
+|amagic = -10
+|mbns1 = 26
+|mbns2 = 60
+|mbns3 = 60
+|arange = -10
+|rngbns1 = 26
+|rngbns2 = 60
+|rngbns3 = 60
+|dstab1 = 30
+|dstab2 = 70
+|dstab3 = 70
+|dslash1 = 30
+|dslash2 = 70
+|dslash3 = 70
+|dcrush1 = 30
+|dcrush2 = 70
+|dcrush3 = 70
+|dmagic1 = 10
+|dmagic2 = 30
+|dmagic3 = 30
+|dlight1 = 120
+|dlight2 = 150
+|dlight3 = 150
+|dstandard1 = 120
+|dstandard2 = 150
+|dstandard3 = 150
+|dheavy1 = 120
+|dheavy2 = 150
+|dheavy3 = 150
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10864,10865
+|id2 = 8387,8388
+|id3 = 10867,10868
+|leagueRegion = Morytania
+}}
+'''Sotetseg''' is the fourth encounter in the [[Theatre of Blood]]. It is a [[dark beast]] that has been corrupted through [[Haemalchemy]]. Despite this, Sotetseg does not count for a dark beast [[Slayer]] task.
+
+==Mechanics==
+Sotetseg stands immobile in the northern section of a 14×15 tiled arena. It launches small red projectiles which can be blocked with [[Protect from Magic]]. Upon striking a player, these projectiles will split into two other similar projectiles, both of which will ricochet towards other players as one grey and one red projectiles. The grey projectiles can be blocked with [[Protect from Missiles]] whereas the red projectiles can be blocked with [[Protect from Magic]], the same as the original projectile. Failing to protect against Sotetseg's attacks will block the player's protection prayers for 3 seconds. Retribution, Smite, and most importantly, Redemption can still be used at this time. These projectiles are not tick-eatable up close, but it is possible at a distance. Sotetseg's melee attack is not tick-eatable, although unlike most melee attacks by NPCs, the hitsplat is applied one tick after the attack.
+
+[[File:Sotetseg Shadow Realm.png|thumb|left|A player dragged into the [[Shadow Realm]] by Sotetseg.]]
+After launching 10 projectiles, Sotetseg will fire a slow-moving large red ball at a single player, which can do up to 188 damage (scaling with party size) when it hits the player. If other players are standing within a 3×3 area of the targeted player, the damage will be dispersed among them. This large red ball is tick-eatable.
+
+At 66.6% and 33.3% hitpoints, Sotetseg will choose a single player and transport them into a shadow realm. The player must follow the red path on the tiled ground and enter the portal at the end to return to the arena. The transported player will also constantly take hits of 1 to 3 chip damage every 7 ticks (4.2 seconds) while in the realm. The players in the arena must also follow the same path, however, they will only be able to see the current location of the transported player, denoted by a red glow on the tiled ground. Standing on a wrong tile will damage the player for 6.67% of their current hitpoints + 15 (11 in [[Theatre of Blood/Entry Mode|entry mode]]) damage every tick. Concurrently, players in the arena will also be chased by a red vortex that will deal damage to the whole party if intercepted.
+
+His defence level can be lowered down to a minimum of 100. Although it is a [[dark beast]], it is not affected by a [[Slayer]] task.
+
+===Hard Mode===
+In Hard Mode, Sotetseg will launch two large red balls at a time whenever it is used. In addition, Sotetseg will send all but one player into the Shadow Realm at 66.6% and 33.3% of its health, and those players sent into the realm have the maze divided among themselves, if more than one was sent inside. The tornado also appears earlier if the player not sent walks past the third row of tiles.
+
+===Entry Mode===
+In Entry Mode, Sotetseg's large red ball will deal 15 damage if the player attempts the raid by themselves. In groups, the ball will deal more damage, around 80 or so damage.
+{{clear|left}}
+
+==Drops==
+{{DropLogProject|kills=6800}}
+{{DropsTableHead}}
+{{DropsLine|name=The shadow realm|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 December 2021
+|update = PJ Timer Beta & Chat Changes
+|change = Sotetseg's fade-to-white effect when teleporting players is now a little less glaring.
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = <nowiki />
+Hard mode and entry mode versions of the Theatre of Blood encounters added.
+}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|poll =
+|change = The large ball of energy attack now has the same timing regardless of the player's distance from the boss and the message notifying of it is now highlighted, and the magical and ranged attacks can no longer stack on the player on the same game tick.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery>
+Sotetseg the blood beast work-in-progress.png|A work in progress model of Sotetseg
+Sotetseg the blood beast model.gif|Sotetseg's completed model
+Sotetseg artwork.jpg|Artwork of Sotetseg
+</gallery>
+
+==Trivia==
+*"Sötétség" means "darkness" in Hungarian.
+*Sotetseg had a festive override wearing a [[white partyhat]] during the [[2018 Christmas event/Gallery|2018]] and [[2019 Christmas event/Gallery|2019]] Christmas events.
+
+{{Theatre of Blood}}
+{{Bosses}}

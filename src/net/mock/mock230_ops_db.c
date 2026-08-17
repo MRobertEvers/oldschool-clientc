@@ -149,8 +149,11 @@ query_row(
 
     if( index < 0 )
         return NULL;
+    /* `db_listall` is the positional cursor, so it walks the order the cache
+     * documents and the client uses. `db_find` below keeps the storage-order
+     * scan — see mock230_db_row_in_table_ordered for why the two differ. */
     if( player->db_query_column < 0 )
-        return mock230_db_row_in_table(player->db_query_table, index);
+        return mock230_db_row_in_table_ordered(player->db_query_table, index);
     table = mock230_db_table(player->db_query_table);
     if( !table || player->db_query_column >= table->column_count )
         return NULL;

@@ -1,0 +1,475 @@
+{{external|rs}}
+{{Multi Infobox
+|text1 = Quests
+|item1 = 
+  {{Infobox NPC
+|version1 = A Taste of Hope
+|version2 = A Night at the Theatre
+|name = Verzik Vitur
+|image1 = [[File:Verzik Vitur.png|220px]]
+|image2 = [[File:Verzik Vitur (A Night at the Theatre).png|170px]]
+|release1 = [[24 May]] [[2018]]
+|release2 = [[28 July]] [[2021]]
+|update1 = A Taste of Hope
+|update2 = A Night At The Theatre Rework
+|members = Yes
+|race1 = [[Vampyre]] / [[Nylocas]]
+|race2 = [[Vampyre]]
+|quest1 = [[A Taste of Hope]]
+|quest2 = [[A Night at the Theatre]]
+|location = [[Ver Sinhaza]]
+|gender = Female
+|examine1 = There's something very disconcerting about her.
+|examine2 = Owner of the Theatre of Blood.
+|map = No
+|id1 = 8250
+|id2 = 11178
+|leagueRegion = Morytania
+}}
+|text2 = Entry
+|item2 = 
+  {{Infobox Monster
+|version1 = Phase 1
+|version2 = Phase 2
+|version3 = Phase 3
+|bucketname1 = Entry mode, Phase 1
+|bucketname2 = Entry mode, Phase 2
+|bucketname3 = Entry mode, Phase 3
+|name = Verzik Vitur
+|image1 = [[File:Verzik Vitur.png|220px]]
+|image2 = [[File:Verzik Vitur (flying).png|220px]]
+|image3 = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat1 = 425
+|combat2 = 488
+|combat3 = 512
+|size1 = 5
+|size2 = 3
+|size3 = 7
+|examine = There's something very disconcerting about her.
+|xpbonus1 = 0
+|xpbonus2 = 7.5
+|xpbonus3 = 30
+|max hit1 = 60
+|max hit2 = 16, 16 (bounce), ~34 (bounce after standing underneath)
+|max hit3 = 36 ([[melee]]), 20 ([[magic]]), 20 ([[ranged]])
+|aggressive1 = No
+|aggressive2 = Yes
+|aggressive3 = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Crush]], [[Magic]], [[Ranged]]
+|attack style3 = [[Typeless]] [[Crush]], [[Magic]], [[Ranged]]
+|attack speed1 = 14
+|attack speed2 = 4
+|attack speed3 = 7
+|hitpoints1 = 1200
+|hitpoints2 = 1600
+|hitpoints3 = 2400
+|scaledhp = Yes
+|att1 = 180
+|att2 = 200
+|att3 = 180
+|str1 = 150
+|str2 = 150
+|str3 = 200
+|def1 = 10
+|def2 = 120
+|def3 = 120
+|mage = 180
+|range = 180
+|attbns1 = 0
+|attbns2 = 0
+|attbns3 = 32
+|strbns1 = 0
+|strbns2 = 0
+|strbns3 = 46
+|amagic1 = 32
+|amagic2 = 32
+|amagic3 = 20
+|mbns1 = 140
+|mbns2 = 50
+|mbns3 = 5
+|arange1 = 32
+|arange2 = 32
+|arange3 = 20
+|rngbns1 = 50
+|rngbns2 = 50
+|rngbns3 = 5
+|dstab1 = 10
+|dstab2 = 40
+|dstab3 = 30
+|dslash1 = 10
+|dslash2 = 20
+|dslash3 = 10
+|dcrush1 = 10
+|dcrush2 = 40
+|dcrush3 = 30
+|dmagic1 = 10
+|dmagic2 = 40
+|dmagic3 = 60
+|dlight1 = 10
+|dlight2 = 180
+|dlight3 = 100
+|dstandard1 = 10
+|dstandard2 = 180
+|dstandard3 = 100
+|dheavy1 = 10
+|dheavy2 = 180
+|dheavy3 = 100
+|elementalweaknesstype1 = 
+|elementalweaknesstype2 = 
+|elementalweaknesstype3 = Fire
+|elementalweaknesspercent1 = 
+|elementalweaknesspercent2 = 
+|elementalweaknesspercent3 = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10830,10831,10832
+|id2 = 10833,10834
+|id3 = 10835,10836
+|leagueRegion = Morytania
+}}
+|text3 = Normal
+|item3 = 
+  {{Infobox Monster
+|version1 = Phase 1
+|version2 = Phase 2
+|version3 = Phase 3
+|bucketname1 = Normal mode, Phase 1
+|bucketname2 = Normal mode, Phase 2
+|bucketname3 = Normal mode, Phase 3
+|name = Verzik Vitur
+|image1 = [[File:Verzik Vitur.png|220px]]
+|image2 = [[File:Verzik Vitur (flying).png|220px]]
+|image3 = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat1 = 1040
+|combat2 = 1265
+|combat3 = 1520
+|size1 = 5
+|size2 = 3
+|size3 = 7
+|examine = There's something very disconcerting about her.
+|xpbonus1 = 5
+|xpbonus2 = 30
+|xpbonus3 = 57.5
+|max hit1 = 137
+|max hit2 = 47, 50 (bounce), ~80 (bounce after standing underneath)
+|max hit3 = 63 ([[melee]]), 33 ([[magic]]), 33 ([[ranged]])
+|aggressive1 = No
+|aggressive2 = Yes
+|aggressive3 = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Crush]], [[Magic]], [[Ranged]]
+|attack style3 = [[Typeless]] [[Crush]], [[Magic]], [[Ranged]]
+|attack speed1 = 14
+|attack speed2 = 4
+|attack speed3 = 7
+|hitpoints1 = 2000
+|hitpoints2 = 3500
+|hitpoints3 = 3500
+|scaledhp = Yes
+|att = 400
+|str = 400
+|def1 = 20
+|def2 = 200
+|def3 = 150
+|mage1 = 400
+|mage2 = 400
+|mage3 = 300
+|range1 = 400
+|range2 = 400
+|range3 = 300
+|attbns1 = 0
+|attbns2 = 0
+|attbns3 = 80
+|strbns1 = 0
+|strbns2 = 0
+|strbns3 = 30
+|amagic = 80
+|mbns1 = 150
+|mbns2 = 80
+|mbns3 = 5
+|arange = 80
+|rngbns1 = 80
+|rngbns2 = 80
+|rngbns3 = 5
+|dstab1 = 20
+|dstab2 = 100
+|dstab3 = 70
+|dslash1 = 20
+|dslash2 = 60
+|dslash3 = 30
+|dcrush1 = 20
+|dcrush2 = 100
+|dcrush3 = 70
+|dmagic1 = 20
+|dmagic2 = 70
+|dmagic3 = 100
+|dlight1 = 20
+|dlight2 = 250
+|dlight3 = 230
+|dstandard1 = 20
+|dstandard2 = 250
+|dstandard3 = 230
+|dheavy1 = 20
+|dheavy2 = 250
+|dheavy3 = 230
+|elementalweaknesstype1 = 
+|elementalweaknesstype2 = 
+|elementalweaknesstype3 = Fire
+|elementalweaknesspercent1 = 
+|elementalweaknesspercent2 = 
+|elementalweaknesspercent3 = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 8369,8370,8371
+|id2 = 8372,8373
+|id3 = 8374,8375
+|leagueRegion = Morytania
+}}
+|text4 = Hard
+|item4 = 
+  {{Infobox Monster
+|version1 = Phase 1
+|version2 = Phase 2
+|version3 = Phase 3
+|bucketname1 = Hard mode, Phase 1
+|bucketname2 = Hard mode, Phase 2
+|bucketname3 = Hard mode, Phase 3
+|name = Verzik Vitur
+|image1 = [[File:Verzik Vitur.png|220px]]
+|image2 = [[File:Verzik Vitur (flying).png|220px]]
+|image3 = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat1 = 1040
+|combat2 = 1265
+|combat3 = 1520
+|size1 = 5
+|size2 = 3
+|size3 = 7
+|examine = There's something very disconcerting about her.
+|xpbonus1 = 5
+|xpbonus2 = 30
+|xpbonus3 = 57.5
+|max hit1 = 137
+|max hit2 = 44, 50 (bounce), ~80 (bounce after standing underneath)
+|max hit3 = 63 ([[melee]]), 33 ([[magic]]), 33 ([[ranged]])
+|aggressive1 = No
+|aggressive2 = Yes
+|aggressive3 = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Crush]], [[Magic]], [[Ranged]]
+|attack style3 = [[Typeless]] [[Crush]], [[Magic]], [[Ranged]]
+|attack speed1 = 14
+|attack speed2 = 4
+|attack speed3 = 7
+|hitpoints1 = 2000
+|hitpoints2 = 3500
+|hitpoints3 = 3500
+|scaledhp = Yes
+|att = 400
+|str = 400
+|def1 = 20
+|def2 = 200
+|def3 = 150
+|mage1 = 400
+|mage2 = 400
+|mage3 = 300
+|range1 = 400
+|range2 = 400
+|range3 = 300
+|attbns1 = 0
+|attbns2 = 0
+|attbns3 = 80
+|strbns1 = 0
+|strbns2 = 0
+|strbns3 = 30
+|amagic = 80
+|mbns1 = 150
+|mbns2 = 80
+|mbns3 = 5
+|arange = 80
+|rngbns1 = 80
+|rngbns2 = 80
+|rngbns3 = 5
+|dstab1 = 20
+|dstab2 = 100
+|dstab3 = 70
+|dslash1 = 20
+|dslash2 = 60
+|dslash3 = 30
+|dcrush1 = 20
+|dcrush2 = 100
+|dcrush3 = 70
+|dmagic1 = 20
+|dmagic2 = 70
+|dmagic3 = 100
+|dlight1 = 20
+|dlight2 = 250
+|dlight3 = 230
+|dstandard1 = 20
+|dstandard2 = 250
+|dstandard3 = 230
+|dheavy1 = 20
+|dheavy2 = 250
+|dheavy3 = 230
+|elementalweaknesstype1 = 
+|elementalweaknesstype2 = 
+|elementalweaknesstype3 = Fire
+|elementalweaknesspercent1 = 
+|elementalweaknesspercent2 = 
+|elementalweaknesspercent3 = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10847,10848,10849
+|id2 = 10850,10851
+|id3 = 10852,10853
+|leagueRegion = Morytania
+}}
+}}
+{{Synced switch
+|version1 = [[File:Verzik Vitur chathead.png|left]]
+|version2 = [[File:Verzik Vitur (A Night at the Theatre) chathead.png|left]]
+|version3 = [[File:Verzik Vitur chathead.png|left]]
+|version4 = [[File:Verzik Vitur (phase 2) chathead.png|left]]
+|version5 = [[File:Verzik Vitur (phase 3) chathead.png|left]]
+|version6 = [[File:Verzik Vitur chathead.png|left]]
+|version7 = [[File:Verzik Vitur (phase 2) chathead.png|left]]
+|version8 = [[File:Verzik Vitur (phase 3) chathead.png|left]]
+|version9 = [[File:Verzik Vitur chathead.png|left]]
+|version10 = [[File:Verzik Vitur (phase 2) chathead.png|left]]
+|version11 = [[File:Verzik Vitur (phase 3) chathead.png|left]]
+}}
+'''Lady Verzik Vitur''' is a [[vampyre]] who rules over [[Ver Sinhaza]]. She is the hostess as well as the final boss of the [[Theatre of Blood]].
+
+==History==
+===Serving the Empire===
+Verzik Vitur is the daughter of [[Sugadinti Vitur]] and one of the leading nobles of the [[Vampyre Houses#House Vitur|Vitur family]] on the vampyre homeworld of [[Vampyrium]], and arrived on [[Gielinor]] alongside many other [[vampyre]]s during the [[Second Age]] brought by [[Zaros]], who the vampyres refer to as the "Stranger from Afar". When Sugadinti refused to unite the Vitur clan with the Drakan clan, Verzik conspired with [[Lowerniel Drakan]], ultimately resulting in Verzik nearly killing her father, leaving him for dead on Vampyrium, and usurping him as the head of House Vitur.{{CiteNPC|npc=Sugadinti Vitur|quote=My daughter betrayed me long ago. When I rejected Lowerniel Drakan's attempts to unite my clan with his, she chose to conspire with him. She made an attempt on my life, leaving me for dead, before claiming my clan and title as her own.|loc=The Blood Moon Rises}}
+
+Before her departure, she had domesticated a large number of [[nylocas]], which she brought with her to Gielinor.{{CiteText|text=Arachnids of vampyrium|quote=When the Stranger from Afar led the vampyres to Gielinor, a large number of nylocas travelled with them. These nylocas were in the possession of Verzik Vitur, who had domesticated several of their species.}} Verzik was fond of culture and collecting, amongst her prized artefacts were the [[Scythe of Vitur]], a most valuable weapon and heirloom of the ancient and revered founder of [[Vampyre Houses#House Vitur|House Vitur]],{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=[The Scythe] was once wielded by the founder of House Vitur, a vampyre now worshipped as a god.}} and the [[Ghrazi rapier]], which she inherited from her father.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=The rapier in Lady Verzik's vault was once wielded by a fearsome Ghrazi warlord. It was given to her by her father who came to possess it after the warlord challenged him to a battle, one that he did not survive to tell the tale.}} She supposedly took a role in the military of the [[Zarosian Empire]] as she was granted an [[Avernic defender]] during her service.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=Lady Verzik's Avernic Defender is one of the few to still remain and is a relic from her time in the service of the Empty Lord.}}
+
+===Serving Drakan===
+Lady Vitur was on good terms with the Drakan family, especially with [[Lowerniel Drakan]], and continued supporting them even after Drakan participating in [[Zamorak]]'s rebellion against Zaros. 
+
+During Lowerniel Drakan's conquest of Hallowvale, Verzik worked with [[Ranis Drakan]], capturing a Saradominist [[Justiciar]] and torturing him for several days. The Justiciar revealed a secret tunnel underneath the royal castle, which allowed Lowerniel's forces to capture [[King Ascertes]].{{CiteNPC|npc=Vanescula Drakan|quote=I'd give [Verzik] the credit over Ranis. The two of them shared a love for playing with their food rather than eating it. They hatched all kinds of schemes together. During the war, they managed to capture a justiciar, one of Efaritay's most elite warriors. They tortured him for days, until he gave them what they needed. [Player: Which was?] A secret tunnel, leading directly into Efaritay's castle. The tunnel was here, in this very graveyard. Once they were inside, capturing Ascertes was easy.|loc=Sins of the Father}} Although [[Vanescula Drakan|Vanescula]] believed that Lowerniel did not like having the war end so early, he nonetheless rewarded Verzik with Efaritay's castle.{{CiteNPC|npc=Vanescula Drakan|quote=In some ways, I think Lowerniel was a bit disappointed the fighting was over. The pair were still greatly rewarded, however. Verzik ended up getting Efaritay's castle. It was quite the boon for her.|loc=Sins of the Father}} She also collected the [[Justiciar armour|armour]] of the fallen [[Saradomin]]ist soldiers and kept them in her treasury. Verzik would later oversee a massive renovation of the castle, which then became known as [[Ver Sinhaza]].
+
+Due to her fondness of "playing" with her food, she often demanded entertainment on the spot from her vampyre soldiers. She eventually became bored of this and had the Theatre of Blood constructed, where powerful creatures would be placed inside for challengers to fight under the pretence of freedom from blood tithes should they prevail. Although some challengers may have prevailed against her lineup of creatures, she personally finished off those who made it to her.{{CiteNews|url=http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1|title=Dev Blog: Theatre of Blood|newsdate=7 March 2018|quote=For millennia, Lady Verzik has commanded an army of vampyres whom she has not only used to do her biddings, but also provide her with on-demand entertainment. It didn't take long before this became tiresome, and so she instructed her followers to create a gauntlet filled with some of the strongest warriors, creations, creatures and puzzles. This is what we call today the Theatre of Blood.}}
+
+She assisted Lowerniel once again during the {{RSL|Misthalin - Morytania War}} during the [[Fourth Age]], when Drakan launched an attack on the kingdom west of the [[River Salve]]. Although the kingdom of [[Misthalin]] was victorious and the [[Seven Priestly Warriors]] managed to establish a blessing on the River Salve making it impossible for vampyres to cross, Lord Drakan rewarded Verzik for her support by giving her the [[Sanguinesti staff]], which he had crafted himself.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=[T]he Sanguinesti staff is a powerful weapon that was crafted by Lord Lowerniel Drakan himself. The staff was given to Lady Verzik by Lord Lowerniel Drakan as a reward for assisting him in their fights against the Seven Priestly Warriors.}}
+
+===Creating the new Theatre===
+Verzik continued to keep in touch with Ranis during this time, and took in the warped Serafina into her Theatre, believing it to be wrong to abandon her after all the work Ranis did and called her [[The Maiden of Sugadinti]]. The addition of the Maiden prompted Verzik to renovate the Theatre, replacing all of her previous challenges.{{CiteNPC|npc=Verzik Vitur|quote=Besides, with all the work you put in, it would have felt wrong to just abandon her. [...] I've found her to be quite the inspiration. Thanks to her, I've decided to give the whole place a bit of a sprucing up. [Ranis Drakan: You're replacing all the challenges?] Absolutely! Those old ones were getting dull. It's time for some fresh excitement in this place.|loc=A Night at the Theatre}} Ranis gave Verzik some [[Araxyte]] eggs from a nest north of Darkmeyer, as Lowerniel believed she could use them in her breeding program.{{CiteNPC|npc=Ranis Drakan|quote=You can thank Lowerniel for this one. He found these eggs in an arachnid nest north of Darkmeyer. He thought you might be able to use them in your nylocas breeding program.|loc=A Night at the Theatre}}
+
+As she replaced her challenges, the next addition she obtained was a [[Pestilent Bloat|grotesque creation]], given to her from a supposedly insane vampyre called "[[The Butcher (vampyre)|The Butcher]]".{{CiteText|text=The butcher|author=The Butcher (vampyre)|quote=She came. Vampyre. Verzik. Give us what we want. Pleasure. Pain. She unDerstands. We help her. We please her. She reward us. We fail her. Punishment. Want to please. Yearn to please. Only we know hOw. She wants us to create. Create a masterpiece. We live to serve. We will build it.}} She proceeded to name the creation the Pestilent Bloat, believing it fitting for a crude creation.{{CiteNPC|quote='''Ranis Drakan:''' Bloat? Not the most elaborate of names, is it?<br>'''Verzik Vitur:''' A crude name for a crude creation.|loc=A Night at the Theatre}} Verzik then showed Ranis a [[Nylocas Athanatos]], a creation made possible with the special Araxyte eggs.{{CiteNPC|quote='''Ranis Drakan:''' A new nylocas?<br>'''Verzik Vitur:''' The athanatos! Isn't it magnificent!<br>'''Ranis Drakan:''' It's quite a sight to behold.<br>'''Verzik Vitur:''' I have you and Lowerniel to thank for this one. This is the result of those eggs you gave me.|loc=A Night at the Theatre}} She then showed Ranis the Nylocas chamber, complaining that the Nylocas were too weak individually and wanted to fix this flaw. Ranis then suggested the bark of a [[hespori]], as they had regenerative properties.{{CiteNPC|quote='''Verzik Vitur:''' The thing I need is something with the ability to regenerate. Nylocas are strong in numbers, but far too weak on their own.<br>'''Ranis Drakan:''' Hmm... I think I know just the thing. When we created the Maiden, we experimented heavily in that area.<br>'''Verzik Vitur:''' Ah, of course. You and your haemalchemy.<br>'''Ranis Drakan:''' Well in the end it wasn't actually haemalchemy that gave us the answer. It came in the form of a gift from the old queen.<br>'''Verzik Vitur:''' Not another of her plants was it?<br>'''Ranis Drakan:''' Precisely that! Specifically the hespori. Their bark has wonderful regenerative abilities.|loc=A Night at the Theatre}}
+
+Ranis then gifted Verzik a [[dark beast]] called [[Sotetseg]]. The beast's power over the Shadow Realm brought back memories of the Zarosian Empire as a result of Ranis exploring more of the Shadow Realm. However, the project failed, so Sotetseg was given to Verzik, who took it in, believing it to be a fine addition to the new Theatre.{{CiteNPC|quote='''Verzik Vitur:''' Power over the Shadow Realm you say? That takes me back to the old empire.<br>'''Ranis Drakan:''' That was the inspiration. Alas, the experiments didn't really go anywhere in the end.<br>'''Verzik Vitur:''' Such a pity. Still, [Sotetseg] will make for a fine new challenge here.|loc=A Night at the Theatre}} As the pair continued to tour the new Theatre, Lowerniel had sent [[Xarpus]], the last king of the [[Yarasa]], to Verzik. Verzik was surprised to see the Yarasa, believing them to have gone extinct. She wondered how Lowerniel had returned to Vampyrium, but Ranis did not know.{{CiteNPC|quote='''Verzik Vitur:''' The last King of the yarasa... I never thought I'd see one of their kind again. Does this mean Lowerniel finally found a way home?<br>'''Ranis Drakan:''' It would seem so, but he did not enlighten me on how he did it.|loc=A Night at the Theatre}} Verzik then showcased her finest work, a small queen Nylocas. However, the spider bit her and died, much to her disdain.{{CiteNPC|npc=Verzik Vitur|quote=This is the one Ranis. This is my new Queen Nylocas. All that work has finally paid off.<br>''The queen nylocas bites Verzik and dies.''<br>Ouch! You little... Oh... [...] I really thought this was the one... Back to square one I guess. What a waste.|loc=A Night at the Theatre}}
+
+Soon after, she complained of a sickness, prompting the doctor [[Vulcan Orvoros]] to pay a visit.{{CiteText|text=Verzik vitur - patient record|author=Vulcan Orvoros|quote=I have been asked by Verzik herself to look into a minor illness. She believes it was caused by the bite of a nylocas. Verzik has requested absolute privacy in this matter. As such, I am seeing her in her personal chambers in Ver Sinhaza. Verzik claims to have been suffering from a fever for the past few days. She says that this started not long after she was bitten by one of her nylocas.}} Although he helped her, he discovered the symptoms had returned and tried to persuade her to visit his office in Darkmeyer, but she refused. Verzik began to grow morbidly obese during this time,{{CiteText|text=Verzik vitur - patient record|author=Vulcan Orvoros|quote=Although she has been taking the guam potion for a week, her condition has actually deteriorated rather than improved. An obvious change during this visit is the apparent weight gained since I last saw her. She claims this is due to the illness preventing her from exercising. However, I am concerned over how rapid the increase has been.}} and after another visit by Orvoros to persuade her to leave, she refused, only to suddenly explode as a [[Nylocas Queen]] emerged from her.{{CiteNPC|quote='''Verzik Vitur:''' I feel... I feel... wrong.<br>'''Vulcan Orvoros:''' My lady, as I've already said, we really should take you to my surgery in Darkmeyer. Whatever that nylocas did, it was no normal bite.<br>'''Verzik Vitur:''' No! This is my home! You will not take me! [...] Doctor... It's... inside me!<br>'''Vulcan Orvoros:''' My lady?<br>'''Verzik Vitur:''' I can feel it! Help me!<br>''Verzik explodes.''|loc=A Night at the Theatre}} The queen immediately ordered Orvoros killed to prevent witnesses and declared that the age of the vampyres was over as the nylocas would take their place.{{CiteNPC|npc=Nylocas Queen|quote=Destroy the witness... Let us dine on his corpse! [...] The rule of the vampyres is over... The rule of the nylocas has begun...|loc=A Night at the Theatre}}
+
+Despite her obesity and disappearance of Orvoros, none of the other vampyres appeared to take note that something with Verzik was off, most likely as a result of the queen inheriting her personality and that the only known witnesses had been killed.
+
+After opening the Theatre of Blood to all, Verzik encountered a particular set of outside humans that bested all creatures within and eventually made it to her. Although she was impressed with their skills and thoroughly entertained by their performance, she stated that she couldn't let them leave and attempted to kill them.{{CiteNPC|npc=Verzik Vitur|quote=Now that was quite the show! I haven't been that entertained in a long time. Of course, you know I can't let you leave here alive. Time for your final performance...}} Despite her best efforts (including the use of her vampyre-nylocas-araxyte form), the group proved to be too strong, and Verzik was forced to flee, transforming into a bat, much to her apparent embarrassment. Despite this, she eventually returned to see more challengers, even if they were the same ones who could best her in battle.{{CiteNPC|npc=Verzik Vitur|quote=Back again for more? I admire your perseverance. Shall we begin?}}
+
+During Ranis' hunt for the Myreque, Verzik gifted him an [[Abomination]], claiming that once it had acquired the smell of a desired target, it would relentlessly pursue them until they died.{{CiteNPC|npc=Verzik Vitur|quote=The creature before you has advantages over a vyre. It is the perfect hunter. Once it gets a taste of its foes blood, it can track them anywhere.|loc=A Taste of Hope}}
+
+==Mechanics==
+Verzik's magic defence is calculated from her defence level rather than magic, unlike most monsters.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1689217131060084736|date=9 August 2023|archiveurl=https://reldo.runescape.wiki/i/97690|archivedate=9 August 2023|quote=Defence like the Ice Demon, in all phases.}} Her defence cannot be lowered.
+
+To initiate the fight, a player must first talk to Verzik Vitur.
+Verzik possesses three phases:
+
+*During phase 1, players in the raid must take it in turn to use the [[Dawnbringer]]'s special attack in order to harm Verzik. Any other weapon will have a much lower chance of hitting and will also be [[Maximum damage cap|capped]] on damage. Ranged/mage is capped at 3 and melee is capped at 10 damage per hitsplat.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1038039719437848576|date=7 September 2018|archiveurl=https://archive.ph/9KLSn|archivedate=1 September 2023|quote=Sorry, I must have misread it last time. It's 10 for melee, 3 for magic and ranged.}} It is mandatory to hide behind a pillar, as failing to do so can result in fatal damage (up to 137). If praying [[Protect from Magic]], Verzik's max hit is halved to 68, both of which cannot be [[tick manipulation|tick-eaten]]. Pillars will also collapse after several attacks and deal up to 70 damage (50 in [[Theatre of Blood/Entry Mode|Entry Mode]]) to anyone next to them when it collapses.
+*During phase 2, Verzik will leave her throne and fly to the middle of the room, collapsing all remaining pillars in the room. 
+**Players next or under her have a chance of being body-slammed away which stuns and can deal heavy damage.
+**She tosses out urnbombs at the players' positions which deals up to 44 damage if they are not avoided. Praying [[Protect from Missiles]] when the urnbombs land halves the damage taken from these attacks.
+**She will send a lightning ball that will chain between players in a random sequence, hitting them for a small amount of damage. If Verzik is in-between players that it attempts to chain to, she will absorb it and take up to 15-20 damage. If the ball is chained between 4 players, the 4th player will be hit for 48+ damage. If a player is hit by the ball and is too far from any teammates, they will be hit for 48+ damage.
+**She can summon multiple Nylocas. When this happens she also tosses a slow purple projectile which can be avoided but if it lands on the tile the player's on it can deal up to 78 damage. This purple projectile also transforms into [[Nylocas Athanatos]] which will heal her and can be removed by attacking them once with a poisoned weapon to inflict a heavy poison hit on Verzik before despawning. The common Nylocas will follow a player and explode if they reach their target for up to 63 damage, but will also explode after a set amount of time.
+**As her health falls below 35%, she will start using blood spells to heal her in addition to her ranged attacks which drain the player's prayer if prayed against. [[Protect from Magic]] negates all damage from the blood spells, and is calculated during her attack animation unlike the urnbombs. She periodically summon two [[Nylocas Matomenos]] (one when only a single player is alive) which she will kill off if they persist too long, and heal her for the amount of health they had left. During the first three seconds after she summons them, any damage inflicted will heal her instead.
+[[File:Verzik Virtur transforms.gif|frame|Verzik Vitur transforms into a spider hybrid.]]
+*During phase 3, Verzik's true form will be shown, a half spider, half vampyre. She is now mobile and uses all three forms of combat, her ranged attack consisting of barbs and her magic a single blue projectile. Both of these can deal up to 34 damage, reduced by 50% with the corresponding prayer. The melee attack hits up to 63 and will hit everyone adjacent to her, but only if the target is in melee range; she will not melee if they are out of range or under her. She now has four special attacks. The first she will summon common Nylocas during the fight like in the previous phase, and uses new abilities. The order of these attacks are in a set order. The first round of special attacks is Nylos, followed by webs, safe spots, and green projectile. There are four "auto" attacks between each special attack. 
+**She can charge up a powerful attack, creating "safespots" which players can stand on to protect them from this attack. Each "safespot" only works for one player, so they cannot stand on the same tile to protect themselves. 
+**She can also go to the centre of the room and fling webs around the chamber, binding players if they are stuck on them. Trapped players can be set free by having other players attack the [[web (Verzik Vitur)|web]], which has 10 health. Otherwise, they will be freed after a set amount of time but take heavy damage in the process.
+**She can also launch a green projectile which must be bounced between every player of the team or the player who is targeted will take up to 74% of their [[Hitpoints]] level as damage. This cannot be bounced to the same player twice, otherwise both players (the sender and the intended recipient) will take up to 74% of their Hitpoints level as damage when it lands. 
+**When she reaches 20% of her health, she will increase her attack speed to 5 ticks, and summon a purple magical tornado for each player in the room, which will constantly follow them. If they are hit by the tornado, they will take damage equal to 50% of their current health, healing Verzik for three times this amount. Tornadoes deal a minimum of 5 damage. The tornado will also heal Verzik if a player dies to another attack.
+
+===Hard Mode===
+In Hard Mode, all of Verzik's attacks are modified to make the fight more challenging for players.
+
+During phase 1, whenever Verzik's magic attack damages the pillars, three sets of debris will fall around a three tile radius from it that deals up to 35 damage and temporarily stuns players if hit by one.
+
+During phase 2, Verziks' bombs do ~20% more damage and now leave behind a pool of poison that deals up to 10 poison damage if stood on. The nylocas she summons now persist indefinitely until killed, whether by the player or if they explode themselves, along with changing colour from green to blue to grey at set intervals. When she summons the Matomenos and absorbs them, they will also deal damage to nearby players based on their health.
+
+In phase 3, Verzik can select a new target every time she uses a special attack. Her charged shot attack now hits three times per player, creating three "safespots" in the process. The green projectile now instantly kills should more than two players be present and it has not been bounced yet; if one player is remaining when the ball is launched, then it reverts to its normal mode variant. Upon reaching 5.0% or lower health for the first time, does a one-time recovery of 30.0% of her health.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Verzik vitur - patient record|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 October 2025
+|update = Interface Uplift Round 2
+|change = Verzik Vitur now has a quick-start option for players who have at least 1 prior completion.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Verzik's third phase now has a 50% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Hard mode and entry mode versions of the Theatre of Blood encounters added.
+}}
+{{Subject changes
+|date = 16 May 2019
+|update = Farming Improvements and Rebalancing Existing Content
+|change = A bug where Verzik would target a dead player was fixed.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+Verzik Vitur artwork.jpg|Artwork of Verzik Vitur
+Verzik Vitur concept.png|Concept art of Verzik, by [[Mod Ghost]].
+Verzik Vitur concepts.png|Several concepts of Verzik, by Mod Ghost.
+Verzik Vitur (human form) concept art.jpg|Concept art of Verzik prior to the nylocas bite, by [[Mod Jerv]].
+Verzik Vitur (pre-infection) ideation sketches.png|Some of Mod Jerv's early sketches of Verzik during the quest flashback cutscenes.
+Verzik Vitur (bat form).png|Verzik Vitur as a bat, which she transforms into after being defeated.
+Verzik Vitur (Trading Card).png|The Verzik Vitur [[Steam Trading Cards|Steam Trading Card]].
+</gallery>
+
+==Trivia==
+*"Vérzik" directly translates to "[someone/something is] bleeding" in Hungarian, and "vitur" translates to "wise" in Icelandic.
+*The concept of Verzik Vitur was inspired by the character Ursula from Disney's 1989 animated film ''{{WP|The Little Mermaid (1989 film)|The Little Mermaid}}''.{{CiteTwitter|author=Mod Ghost|url=https://twitter.com/Jagex_Ghost/status/991773208356507648|date=2 May 2018|archiveurl=https://archive.is/gKkoK|archivedate=28 May 2020|quote=I love Ursula, she was definitely an inspiration :)}}
+*Alongside the Wardens in the [[Tombs of Amascut]], Verzik is one of the few bosses whose combat level changes throughout the fight; however, hers is a direct increase, whereas the Wardens is also based on raid level.
+*Verzik used to be the [[strongest monster]] in ''Old School RuneScape'', holding onto the title for 2113 days. Her record was later broken with the release of [[Sol Heredit]].
+
+==References==
+{{Reflist}}
+
+{{Succession|predecessor=[[TzKal-Zuk]]|title=[[Strongest monster|Strongest monster in ''Old School RuneScape'']]|successor=[[Sol Heredit]]}}
+
+{{Theatre of Blood}}
+{{Bosses}}
+{{Vampyres}}
+{{A Taste of Hope}}
+{{A Night at the Theatre}}
+[[Category:Seated NPCs]]

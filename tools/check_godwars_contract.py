@@ -20,13 +20,17 @@ NEX = (GWD / "scripts/godwars_nex.rs2").read_text()
 NEX_DROPS = (GWD / "scripts/godwars_nex_drops.rs2").read_text()
 PRISON = (GWD / "scripts/godwars_prison.rs2").read_text()
 PRISON_DROPS = (GWD / "scripts/godwars_prison_drops.rs2").read_text()
+AMBIENT_DROPS = (GWD / "scripts/godwars_ambient_drops.rs2").read_text()
+DROPS = (GWD / "scripts/godwars_drops.rs2").read_text()
 FROZEN = (GWD / "scripts/godwars_frozen_door.rs2").read_text()
 ENTRANCE = (GWD / "scripts/godwars_entrance.rs2").read_text()
 BOSSES = (GWD / "scripts/godwars_bosses.rs2").read_text()
-DROPS = (GWD / "scripts/godwars_drops.rs2").read_text()
 CHAMBER = (GWD / "scripts/godwars_chamber.rs2").read_text()
 PRIVATE = (GWD / "scripts/godwars_private.rs2").read_text()
 AMBIENT = (GWD / "scripts/godwars_ambient.rs2").read_text()
+AGGRESSION = (GWD / "scripts/godwars_aggression.rs2").read_text()
+GODSWORD = (GWD / "scripts/godwars_godsword.rs2").read_text()
+GWD_VARP = (GWD / "configs/godwars.varp").read_text()
 NPC = (GWD / "configs/godwars.npc").read_text()
 LOC = (GWD / "configs/godwars.loc").read_text()
 CONSTANT = (GWD / "configs/godwars.constant").read_text()
@@ -37,7 +41,33 @@ RANGED_COMBAT = (
     ROOT
     / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/npc_combat_ranged.rs2"
 ).read_text()
+ANCIENT_GODSWORD = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_ancient_godsword.rs2"
+).read_text()
+SARADOMIN_GODSWORD = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_sgs.rs2"
+).read_text()
+ZAMORAK_GODSWORD = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/specs/pvm_zgs.rs2"
+).read_text()
+PLAYER_LOGIN = (
+    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/login.rs2"
+).read_text()
+PLAYER_LOGOUT = (
+    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
+).read_text()
+PLAYER_DEATH = (
+    ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
+).read_text()
+SLAYER_LEVEL_GATE = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/skill_slayer/scripts/slayer_level_gate.rs2"
+).read_text()
 CONTENT_ENGINE = (ROOT / "src/net/mock/mock230_content.c").read_text()
+SCRIPT_HOST = (ROOT / "src/net/mock/mock230_scripts.c").read_text()
 MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
 
 
@@ -86,6 +116,31 @@ def main() -> None:
         for handler in ("attack_handler", "drop_handler"):
             assert (ROOT / row[handler]).is_file(), f"missing {handler}: {row[handler]}"
 
+    # A repeated trigger header is ambiguous even when adjacent declarations
+    # happen to compile into one trigger chain. Every scoped player-attack
+    # override must be declared exactly once.
+    attack_overrides = re.findall(r"^\[opnpc2,(godwars_[^\]]+)\]$", BOSSES, re.MULTILINE)
+    duplicates = sorted({name for name in attack_overrides if attack_overrides.count(name) > 1})
+    assert not duplicates, f"duplicate GWD attack override(s): {', '.join(duplicates)}"
+    for faction, count in (("bandos", 11), ("saradomin", 10), ("zamorak", 9)):
+        wrapper = proc_body(BOSSES, f"gwd_try_cry_{faction}")
+        require(wrapper, f"~gwd_cry_{faction}_roll(random({count}));", f"{faction} cry selector")
+        require(BOSSES, f"[proc,gwd_cry_{faction}_roll]", f"{faction} deterministic cries")
+    require(proc_body(BOSSES, "gwd_try_cry_armadyl"), "~gwd_cry_armadyl;", "Armadyl cry selector")
+    require(BOSSES, "[proc,gwd_cry_armadyl]", "Armadyl deterministic cry")
+    for faction, token in (
+        (1, "armadyl"), (2, "bandos"), (3, "saradomin"),
+        (4, "zamorak"), (5, "~gwd_is_zaros_item"),
+    ):
+        require(AGGRESSION, token, f"faction {faction} god-item classification")
+    require(AGGRESSION, 'string_indexof_string("ancient mace", $name)', "Ancient mace Zaros exclusion")
+    require(AGGRESSION, 'string_indexof_string("unholy", $name) < 0', "Zamorak/Saradomin holy-name separation")
+    require(AGGRESSION, "~gwd_god_item_count($faction) > 0", "live worn-item protection lookup")
+    slayer_override = proc_body(SLAYER_LEVEL_GATE, "slayer_level_override")
+    for npc, level in (("godwars_pyrefiend_1", 30), ("godwars_bloodveld", 50)):
+        require(slayer_override, f"npc_type = {npc}", f"{npc} Slayer override")
+        require(slayer_override, f"return({level});", f"{npc} Slayer level {level}")
+
     # Phase floors, five-attack special cadence, and forced melee sequence.
     for floor in (2720, 2040, 1360, 680):
         require(NEX, f"$floor = {floor};", f"Nex phase floor {floor}")
@@ -129,6 +184,35 @@ def main() -> None:
     require(NEX, "$protected_at_cast = true", "Zaros projectile-time prayer rule")
     require(NEX, "npc_type = nex_soulsplit", "Soul Split healing")
     require(NEX, "npc_type = nex_deflect", "Deflect Melee")
+    for cry in (
+        "Fill my soul with smoke!", "Fumus, don't fail me!",
+        "Umbra, don't fail me!", "Cruor, don't fail me!",
+        "Glacies, don't fail me!", "Darken my shadow!",
+        "Flood my lungs with blood!", "Infuse me with the power of ice!",
+        "NOW, THE POWER OF ZAROS!", "Let the virus flow through you!",
+        "There is... NO ESCAPE!", "Fear the shadow!", "Embrace darkness!",
+        "A siphon will solve this!", "I demand a blood sacrifice!",
+        "Contain this!", "Die now, in a prison of ice!",
+    ):
+        require(NEX, f'npc_say("{cry}")', f"Nex cry {cry}")
+    require(NEX_DROPS, 'npc_say("Taste my wrath!")', "Nex Wrath cry")
+    score = proc_body(NEX_DROPS, "nex_finish_personal_score")
+    require(score, "%total_nex_kills = calc(%total_nex_kills + 1);", "Nex kill scoreboard")
+    require(score, "%nex_personal_best_ticks = $duration;", "Nex personal-best scoreboard")
+    require(score, "~nex_clear_contribution;", "Nex scored contribution cleanup")
+    contribution_cleanup = proc_body(NEX, "nex_clear_contribution")
+    for state in ("nex_contribution_uid", "nex_contribution_damage", "nex_encounter_start"):
+        require(contribution_cleanup, f"%{state} = 0;", f"Nex cleanup clears {state}")
+    require(NEX_DROPS, "else if (%nex_contribution_uid = $dead)",
+            "sub-threshold Nex contribution cleanup")
+    require(proc_body(FROZEN, "gwd_nex_barrier"), "~nex_clear_contribution;",
+            "public Nex arena-exit contribution cleanup")
+    require(proc_body(FROZEN, "gwd_frozen_door_leave"), "~nex_clear_contribution;",
+            "Ancient Prison departure contribution cleanup")
+    for terminal in ("gwd_private_release", "gwd_private_on_death",
+                     "gwd_private_on_logout"):
+        require(proc_body(PRIVATE, terminal), "~nex_clear_contribution;",
+                f"{terminal} contribution cleanup")
 
     # Kree's blue attack is ranged-magic: magic accuracy, ranged defence and
     # Protect from Missiles. Both tornado colours share successful knockback,
@@ -138,6 +222,7 @@ def main() -> None:
     require(kree_magic, "~player_defence_roll(^ranged_style)", "Kree ranged defence")
     require(kree_magic, "~check_protect_prayer(^ranged_style)", "Kree ranged prayer")
     require(kree_magic, "queue(gwd_kree_knockback", "Kree magic knockback")
+    require(BOSSES, "sound_synth(godwars_armadyl_magic_whirlwind, 1, 0);", "Kree magic whirlwind sound")
     require(BOSSES, "weapon_polearm", "Aviansie halberd exception")
     require(BOSSES, "weapon_salamander", "Aviansie salamander exception")
     require(BOSSES, "[proc,gwd_prayer_drain_amount]", "spectral Prayer drain helper")
@@ -213,11 +298,35 @@ def main() -> None:
     assert "gwd_ecumenical_charges" not in FROZEN
     access = proc_body(ENTRANCE, "gwd_has_chamber_access")
     assert access.index("~gwd_kc_of($faction) >= ~gwd_kc_required") < access.index("inv_total(inv, ecumenical_key)")
-    assert FROZEN.index("%godwars_counter_zaros >= $need") < FROZEN.index("inv_total(inv, ecumenical_key)")
-    require(ENTRANCE, "stat_base(agility) < ^gwd_agility_rope", "unboostable Saradomin access")
-    require(ENTRANCE, "stat_base(strength) < ^gwd_str_bandos_door", "unboostable Bandos access")
-    require(ENTRANCE, "stat_base(ranged) < ^gwd_range_grapple", "unboostable Armadyl access")
-    require(ENTRANCE, "stat(strength) < ^gwd_strength_boulder", "boostable entrance boulder")
+    take_access = proc_body(ENTRANCE, "gwd_take_chamber_access")
+    assert take_access.index("~gwd_kc_of($faction) >= $need") < take_access.index("inv_total(inv, ecumenical_key)")
+    require(take_access, "return(true);", "atomic GWD entry commit")
+    require(take_access, "return(false);", "duplicate GWD entry refusal")
+    require(proc_body(ENTRANCE, "gwd_open_chamber"),
+            "~gwd_take_chamber_access($f)", "public chamber atomic entry")
+    require(proc_body(FROZEN, "gwd_nex_barrier"),
+            "~gwd_take_chamber_access(5)", "public Nex atomic entry")
+    for name, faction in (("gwd_private_enter", "$faction"),
+                          ("gwd_nex_private_enter", "5")):
+        body = proc_body(PRIVATE, name)
+        require(body, f"~gwd_take_chamber_access({faction})", f"{name} atomic entry")
+        assert body.index(f"~gwd_take_chamber_access({faction})") < body.index("inv_del(inv, coins, $fee)")
+        require(body, "map_instance_free($handle);", f"{name} failed-commit release")
+    access_level = proc_body(ENTRANCE, "gwd_access_level")
+    require(access_level, "stat($skill) >= $required", "boostable GWD access predicate")
+    require(access_level, "stat_base($skill) >= $required", "base-level GWD access predicate")
+    for call, label in (
+        ("~gwd_access_level(agility, ^gwd_agility_rope, false)", "unboostable Saradomin access"),
+        ("~gwd_access_level(strength, ^gwd_strength_boulder, true)", "boostable entrance boulder"),
+        ("~gwd_access_level(agility, ^gwd_agility_crack, true)", "boostable entrance crack"),
+        ("~gwd_access_level(hitpoints, ^gwd_hp_ice_bridge, false)", "unboostable Zamorak HP gate"),
+        ("~gwd_access_level(strength, ^gwd_str_bandos_door, false)", "unboostable Bandos access"),
+        ("~gwd_access_level(ranged, ^gwd_range_grapple, false)", "unboostable Armadyl access"),
+    ):
+        require(ENTRANCE, call, label)
+    for skill, boostable in (("agility", "false"), ("ranged", "false"),
+                             ("strength", "false"), ("hitpoints", "true")):
+        require(FROZEN, f"~gwd_access_level({skill}, 70, {boostable})", f"Frozen Door {skill} gate")
     require(CONSTANT, "^gwd_agility_rope = 70", "Saradomin Agility requirement")
     # All four map squares must keep the HUD live across internal boundaries,
     # then clear every faction counter only after a real dungeon departure.
@@ -265,7 +374,7 @@ def main() -> None:
     require(FROZEN, "~gwd_nex_private_enter;", "private Nex entry dispatch")
     nex_private = proc_body(PRIVATE, "gwd_nex_private_enter")
     require(nex_private, "def_int $fee = 100000;", "private Nex fixed fee")
-    require(nex_private, "~gwd_consume_chamber_access(5);", "private Nex essence/key use")
+    require(nex_private, "~gwd_take_chamber_access(5)", "private Nex essence/key use")
     for actor in ("nex_spawning", "nex_smokemage", "nex_shadowmage", "nex_bloodmage", "nex_icemage"):
         require(PRIVATE, f"$type = {actor}", f"private Nex spawn {actor}")
     require(PRIVATE, "queue(gwd_nex_private_reset", "private Nex respawn")
@@ -307,7 +416,7 @@ def main() -> None:
     require(hilt, "%ca_teleport_count_trollheim = calc(%ca_teleport_count_trollheim + 1)", "Ghommal hilt usage")
     require(hilt, "map_findsquare(^gwd_entrance_stand", "Ghommal hilt boulder destination")
     bridge = proc_body(ENTRANCE, "gwd_ice_bridge")
-    require(bridge, "stat_base(hitpoints) < ^gwd_hp_ice_bridge", "unboostable Zamorak HP gate")
+    require(bridge, "~gwd_access_level(hitpoints, ^gwd_hp_ice_bridge, false)", "unboostable Zamorak HP gate")
     require(bridge, "anim(godwars_human_swim_double, 0);", "Zamorak bridge swim animation")
     require(bridge, "sound_synth(godwars_swim, 1, 1);", "Zamorak bridge swim sound")
     require(bridge, "p_exactmove(coord, $destination, 0, 90, $direction);", "Zamorak bridge exact movement")
@@ -326,8 +435,73 @@ def main() -> None:
         require(gong, f"godwars_hammer_gong_{metal}warhammer", f"Bandos gong {metal} animation")
     require(ENTRANCE, "anim($gong, 0);", "Bandos selected gong animation")
 
+    # Complete Godsword construction and the Ancient variant's delayed PvM
+    # special. The queue stores source delay+1, so source 7 is eight real ticks.
+    for part in (
+        "godwars_godsword_blade1", "godwars_godsword_blade2",
+        "godwars_godsword_blade3", "godwars_godsword_blade1+2",
+        "godwars_godsword_blade1+3", "godwars_godsword_blade2+3",
+    ):
+        require(GODSWORD, part, f"Godsword shard route {part}")
+    require(GODSWORD, "stat(smithing) < 80", "Godsword Smithing level")
+    require(GODSWORD, "~has_smithing_hammer", "Godsword hammer gate")
+    require(GODSWORD, "stat_advance(smithing, 2000)", "Godsword 200 XP completion")
+    for sword in ("ags", "bgs", "sgs", "zgs", "ancient_godsword"):
+        require(GODSWORD, f"[opheld3,{sword}]", f"{sword} dismantle option")
+    require(
+        GODSWORD,
+        "$sword = ancient_godsword & %ancient_godsword_mark_count > 0",
+        "active Blood Sacrifice dismantle lock",
+    )
+    require(GWD_VARP, "[ancient_godsword_mark_count]", "Blood Sacrifice mark count")
+    mark_decl = GWD_VARP.split("[ancient_godsword_mark_count]", 1)[1].split("[", 1)[0]
+    require(mark_decl, "scope=temp", "Blood Sacrifice temporary state")
+    require(ANCIENT_GODSWORD, "anim(ngs_special_player, 0);", "Blood Sacrifice animation 9171")
+    require(ANCIENT_GODSWORD, "spotanim_pl(ngs_special_spotanim, 0, 0);", "Blood Sacrifice graphic 1996")
+    require(ANCIENT_GODSWORD, "sound_synth(blood_sacrifice, 1, 0);", "Blood Sacrifice sound 2911")
+    require(ANCIENT_GODSWORD, "multiply(~player_attack_roll(%damagetype), 2)", "Blood Sacrifice accuracy")
+    require(ANCIENT_GODSWORD, "scale(110, 100, %com_maxhit)", "Blood Sacrifice primary damage")
+    require(
+        ANCIENT_GODSWORD,
+        "queue*(ancient_godsword_sacrifice, 7)(npc_uid, npc_basestat(hitpoints), map_instance_find(coord));",
+        "Blood Sacrifice eight-real-tick queue",
+    )
+    sacrifice = script_body(ANCIENT_GODSWORD, "queue", "ancient_godsword_sacrifice")
+    require(sacrifice, "map_instance_find(coord) ! $instance", "attacker instance cancellation")
+    require(sacrifice, "map_instance_find(npc_coord) ! $instance", "target instance cancellation")
+    require(sacrifice, "distance(coord, npc_coord) >= 5", "Blood Sacrifice escape radius")
+    require(sacrifice, "def_int $dealt = min(25, npc_stat(hitpoints));", "Blood Sacrifice typeless cap")
+    require(sacrifice, "npc_damage(hitsplat_damage, $dealt);", "Blood Sacrifice typeless damage")
+    heal = proc_body(ANCIENT_GODSWORD, "ancient_godsword_heal_amount")
+    require(heal, "multiply($base_hitpoints, 15)", "Blood Sacrifice 15% heal")
+    require(heal, "min(25", "Blood Sacrifice NPC heal cap")
+    require(heal, "$damage_dealt", "Blood Sacrifice actual-damage heal cap")
+    clear_marks = proc_body(ANCIENT_GODSWORD, "ancient_godsword_clear_marks")
+    require(clear_marks, "clearqueue(ancient_godsword_sacrifice);", "Blood Sacrifice queue cleanup")
+    require(clear_marks, "%ancient_godsword_mark_count = 0;", "Blood Sacrifice count cleanup")
+    require(PLAYER_LOGIN, "~ancient_godsword_clear_marks;", "Blood Sacrifice login cleanup")
+    require(PLAYER_LOGOUT, "~ancient_godsword_clear_marks;", "Blood Sacrifice logout cleanup")
+    require(PLAYER_DEATH, "~ancient_godsword_clear_marks;", "Blood Sacrifice death cleanup")
+
+    # Healing Blade restores from the successful potential-damage roll, not
+    # capped/actual damage, and retains its guaranteed restoration minima.
+    require(SARADOMIN_GODSWORD, "multiply(~player_attack_roll(%damagetype), 2)", "Healing Blade accuracy")
+    require(SARADOMIN_GODSWORD, "scale(110, 100, %com_maxhit)", "Healing Blade primary damage")
+    require(SARADOMIN_GODSWORD, "if ($hit = true)", "Healing Blade successful-hit restoration")
+    require(SARADOMIN_GODSWORD, "~pvm_sgs_heal_amount($damage)", "Healing Blade pre-overkill HP basis")
+    require(SARADOMIN_GODSWORD, "~pvm_sgs_prayer_amount($damage)", "Healing Blade pre-overkill Prayer basis")
+    require(proc_body(SARADOMIN_GODSWORD, "pvm_sgs_heal_amount"), "max(10", "Healing Blade HP minimum")
+    require(proc_body(SARADOMIN_GODSWORD, "pvm_sgs_prayer_amount"), "max(5", "Healing Blade Prayer minimum")
+    require(SARADOMIN_GODSWORD, "anim(sgs_special_player, 0);", "Healing Blade animation 7640")
+    require(SARADOMIN_GODSWORD, "spotanim_pl(dh_sword_update_saradomin_special_spotanim, 0, 0);", "Healing Blade graphic 1209")
+    require(SARADOMIN_GODSWORD, "sound_synth(godwars_godsword_special_attack, 1, 0);", "Healing Blade sound 3869")
+    require(ZAMORAK_GODSWORD, "~pvm_zgs_freeze_ticks($hit)", "Ice Cleave accuracy-result freeze")
+    require(proc_body(ZAMORAK_GODSWORD, "pvm_zgs_freeze_ticks"), "return(32);", "Ice Cleave successful-zero freeze")
+    require(ZAMORAK_GODSWORD, "spotanim_npc(ice_barrage_impact, 92, 0);", "Ice Cleave impact graphic")
+    require(ZAMORAK_GODSWORD, "npc_freeze($freeze_ticks);", "Ice Cleave 32-tick freeze")
+
     # The public barrier must both admit the player and demand-spawn the actor.
-    assert FROZEN.count("~nex_spawn_if_needed;") == 2
+    assert FROZEN.count("~nex_spawn_if_needed;") == 1
     require(NEX, "[ai_spawn,nex_spawning]", "Nex introduction actor")
     require(NEX, "npc_changetype(nex, ^max_32bit_int);", "Nex intro transform")
 
@@ -369,6 +543,59 @@ def main() -> None:
             "Nex personal selector invocation")
     require(death, "~nex_award_personal_loot_roll($death,",
             "Nex personal award invocation")
+    require(SCRIPT_HOST, "mock230_world_obj_add_private(srv, player,",
+            "hunt-player private floor-object ownership")
+    require(SCRIPT_HOST, "srv, player, (int)values[1], (int)values[2]",
+            "hunt-player private loot-tracker ownership")
+
+    # Every custom death handler must either emit its configured remains or
+    # explicitly document why its exact Wiki table supersedes the cache param.
+    require(AMBIENT_DROPS, "npc_param(death_drop) ! null",
+            "ambient configured-remains null guard")
+    require(AMBIENT_DROPS, "obj_add(npc_coord, npc_param(death_drop), 1",
+            "ambient configured-remains drop")
+    require(AMBIENT_DROPS, "no-death-drop: every handler in this file delegates",
+            "ambient delegated-remains audit waiver")
+    require(DROPS, "no-death-drop: every classic boss/bodyguard handler below states",
+            "classic exact Always-row audit waiver")
+    for remains in ("big_bones", "bones", "infernal_ashes", "malicious_ashes"):
+        require(DROPS, f"obj_add($where, {remains}, 1",
+                f"classic explicit {remains} Always row")
+    require(NEX, "no-death-drop: Fumus, Umbra, Cruor and Glacies",
+            "Nex phase-mage null-remains waiver")
+    require(NEX_DROPS, "no-death-drop: Nex uses contribution loot",
+            "Nex null-remains waiver")
+    require(PRISON_DROPS, "obj_add($where, npc_param(death_drop), 1",
+            "ordinary Blood Reaver configured malicious ashes")
+    for soldier in ("warrior", "ranger", "mage"):
+        require(PRISON_DROPS,
+                f"no-death-drop: this Zarosian {soldier}'s cache death_drop is null",
+                f"Zarosian {soldier} null-remains waiver")
+
+    # Conditional Brimstone tertiaries are neither part of the 127-way main
+    # table nor unconditional: all four generals use the capped 1/50 rate,
+    # while the three Armadyl substitutes retain their level-derived rates.
+    brimstone = proc_body(DROPS, "gwd_brimstone_key_allowed")
+    require(brimstone, "$master ! ^slayer_master_konar",
+            "Brimstone Konar prerequisite")
+    require(brimstone, "$matches = false", "Brimstone matching-task prerequisite")
+    require(brimstone, "$roll ! 0", "Brimstone selected-roll prerequisite")
+    assert DROPS.count("~gwd_drop_brimstone_key($where, 50);") == 4
+    armadyl_brimstone = proc_body(
+        DROPS, "gwd_armadyl_bodyguard_brimstone_denominator"
+    )
+    for npc, denominator in (
+        ("godwars_armadyl_bodyguard_skree", 92),
+        ("godwars_armadyl_bodyguard_geerin", 91),
+    ):
+        require(armadyl_brimstone, f"npc_type = {npc}",
+                f"{npc} Brimstone identity")
+        require(armadyl_brimstone, f"return({denominator});",
+                f"{npc} Brimstone denominator")
+    require(armadyl_brimstone, "return(89);", "Flight Kilisa Brimstone denominator")
+    require(proc_body(DROPS, "gwd_bodyguard_armadyl"),
+            "~gwd_drop_brimstone_key($where, ~gwd_armadyl_bodyguard_brimstone_denominator);",
+            "Armadyl bodyguard Brimstone tertiary")
 
     # Each Ancient Prison main table receives rolls 0..125 after its two
     # top-level 1/128 ceremonial/gem slots. Thresholds must be monotonic and
@@ -406,7 +633,7 @@ def main() -> None:
     ):
         require(NPC, sound, "Blood Reaver audiovisual contract")
 
-    print("God Wars contract OK: 69 NPCs, 126 attacks, Nex/Prison invariants")
+    print("God Wars contract OK: 69 NPCs, 126 attacks, Godswords/Nex/Prison invariants")
 
 
 if __name__ == "__main__":

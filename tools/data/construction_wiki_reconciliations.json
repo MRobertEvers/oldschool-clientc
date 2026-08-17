@@ -90,6 +90,7 @@
     "poh_wallchart_4": {"page": "S.t.a.s.h chart"},
     "poh_treasure_oak": {"page": "Oak chest"},
     "poh_treasure_teak": {"page": "Teak chest"},
+    "poh_treasure_mahogany": {"page": "Mahogany chest", "built_loc_symbols": ["poh_treasure_mag_chest", "poh_treasure_mag_openchest"]},
     "league_5_poh_superior_garden_teleport_tree": {"page": "Raging echoes spirit tree", "variant": "Raging Echoes", "experience_strategy": "cosmetic_no_xp"},
     "poh_superior_garden_bench_teak": {"page": "Teak garden bench", "built_loc_symbols": ["poh_garden_bench_teak_left", "poh_garden_bench_teak_right"]},
     "poh_superior_garden_bench_mahogany": {"page": "Gnome bench", "built_loc_symbols": ["poh_garden_bench_gnome_left", "poh_garden_bench_gnome_right"]},

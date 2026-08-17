@@ -31,7 +31,7 @@ EXPECTED_QUESTS = 133
 EXPECTED_MINIQUESTS = 12
 # sha256 of kind, name, URL, and normalized encounter text for all 145 rows.
 # Updating this is part of intentionally accepting a newly audited Wiki roster.
-EXPECTED_ROSTER_SHA256 = "1d491e0ecfbac72402d41cb22b911131a08fa7a7e92b02cc00674a14a9c41ec2"
+EXPECTED_ROSTER_SHA256 = "c22efd71a9f7814128d072ba8d7fc90eee541d91aa48ade6c9a7dd3414a3db15"
 
 POST_REVISION_239 = {
     "Death on the Isle",
@@ -1100,6 +1100,105 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "The route uses the cache's generic obstacle destination table for successful forest crossings; trap consequences, level gates and encounter state are authored.",
             "Some Idris attack, trap and catapult camera/audio choreography uses reduced era-compatible presentation while retaining actors, items, movement and state gates.",
             "A real-client concurrent-player, trap, still-overheat, item-loss, catapult, death and relog smoke is still pending.",
+        ],
+    },
+    "Tai Bwo Wannai Trio": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/Tai_Bwo_Wannai_Trio?oldid=15265886", "revision": 15265886, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Tai_Bwo_Wannai_Trio/Quick_guide?oldid=15267185", "revision": 15267185, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Transcript:Tai_Bwo_Wannai_Trio?oldid=15302415", "revision": 15302415, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Monkey?oldid=15217840", "revision": 15217840, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Tamayu?oldid=15196252", "revision": 15196252, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Tinsay?oldid=14918139", "revision": 14918139, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Timfraku?oldid=15070106", "revision": 15070106, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Tiadeche?oldid=15196408", "revision": 15196408, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/The_Shaikahan?oldid=15206313", "revision": 15206313, "retrieved": "2026-08-17"},
+        ],
+        "npc_gamevals": [
+            "monkey", "tbwt_timfraku", "tbwt_tamayu/tbwt_tamayu_hunter/tbwt_tamayu_final_hunter",
+            "tbwt_tiadeche", "tbwt_tinsay", "tbwt_lubufu", "tbwt_beast/tbwt_beast_cutscene",
+        ],
+        "item_gamevals": [
+            "tbwt_monkey_corpse/tbwt_monkey_skin and stuffed/sandwich variants",
+            "tbwt_jogre_bones/tbwt_burnt_jogre_bones and raw/cooked-paste/marinated variants",
+            "tbwt_raw/cooked/poorly_cooked_karambwan and five pestle-and-mortar pastes",
+            "tbwt_raw/cooked_karambwanji", "tbwt_karambwan_vessel and baited vessel",
+            "tbwt_crafting_manual", "tbwt_banana/sliced-banana rum variants", "tbwt_cleaning_cloth",
+            "standard and barbarian (kp) spears/hastae", "agility potion doses", "coins",
+        ],
+        "loc_gamevals": [
+            "lubufu_karambwan", "tbwt_bamboo_door", "tbwt_tribal_statue",
+            "bones_in_paste_fire", "range/fire/furnace cooking and burning dispatch",
+        ],
+        "trigger_handlers": [
+            "opnpc2/ai_queue3:monkey", "opnpc1/opnpcu:Tamayu/Tiadeche/Tinsay/Lubufu",
+            "timer/ai_timer:Tamayu and Shaikahan hunt", "opnpc2:tbwt_beast",
+            "opheldu:Karambwan/paste/spear/vessel/corpse/bones item pipelines",
+            "timer:light_jogre_bones", "furnace/Superheat/cooking dispatch",
+            "oploc1/2:tbwt_bamboo_door", "oploc1:tbwt_tribal_statue",
+            "queue:tbwt_quest_complete", "post-reward Tamayu/Tiadeche shop handlers",
+        ],
+        "loot_contract": "During the active quest, a directly credited Karamjan monkey kill is optional and yields one monkey corpse instead of monkey bones; adjacent melee is always dodged, while Ranged, Magic and reach weapons work. The corpse is a Tinsay ingredient after Tamayu skins it and is not quest-boss kill credit. Tamayu's Shaikahan attempt is an owner-private scripted hunt requiring exactly four agility-potion doses, an iron-or-better accepted spear/hasta and Karambwan poison; the quest has no player-killed boss drop. Tinsay requires burnt jogre bones marinated with raw Karambwanji paste, sliced banana rum and a seaweed-in-monkey-skin sandwich. Tiadeche requires a baited vessel and recoverable crafting manual. Timfraku grants only the base 2,000 coins and quest completion; the three 50,000-XP/rune-spear rewards are separately claimed from the returned brothers. After completion, the level-83 Shaikahan accepts direct damage only from (kp) spears/hastae and guarantees Shaikahan bones; Tamayu and Tiadeche shops remain inaccessible until their respective final reward states.",
+        "test_ids": [
+            "quest-combat-contract:tai-bwo-monkey", "quest-combat-contract:tai-bwo-tamayu",
+            "quest-combat-contract:tai-bwo-item-pipelines", "quest-combat-contract:tai-bwo-postquest",
+            "mock230-selftest:npc-owner-visibility",
+        ],
+        "known_gaps": [
+            "The cache-era cutscene uses fixed four-tick choreography where the source port used a generic NPC integer variable unavailable in this tree.",
+            "The shared NPC poison/recoil systems do not yet reproduce the modern Shaikahan's exceptional post-quest indirect-damage paths; its quest hunt and direct (kp)-weapon immunity are complete.",
+            "A real-client two-player, melee-dodge, full-inventory, wrong-paste explosion, all heating methods, shop gating, death and relog smoke is still pending.",
+        ],
+    },
+    "Troll Stronghold": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/Troll_Stronghold?oldid=15231622", "revision": 15231622, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Troll_Stronghold/Quick_guide?oldid=14728817", "revision": 14728817, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Transcript:Troll_Stronghold?oldid=15263286", "revision": 15263286, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Dad?oldid=15199512", "revision": 15199512, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Troll_general?oldid=15267877", "revision": 15267877, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Twig?oldid=15199781", "revision": 15199781, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Berry?oldid=15199816", "revision": 15199816, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Prison_key_(Troll_Stronghold)?oldid=15267891", "revision": 15267891, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Cell_key_1?oldid=15185591", "revision": 15185591, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Cell_key_2?oldid=15185592", "revision": 15185592, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Godric?oldid=15031769", "revision": 15031769, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Eadgar?oldid=15003284", "revision": 15003284, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Dunstan?oldid=15289542", "revision": 15289542, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Law_talisman?oldid=15284766", "revision": 15284766, "retrieved": "2026-08-17"},
+        ],
+        "npc_gamevals": [
+            "troll_champion", "troll_general/troll_general2/troll_general3",
+            "troll_prison_guard1/_awake (Twig)", "troll_prison_guard2/_awake (Berry)",
+            "troll_godric/troll_eadgar", "death_ig_commander/death_smithy", "troll_spectator1..7",
+        ],
+        "item_gamevals": [
+            "death_climbingboots", "troll_key_prison/troll_key_godric/troll_key_eadgar",
+            "law_talisman/coins", "big_bones/arceuus_corpse_troll/konar_key",
+            "dorgesh_construction_bone/dorgesh_construction_bone_curved",
+            "exact Troll General and mountain-troll primary tables",
+        ],
+        "loc_gamevals": [
+            "troll_climbingrocks/top/bottom and mountain shortcuts",
+            "troll_stronghold_arena entrance/exit gates", "stronghold/pass/Eadgar cave maplinks and stairs",
+            "troll_stronghold_prison_door_closed", "troll_celldoor_godric/troll_celldoor_eadgar",
+        ],
+        "trigger_handlers": [
+            "opnpc1/2/apnpc2/ai_opplayer2/ai_queue2/3:Dad", "mapzone:owner-private Dad/Godric/Eadgar",
+            "ai_queue3:Troll Generals/Twig/Berry exact drop tables", "opnpc3/ai_timer:Twig/Berry",
+            "oploc1/u:route/prison/cell keys", "opnpc1:Denulth/Dunstan start/reminders/completion/reclaim",
+            "queue:troll_quest_complete", "combat XP multiplier and elemental-weakness params",
+        ],
+        "loot_contract": "Dad is an owner-private level-101, 120-HP, speed-8 crush boss with +5% combat XP, 40% Earth weakness and a 1/3 five-tile tree-swing knockback. He surrenders below 20 HP, can be spared or killed, and on death drops big bones plus independent 1/400 long-bone and 2/10025 curved-bone rolls; killing him enrages the spectators. All three level-113 generals have +7.5% XP and 20% Earth weakness; any one guarantees an owner-private prison key before prison entry when none is owned, then rolls the exact 128-way normal table plus independent 1/28 ensouled head, Konar-task 1/98 Brimstone key, long and curved bones. Twig and Berry support level-30 pickpocket success/failure/wake combat and guaranteed matching cell keys on kill; their exact 128-way table includes the full uncommon-seed and chaos-talisman gem slots plus 1/45 ensouled head, Konar-task 1/268 Brimstone key, long and curved bones. Prison/cell keys are consumed only at their authored doors. Godric is mandatory, Eadgar optional, and Dunstan grants 1 QP and a law talisman; lost replacements cost 1,000 coins.",
+        "test_ids": [
+            "quest-combat-contract:troll-stronghold-route", "quest-combat-contract:troll-stronghold-dad",
+            "quest-combat-contract:troll-stronghold-keys", "quest-combat-contract:troll-stronghold-loot",
+            "quest-combat-contract:troll-stronghold-reward", "mock230-selftest:npc-owner-visibility",
+        ],
+        "known_gaps": [
+            "The 1/4 troll-bone tertiary remains gated off until Rag and Bone Man II's collection state is implemented; every unconditional and Slayer-conditional current tertiary is present.",
+            "The cell escape uses cache-era tile walking and temporary door presentation rather than the modern cutscene camera/audio sequence.",
+            "A real-client two-player ownership, Dad spare/kill, knockback collision, pickpocket failure, key loss, inventory-full, death and relog smoke is still pending.",
         ],
     },
 }

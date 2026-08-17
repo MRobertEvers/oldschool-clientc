@@ -1,0 +1,657 @@
+[
+  {
+    "num": 1,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["melee"], "big": false, "aggro": false }, null],
+    "south": [{ "rotation": ["magic"], "big": false, "aggro": false }, null],
+    "west": [{ "rotation": ["ranged"], "big": false, "aggro": true }, null]
+  },
+  {
+    "num": 2,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["ranged"], "big": false, "aggro": false }, null],
+    "south": [{ "rotation": ["melee"], "big": false, "aggro": true }, null],
+    "west": [{ "rotation": ["magic"], "big": false, "aggro": false }, null]
+  },
+  {
+    "num": 3,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["magic"], "big": false, "aggro": true }, null],
+    "south": [{ "rotation": ["ranged"], "big": false, "aggro": false }, null],
+    "west": [{ "rotation": ["melee"], "big": false, "aggro": false }, null]
+  },
+  {
+    "num": 4,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["melee"], "big": false, "aggro": false }, null],
+    "south": [{ "rotation": ["magic"], "big": true, "aggro": false }, null],
+    "west": [{ "rotation": ["ranged"], "big": false, "aggro": false }, null]
+  },
+  {
+    "num": 5,
+    "naturalStall": 16,
+    "east": [{ "rotation": ["magic"], "big": false, "aggro": false }, null],
+    "south": [{ "rotation": ["melee"], "big": false, "aggro": false }, null],
+    "west": [{ "rotation": ["ranged"], "big": true, "aggro": false }, null]
+  },
+  {
+    "num": 6,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["melee"], "big": true, "aggro": false }, null],
+    "south": [{ "rotation": ["ranged"], "big": false, "aggro": false }, null],
+    "west": [{ "rotation": ["magic"], "big": false, "aggro": false }, null]
+  },
+  {
+    "num": 7,
+    "naturalStall": 12,
+    "east": [{ "rotation": ["melee"], "big": false, "aggro": false }, null],
+    "south": [
+      { "rotation": ["magic"], "big": false, "aggro": false },
+      { "rotation": ["ranged"], "big": true, "aggro": true },
+      null
+    ],
+    "west": [null, null]
+  },
+  {
+    "num": 8,
+    "naturalStall": 4,
+    "east": [{ "rotation": ["ranged"], "big": false, "aggro": false }, null],
+    "south": [{ "rotation": ["melee"], "big": false, "aggro": false }, null],
+    "west": [{ "rotation": ["magic"], "big": true, "aggro": true }, null]
+  },
+  {
+    "num": 9,
+    "naturalStall": 12,
+    "east": [{ "rotation": ["magic"], "big": false, "aggro": false }, null],
+    "south": [null, null],
+    "west": [
+      { "rotation": ["ranged"], "big": true, "aggro": true },
+      { "rotation": ["melee"], "big": false, "aggro": false }
+    ]
+  },
+  {
+    "num": 10,
+    "naturalStall": 8,
+    "east": [
+      { "rotation": ["ranged"], "big": false, "aggro": true },
+      { "rotation": ["ranged"], "big": true, "aggro": false }
+    ],
+    "south": [
+      { "rotation": ["ranged"], "big": false, "aggro": false },
+      { "rotation": ["ranged"], "big": false, "aggro": false }
+    ],
+    "west": [
+      { "rotation": ["ranged"], "big": false, "aggro": false },
+      { "rotation": ["ranged"], "big": false, "aggro": true }
+    ]
+  },
+  {
+    "num": 11,
+    "naturalStall": 8,
+    "east": [
+      { "rotation": ["magic"], "big": false, "aggro": true },
+      { "rotation": ["magic"], "big": false, "aggro": false }
+    ],
+    "south": [
+      { "rotation": ["magic"], "big": false, "aggro": false },
+      { "rotation": ["magic"], "big": false, "aggro": false }
+    ],
+    "west": [{ "rotation": ["magic"], "big": true, "aggro": true }, null]
+  },
+  {
+    "num": 12,
+    "naturalStall": 8,
+    "east": [
+      { "rotation": ["melee"], "big": false, "aggro": true },
+      { "rotation": ["melee"], "big": false, "aggro": false }
+    ],
+    "south": [{ "rotation": ["melee"], "big": true, "aggro": false }, null],
+    "west": [
+      { "rotation": ["melee"], "big": false, "aggro": false },
+      { "rotation": ["melee"], "big": false, "aggro": true }
+    ]
+  },
+  {
+    "num": 13,
+    "naturalStall": 8,
+    "east": [{ "rotation": ["melee"], "big": true, "aggro": true }, null],
+    "south": [
+      { "rotation": ["ranged"], "big": false, "aggro": false },
+      { "rotation": ["melee"], "big": false, "aggro": false }
+    ],
+    "west": [
+      { "rotation": ["ranged"], "big": false, "aggro": false },
+      { "rotation": ["magic"], "big": false, "aggro": true }
+    ]
+  },
+  {
+    "num": 14,
+    "naturalStall": 8,
+    "east": [{ "rotation": ["ranged"], "big": true, "aggro": true }, null],
+    "south": [
+      { "rotation": ["magic"], "big": false, "aggro": false },
+      { "rotation": ["ranged"], "big": false, "aggro": false }
+    ],
+    "west": [
+      { "rotation": ["magic"], "big": false, "aggro": false },
+      { "rotation": ["melee"], "big": false, "aggro": true }
+    ]
+  },
+  {
+    "num": 15,
+    "naturalStall": 8,
+    "east": [
+      { "rotation": ["magic"], "big": false, "aggro": true },
+      { "rotation": ["ranged"], "big": false, "aggro": false }
+    ],
+    "south": [{ "rotation": ["magic"], "big": true, "aggro": false }, null],
+    "west": [
+      { "rotation": ["melee"], "big": false, "aggro": false },
+      { "rotation": ["ranged"], "big": false, "aggro": true }
+    ]
+  },
+  {
+    "num": 16,
+    "naturalStall": 4,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "magic", "ranged"],
+        "big": false,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": false,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 17,
+    "naturalStall": 12,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 18,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ]
+  },
+  {
+    "num": 19,
+    "naturalStall": 12,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 20,
+    "naturalStall": 16,
+    "east": [
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 21,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["ranged", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "melee", "ranged"],
+        "big": false,
+        "aggro": true
+      }
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "magic", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": false,
+        "aggro": true
+      }
+    ],
+    "west": [
+      {
+        "rotation": ["magic", "ranged", "magic"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["magic", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ]
+  },
+  {
+    "num": 22,
+    "naturalStall": 12,
+    "east": [
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["ranged", "magic", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "west": [
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 23,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["ranged", "magic", "melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ]
+  },
+  {
+    "num": 24,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["magic"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["ranged", "magic", "melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ]
+  },
+  {
+    "num": 25,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["ranged"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["melee"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ]
+  },
+  {
+    "num": 26,
+    "naturalStall": 4,
+    "east": [
+      {
+        "rotation": ["magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "magic", "melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["magic"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ]
+  },
+  {
+    "num": 27,
+    "naturalStall": 8,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "magic", "ranged"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["magic"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 28,
+    "naturalStall": 4,
+    "east": [
+      {
+        "rotation": ["magic", "melee", "magic"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "magic", "melee"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["magic", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "west": [
+      {
+        "rotation": ["melee", "magic", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "melee", "magic"],
+        "big": false,
+        "aggro": true
+      }
+    ]
+  },
+  {
+    "num": 29,
+    "naturalStall": 4,
+    "east": [
+      {
+        "rotation": ["magic", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "melee", "magic"],
+        "big": false,
+        "aggro": true
+      }
+    ],
+    "south": [
+      {
+        "rotation": ["melee"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ],
+    "west": [
+      {
+        "rotation": ["melee", "ranged", "magic"],
+        "big": false,
+        "aggro": true
+      },
+      {
+        "rotation": ["ranged", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ]
+  },
+  {
+    "num": 30,
+    "naturalStall": 4,
+    "east": [
+      {
+        "rotation": ["magic"],
+        "big": true,
+        "aggro": true
+      },
+      null
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["melee", "ranged", "melee"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "west": [
+      {
+        "rotation": ["ranged", "melee", "ranged"],
+        "big": true,
+        "aggro": false
+      },
+      null
+    ]
+  },
+  {
+    "num": 31,
+    "naturalStall": 0,
+    "east": [
+      {
+        "rotation": ["magic", "ranged", "magic"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "south": [
+      {
+        "rotation": ["melee", "magic", "ranged"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["magic", "melee", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ],
+    "west": [
+      {
+        "rotation": ["melee", "ranged", "magic"],
+        "big": false,
+        "aggro": false
+      },
+      {
+        "rotation": ["ranged", "magic", "ranged"],
+        "big": false,
+        "aggro": false
+      }
+    ]
+  }
+]

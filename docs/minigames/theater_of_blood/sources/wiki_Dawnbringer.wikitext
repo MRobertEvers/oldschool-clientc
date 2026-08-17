@@ -1,0 +1,98 @@
+{{Infobox Item
+|name = Dawnbringer
+|image = [[File:Dawnbringer.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Drop
+|examine = A weapon of light to hold back the darkness.
+|value = 1
+|alchable = No
+|weight = 1.500
+|id = 22516
+}}
+[[File:Dawnbringer detail.png|left|140px]]
+The '''Dawnbringer''' is a [[powered staff]] obtained from the [[skeleton (Theatre of Blood, Dawnbringer)|skeleton]] next to the entrance to [[Verzik Vitur]]'s throne room in the [[Theatre of Blood]]. When a player takes the staff from the skeleton, a chatbox message will state {{mes|You find the Dawnbringer; you feel a pulse of energy burst through it.}}
+
+Used to break Verzik Vitur's shield during the first phase of the final fight against her, the Dawnbringer ignores [[Magic#Magic_accuracy|accuracy rolls]], meaning the player will always deal [[successful hit]]s, even when at or below -64 Magic attack bonus.
+
+After her shield is destroyed, the Dawnbringer will crumble to dust. When this occurs, a message in the chatbox will state ''The weapon falls apart in your hand as Verzik's shield is destroyed.''
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +25
+|arange = 0
+|dstab = +2
+|dslash = +3
+|dcrush = +1
+|dmagic = +15
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image = [[File:Dawnbringer equipped.png|170px]]
+|altimage = [[File:Dawnbringer equipped female.png|170px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Special attack==
+[[File:Pulsate.gif|thumb|300px|A player using the Dawnbringer's special attack, ''Pulsate''.]]
+The staff's [[special attack]], ''Pulsate'', fires a powerful blast towards [[Verzik Vitur]], inflicting 75-150 [[hitpoints]] of damage towards her and consuming 35% of the wielder's special attack energy.
+
+As players must deplete her health quickly before all the pillars in her throne room collapses, it is mandatory for teammates to drop the staff for another player to perform the special attack once they have depleted their own special attack energy.
+
+[[Magic damage]] gear bonuses, prayer and base magic level/boosts do not affect the damage inflicted by the Dawnbringer's special attack, and it is guaranteed to be a [[successful hit]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1368923472840232966|date=8 march 2021|archiveurl=https://reldo.runescape.wiki/i/99489|archivedate=22 July 2023|quote=[When using the Dawnbringer's special attack on Verzik, do items like occult/ancestral help max hits? I know you always hit 75-150, but do the extra damage boosts help you roll over the max hit cap, which would then be reduced to 150? (...)] Looking through its code, it looks like it doesn't respond to that sort of thing. (...) [So if I understand correctly, it seems that your roll would be completely random. Does accuracy help any? (...)] It did indeed look completely random to me, with no accuracy roll either.}}
+
+==Maximum hit==
+The following formula may be used to describe the maximum hit of the Dawnbringer:
+
+<math>\begin{align}
+ \text{Max Hit} &= \lfloor \frac {\lfloor \frac{\text{MagicLevel}}{3} \rfloor - 2}{2}\rfloor\\
+\end{align}</math>
+
+This formula is the same as the [[trident of the swamp]], then divided by 2 and floored. Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the Dawnbringer's attack styles, do not affect the max hit. The staff always has a max hit of at least 2, even when reduced to 0 magic.
+
+===Calculator===
+{{Magic damage calculator|Dawnbringer}}
+
+==Item sources==
+{{Drop sources|Dawnbringer}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 March 2021
+|update = TzHaar-Ket-Rak's Challenges
+|change = The Dawnbringer should now drop to the floor if a player uses [[Verzik's crystal shard]] to exit the raid.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Dawnbringer's previous possessor.png|The previous possessor of the Dawnbringer, lying in front of the entrance to Verzik's throne room.
+Dawnbringer spell.gif|A player using the Dawnbringer's built in spell.
+</gallery>
+
+==Trivia==
+* Should players somehow successfully smuggle it out of the raid, it is automatically destroyed.{{CiteGeneral|url=https://www.reddit.com/r/2007scape/comments/8pbg19/just_lost_my_only_armadyl_chestplate_due_to_a_bug/e0amfsf/|title=Just lost my only armadyl chestplate due to a bug in ToB, kept this instead|quote=[The Dawnbringer] has a built in failsafe where it's destroyed when you attempt to do anything with it outside of Verzik's room|accessdate=21:53, June 7, 2018 (UTC)|archiveurl=https://reldo.runescape.wiki/i/27964027|archivedate=16 May 2026|author=Mod Ayiza|format=Reddit}} This is because when the [[Theatre of Blood]] was released, there was a bug where players who died would drop another item in their inventory, and they would respawn outside with the Dawnbringer instead.{{CiteGeneral|url=https://www.reddit.com/r/2007scape/comments/8pbg19/just_lost_my_only_armadyl_chestplate_due_to_a_bug/e09woi3/|title=Just lost my only armadyl chestplate due to a bug in ToB, kept this instead|quote=There was an issue with the staff. The staff is supposed to drop instantly on death so other players can use it should you have died; if it was found in your inventory we inadvertently dropped a different slot to the one the staff was in.|accessdate=21:53, June 7, 2018 (UTC)|archiveurl=https://reldo.runescape.wiki/i/27964028|archivedate=16 May 2026|author=Mod Kieren|format=Reddit}} Jagex quickly hotfixed the issue, and as the only player who saw a disadvantage was an [[Ironman Mode|ironman]] whose [[Armadyl chestplate]] went to one of their party members, Jagex swapped the item back to its original owner.{{CiteGeneral|url=https://www.reddit.com/r/2007scape/comments/8pbg19/just_lost_my_only_armadyl_chestplate_due_to_a_bug/e09yr04/|title=Just lost my only armadyl chestplate due to a bug in ToB, kept this instead|quote=This item went to another member of the party. We have since removed that item from them and will be returning it to the player who initially lost the item, as they are an Ironman.|accessdate=21:53, June 7, 2018 (UTC)|archiveurl=https://reldo.runescape.wiki/i/103479|archivedate=1 November 2022|author=Mod Ayiza|format=Reddit}} This hotfix also made it so the Dawnbringer automatically crumbles to dust once it is no longer needed in the fight.
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+{{Magic weapons}}
+[[Category:Weapons with Special attacks]]

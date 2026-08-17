@@ -764,6 +764,7 @@ mock230_combat_hit_npc(
     int amount)
 {
     struct Mock230Npc* npc;
+    int training_dummy;
 
     if( slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
@@ -771,9 +772,18 @@ mock230_combat_hit_npc(
     if( !npc->active || npc->death_tick >= 0 )
         return;
 
+    /* The cache reserves category 981 for the nine attached POH combat
+     * dummies. They are damage meters: a landed attack must still emit its
+     * hitsplat, but cannot consume hitpoints, die, retaliate, or enter the
+     * ordinary loot/respawn lifecycle.
+     * https://oldschool.runescape.wiki/w/Combat_dummy
+     * https://oldschool.runescape.wiki/w/Ornate_undead_combat_dummy */
+    training_dummy = mock230_npc_category(npc->type) == 981;
+
     if( amount > npc->hitpoints )
         amount = npc->hitpoints;
-    npc->hitpoints -= amount;
+    if( !training_dummy )
+        npc->hitpoints -= amount;
 
     /* One mask carries the splat and the bar. A zero-damage hit is a *block*
      * splat rather than nothing — the reference shows those, and without them a
@@ -810,7 +820,7 @@ mock230_combat_hit_npc(
      * the Inferno's Ancestral Glyph, which walks a fixed row while the adds
      * chew on it for the whole Zuk phase — needs the hit, the splat and the
      * flinch below, and none of this. */
-    if( npc->combat_target < 0 && npc_def(npc)->retaliate )
+    if( !training_dummy && npc->combat_target < 0 && npc_def(npc)->retaliate )
     {
         /*
          * Switching a fight from an npc to a person is not a new fight, and the

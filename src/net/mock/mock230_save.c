@@ -189,7 +189,11 @@ write_poh(
             "tip_coins = %d\n"
             "tip_platinum = %d\n"
             "tip_notify = %d\n"
-            "tip_auto_bank = %d\n",
+            "tip_auto_bank = %d\n"
+            "treasure_coins = %d\n"
+            "treasure_ready_minute = %d\n"
+            "boss_jars = %d\n"
+            "dummy_variants = %d\n",
             poh->schema_version, poh->owns_house, poh->location, poh->style,
             poh->locked, poh->door_mode, poh->teleport_inside,
             poh->default_build_mode, poh->grid_size, poh->servant_type,
@@ -197,7 +201,8 @@ write_poh(
             poh->family_crest, poh->head_trophies, poh->fish_trophies,
             poh->spice_red, poh->spice_orange, poh->spice_brown,
             poh->spice_yellow, poh->tip_coins, poh->tip_platinum,
-            poh->tip_notify, poh->tip_auto_bank);
+            poh->tip_notify, poh->tip_auto_bank, poh->treasure_coins,
+            poh->treasure_ready_minute, poh->boss_jars, poh->dummy_variants);
 
     fprintf(file,
             "\n[poh_rooms]\n"
@@ -703,6 +708,19 @@ mock230_load_player(
             else if( strcmp(key, "tip_auto_bank") == 0 )
                 mock230_poh_set(
                     &player->poh, MOCK230_POH_FIELD_TIP_AUTO_BANK, atoi(value));
+            else if( strcmp(key, "treasure_coins") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TREASURE_COINS, atoi(value));
+            else if( strcmp(key, "treasure_ready_minute") == 0 )
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_TREASURE_READY_MINUTE,
+                                atoi(value));
+            else if( strcmp(key, "boss_jars") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_BOSS_JARS, atoi(value));
+            else if( strcmp(key, "dummy_variants") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, atoi(value));
             break;
 
         case SAVE_POH_ROOMS:

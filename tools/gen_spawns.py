@@ -151,6 +151,18 @@ NPC_SPAWN_EXCLUSIONS = {
     ("regicide_old_camp_guard", 2312, 4556, 0),
     ("regicide_old_camp_guard", 2314, 4556, 0),
     ("regicide_old_camp_guard", 2316, 4556, 0),
+    # Tai Bwo Wannai Trio's two Tamayu/Shaikahan cutscene pairs are created
+    # owner-privately when the player joins a hunt.
+    ("tbwt_tamayu_hunter", 2523, 4567, 0),
+    ("tbwt_beast_cutscene", 2524, 4567, 0),
+    ("tbwt_beast_cutscene", 2540, 4566, 0),
+    ("tbwt_tamayu_final_hunter", 2541, 4565, 0),
+    # Troll Stronghold recreates Dad and the two prisoners owner-privately so
+    # one player's surrender/cell state cannot advance another player's quest.
+    # Eadgar's post-rescue cave spawn (2890, 10086, plane 2) remains public.
+    ("troll_champion", 2911, 3612, 0),
+    ("troll_godric", 2827, 10077, 0),
+    ("troll_eadgar", 2829, 10083, 0),
 }
 
 

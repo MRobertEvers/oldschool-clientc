@@ -13,7 +13,7 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 5,
+    MOCK230_POH_SCHEMA_VERSION = 6,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
@@ -21,6 +21,12 @@ enum
     MOCK230_POH_UPPER_LEVEL = 2,
     /* https://oldschool.runescape.wiki/w/Servant%27s_money_bag */
     MOCK230_POH_MONEY_BAG_MAX = 3000000,
+    /* https://oldschool.runescape.wiki/w/Treasure_room#Treasure */
+    MOCK230_POH_TREASURE_MAX = 100000,
+    /* Fifteen cache-backed Boss lair jars, Kraken through Shellbane gryphon. */
+    MOCK230_POH_BOSS_JAR_MASK_MAX = 0x7fff,
+    /* Paid ornate combat-dummy forms: wilderness through dragon. */
+    MOCK230_POH_DUMMY_VARIANT_MASK_MAX = 0x1f,
 };
 
 enum Mock230PohField
@@ -49,6 +55,10 @@ enum Mock230PohField
     MOCK230_POH_FIELD_TIP_PLATINUM = 21,
     MOCK230_POH_FIELD_TIP_NOTIFY = 22,
     MOCK230_POH_FIELD_TIP_AUTO_BANK = 23,
+    MOCK230_POH_FIELD_TREASURE_COINS = 24,
+    MOCK230_POH_FIELD_TREASURE_READY_MINUTE = 25,
+    MOCK230_POH_FIELD_BOSS_JARS = 26,
+    MOCK230_POH_FIELD_DUMMY_VARIANTS = 27,
 };
 
 enum Mock230PohRoomField
@@ -113,6 +123,10 @@ struct Mock230PohState
     int tip_platinum;
     int tip_notify;
     int tip_auto_bank;
+    int treasure_coins;
+    int treasure_ready_minute;
+    int boss_jars;
+    int dummy_variants;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

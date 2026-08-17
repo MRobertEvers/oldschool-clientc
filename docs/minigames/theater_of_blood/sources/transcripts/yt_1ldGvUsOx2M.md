@@ -1,0 +1,21 @@
+# Maiden Freezing 101 — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=1ldGvUsOx2M>
+(Indarkment, *Maiden Freezing 101*, uploaded 2024-01-23, 0:04:39).
+
+Downloaded with `yt-dlp --write-auto-subs` and deduped/segmented for reference while
+implementing the Theatre of Blood. Timestamps are `H:MM:SS` and link back to the video.
+This is a machine transcription: every tick count, npc name and item name below must be
+cross-checked against the wiki or the cache before it is encoded as a constant.
+
+*[0:00:00](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=0)* — so recently I sent a few hard mode top cases in the infamous weeder raage Channel and uh yeah we didn't get past Maiden classes in session this is Maiden 101 so simple your chees keep wearing non blood torva habin Clan member can do it now in this video we are going to cover both South and North freezing specifically I will teach you how to do both basic as well as ideal freezing procedure let's start with South I would also like to add that all tile markers will be linked in the description below South fuser has the easier of the two maging roles this is because they have a two tick window for error when freezing the first crab you must freeze the first
+
+*[0:00:48](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=48)* — crab within the green yellow or Red Zone this is indicated by my tile markers after freezing the first crab you must ice barrage the second as well as the fourth group of crabs it is important to freeze both the second and fourth crabs in what we call the clump it is important to note if you catch the first crab in the green tiles which is considered tick perfect you must delay your barrage by one tick therefore freezing the second crab six ticks later you must do this in order to group the second crab into the clump here is an example of meiling to do this as for the north major you are responsible for freezing the first second and third crabs on your side of
+
+*[0:01:44](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=104)* — the room in order to catch all three of these freezes you must lose at most one tick freezing the first crab by using my tile indicator system the first crab must be frozen in either the green or yellow Yellow Boxes there is no timing required with freezing North as long as you freeze the first crab within the correct boxes you can simply cast ice barrage on the next crab the timing will always be perfect the last thing we need to cover before moving on to Ideal crab freezing is what do you do if some of the crabs don't spawn if one or more of your crabs do not spawn you are still responsible for freezing your designated numbers remember if you are South Mage you need
+
+*[0:02:39](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=159)* — to freeze the fourth set of crabs regardless if there are no South fours the same goes with North Mage you still need to freeze the third even when there are no North 3s now that you have the basics down we can add minor steps to improve your freezing this time we will start with North Mage ideally North freezes solo one solo 2 group three and group four the reason this is better than the previous method I taught you is because it allows your south major to just freeze his solo one and solo 2 into the clump they are then able to get back onto the boss instead of losing attacks waiting to freeze group four the caveat to Ideal North freezing is you cannot miss a single tick when
+
+*[0:03:41](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=221)* — freezing the first crab it must be frozen within the green tiles if the first crab is frozen in the yellow tiles you must communicate with your south major to freeze the fourth group as you will only be able to catch one two and threes if the first crab is Frozen in the red tiles you must catch the first second and fourth group of the crabs South will need to get threes of course there are minor scenarios that I left out in this video but this is the foundation for you to get into maiden and start freezing guys I hope you learned at least one thing in this video if you have questions feel free to ask in the comments below I'm also thinking about making more basic
+
+*[0:04:29](https://www.youtube.com/watch?v=1ldGvUsOx2M&t=269)* — guides for so all advice is much appreciated take [Music] care

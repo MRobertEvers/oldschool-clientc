@@ -1,0 +1,105 @@
+{{Infobox Monster
+|version1 = Small
+|version2 = Big
+|version3 = Small (Entry mode)
+|version4 = Big (Entry mode)
+|name = Nylocas Hagios
+|image = [[File:Nylocas Hagios.png|250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat1 = 162
+|combat2 = 260
+|combat3 = 46
+|combat4 = 82
+|size1 = 1
+|size2 = 2
+|size3 = 1
+|size4 = 2
+|examine = One of Verzik's pets.
+|xpbonus = 0
+|max hit1 = 17
+|max hit2 = 24
+|max hit3 = 5
+|max hit4 = 10
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 3
+|hitpoints1 = 11
+|hitpoints2 = 22
+|hitpoints3 = 2
+|hitpoints4 = 3
+|scaledhp = Yes
+|att1 = 200
+|att2 = 250
+|att3 = 80
+|att4 = 100
+|str1 = 160
+|str2 = 230
+|str3 = 40
+|str4 = 90
+|def1 = 1
+|def2 = 20
+|def3 = 1
+|def4 = 6
+|mage1 = 1
+|mage2 = 20
+|mage3 = 1
+|mage4 = 6
+|range1 = 200
+|range2 = 250
+|range3 = 80
+|range4 = 100
+|attbns = 0
+|strbns = 0
+|amagic1 = 1073
+|amagic2 = 500
+|amagic3 = 505
+|amagic4 = 400
+|mbns1 = 928
+|mbns2 = 500
+|mbns3 = 280
+|mbns4 = 360
+|arange = 0
+|rngbns1 = -15
+|rngbns2 = 0
+|rngbns3 = -30
+|rngbns4 = -6
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 8344,8350,8383,10793,10799,10860
+|id2 = 8347,8353,10796,10802
+|id3 = 10776,10782
+|id4 = 10779, 10785
+}}
+'''Nylocas Hagios''' are part of the wave prior to the [[Nylocas Vasilias]] encounter in the [[Theatre of Blood]]. They spawn alongside [[Nylocas Toxobolos]] and [[Nylocas Ischyros]] as they attempt to destroy the pillars. They also appear during the [[Verzik Vitur]] encounter, spawned periodically during the second and third phase whereupon they chase after players and burst when they get near, dealing high damage.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Nylocas Hagios now have a 15% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Nylocas can now be affected by burn damage.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word "Nylocas" is very similar to the Hungarian word "Nyolcas", meaning "eight", referencing the eight legs of this arachnid-like creature.
+*The latter part of the name of the Nylocas Hagios likely derives from the Greek term "ἅγιος" ("ágios"), meaning "holy" or "saintlike", referencing its background within the lore and its magical powers.
+
+{{Theatre of Blood}}

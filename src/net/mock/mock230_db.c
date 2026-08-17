@@ -256,6 +256,110 @@ mock230_db_row_count(int table_id)
     return count;
 }
 
+/*
+ * The index-th row of a table in *ascending row id*, which is the order
+ * `DB_LISTALL` is defined to walk.
+ *
+ * Separate from `mock230_db_row_in_table` on purpose, and the separation is the
+ * whole point of this function existing.
+ *
+ * **Why the order matters.** `DB_LISTALL` hands content a positional cursor —
+ * `db_findbyindex(n)` is the n-th row of the table — and the cache states what
+ * that order is. Every `dbindex/dbindex_<table>.dbi` carries a `[master]` block
+ * whose own header reads "every row id in the table, which DB_FINDALL returns",
+ * and every one of them is written ascending. That index is what the CLIENT
+ * walks; a server that walked a different order would hand back a different row
+ * than the player clicked. `transport_charter`'s map picker is exactly that
+ * pairing: clientscript 8941 builds one pin per row in master order, and
+ * `charter_map.rs2` turns the clicked pin's sub-id back into a row here.
+ *
+ * **Why it was not already true.** Rows are stored in the order
+ * `configs/all.dbrow` is parsed, and the exporter happens to emit them sorted —
+ * so across this cache's 144 indexed tables storage order and master order
+ * agree 143 times. They disagree on table 118 `action`, where the file is short
+ * one row the master block has and every position from index 1675 on is off by
+ * one. "Happens to" is not a contract, and a positional API needs one.
+ *
+ * **Why this does not touch `db_find`.** `db_find` scans for rows matching a
+ * value and `query_row` re-tests the predicate as it walks; its order is only
+ * observable when several rows match, and changing it moves which row a great
+ * deal of existing content sees first. Reordering the shared walk was tried and
+ * measured: it fixes this, and it also shifts 38 unrelated selftest assertions
+ * that depend on the current `db_find` order. That is a separate change with a
+ * separate verification pass. So the ordered walk lives here, reached only from
+ * the `db_query_column < 0` branch of `query_row`, and the find path keeps the
+ * storage-order scan it has always had.
+ *
+ * The sorted view is an array of indices built once per table on first use, so
+ * a full `db_listall` walk is O(n log n) rather than the O(n^2) the linear
+ * filter would make of it — `action` alone is 2174 rows.
+ */
+static int* g_ordered;          /* indices into g_rows, sorted (table, row id) */
+static int g_ordered_count;     /* rows covered; 0 when the view needs rebuilding */
+
+static int
+db_ordered_cmp(
+    const void* a,
+    const void* b)
+{
+    const struct Mock230DbRow* left = &g_rows[*(const int*)a];
+    const struct Mock230DbRow* right = &g_rows[*(const int*)b];
+
+    if( left->table_id != right->table_id )
+        return left->table_id < right->table_id ? -1 : 1;
+    if( left->row_id != right->row_id )
+        return left->row_id < right->row_id ? -1 : 1;
+    return 0;
+}
+
+static void
+db_ordered_build(void)
+{
+    if( g_ordered_count == g_row_count && g_ordered )
+        return;
+    free(g_ordered);
+    g_ordered = NULL;
+    g_ordered_count = 0;
+    if( g_row_count <= 0 )
+        return;
+    g_ordered = malloc((size_t)g_row_count * sizeof(*g_ordered));
+    assert(g_ordered);
+    for( int i = 0; i < g_row_count; i++ )
+        g_ordered[i] = i;
+    qsort(g_ordered, (size_t)g_row_count, sizeof(*g_ordered), db_ordered_cmp);
+    g_ordered_count = g_row_count;
+}
+
+const struct Mock230DbRow*
+mock230_db_row_in_table_ordered(
+    int table_id,
+    int index)
+{
+    if( index < 0 )
+        return NULL;
+    db_ordered_build();
+    if( !g_ordered )
+        return NULL;
+    /* Sorted by (table_id, row_id), so a table's rows are contiguous. */
+    for( int i = 0; i < g_ordered_count; i++ )
+    {
+        const struct Mock230DbRow* first = &g_rows[g_ordered[i]];
+
+        if( first->table_id < table_id )
+            continue;
+        if( first->table_id > table_id )
+            return NULL;
+        if( i + index >= g_ordered_count )
+            return NULL;
+        {
+            const struct Mock230DbRow* row = &g_rows[g_ordered[i + index]];
+
+            return row->table_id == table_id ? row : NULL;
+        }
+    }
+    return NULL;
+}
+
 const struct Mock230DbRow*
 mock230_db_row_in_table(
     int table_id,
@@ -713,6 +817,9 @@ mock230_db_free(void)
     g_rows = NULL;
     g_row_count = 0;
     g_row_capacity = 0;
+    free(g_ordered);
+    g_ordered = NULL;
+    g_ordered_count = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -902,6 +1009,16 @@ int
 mock230_db_table_count(void)
 {
     return g_table_count;
+}
+
+/** The index-th loaded table, for a caller that means to walk all of them.
+ *  `mock230_db_table` takes an id and is the lookup; this is the enumeration. */
+const struct Mock230DbTable*
+mock230_db_table_at(int index)
+{
+    if( index < 0 || index >= g_table_count )
+        return NULL;
+    return &g_tables[index];
 }
 
 int

@@ -5802,10 +5802,11 @@ mock230_script_command(
 
         /*
          * `huntall` collects *players* in range — `[proc,sound_area]` uses it to
-         * play a sound to everyone who can hear it. `MOCK230_PLAYER_MAX` is 1
-         * (§6.1), so this finds at most one, and it is written as a loop over
-         * the pool anyway: the day a second player exists this is already
-         * right, where a hardcoded `srv->active_player` would be one more place to find.
+         * play a sound to everyone who can hear it. The fixed pool is sparse:
+         * logout leaves a hole until that pid is safe to reap, so membership is
+         * the player's `active` bit rather than merely being below the high-water
+         * `player_count`. This matters to area mechanics such as a POH throne
+         * trap: a stale hole must never be returned as a victim.
          *
          * HuntVis for players casts candidate→source (ScriptIterators.ts), the
          * opposite of the npc finds.
@@ -5817,10 +5818,8 @@ mock230_script_command(
         {
             struct Mock230Player* other = &srv->players[i];
 
-            /* `player_count` is how many of the pool are live; the mock never
-             * leaves a hole, so the first `player_count` entries are the world's
-             * players. */
-            if( i >= srv->player_count || other->level != coord_level(coord) )
+            if( i >= srv->player_count || !other->active ||
+                other->level != coord_level(coord) )
                 continue;
             dx = other->x - coord_x(coord);
             dz = other->z - coord_z(coord);
@@ -5850,7 +5849,7 @@ mock230_script_command(
             int index = srv->iterator.slots[srv->iterator.cursor++];
             struct Mock230Player* other = &srv->players[index];
 
-            if( index >= srv->player_count )
+            if( index >= srv->player_count || !other->active )
                 continue;
             SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, other);
             SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
@@ -9262,19 +9261,19 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( !srv->active_player )
+        if( !player )
         {
             SSVM_Abort(state, "obj_add_private: no active player");
             return 1;
         }
-        mock230_world_obj_add_private(srv, values[1], values[2], coord_x(values[0]),
+        mock230_world_obj_add_private(srv, player, values[1], values[2], coord_x(values[0]),
                                       coord_z(values[0]), coord_level(values[0]),
                                       values[3] > 0 ? values[3] : -1, values[4]);
         /* Private drops used to stop here, bypassing the only notification the
          * client loot tracker consumes. That made misses depend on which drop
          * table opcode happened to roll the item. */
         mock230_loot_tracker_add_ground_obj(
-            srv, srv->active_player, (int)values[1], (int)values[2]);
+            srv, player, (int)values[1], (int)values[2]);
         return 1;
     }
 

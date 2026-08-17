@@ -135,6 +135,16 @@ mock230_db_row_in_table(
     int table_id,
     int index);
 
+/** The index-th row of `table_id` in ascending row id — the order the cache's
+ *  own `dbindex/dbindex_<table>.dbi` `[master]` block states DB_FINDALL
+ *  returns, and therefore the order the client walks. Used only by the
+ *  `db_listall` cursor; `db_find` keeps the storage-order scan above. See the
+ *  long comment on the definition for why the two are separate. */
+const struct Mock230DbRow*
+mock230_db_row_in_table_ordered(
+    int table_id,
+    int index);
+
 /*
  * Cache import (mock230_dbinfo.c). Authored tables keep priority: a table that
  * already has columns is not overwritten. Rows for cache table ids are always
@@ -194,6 +204,10 @@ mock230_db_load_cache(const char* cache_dir);
 
 int
 mock230_db_table_count(void);
+
+/** The index-th loaded table, 0..mock230_db_table_count()-1, or NULL. */
+const struct Mock230DbTable*
+mock230_db_table_at(int index);
 
 int
 mock230_db_total_row_count(void);

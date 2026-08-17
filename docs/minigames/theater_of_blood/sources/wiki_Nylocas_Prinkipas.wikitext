@@ -1,0 +1,73 @@
+{{Infobox Monster
+|version1 = Melee
+|version2 = Magic
+|version3 = Ranged
+|name = Nylocas Prinkipas
+|image1 = [[File:Nylocas Prinkipas (melee).png|250px]]
+|image2 = [[File:Nylocas Prinkipas (magic).png|250px]]
+|image3 = [[File:Nylocas Prinkipas (ranged).png|250px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat = 400
+|size = 3
+|examine = One of Verzik's slightly larger pets.
+|xpbonus = 
+|max hit = 38
+|aggressive = Yes
+|poisonous = No
+|attack style1 = [[Stab]]
+|attack style2 = [[Magic]]
+|attack style3 = [[Ranged]]
+|attack speed = 4
+|slayxp = Not assigned
+|hitpoints = 400
+|scaledhp = Yes
+|att = 200
+|str = 175
+|def = 25
+|mage = 25
+|range = 175
+|attbns = 0
+|strbns = 30
+|amagic = 300
+|mbns = 300
+|arange = 0
+|rngbns = 30
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10803,10804
+|id2 = 10805
+|id3 = 10806
+}}
+'''Nylocas Prinkipas''' are encountered during the waves prior to the [[Nylocas Vasilias]] fight during the [[Theatre_of_Blood/Hard_Mode|Theatre of Blood: Hard Mode]]. One will appear after every ten waves during the encounter alongside [[Nylocas Hagios]], [[Nylocas Ischyros]] and [[Nylocas Toxobolos]] as they attempt to destroy the pillars, for a total of three spawns. However, they remain in the middle of the room attacking the players instead of targeting the pillars. They are mechanically very similar to the [[Nylocas Vasilias]] in Normal Mode, with their active combat style and weakness changing according to the colour of their carapace: blue for magic, green for ranged and white for melee. Attacking them with the wrong combat style will cause them to reflect the hit back towards the player as well as healing from the hit. They will change every 10 [[tick]]s (6 seconds), and will always change to one of the other two styles (meaning they will not stay on one style twice in a row).
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Nylocas Prinkipas now have a 15% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Nylocas can now be affected by burn damage.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word "Nylocas" is very similar to the Hungarian word "Nyolcas", meaning "eight", referencing the eight legs of this arachnid-like creature.
+*The latter part of the name of the Nylocas Prinkipas likely derives from the Greek term "πρίγκιπας" ("prínkipas"), meaning "prince", referencing the fact that the creature is stronger than the other Nylocas, but weaker than the "Vasilias", whose name is derived from the Greek word for "king".
+
+
+{{Theatre of Blood}}

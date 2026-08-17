@@ -1781,6 +1781,26 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
   earlier "blocked" note came from grepping the CS2 spellings db_findall/
   db_getrow. The chat-menu scaffolding is deleted. Suite measured back-to-back
   on one tree: 57 failures without, 51 with, no new ones.
-- next pending: charter phase 4 (voyage animation) — needs the live client, see
-  CHARTER_SHIPS.md §13. Also open there: db_listall walks all.dbrow file order
-  rather than the cache's documented [master] order (144 tables, 1 disagrees).
+- slice 36c done: engine — db_listall is a positional cursor and now walks the
+  order the cache documents (ascending row id, the `[master]` block of
+  dbindex_<table>.dbi) instead of all.dbrow parse order.
+  mock230_db_row_in_table_ordered serves only query_row's db_query_column < 0
+  branch, so db_find's scan is untouched; 50 suite failures with and without,
+  identical sets. New selftest "db_listall walks ascending row ids"; inverting
+  the comparator fires it. No behaviour changes on this cache — every table is
+  already sorted — it removes the picker's dependence on that staying true.
+  db_find's own order is still storage order and is knowingly left: fixing it
+  fixes the suite's failing db_find(quest:id, 1) but destabilises 38 unrelated
+  assertions, so it needs its own pass.
+- slice 36d: charter phase 4 CLOSED, not deferred. The wiki's Gielinor-map ship
+  animation is not in cache.osrs239 — established offline, four checks in
+  CHARTER_SHIPS.md §5.3: dbtable 206's x_pos/y_pos are read by exactly one
+  clientscript (8941, the pin builder) and nothing tweens a marker; ship_journey
+  (299) is the Karamja/Ape Atoll boat (model 3065 obj/grandtree_warship, 8
+  canned routes in script_2382) not charter's; and sailing_menu has no ship
+  child the server can create — there is no server-side cc_* or if_setgraphic.
+  Found on the way: nothing in this tree calls script_2380, and the journey
+  numbers content writes (0/11/12/14/15) are none of them in script_2382's
+  switch (-2,-1,1..6) — so pest_sail.rs2 and the trawler open ship_journey and
+  animate nothing. Their content to remap, not charter's.
+- next pending: charter is done; the ship_journey binding above is unowned.

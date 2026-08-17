@@ -1,0 +1,1003 @@
+The Theatre of Blood is a [[raid]] located in [[Ver Sinhaza]]. It is the second raid released to date.
+
+Unlike in [[Tombs of Amascut]], players are not allowed to teleport out of the Theatre of Blood - the only way to escape in the middle of a fight is through an [[escape crystal]], sold by the [[Mysterious Stranger]] outside the raid for {{NoCoins|75000|c}} each. Players who die during the raid will be placed in purgatory. If the room is successfully cleared by the remaining players, those who have died will be reunited with the rest of their team. If the entire team dies, the raid will end and team members will have to reclaim their items from the chest for {{NoCoins|100000|c}}. Dying elsewhere without claiming items from the chest will result in them being lost for good. 
+
+== Requirements ==
+
+* Completion of {{SCP|Quest}}[[Priest in Peril]] to access [[Morytania]]
+
+== Suggested skills ==
+For Normal and Hard Mode:
+
+* {{SCP|Attack|90+}}
+* {{SCP|Strength|90+}}
+* {{SCP|Defence|80+}}
+* {{SCP|Hitpoints|95+}}
+* {{SCP|Ranged|90+}}
+* {{SCP|Magic|94+}} for [[Ice Barrage]]
+* {{SCP|Prayer|77+}} for [[Piety]], [[Rigour]], and [[Augury]]
+* {{SCP|Agility|70+}}
+
+For Entry Mode:
+
+* 75+{{SCP|Attack|}},{{SCP|Strength|}},{{SCP|Defence|}},{{SCP|Hitpoints|}},{{SCP|Ranged|}},{{SCP|Magic|}}, and {{SCP|Prayer|}}
+
+==Transportation==
+There are multiple ways to reach [[Ver Sinhaza]]:
+*[[Drakan's medallion]], a reward from [[A Taste of Hope]], instantly teleports players to Ver Sinhaza.
+*Players can use an [[Ectophial]] to teleport to the [[Ectofuntus]], then run all the way south or run north and pay 10,000 coins to [[Andras]] before running south.
+*Players can use the [[Minigame Teleport]] to go to [[Shades of Mort'ton (minigame)|Shades of Mort'ton]], run south to [[Burgh de Rott]] (can also teleport there immediately with [[Morytania legs 3]]) and use the boat to enter [[Meiyerditch]] and run to the gate between it and Ver Sinhaza.
+*Spider Cave Teleport, Run south
+
+==Equipment==
+<tabber>
+Entry Mode=
+
+{{Inventory|align=right
+|1=Void ranger helm
+|2=Magic shortbow (i)
+|3=Void mage helm
+|4=Trident of the seas
+|5=Salve amulet (e)
+|6=Rune pouch
+|7=Dragon dagger(p++)
+|8=insulated boots
+|9=Shark
+|10=Shark
+|11=
+|12=
+|13=Shark
+|14=Shark
+|15=
+|16=
+|17=Shark
+|18=Cooked karambwan
+|19=
+|20=
+|21=Saradomin brew(4)
+|22=Cooked karambwan
+|23=
+|24=
+|25=Super restore(4)
+|26=Super restore(4)
+|27=Ranging potion(4)
+|28=Super combat potion(4)
+}}
+{{Rune pouch|align=right
+|1=Chaos rune
+|2=Death rune
+|3=Water rune
+}}
+{{Recommended equipment
+|style = Entry mode
+|head1 = {{plink|Void melee helm}}
+|neck1 = {{plink|Amulet of glory}}
+|cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+|body1 = {{plink|Elite void top}}
+|legs1 = {{plink|Elite void robe}}
+|weapon1 = {{plink|Dragon scimitar}}
+|shield1 = {{plink|Dragon defender}}
+|ammo1 = {{plink|Rune arrow}}
+|hands1 = {{plink|Void knight gloves}}
+|feet1 = {{plink|Dragon boots}}
+|ring1 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Dragon dagger(p++)}}
+}}
+*The [[rune pouch]] should contain [[Chaos rune|chaos]], [[Death rune|death]] and [[Water rune|water]] runes for bursting in the nylocas room, or [[blood rune]]s instead of chaos runes if [[Ice Barrage]] is available.
+*The dragon dagger must be poisoned to instantly kill the Nylocas Athanatos in the Verzik Vitur room. This is not optional; if you do not bring poison for the final fight, you will need to restart from the beginning.
+*The [[insulated boots]] is optional equipment in the Verzik Vitur room, but is a mandatory requirement if doing it solo.
+*Additional supplies (as [[Bandages (Theatre of Blood)|bandages]], which restore hitpoints, prayer, run energy, and boost combat stats) are available after each death and after defeating [[Pestilent Bloat]] and [[Soteseg]]. Experienced players may need fewer supplies and can rely solely on bandages and less experienced or lower level players may wish to bring some additional food, such as [[Saradomin brew]]s for additional healing, especially for [[Verzik]].
+
+|-|
+
+Learner=
+
+{{Recommended equipment
+|style = Learner
+|head1 = {{plink|Void melee helm}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Elite void top}}
+|legs1 = {{plink|Elite void robe}} 
+|weapon1 = {{plink|Blade of Saeldor}} / {{plink|Osmumten's fang}}{{efn|On certain bosses.|name=fang}}
+|weapon2 = {{plink|Abyssal tentacle}} 
+|weapon3 = {{plink|Abyssal whip}}
+|shield2 = {{plink|Avernic defender}}
+|shield3 = {{plink|Dragon defender}}
+|ammo1 =  {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Void knight gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|feet4 = {{plink|Dragon boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Bandos godsword}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}}
+|special3 = {{plink|Voidwaker}}{{efn|Do not use against [[Nylocas Ischyros]]' melee form|name=voidwaker}}
+|special4 = {{plink|Burning claws}}{{efn|Set to slash, burn damage will be nulled in multiple places throughout the raid, |name=burning claws}}
+}}
+*While melee gear is beneficial to upgrade, the additional supplies and ease of switches make Elite void preferable for learners.
+*The [[rune pouch]] should contain runes for [[Ice Barrage]] or [[Thrall|Thralls]] with a [[Book of the Dead]] if not freezing.
+{{Notelist}}
+|-|
+
+Melee=
+Every role will bring the best melee equipment available, as melee is used predominantly throughout the raid.
+
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Torva full helm}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate helm}}
+|head2 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}}{{efn|Can be used in place of a poison weapon for [[Nylocas Athanatos]]|name=serp}}
+|head3 = {{plink|Blood moon helm}} / {{plink|Helm of neitiznot}}
+|head4 = {{plink|Void melee helm}}{{efn|With full void in all styles|name=void}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Torva platebody}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate chest}}
+|body2 = {{plink|Bandos chestplate}} / {{plink|Blood moon chestplate}}
+|body3 = {{plink|Fighter torso}}
+|body4 = {{plink|Elite void top}}{{efn|With full void in all styles|name=void}}
+|legs1 = {{plink|Torva platelegs}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate legs}}
+|legs2 = {{plink|Bandos tassets}} / {{plink|Blood moon tassets}}
+|legs3 = {{plink|Obsidian platelegs}}
+|legs4 = {{plink|Elite void robe}}{{efn|With full void in all styles|name=void}}
+|weapon1 = {{plink|Scythe of vitur}}
+|weapon2 = {{plink|Soulreaper axe}}{{efn|Beats Saeldor after 3 stacks.|name=SRA}} / {{plink|Blade of Saeldor}} / {{plink|Osmumten's fang}}{{efn|On certain bosses.|name=fang}}
+|weapon3 = {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Requires advanced movement for P2 Verzik|name=nox}}
+|weapon4 = {{plink|Abyssal whip}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Void knight gloves}}{{efn|With full void in all styles|name=void}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|feet4 = {{plink|Dragon boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Bandos godsword}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}}
+|special3 = {{plink|Voidwaker}}{{efn|Do not use against [[Nylocas Ischyros]]' melee form|name=voidwaker}}
+|special4 = {{plink|Burning claws}}{{efn|Set to slash, burn damage will be nulled in multiple places throughout the raid|name=burning claws}}
+}}
+
+'''Notes:'''
+*Elite void performs better than the next best setup without Ferocious gloves, Serp/Faceguard, or an Amulet of torture, and saves an additional 2 inventory spaces
+*A [[Ghrazi rapier]] performs similarly to an [[Abyssal tentacle]], (although worse at Verzik), and does not consume charges
+*A [[Noxious halberd]] generally performs better than an Abyssal tentacle. However, it is worse at P2 Verzik unless using it on a 5t cycle which can be difficult to master.
+*Raiders should enter the theatre with a one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden 
+*Salve amulet (e) should be dropped after the Bloat room to gain an extra inventory space
+*For small nylos, the best melee weapons are fast or multi-hitting, such as the [[sulphur blades]], [[dual macuahuitl]], [[swift blade]], and [[ham joint]]. 
+*All roles should bring both [[dragon claws]], [[crystal halberd]], [[Elder maul]]/[[Dragon warhammer]] and a [[Bandos godsword]] when possible.
+*The rune pouch should contain runes for [[Thralls]] along with a book of the dead. Additional runes can be brought for [[Spellbook Swap]], [[Potshare]], and [[Vengeance]] if inventory space allows.
+
+===Scythe considerations===
+{{Equipment|align=right
+|head = Neitiznot faceguard
+|cape = Infernal cape
+|neck = Amulet of torture
+|weapon = Scythe of vitur
+|torso = Fighter torso
+|legs = Blood moon tassets
+|gloves = Ferocious gloves
+|boots = Dragon boots
+|ring = Berserker ring (i)
+}}
+Due to the Scythe's unique interaction with max hit scaling, it is recommended for users bringing a Scythe of vitur to check max hit thresholds for the gear they have available to them. For example, the setup shown with 131 strength bonus, [[Piety]], 118 Strength (99 Strength and +19 from a [[Divine super combat potion]]), and having the Scythe on aggressive gives a max hit of 48, but dropping stats or strength bonus from this decreases your max hit by 3, as the Scythe's scaling is nonlinear.
+
+Common max hit thresholds are 46 (+2 max hits), 48 (+3 max hits), and 50 (+2 max hits).
+
+{{Notelist}}
+|-|
+
+Mage=
+In addition to full melee gear, freezers will bring additional magic equipment for freezing [[Nylocas Matomenos]] and for [[Nylocas Hagios]]. Non-freeze roles should only bring a [[powered staff]] for [[Nylocas Vasilias]].
+{{Recommended equipment
+|style = Magic
+|head1 = Melee Helmet
+|head2 = {{plink|Void mage helm}}{{efn|With full void|name=void}}
+|neck1 = {{plink|Occult necklace}}
+|cape1 = Melee cape
+|cape2 = {{plink|Imbued god cape|pic=Imbued Saradomin cape}}{{efn|If additional magic accuracy is needed, such as with [[Elite void]]|name=magecape}}
+|body1 = {{plink|Ancestral robe top}}/{{plink|Virtus robe top}}
+|body2 = {{plink|Elite void top}}{{efn|name=void}}
+|legs1 = {{plink|Ancestral robe bottom}}/{{plink|Virtus robe bottom}}
+|legs2 = {{plink|Elite void robe}}{{efn|name=void}}
+|weapon1 = {{plink|Eye of ayak}}<br>& {{plink|Kodai wand}} / {{plink|Nightmare staff}}
+|weapon2 = {{plink|Sanguinesti staff}}<br>& {{plink|Staff of the Dead|pic=Toxic staff of the dead}}
+|weapon3 = {{plink|Trident of the swamp}}<br>& {{plink|Ancient sceptre}} / {{plink|Dragon hunter wand}} / {{plink|Master wand}}
+|shield1 = {{plink|Elidinis' ward (f)}}
+|shield2 = {{plink|Elidinis' ward}}{{efn|If not bringing a defender|name=mageoffhand}}
+|shield3 = {{plink|Book of Darkness}}{{efn|name=magecape}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Void knight gloves}}{{efn|name=void}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = Melee boots
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Tonalztics of ralos}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}} / {{plink|Bandos godsword}}
+}}
+
+'''Notes:'''
+*In 4 man raids, one freezer (the melee freeze) should additionally take a [[Swift blade]], [[Ham joint]] , or other fast melee weapon for the Nylocas waves
+*[[Ancient sceptre]] will extend the freeze duration of [[Nylocas Matomenos]], which is helpful for stacking and skipping at Maiden. Otherwise, the additional magic damage is preferred over a longer freeze duration
+*Raiders should enter the theatre with their one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden
+*The [[book of darkness]] can be dropped after Maiden to gain an extra inventory space once the additional magic accuracy is no longer needed.
+*Maging in Elite void can save considerable space when bringing in Elite void ranged as well. Using a Twisted bow at Maiden is also much more forgiving when preparing to freeze nylos.
+*2 Pieces of [[Ancestral robes]] will give an extra Sang/Trident max hit, while 2 pieces of [[Virtus]] will give an extra barrage max hit in most setups.  While magic equipment below ancestral/virtus can be used, it is only marginally better than elite void equipment.
+**For 100% freeze rate at Maiden (without a boosted magic level), +103 magic accuracy is required for ancestral/virtus, and +54 magic accuracy is required for void, both assume Augury is active. If using equipment other than this, refer to [[Nylocas Matomenos]] for magic accuracy requirements.
+**Void freezers may need to take off their defender and boots to reach 100% freeze rate. If freezing with a powered staff put it on accurate for an invisible accuracy bonus
+*Freeze roles should take a [[saturated heart]] or [[imbued heart]] for the nylo room. 
+*[[Tonalztics of ralos]] can be used to reduce Maiden to 0 defence in only 2 specs after a single Dragon warhammer or Elder maul to save special attacks for stacking or 30s skip.
+{{Notelist}}
+|-|
+
+Range=
+In addition to full melee gear, the ranger will bring full [[Elite Void Knight equipment|Elite void]] and a [[Toxic blowpipe]] as its speed and damage far exceeds other range equipment on [[Nylocas]]. Without a [[Scythe of vitur|Scythe]], elite void and a [[Toxic blowpipe]] will deal more damage than most melee setups on Maiden and Xarpus.
+
+{{Recommended equipment
+|style = Range
+|head1 = {{plink|Void ranger helm}}{{efn|With full void|name=void}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|body1 = {{plink|Elite void top}}{{efn|name=void}}
+|body2 = {{plink|Masori body (f)}}{{efn|Non-range roles can bring Masori instead of full range void to save inventory space|name=masori}}
+|legs1 = {{plink|Elite void robe}}{{efn|name=void}}
+|legs2 = {{plink|Masori chaps (f)}}{{efn|name=masori}}
+|weapon1 = {{plink|Twisted bow}} & {{plink|Toxic blowpipe}}
+|shield1 = {{plink|Twisted buckler}}{{efn|If bringing chinchompas|name=chin}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
+|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Void knight gloves}}{{efn|name=void}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = Melee boots
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Bandos godsword}}
+|special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}}
+}}
+
+'''Notes:'''
+*Raiders should enter the theatre with a one-handed weapon and offhand equipped and bring in an [[anglerfish]] to eat after Maiden 
+*Salve amulet (e) should be dropped after the Bloat room to gain an extra inventory space
+*Toxic blowpipe should be loaded with [[rune dart]]s or better
+*A [[Twisted bow]] is powerful for pre-fires, Nylo boss, Maiden, and Xarpus. 
+*Ranger should bring 15-25 [[black chinchompa]]s and a [[twisted buckler]] to hit groups of [[Nylocas Matomenos]] and [[Nylocas Toxobolos]]
+*The rune pouch and inventory should contain runes for [[Potshare]] and [[Vengeance]]. Additional runes for [[Spellbook Swap]] and [[Thralls]] can be brought if inventory space allows.
+{{Notelist}}
+|-|
+</tabber>
+{| style="clear:both;"
+|+Example setups
+!Learner/Void
+!Melee
+!Freezer
+!Ranger
+|-
+|
+{{Equipment
+|align = center
+|head = Void melee helm
+|cape = Fire cape
+|neck = Amulet of torture
+|ammo = Rada's blessing 3
+|weapon = Abyssal tentacle
+|torso = Elite void top
+|legs = Elite void robe
+|shield = Dragon defender
+|gloves = Void knight gloves
+|boots = Avernic treads (max)
+|ring = Berserker ring (i)
+}}
+|
+{{Equipment
+|align = center
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Dragon arrow
+|weapon = Sanguinesti staff
+|torso = Oathplate chest
+|legs = Oathplate legs
+|shield = Book of the Dead
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|
+{{Equipment
+|align = center
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Occult necklace
+|ammo = Dragon arrow
+|weapon = Kodai wand
+|torso = Ancestral robe top
+|legs = Ancestral robe bottom
+|shield = Elidinis' ward (f)
+|gloves = Confliction gauntlets
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|
+{{Equipment
+|align = center
+|head = Void ranger helm
+|cape = Dizana's quiver
+|neck = Necklace of rupture
+|ammo = Dragon arrow
+|weapon = Black chinchompa
+|torso = Elite void top
+|legs = Elite void robe
+|shield = Twisted buckler
+|gloves = Void knight gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|-
+|
+{{Inventory|align=center
+|1=Void ranger helm
+|2=Toxic blowpipe
+|3=Void mage helm
+|4=Trident of the swamp
+|5=Necklace of anguish
+|6=Ava's assembler 
+|7=Occult necklace
+|8=Imbued Saradomin cape
+|9=Dragon warhammer
+|10=Crystal halberd
+|11=Super restore(4)
+|12=Ranging potion(4)
+|13=Anglerfish
+|14=Anglerfish
+|15=Super restore(4)
+|16=Super combat potion(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super combat potion(4)
+|21=Saradomin brew(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Super combat potion(4)
+|25=Saradomin brew(4)
+|26=Saradomin brew(4)
+|27=Salve amulet (e)
+|28=Rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Death rune
+|3=Water rune
+}}
+|
+{{Inventory
+|align=center
+|1=Twisted bow
+|2=Elite void top
+|3=Elite void robe
+|4=Dizana's quiver
+|5=Necklace of rupture
+|6=Void knight gloves
+|7=Void ranger helm 
+|8=Toxic blowpipe
+|9=Scythe of vitur
+|10=Dual macuahuitl
+|11=Occult necklace
+|12=Bandos godsword
+|13=Dragon claws
+|14=Elder maul
+|15=Crystal halberd
+|16=Salve amulet (e)
+|17=Anglerfish
+|18=Anglerfish
+|19=Ranging potion(4)
+|20=Super combat potion(4)
+|21=Anglerfish
+|22=Anglerfish
+|23=Super combat potion(4)
+|24=Divine super combat potion(4)
+|25=Guthix rest(4)
+|26=Saradomin brew(4)
+|27=Super restore(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Cosmic rune
+|2=Fire rune
+|3=Blood rune
+}}
+|
+{{Inventory
+|align=center
+|1=Twisted bow
+|2=Elite void top
+|3=Elite void robe
+|4=Dizana's quiver
+|5=Necklace of rupture
+|6=Void knight gloves
+|7=Void ranger helm 
+|8=Toxic blowpipe
+|9=Scythe of vitur
+|10=Oathplate chest
+|11=Oathplate legs
+|12=Saturated heart
+|13=Amulet of rancour
+|14=Ferocious gloves
+|15=Elder maul
+|16=Bandos godsword
+|17=Dragon claws
+|18=Eye of ayak
+|19=Crystal halberd
+|20=Salve amulet (e)
+|21=Anglerfish
+|22=Anglerfish
+|23=Divine super combat potion(4)
+|24=Super combat potion(4)
+|25=Guthix rest(4)
+|26=Saradomin brew(4)
+|27=Super restore(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Death rune
+|3=Water rune
+|4=Soul rune
+}}
+|
+{{Inventory
+|align=right
+|1=Twisted bow
+|2=Torva full helm
+|3=Oathplate chest
+|4=Infernal cape
+|5=Amulet of rancour
+|6=Ferocious gloves
+|7=Oathplate legs
+|8=Toxic blowpipe
+|9=Scythe of vitur
+|10=Sanguinesti staff 
+|11=Occult necklace
+|12=Bandos godsword
+|13=Dragon claws
+|14=Elder maul
+|15=Crystal halberd
+|16=Salve amulet (e)
+|17=Anglerfish
+|18=Anglerfish
+|19=Ranging potion(4)
+|20=Super combat potion(4)
+|21=Anglerfish
+|22=Anglerfish
+|23=Super combat potion(4)
+|24=Divine super combat potion(4)
+|25=Guthix rest(4)
+|26=Saradomin brew(4)
+|27=Super restore(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Water rune
+|2=Earth rune
+|3=Death rune
+|4=Astral rune
+}}
+|-
+
+
+|}
+ 
+{{Otheruses|def=no|more example inventories and setups|Guide:Theatre of Blood setups}}
+
+===Roles===
+When in the Theatre, experienced players choose one of three roles, which affects the gear/spellbook they will bring into the raid. Learners should bring the most basic items to cover all three roles, with their remaining inventory slots being used for supplies instead of gear switches.
+
+Below is a simplified summary of the roles as they appear in a 4-Scale:
+* Meleer ("mdps") - uses the [[Arceuus spellbook]] ([[thralls]]), uses a 3-tick or multi-hit melee weapon during the nylocas waves (on the western side of the arena).
+* Ranger ("rdps") - uses the [[Lunar spellbook]] ([[Boost Potion Share]] and [[Vengeance]]), uses the blowpipe and chinchompas during the nylocas waves.
+* Freezer - uses [[Ancient Magicks]] ([[Ice Barrage]] and [[Blood Barrage]]), split into two types:
+** Melee freezer/north freezer ("mfrz"/"nfrz") - freezes the north 1, north 2, and all 3 and 4 nylocas at Maiden (3s and 4s are the nylocas which spawn on the eastern side of the arena, and will clump together 11 ticks and 16 ticks after spawning, respectively) . Mainly uses melee during the nylocas waves (on the eastern side of the arena), but can also use magic if necessary.
+** Mage/south freezer ("mage"/"sfrz") - freezes the south 1 and south 2 nylocas (and should be prepared to freeze all 4s if necessary, e.g. if nfrz is late) at Maiden. Uses only magic during the nylocas waves.
+
+==Bosses==
+The Theatre of Blood is a linear raid. Thus, there is no randomisation involved, and the bosses will always be encountered in this order.
+
+The raid can be done in a team of up to five players, with the enemies' health scaling accordingly to the size. Enemies have their health adjusted to a five-man encounter, but will be lowered to 87.5% in 4-man encounters and 75.0% in trio and lower scales. It is possible to duo the raid, but this is mostly done for the [[Theatre (Duo) Speed-Runner]] [[Combat Achievement]] task.
+
+In all of the rooms before Verzik, a barrier separates the team from the boss, and the fight only begins once a player has crossed the barrier, meaning it is possible for a player to avoid some fights in larger groups. However, this will impact overall drops and is not recommended in most cases.
+
+Each boss has a health bar displayed at the top of the screen in percent, giving a rough estimate as to how much health it has left. The only exception is the Nylocas build-up waves, which is the health of the four pillars in the room.
+#[[The Maiden of Sugadinti]] (level-940)
+#[[Pestilent Bloat]] (level-870)
+#[[Nylocas Vasilias]] (level-800)
+#[[Sotetseg]] (level-995)
+#[[Xarpus]] (level-960)
+#[[Verzik Vitur]] (level-1040, final boss)
+When each boss is killed, the [[hitpoints]], [[prayer points]], [[run energy]] and [[special attack]] energy of all team members are restored to full (drained stats will '''not''' be restored). When the Pestilent Bloat and Sotetseg are killed, players will gain access to a [[Chest (Theatre of Blood)|chest]] with supplies provided by entertained [[vampyre]]s containing food and potions.
+
+{| class="wikitable" style="text-align:center;"
+|-
+! colspan="2" |Item
+!Price (points)
+! colspan="2" |Item
+!Price (points)
+! colspan="2" |Item
+!Price (points)
+! colspan="2" |Item
+!Price (points)
+|-
+|{{plinkt|Stamina potion(4)}}
+|1
+|{{plinkt|Prayer potion(4)}}
+|2
+|{{plinkt|Saradomin brew(4)}}
+|3
+|{{plinkt|Super restore(4)}}
+|3
+|-
+|{{plinkt|Mushroom potato}}
+|1
+|{{plinkt|Shark}}
+|1
+|{{plinkt|Sea turtle}}
+|2
+|{{plinkt|Manta ray}}
+| 2
+|}
+These supplies can be purchased with points, which are earned based on the individual performance of each player:
+
+*Above average: 10-13 points
+*Average: 8-11 points
+*Below average: 6-9 points
+
+The points earned can carry over to the second chest within the Theatre. 
+
+If a player has died during both the Maiden and Pestilent Bloat fights, the chest will only contain an [[onion]]. As long as the player has taken the onion out, they will be eligible to receive more points for the next supply chest, provided they do not die in the next two fights. Regardless, a [[Message (Theatre of Blood)|message]] is always found in the chest.
+
+In the guides below, you will come across a term named '''orb order''' - this refers to the order of the health orbs that are present on the top left of the player's screen, from top to bottom. The orb order plays a role in determining who the boss targets, but also as a minor optimisation for coordination during phase 1 of the Verzik fight. Ideally, orb order is as follows based on player's roles:
+* 2-scale: Mage -> Ranger
+* 3-scale: Mage -> Ranger -> Melee
+* 4-scale: Mage -> Melee Freeze (mfrz) -> Ranger -> Melee DPS (mdps)
+* 5-scale: Mage x2 -> Ranger -> Melee x2
+
+==The Maiden of Sugadinti==
+[[File:Fighting The Maiden of Sugadinti.png|thumb|A group of players fighting Serafina, the Maiden of Sugadinti.]]
+[[The Maiden of Sugadinti]] is a former human named Serafina, and is the first boss of the raid. She has a Defence level of 200 and a Magic level of 350, and only attacks with magic.
+
+===Attacks===
+* '''Blackstorm''' - The Maiden's standard magic attack. Every 10 ticks (6 seconds), she will target a player based on the following priority: closest player -> players on her north/east side -> orb order. It is common practice to let the freezers lead in orb order and having another teammate step in when they are low on health.
+** The attack always lands as a [[successful hit]] and deals damage equal to <math>36.5 + (3.5 * c)</math>, where ''c'' is equal to the number of [[Nylocas Matomenos]] that reach her. This can be halved by activating [[Protect from Magic]], and cannot be tick-eaten.
+** The attack has a 50% chance to drain a player's combat stats by <math>(damage+1) / 5</math>. The stats drained are based on the player's highest attack bonus at the moment they are targeted; as such, players can switch equipment right before she attacks in order to have her drain an irrelevant stat.
+* '''Nylocas Matomenos''' - The Maiden will summon a group of [[Nylocas Matomenos]] whenever she first reaches 70%, 50%, and 30% of her health; her appearance visibly changes when this happens.
+** Each nylocas has 200 Hitpoints (175 in 4-man and 150 in trios and below), and two are spawned per player. There are 10 possible spawn locations for them, with five each to north and south; three in the north and south central area and two each to the north-east and south-east area.
+** If they manage to reach the Maiden, she will be healed by double the amount of their current Hitpoints, in addition to increasing the damage dealt by her blackstorm and blood splat attacks. As such, [[Ice Barrage]] is essentially mandatory for the fight.
+* '''Blood splats''' - The Maiden will throw blood splats on the tile the player is standing on. Those standing away can react to it, but players in melee distance will need to move before she attacks in order to avoid it. The Maiden cannot use this attack again for the next two attacks following the blood splats being thrown.
+** One player will have two additional blood splats thrown randomly in a 5x5 area centred around them.
+** Standing on one will deal damage equal to <math>10 + (2 * c)</math>, where ''c'' is equal to the number of Nylocas Matomenos that reach her, and heals the Maiden by the same amount. Prayer points are also drained.
+* '''Blood spawn''' - Appears from blood splats, where they have a 10% chance of spawning from one. If one was stepped on, there is a 20% chance they will appear from one instead.
+** Each blood spawn has 120 Hitpoints.
+** They move about the arena, leaving trails of blood behind. Standing on one will damage the player and heal the Maiden. These trails of blood will disappear in roughly ~20-30 seconds after appearing.
+
+===Strategy===
+Before starting the encounter, make sure everyone drops their [[salve amulet (e)]] and a piece of food so there are two free inventory spaces to equip two-handed weapons and to be able to take off gear that give negative magic attack bonus (e.g. [[primordial boots]]) for freezing, if necessary. Raiders should also assign freezing roles. In 4 and 5 man scalers there are two freezers, while in solo to trio there is one freezer. 
+
+The team should use their defence-draining specials first. The most efficient way to reduce Maiden's defence is by hitting two Elder maul special attacks (which reduces her defence to 85), and then 85 damage with the Bandos godsword's (BGS) special attack. The standard special attack procedure for each scale is as follows: 
+
+{|class=wikitable style="text-align:left;"
+!Team scale
+!Strategy
+|-
+|5-Scale
+|
+* Melees: Instantly hammer Maiden. BGS after Mages if Maiden is still not <10 defence. Use remaining special attack for damaging special attacks (Dinh's if stacking, Dragon claws, Zaryte crossbow).
+* Freezers: BGS one tick after hammers. One, both or neither can BGS again depending on the hits. Use any remaining special attack energy for damaging specials on the skip (30%).
+* Ranger: Back up BGS last if Maiden still not 0 after everyone else has used their special attacks. Otherwise save special attack for damaging specials (Dragon Claws, ZCB).
+|-
+|4-Scale
+|
+* Melee & Ranger: Instantly hammer Maiden, while the two Mages delay bgsing until one tick after the hammers. BGS after Mages if Maiden is still not <10 defence. Use remaining special attack for damaging special attacks (Dinh's if stacking, Dragon claws, Zaryte crossbow).
+* Freezers: BGS one tick after hammers. One, both or neither can BGS again depending on the hits. Use any remaining special attack energy for damaging specials on the skip (30%).
+|-
+|Trio
+|
+* Melee & Ranger: Instantly hammer Maiden. BGS after the Freezer's two BGS hits if Maiden is still not <10 defence. Use remaining special attack for damaging special attacks (Dinh's if stacking, Dragon claws, Zaryte crossbow).
+* Freezer: BGS one tick after hammers, and again immediately.
+|-
+|Duo
+|
+* Mage: Instantly hammer Maiden twice.
+* Ranger: Scythe twice. If Mage did not hit two hammers, use Elder maul special attacks until two hit, then use remaining special attack energy to BGS. If Mage hit both, simply BGS twice.
+|}
+
+After her defence has been reduced below 10 or nobody on the team has remaining special attack energy, begin attacking her normally. It is only recommended to melee with a scythe; if players do not have one, use ranged instead. Due to her high Magic level, the [[twisted bow]] is highly effective against her; if the player does not have one, use a toxic blowpipe with the best [[dart]]s available. The freezer(s) should range Maiden from a distance, even if they have a scythe (except in solo and duo). This is to allow them to be on time to freeze the nylocas with minimal downtime. Once the last set of nylocas have been frozen, the freezers can melee Maiden if they have a scythe, or damaging special attacks.
+
+[[File:Maiden Nylo freeze.png|thumb|Potential spawn points of the Nylocas Matomenos]]
+
+Freezers should [[Ice Barrage]] the nylocas that spawn, to prevent them from reaching Maiden when she reaches 70, 50, and 30% of her health. There are 5 potential nylocas spawns on the north and south side of the arena. The nylocas are referred to as N1-N4 and S1-S4, N1 being the nylocas that spawns closest to Maiden on the north side. There are two possible N4s and S4s, which is why there are 5 possible spawns. N1, N2, and S1 cannot be clumped together with other nylocas, but the other spawns can all be frozen on top of each other in front of Maiden, where they can be efficiently killed with area-of-effect weapons. Freezers should stand further away from the Maiden so she does not drain their stats while they are freezing.
+
+With two freezers, the ideal strategy is for the north freezer to freeze N1 on the first tick possible. They should then freeze N2, N3, and the group of 4s in that order, which will cause a clump of nylocas in front of Maiden. The south freezer should freeze S1 and then freeze S2 in the clump; if they freeze S1 on the first possible tick then they will need to wait an extra tick before freezing S2. If the south freezer notices their other mager is late they can freeze 3s or 4s for them, this should be communicated. Freezers should then barrage the clump until it is dead or very low hitpoints. DPS roles should kill the stray nylocas before getting back on Maiden. Experienced teams will instead barrage a few times before letting the ranger chin the clump - in this case the freezers should help kill single nylocas. Black chinchompas are particularly effective in higher scales due to their ability to hit more targets simultaneously than Ice Barrage. Repeat for the remaining nylocas spawns.
+
+Note that the north freezer casting ice barrage on S3 instead of N3 is slightly more difficult but is optimal - when casting on N3, the AoE damage of ice barrage will not be able to spread to the S2 nylocas if the south freezer executes their role properly.
+
+A solo freezer should hover their mouse over the S1's spawn position when Maiden is close to spawning a new set of nylocas, and reactively freeze another if no S1 spawns. Clumping 3s and 4s should be prioritised over freezing a single S2 or N2 spawn; if it is necessary to leave a single nylocas, the DPS roles should attack it as it moves to the boss to minimise healing. Advanced players will be able to recognise this situation without being told; when learning, the freezer should communicate this to the other players.
+
+====Skipping 30s (intermediate)====
+Instead of finishing off the last set of nylocas that spawn, teams can instead choose to kill maiden before the nylocas unfreeze and heal the maiden. Once the 30's spawn, the DPS roles will continue to attack maiden as normal. Freezers will immediately attack the boss after all nylocas are frozen; south freezer can freeze only S1 and S2 leaving all other crabs to the north freezer, or they can also freeze one of the clumps of 3 or 4. This should be communicated. To quickly finish off the boss, teams should utilise any remaining special attacks and vengeance to quickly damage the boss. If any nylocas leak, it is often better to kill the remaining nylocas than attempt to skip.
+
+====Stacking 70s and 50s (advanced)====
+With best-in-slot gear or help from the [[ancient sceptre]], it is possible to clump the first and second set of nylocas, which is referred to as ''stacking''. For 70's, instead of continuing to barrage the clump, freezers will immediately begin attacking the boss again once their nylocas are frozen to spawn the 50's set as soon as possible. DPS roles will also ignore the 70's while continuing to attack the boss. As soon as 50's spawn, freezers will freeze the 50's set on top of the 70's set. This allows each of their barrages to hit multiple nylos and do extra damage. The ranger should be prepared to either Scythe the S1 pile or start throwing chinchompas on the stack. Melee roles will scythe the N1 and N2 stacks or prepare to use a [[Dinh's bulwark]] special attack on the stack. 
+
+<gallery mode="packed" heights="300" style="text-align:left">
+The Maiden of Sugadinti - stacking.mp4|A demonstration of stacking at Maiden.
+The Maiden of Sugadinti - skipping 30's.mp4||A demonstration of skipping 30's.
+</gallery>
+
+{{Recommended equipment
+|style = Maiden (0 defence)
+|weapon1 = {{plink|Scythe of vitur}}
+|weapon2 = {{plink|Twisted bow}}{{efn|With elite void ranged|name=void}}
+|weapon3 = {{plink|Toxic blowpipe}}{{efn|name=void}}
+|weapon4 = {{plink|Soulreaper axe}}(5 stacks)
+|weapon5 = {{plink|Blade of Saeldor}}>{{plink|Abyssal tentacle}}
+}}
+{{Notelist}}
+
+==Pestilent Bloat==
+[[File:Fighting Pestilent Bloat.png|thumb|A group of players fighting The Butcher's crazed creation, the Pestilent Bloat.]]
+The [[Pestilent Bloat]] is an [[undead]] abomination made from various body parts, and is the second boss in the Theatre of Blood.
+
+Being undead, the [[salve amulet]] is very powerful against Bloat. Bloat is highly resistant to magic and ranged attacks and weak to melee, especially slash attacks. Before entering, make sure to equip the salve amulet and eat an anglerfish; otherwise, drop a potion.
+
+===Movement mechanics===
+When active (moving), the Bloat attacks anyone in its line of sight with flies, dealing up to 20 damage every [[tick]], reduced by 25% if [[Protect from Missiles]] are active. The flies can spread onto other players if the attacked player(s) have a line of sight on other player(s), even if the Bloat cannot directly see those players. Additionally, any damage dealt to the Bloat while active is halved (rounded down).
+
+After a period of movement (around 20-25 seconds), the boss will stop and shut down for 32 game ticks (19.2 seconds). On the 30th tick of inactivity, the boss will stomp on the ground, dealing 40-80 damage and restoring any drained Defence levels. It is possible to [[Tick manipulation|tick eat]] this attack.
+
+Bloat walks around the room in a fixed path around the central tank. On entering the Bloat area, the direction he will be walking will be random, but the position he spawns in is predictable. At the start of the fight, the bloat will always be walking and is unable to turn for 19.2 seconds. When pushed below 90% health, hands will begin to fall from the ceiling while he's active; where they land is indicated by looming shadows on the ground. Getting hit by falling hands will deal roughly 30-50 damage and stun the player for a few seconds.
+
+When the Bloat is between 40% to 60% of its health, it will always run, moving two tiles at a time. Below 40%, it can either run or walk, alternating between walking and running for every hit made on it upon falling below 40% health. Therefore, it is recommended that teams avoid this threshold whenever possible, since the run can cause a lot of problems.
+
+Additionally, the Bloat can abruptly change directions; there is a 32 tick cooldown (19.2 seconds) on these directional changes. On entering the room, the cooldown is 32. This timer is preserved between walks, and only counts down while bloat is walking.
+
+The Bloat will naturally walk for between 34 and 42 ticks, unless it was not attacked by any player on the previous down, which extends the walk by 4 ticks. This means that on entering the room, Bloat will walk for between 38 and 46 ticks before going down, but subsequent walks will last 34 to 42. However, for 5 ticks following a change in direction, Bloat can not go down. This can cause walk durations longer than the usual maximum.
+
+===Strategy===
+[[File:Pestilent Bloat - BGS run-by.mp4|thumb|400px|A demonstration of a Bandos godsword run-by, draining 88 Defence levels from the Pestilent Bloat.]]
+To start the fight have one raider enter the room when Bloat is on the opposite side of the pillar. Hug the pillar and hide from Bloat as it walks around the room. While optional, one or two players should do a run-by on the boss with a Bandos godsword special to lower its Defence, making it easier to hit as it has moderate defence bonuses.
+
+As soon as Bloat deactivates, the rest of the team should enter and begin attacking with melee. The team will have roughly 18 seconds to deal damage before it reactivates. This allows for five attacks when close, or four from a distance. If using [[burning claws]], dump one special at the start of the attack rotation, as it clears [[burn]]s upon activating. The last hit in the four or five attack sequence should always be with a [[crystal halberd]] special, if enough energy is allowed to do so. Unless the boss is below 3% health, it is recommended to run away after the last attack, since stomps and flies have a high chance of killing a player.
+
+Before entering the next room, raiders should drop their [[salve amulet (e)]] and buy a [[stamina potion(4)]] from the chest. If the mage and range role have high enough [[Agility]] This may not be necessary for them. If the party has a raider with [[potion share]] spells, only they need to purchase one, and share the stamina when needed.
+
+{{Recommended equipment
+|style = Bloat
+|weapon1 = {{plink|Scythe of vitur}}
+|weapon2 = {{plink|Blade of Saeldor}}
+|weapon3 = {{plink|Noxious halberd}}
+|weapon4 = {{plink|Abyssal tentacle}}
+}}
+{{Notelist}}
+
+==The Nylocas==
+[[File:Fighting Nylocas hordes.png|thumb|A group of players battle against the Nylocas hordes.]]
+The [[Nylocas]] are found in the third room of the Theatre of Blood.
+
+Before starting the room, sip a dose of stamina potion and repot combat potions if necessary. Generally, the ranger should share a stamina potion via [[Stat Restore Pot Share]] before starting the waves.
+
+Each player should be assigned a style of Nylocas to kill prior to starting the room. The assigned roles depend on team size:
+* 5-Scale: x2 magers, x2 melee, x1 ranger
+* 4-Scale: x1 mager, x2 melee, x1 ranger
+* Trio: x1 mager, x1 melee, x1 ranger
+
+One player, ideally a ranger, should use [[Boost Potion Share]] on a [[stamina potion]] as there is a lot of running in the nylocas waves, especially for melee users. 
+
+Meleers with a scythe are encouraged to bring another weapon for this room, such as [[Dual macuahuitl]]s, though [[Glacial temotli]]s or [[Sulphur blades]] are an acceptable substitute. Multi-hit weapons will make as many rolls as possible, which can easily overkill nylos with good strength bonus. Since small nylocas are 1x1, using a scythe on them is discouraged unless they are lined up in a manner that the scythe can hit several at once or against a large nylocas. As these weapons are easily accessible and very cheap, these should be used by all melee players regardless of their melee armour used. While 3-tick weapons such as a [[ham joint]] or [[swift blade]] can perform better than the 4-tick weapon, this requires no wasted ticks (which is highly unlikely) and an additional inventory space to slot a defender to maximise strength bonus.
+
+Rangers should use a [[toxic blowpipe]] in this room. Chinchompas can help deal with clusters of nylocas, but this is only needed if teams are struggling to kill them.
+
+Mages should use an [[eye of ayak]], as its 3 tick speed and fairly high damage makes clearing them incredibly trivial. If not available, use a 4 tick staff instead, although this will result in more leaks. Barrages should only be used when the fight becomes hectic. Frozen nylocas will usually stop attacking a pillar for a short time.
+
+As the nylocas have nonexistent defence bonuses (including the Hagios, who have no Magic), players are encouraged to focus on strength bonus over accuracy.
+
+===Waves overview===
+The fight starts off with 31 waves of Nylocas [[Nylocas Toxobolos|Toxobolos]] (green), [[Nylocas Hagios|Hagios]] (blue) and [[Nylocas Ischyros|Ischyros]] (grey) from the tunnels. Each spider is immune to damage outside of their combat style - ranged must be used against the Toxobolos, magic against the Hagios, and melee against the Ischyros. If the nylocas is attacked with a wrong style, the player that attacked them can no longer damage them.
+
+The goal is to kill all the Nylocas before all four [[Support (Theatre of Blood)|pillars]] are [[Broken support|destroyed]] (as indicated by their health bar; the green health bar at the top is the overall health of all four). If a pillar is broken, it will collapse and deal up to 50 damage to the entire team. If the nylocas manage to break all four pillars, the team will be instantly killed.
+
+[[File:The Nylocas - melee role showcase.mp4|thumb|400px|A demonstration of a player in the melee role, with a swift blade to hit faster and the Scythe of Vitur to hit multiple Ischyros.]]
+The nylocas waves are not randomised. It is highly recommended to pick a role and memorise the waves to make the room easier. Magers and rangers should prioritise killing clumps of nylocas with barrage and chinchompas, and meleers should help the mager while they move to the next melee nylocas.
+
+There are two sizes of nylocas - a level 162 variant with 11 health (9 in 4-Scale, 8 in trios), a max hit of 17, and occupying a 1x1 tile. There is also a level 260 variant with 22 health (19 in 4-Scale, 16 in trios), a max hit of 24, and occupying a 2x2 tile. When the large nylocas is killed, they will spawn two smaller nylocas of any type.
+
+Most of the nylocas will focus on attacking the pillars, but a few will not do so and attack the team instead. They are the same as nylocas walking into the arena, but will stop slightly before they attack the team. These "aggro's" should be prioritised first as they can hit quite hard and distract the team from the ones breaking the pillars. Starting from wave 16, some of the nylocas will begin to "flicker", swapping between combat styles in a pre-determined pattern. If player makes an attack just before the nylocas changes forms, they will still take damage from it.
+
+Using the RuneLite plugin '''Better NPC Highlight''' helps easily identify the aggressive nylocas, and is recommended so players can immediately react to them:
+
+*Small melee: 8348
+*Large melee: 8351
+*Small range: 8349
+*Large range: 8352
+*Small magic: 8350
+*Large magic: 8353
+
+It is important to kill the nylocas as fast as possible, as the next wave will be stalled; between waves 1-19, up to 12 nylocas can be active before waves are paused. After wave 20, this cap is raised to 24 nylocas. Having many nylocas active at once will result in a quicker pillar loss, so try to kill them as quickly as possible.
+
+Nylocas will self-destruct 30 seconds after spawning; small nylocas can deal up to 18 damage, while larger ones can deal up to 21. This is more of a concern for melee players, since the exploding nylocas will always be near supports. As such, try to always kill newly spawned nylocas after dealing with aggro's, prioritising the smaller ones first. Lastly, '''always''' be on the attack; if your assigned nylocas are not currently near or in the room, switch weapons (and some gear, if killing mage nylocas as melee) until the assigned nylocas return.
+{{Otheruses|def=no|a full overview of the nylocas waves|Theatre of Blood/Strategies/Nylocas}}
+===Nylocas Vasilias===
+[[File:Fighting Nylocas Vasilias.png|thumb|A group of players fighting the Nylocas Vasilias, a result of Verzik Vitur's diverse breeding program.]]
+After the 31 waves of nylocas are cleared, a [[Nylocas Vasilias]] will drop down from the middle of the room as the final enemy. During this brief interlude, the team should heal up and boost. In larger scales, you may group together to allow the ranger to use [[Boost Potion Share]] on a ranging potion.
+
+The player should '''always''' switch protection prayers to '''Protect from Melee''' before attacking, as the Nylocas Vasilias can hit up to 70 off-prayer, and 17 if prayed against (except melee, which is fully protected). When its form changes, the player should again switch prayers. As its defences are pitiful, players getting to grips with the raid may opt to switch less gear without much drawback due to the short time it stays in one form. The boss will change forms every 10 ticks (6 seconds) to another form that it is not currently using. This is equal to 2 attacks from a 4/5-tick weapon, 3 from a 3-tick weapon and 4 from a 2-tick weapon. The player will stop attacking when Vasilias changes forms.
+
+Vasilias will always spawn in its melee form. One player should use a Bandos godsword special to reduce its Defence, since it only has 50 Defence with no defence bonuses, with the other players dumping dragon claws or crystal halberd specials. Just like the waves of nylocas before, the boss is immune to damage of the wrong combat style. However, attacking it with the incorrect style will result in the player taking damage they would have dealt to it, and healing it for the same amount.
+
+{{Recommended equipment
+| style = Melee Nylocas Vasilias
+| weapon1 = {{plink|Scythe of vitur}}
+| weapon2 = {{plink|Noxious halberd}} / {{plink|Soulreaper axe}}
+| weapon3 = {{plink|Osmumten's fang}}
+| weapon4 = {{plink|Blade of Saeldor}}
+| weapon5 = {{plink|Abyssal tentacle}}
+}}
+
+{{Recommended equipment
+| style = Range  Nylocas Vasilias
+| weapon1 = {{plink|Twisted bow}}
+| weapon2 = {{plink|Toxic blowpipe}}
+}}
+
+{{Recommended equipment
+| style = Mage Nylocas Vasilias
+| weapon1 = {{plink|Sanguinesti staff}} / {{plink|Eye of ayak}}
+| weapon2 = {{plink|Trident of the swamp}}
+}}
+
+==Sotetseg==
+[[File:Fighting Sotetseg.png|thumb|A group of players battle against Sotetseg, a dark beast corrupted through Haemalchemy and experiments in the [[Shadow Realm]].]]
+[[Sotetseg]] is a large dark beast imbued with blood through Haemalchemy, and the fourth boss in the Theatre of Blood.
+
+Before starting the fight, special attack roles are assigned to players to drain its Defence: 1-2, 1-3, 2-3, and backup. The number indicates when the player will use a special attack; the backup is incase one of the player(s) misses:
+* 1 - upon starting the fight
+* 2 - upon clearing the first maze (after 66.6% health)
+* 3 - upon clearing the second maze (after 33.3% health)
+
+===Attacks===
+Sotetseg attacks with both melee and magic. The melee attack consists of a lunge with its horns that can deal up to 45 damage (22 if prayed against), while the magic attack is a small red projectile. When the magic projectile is launched at his main target, it will split up to two additional projectiles upon impact, which can be either a magic (red) or ranged (black) projectile. 
+
+The projectiles will deal [[successful hit]]s of up to 50 damage and disable protection prayers, but are fully blocked if prayed against correctly. As such, having the correct prayers active is vital as it may lead to a swift death if multiple projectiles are targeting the player in a short period of time. If hit, step away from Sotetseg to avoid the chance of a melee attack while you recover. These projectiles are small and can be hard to spot, especially when they travel through the boss, so some players opt for plugins to change its appearance.
+
+Due to this attack, teams will position themselves at various spots around Sotetseg to increase the projectile's travel time so they can be reacted to in time. In a trio encounter, players will stand to the east, west and north-west respectively. In 4-man encounters, each player will stand in the corresponding corner for that row/column. In 5-man encounters, one player will also stand to the south-centre tile.
+[[File:Sotetseg - tick eating.mp4|thumb|400px|To tick-eat the red ball, click on your food right as the second attack animation starts.]]
+
+After 10 magic attacks, Sotetseg will launch a massive red ball at one player, indicated with the message "[Player name] has discovered a large ball of energy coming their way..." The damage scales to group size and players present in the arena (not dead). If two or more players are present in the arena, the ball is guaranteed to kill the targeted player, as it will deal 121+ damage onto them. This damage can be split among other players to safer amounts.
+
+It is possible to [[tick eat]] the red ball, allowing the team to maintain their normal formation, but this is only recommended if some players are critically low on health, since players can risk getting combo'ed by an incoming projectile. To tick eat the attack, players must eat immediately after Sotetseg's second attack animation starts.
+
+===Shadow maze===
+At 66.6% and 33.3% health, Sotetseg will choose one player to pull into the Shadow Realm, indicated with a bright white light and the message {{mes|Sotetseg chooses you...}}. The remaining players will be forcibly teleported to the other end of the arena instead; incoming attacks made by Sotetseg, including the big red ball, will not deal damage.
+
+The player in the Shadow Realm will be presented with a randomly generated path leading to a portal on the other side. While in the Shadow Realm, the player will take 1 to 3 damage every 7 ticks (4.2 seconds). When the grid is stepped on, players in the real world will see the tile the player in the Shadow Realm is standing on with a red glow.
+[[File:Sotetseg - maze running.mp4|thumb|400px|A player runs through the Shadow Realm maze without damaging their teammates in the real world.]]
+The maze runner should stop on the third row and wait a few seconds to let their teammates position themselves. Once someone steps on the fourth row, a tornado will spawn that will follow the maze path and deal massive damage to anyone caught in it. If a player accidentally steps on the fourth row, they can quickly move back to the third to despawn it. This tornado will not appear for the maze runner (unless they are the only player in the encounter). If the wrong tile is stepped on, then a blast will emit from the tile, dealing damage to nearby players equal to 6.67% of the player's current [[Hitpoints]] + 15 every tick, so it is important not to run into the wrong tile, as this will quickly kill the entire team.
+
+Advanced players can use diagonal and L movements to skip over few tiles off the correct path; the tiles '''cannot''' be run skipped. Players can use [https://devqhp.github.io/osrs/sotetseg/ this external tool] to practice maze running, which simulates the game's movement mechanics; to get a maze identical to the clip, click "Edit Seed" at the bottom right and enter <code>7 10 12 11 12 7 11 12</code>.
+
+After clearing the maze, Sotetseg's Defence level is restored, necessitating further Defence-draining special attacks by players based on their assigned special attack order.
+
+Once Sotetseg is slain, the last and final supply chest will be available to the team. Make use of any partial potions and buy full ones with the points allotted to them. Inexperienced team should buy as many brews and restores as possible along with one stamina potion. Experienced teams can expect to have 2-3 brews and restores, while one player buys another stamina potion to be used for Verzik to share with the others.
+
+{{Recommended equipment
+| style = Sotetseg (100 defence)
+| weapon1 = {{plink|Scythe of vitur}}
+| weapon2 = {{plink|Soulreaper axe}}{{efn|Beats fang after 3 stacks.}}
+| weapon3 = {{plink|Osmumten's fang}}
+| weapon4 = {{plink|Noxious halberd}}
+| weapon5 = {{plink|Blade of Saeldor}} > {{plink|Abyssal tentacle}}
+}}
+{{notelist}}
+
+
+==Xarpus==
+[[File:Fighting Xarpus.png|thumb|A group of players fighting Xarpus, the last of the Yarasa race and its king.]]
+[[Xarpus]] is the last of the Yarasa, a race feared by the [[vampyre]]s, and is the fifth boss in the Theatre of Blood.
+
+Upon entering the room, raiders should drop some potions to make room for any two-handed weapons they will be using during the fight. Generally no supplies should be used in this room.
+
+===Phase 1===
+Xarpus is significantly weakened at the start of the fight, starting with 75% of his health but does not attack players. During the first half, he will unearth [[exhumed]] skeletons and absorb the launched projectiles to heal himself for a percentage of his health; 12 exhumed in trios, 9 in 4-man and 6 in 5-man scales. 
+
+To prevent the exhumed from healing Xarpus, players simply need to stand on top of them until they return to the ground. The exhumed will spawn at a fast rate, especially in 4/5-man encounters to the point that it is not possible to completely prevent them from healing him even slightly. They will spawn everywhere across the arena, and players are recommended to stand in the centre of the arena to quickly intercept any exhumed that appear. After 15 exhumed have been exhausted (12 in trio), Xarpus will initiate the next phase of the fight. All players should have their defence-draining weapon equipped, and melee players should activate [[Redemption]].
+
+===Phase 2===
+Xarpus has a high Defence level of 250, with ranged defences of +160 across the board. This makes it a make-or-break scenario depending on how many Defence levels were drained from him. The team should have at least two successful hammer/maul specials before draining the remaining Defence with godsword specials.
+
+Upon starting phase 2, Xarpus will spit poison at players, whom are targeted based on orb order. The poison will splatter in one tile but has a 3x3 AoE which can inflict poison starting at 2 damage; standing on, running over, or being in the splatter's AoE will deal up to 8 poison damage per tick. The hit is slightly delayed if run over. The first player will splatter to the next player in sequence, while the remaining players will splatter to the next two players in sequence.
+
+In the event that all players are on the same tile, or only one person is present in the arena, the poison will splatter a random uncovered tile. He also has a stomp attack where he rapidly throws pebbles dealing up to 9 damage per tick if a player is standing under him. This will interrupt his poison attack.
+
+====Using melee====
+[[File:Xarpus - melee with Scythe of Vitur.mp4|thumb|400px|A player melees Xarpus with the Scythe of Vitur; the key is to always run back once you see or hear him attack.]]
+As Xarpus has no melee defence, it is encouraged to learn how to melee Xarpus if a scythe is in the player's possession to significantly decrease kill times. Melee Xarpus requires some practice and skill in ensuring that the poison will not splatter on a tile next to him, especially the marked tiles as shown in the image, as splattering these are detrimental to the team. Melee players should have [[Redemption]] on to circumvent the poison's low damage, as it can never kill the player at 90+ Hitpoints. If players are ranging, stand on the back two rows to give the melee users space.
+
+Melee users can preemptively step back for 1 tick when Xarpus attacks with poison. If on the correct timing, no poison will splatter next to the boss and players can melee every cycle with a 4 tick weapon (Whip or Saeldor). With a 5 tick weapon (Scythe or Soulreaper axe), players will only delay an attack once in their cycle. This uses 15/16 available ticks to damage the boss, or effectively a 5.33 tick attack speed.
+
+To remove this extra delay and attack every 5 ticks, players will have to intentionally rag a tile next to Xarpus every 4th hit. It can be any tile as long as it is not the highlighted tiles for Phase 3. Previously ragged tiles can be reused as many times as needed as long as the player has enough health.
+
+===Phase 3===
+[[File:Xarpus Melee tiles.png|thumb|Tiles that can be used to melee Xarpus without wasting ticks. The outer layer is for phase 2. The inner layer is for phase 3, safe tiles that can be used to run under Xarpus and poison splatters without taking damage.]]
+
+Upon reaching ~25% of his health, Xarpus will screech, halting all poison attacks as he begins to stare at a quadrant intensely. He will rotate every 8 ticks afterwards to look at another corner. If a player attacks from a corner that Xarpus is looking at, he will retaliate back with an unblockable poison hit dealing 50-80 damage for each hitsplat; essentially, using weapons that hit two or more times as part of its attack will likely result in instant death.
+
+Xarpus will never look in the same corner twice, so players should be moving to where he last looked if possible. Since he turns every 8 ticks, this equates to 2 hits from a 4-tick weapon, 4 from a 2-tick weapon and 1/2 from a 5-tick weapon (1 attack on one quadrant then 2 on another). If the team did not rag the primary tiles (which should hopefully be the case), the team can navigate through them with a diagonal run to a desired quadrant without taking damage.
+
+Once Xarpus is defeated, pick up dropped supplies (if any were dropped) and have a team member grab the [[Dawnbringer]] before proceeding to the final boss of the raid.
+
+{{Recommended equipment
+| style = Xarpus (0 defence)
+| weapon1 = {{plink|Scythe of vitur}}
+| weapon2 = {{plink|Toxic blowpipe}}{{efn|With elite void ranged|name=void}}
+| weapon3 = {{plink|Twisted bow}}{{efn|name=void}}
+| weapon4 = {{plink|Soulreaper axe}}(5 stacks)
+| weapon5 = {{plink|Blade of Saeldor}}>{{plink|Abyssal tentacle}}
+}}
+{{Notelist}}
+
+==Verzik Vitur - phase 1==
+[[File:Verzik Tiles.png|thumb|Some recommended tiles to use at Verzik. The first two at the top are for melee, with the next two below them pillar safespots from the magic attack. The cluster of tiles in the centre are for melee'ing Verzik in phase 2. The tiles marked A to D are tiles for meleeing Verzik when she uses her web attack in phase 3.]]
+Before starting the fight, players should drop 1-2 brews and restores where they intend to stand during phase 2. In the event of a disconnection or an early death, the potions will be available for other raiders to use.
+
+'''All players must have Protect from Magic on before starting the fight.'''
+
+During phase 1, Verzik has a shield around her to protect her from incoming damage, [[Maximum damage cap|capping damage]] dealt to her with melee at 10, with ranged and magic at 3.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1038039719437848576|date=7 September 2018|archiveurl=https://archive.ph/9KLSn|archivedate=1 September 2023|quote=Sorry, I must have misread it last time. It's 10 for melee, 3 for magic and ranged.}}
+
+The [[Dawnbringer]] is the lone exception, which also ignores [[Magic#Magic_accuracy|accuracy rolls]], meaning the player will always deal [[successful hit]]s, even when at or below -64 Magic attack bonus. Additionally, its special attack deals 75-150 magic damage against her shield (average of 112.5 damage per special attack), thus requiring players to drop the Dawnbringer for the next player (in orb order) to use.
+
+Additionally, every 14 ticks (8.4 seconds), Verzik will charge a magic attack that can deal up to 137 damage, which cannot be tick-eaten. Having [[Protect from Magic]] active before the projectile is launched will reduce the damage by 50%, or 68 damage. If the player is safely behind a [[Supporting Pillar]], the pillar will take the attack instead. As long as one player hides behind the pillar before the attack is launched, it will take damage, and multiple players hiding behind a pillar will only deal one instance of damage to it. When the pillar's health reaches 0, it will collapse, dealing heavy damage to anyone next to it when it collapses, pushing them a few tiles away and stunning them.
+
+===Strategy===
+[[File:Verzik Vitur - phase 1 movements.mp4|thumb|400px|A demonstration of the precise timing required to squeeze in two attacks between her magic attacks, as well as the movements between pillars.]]
+In this phase, Verzik has her Defence lowered to 20. Due to the damage cap applied during this phase, players should use their melee weapons. Since the damage cap is per hitsplat, weapons that hit several times are recommended for this phase.
+
+Spam-click Verzik so that you immediately attack when the team leader starts the fight. The player can safely attack four times with a 4-tick weapon, or 3 times with a 5-tick weapon. Afterwards, hide behind one pillar together, as the magic attack will be launched each pillar that is hiding a player. Verzik will proceed to charge the attack every 14 ticks (8.4 seconds) afterwards, which allows for two hits by any 4 or 5-tick weapon before requiring to hide behind a pillar.
+
+The team should hide behind the pillar directly south-west of Verzik, then move east once the right one collapses. Regardless of team size, this phase should ideally end before the second pillar collapses. Once Verzik's shield has shattered, she will leave her throne, causing all remaining pillar supports to collapse, so players should stay away from them.
+
+The simplest approach to this phase, "416" or "pillar drop", is to simply drop the Dawnbringer behind the pillar, however this is not optimal. More advanced teams will drop the Dawnbringer at Verzik's throne, or even tank her attacks entirely, to avoid losing out on ticks that could have been used to attack the boss. This should be discussed and agreed upon between the team ''before'' initiating phase 1 if at all possible. 
+
+{{Recommended equipment
+| style = Verzik P1
+| weapon1 = {{plink|Scythe of vitur}}
+| weapon2 = {{plink|Dual macuahuitl}} > {{plink|Sulphur blades}}
+| weapon3 = {{plink|Blade of Saeldor}} / {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}
+}}
+{{Notelist}}
+
+==Verzik Vitur - phase 2==
+[[File:Fighting Verzik Vitur.png|thumb|A group of players fighting Verzik Vitur, now hoisted on a harness.]]
+Verzik will fly from her throne to the middle of the room, with increased health and raising her Defence level to 200. The other stats remain the same. Defence-draining special attacks will have no effect, noted by the game message {{mes|Verzik Vitur absorbs the defence reduction!}}.
+
+During phase 2, players should pray [[Protect from Missiles]], split up, and move to opposite sides of Verzik.
+* 5-Scale: two go east, two go west, one goes south
+* 4-Scale: two go east, and two go west
+* Trios: one goes south, one east, and one west
+Maintain this formation for the entirety of this phase, as this maintains space for urnbombs, lightning and the AoE heal.
+
+Verzik will primarily attack with ranged during the start of this phase, throwing urnbombs at all players' current locations when the attack is used. These are [[successful hit]]s that deal up to 44 damage (22 with [[Protect from Missiles]]), but can be dodged by simply avoiding the tile the urn was thrown at. The damage is calculated on impact. As such, it is possible to save a few prayer points by not activating Protect from Missiles, though players who have high ping should not attempt this.
+
+If any players are within melee range, there is a very high chance for her to do a body slam instead, dealing up to 45 damage to one of them, rolling against crush defence and knocking them back three tiles. This also stuns them for 3 seconds exposing the player to an urnbomb. If players stand underneath Verzik, she may yell {{overhead|There's nothing for you there!}} and deal up to 82 stomp damage, also knocking the player away. Unlike the body slam, the stomp attack is always a successful hit.; [[Protect from Melee]] has no effect on both attacks.
+
+Every five attacks, Verzik will fire a ball of lightning, bouncing between players up to four times. If the lightning passes through Verzik, she will be hit for 15-20 damage.{{CiteTwitter|url=https://twitter.com/JagexAsh/status/1311663954251313153|author=Mod Ash|date=30 July 2020|archiveurl=https://reldo.runescape.wiki/i/105970|archivedate=18 January 2022|quote=15-20. No accuracy calculation.}} As such, maintaining the aforementioned formation is key, as being too far from teammates will result in the lightning hitting you for up to 48 damage (25 if wearing [[insulated boots]]). If the lightning bounces 4 times without passing through Verzik, it also deals up to 48 damage to that player.
+
+{{Bug|The damage dealt by the lightning ball will not be capped in Normal Mode if there is only one player left alive in a team of multiple people.}}
+
+[[File:Verzik Vitur - phase 2 melee.mp4|thumb|400px|A demonstration of the timing required to safely melee Verzik with a whip/Scythe.]]
+To dodge urnbombs and the slam attack, players must step back to a different tile or by stepping back before the scan tick where she determines whether to bomb or slam you. To effectively use a [[Scythe of vitur]] during phase 2, you must use the latter method, which is commonly referred to as "Scythe walking".
+
+To scythe walk, you must be next to Verzik for all 3 safe ticks; the visual cue to click back is when the urnbomb explodes on the ground. As soon as it explodes click back, then click back on Verzik, done right your character should never stop on the tile the bomb exploded on. If players need to practice this, they are encouraged to try this on other monsters on a 4-tick attack cycle such as [[metal dragons]].
+
+===Nylocas===
+At the start of phase 2, Verzik will summon a group of nylocas who will home in on the player and self-destruct for up to 46 damage, or up to 8 if three tiles away from them. Players can safely "pop" them by letting them approach within three tiles, then running away from them. If they have not exploded after ~15 seconds of movement, they will die, making [[Ice Barrage]] a viable option to deal with them.
+
+Additionally, a [[Nylocas Athanatos]] will also spawn, healing her for 9-10 health every few ticks. To kill the Athanatos, it has to be hit with poison or venom, which will cause it to absorb the poison and deal up to 70 damage on her.
+
+After every third lightning ball, there is a 25% chance of the nylocas being summoned again. Should the summon trigger while the Athanatos is present, no nylocas will spawn.
+
+===Phase 2.5===
+When Verzik reaches 35.0% or less of her health, she will briefly stop attacking and summon two Nylocas Matomenos to her left and right. All players should swap to [[Protect from Magic]] during the transition. During the summoning animation, any damage dealt to her will heal her, so players should focus on the Matomenos until this animation ends.
+
+She will also change up her attacks, now prioritising an AoE magic attack that targets a single player (and damages anyone in a 3x3 radius from them), dealing up to 45 damage and healing for 50% of the damage dealt.{{CiteTwitter|url=https://twitter.com/JagexAsh/status/1285291337621942274|author=Mod Ash|date=July 20 2020|archiveurl=https://reldo.runescape.wiki/i/105626|archivedate=18 January 2022|quote=She's got a 75% chance of using a healing spell. It hits everyone near its target up to 45 (halved by prayer), counting the damage dealt, and then heals her for half of the total. So if she just hit 1 person for up to 45, and they prayed, that'd be ~22, healing her for 11.}} [[Protect from Magic]] will block the attack, but will still heal her for half the damage she would have dealt. Because of this, players should avoid standing next to each other when possible.
+
+While the exploding nylocas and Athanatos will no longer be summoned for the remainder of the phase, she may still use her urnbomb and lightning attacks.
+
+Make sure to heal to full before the next phase starts.
+
+==Verzik Vitur - phase 3==
+Verzik's chains break and she lands on the floor in a vampyre-nylocas form. Verzik will suffer a general combat drain during the transition, losing some Defence, Magic, and Ranged levels and bonuses in the process, though her melee accuracy will increase at the same time. Verzik will attack every 7 game ticks, and like in phase 2, will absorb any Defence-draining specials used against her.
+[[File:Verzik Vitur - phase 3 tanking and popping.mp4|thumb|400px|The tank moves away from Verzik right before she attacks in order to prevent her from using melee. Meanwhile, the two other teammates successfully pop the two nylocas.]]
+
+Unlike the previous phases, where Verzik frequently changes aggression, Verzik will pick one player in the team and pick them as their primary target for the duration of the phase. She will change aggro if her target does not stand within melee distance of her for more than 10 seconds. This timer will reset when the player is within melee distance of her. If a player is selected but is not experienced to tank, they should run away, or if a freezer is in the team, they may freeze her in place.
+
+She can use all combat styles and her projectile attacks will hit all players in the room - stomping her front limbs launches ranged barbs, while crackling with blue energy will launch a blue orb magic attack, dealing up to 33 damage, reduced to 16 if prayed against. As her attacks are very accurate, it's important to switch prayers accordingly. Additionally, every attack, Verzik will check if her chosen target (the tank) is within melee distance or not. If they are, there is a chance for her to use a melee attack instead (which has a very similar animation to the magic attack, but a different sound played) that deals up to 63 damage on every player next to her that cannot be prayed against. This should be avoided at all times; regardless, players should keep their health above 80 to avoid being killed by this attack.
+
+As such, the primary tank should either walk under or away from Verzik one or two ticks before she attacks to avoid the melee attack completely. Try to keep Verzik at the centre (phase start area) when possible. Moving away from Verzik will slightly displace her, but allows the base tank to react to attacks better. Moving under Verzik will keep her more grounded, but also means the base tank has less time to react to her attacks.
+
+During this phase, Verzik has four special attacks that she uses in rotation, attacking '''four times''' before performing the next:
+* '''Nylocas''' - identical to phase 2, but no Athanatos are ever summoned. Avoid dragging them into teammates, especially whoever is tanking. Freezing the nylocas will give the team more time to damage the boss.
+* '''Sticky webs''' - Verzik moves to the centre of the room and launches webs towards players.
+* '''Power blast''' - Verzik charges a powerful attack, where each player must stand on a different yellow pool that appears.
+* '''Green ball''' - Verzik launches a green projectile to a player, requiring them to bounce it by being next to another player until it safely dissipates.
+
+===Sticky webs===
+Upon initiating this attack, Verzik will move towards to the centre of the room, becoming invulnerable in the process, until she begins launching webs. Any players in the area will be knocked away as she turns into a hard NPC (unable to be walked through) for the duration of this attack. She will then begin to launch webs at the players, three at a time if they are not on the same tile.
+
+If a player is ensnared in a [[web (Verzik Vitur)|web]], they will be bound, requiring another player to free them by breaking the web, which has 10 Hitpoints. If not freed in time, the webs will snap and deal massive damage in the process. [[Aranea boots]] will negate the damage if caught in a web once every 8 ticks.
+
+Experienced players can increase their DPS by following a clockwise rotation starting from the south, attacking once every 5 ticks. This requires immediately attacking Verzik after she is no longer invulnerable (spam click once in position), then running one-tick after the XP drop appears. When attacking in this manner, the players must attack on the '''same tick and tile'''. If this is not adhered to, lagging players will leave behind webs which may not despawn before the lead player(s) makes a full rotation, potentially causing them to be ensnared and take high damage as the web despawns. If a player is lagging behind, they must skip attacks until they catch up with the rest of the team to prevent this from occurring.
+
+If players are unable to perform this method, they are recommended to break off and attack with ranged or magic until the mechanic ends.
+
+<gallery mode="packed" heights="300" style="text-align:left">
+Verzik Vitur - phase 3 web running.mp4|A demonstration of a perfect web run.
+Verzik Vitur - phase 3 web fixing.mp4|In this demonstration, two players attacked Verzik one tick later, so they skip attacking one time in order to re-sync their attacks with the team.
+</gallery>
+
+===Power blast (yellows)===
+[[File:Verzik Vitur - phase 3 yellow power blast tick eat.mp4|thumb|400px|To tick-eat the power blast, click on your food right as the projectile is directly above the player's head.]]
+Upon initiating this attack, Verzik becomes invulnerable whilst charging up a powerful blast of energy. At the same time, yellow pools will appear to serve as protection from this attack. Each pool can only hold one player, so players should coordinate which pool they're going for to avoid confusion.
+
+If the player is not on a pool before the shot hits, they will take up to 80 damage, which can be tick eaten. If several players stand on the same pool, they will all take damage while the pool fails to protect anyone, so try to avoid piling as this will result in unnecessary damage. Verzik is invulnerable while charging this attack, so use this time to restore health and stats as needed. There are 7 ticks between the end of this special attack and Verzik's next auto-attack. 
+
+===Green ball===
+As the last attack in her rotation, Verzik will launch a green ball at a random player, indicated by the game message {{mes|Verzik Vitur fires a powerful projectile in your direction...|colour=#0a721f}} Players can bounce the ball by being next to another player before impact, continuing to do so to a different player until it safely dissipates.
+
+As it is difficult to coordinate bouncing the green ball - especially during the enrage phase - most teams will opt to simply take the hit, only bouncing it if its target is unable to survive the hit. If bouncing, the targeted player should follow another nearby player to ensure that it will bounce. The ball deals 75% of the player's [[Hitpoints]] level as damage (74 at level 99), so make sure to heal up before attempting to tank the ball. The ball can only be tick eaten if using a stall.
+
+[[Redemption]] can also be used, but only if the player is going to have less than 10 health afterwards, as it can leave the player open to another attack with no prayer. A [[locator orb]] or [[dwarven rock cake]] may be used to trigger Redemption right before the ball hits, nulling the damage it would have dealt.
+
+====Enrage phase====
+[[File:Verzik Vitur - phase 3 webs enrage proc.mp4|thumb|400px|Experienced players with top-end gear may opt to proc the enrage phase mid-webs to end the raid quickly.]]
+When Verzik reaches or falls below 20.0% of her hitpoints, she will yell {{overhead|I'm not finished with you just yet!}}, increasing the max hit of range/mage projectiles to 34 and summoning a purple tornado of fire for every player in the room; each one gets a personal tornado that tracks them down. If it makes contact with the player, they will take 50% of their current health as damage, while Verzik will heal for triple the damage dealt. Due to this, it is best to keep health around 50-60; it is more than enough to tank one off-prayer range or magic attack, and the tornado will only heal around 90 in the off chance it damages the player. Even one player getting hit for 57 (50% of 115) will cause Verzik to heal 171 health and will significantly set the team back. After a player is hit by their tornado, a new one will spawn 16 ticks later and begin following them again.
+
+Additionally, her attack speed is increased from 7 (4.2 seconds) to 5 (3.0 seconds). The base tank should also take note of this to avoid killing other teammates with her melee attacks, and the increased attack speed will mean that special attacks are used more frequently. If the team's damage output is low, they may consider waiting until the power blast before triggering enrage, as it can be difficult to handle both mechanics at once. Teams with sufficient experience can simply power through into enrage; they can either keep their health low so the tornado heals little or try to enter the safe tile at the last possible moment, which is far riskier. The green ball attack should be tanked, or bounced if the targeted player doesn't have enough health to tank it; the other player will need to tank it in their place. Try to avoid targeting the base tank if bouncing is required, as the base tank is already pressured from Verzik's increased attack speed.
+
+At this stage, players should dump all melee special attacks to end the phase as fast as possible.
+
+Once Verzik is finally defeated her throne will collapse revealing a secret entrance to her treasure room, where players may collect their loot.
+
+{{Recommended equipment
+| style = Verzik
+| weapon1 = {{plink|Scythe of vitur}}
+| weapon2 = {{plink|Soulreaper axe}} (5 stacks)
+| weapon3 = {{plink|Blade of Saeldor}}
+| weapon4 = {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Requires advanced movement for P2 to effectively 5.33t / 5t.|Name=nox}}{{efn|Better than Saeldor for webs and 1:1 tanking|name=5t}}
+| weapon5 = {{plink|Osmumten's fang}}{{efn|name=5t}}
+}}
+{{Notelist}}
+
+==References==
+{{reflist}}
+
+{{Theatre of Blood}}
+[[Category:Strategies]]

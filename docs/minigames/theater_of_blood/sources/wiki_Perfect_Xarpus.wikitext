@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Perfect Xarpus
+|image = [[File:Xarpus.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Xarpus without anyone in the team taking any damage from Xarpus' attacks and without letting an exhumed heal Xarpus more than twice.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 248
+|leagueRegion = Morytania
+}}
+'''Perfect Xarpus''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Xarpus]] without taking any damage from his attacks and without letting an [[exhumed]] heal him more than two times.
+
+==Strategy==
+Learning how to handle exhumed is the only major roadblock in this achievement, as they are the only major issue due to how they spawn around Xarpus. It is recommended to try this in a trio encounter, as the exhumed will spawn significantly faster in 4 and 5-man encounters.
+
+Landing defence draining specials from the [[bandos godsword]] and [[dragon warhammer]] are essential to completing the task. Players should ideally start together in one corner in a death-dot to minimise the amount of poison splatters across the arena. Each poison splatter has a 3x3 AoE, so it is important to stand two tiles away from the impact zone to avoid taking damage from it.
+
+Once Xarpus is lowered to 25.0% of its health, it will screech and begin the next phase. It is important to watch where Xarpus is focusing at to avoid taking damage, after which the team should move to where he had just looked at as Xarpus can never look at the same direction twice in a row. Assuming that the players were ranging, they should not have any issue with any ragged tiles near him.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

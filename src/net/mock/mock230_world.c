@@ -4168,6 +4168,7 @@ mock230_world_obj_add(
 int
 mock230_world_obj_add_private(
     struct Mock230Server* srv,
+    struct Mock230Player* owner,
     int obj_id,
     int count,
     int x,
@@ -4176,10 +4177,10 @@ mock230_world_obj_add_private(
     int duration,
     int private_ticks)
 {
-    if( private_ticks <= 0 || !srv->active_player )
+    if( private_ticks <= 0 || !owner )
         return mock230_world_obj_add(srv, obj_id, count, x, z, level, duration);
     return world_obj_add(srv, obj_id, count, x, z, level, duration,
-                         srv->active_player->pid, private_ticks);
+                         owner->pid, private_ticks);
 }
 
 int
@@ -14051,15 +14052,21 @@ mock230_world_selftest(void)
             int floor;
             const char* mage;
             const char* finish_hook;
+            const char* challenge_cry;
+            const char* advance_cry;
             int mage_x, mage_z;
         } nex_phase_cases[] = {
             { 1, 2720, "nex_smokemage", "[ai_queue3,nex_smokemage]",
+              "Fumus, don't fail me!", "Darken my shadow!",
               45 * 64 + 32, 81 * 64 + 32 },
             { 2, 2040, "nex_shadowmage", "[ai_queue3,nex_shadowmage]",
+              "Umbra, don't fail me!", "Flood my lungs with blood!",
               45 * 64 + 57, 81 * 64 + 32 },
             { 3, 1360, "nex_bloodmage", "[ai_queue3,nex_bloodmage]",
+              "Cruor, don't fail me!", "Infuse me with the power of ice!",
               45 * 64 + 57, 81 * 64 + 3 },
             { 4, 680, "nex_icemage", "[ai_queue3,nex_icemage]",
+              "Glacies, don't fail me!", "NOW, THE POWER OF ZAROS!",
               45 * 64 + 32, 81 * 64 + 3 },
         };
         static const struct
@@ -14094,23 +14101,24 @@ mock230_world_selftest(void)
             int which;
             const char* anim;
             const char* sound;
+            const char* cry;
         } nex_special_cases[] = {
             { "[proc,nex_special_smoke]", 0, NULL,
-              "nex2021_player_smoked" },
+              "nex2021_player_smoked", "Let the virus flow through you!" },
             { "[proc,nex_special_smoke]", 1, "nex_dash_attack",
-              "nex2021_dash_prepare" },
+              "nex2021_dash_prepare", "There is... NO ESCAPE!" },
             { "[proc,nex_special_shadow]", 0, NULL,
-              "nex2021_shadow_cast" },
+              "nex2021_shadow_cast", "Fear the shadow!" },
             { "[proc,nex_special_shadow]", 1, NULL,
-              "nex2021_embrace_darkness" },
+              "nex2021_embrace_darkness", "Embrace darkness!" },
             { "[proc,nex_special_blood]", 0, "nex_blood_siphon",
-              "nex2021_siphon" },
+              "nex2021_siphon", "A siphon will solve this!" },
             { "[proc,nex_special_blood]", 1, NULL,
-              "nex2021_sacrifice_cast" },
+              "nex2021_sacrifice_cast", "I demand a blood sacrifice!" },
             { "[proc,nex_special_ice]", 0, "nex_smash_attack",
-              "nex2021_smash_attack_charge" },
+              "nex2021_smash_attack_charge", "Contain this!" },
             { "[proc,nex_special_ice]", 1, NULL,
-              "nex2021_ice_prison_attack" },
+              "nex2021_ice_prison_attack", "Die now, in a prison of ice!" },
         };
         const char* script_dir = getenv("MOCK230_SCRIPTS");
         int loaded = script_dir && script_dir[0] ? mock230_scripts_load(srv, script_dir) : 0;
@@ -14126,6 +14134,819 @@ mock230_world_selftest(void)
                        script_dir ? script_dir : "<unset>");
         if( loaded > 0 )
         {
+            /* Every level-gated route shares this production predicate. For
+             * each concrete gate, prove below/exact/boosted-above and preserve
+             * the intentional base-vs-boosted policy. */
+            {
+                int agility = mock230_content_symbol(
+                    MOCK230_PACK_STAT, "agility");
+                int strength = mock230_content_symbol(
+                    MOCK230_PACK_STAT, "strength");
+                int ranged = mock230_content_symbol(
+                    MOCK230_PACK_STAT, "ranged");
+                int hitpoints = mock230_content_symbol(
+                    MOCK230_PACK_STAT, "hitpoints");
+                struct
+                {
+                    const char* name;
+                    int stat;
+                    int required;
+                    int allow_boost;
+                } access_cases[] = {
+                    { "Saradomin rope", agility,
+                      mock230_content_constant_int("gwd_agility_rope", -1), 0 },
+                    { "surface boulder", strength,
+                      mock230_content_constant_int("gwd_strength_boulder", -1), 1 },
+                    { "surface crack", agility,
+                      mock230_content_constant_int("gwd_agility_crack", -1), 1 },
+                    { "Zamorak ice bridge", hitpoints,
+                      mock230_content_constant_int("gwd_hp_ice_bridge", -1), 0 },
+                    { "Bandos gong door", strength,
+                      mock230_content_constant_int("gwd_str_bandos_door", -1), 0 },
+                    { "Armadyl grapple", ranged,
+                      mock230_content_constant_int("gwd_range_grapple", -1), 0 },
+                    { "Frozen Door Agility", agility, 70, 0 },
+                    { "Frozen Door Ranged", ranged, 70, 0 },
+                    { "Frozen Door Strength", strength, 70, 0 },
+                    { "Frozen Door Hitpoints", hitpoints, 70, 1 },
+                };
+
+                for( size_t i = 0;
+                     i < sizeof(access_cases) / sizeof(access_cases[0]); i++ )
+                {
+                    int32_t level_args[3] = {
+                        access_cases[i].stat,
+                        access_cases[i].required,
+                        access_cases[i].allow_boost,
+                    };
+                    int below = -1;
+                    int exact = -1;
+                    int boosted = -1;
+
+                    SELFTEST_CHECK(
+                        access_cases[i].stat >= 0 &&
+                            access_cases[i].required > 0,
+                        "%s stat/requirement resolves (%d/%d)",
+                        access_cases[i].name, access_cases[i].stat,
+                        access_cases[i].required);
+                    if( access_cases[i].stat < 0 ||
+                        access_cases[i].required <= 0 )
+                        continue;
+                    player->stat_level[access_cases[i].stat] =
+                        access_cases[i].required - 1;
+                    player->stat_boosted[access_cases[i].stat] =
+                        access_cases[i].required - 1;
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_access_level]", level_args, 3,
+                        &below);
+                    player->stat_level[access_cases[i].stat] =
+                        access_cases[i].required;
+                    player->stat_boosted[access_cases[i].stat] =
+                        access_cases[i].required;
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_access_level]", level_args, 3,
+                        &exact);
+                    player->stat_level[access_cases[i].stat] =
+                        access_cases[i].required - 1;
+                    player->stat_boosted[access_cases[i].stat] =
+                        access_cases[i].required;
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_access_level]", level_args, 3,
+                        &boosted);
+                    SELFTEST_CHECK(
+                        below == 0 && exact == 1 &&
+                            boosted == access_cases[i].allow_boost,
+                        "%s rejects below, accepts exact, and boosted-above "
+                        "returns %d (got %d/%d/%d)",
+                        access_cases[i].name, access_cases[i].allow_boost,
+                        below, exact, boosted);
+                    player->stat_level[access_cases[i].stat] = 99;
+                    player->stat_boosted[access_cases[i].stat] = 99;
+                }
+                player->active_script = NULL;
+            }
+
+            /* One representative blessing per allegiance spans all 32 worn
+             * faction combinations. Rebuilding worn state between calls also
+             * proves protection responds immediately to equipment changes. */
+            {
+                static const char* const item_names[] = {
+                    "blessing_armadyl", "blessing_bandos",
+                    "blessing_saradomin", "blessing_zamorak",
+                    "blessing_zaros",
+                };
+                int items[5];
+                int ancient_mace = mock230_content_symbol(
+                    MOCK230_PACK_OBJ, "ancient_goblin_mace");
+                int resolved = ancient_mace >= 0;
+
+                for( int i = 0; i < 5; i++ )
+                {
+                    items[i] = mock230_content_symbol(
+                        MOCK230_PACK_OBJ, item_names[i]);
+                    resolved &= items[i] >= 0;
+                }
+                SELFTEST_CHECK(
+                    resolved,
+                    "five allegiance blessings and Ancient mace resolve");
+                if( resolved )
+                {
+                    for( int mask = 0; mask < 32; mask++ )
+                    {
+                        for( int slot = 0; slot < MOCK230_WORN_SLOTS; slot++ )
+                            worn_set(player, slot, -1, 0);
+                        for( int faction = 0; faction < 5; faction++ )
+                            if( mask & (1 << faction) )
+                                worn_set(player, faction, items[faction], 1);
+                        for( int faction = 1; faction <= 5; faction++ )
+                        {
+                            int32_t faction_arg = faction;
+                            int count = -1;
+                            int protected = -1;
+                            int expected = (mask & (1 << (faction - 1))) != 0;
+
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_god_item_count]",
+                                &faction_arg, 1, &count);
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_has_god_protection]",
+                                &faction_arg, 1, &protected);
+                            SELFTEST_CHECK(
+                                count == expected && protected == expected,
+                                "GWD worn faction mask %02x faction %d yields "
+                                "count/protection %d/%d (expected %d)",
+                                mask, faction, count, protected, expected);
+                        }
+                    }
+                    {
+                        int32_t bandos_args[2] = { ancient_mace, 2 };
+                        int32_t zaros_args[2] = { ancient_mace, 5 };
+                        int bandos_item = -1;
+                        int zaros_item = -1;
+
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_is_god_item]", bandos_args, 2,
+                            &bandos_item);
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_is_god_item]", zaros_args, 2,
+                            &zaros_item);
+                        SELFTEST_CHECK(
+                            bandos_item == 1 && zaros_item == 0,
+                            "Ancient mace protects Bandos but not Zaros "
+                            "(got %d/%d)",
+                            bandos_item, zaros_item);
+                    }
+                }
+                for( int slot = 0; slot < MOCK230_WORN_SLOTS; slot++ )
+                    worn_set(player, slot, -1, 0);
+                player->active_script = NULL;
+            }
+
+            /* Pin every GWD-specific Slayer requirement at one level below
+             * and exactly at the gate, then run the real Attack override for
+             * every flying Aviansie variant with an ordinary slash style. */
+            {
+                static const struct
+                {
+                    const char* npc;
+                    int required;
+                } slayer_cases[] = {
+                    { "godwars_pyrefiend_1", 30 },
+                    { "godwars_bloodveld", 50 },
+                    { "godwars_spiritual_saradomin_ranger", 63 },
+                    { "godwars_spiritual_bandos_ranger", 63 },
+                    { "godwars_spiritual_zamorak_ranger", 63 },
+                    { "godwars_spiritual_armadyl_ranger", 63 },
+                    { "nex_prison_ranger", 63 },
+                    { "godwars_spiritual_saradomin_warrior", 68 },
+                    { "godwars_spiritual_bandos_warrior", 68 },
+                    { "godwars_spiritual_zamorak_warrior", 68 },
+                    { "godwars_spiritual_armadyl_warrior", 68 },
+                    { "nex_prison_warrior", 68 },
+                    { "godwars_spiritual_saradomin_mage", 83 },
+                    { "godwars_spiritual_bandos_mage", 83 },
+                    { "godwars_spiritual_zamorak_mage", 83 },
+                    { "godwars_spiritual_armadyl_mage", 83 },
+                    { "nex_prison_mage", 83 },
+                };
+                static const char* const aviansie[] = {
+                    "godwars_armadyl_avatar",
+                    "godwars_armadyl_bodyguard_skree",
+                    "godwars_armadyl_bodyguard_geerin",
+                    "godwars_armadyl_bodyguard_kilisa",
+                    "godwars_armadyl_male_armor01_blue",
+                    "godwars_armadyl_male_armor01_green",
+                    "godwars_armadyl_male_armor01_red",
+                    "godwars_armadyl_male_armor02_blue",
+                    "godwars_armadyl_male_armor02_green",
+                    "godwars_armadyl_male_armor02_red",
+                    "godwars_armadyl_male_armor03_green",
+                    "godwars_armadyl_male_armor03_red",
+                    "godwars_armadyl_female_armor01_blue",
+                    "godwars_armadyl_female_armor01_green",
+                    "godwars_armadyl_female_armor01_red",
+                    "godwars_armadyl_female_armor02_blue",
+                    "godwars_armadyl_female_armor02_green",
+                    "godwars_armadyl_female_armor02_red",
+                    "godwars_armadyl_female_armor03_blue",
+                    "godwars_spiritual_armadyl_warrior",
+                    "godwars_spiritual_armadyl_ranger",
+                    "godwars_spiritual_armadyl_mage",
+                };
+                int slayer = mock230_content_symbol(MOCK230_PACK_STAT, "slayer");
+                int damagetype = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "damagetype");
+                int slash = mock230_content_constant_int("slash_style", -1);
+
+                SELFTEST_CHECK(
+                    slayer >= 0 && damagetype >= 0 && slash >= 0,
+                    "GWD Slayer/Aviansie test symbols resolve");
+                if( slayer >= 0 )
+                {
+                    for( size_t i = 0;
+                         i < sizeof(slayer_cases) / sizeof(slayer_cases[0]); i++ )
+                    {
+                        int npc_id = mock230_content_symbol(
+                            MOCK230_PACK_NPC, slayer_cases[i].npc);
+                        int slot = mock230_world_npc_spawn(
+                            srv, npc_id, player->x + 1, player->z, player->level);
+                        int required = -1;
+                        int below_blocked = -1;
+                        int exact_blocked = -1;
+
+                        SELFTEST_CHECK(slot >= 0, "%s spawns for Slayer gate",
+                                       slayer_cases[i].npc);
+                        if( slot < 0 )
+                            continue;
+                        srv->npcs[slot].spawn_pending = 0;
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,slayer_required_level]", slot,
+                            NULL, 0, &required);
+                        player->stat_level[slayer] =
+                            player->stat_boosted[slayer] =
+                                slayer_cases[i].required - 1;
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,slayer_attack_blocked]", slot,
+                            NULL, 0, &below_blocked);
+                        player->stat_level[slayer] =
+                            player->stat_boosted[slayer] =
+                                slayer_cases[i].required;
+                        mock230_scripts_run_proc_int_on_npc(
+                            srv, "[proc,slayer_attack_blocked]", slot,
+                            NULL, 0, &exact_blocked);
+                        SELFTEST_CHECK(
+                            required == slayer_cases[i].required &&
+                                below_blocked == 1 && exact_blocked == 0,
+                            "%s Slayer gate is %d and blocks/accepts below/exact "
+                            "as 1/0 (got %d, %d/%d)",
+                            slayer_cases[i].npc, slayer_cases[i].required,
+                            required, below_blocked, exact_blocked);
+                        srv->npcs[slot].active = 0;
+                    }
+                    player->stat_level[slayer] =
+                        player->stat_boosted[slayer] = 99;
+                }
+                if( damagetype >= 0 && slash >= 0 )
+                {
+                    player->varps[damagetype] = slash;
+                    for( size_t i = 0;
+                         i < sizeof(aviansie) / sizeof(aviansie[0]); i++ )
+                    {
+                        int npc_id = mock230_content_symbol(
+                            MOCK230_PACK_NPC, aviansie[i]);
+                        int slot = mock230_world_npc_spawn(
+                            srv, npc_id, player->x + 1, player->z, player->level);
+                        char hook[160];
+
+                        SELFTEST_CHECK(slot >= 0,
+                                       "%s spawns for melee rejection", aviansie[i]);
+                        if( slot < 0 )
+                            continue;
+                        srv->npcs[slot].spawn_pending = 0;
+                        player->combat_target = -1;
+                        snprintf(hook, sizeof(hook), "[opnpc2,%s]", aviansie[i]);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_on_npc(srv, hook, slot) &&
+                                player->combat_target == -1,
+                            "%s rejects ordinary slash melee while airborne",
+                            aviansie[i]);
+                        srv->npcs[slot].active = 0;
+                    }
+                }
+                player->active_script = NULL;
+            }
+
+            /* Godsword assembly is a Smithing operation, not an inventory
+             * shortcut: all six shard/pair inputs pass through the anvil proc,
+             * award exactly 100 XP per join (200 total), and the five hilt
+             * variants round-trip without duplicating or losing components. */
+            {
+                static const char* const shard_names[] = {
+                    "godwars_godsword_blade1",
+                    "godwars_godsword_blade2",
+                    "godwars_godsword_blade3",
+                    "godwars_godsword_blade1+2",
+                    "godwars_godsword_blade1+3",
+                    "godwars_godsword_blade2+3",
+                    "godwars_godsword_blade1+2+3",
+                };
+                static const int pair_inputs[][3] = {
+                    { 0, 1, 3 }, { 0, 2, 4 }, { 1, 2, 5 },
+                };
+                static const int completion_inputs[][2] = {
+                    { 3, 2 }, { 4, 1 }, { 5, 0 },
+                };
+                static const char* const sword_names[] = {
+                    "ags", "bgs", "sgs", "zgs", "ancient_godsword",
+                };
+                static const char* const hilt_names[] = {
+                    "godwars_godsword_hilt_armadyl",
+                    "godwars_godsword_hilt_bandos",
+                    "godwars_godsword_hilt_saradomin",
+                    "godwars_godsword_hilt_zamorak",
+                    "godwars_godsword_hilt_ancient",
+                };
+                static const int special_kinds[] = { 12, 13, 5, 14, 48 };
+                int shards[sizeof(shard_names) / sizeof(shard_names[0])];
+                int swords[sizeof(sword_names) / sizeof(sword_names[0])];
+                int hilts[sizeof(hilt_names) / sizeof(hilt_names[0])];
+                int smithing = mock230_content_symbol(
+                    MOCK230_PACK_STAT, "smithing");
+                int hammer = mock230_content_symbol(MOCK230_PACK_OBJ, "hammer");
+                int filler = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+                int sa_kind = mock230_content_symbol(MOCK230_PACK_PARAM, "sa_kind");
+                int resolved = smithing >= 0 && hammer >= 0 && filler >= 0 &&
+                               sa_kind >= 0;
+
+                for( size_t i = 0;
+                     i < sizeof(shards) / sizeof(shards[0]); i++ )
+                {
+                    shards[i] = mock230_content_symbol(
+                        MOCK230_PACK_OBJ, shard_names[i]);
+                    resolved &= shards[i] >= 0;
+                }
+                for( size_t i = 0;
+                     i < sizeof(swords) / sizeof(swords[0]); i++ )
+                {
+                    swords[i] = mock230_content_symbol(
+                        MOCK230_PACK_OBJ, sword_names[i]);
+                    hilts[i] = mock230_content_symbol(
+                        MOCK230_PACK_OBJ, hilt_names[i]);
+                    resolved &= swords[i] >= 0 && hilts[i] >= 0;
+                }
+                SELFTEST_CHECK(resolved,
+                               "all Godsword shards, swords, hilts and tools resolve");
+
+                for( size_t i = 0;
+                     resolved && i < sizeof(swords) / sizeof(swords[0]); i++ )
+                {
+                    const struct Mock230ObjParam* kind =
+                        mock230_obj_param(swords[i], sa_kind);
+                    char label[96];
+
+                    snprintf(label, sizeof(label), "[label,pvm_%s_sa]",
+                             sword_names[i]);
+                    SELFTEST_CHECK(
+                        kind && !kind->sval && kind->ival == special_kinds[i] &&
+                            SSVM_ProviderGetByName(srv->scripts, label) != NULL,
+                        "%s retains sa_kind %d and exact dispatch %s",
+                        sword_names[i], special_kinds[i], label);
+                }
+
+                if( resolved )
+                {
+                    int xp_before;
+                    int32_t selected;
+
+                    /* Both anvil gates preserve the selected components. */
+                    selftest_clear_inv(player);
+                    selftest_give(player, shards[0], 1);
+                    selftest_give(player, shards[1], 1);
+                    selftest_give(player, hammer, 1);
+                    mock230_combat_set_level(player, smithing, 79);
+                    xp_before = player->stat_xp_tenths[smithing];
+                    selected = shards[0];
+                    (void)mock230_scripts_run_proc(
+                        srv, "[proc,gwd_shard_anvil]", &selected, 1);
+                    SELFTEST_CHECK(
+                        selftest_count(player, shards[0]) == 1 &&
+                            selftest_count(player, shards[1]) == 1 &&
+                            selftest_count(player, shards[3]) == 0 &&
+                            player->stat_xp_tenths[smithing] == xp_before,
+                        "Godsword anvil rejects level 79 without consuming shards");
+                    player->active_script = NULL;
+
+                    selftest_clear_inv(player);
+                    selftest_give(player, shards[0], 1);
+                    selftest_give(player, shards[1], 1);
+                    mock230_combat_set_level(player, smithing, 80);
+                    xp_before = player->stat_xp_tenths[smithing];
+                    selected = shards[0];
+                    (void)mock230_scripts_run_proc(
+                        srv, "[proc,gwd_shard_anvil]", &selected, 1);
+                    SELFTEST_CHECK(
+                        selftest_count(player, shards[0]) == 1 &&
+                            selftest_count(player, shards[1]) == 1 &&
+                            selftest_count(player, shards[3]) == 0 &&
+                            player->stat_xp_tenths[smithing] == xp_before,
+                        "Godsword anvil requires a Smithing hammer without consuming shards");
+                    player->active_script = NULL;
+
+                    for( size_t i = 0;
+                         i < sizeof(pair_inputs) / sizeof(pair_inputs[0]); i++ )
+                    {
+                        selftest_clear_inv(player);
+                        selftest_give(player, shards[pair_inputs[i][0]], 1);
+                        selftest_give(player, shards[pair_inputs[i][1]], 1);
+                        selftest_give(player, hammer, 1);
+                        mock230_combat_set_level(player, smithing, 80);
+                        xp_before = player->stat_xp_tenths[smithing];
+                        selected = shards[pair_inputs[i][1]];
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_shard_anvil]", &selected, 1),
+                            "Godsword pair route %zu executes through the anvil", i);
+                        SELFTEST_CHECK(
+                            selftest_count(player, shards[pair_inputs[i][0]]) == 0 &&
+                                selftest_count(player, shards[pair_inputs[i][1]]) == 0 &&
+                                selftest_count(player, shards[pair_inputs[i][2]]) == 1 &&
+                                player->stat_xp_tenths[smithing] - xp_before == 1000,
+                            "Godsword pair route %zu makes its exact piece for 100 XP", i);
+
+                        selftest_give(player, shards[completion_inputs[i][1]], 1);
+                        selected = shards[completion_inputs[i][0]];
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_shard_anvil]", &selected, 1),
+                            "Godsword completion route %zu executes through the anvil", i);
+                        SELFTEST_CHECK(
+                            selftest_count(player, shards[completion_inputs[i][0]]) == 0 &&
+                                selftest_count(player, shards[completion_inputs[i][1]]) == 0 &&
+                                selftest_count(player, shards[6]) == 1 &&
+                                player->stat_xp_tenths[smithing] - xp_before == 2000,
+                            "Godsword completion route %zu makes one blade for 200 total XP", i);
+                    }
+
+                    selftest_clear_inv(player);
+                    selftest_give(player, shards[0], 1);
+                    selftest_give(player, shards[1], 1);
+                    selftest_give(player, shards[2], 1);
+                    selftest_give(player, hammer, 1);
+                    mock230_combat_set_level(player, smithing, 80);
+                    xp_before = player->stat_xp_tenths[smithing];
+                    selected = shards[2];
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_shard_anvil]", &selected, 1) &&
+                            selftest_count(player, shards[0]) == 0 &&
+                            selftest_count(player, shards[1]) == 0 &&
+                            selftest_count(player, shards[2]) == 0 &&
+                            selftest_count(player, shards[6]) == 1 &&
+                            player->stat_xp_tenths[smithing] - xp_before == 2000,
+                        "three loose Godsword shards become one blade for 200 XP");
+
+                    for( size_t i = 0;
+                         i < sizeof(swords) / sizeof(swords[0]); i++ )
+                    {
+                        int32_t combine_args[2] = { hilts[i], swords[i] };
+                        int32_t dismantle_args[2] = { swords[i], hilts[i] };
+
+                        selftest_clear_inv(player);
+                        selftest_give(player, shards[6], 1);
+                        selftest_give(player, hilts[i], 1);
+                        out = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_attach_hilt]", combine_args, 2,
+                                &out) && out == 1 &&
+                                selftest_count(player, shards[6]) == 0 &&
+                                selftest_count(player, hilts[i]) == 0 &&
+                                selftest_count(player, swords[i]) == 1,
+                            "%s attaches to a blade without a Smithing gate",
+                            hilt_names[i]);
+                        out = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_dismantle_apply]",
+                                dismantle_args, 2, &out) && out == 1 &&
+                                selftest_count(player, swords[i]) == 0 &&
+                                selftest_count(player, shards[6]) == 1 &&
+                                selftest_count(player, hilts[i]) == 1,
+                            "%s dismantles back into its exact blade and hilt",
+                            sword_names[i]);
+                    }
+
+                    /* Dismantling expands one inventory item into two. */
+                    selftest_clear_inv(player);
+                    selftest_give(player, swords[0], 1);
+                    for( int i = 1; i < MOCK230_INV_SLOTS; i++ )
+                        selftest_give(player, filler, 1);
+                    {
+                        int32_t dismantle_args[2] = { swords[0], hilts[0] };
+                        out = 1;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_dismantle_apply]",
+                                dismantle_args, 2, &out) && out == 0 &&
+                                selftest_count(player, swords[0]) == 1 &&
+                                selftest_count(player, shards[6]) == 0 &&
+                                selftest_count(player, hilts[0]) == 0,
+                            "a full inventory refuses Godsword dismantling atomically");
+                    }
+                    selftest_clear_inv(player);
+                    player->active_script = NULL;
+                }
+            }
+
+            /* Saradomin godsword Healing Blade restores from its successful
+             * potential-damage roll, even when target HP/armour would cap the
+             * actual hit. Pin its minimums, rounding, and exact cache FX. */
+            {
+                static struct Mock230Capture sgs_capture;
+                static const int32_t restore_cases[][3] = {
+                    { 0, 10, 5 },
+                    { 1, 10, 5 },
+                    { 20, 10, 5 },
+                    { 21, 11, 6 },
+                    { 60, 30, 15 },
+                };
+                int sgs_anim = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, "sgs_special_player");
+                int sgs_spot = mock230_content_symbol(
+                    MOCK230_PACK_SPOTANIM,
+                    "dh_sword_update_saradomin_special_spotanim");
+                int godsword_sound = mock230_content_symbol(
+                    MOCK230_PACK_SYNTH, "godwars_godsword_special_attack");
+
+                SELFTEST_CHECK(
+                    sgs_anim == 7640 && sgs_spot == 1209 &&
+                        godsword_sound == 3869,
+                    "Healing Blade resolves exact assets (anim %d, graphic %d, "
+                    "sound %d)",
+                    sgs_anim, sgs_spot, godsword_sound);
+                player->anim_id = -1;
+                player->spotanim_id = -1;
+                mock230_capture_begin(srv, &sgs_capture);
+                out = mock230_scripts_run_proc(
+                    srv, "[proc,pvm_sgs_launch_fx]", NULL, 0);
+                mock230_capture_end(srv);
+                SELFTEST_CHECK(
+                    out && player->anim_id == sgs_anim &&
+                        player->spotanim_id == sgs_spot &&
+                        selftest_capture_synth_count(
+                            &sgs_capture, srv->wire, godsword_sound) == 1,
+                    "Healing Blade launches exact animation, graphic, and sound");
+
+                for( size_t i = 0;
+                     i < sizeof(restore_cases) / sizeof(restore_cases[0]); i++ )
+                {
+                    int32_t rolled_damage = restore_cases[i][0];
+                    int hp_restore = -1;
+                    int prayer_restore = -1;
+
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,pvm_sgs_heal_amount]",
+                            &rolled_damage, 1, &hp_restore) &&
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,pvm_sgs_prayer_amount]",
+                                &rolled_damage, 1, &prayer_restore) &&
+                            hp_restore == restore_cases[i][1] &&
+                            prayer_restore == restore_cases[i][2],
+                        "Healing Blade roll %d restores %d HP/%d Prayer "
+                        "(got %d/%d)",
+                        rolled_damage, restore_cases[i][1], restore_cases[i][2],
+                        hp_restore, prayer_restore);
+                }
+                player->active_script = NULL;
+            }
+
+            /* Ice Cleave binds on accuracy success even if its damage roll is
+             * zero; a miss must not bind. */
+            {
+                int32_t missed = 0;
+                int32_t successful_zero = 1;
+                int missed_ticks = -1;
+                int successful_ticks = -1;
+
+                SELFTEST_CHECK(
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,pvm_zgs_freeze_ticks]", &missed, 1,
+                        &missed_ticks) &&
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,pvm_zgs_freeze_ticks]",
+                            &successful_zero, 1, &successful_ticks) &&
+                        missed_ticks == 0 && successful_ticks == 32,
+                    "Ice Cleave miss binds %d ticks and successful zero binds "
+                    "%d ticks (expected 0/32)",
+                    missed_ticks, successful_ticks);
+                player->active_script = NULL;
+            }
+
+            /* Ancient godsword Blood Sacrifice is a player-owned delayed
+             * effect, independent of the GWD encounter scripts. Pin its exact
+             * revision-239 assets, eight-real-tick queue, stacking, escape and
+             * instance cancellation, current 15%-of-base healing rule, low-HP
+             * transfer cap, cleanup, and dismantle lock. */
+            {
+                static struct Mock230Capture ancient_capture;
+                const struct SSVM_Script* sacrifice =
+                    SSVM_ProviderGetByName(
+                        srv->scripts, "[queue,ancient_godsword_sacrifice]");
+                int mark_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "ancient_godsword_mark_count");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int ancient_sword = mock230_content_symbol(
+                    MOCK230_PACK_OBJ, "ancient_godsword");
+                int ancient_hilt = mock230_content_symbol(
+                    MOCK230_PACK_OBJ, "godwars_godsword_hilt_ancient");
+                int blade = mock230_content_symbol(
+                    MOCK230_PACK_OBJ, "godwars_godsword_blade1+2+3");
+                int launch_anim = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, "ngs_special_player");
+                int launch_spot = mock230_content_symbol(
+                    MOCK230_PACK_SPOTANIM, "ngs_special_spotanim");
+                int blood_spot = mock230_content_symbol(
+                    MOCK230_PACK_SPOTANIM, "spell_blood_siphon_impact");
+                int blood_sound = mock230_content_symbol(
+                    MOCK230_PACK_SYNTH, "blood_sacrifice");
+                int slot;
+
+                SELFTEST_CHECK(
+                    sacrifice && mark_varp >= 0 && nex_id >= 0 &&
+                        ancient_sword >= 0 && ancient_hilt >= 0 && blade >= 0 &&
+                        launch_anim == 9171 && launch_spot == 1996 &&
+                        blood_spot == 2003 && blood_sound == 2911,
+                    "Ancient godsword resolves Blood Sacrifice queue/assets "
+                    "(anim %d, launch %d, blood %d, sound %d)",
+                    launch_anim, launch_spot, blood_spot, blood_sound);
+
+                player->anim_id = -1;
+                player->spotanim_id = -1;
+                mock230_capture_begin(srv, &ancient_capture);
+                out = mock230_scripts_run_proc(
+                    srv, "[proc,ancient_godsword_launch_fx]", NULL, 0);
+                mock230_capture_end(srv);
+                SELFTEST_CHECK(
+                    out && player->anim_id == launch_anim &&
+                        player->spotanim_id == launch_spot &&
+                        selftest_capture_synth_count(
+                            &ancient_capture, srv->wire, blood_sound) == 1,
+                    "Blood Sacrifice launches exact animation, graphic, and sound");
+
+                /* Formula boundaries are deterministic independently of a
+                 * hit roll: 15% of base HP, NPC cap 25, and never more healing
+                 * than the sacrifice actually dealt. */
+                {
+                    static const int32_t heal_cases[][3] = {
+                        { 100, 25, 15 }, { 1000, 25, 25 }, { 1000, 10, 10 },
+                    };
+
+                    for( size_t i = 0;
+                         i < sizeof(heal_cases) / sizeof(heal_cases[0]); i++ )
+                    {
+                        int32_t heal_args[2] = {
+                            heal_cases[i][0], heal_cases[i][1]
+                        };
+                        out = -1;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,ancient_godsword_heal_amount]",
+                                heal_args, 2, &out) && out == heal_cases[i][2],
+                            "Blood Sacrifice heal case %zu returns %d (got %d)",
+                            i, heal_cases[i][2], out);
+                    }
+                }
+
+                memset(player->queue, 0, sizeof(player->queue));
+                player->varps[mark_varp] = 0;
+                slot = mock230_world_npc_spawn(
+                    srv, nex_id, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(slot >= 0,
+                               "Nex spawns as a high-HP Blood Sacrifice target");
+                if( slot >= 0 )
+                {
+                    struct Mock230Npc* target = &srv->npcs[slot];
+                    int32_t uid;
+                    int32_t land_args[3];
+                    int instance;
+
+                    target->spawn_pending = 0;
+                    uid = selftest_npc_uid(srv, slot);
+                    instance = mock230_mapinstance_find(player->x, player->z);
+
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,ancient_godsword_mark]", slot) &&
+                            mock230_scripts_run_proc_on_npc(
+                                srv, "[proc,ancient_godsword_mark]", slot),
+                        "two Blood Sacrifice marks arm independently");
+                    SELFTEST_CHECK(
+                        player->varps[mark_varp] == 2 &&
+                            selftest_player_queue_match(
+                                player, sacrifice, 8, 0, uid) == 2 &&
+                            selftest_player_queue_match(
+                                player, sacrifice, 8, 1,
+                                target->base_hitpoints) == 2 &&
+                            selftest_player_queue_match(
+                                player, sacrifice, 8, 2, instance) == 2,
+                        "two marks retain target/base-HP/instance for exactly "
+                        "eight real ticks");
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,ancient_godsword_clear_marks]", NULL, 0) &&
+                            player->varps[mark_varp] == 0 &&
+                            selftest_player_queue_match(
+                                player, sacrifice, -1, -1, 0) == 0,
+                        "Blood Sacrifice cleanup clears every stacked mark");
+
+                    land_args[0] = uid;
+                    land_args[1] = target->base_hitpoints;
+                    land_args[2] = instance;
+                    target->hitpoints = 100;
+                    target->spotanim_id = -1;
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                    player->max_hitpoints = 99;
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = 40;
+                    player->hitpoints = 40;
+                    player->varps[mark_varp] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[queue,ancient_godsword_sacrifice]",
+                            land_args, 3) && target->hitpoints == 75 &&
+                            player->hitpoints == 65 &&
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] == 65 &&
+                            target->spotanim_id == blood_spot &&
+                            player->varps[mark_varp] == 0,
+                        "an unescaped mark deals 25 typeless damage, shows the "
+                        "blood impact, and heals 25");
+
+                    target->hitpoints = 100;
+                    target->x = player->x + 5;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 40;
+                    player->varps[mark_varp] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[queue,ancient_godsword_sacrifice]",
+                            land_args, 3) && target->hitpoints == 100 &&
+                            player->hitpoints == 40 &&
+                            player->varps[mark_varp] == 0,
+                        "a target at least five tiles away escapes Blood Sacrifice");
+
+                    target->x = player->x + 1;
+                    target->hitpoints = 100;
+                    land_args[2] = instance + 1;
+                    player->varps[mark_varp] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[queue,ancient_godsword_sacrifice]",
+                            land_args, 3) && target->hitpoints == 100 &&
+                            player->hitpoints == 40 &&
+                            player->varps[mark_varp] == 0,
+                        "leaving the marked map instance cancels Blood Sacrifice");
+
+                    land_args[2] = instance;
+                    target->hitpoints = 10;
+                    player->varps[mark_varp] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[queue,ancient_godsword_sacrifice]",
+                            land_args, 3) && target->hitpoints == 0 &&
+                            player->hitpoints == 50 &&
+                            player->varps[mark_varp] == 0,
+                        "a 10-HP target transfers only the 10 damage actually dealt");
+                    target->active = 0;
+                }
+
+                /* The atomic helper carries the same active-mark restriction
+                 * as the interactive confirmation path. */
+                if( ancient_sword >= 0 && ancient_hilt >= 0 && blade >= 0 )
+                {
+                    int32_t dismantle_args[2] = {
+                        ancient_sword, ancient_hilt
+                    };
+
+                    selftest_clear_inv(player);
+                    selftest_give(player, ancient_sword, 1);
+                    player->varps[mark_varp] = 1;
+                    out = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_dismantle_apply]",
+                            dismantle_args, 2, &out) && out == 0 &&
+                            selftest_count(player, ancient_sword) == 1 &&
+                            selftest_count(player, ancient_hilt) == 0 &&
+                            selftest_count(player, blade) == 0,
+                        "an active Blood Sacrifice blocks Ancient godsword "
+                        "dismantling atomically");
+                    player->varps[mark_varp] = 0;
+                    selftest_clear_inv(player);
+                }
+                memset(player->queue, 0, sizeof(player->queue));
+                player->active_script = NULL;
+            }
+
             /* The four classic map-square spawn files are the source of truth
              * for the 69-NPC manifest. Reconstruct that same unique roster
              * from the loaded runtime and reject any record whose generated
@@ -14586,6 +15407,91 @@ mock230_world_selftest(void)
                 srv->npcs[slot].active = 0;
             }
 
+            /* The random one-in-eight wrapper is deliberately thin; drive
+             * each reviewed battle-cry branch directly so no line can vanish
+             * behind probabilistic coverage. */
+            {
+                static const char* const bandos_cries[] = {
+                    "Death to our enemies!", "Brargh!", "Break their bones!",
+                    "For the glory of Bandos!", "Split their skulls!",
+                    "We feast on the bones of our enemies tonight!", "CHAAARGE!",
+                    "Crush them underfoot!", "All glory to Bandos!",
+                    "GRAAAAAAAAAAAR!",
+                    "FOR THE GLORY OF THE BIG HIGH WAR GOD!",
+                };
+                static const char* const armadyl_cries[] = { "Kraaaw!" };
+                static const char* const saradomin_cries[] = {
+                    "Death to the enemies of the light!", "Slay the evil ones!",
+                    "Saradomin lend me strength!", "By the power of Saradomin!",
+                    "May Saradomin be my sword.", "Good will always triumph!",
+                    "Forward! Our allies are with us!", "Saradomin is with us!",
+                    "In the name of Saradomin!", "Attack! Find the Godsword!",
+                };
+                static const char* const zamorak_cries[] = {
+                    "Attack them, you dogs!", "Forward!",
+                    "Death to Saradomin's dogs!", "Kill them, you cowards!",
+                    "The Dark One will have their souls!", "Zamorak curse them!",
+                    "Rend them limb from limb!", "No retreat!", "Flay them all!",
+                };
+                static const struct
+                {
+                    const char* npc;
+                    const char* proc;
+                    const char* const* cries;
+                    size_t count;
+                    int takes_roll;
+                } families[] = {
+                    { "godwars_bandos_avatar", "[proc,gwd_cry_bandos_roll]",
+                      bandos_cries,
+                      sizeof(bandos_cries) / sizeof(bandos_cries[0]), 1 },
+                    { "godwars_armadyl_avatar", "[proc,gwd_cry_armadyl]",
+                      armadyl_cries,
+                      sizeof(armadyl_cries) / sizeof(armadyl_cries[0]), 0 },
+                    { "godwars_saradomin_avatar", "[proc,gwd_cry_saradomin_roll]",
+                      saradomin_cries,
+                      sizeof(saradomin_cries) / sizeof(saradomin_cries[0]), 1 },
+                    { "godwars_zamorak_avatar", "[proc,gwd_cry_zamorak_roll]",
+                      zamorak_cries,
+                      sizeof(zamorak_cries) / sizeof(zamorak_cries[0]), 1 },
+                };
+
+                for( size_t family = 0;
+                     family < sizeof(families) / sizeof(families[0]); family++ )
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, families[family].npc);
+                    int slot = mock230_world_npc_spawn(
+                        srv, npc_id, player->x + 1, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "%s spawns for battle-cry audit",
+                                   families[family].npc);
+                    if( slot < 0 )
+                        continue;
+                    srv->npcs[slot].spawn_pending = 0;
+                    for( size_t cry = 0; cry < families[family].count; cry++ )
+                    {
+                        int32_t roll = (int32_t)cry;
+                        int ran;
+
+                        srv->npcs[slot].say[0] = '\0';
+                        if( families[family].takes_roll )
+                            ran = mock230_scripts_run_proc_args_on_npc(
+                                srv, families[family].proc, slot, &roll, 1);
+                        else
+                            ran = mock230_scripts_run_proc_on_npc(
+                                srv, families[family].proc, slot);
+                        SELFTEST_CHECK(
+                            ran && strcmp(
+                                srv->npcs[slot].say,
+                                families[family].cries[cry]) == 0,
+                            "%s battle cry %zu is exact (got '%s')",
+                            families[family].npc, cry, srv->npcs[slot].say);
+                    }
+                    srv->npcs[slot].active = 0;
+                }
+                player->active_script = NULL;
+            }
+
             /* The prayer-smash shares K'ril's melee animation, so random
              * branch coverage cannot distinguish it from an ordinary swing.
              * Invoke the factored production branch directly and pin its
@@ -14754,6 +15660,20 @@ mock230_world_selftest(void)
                                 selftest_gwd_manifest_find(
                                     "godwars_armadyl_avatar", selected, 0),
                                 &srv->npcs[slot], &kree_capture);
+                            if( strcmp(selected, "magic_wind") == 0 )
+                            {
+                                int whirlwind = mock230_content_symbol(
+                                    MOCK230_PACK_SYNTH,
+                                    "godwars_armadyl_magic_whirlwind");
+
+                                SELFTEST_CHECK(
+                                    selftest_capture_synth_count(
+                                        &kree_capture, srv->wire,
+                                        whirlwind) == 1,
+                                    "Kree'arra magic wind emits its dedicated "
+                                    "whirlwind sound %d",
+                                    whirlwind);
+                            }
                             memset(player->queue, 0, sizeof(player->queue));
                             memset(player->engine_queue, 0,
                                    sizeof(player->engine_queue));
@@ -15332,6 +16252,11 @@ mock230_world_selftest(void)
                             srv, "[proc,nex_initialize_actor]", slot),
                         "Nex phase %d crossing actor initializes",
                         nex_phase_cases[i].phase);
+                    SELFTEST_CHECK(
+                        strcmp(srv->npcs[slot].say,
+                               "Fill my soul with smoke!") == 0,
+                        "Nex spawn cry is exact (got '%s')",
+                        srv->npcs[slot].say);
                     srv->npcs[slot].script_vars[0] = nex_phase_cases[i].phase;
                     srv->npcs[slot].hitpoints = nex_phase_cases[i].floor + 100;
                     args[0] = 200;
@@ -15344,9 +16269,14 @@ mock230_world_selftest(void)
                         nex_phase_cases[i].phase, nex_phase_cases[i].floor, out);
                     SELFTEST_CHECK(
                         srv->npcs[slot].script_vars[1] == nex_phase_cases[i].phase &&
-                            srv->npcs[slot].anim_id == dash,
-                        "Nex phase %d crossing starts its mage intermission and dash",
-                        nex_phase_cases[i].phase);
+                            srv->npcs[slot].anim_id == dash &&
+                            strcmp(srv->npcs[slot].say,
+                                   nex_phase_cases[i].challenge_cry) == 0,
+                        "Nex phase %d crossing starts its mage intermission, "
+                        "dash, and exact cry '%s' (got '%s')",
+                        nex_phase_cases[i].phase,
+                        nex_phase_cases[i].challenge_cry,
+                        srv->npcs[slot].say);
                     args[0] = 5000;
                     SELFTEST_CHECK(
                         mock230_scripts_run_proc_int_on_npc(
@@ -15435,9 +16365,14 @@ mock230_world_selftest(void)
                                     nex_phase_cases[i].phase + 1 &&
                                 srv->npcs[boss].script_vars[1] == 0 &&
                                 srv->npcs[boss].script_vars[2] == 0 &&
-                                srv->npcs[boss].script_vars[3] == 0,
-                            "%s advances exactly one phase and clears cadence state",
-                            nex_phase_cases[i].mage);
+                                srv->npcs[boss].script_vars[3] == 0 &&
+                                strcmp(srv->npcs[boss].say,
+                                       nex_phase_cases[i].advance_cry) == 0,
+                            "%s advances exactly one phase, clears cadence, "
+                            "and says '%s' (got '%s')",
+                            nex_phase_cases[i].mage,
+                            nex_phase_cases[i].advance_cry,
+                            srv->npcs[boss].say);
                         srv->npcs[mage].active = 0;
                     }
                     SELFTEST_CHECK(
@@ -15613,6 +16548,7 @@ mock230_world_selftest(void)
                         srv->npcs[boss].z = 81 * 64 + 18;
                         srv->npcs[boss].anim_id = -1;
                         srv->npcs[boss].script_vars[0] = (int)i / 2 + 1;
+                        srv->npcs[boss].say[0] = '\0';
                         player->x = srv->npcs[boss].x + 1;
                         player->z = srv->npcs[boss].z;
                         player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
@@ -15647,6 +16583,14 @@ mock230_world_selftest(void)
                             nex_special_cases[i].proc,
                             nex_special_cases[i].which,
                             nex_special_cases[i].sound);
+                        SELFTEST_CHECK(
+                            strcmp(srv->npcs[boss].say,
+                                   nex_special_cases[i].cry) == 0,
+                            "%s branch %d says exact cry '%s' (got '%s')",
+                            nex_special_cases[i].proc,
+                            nex_special_cases[i].which,
+                            nex_special_cases[i].cry,
+                            srv->npcs[boss].say);
                         if( i == 0 )
                         {
                             const struct SSVM_Script* cough =
@@ -15953,6 +16897,106 @@ mock230_world_selftest(void)
                                 "Nex Ice landing queues a 15-tick freeze");
                     }
 
+                    {
+                        static const struct
+                        {
+                            int phase;
+                            int amount;
+                            int protected_at_cast;
+                            int prayer_at_impact;
+                            int damage;
+                            int prayer_after;
+                            int heal;
+                            int poison_count;
+                            int freeze_count;
+                            const char* label;
+                        } protection_cases[] = {
+                            { 1, 0, 0, 0, 0, 80, 0, 0, 0,
+                              "Smoke miss" },
+                            { 1, 33, 0, 0, 33, 80, 0, 1, 0,
+                              "Smoke maximum" },
+                            { 3, 20, 0, 1, 6, 77, 1, 0, 0,
+                              "protected Blood" },
+                            { 4, 20, 0, 1, 10, 75, 0, 0, 0,
+                              "protected Ice" },
+                            { 5, 20, 0, 1, 15, 75, 0, 0, 0,
+                              "mid-flight Zaros protection" },
+                            { 5, 20, 1, 1, 10, 75, 0, 0, 0,
+                              "cast-time Zaros protection" },
+                            { 5, 20, 1, 0, 20, 75, 0, 0, 0,
+                              "cancelled Zaros protection" },
+                        };
+
+                        for( size_t i = 0;
+                             i < sizeof(protection_cases) /
+                                     sizeof(protection_cases[0]);
+                             i++ )
+                        {
+                            int npc_hp_before;
+
+                            mock230_scripts_run_proc(
+                                srv, "[proc,prayer_deactivate_all]", NULL, 0);
+                            memset(player->queue, 0, sizeof(player->queue));
+                            player->hitmark_count = 0;
+                            player->hitpoints =
+                                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                            player->stat_level[MOCK230_STAT_PRAYER] = 99;
+                            player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                            if( protection_cases[i].prayer_at_impact )
+                                selftest_prayer_toggle(
+                                    srv, "prayer_protectfrommagic");
+                            srv->npcs[boss].type = nex_id;
+                            srv->npcs[boss].hitpoints =
+                                srv->npcs[boss].base_hitpoints - 100;
+                            npc_hp_before = srv->npcs[boss].hitpoints;
+                            land_args[0] = source;
+                            land_args[1] = protection_cases[i].phase;
+                            land_args[2] = protection_cases[i].amount;
+                            land_args[3] = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                impacts[protection_cases[i].phase]);
+                            land_args[4] =
+                                protection_cases[i].protected_at_cast;
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[queue,nex_magic_land]", boss,
+                                    land_args, 5),
+                                "Nex %s landing executes",
+                                protection_cases[i].label);
+                            SELFTEST_CHECK(
+                                player->hitpoints ==
+                                        99 - protection_cases[i].damage &&
+                                    player->stat_boosted[MOCK230_STAT_PRAYER] ==
+                                        protection_cases[i].prayer_after &&
+                                    srv->npcs[boss].hitpoints ==
+                                        npc_hp_before +
+                                            protection_cases[i].heal &&
+                                    selftest_player_queue_match(
+                                        player, poison, -1, 0, 16) ==
+                                        protection_cases[i].poison_count &&
+                                    selftest_player_queue_match(
+                                        player, freeze, -1, 0, 15) ==
+                                        protection_cases[i].freeze_count,
+                                "Nex %s resolves damage/prayer/heal/poison/"
+                                "freeze as %d/%d/%d/%d/%d (got %d/%d/%d/%d/%d)",
+                                protection_cases[i].label,
+                                protection_cases[i].damage,
+                                protection_cases[i].prayer_after,
+                                protection_cases[i].heal,
+                                protection_cases[i].poison_count,
+                                protection_cases[i].freeze_count,
+                                99 - player->hitpoints,
+                                player->stat_boosted[MOCK230_STAT_PRAYER],
+                                srv->npcs[boss].hitpoints - npc_hp_before,
+                                selftest_player_queue_match(
+                                    player, poison, -1, 0, 16),
+                                selftest_player_queue_match(
+                                    player, freeze, -1, 0, 15));
+                        }
+                        mock230_scripts_run_proc(
+                            srv, "[proc,prayer_deactivate_all]", NULL, 0);
+                    }
+
                     mock230_scripts_run_proc(
                         srv, "[proc,prayer_deactivate_all]", NULL, 0);
                     memset(player->queue, 0, sizeof(player->queue));
@@ -16114,9 +17158,334 @@ mock230_world_selftest(void)
                             player->hitpoints >= 24 && player->hitpoints <= 99,
                         "Nex Ice Prison hits every player still in the armed "
                         "3x3 for 0..75 (hp %d)", player->hitpoints);
+
+                    {
+                        static const char* const effect_names[] = {
+                            "[queue,nex_magic_land]",
+                            "[queue,nex_shadow_land]",
+                            "[queue,nex_cough_tick]",
+                            "[queue,nex_shadow_smash_land]",
+                            "[queue,nex_darkness_tick]",
+                            "[queue,nex_blood_sacrifice_land]",
+                            "[queue,nex_ice_prison_land]",
+                        };
+                        int armed = 0;
+                        int remaining = 0;
+
+                        memset(player->queue, 0, sizeof(player->queue));
+                        player->x = srv->npcs[boss].x + 1;
+                        player->z = srv->npcs[boss].z;
+                        land_args[0] = 1;
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_magic_auto]", boss,
+                            land_args, 1);
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_shadow_auto]", boss);
+                        land_args[0] = 0;
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_smoke]", boss,
+                            land_args, 1);
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_shadow]", boss,
+                            land_args, 1);
+                        land_args[0] = 1;
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_shadow]", boss,
+                            land_args, 1);
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_blood]", boss,
+                            land_args, 1);
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_ice]", boss,
+                            land_args, 1);
+                        for( size_t i = 0;
+                             i < sizeof(effect_names) / sizeof(effect_names[0]);
+                             i++ )
+                            armed += selftest_player_queue_match(
+                                player,
+                                SSVM_ProviderGetByName(
+                                    srv->scripts, effect_names[i]),
+                                -1, -1, 0);
+                        SELFTEST_CHECK(
+                            armed == 7,
+                            "Nex cleanup fixture arms all seven player-owned "
+                            "attack/effect queues (got %d)", armed);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_on_npc(
+                                srv, "[proc,nex_cleanup_player]", boss),
+                            "Nex player-effect cleanup executes");
+                        for( size_t i = 0;
+                             i < sizeof(effect_names) / sizeof(effect_names[0]);
+                             i++ )
+                            remaining += selftest_player_queue_match(
+                                player,
+                                SSVM_ProviderGetByName(
+                                    srv->scripts, effect_names[i]),
+                                -1, -1, 0);
+                        SELFTEST_CHECK(
+                            remaining == 0 &&
+                                player->varps[mock230_content_symbol(
+                                    MOCK230_PACK_VARP,
+                                    "nex_cough_until")] == 0,
+                            "Nex cleanup removes every armed effect and cough "
+                            "deadline (remaining %d)", remaining);
+                    }
                     srv->npcs[boss].active = 0;
                 }
                 memset(player->queue, 0, sizeof(player->queue));
+            }
+
+            /* Drive Nex's real death hook without contribution so this stays
+             * loot-independent while pinning the Wrath warning, map graphic,
+             * delayed 5x5 landing, and exact death cry. */
+            {
+                const struct SSVM_Script* wrath = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_wrath_land]");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int wrath_graphic = mock230_content_symbol(
+                    MOCK230_PACK_SPOTANIM, "nex_finale_attack_impact");
+                int boss;
+
+                player->x = 45 * 64 + 45;
+                player->z = 81 * 64 + 18;
+                player->level = 0;
+                memset(player->queue, 0, sizeof(player->queue));
+                mock230_zone_reset(srv);
+                boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+                SELFTEST_CHECK(boss >= 0, "Nex spawns for Wrath death audit");
+                if( boss >= 0 )
+                {
+                    int death_coord = mock230_coord_pack(
+                        srv->npcs[boss].level,
+                        srv->npcs[boss].x,
+                        srv->npcs[boss].z);
+
+                    srv->npcs[boss].spawn_pending = 0;
+                    srv->npcs[boss].script_vars[6] = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[ai_queue3,nex]", boss),
+                        "Nex real death hook executes for Wrath audit");
+                    SELFTEST_CHECK(
+                        strcmp(srv->npcs[boss].say, "Taste my wrath!") == 0 &&
+                            mock230_zone_event_count(
+                                srv, MOCK230_ZONE_EV_MAPANIM,
+                                wrath_graphic) == 1 &&
+                            selftest_player_queue_match(
+                                player, wrath, 4, 0, death_coord) == 1,
+                        "Nex death says exact Wrath cry, emits graphic %d, and "
+                        "arms one three-tick 5x5 landing",
+                        wrath_graphic);
+                    srv->npcs[boss].active = 0;
+                }
+                memset(player->queue, 0, sizeof(player->queue));
+                player->active_script = NULL;
+            }
+
+            /* Scoreboard progression is independent from random loot. Pin the
+             * first best, slower-kill retention, faster-kill replacement, and
+             * contribution teardown through the production helper. */
+            {
+                int kills = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "total_nex_kills");
+                int best = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_personal_best_ticks");
+                int contribution_uid = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_contribution_uid");
+                int contribution_damage = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_contribution_damage");
+                int encounter_start = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_encounter_start");
+                static const int32_t durations[] = { 50, 80, 40 };
+                static const int expected_best[] = { 50, 50, 40 };
+
+                SELFTEST_CHECK(
+                    kills >= 0 && best >= 0 && contribution_uid >= 0 &&
+                        contribution_damage >= 0 && encounter_start >= 0,
+                    "all Nex scoreboard/contribution varps resolve");
+                if( kills >= 0 && best >= 0 && contribution_uid >= 0 &&
+                    contribution_damage >= 0 && encounter_start >= 0 )
+                {
+                    player->varps[kills] = 0;
+                    player->varps[best] = 0;
+                    for( size_t i = 0;
+                         i < sizeof(durations) / sizeof(durations[0]); i++ )
+                    {
+                        player->varps[contribution_uid] = 100 + (int)i;
+                        player->varps[contribution_damage] = 25 + (int)i;
+                        player->varps[encounter_start] = 10 + (int)i;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,nex_finish_personal_score]",
+                                &durations[i], 1) &&
+                                player->varps[kills] == (int)i + 1 &&
+                                player->varps[best] == expected_best[i] &&
+                                player->varps[contribution_uid] == 0 &&
+                                player->varps[contribution_damage] == 0 &&
+                                player->varps[encounter_start] == 0,
+                            "Nex scoreboard duration %d yields kills/best "
+                            "%zu/%d and clears contribution state",
+                            durations[i], i + 1, expected_best[i]);
+                    }
+                }
+                player->active_script = NULL;
+            }
+
+            /* Exercise contribution policy through Nex's actual death hook,
+             * including the exact eligibility edge. Equal damage deliberately
+             * awards the first hunt-order player the sole MVP bones; unequal
+             * damage follows the larger contribution; a 24-damage survivor is
+             * excluded, receives no kill, and still has the dead encounter's
+             * attribution cleared. */
+            {
+                static const struct
+                {
+                    int first_damage;
+                    int second_damage;
+                    int expected_mvp;
+                    int expected_first_kills;
+                    int expected_second_kills;
+                    const char* label;
+                } cases[] = {
+                    { 50, 50, 0, 1, 1, "equal contribution tie" },
+                    { 25, 75, 1, 1, 1, "unequal exact-threshold contribution" },
+                    { 24, 76, 1, 0, 1, "sub-threshold contribution" },
+                };
+                struct Mock230Player* first = player;
+                struct Mock230Player* second =
+                    mock230_world_add_player(srv, NULL);
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int bones = mock230_content_symbol(MOCK230_PACK_OBJ, "big_bones");
+                int contribution_uid = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_contribution_uid");
+                int contribution_damage = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_contribution_damage");
+                int encounter_start = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "nex_encounter_start");
+                int kills = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "total_nex_kills");
+
+                SELFTEST_CHECK(
+                    second != NULL && nex_id >= 0 && bones >= 0 &&
+                        contribution_uid >= 0 && contribution_damage >= 0 &&
+                        encounter_start >= 0 && kills >= 0,
+                    "Nex contribution death-hook fixture resolves");
+                if( second && nex_id >= 0 && bones >= 0 &&
+                    contribution_uid >= 0 && contribution_damage >= 0 &&
+                    encounter_start >= 0 && kills >= 0 )
+                {
+                    mock230_world_player_init(second);
+                    first->x = second->x = 45 * 64 + 45;
+                    first->z = second->z = 81 * 64 + 18;
+                    first->level = second->level = 0;
+                    for( size_t c = 0;
+                         c < sizeof(cases) / sizeof(cases[0]); c++ )
+                    {
+                        int boss;
+                        int boss_uid;
+                        int mvp_bones = 0;
+                        int other_bones = 0;
+
+                        mock230_world_set_active(srv, first);
+                        selftest_clear_ground(srv);
+                        memset(first->queue, 0, sizeof(first->queue));
+                        memset(second->queue, 0, sizeof(second->queue));
+                        first->varps[kills] = second->varps[kills] = 0;
+                        boss = mock230_world_npc_spawn(
+                            srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+                        SELFTEST_CHECK(
+                            boss >= 0, "Nex spawns for %s",
+                            cases[c].label);
+                        if( boss < 0 )
+                            continue;
+                        srv->npcs[boss].spawn_pending = 0;
+                        boss_uid =
+                            ((int)srv->npcs[boss].generation << 16) | boss;
+                        srv->npcs[boss].script_vars[6] =
+                            cases[c].first_damage + cases[c].second_damage;
+                        first->varps[contribution_uid] =
+                            second->varps[contribution_uid] = boss_uid;
+                        first->varps[contribution_damage] =
+                            cases[c].first_damage;
+                        second->varps[contribution_damage] =
+                            cases[c].second_damage;
+                        first->varps[encounter_start] =
+                            second->varps[encounter_start] =
+                                srv->tick > 10 ? srv->tick - 10 : 1;
+
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_on_npc(
+                                srv, "[ai_queue3,nex]", boss),
+                            "Nex death hook executes for %s",
+                            cases[c].label);
+                        for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                        {
+                            const struct Mock230GroundObj* obj =
+                                &srv->ground[slot];
+                            int expected_pid = cases[c].expected_mvp == 0
+                                                   ? first->pid
+                                                   : second->pid;
+
+                            if( !obj->active || obj->is_spawn ||
+                                obj->obj_id != bones )
+                                continue;
+                            if( obj->receiver_pid == expected_pid )
+                                mvp_bones += obj->count;
+                            else
+                                other_bones += obj->count;
+                        }
+                        SELFTEST_CHECK(
+                            mvp_bones == 1 && other_bones == 0,
+                            "%s awards exactly one MVP big-bones drop to "
+                            "player %d (mvp/other %d/%d)",
+                            cases[c].label, cases[c].expected_mvp,
+                            mvp_bones, other_bones);
+                        SELFTEST_CHECK(
+                            first->varps[kills] ==
+                                    cases[c].expected_first_kills &&
+                                second->varps[kills] ==
+                                    cases[c].expected_second_kills &&
+                                first->varps[contribution_uid] == 0 &&
+                                first->varps[contribution_damage] == 0 &&
+                                second->varps[contribution_uid] == 0 &&
+                                second->varps[contribution_damage] == 0,
+                            "%s gives eligible killcounts %d/%d and clears "
+                            "both contribution records",
+                            cases[c].label,
+                            cases[c].expected_first_kills,
+                            cases[c].expected_second_kills);
+                        srv->npcs[boss].active = 0;
+                    }
+                    mock230_world_set_active(srv, second);
+                    second->varps[contribution_uid] = 123456;
+                    second->varps[contribution_damage] = 99;
+                    second->varps[encounter_start] = 10;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_private_on_logout]", NULL, 0) &&
+                            second->varps[contribution_uid] == 0 &&
+                            second->varps[contribution_damage] == 0 &&
+                            second->varps[encounter_start] == 0,
+                        "Nex disconnect/logout clears personal contribution");
+                    first->varps[contribution_uid] = 654321;
+                    first->varps[contribution_damage] = 88;
+                    first->varps[encounter_start] = 10;
+                    mock230_world_set_active(srv, first);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_private_on_death]", NULL, 0,
+                            &out) &&
+                            first->varps[contribution_uid] == 0 &&
+                            first->varps[contribution_damage] == 0 &&
+                            first->varps[encounter_start] == 0,
+                        "Nex death clears personal contribution");
+                    mock230_world_set_active(srv, first);
+                    mock230_world_player_free(srv, second->pid);
+                    mock230_world_player_reap(srv);
+                }
+                memset(first->queue, 0, sizeof(first->queue));
+                first->active_script = NULL;
             }
 
             /* stat1..stat6 live in the client cache but are not generic NPC
@@ -16461,6 +17830,90 @@ mock230_world_selftest(void)
                 if( second )
                     second->active = 0;
                 memset(first->queue, 0, sizeof(first->queue));
+            }
+
+            /* A full-world barrage is a different iterator shape from nearest
+             * targeting. Eight is this runtime's configured player ceiling;
+             * stacked tiles force huntall across every live slot, and every
+             * player must independently receive and release one landing. */
+            {
+                enum { NEX_MASS_PLAYERS = MOCK230_PLAYER_MAX };
+                struct Mock230Player* team[NEX_MASS_PLAYERS] = { player };
+                const struct SSVM_Script* magic_land = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_magic_land]");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int joined = 1;
+                int queued = 0;
+                int cleaned = 0;
+                int boss;
+
+                mock230_world_set_active(srv, player);
+                for( int i = 1; i < NEX_MASS_PLAYERS; i++ )
+                {
+                    struct Mock230Player* participant =
+                        mock230_world_add_player(srv, NULL);
+
+                    if( !participant )
+                        continue;
+                    team[joined++] = participant;
+                    mock230_world_player_init(participant);
+                    participant->level = 0;
+                    participant->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                    participant->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    participant->max_hitpoints = participant->hitpoints = 99;
+                }
+                SELFTEST_CHECK(
+                    joined == NEX_MASS_PLAYERS,
+                    "all %d player slots join the Nex mass-room fixture (got %d)",
+                    NEX_MASS_PLAYERS, joined);
+                for( int i = 0; i < joined; i++ )
+                {
+                    /* A 7x5 lattice deliberately stacks the final three. */
+                    team[i]->x = 45 * 64 + 44 + (i % 7) - 3;
+                    team[i]->z = 81 * 64 + 18 + ((i / 7) % 5) - 2;
+                    team[i]->level = 0;
+                    memset(team[i]->queue, 0, sizeof(team[i]->queue));
+                    memset(team[i]->engine_queue, 0,
+                           sizeof(team[i]->engine_queue));
+                }
+                boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+                SELFTEST_CHECK(boss >= 0,
+                               "Nex spawns for 32-player room barrage");
+                if( boss >= 0 && joined == NEX_MASS_PLAYERS )
+                {
+                    srv->npcs[boss].spawn_pending = 0;
+                    args[0] = 1;
+                    mock230_world_set_active(srv, player);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_magic_auto]", boss, args, 1),
+                        "Nex full-world Smoke barrage executes");
+                    for( int i = 0; i < joined; i++ )
+                        queued += selftest_player_queue_match(
+                            team[i], magic_land, -1, -1, 0);
+                    SELFTEST_CHECK(
+                        queued == joined,
+                        "Nex mass barrage queues exactly one landing per "
+                        "participant (%d/%d)", queued, joined);
+                    for( int i = 0; i < joined; i++ )
+                    {
+                        mock230_world_set_active(srv, team[i]);
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_cleanup_player]", boss);
+                        cleaned += selftest_player_queue_match(
+                                       team[i], magic_land, -1, -1, 0) == 0;
+                    }
+                    SELFTEST_CHECK(
+                        cleaned == joined,
+                        "all %d Nex participants independently release their "
+                        "landing queue (%d/%d)", joined, cleaned, joined);
+                    srv->npcs[boss].active = 0;
+                }
+                mock230_world_set_active(srv, player);
+                for( int i = 1; i < joined; i++ )
+                    team[i]->active = 0;
+                memset(player->queue, 0, sizeof(player->queue));
             }
 
             /* Ancient Prison attack assets and the mage's four deterministic
@@ -16986,9 +18439,9 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(
                         kc_varbits[i] >= 0 &&
                             mock230_varbit_get(player, kc_varbits[i]) ==
-                                kc_values[i],
-                        "GWD KC counter %zu survives relog with %d (got %d)",
-                        i, kc_values[i],
+                                (i < 4 ? kc_values[i] : 0),
+                        "GWD KC counter %zu reloads with %d (got %d)",
+                        i, i < 4 ? kc_values[i] : 0,
                         kc_varbits[i] >= 0
                             ? mock230_varbit_get(player, kc_varbits[i]) : -1);
                 for( size_t i = 0;
@@ -17040,6 +18493,140 @@ mock230_world_selftest(void)
                         srv, "[proc,gwd_private_fee]", NULL, 0, &out) &&
                         out == expected_fee[i],
                     "GWD CA tier %d sets private fee %d, got %d", i, expected_fee[i], out);
+            }
+
+            /* Entry payment is one check-and-consume VM operation. Drive the
+             * operation repeatedly, as duplicate packets would, and prove the
+             * second invocation cannot reuse the first invocation's positive
+             * availability check. This covers every faction counter, KC-first
+             * priority over a key, a lone ecumenical key, four-piece assembly,
+             * and the permanent Frozen Door unlock. */
+            {
+                static const char* const kc_names[] = {
+                    "godwars_counter_armadyl", "godwars_counter_bandos",
+                    "godwars_counter_saradomin", "godwars_counter_zamorak",
+                    "godwars_counter_zaros",
+                };
+                static const char* const piece_names[] = {
+                    "nex_frozen_key_armadyl", "nex_frozen_key_bandos",
+                    "nex_frozen_key_saradomin", "nex_frozen_key_zamorak",
+                };
+                int kc_ids[5];
+                int pieces[4];
+                int eco = mock230_content_symbol(MOCK230_PACK_OBJ, "ecumenical_key");
+                int frozen_key =
+                    mock230_content_symbol(MOCK230_PACK_OBJ, "nex_frozen_key");
+                int frozen_state = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_frozen_door_state");
+                int resolved = eco >= 0 && frozen_key >= 0 && frozen_state >= 0;
+
+                for( int i = 0; i < 4; i++ )
+                    if( tiers[i] >= 0 )
+                        mock230_varbit_set(srv, tiers[i], 0);
+                for( int i = 0; i < 5; i++ )
+                {
+                    kc_ids[i] = mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, kc_names[i]);
+                    resolved &= kc_ids[i] >= 0;
+                }
+                for( int i = 0; i < 4; i++ )
+                {
+                    pieces[i] = mock230_content_symbol(
+                        MOCK230_PACK_OBJ, piece_names[i]);
+                    resolved &= pieces[i] >= 0;
+                }
+                SELFTEST_CHECK(resolved,
+                               "all atomic GWD entry resources resolve");
+
+                if( resolved )
+                {
+                    for( int faction = 1; faction <= 5; faction++ )
+                    {
+                        int call_args[] = { faction };
+                        int first = 0, duplicate = 0;
+
+                        selftest_clear_inv(player);
+                        for( int i = 0; i < 5; i++ )
+                            mock230_varbit_set(srv, kc_ids[i], 0);
+                        mock230_varbit_set(srv, kc_ids[faction - 1], 40);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_take_chamber_access]",
+                                call_args, 1, &first) &&
+                                mock230_scripts_run_proc_int(
+                                    srv, "[proc,gwd_take_chamber_access]",
+                                    call_args, 1, &duplicate) &&
+                                first == 1 && duplicate == 0 &&
+                                mock230_varbit_get(player,
+                                                   kc_ids[faction - 1]) == 0,
+                            "faction %d duplicate KC entry consumes one exact "
+                            "40-KC payment (first %d, duplicate %d, left %d)",
+                            faction, first, duplicate,
+                            mock230_varbit_get(player, kc_ids[faction - 1]));
+                    }
+
+                    {
+                        int call_args[] = { 1 };
+                        int first = 0, second = 0, third = 0;
+
+                        selftest_clear_inv(player);
+                        mock230_varbit_set(srv, kc_ids[0], 40);
+                        selftest_give(player, eco, 1);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_take_chamber_access]",
+                                call_args, 1, &first) &&
+                                mock230_scripts_run_proc_int(
+                                    srv, "[proc,gwd_take_chamber_access]",
+                                    call_args, 1, &second) &&
+                                mock230_scripts_run_proc_int(
+                                    srv, "[proc,gwd_take_chamber_access]",
+                                    call_args, 1, &third) &&
+                                first == 1 && second == 1 && third == 0 &&
+                                mock230_varbit_get(player, kc_ids[0]) == 0 &&
+                                selftest_count(player, eco) == 0,
+                            "entry atomically spends KC before one key and "
+                            "rejects the next duplicate");
+                    }
+
+                    selftest_clear_inv(player);
+                    player->varps[frozen_state] = 1;
+                    for( int i = 0; i < 4; i++ )
+                        selftest_give(player, pieces[i], 1);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_assemble_frozen_key]", NULL, 0) &&
+                            selftest_count(player, frozen_key) == 1,
+                        "four frozen-key pieces assemble exactly one key");
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_assemble_frozen_key]", NULL, 0) &&
+                            selftest_count(player, frozen_key) == 1 &&
+                            player->varps[frozen_state] == 2,
+                        "duplicate frozen-key assembly creates no second key");
+
+                    selftest_clear_inv(player);
+                    selftest_give(player, frozen_key, 2);
+                    player->varps[frozen_state] = 2;
+                    mock230_combat_set_level(player, MOCK230_STAT_AGILITY, 70);
+                    mock230_combat_set_level(player, MOCK230_STAT_RANGED, 70);
+                    mock230_combat_set_level(player, MOCK230_STAT_STRENGTH, 70);
+                    mock230_combat_set_level(player, MOCK230_STAT_HITPOINTS, 70);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_frozen_door_enter]", NULL, 0) &&
+                            selftest_count(player, frozen_key) == 1 &&
+                            player->varps[frozen_state] == 3,
+                        "Frozen Door unlock consumes one key and commits state");
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_frozen_door_enter]", NULL, 0) &&
+                            selftest_count(player, frozen_key) == 1 &&
+                            player->varps[frozen_state] == 3,
+                        "duplicate Frozen Door input cannot consume another key");
+                    selftest_clear_inv(player);
+                    selftest_park_player(srv, 45 * 64 + 12, 81 * 64 + 19);
+                }
             }
 
             args[0] = 100;
@@ -17264,6 +18851,83 @@ mock230_world_selftest(void)
                     nex_clues);
             }
 
+            /* Brimstone keys have three independent gates: Konar must own the
+             * assignment, this exact NPC must match it, and the tertiary roll
+             * must land. Keep those gates deterministic while production uses
+             * the same predicate with random(denominator). */
+            {
+                int konar = mock230_content_constant_int(
+                    "slayer_master_konar", -1);
+                struct
+                {
+                    int master;
+                    int matches;
+                    int roll;
+                    int expected;
+                } eligibility[] = {
+                    { 8, 1, 0, 1 },
+                    { 8, 1, 1, 0 },
+                    { 8, 0, 0, 0 },
+                    { 7, 1, 0, 0 },
+                };
+                struct
+                {
+                    const char* npc;
+                    int denominator;
+                } bodyguards[] = {
+                    { "godwars_armadyl_bodyguard_skree", 92 },
+                    { "godwars_armadyl_bodyguard_geerin", 91 },
+                    { "godwars_armadyl_bodyguard_kilisa", 89 },
+                };
+
+                SELFTEST_CHECK(konar == 8,
+                               "Konar master constant resolves to 8 (got %d)",
+                               konar);
+                for( size_t i = 0;
+                     i < sizeof(eligibility) / sizeof(eligibility[0]); i++ )
+                {
+                    int32_t brimstone_args[3] = {
+                        eligibility[i].master,
+                        eligibility[i].matches,
+                        eligibility[i].roll,
+                    };
+                    int allowed = -1;
+
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_brimstone_key_allowed]",
+                            brimstone_args, 3, &allowed) &&
+                            allowed == eligibility[i].expected,
+                        "Brimstone prerequisite master/match/roll %d/%d/%d "
+                        "returns %d (got %d)",
+                        eligibility[i].master, eligibility[i].matches,
+                        eligibility[i].roll, eligibility[i].expected,
+                        allowed);
+                }
+                for( size_t i = 0;
+                     i < sizeof(bodyguards) / sizeof(bodyguards[0]); i++ )
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, bodyguards[i].npc);
+                    int slot = mock230_world_npc_spawn(
+                        srv, npc_id, player->x + 1, player->z, player->level);
+                    int denominator = -1;
+
+                    SELFTEST_CHECK(
+                        slot >= 0 &&
+                            mock230_scripts_run_proc_int_on_npc(
+                                srv,
+                                "[proc,gwd_armadyl_bodyguard_brimstone_denominator]",
+                                slot, NULL, 0, &denominator) &&
+                            denominator == bodyguards[i].denominator,
+                        "%s uses Brimstone denominator %d (got %d)",
+                        bodyguards[i].npc, bodyguards[i].denominator,
+                        denominator);
+                    if( slot >= 0 )
+                        srv->npcs[slot].active = 0;
+                }
+            }
+
             {
                 int old_x = player->x;
                 int old_z = player->z;
@@ -17384,52 +19048,108 @@ mock230_world_selftest(void)
                                               ? mock230_content_symbol(MOCK230_PACK_OBJ,
                                                                        test->obj)
                                               : -1;
-                        int found = -1;
-                        int actual_id = -1;
-                        int32_t drop_args[3];
                         int drop_argc = test->extra >= 0 ? 3 : 2;
+                        int upper_roll = strstr(test->proc, "gwd_prison_")
+                                             ? 125
+                                             : 126;
 
-                        selftest_clear_ground(srv);
-                        drop_args[0] = mock230_coord_pack(
-                            player->level, player->x, player->z);
-                        drop_args[1] = test->roll;
-                        drop_args[2] = test->extra;
-                        SELFTEST_CHECK(
-                            mock230_scripts_run_proc(
-                                srv, test->proc, drop_args, drop_argc),
-                            "%s roll %d executes", test->proc, test->roll);
-                        for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                        if( i + 1 < sizeof(drop_cases) / sizeof(drop_cases[0]) &&
+                            strcmp(test->proc, drop_cases[i + 1].proc) == 0 )
+                            upper_roll = drop_cases[i + 1].roll - 1;
+                        for( int edge = 0; edge < 2; edge++ )
                         {
-                            const struct Mock230GroundObj* obj = &srv->ground[slot];
-                            if( obj->active && !obj->is_spawn &&
-                                obj->x == player->x && obj->z == player->z &&
-                                obj->level == player->level )
+                            int roll = edge == 0 ? test->roll : upper_roll;
+                            int found = -1;
+                            int actual_id = -1;
+                            int32_t drop_args[3];
+
+                            if( edge == 1 && roll == test->roll )
+                                continue;
+                            selftest_clear_ground(srv);
+                            drop_args[0] = mock230_coord_pack(
+                                player->level, player->x, player->z);
+                            drop_args[1] = roll;
+                            drop_args[2] = test->extra;
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc(
+                                    srv, test->proc, drop_args, drop_argc),
+                                "%s boundary roll %d executes", test->proc,
+                                roll);
+                            for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
                             {
-                                actual_id = obj->obj_id;
-                                break;
+                                const struct Mock230GroundObj* obj =
+                                    &srv->ground[slot];
+                                if( obj->active && !obj->is_spawn &&
+                                    obj->x == player->x &&
+                                    obj->z == player->z &&
+                                    obj->level == player->level )
+                                {
+                                    actual_id = obj->obj_id;
+                                    break;
+                                }
+                            }
+                            if( test->obj )
+                            {
+                                SELFTEST_CHECK(
+                                    expected_id >= 0,
+                                    "%s resolves for %s boundary roll %d",
+                                    test->obj, test->proc, roll);
+                                if( expected_id >= 0 )
+                                    found = mock230_world_ground_find(
+                                        srv, player->x, player->z,
+                                        player->level, expected_id);
+                                SELFTEST_CHECK(
+                                    found >= 0 &&
+                                        srv->ground[found].count > 0,
+                                    "%s boundary roll %d drops a positive "
+                                    "quantity of %s (expected id %d, first id %d)",
+                                    test->proc, roll, test->obj,
+                                    expected_id, actual_id);
+                            }
+                            else
+                            {
+                                found = actual_id >= 0 ? 0 : -1;
+                                SELFTEST_CHECK(
+                                    found >= 0,
+                                    "%s boundary roll %d reaches a nested rare drop",
+                                    test->proc, roll);
                             }
                         }
-                        if( test->obj )
-                        {
-                            SELFTEST_CHECK(expected_id >= 0,
-                                           "%s resolves for %s roll %d",
-                                           test->obj, test->proc, test->roll);
-                            if( expected_id >= 0 )
-                                found = mock230_world_ground_find(
-                                    srv, player->x, player->z, player->level,
-                                    expected_id);
-                            SELFTEST_CHECK(found >= 0,
-                                           "%s roll %d drops %s (expected id %d, first id %d)",
-                                           test->proc, test->roll, test->obj,
-                                           expected_id, actual_id);
-                        }
-                        else
-                        {
-                            found = actual_id >= 0 ? 0 : -1;
-                            SELFTEST_CHECK(found >= 0,
-                                           "%s roll %d reaches a nested rare drop",
-                                           test->proc, test->roll);
-                        }
+                    }
+
+                    /* Custom ai_queue3 handlers replace the engine's default
+                     * remains path. Execute the ordinary Blood Reaver's real
+                     * death hook, not only its deterministic main-table proc,
+                     * to pin the configured malicious-ashes Always row. */
+                    {
+                        int reaver_id = mock230_content_symbol(
+                            MOCK230_PACK_NPC, "nex_prison_blood_reaver");
+                        int ashes_id = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "malicious_ashes");
+                        int reaver = mock230_world_npc_spawn(
+                            srv, reaver_id, player->x, player->z, player->level);
+                        int ashes = -1;
+
+                        selftest_clear_ground(srv);
+                        SELFTEST_CHECK(
+                            reaver >= 0 &&
+                                mock230_scripts_run_proc_on_npc(
+                                    srv,
+                                    "[ai_queue3,nex_prison_blood_reaver]",
+                                    reaver),
+                            "ordinary Blood Reaver real death hook executes");
+                        if( ashes_id >= 0 )
+                            ashes = mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                ashes_id);
+                        SELFTEST_CHECK(
+                            ashes_id >= 0 && ashes >= 0 &&
+                                srv->ground[ashes].count == 1,
+                            "ordinary Blood Reaver death always drops one "
+                            "malicious ashes (obj %d, slot %d)",
+                            ashes_id, ashes);
+                        if( reaver >= 0 )
+                            srv->npcs[reaver].active = 0;
                     }
                     selftest_clear_ground(srv);
 
@@ -17489,6 +19209,62 @@ mock230_world_selftest(void)
                                 paired_slot >= 0 && srv->ground[paired_slot].count == 3,
                                 "Nex common category %d includes paired %s x3",
                                 code, paired);
+                        }
+                    }
+
+                    /* Nex is an explicit Ironman group-boss exception: every
+                     * account mode uses the same personal contribution roll.
+                     * Sweep the complete three-bit mode carrier while the
+                     * backpack is full; loot must remain an owner-private
+                     * floor object and therefore never depend on inventory
+                     * space or another contributor's pickup permissions. */
+                    {
+                        int ironman = mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, "ironman");
+                        int filler = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "bronze_dagger");
+                        int air = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "airrune");
+                        int32_t common_args[7] = {
+                            mock230_coord_pack(
+                                player->level, player->x, player->z),
+                            0, 10, 0, 100, 100, 0,
+                        };
+
+                        SELFTEST_CHECK(
+                            ironman >= 0 && filler >= 0 && air >= 0,
+                            "Nex Ironman/full-inventory fixture resolves");
+                        if( ironman >= 0 && filler >= 0 && air >= 0 )
+                        {
+                            selftest_clear_inv(player);
+                            for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                                inv_set(player, slot, filler, 1);
+                            for( int mode = 0; mode < 8; mode++ )
+                            {
+                                int ground_slot;
+
+                                mock230_varbit_set(srv, ironman, mode);
+                                selftest_clear_ground(srv);
+                                SELFTEST_CHECK(
+                                    mock230_scripts_run_proc(
+                                        srv, "[proc,nex_award_common]",
+                                        common_args, 7),
+                                    "Nex account mode %d awards with a full "
+                                    "inventory", mode);
+                                ground_slot = mock230_world_ground_find(
+                                    srv, player->x, player->z,
+                                    player->level, air);
+                                SELFTEST_CHECK(
+                                    ground_slot >= 0 &&
+                                        srv->ground[ground_slot].count == 10 &&
+                                        srv->ground[ground_slot].receiver_pid ==
+                                            player->pid &&
+                                        inv_first_free(player) < 0,
+                                    "Nex account mode %d keeps full-inventory "
+                                    "loot owner-private on the floor", mode);
+                            }
+                            mock230_varbit_set(srv, ironman, 0);
+                            selftest_clear_inv(player);
                         }
                     }
 
@@ -18082,6 +19858,282 @@ mock230_world_selftest(void)
                 player->z = 408 * 8;
                 player->level = 0;
                 mock230_world_set_active(srv, player);
+            }
+
+            /* Two simultaneous Nex instances are the isolation boundary in
+             * its sharpest form: identical local tiles and actors, but distinct
+             * translated squares and player-owned state. Exercise targeting,
+             * projectile recipients, floor loot, KC/cooldown/score/death-bank
+             * state, and reset ownership before releasing both reservations. */
+            {
+                struct Mock230Player* first = player;
+                struct Mock230Player* second =
+                    mock230_world_add_player(srv, NULL);
+                const struct SSVM_Script* magic_land = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_magic_land]");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int air = mock230_content_symbol(MOCK230_PACK_OBJ, "airrune");
+                int instance_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "map_instance_handle");
+                int faction_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_private_faction");
+                int altar_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_altar_ready");
+                int death_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_nex_death_items");
+                int kills_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "total_nex_kills");
+                int zaros_kc = mock230_content_symbol(
+                    MOCK230_PACK_VARBIT, "godwars_counter_zaros");
+                int h1 = 0, h2 = 0;
+                int x1 = 0, z1 = 0, x2 = 0, z2 = 0;
+
+                SELFTEST_CHECK(
+                    second != NULL && magic_land != NULL && nex_id >= 0 &&
+                        air >= 0 && instance_varp >= 0 && faction_varp >= 0 &&
+                        altar_varp >= 0 && death_varp >= 0 &&
+                        kills_varp >= 0 && zaros_kc >= 0,
+                    "parallel Nex-instance isolation fixture resolves");
+                if( second && magic_land && nex_id >= 0 && air >= 0 &&
+                    instance_varp >= 0 && faction_varp >= 0 && altar_varp >= 0 &&
+                    death_varp >= 0 && kills_varp >= 0 && zaros_kc >= 0 )
+                {
+                    int b1, b2;
+                    int32_t smoke_args[] = { 1 };
+                    struct Mock230ZoneEvent event;
+
+                    mock230_world_player_init(second);
+                    h1 = mock230_mapinstance_alloc(
+                        mock230_world_cache_dir(), 8, 8);
+                    h2 = mock230_mapinstance_alloc(
+                        mock230_world_cache_dir(), 8, 8);
+                    SELFTEST_CHECK(
+                        h1 != 0 && h2 != 0 && h1 != h2,
+                        "two distinct Nex instance reservations coexist");
+                    if( h1 != 0 && h2 != 0 )
+                    {
+                        mock230_mapinstance_base(h1, &x1, &z1);
+                        mock230_mapinstance_base(h2, &x2, &z2);
+                        first->x = x1 + 45;
+                        first->z = z1 + 18;
+                        first->level = 0;
+                        second->x = x2 + 45;
+                        second->z = z2 + 18;
+                        second->level = 0;
+                        first->varps[instance_varp] = h1;
+                        second->varps[instance_varp] = h2;
+                        first->varps[faction_varp] =
+                            second->varps[faction_varp] = 5;
+                        b1 = mock230_world_npc_spawn(
+                            srv, nex_id, x1 + 44, z1 + 18, 0);
+                        b2 = mock230_world_npc_spawn(
+                            srv, nex_id, x2 + 44, z2 + 18, 0);
+                        SELFTEST_CHECK(
+                            b1 >= 0 && b2 >= 0,
+                            "each parallel Nex instance has its own actor");
+                        if( b1 >= 0 && b2 >= 0 )
+                        {
+                            srv->npcs[b1].spawn_pending = 0;
+                            srv->npcs[b2].spawn_pending = 0;
+                            memset(first->queue, 0, sizeof(first->queue));
+                            memset(second->queue, 0, sizeof(second->queue));
+                            mock230_zone_reset(srv);
+                            mock230_world_set_active(srv, first);
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[proc,nex_magic_auto]", b1,
+                                    smoke_args, 1) &&
+                                    selftest_player_queue_match(
+                                        first, magic_land, -1, -1, 0) == 1 &&
+                                    selftest_player_queue_match(
+                                        second, magic_land, -1, -1, 0) == 0 &&
+                                    mock230_zone_event_last(
+                                        srv, MOCK230_ZONE_EV_PROJANIM, -1,
+                                        &event) &&
+                                    event.target == -first->pid - 1,
+                                "first Nex instance targets/projects only to "
+                                "its resident");
+                            mock230_world_set_active(srv, second);
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[proc,nex_magic_auto]", b2,
+                                    smoke_args, 1) &&
+                                    selftest_player_queue_match(
+                                        first, magic_land, -1, -1, 0) == 1 &&
+                                    selftest_player_queue_match(
+                                        second, magic_land, -1, -1, 0) == 1 &&
+                                    mock230_zone_event_last(
+                                        srv, MOCK230_ZONE_EV_PROJANIM, -1,
+                                        &event) &&
+                                    event.target == -second->pid - 1,
+                                "second Nex instance targets/projects only to "
+                                "its resident");
+                            srv->npcs[b1].active = 0;
+                            srv->npcs[b2].active = 0;
+                        }
+
+                        selftest_clear_ground(srv);
+                        {
+                            int32_t common1[] = {
+                                mock230_coord_pack(0, first->x, first->z),
+                                0, 10, 0, 100, 100, 0,
+                            };
+                            int32_t common2[] = {
+                                mock230_coord_pack(0, second->x, second->z),
+                                0, 20, 0, 100, 100, 0,
+                            };
+                            int first_floor = 0, second_floor = 0;
+
+                            mock230_world_set_active(srv, first);
+                            mock230_scripts_run_proc(
+                                srv, "[proc,nex_award_common]", common1, 7);
+                            mock230_world_set_active(srv, second);
+                            mock230_scripts_run_proc(
+                                srv, "[proc,nex_award_common]", common2, 7);
+                            for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                            {
+                                const struct Mock230GroundObj* obj =
+                                    &srv->ground[slot];
+
+                                if( !obj->active || obj->obj_id != air )
+                                    continue;
+                                first_floor += obj->x == first->x &&
+                                               obj->z == first->z &&
+                                               obj->count == 10 &&
+                                               obj->receiver_pid == first->pid;
+                                second_floor += obj->x == second->x &&
+                                                obj->z == second->z &&
+                                                obj->count == 20 &&
+                                                obj->receiver_pid == second->pid;
+                            }
+                            SELFTEST_CHECK(
+                                first_floor == 1 && second_floor == 1,
+                                "parallel Nex floor objects retain instance, "
+                                "quantity, and owner (%d/%d)",
+                                first_floor, second_floor);
+                        }
+
+                        mock230_world_set_active(srv, first);
+                        mock230_varbit_set(srv, zaros_kc, 11);
+                        mock230_world_set_active(srv, second);
+                        mock230_varbit_set(srv, zaros_kc, 22);
+                        first->varps[altar_varp] = 111;
+                        second->varps[altar_varp] = 222;
+                        first->varps[kills_varp] =
+                            second->varps[kills_varp] = 0;
+                        args[0] = 20;
+                        mock230_world_set_active(srv, first);
+                        mock230_scripts_run_proc(
+                            srv, "[proc,nex_finish_personal_score]", args, 1);
+                        SELFTEST_CHECK(
+                            mock230_varbit_get(first, zaros_kc) == 11 &&
+                                mock230_varbit_get(second, zaros_kc) == 22 &&
+                                first->varps[altar_varp] == 111 &&
+                                second->varps[altar_varp] == 222 &&
+                                first->varps[kills_varp] == 1 &&
+                                second->varps[kills_varp] == 0,
+                            "first Nex instance cannot alter the second's KC, "
+                            "altar cooldown, or scoreboard");
+                        args[0] = 30;
+                        mock230_world_set_active(srv, second);
+                        mock230_scripts_run_proc(
+                            srv, "[proc,nex_finish_personal_score]", args, 1);
+                        SELFTEST_CHECK(
+                            first->varps[kills_varp] == 1 &&
+                                second->varps[kills_varp] == 1,
+                            "parallel Nex scoreboards advance independently");
+
+                        first->varps[death_varp] =
+                            second->varps[death_varp] = 0;
+                        mock230_world_set_active(srv, first);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_nex_on_death]", NULL, 0,
+                                &out) &&
+                                out == 1 && first->varps[death_varp] == 1 &&
+                                second->varps[death_varp] == 0,
+                            "first Nex death bank cannot mark the second player");
+                        mock230_world_set_active(srv, second);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_nex_on_death]", NULL, 0,
+                                &out) &&
+                                out == 1 && first->varps[death_varp] == 1 &&
+                                second->varps[death_varp] == 1,
+                            "second Nex death bank advances independently");
+
+                        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                            if( srv->npcs[slot].active &&
+                                (mock230_mapinstance_find(
+                                     srv->npcs[slot].x,
+                                     srv->npcs[slot].z) == h1 ||
+                                 mock230_mapinstance_find(
+                                     srv->npcs[slot].x,
+                                     srv->npcs[slot].z) == h2) )
+                                srv->npcs[slot].active = 0;
+                        args[0] = 0;
+                        mock230_world_set_active(srv, first);
+                        mock230_scripts_run_proc(
+                            srv, "[queue,gwd_nex_private_reset]", args, 1);
+                        {
+                            int count1 = 0, count2 = 0;
+
+                            for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                            {
+                                if( !srv->npcs[slot].active )
+                                    continue;
+                                count1 += mock230_mapinstance_find(
+                                              srv->npcs[slot].x,
+                                              srv->npcs[slot].z) == h1;
+                                count2 += mock230_mapinstance_find(
+                                              srv->npcs[slot].x,
+                                              srv->npcs[slot].z) == h2;
+                            }
+                            SELFTEST_CHECK(
+                                count1 == 5 && count2 == 0,
+                                "first Nex reset populates only its instance "
+                                "(%d/%d)", count1, count2);
+                            mock230_world_set_active(srv, second);
+                            mock230_scripts_run_proc(
+                                srv, "[queue,gwd_nex_private_reset]", args, 1);
+                            count1 = count2 = 0;
+                            for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                            {
+                                if( !srv->npcs[slot].active )
+                                    continue;
+                                count1 += mock230_mapinstance_find(
+                                              srv->npcs[slot].x,
+                                              srv->npcs[slot].z) == h1;
+                                count2 += mock230_mapinstance_find(
+                                              srv->npcs[slot].x,
+                                              srv->npcs[slot].z) == h2;
+                            }
+                            SELFTEST_CHECK(
+                                count1 == 5 && count2 == 5,
+                                "second Nex reset leaves the first roster intact "
+                                "(%d/%d)", count1, count2);
+                        }
+
+                        args[0] = h1;
+                        args[1] = 5;
+                        mock230_world_set_active(srv, first);
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_private_release]", args, 2);
+                        args[0] = h2;
+                        mock230_world_set_active(srv, second);
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_private_release]", args, 2);
+                        SELFTEST_CHECK(
+                            mock230_mapinstance_live_count() == 0,
+                            "parallel Nex teardown releases both reservations");
+                    }
+                    mock230_world_set_active(srv, first);
+                    mock230_world_player_free(srv, second->pid);
+                    mock230_world_player_reap(srv);
+                }
+                memset(first->queue, 0, sizeof(first->queue));
+                selftest_clear_ground(srv);
+                selftest_park_player(srv, 426 * 8, 408 * 8);
             }
             mock230_scripts_free(srv);
         }
@@ -26702,7 +28754,16 @@ mock230_world_selftest(void)
                 mock230_poh_set(&player->poh,
                                 MOCK230_POH_FIELD_TIP_NOTIFY, 0) &&
                 mock230_poh_set(&player->poh,
-                                MOCK230_POH_FIELD_TIP_AUTO_BANK, 1),
+                                MOCK230_POH_FIELD_TIP_AUTO_BANK, 1) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_TREASURE_COINS, 75000) &&
+                mock230_poh_set(
+                    &player->poh,
+                    MOCK230_POH_FIELD_TREASURE_READY_MINUTE, 30000000) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_BOSS_JARS, 0x4121) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_DUMMY_VARIANTS, 0x15),
             "POH fixture settings should be accepted");
         SELFTEST_CHECK(
             mock230_poh_room_add(&player->poh, garden, 4, 3, 1, 0, 15) == 0 &&
@@ -26727,8 +28788,12 @@ mock230_world_selftest(void)
                            player->poh.tip_coins == 7500000 &&
                            player->poh.tip_platinum == 4321 &&
                            player->poh.tip_notify == 0 &&
-                           player->poh.tip_auto_bank == 1,
-                       "POH settings, trophies, tip balances, and tip setup "
+                           player->poh.tip_auto_bank == 1 &&
+                           player->poh.treasure_coins == 75000 &&
+                           player->poh.treasure_ready_minute == 30000000 &&
+                           player->poh.boss_jars == 0x4121 &&
+                           player->poh.dummy_variants == 0x15,
+                       "POH settings, trophies, tips, treasure, boss jars, and dummy unlocks "
                        "should round-trip");
         SELFTEST_CHECK(player->poh.room_count == 2 &&
                            mock230_poh_room_get(
@@ -27948,7 +30013,8 @@ mock230_world_selftest(void)
         /* A familiar forager's drop begins owner-private. It must not be
          * discoverable by a forged target from another player, and its expiry
          * turns it into a normal public pile rather than deleting it. */
-        slot = mock230_world_obj_add_private(srv, 1511 /* logs */, 1, 3223, 3218, 0,
+        slot = mock230_world_obj_add_private(srv, player, 1511 /* logs */, 1,
+                                             3223, 3218, 0,
                                              mock230_ids()->lootdrop_duration, 2);
         SELFTEST_CHECK(slot >= 0, "a private drop gets a ground slot");
         SELFTEST_CHECK(slot < 0 || mock230_world_ground_visible_to(srv, slot, player->pid),
@@ -30308,6 +32374,64 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: db_listall walks ascending row ids\n");
+    {
+        /*
+         * `DB_LISTALL` is a positional cursor — `db_findbyindex(n)` is the n-th
+         * row — and the cache states what that order is: every
+         * `dbindex/dbindex_<table>.dbi` carries a `[master]` block whose header
+         * reads "every row id in the table, which DB_FINDALL returns", written
+         * ascending. That index is what the CLIENT walks, so any content that
+         * pairs a server-side positional read with a client-built list depends
+         * on the two agreeing. transport_charter's map picker is exactly that.
+         *
+         * Nothing enforced it. Rows are stored in `configs/all.dbrow` parse
+         * order, which is ascending only because the exporter happens to emit
+         * them sorted, and `mock230_db_row_in_table_ordered` exists to stop that
+         * being load-bearing. This is the assertion that keeps it honest: if the
+         * ordered walk were ever routed back to storage order, a re-exported
+         * cache that emitted one table unsorted would silently hand content a
+         * different row than the player clicked, and only this would notice.
+         */
+        int tables = mock230_db_table_count();
+        int checked = 0;
+        int rows_seen = 0;
+        int out_of_order = 0;
+        int first_bad_table = -1;
+
+        for( int t = 0; t < tables; t++ )
+        {
+            const struct Mock230DbTable* table = mock230_db_table_at(t);
+            int previous = -1;
+
+            if( !table || table->table_id < 0 )
+                continue;
+            checked++;
+            for( int i = 0;; i++ )
+            {
+                const struct Mock230DbRow* row =
+                    mock230_db_row_in_table_ordered(table->table_id, i);
+
+                if( !row )
+                    break;
+                rows_seen++;
+                if( row->row_id <= previous )
+                {
+                    out_of_order++;
+                    if( first_bad_table < 0 )
+                        first_bad_table = table->table_id;
+                }
+                previous = row->row_id;
+            }
+        }
+        SELFTEST_CHECK(checked > 0, "there should be dbtables to walk, got %d", checked);
+        SELFTEST_CHECK(rows_seen > 0, "and rows in them, got %d", rows_seen);
+        SELFTEST_CHECK(out_of_order == 0,
+                       "db_listall must walk ascending row ids — %d step(s) went "
+                       "backwards, first in table %d",
+                       out_of_order, first_bad_table);
+    }
+
     fprintf(stderr, "mock230 selftest: a charter ship takes a fare and sails\n");
     {
         /*
@@ -31619,6 +33743,44 @@ mock230_world_selftest(void)
                            "H.A.M. Storerooms deterministic contracts should pass, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_progress;
+        }
+
+        /*
+         * `::coxrun` — Chambers of Xeric points arithmetic and the two death
+         * penalties. The content proc reports a failure by `mes`, so reaching
+         * content is not the same as passing; the fixture returns silently on
+         * success and the check below only asserts that it ran. The per-check
+         * detail lands in the message log.
+         *
+         * Deliberately narrow. It says nothing about whether the raid's map
+         * instance assembles, whether Tekton paths to his anvil, or whether the
+         * ai_timer triggers fire at all — none of that is reachable without a
+         * live scene. A green ::coxrun must not be read as "the raid works".
+         */
+        {
+            int saved_cox = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+            int cox_rc = mock230_scripts_run_debugproc(srv, "coxrun");
+            fprintf(stderr,
+                    "COXDBG rc=%d active==player:%d varp7=%d\n",
+                    cox_rc, srv->active_player == player,
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            for( int vi = 0; vi < (int)(sizeof(player->varps) / sizeof(player->varps[0])); vi++ )
+                if( player->varps[vi] == 4242 )
+                    fprintf(stderr, "COXDBG sentinel 4242 landed in varp %d\n", vi);
+            SELFTEST_CHECK(cox_rc == MOCK230_TRIGGER_RAN,
+                           "::coxrun should reach content");
+            /*
+             * Reading the result back is the whole point. Checking only that
+             * the debugproc RAN passes just as happily with every assertion
+             * inside it broken — mutating ^cox_points_per_damage from 5 to 7
+             * left the first version of this check green.
+             */
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "Chambers of Xeric points/death contracts should pass, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_cox;
         }
 
         /*

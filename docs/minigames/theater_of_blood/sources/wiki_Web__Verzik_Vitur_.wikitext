@@ -1,0 +1,18 @@
+{{Infobox NPC
+|name = Web
+|image = [[File:Web (Verzik Vitur).png|250x250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|location = [[Ver Sinhaza]]
+|options = Attack
+|examine = A sticky web.
+|map = No
+|id = 8376
+|leagueRegion = Morytania
+}}
+A '''web''' is an attackable NPC thrown by [[Verzik Vitur]] that bind players who are stuck on them.
+
+The web has 10 hitpoints. If the player is not wearing [[aranea boots]], they will be bound on the tile the web is occupying and be unable to run over them. If the player is not freed in a set amount of time, the web will snap, dealing high damage to all caught players. Wearing the boots will prevent the damage from occurring if caught in one.
+
+Despite the web being a [[monster]], attempting to cast [[Monster Examine]] on a web yields the message {{mes|You can't find out their stats.}}.

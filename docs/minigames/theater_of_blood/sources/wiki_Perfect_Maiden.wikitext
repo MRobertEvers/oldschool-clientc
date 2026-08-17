@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Perfect Maiden
+|image = [[File:The Maiden of Sugadinti (30% health).png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill The Maiden of Sugadinti without anyone in the team taking damage from the following sources: Blood Spawn projectiles and Blood Spawn trails. Also, without taking damage off prayer and without letting any of the Nylocas Matomenos heal The Maiden.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 244
+|leagueRegion = Morytania
+}}
+'''Perfect Maiden''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[The Maiden of Sugadinti]] without taking any damage off-prayer, from her blood splatter projectiles and [[Blood spawn]] trails along with letting a [[Nylocas Matomenos]] heal her.
+
+==Strategy==
+Standing far away from the Maiden (or being able to predict when the blood splatter is launched) will prevent players from being damaged by the attack and minimise the chances of a blood spawn appearing. As the Maiden only attacks with magic, keeping [[Protect from Magic]] on will ensure that no off-prayer hits are received based on her aggro mechanics.
+
+Groups of Nylocas Matamenos will appear when the Maiden reaches 70, 50, and 30% of her health for the first time. Using common freezing tactics for lone and bunched nylocas will help ensure that they can be bound and killed before they reach the Maiden. At the 30% interval, it is possible to skip killing them with very good DPS but should not be relied on.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

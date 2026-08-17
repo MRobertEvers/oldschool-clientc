@@ -4715,11 +4715,12 @@ mock230_world_obj_add(
     int level,
     int duration);
 
-/** Drop an obj visible only to the active player for `private_ticks`, then to
+/** Drop an obj visible only to `owner` for `private_ticks`, then to
  * everyone. A non-positive private window is the same as obj_add. */
 int
 mock230_world_obj_add_private(
     struct Mock230Server* srv,
+    struct Mock230Player* owner,
     int obj_id,
     int count,
     int x,

@@ -1,9 +1,11 @@
 # Charter ships — Trader Stan's fleet
 
-> Written 2026-08-17. Status: **built and verified — transport, fares, the shop
-> and the cache's own map picker. Only the voyage animation is outstanding.**
-> The implementation is `server/scripts/transport_charter/` — read its README
-> first. §12 is the as-built record and §13 is what is still open.
+> Written 2026-08-17. Status: **complete to the limit of what this cache
+> contains** — transport, fares, the shop and the cache's own map picker are
+> built and verified. The wiki's Gielinor-map voyage animation is **not in
+> `cache.osrs239`**; §5.3 is the evidence. The implementation is
+> `server/scripts/transport_charter/` — read its README first. §12 is the
+> as-built record and §13 is what is genuinely still open.
 >
 > **Behaviour authority (wiki):**
 > [Charter ship](https://oldschool.runescape.wiki/w/Charter_ship) ·
@@ -377,43 +379,58 @@ Port Sarim; Piscarilius and Land's End never offer each other; Aldarin and Sunse
 never offer each other. Those are the `NA` cells in the wiki fare table, and they are
 already consistent.
 
-### 5.3 The voyage surface — **unresolved**
+### 5.3 The voyage surface — **not in this cache**
 
-| id | name | state |
-|---|---|---|
-| **299** | `ship_journey` | exists, already driven by `%journey_number` (varp 75) in `pest_sail.rs2` and `game_trawler` (routes 11/12/14/15). Has `map` (model 13939), `boat` (model 3065), a `pins` container of eleven **static** pins, region labels and title *"You journey on the ship...."* |
-| **224** | `misc_shipjourney` | the Miscellania/Waterbirth variant — same shape, different labels |
-| **505** | `peng_ship_journey` | Penguin quest variant |
+The wiki describes the voyage as *"a map of Gielinor ... with an animation of a
+ship travelling between them."* That animation is not in `cache.osrs239`, and
+this is measured rather than assumed. Four checks, all offline:
 
-299 is the obvious candidate and it is the wrong shape. Its eleven pins span only
-Ardougne → Ape Atoll (Port Sarim, Entrana, Ship Yard, Port Khazard, Ardougne, Cairn Isle,
-Brimhaven, Crandor, Karamja, Feldip Hills, Ape Atoll) — there is no Prifddinas, Phasmatys,
-Tyras or Kourend pin — and its pin pixel coordinates are on a different scale from
-dbtable 206's `x_pos`/`y_pos` (Port Sarim 356,55 on 299 vs 317,173 in the dbrow). It
-cannot serve a 16-port network as-is.
+1. **Nothing tweens a ship across the charter map.** The pin pixel columns
+   `x_pos` (field 843840) and `y_pos` (843856) are read by exactly one
+   clientscript in the whole cache — `script_8941`, the pin builder. If a
+   voyage moved a marker between two ports it would read those columns; nothing
+   does.
 
-`sailing_menu` (72) is the surface whose pin space *does* match dbtable 206. Whether its
-map plate (model 50089) is the whole-Gielinor plate, and whether a boat marker can be
-tweened across `content` with `if_setposition` (hosted at
-`src/net/mock/mock230_scripts.c:7212`), is ***(to measure)***. See §8, Phase 4.
+2. **Only six clientscripts touch dbtable 206 at all** — 8941 (pins), 8942/8943
+   (content restriction), 9105/9106/9107 (display names). None animates.
 
-The reference for the simple form is `[proc,pest_sail]`
-(`CT/server/scripts/minigames/minigame_pestcontrol/scripts/pest_sail.rs2`):
+3. **`ship_journey` (299) is a different feature.** Its animation binder is
+   `script_2380` → `script_2382`, which reads `%journey_number` (varp 75) and
+   sets a model seq on the boat, choosing between `animset_8173..8180` — eight
+   canned routes, for values `-2, -1, 1..6`. Charter has 240 ordered routes.
+   And 299's boat model is **3065 `obj/grandtree_warship`**, with eleven static
+   pins spanning Ardougne to Ape Atoll: it is the Karamja/Ape Atoll boat
+   journey, not Trader Stan's fleet.
 
-```runescript
-[proc,pest_sail](string $place, int $route, coord $dest)
-if_close;
-%journey_number = $route;
-if_openmain(ship_journey);
-mes("You board the ship...");
-p_delay(^pest_sail_delay);
-%journey_number = 0;
-if_close;
-p_telejump($dest);
-~mesbox("The ship arrives at <$place>.");
-```
+4. **`sailing_menu` (72) has no ship child, and the server cannot create one.**
+   The pins are `cc_create`d client-side by 8941; `cc_*` has no server-side
+   form. The server's whole vocabulary for an existing child is `if_setposition`,
+   `if_sethide`, `if_setmodel`, `if_setanim`, `if_setcolour`, `if_setobject`,
+   `if_settext` — there is no `if_setgraphic`, so an existing pin cannot even be
+   turned into a ship sprite.
 
----
+So the voyage is the narrated hop, and that is a statement about the cache
+rather than about the effort spent. Synthesising it would mean inventing
+behaviour — repurposing a pin as a ship and guessing at a pixel space — which is
+worse than not having it.
+
+**A pre-existing defect found on the way, in someone else's feature.** Nothing
+in this tree ever calls `script_2380`, which is the only thing that binds a boat
+component to `script_2382` and arms its `if_setonvartransmit(...{var75})`. And
+the journey numbers content actually writes — `0`, `11`, `12` (Fishing Trawler)
+and `14`, `15` (Pest Control) — are none of them in `script_2382`'s switch,
+which knows only `-2, -1, 1..6`. So `minigames/minigame_pestcontrol/scripts/pest_sail.rs2`
+and the trawler open `ship_journey`, set a varp nothing is listening to, on a
+component nobody bound, and show a static ship. Recorded here rather than fixed:
+remapping their routes into `1..6` is their content's decision, not this
+feature's.
+
+One caveat on how far that was traced: `script_4731.cs2` is **absent** from this
+tree's decompiled set (9,725 scripts, that one missing), so `script_4729`'s
+layout half could not be followed to the end. It does not affect the conclusion
+— the animation is entirely `script_2382`, whose two parameters are both typed
+`component` and whose roles are unambiguous — but it is why this stops at
+describing the binder rather than wiring it.
 
 ## 6. Fares
 
@@ -690,12 +707,31 @@ dice game mid-voyage as it is on the Karamja ferry.
 `mock230-scripts`, and a `mock230_world.c` selftest section with four new
 helpers.
 
-**No engine change was needed, and that was the surprise.** The picker was
-parked in §13 of the first draft of this document on the grounds that the server
-had no `db_findall`/`db_getrow`. It does — under the RuneScript names
-`db_listall` and `db_findbyindex`, both implemented in `mock230_ops_db.c` and
-both already exposed to content. The original claim came from grepping for the
-CS2 spellings.
+**The picker needed no new opcode, and that was the surprise.** It was parked in
+§13 of the first draft of this document on the grounds that the server had no
+`db_findall`/`db_getrow`. It does — under the RuneScript names `db_listall` and
+`db_findbyindex`, both implemented in `mock230_ops_db.c` and both already
+exposed to content. The original claim came from grepping the CS2 spellings.
+
+**One engine change did land, and it is contract-hardening rather than a bug
+fix.** `DB_LISTALL` is a positional cursor: `db_findbyindex(n)` is the n-th row,
+and the picker turns a pin's sub-id into exactly that index. The order it walked
+was `configs/all.dbrow` parse order; the order the *client* walks is the one
+each `dbindex/dbindex_<table>.dbi` `[master]` block states — ascending row id.
+Those agreed only because the exporter happens to emit rows sorted, which is not
+a contract a positional API can rest on.
+
+`mock230_db_row_in_table_ordered` (`mock230_db.c`) now serves the `db_listall`
+cursor from a lazily-built sorted view, reached only from `query_row`'s
+`db_query_column < 0` branch so the `db_find` scan is untouched. Measured
+back-to-back on one tree: **50 suite failures with it and 50 without, identical
+sets.** A new selftest section, *"db_listall walks ascending row ids"*, walks
+every loaded dbtable and asserts it; inverting the comparator makes it report
+`21342 step(s) went backwards, first in table 2055`, so it is a real check.
+
+Being straight about its effect: on **this** cache every table's storage order is
+already ascending, so the change alters no result today. What it removes is the
+picker's dependence on that staying true.
 
 **Verification, and what each layer actually proves.**
 
@@ -754,13 +790,10 @@ Inferno, movement) and were failing before this branch touched anything.
 
 ## 13. Still open
 
-**Phase 4, the voyage animation.** The wiki's Gielinor map with a ship crossing
-it is not implemented; the voyage is a narrated hop. §5.3 has the measurement
-that has to come first: `ship_journey` (299) cannot draw fourteen of the sixteen
-ports, and whether `sailing_menu`'s model 50089 is the whole-Gielinor plate is
-unmeasured. It needs the live client under `SDL_VIDEODRIVER=dummy`, which needs
-a tree that builds — `make -C src mock230-scripts` currently fails in other
-features before it reaches this one.
+**Phase 4 is closed, not deferred.** The voyage is a narrated hop because the
+Gielinor-map ship animation is not in this cache — §5.3 sets out the four checks
+that establish it, all offline. Nothing further is pending on a client run; what
+would be needed is the animation itself, from a newer cache or authored.
 
 **Not verified:** the ten new spawn tiles are checked for terrain walkability
 and for falling inside their port's `inzone` box, but **not** for loc occupancy
@@ -771,17 +804,14 @@ asserts the bias is a uniform `1` across every port it emits and refuses to
 guess for any row where it is not, which makes the assumption loud rather than
 correct.
 
-**Found and deliberately not fixed here: `db_listall` returns rows in file
-order, not the cache's documented `[master]` order.** `mock230_db_row_in_table`
-walks `configs/all.dbrow` as parsed; the cache says `DB_FINDALL` returns
-ascending row id. Across this cache's 144 indexed tables the two agree 143 times
-— including table 206, which is why the picker is correct — and disagree once,
-on table 118 `action`, where every position from index 1675 on is off by one.
-Sorting the store by `(table_id, row_id)` fixes it and also fixes the suite's own
-`db_find(quest:id, 1) should resolve a row`, but it shifts which row 30-odd other
-sections read and destabilises 38 unrelated assertions that turn out to depend on
-the current order. That is a change worth making on its own, with its own
-verification pass, and not one to smuggle in behind a content feature.
+**`db_find`'s scan order is still storage order, and that is left alone
+deliberately.** The engine change described in §12 covers `db_listall` only.
+Reordering the shared walk was tried and measured: it also fixes the suite's own
+`db_find(quest:id, 1) should resolve a row`, which is currently failing — so the
+find path's order is wrong by the suite's own standard too — but it shifts which
+row 30-odd other sections see first and destabilises 38 unrelated assertions.
+That is a change worth making on its own, with its own verification pass, and
+not one to smuggle in behind a content feature.
 
 ## 14. Deliberately not done
 

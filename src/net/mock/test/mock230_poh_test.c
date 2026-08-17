@@ -87,6 +87,31 @@ main(void)
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_COINS, -1) &&
               !mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_NOTIFY, 2),
           "tip balances reject negatives and settings reject non-booleans");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_TREASURE_COINS,
+                          MOCK230_POH_TREASURE_MAX) &&
+              mock230_poh_set(&poh,
+                              MOCK230_POH_FIELD_TREASURE_READY_MINUTE,
+                              30000000) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_TREASURE_COINS) ==
+                  MOCK230_POH_TREASURE_MAX &&
+              mock230_poh_get(
+                  &poh, MOCK230_POH_FIELD_TREASURE_READY_MINUTE) == 30000000,
+          "the shared treasure reward and durable cooldown round-trip");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_TREASURE_COINS,
+                           MOCK230_POH_TREASURE_MAX + 1) &&
+              !mock230_poh_set(
+                  &poh, MOCK230_POH_FIELD_TREASURE_READY_MINUTE, -1),
+          "treasure storage rejects over-cap rewards and negative clocks");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_BOSS_JARS, 0x4121) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_BOSS_JARS) == 0x4121,
+          "the Boss lair jar ledger round-trips");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_BOSS_JARS, 0x8000),
+          "unknown Boss lair jar bits are rejected");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, 0x15) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_DUMMY_VARIANTS) == 0x15,
+          "the ornate combat-dummy unlock ledger round-trips");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, 0x20),
+          "unknown ornate combat-dummy unlock bits are rejected");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);

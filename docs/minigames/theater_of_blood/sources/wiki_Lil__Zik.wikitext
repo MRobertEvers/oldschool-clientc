@@ -1,0 +1,170 @@
+{{Multi Infobox
+|text1 = Follower
+|item1 =
+{{Infobox NPC
+|version1 = Lil' Zik
+|version2 = Lil' Maiden
+|version3 = Lil' Bloat
+|version4 = Lil' Nylo
+|version5 = Lil' Sot
+|version6 = Lil' Xarp
+|name1 = Lil' Zik
+|name2 = Lil' Maiden
+|name3 = Lil' Bloat
+|name4 = Lil' Nylo
+|name5 = Lil' Sot
+|name6 = Lil' Xarp
+|image1 = [[File:Lil' Zik (follower).png|290px]]
+|image2 = [[File:Lil' Maiden (follower).png|250px]]
+|image3 = [[File:Lil' Bloat (follower).png|200px]]
+|image4 = [[File:Lil' Nylo (follower).png|250px]]
+|image5 = [[File:Lil' Sot (follower).png|290px]]
+|image6 = [[File:Lil' Xarp (follower).png|290px]]
+|release1 = [[7 June]] [[2018]]
+|release2 = [[3 June]] [[2021]]
+|release3 = [[3 June]] [[2021]]
+|release4 = [[3 June]] [[2021]]
+|release5 = [[3 June]] [[2021]]
+|release6 = [[3 June]] [[2021]]
+|update1 = The Theatre of Blood
+|update2 = Theatre of Blood: New Modes
+|update3 = Theatre of Blood: New Modes
+|update4 = Theatre of Blood: New Modes
+|update5 = Theatre of Blood: New Modes
+|update6 = Theatre of Blood: New Modes
+|members = Yes
+|race1 = [[Vampyre]]/[[Nylocas]] hybrid
+|race2 = [[Human]] (formerly)
+|race3 = [[Undead]]
+|race4 = [[Nylocas]]
+|race5 = [[Dark beast]]
+|race6 = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|options = Talk-to, Metamorphosis, Pick-up
+|examine1 = What has eight legs and runs a Vampyric Theatre?
+|examine2 = Freed from her torturous constraints.
+|examine3 = Smaller size, same smell.
+|examine4 = Eight legs of unparalleled loyalty.
+|examine5 = Has a lot of anger for such a small monster.
+|examine6 = The prince of Yarasa.
+|map = No
+|id1 = 8336,8337
+|id2 = 10761,10870
+|id3 = 10762,10871
+|id4 = 10763,10872
+|id5 = 10764,10873
+|id6 = 10765,10874
+|leagueRegion = Morytania
+}}
+|text2 = Item
+|item2 =
+{{Infobox Item
+|version1 = Lil' Zik
+|version2 = Lil' Maiden
+|version3 = Lil' Bloat
+|version4 = Lil' Nylo
+|version5 = Lil' Sot
+|version6 = Lil' Xarp
+|name1 = Lil' Zik
+|name2 = Lil' Maiden
+|name3 = Lil' Bloat
+|name4 = Lil' Nylo
+|name5 = Lil' Sot
+|name6 = Lil' Xarp
+|image1 = [[File:Lil' Zik.png]]
+|image2 = [[File:Lil' Maiden.png]]
+|image3 = [[File:Lil' Bloat.png]]
+|image4 = [[File:Lil' Nylo.png]]
+|image5 = [[File:Lil' Sot.png]]
+|image6 = [[File:Lil' Xarp.png]]
+|release1 = [[7 June]] [[2018]]
+|release2 = [[3 June]] [[2021]]
+|release3 = [[3 June]] [[2021]]
+|release4 = [[3 June]] [[2021]]
+|release5 = [[3 June]] [[2021]]
+|release6 = [[3 June]] [[2021]]
+|update1 = The Theatre of Blood
+|update2 = Theatre of Blood: New Modes
+|update3 = Theatre of Blood: New Modes
+|update4 = Theatre of Blood: New Modes
+|update5 = Theatre of Blood: New Modes
+|update6 = Theatre of Blood: New Modes
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = 
+|options = Drop
+|examine1 = What has eight legs and runs a Vampyric Theatre?
+|examine2 = Freed from her torturous constraints.
+|examine3 = Smaller size, same smell.
+|examine4 = Eight legs of unparalleled loyalty.
+|examine5 = Has a lot of anger for such a small monster.
+|examine6 = The prince of Yarasa.
+|value = 1
+|alchable = No
+|weight = 0.015
+|id1 = 22473
+|id2 = 25748
+|id3 = 25749
+|id4 = 25750
+|id5 = 25751
+|id6 = 25752
+|leagueRegion = Morytania
+}}
+}}
+{{Synced switch
+|version1 = [[File:Lil' Zik chathead.png|left]]
+|version2 = [[File:Lil' Maiden chathead.png|left]]
+|version3 = [[File:Lil' Bloat chathead.png|left]]
+|version4 = [[File:Lil' Nylo chathead.png|left]]
+|version5 = [[File:Lil' Sot chathead.png|left]]
+|version6 = [[File:Lil' Xarp chathead.png|left]]
+|version7 = [[File:Lil' Zik detail.png|left|100px]]
+|version8 = [[File:Lil' Maiden detail.png|left|120px]]
+|version9 = [[File:Lil' Bloat detail.png|left|130px]]
+|version10 = [[File:Lil' Nylo detail.png|left|140px]]
+|version11 = [[File:Lil' Sot detail.png|left|140px]]
+|version12 = [[File:Lil' Xarp detail.png|left|120px]]
+}}
+'''Lil' Zik''' is a [[pet]] that can be obtained from completing the [[Theatre of Blood]]. It is a much smaller version of [[Verzik Vitur]]'s final form. Players have a chance of receiving the pet when looting the monumental chests in Verzik's treasure vault. The drop rate is dependent on the player's performance in the raid, unaffected by that of teammates, ranging from 1/650 to 1/6,500 in regular raids and ranging from 1/500 to 1/5,000 in Hard Mode raids. The maximum rate is reached with 10 individual points (which are invisible to the players; the maximum per player is 32, or 18 if not including the MVP bonuses for each room).{{CiteTwitter|url=https://twitter.com/JagexKieren/status/1145476707174031361|author=Mod Kieren|date=1 July 2019|archiveurl=https://reldo.runescape.wiki/i/107163|archivedate=22 June 2020}} The highest rate is reached by dying no more than twice per raid, with more deaths allowed if the player deals the most damage in some rooms, assuming participation in each room.
+
+Lil' Zik is able to ''[[Metamorphosis|metamorphose]]'' into five other pets which are smaller versions of the other bosses encountered in the Theatre of Blood, which requires using [[Sanguine dust]] on it. The dust can be acquired from the Theatre's Hard Mode version and clearing it under a specific time.
+
+When a player receives the pet, it will automatically try to appear as their follower. At the same time, a message in the [[Chat Interface|chatbox]] will state {{mes|You have a funny feeling like you're being followed.|color=red}} However, if a player receives a pet while having a follower out (for example, a [[cat]]), it will be placed into their [[inventory]]. When this occurs, the message in the chatbox will instead state {{mes|You feel something weird sneaking into your backpack.|color=red}}
+
+If a player's inventory is full '''and''' they have a follower already, they '''will not''' receive the pet; it must instead be claimed from [[Probita]] in [[East Ardougne]].
+
+On [[death]], if a player loses their pet (as a follower or in your inventory) it will wander around the area for 30 seconds before despawning. Even if the player returns in time, the pet cannot be picked up, and can be reclaimed from Probita.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Item sources==
+{{Drop sources|Lil' Zik}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = The item variants of the various metamorphoses have been capitalized: 
+* "Lil' zik" has been renamed to "Lil' Zik" 
+* "Lil' maiden" has been renamed to "Lil' Maiden" 
+* "Lil' bloat" has been renamed to "Lil' Bloat" 
+* "Lil' nylo" has been renamed to "Lil' Nylo" 
+* "Lil' sot" has been renamed to "Lil' Sot" 
+* "Lil' xarp" has been renamed to "Lil' Xarp" 
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The inventory sprite uses Verzik's phase 2 form, whereas the pet itself is her phase 3 form.
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+{{Pets}}
+[[Category:Collection log items]]

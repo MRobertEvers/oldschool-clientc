@@ -19768,15 +19768,15 @@
       "auxiliary_locs": [],
       "built_locs": [
         {
-          "id": 13388,
-          "symbol": "poh_prize_chest_mag_open"
+          "id": 13289,
+          "symbol": "poh_treasure_mag_chest"
         },
         {
-          "id": 13389,
-          "symbol": "poh_prize_chest_mag_closed"
+          "id": 13290,
+          "symbol": "poh_treasure_mag_openchest"
         }
       ],
-      "experience": 860,
+      "experience": 1000,
       "flatpack": null,
       "hidden_in_build_menu": 0,
       "hotspots": [
@@ -19810,13 +19810,19 @@
       "symbol": "poh_treasure_mahogany",
       "upgrade_source_absolute": [],
       "upgrade_source_relative": [],
-      "wiki": "https://oldschool.runescape.wiki/w/Mahogany_prize_chest",
+      "wiki": "https://oldschool.runescape.wiki/w/Mahogany_chest",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
-        "page": "Mahogany prize chest",
-        "revision_id": 14913575,
-        "revision_timestamp": "2025-06-01T19:52:57Z"
+        "experience_sources": [
+          {
+            "experience": 1000,
+            "page": "Mahogany chest",
+            "revision_id": 15194529
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
+        "page": "Mahogany chest",
+        "revision_id": 15194529,
+        "revision_timestamp": "2026-04-22T06:24:28Z"
       }
     },
     {
@@ -54239,9 +54245,9 @@
       "skill_features": 213
     },
     "unreferenced_furniture": 13,
-    "wiki_furniture_direct_id_matches": 453,
+    "wiki_furniture_direct_id_matches": 452,
     "wiki_furniture_matches": 525,
-    "wiki_furniture_symbolic_reconciliations": 72,
+    "wiki_furniture_symbolic_reconciliations": 73,
     "wiki_furniture_unresolved": 0,
     "wiki_snapshot_entries": 493
   },

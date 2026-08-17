@@ -1,0 +1,539 @@
+{{Dangerous|irs=yes|tob=yes}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Theatre of Blood
+|image = [[File:Theatre of Blood logo.png|250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|aka = Raids 2, ToB
+|type = Raid
+|members = Yes
+|location = [[Ver Sinhaza]]
+|players = 1-5
+|skills = [[Combat]]
+|currency = None
+|tutorial = No
+|music = [[Theatre of Blood#Music|See below]]
+|map = {{Map|name=Theatre of Blood|x=3663|y=3219|zoom=2}}
+|leagueRegion = Morytania
+}}
+The '''Theatre of Blood''' is a [[raid]] located beneath the castle of [[Ver Sinhaza]]. It is a large arena used by the ruling [[vampyre]]s to host blood sports. The only hard requirement to participate in the raid is the completion of the [[Priest in Peril]] quest to be able to access [[Morytania]]. The raid is featured prominently in the quest [[A Night at the Theatre]] and also plays a part in [[The Blood Moon Rises]].
+
+Here, the citizens of [[Meiyerditch]] are encouraged to go to the theatre and fight against the various experiments and abominations contained within, with the promise of freedom from the [[blood tithe]]s and the right to leave [[Morytania]] should they succeed. The reward is revealed to be a ruse as the vampyres are unwilling to let go of their primary food source.
+
+While the theatre is only open to citizens of [[Meiyerditch]], this rule is rarely enforced. The vampyres are more entertained by outsiders than the citizens themselves, seeing as these are better prepared compared to the civilians who are inexperienced and poorly equipped. Following the completion of [[The Blood Moon Rises]], the rule is officially abandoned and the Theatre is rebranded as a proving ground for the strongest warriors from across [[Gielinor]] to test themselves in. 
+
+[[Ironman_Mode|Ironmen]] are eligible for rewards from the raid when completing it alongside other players. [[Group Ironman Mode|Group ironman players]] will lose their [[Group Ironman Mode#Prestige|prestige]] upon entering the raid with a player outside of their group.
+==Transportation==
+* [[Drakan's medallion]] provides unlimited teleports directly to Ver Sinhaza. The medallion is locked behind the completion of [[A Taste of Hope]] quest.
+* Players may pay 10,000 coins to [[Andras]] north of the [[Ectofuntus]] in [[Port Phasmatys]] to travel to [[Slepe]], then run south from there. Players can also use an [[Ectophial]] to travel to the [[Ectofuntus]] and run south from there.
+* After starting [[Darkness of Hallowvale]], players can take the boat from [[Burgh de Rott]] to the [[Meiyerditch]] beach and walk to the Theatre without having to navigate through the city.
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to the Theatre of Blood:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|374|United States (west)|mems=yes|Theatre of Blood}}
+{{WorldLine|376|Germany|mems=yes|Theatre of Blood}}
+|}
+
+==Mechanics==
+===Bosses===
+{{Listen
+|title = [[Verzik's Defeat]]
+|align = right
+|filename = Verzik's Defeat.ogg
+|desc = The jingle that plays once a boss has been defeated.}}
+The Theatre of Blood is a linear raid. Thus, there is no randomization involved, and the bosses will always be encountered in this order.
+#[[The Maiden of Sugadinti]] (level-940)
+#[[Pestilent Bloat]] (level-870)
+#[[Nylocas Vasilias]] (level-800)
+#[[Sotetseg]] (level-995)
+#[[Xarpus]] (level-960)
+#[[Verzik Vitur]] (level-1040, final boss)
+
+Despite some of the bosses being spiders, vampyres, and dark beasts, they '''will not''' count towards a [[Slayer task]] when killed inside the Theatre; thus, the [[slayer helmet]] and [[black mask]] bonuses have no effect.
+
+After Bloat and Sotetseg, players have an opportunity to buy supplies such as food, [[Saradomin brew|saradomin brews]], and [[Prayer potion|prayer potions]], using points earned within the raid at a [[Chest (Theatre of Blood)|supply chest]].
+
+The bosses will also have their hitpoints scaled depending on the team size. With a team of three or fewer players the bosses will have 75% of their original hitpoints, with four players the bosses will have 87.5% of their original hitpoints and a team of five players will leave the bosses' hitpoints unchanged.
+
+<gallery mode="packed" heights="180" style="text-align:left">
+File:Fighting The Maiden of Sugadinti.png|A group of players fighting Serafina, the Maiden of Sugadinti.
+File:Fighting Pestilent Bloat.png|A group of players fighting The Butcher's crazed creation, the Pestilent Bloat.
+File:Fighting Nylocas Vasilias.png|A group of players fighting the Nylocas Vasilias, a result of Verzik Vitur's diverse breeding program.
+File:Fighting Sotetseg.png|A group of players battle against Sotetseg, a [[dark beast]] corrupted through [[Haemalchemy]] and experiments in the [[Shadow Realm]].
+File:Fighting Xarpus.png|A group of players fighting Xarpus, the last of the Yarasa race and its king.
+File:Fighting Verzik Vitur.png|A group of players fighting Verzik Vitur, a powerful [[vampyre]] noble.
+</gallery>
+
+===Death within the Theatre===
+If players die within the theatre, they are placed outside the fighting area, and can only proceed if other team members succeed in completing the current challenge. If the entire team is killed, players will lose all unprotected items; these can later be reclaimed from a storage chest (similar to [[Torfinn]]'s [[Item Retrieval Service|item storage]]) for a cost of 100,000 coins. Untradeable items that are normally kept on death will be placed in the item reclamation chest upon complete team death in the theatre.
+
+If players die a second time without reclaiming the items in the chest, they will be permanently lost, unless the death occurs within a minigame deemed safe, such as [[Pest Control]].
+
+Dying in the Theatre of Blood is a dangerous death - [[Ironman mode#Hardcore|Hardcore Ironmen]] who die within the theatre will lose their Hardcore status, regardless of whether the team successfully completes the challenges or not. Any '''disconnection''' or logout during a fight is '''treated as a death''', and will likewise result in loss of Hardcore status. Should a player logout when not in an encounter, such as in the hallways of the theatre, the player's death will be treated as a safe death. Upon logging back in to an unsafe disconnect, the game will attempt to reunite the player with their party and, if successful, will place the player in purgatory. If unsuccessful, the player will be treated with a full death and will have to pay the item reclamation fee to retrieve any items lost, and items previously stored in a [[Item Retrieval Service|deathbank]] will be lost.
+
+All normal forms of teleportation within the Theatre are blocked; however, the [[Mysterious Stranger]] outside sells [[escape crystal]]s for 75,000 coins each, and is the only item players can use to teleport away from the Theatre safely.
+
+==Spectating==
+[[File:Abigaila chathead.png|left]]
+Players can spectate other teams in the Theatre of Blood by attempting to enter the theatre, or by speaking to [[Abigaila]], a [[Morytania]]n refugee who can be found upstairs in the [[Lumbridge General Store]] or near the [[spirit tree]] north-east of the [[Grand Exchange]].
+
+Players can either choose to spectate a specific player's team by typing in a team member's or a spectator's name, or choose to spectate the most recently formed party. Spectators must be on the same world as the party member or spectator they wish to spectate. Spectators must also be on the [[Friends List]] of the party member or spectator, should the party member or spectator have Private Chat set to "Friends Only."
+
+In order to spectate, players cannot bring any items with them, excluding the [[oculus orb]], and they must not be [[poison]]ed or [[disease]]d.
+
+Players can right-click the ledges to view the fight in a better perspective. Players can rotate the camera clock-wise or counter-clockwise via the chatbox.
+
+==Other modes==
+===Entry Mode===
+{{Main|Theatre of Blood/Entry Mode}}
+An easy variant of the Theatre of Blood intended for beginners to warm themselves up and gain experience before attempting the Theatre in Normal Mode. All of the enemies are significantly weaker compared to normal mode, with several mechanics adjusted to be less dangerous.
+
+Similarly to the Chambers of Xeric and [[Tombs of Amascut]] (without death-changing invocations), players have unlimited attempts at the bosses. [[Bandages (Theatre of Blood)|Bandages]] are provided for the team after clearing the second and fourth bosses, along with any wipes.
+
+Raids completed in entry mode award 80% less loot compared to normal mode, and uniques cannot be rolled, including the [[Lil' Zik]] pet.
+
+===Hard Mode===
+{{Main|Theatre of Blood/Hard Mode}}
+A hard variant of the Theatre of Blood is also available for players up to the challenge. Similarly to the Chambers of Xeric "Challenge Mode", all enemies in the Theatre of Blood are significantly stronger, with new and modified mechanics added to all bosses. Completion of Hard Mode can yield [[Sanguine dust]] to reskin [[Lil' Zik]], and the [[Holy ornament kit|Holy]] and [[Sanguine ornament kit]]s to recolour the [[Sanguinesti staff]], [[Ghrazi rapier]] and [[scythe of Vitur]], with the latter kit only working for the scythe.
+
+Teams are also awarded with 15% more common drops when received (with an additional 15% if the raid is completed within the challenge time), along with a 13% chance of obtaining unique items (compared to the standard 11%).{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1485992982906085376|date=25 January 2022|archiveurl=https://reldo.runescape.wiki/i/98998|archivedate=25 January 2022|quote=}} The weighting of items are adjusted in hard mode, with the [[Avernic defender hilt]] being less likely to be rolled compared to other items.
+
+In order to access Hard Mode, players must have completed a full run of the Theatre in normal mode.
+
+==Money making==
+{{Mmgsection|Theatre of Blood}}
+
+==Rewards==
+{{Main|Monumental chest}}
+[[File:Verzik's treasure vault.png|thumb|300px|Verzik Vitur's treasure vault.]]
+Upon defeating Verzik Vitur, a trapdoor will open under her throne, leading to her treasure vault.
+
+Inside will be up to five large chests based on the amount of players in the team, with each player being able to loot one chest. An arrow will point to which chest is for that player to search.
+
+If a unique reward is obtained, a purple aura will emit from the chest, much like how the ray of light turns purple for the player who obtains a unique reward in the [[Chambers of Xeric]]. If no unique reward is found, the chest will contain three rolls from the common drop table. 
+
+The unique rewards that players can obtain from the chest include:
+* {{plink|Avernic defender hilt}}, used to upgrade the [[dragon defender]]
+* Pieces of the [[Justiciar armour]]:
+** {{plink|Justiciar faceguard}}
+** {{plink|Justiciar chestguard}}
+** {{plink|Justiciar legguards}}
+* {{plink|Ghrazi rapier}}
+* {{plink|Sanguinesti staff}}
+* {{plink|Scythe of vitur}}
+
+[[Vials of blood]] are also a common drop obtainable in addition to the above. They can be used to charge the scythe of Vitur and create [[bastion potion|bastion]] and [[battlemage potion]]s.
+
+Players can find books during the raid, as well as on the [[grand bookshelves]] in the treasure vault.
+{| class="wikitable"
+|+
+!Book
+!Dropped by
+|-
+|{{plink|Serafina's diary|txt=Serafina's Diary}}
+|[[The Maiden of Sugadinti]]
+|-
+|{{plink|The butcher|txt=The Butcher}}
+|[[Pestilent Bloat]]
+|-
+|{{plink|Arachnids of vampyrium|txt=Arachnids of Vampyrium}}
+|[[Nylocas Vasilias]]
+|-
+|{{plink|The shadow realm|txt=The Shadow Realm}}
+|[[Sotetseg]]
+|-
+|{{plink|The wild hunt|txt=The Wild Hunt}}
+|[[Xarpus]]
+|-
+|{{plink|Verzik vitur - patient record|txt=Verzik Vitur - Patient Record}}
+|[[Verzik Vitur]]
+|}
+
+Players can earn Sinhaza shrouds through repeated completions of the Theatre, claimed from the [[Mysterious Stranger]].
+{| class="wikitable"
+|+
+!Accolade
+!Earned at
+|-
+|{{plink|Sinhaza shroud tier 1}}
+|100 completions of Normal/Hard mode
+|-
+|{{plink|Sinhaza shroud tier 2}}
+|500 completions of Normal/Hard mode
+|-
+|{{plink|Sinhaza shroud tier 3}}
+|1000 completions of Normal/Hard mode
+|-
+|{{plink|Sinhaza shroud tier 4}}
+|1500 completions of Normal/Hard mode
+|-
+|{{plink|Sinhaza shroud tier 5}}
+|2000 completions of Normal/Hard mode
+|}
+
+==Combat Achievements==
+{{Sync}}
+===Entry Mode===
+{{Combat Achievements list|Theatre of Blood: Entry Mode|mobname=the Theatre of Blood: Entry Mode}}
+
+===Normal Mode===
+{{Combat Achievements list|Theatre of Blood|mobname=the Theatre of Blood}}
+
+===Hard Mode===
+{{Combat Achievements list|Theatre of Blood: Hard Mode|mobname=the Theatre of Blood: Hard Mode}}
+
+==Performance & records==
+===Performance Details===
+[[File:Theatre of Blood - Performance Details.png|thumb|270px|Performance Details for a performance within the Theatre of Blood.]]
+Upon entering the treasure vault, players may read the [[strategy table]] by the grand bookshelves to view the overall performance of the team, while spectators can read the [[war table]] to view it.
+
+Here, players may view the death counts of each team member, the total deaths in the performance, as well as the time spent in each wave.
+
+The Most Valuable Player (MVP) is listed on the top of the interface, and is determined based on the performance of the individual player, such as damage dealt and the number of deaths.
+
+The challenge time (the time spent fighting the bosses) and the overall time, which includes the time spent between waves, can be seen on the bottom of the interface.
+
+===Scoreboard===
+[[File:Theatre of Blood scoreboard.png|thumb|250px|The Theatre of Blood scoreboard found next to the entrance of the theatre.]]
+Next to the entrance to the Theatre of Blood is a scoreboard, which displays personal and global statistics for the Theatre of Blood, such as number of attempts, number of completions, number of deaths, and completion times.
+
+===Theatre of Blood records===
+An official [https://www.runescape.com/oldschool/TOB/records records page] existed, which showed all-time global records, such as most completions by an individual and total [[Ironman Mode#Hardcore|Hardcore Ironman]] deaths within the theatre, as well as fastest completion times for each boss and the raid as a whole. The page has since been decommissioned.
+
+==Music==
+Players are not required to participate in the raid to unlock all of the music, and may spectate one to do so.
+
+{| class="wikitable sortable"
+|-
+!Name
+! class="unsortable" | Unlock details
+! class="unsortable" | Music track
+|-
+|[[Welcome to the Theatre]]
+|Unlocked at Ver Sinhaza
+|[[File:Welcome to the Theatre.ogg]]
+|-
+|[[The Maiden's Sorrow]]
+|Unlocked in The Maiden of Sugadinti's arena
+|[[File:The Maiden's Sorrow.ogg]]
+|-
+|[[The Maiden's Anger]]
+|Unlocked during the fight with The Maiden of Sugadinti
+|[[File:The Maiden's Anger.ogg]]
+|-
+|[[Welcome to my Nightmare]]
+|Unlocked in the Pestilent Bloat's arena
+|[[File:Welcome to my Nightmare.ogg]]
+|-
+|[[The Nightmare Continues]]
+|Unlocked during the fight with the Pestilent Bloat
+|[[File:The Nightmare Continues.ogg]]
+|-
+|[[Dance of the Nylocas]]
+|Unlocked in the [[Nylocas]]' nest
+|[[File:Dance of the Nylocas.ogg]]
+|-
+|[[Arachnids of Vampyrium (music track)|Arachnids of Vampyrium]]
+|Unlocked during the fight in the [[Nylocas]]' nest
+|[[File:Arachnids of Vampyrium.ogg]]
+|-
+|[[The Dark Beast Sotetseg]]
+|Unlocked in Sotetseg's arena
+|[[File:The Dark Beast Sotetseg.ogg]]
+|-
+|[[Power of the Shadow Realm]]
+|Unlocked during the fight with Sotetseg
+|[[File:Power of the Shadow Realm.ogg]]
+|-
+|[[Predator Xarpus]]
+|Unlocked in Xarpus' arena
+|[[File:Predator Xarpus.ogg]]
+|-
+|[[Last King of the Yarasa]]
+|Unlocked during the fight with Xarpus
+|[[File:Last King of the Yarasa.ogg]]
+|-
+|[[It's not over 'til...]]
+|Unlocked upon entering Verzik Vitur's throne room
+|[[File:It's not over 'til....ogg]]
+|-
+|[[The Fat Lady Sings]]
+|Unlocked during the battle with Verzik Vitur
+|[[File:The Fat Lady Sings.ogg]]
+|-
+|[[The Curtain Closes]]
+|Unlocked upon entering Verzik Vitur's treasure vault
+|[[File:The Curtain Closes.ogg]]
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = Removed the timeout/cooldown on making parties at the Theatre of Blood.
+}}
+{{Subject changes
+|date = 1 October 2025
+|update = Interface Uplift Round 2
+|change = [[Verzik Vitur]] now has a quick-start option for players that have at least 1 prior completion.
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = * Logging out whilst in the Theatre of Blood while having an [[escape crystal]] in your [[inventory]] will now consume the crystal and teleport you outside of the raid on login.
+* Lore books will no longer drop once a player has read them.
+}}
+{{Subject changes
+|date = 23 October 2024
+|update = Halloween Fixes & Miscellaneous Changes
+|change = Spectators scrying and public chat have been enabled in Theatre of Blood for the three waves previously exempt from this, meaning fighters will be able to see their audience with public chat available for the following fights:
+* [[Nylocas]]
+* [[Xarpus]]
+* [[Verzik]]
+}}
+{{Subject changes
+|date = 23 May 2024
+|update = Minigame Tweaks, Skilling Adjustments & more!
+|change = * The following changes have been made to how Verzik scales when only one player remains during normal mode Verzik's second phase:
+** Only one [[Nylocas Matomenos]] will spawn.
+** The lightning ball was supposed to be capped, but they couldn't figure it out for team raids.
+}}
+{{Subject changes
+|date = 1 March 2023
+|update = Theatre of Blood: Entry Mode Improvements
+|change = * Entry Mode changes:
+** Changed how enemy Hitpoint scaling works depending on the number of players to be more consistent.
+** Entry Mode runs now have unlimited attempts, and there is no longer a cost to reclaim items after failing or logging out.
+** Bandages will now be given in the event of a wipe.
+** The amount of normal rewards received has been increased from 15% to 20%.
+* A selection prompt will now appear the first time a player interacts with the recruitment board.
+}}
+{{Subject changes
+|date = 1 December 2021
+|update = PJ Timer Beta & Chat Changes
+|change = Sotetseg's fade-to-white effect when teleporting players is now a little less glaring.
+}}
+{{Subject changes
+|date = 9 September 2021
+|update = Deadman Reborn and QoL Changes
+|change = The party leader can now re-order their party at the notice board in Ver Sinhaza.
+}}
+{{Subject changes
+|date = 12 August 2021
+|update = Tombs of Amascut: Rewards Beta
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = There's now less variation in where the Maiden [[Blood Spawn]]s appear. Additionally, if players successfully dodge the blood, a maximum of only one Blood Spawn will appear.
+}}
+{{Subject changes
+|date = 4 August 2021
+|update = New Client Features: Milestone 2
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = * A filter has been added to the Theatre of Blood Party Board to help players find their friends and Clanmates.
+* Players can now use escape crystals on their party members to activate them, allowing teleportation of teammates out of the raid in an instant. To enable this, right-click a crystal and select 'Toggle'. Both players must have a crystal for this to work, and both crystals will be consumed in the process.
+}}
+{{Subject changes
+|date = 28 July 2021
+|update = A Night At The Theatre Rework
+|change = The Story Mode version of the Theatre of Blood has been renamed to Entry Mode.
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Story and hard modes added. Story mode provides an easier fight but less rewards and no chance of obtaining any unique, while hard mode provides a harder fight, but with a better chance of obtaining uniques and better common drops if completed in a specific time.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|change = The Theatre of Blood is now a safe zone on PvP worlds.
+}}
+{{Subject changes
+|date = 7 April 2021
+|poll = Old School Content Poll 74: Collection Log & Game Improvements
+|update = Collection Log Improvements and The Last of Poll 74
+|change = There's now a chest just opposite the bank booths, that allows one to obtain any loot they forgot to claim after defeating Verzik Vitur.
+}}
+{{Subject changes
+|date = 3 March 2021
+|update = TzHaar-Ket-Rak's Challenges
+|change = The quota of daily party formations in the Theatre of Blood has increased.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|poll = 
+|change = The death animation of Nylocas Athanatos and Matomenos has been reduced.
+}}
+{{Subject changes
+|date = 12 March 2020
+|update = Phosani's Nightmare and HiScores
+|change = If players are attempting to start a Theatre of Blood wave, but some of their party members are still in the previous wave's arena, the warning screen that appears will now make this more explicit.
+}}
+{{Subject changes
+|date = 2 May 2019
+|update = Automated Plank Make and In Game Clock
+|change = *The Pestilent bloat within the Theatre of Blood should now fall down in the correct position.
+*One of the Nylocas walking toward the centre of the arena will no longer incorrectly change into a smaller Nylocas.
+*Verzik should now correctly move at the correct times during attack animations, to prevent her from appearing in the wrong location.
+*Xarpus' exhumed phase has been made shorter and scaled better for smaller team sizes. To keep it balanced, each absorption is now more powerful.
+*Odd pathing in Verzik's third phase caused by occasionally appearing to target a dead player has been fixed.
+}}
+{{Subject changes
+|date = 6 September 2018
+|update = Making Friends With My Arm, Deadman Autumn Finals and Full Mobile Launch
+|change = Elite clue drop rate was changed, as it was previously 1/750.
+}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|change = *Bosses' Hitpoints now scale to four and three player teams.
+*Resource chests now use a point system instead of giving random supplies.
+*The Nylocas encounter was shortened by removing some earlier waves as they made the encounter needlessly long. The boss of the encounter was also buffed by making damage dealt with the incorrect style reflect and heal 100% instead of 50%, as well as increasing its Hitpoints and damage dealt.
+*Other minor tweaks were made regarding balance and QoL.
+* Improvements to spectator mode
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery>
+File:Theatre of Blood artwork.jpg|Artwork of the Theatre of Blood
+File:Verzik Vitur concept.png|Concept art of Lady Verzik Vitur
+File:Verzik Vitur concepts.png|Several concepts of Lady Verzik Vitur
+File:Theatre of Blood early concepts.jpg|Some early paint-overs of the Theatre of Blood
+File:Theatre of Blood throne room artwork.png|Artwork of Lady Verzik's throne room
+File:Verzik Vitur artwork.jpg|Artwork of Lady Verzik Vitur
+File:Maiden of Sugadinti artwork.jpg|Artwork of The Maiden of Sugadinti
+File:Pestilent Bloat artwork.jpg|Artwork of Pestilent Bloat
+File:Sotetseg artwork.jpg|Artwork of Sotetseg
+File:Xarpus artwork.jpg|Artwork of Xarpus
+File:Theatre of Blood login screen.png|Login screen for the Theatre of Blood
+File:Theatre of Blood login screens.jpg|The choices of the login screen competition
+</gallery>
+
+===Work-in-progress===
+<gallery>
+Theatre of Blood work-in-progress.png|Placeholder graphics while testing the generation of Theatre of Blood dungeons
+Theatre of Blood work-in-progress 2.png|Placeholder graphics while testing the entering of Theatre of Blood dungeons
+Theatre of Blood work-in-progress 3.png|A screenshot of the Ver Sinhaza bank, shown during a livestream on 22/02/2018
+Theatre of Blood work-in-progress 4.png|A screenshot of the Theatre of Blood recruiting board, shown during a livestream on 22/02/2018
+Theatre of Blood work-in-progress 5.png|A screenshot of the Theatre of Blood entrance, shown during a livestream on 22/02/2018
+Theatre of Blood work-in-progress 6.png|A screenshot of a room within the Theatre of Blood, shown during a livestream on 22/02/2018
+Theatre of Blood work-in-progress 7.png|A screenshot of the nylocas, shown during a Q&A stream on 12/04/2018
+Theatre of Blood work-in-progress 8.png|A teaser showing the entrance to the arena of [[The Maiden of Sugadinti]]
+Theatre of Blood work-in-progress 9.png|A teaser from Mod Ry showing the [[nylocas]] nest
+Theatre of Blood work-in-progress 10.png|A teaser showing a room within the Theatre of Blood
+Theatre of Blood work-in-progress 11.png|A screenshot of an early wire frame of [[Sotetseg]]'s arena.
+Theatre of Blood work-in-progress 12.png|A screenshot of [[Verzik Vitur]]'s throne in comparison to the size of a player
+Sotetseg the blood beast work-in-progress.png|A screenshot of a glitched Sotetseg model, with a work-in-progress environment as a background
+</gallery>
+===Models===
+<gallery>
+The Maiden of Sugadinti model.gif|A work-in-progress model of [[The Maiden of Sugadinti]]
+The Maiden of Sugadinti model 2.gif|A completed set of animations for The Maiden of Sugadinti
+Nylocas model.gif|A teaser showing the idle, attacking and death animation of a [[Nylocas Hagios]]
+Nylocas model 2.gif|A teaser showing the idle, attacking and death animation of a [[Nylocas Toxobolos]]
+Nylocas model 3.gif|A teaser showing the idle, attacking and death animation of a [[Nylocas Ischyros]]
+Xarpus model.gif|A completed model of [[Xarpus]]
+Sotetseg the blood beast model.gif|A preview of Sotetseg's walking animation, shown during a design stream on 26/04/2018
+Lady Verzik model.gif|A preview of Verzik Vitur's vampyre form's idle animation
+</gallery>
+
+==Trivia==
+*The Theatre of Blood was first mentioned in-game in the book [[Serafina (book)|The Tale of Serafina]], found in the [[Myths' Guild]] Library.
+*The names for many of the monsters in the raid mostly come from eastern and south-eastern European words:
+:{|class=wikitable style="text-align:center;"
+|-
+!Name
+!Original word
+!Meaning
+|-
+|Ver Sinhaza
+|Vér Színháza
+|Hungarian for "Theatre of Blood"
+|-
+|The Maiden of Sugadinti
+|Sugadinti
+|Lithuanian for "ruin" <sup>''(verb)''</sup>
+|-
+|Nylocas
+|Nyolcas
+|Hungarian for "eight"
+|-
+|Nylocas Athanatos
+|ἀθάνατος<br/>(transliterated as "athánatos")
+|Greek for "undying" or "immortal"
+|-
+|Nylocas Hagios
+|ἅγιος<br/>(transliterated as "ágios")
+|Greek for "holy" or "saintlike"
+|-
+|Nylocas Ischyros
+|ἰσχυρός<br/>(transliterated as "ischyrós")
+|Greek for "strong" or "mighty"
+|-
+|Nylocas Matomenos
+|ματωμένος<br/>(transliterated as "matoménos")
+|Greek for "bloody" or "bleeding"
+|-
+|Nylocas Prinkipas
+|πρίγκιπας<br/>(transliterated as "prínkipas")
+|Greek for "prince"
+|-
+|Nylocas Toxobolos
+|τοξοβόλος<br/>(transliterated as "toxovólos")
+|Greek for "archery"
+|-
+|Nylocas Vasilias
+|βασιλιάς<br/>(transliterated as "vasiliás")
+|Greek for "king"
+|-
+|Sotetseg
+|Sötétség
+|Hungarian for "darkness"
+|-
+|Yarasa<br/>(the name of Xarpus's race)
+|Yarasa
+|Turkish for "bat"
+|-
+|Verzik Vitur
+|Vérzik
+|Hungarian for "bleeding"
+{{Subject changes footer}}
+
+* The examine text for the Theatre of Blood "Are you prepared?" may be a reference to the character of Illidan Stormrage from World of Warcraft. 
+
+*The release date for the Theatre of Blood was silently announced in [[Update:Bryophyta: The Moss Giant Boss|an update]] on [[3 May]] [[2018]] via a leaflet just north of the [[Ectofuntus]], which displayed the following message when read:
+[[File:Theatre_of_Blood_leaflet_teaser.png|thumb|251px|The leaflet found north of the Ectofuntus.]]
+{{Cquote2|Lady Verzik cordially invites you to the Theatre of Blood!<br/>The greatest collection of powerful beasts are here for your entertainment.
+
+Tickets available from June 7th!}}
+*The date was then changed to "Pentember 15th" after a player complaint of the leaflet not using the [[Calendar#Months_of_the_year|canonical in-game calendar]].
+*Upon the release of the Theatre of Blood, the update went live with a placeholder loot table instead of the intended loot table. This was hotfixed prior to the first completion of the raid.{{CiteReddit|author=Mod Ash|url=https://www.reddit.com/r/2007scape/comments/1m72il8/comment/n4xpuar/|title=21 Years at Jagex + RuneFest Medley (Deluxe) music video {{!}} AMA |quote=ToB was written with a placeholder loot table before the final balancing pass was done. It was then launched with the placeholder version still in place, rather than pasting the final version over it. Fortunately someone noticed this before the first player completion, and we hotfixed it before they reached the end.|date=24 July 2025|archiveurl=https://reldo.runescape.wiki/i/27964004|archivedate=13 May 2026}}
+*Upon the release of the Theatre of Blood, there was a bug which would cause players to drop the item in the top right corner of their inventory on the floor upon death, if they were in possession of [[Dawnbringer]]. This bug was hotfixed within one hour of discovery. In one instance, the player was an [[Ironman Mode|ironman]] whose [[Armadyl chestplate]] was picked up by their teammate, and as they could not trade it back, Jagex offered to swap the item to its owner.{{CiteReddit|url = https://www.reddit.com/r/2007scape/comments/8pbg19/just_lost_my_only_armadyl_chestplate_due_to_a_bug/e09yr04/|title = Just lost my only armadyl chestplate due to a bug in ToB, kept this instead|author = Mod Ayiza|name = Ayiza comment|date=7 June 2018|quote=We have so far had two confirmed instances of this occurring, and in one instance (this one), a player has lost an item due to no fault of their own. This item went to another member of the party. We have since removed that item from them and will be returning it to the player who initially lost the item, as they are an Ironman.|archiveurl=https://reldo.runescape.wiki/i/103479|archivedate=01 November 2022}}
+*Its name may be a reference to the 1973 film ''{{wp|Theatre of Blood}}''.
+*Its subject matter may be derived from the <i>Théâtre des Vampires</i>, from {{wp|Anne Rice}}’s series {{wp|The Vampire Chronicles}}.
+*The Theatre of Blood is the only raid that:
+** Lacks raid-unique supplies; the supplies offered are the same players can use, make and sell.
+** Cannot be teleported out of through normal methods.
+** Is non-customisable.
+** Has no unique rewards that give an additional/improved effect in the raid.
+
+==See also==
+* Other [[raid]]s:
+** {{plink|Chambers of Xeric|pic=Twisted bow}}
+** {{plink|Tombs of Amascut|pic=Tumeken's shadow}}
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+{{Activities}}
+{{Meiyerditch}}

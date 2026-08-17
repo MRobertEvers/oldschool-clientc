@@ -1,0 +1,1835 @@
+# Theatre of Blood — full implementation plan
+
+> **Status, 17 August 2026: not started.** Nothing in this plan has been built. The
+> rev-239 cache already ships every npc, animation, sound, graphic, loc, interface
+> and varbit the raid needs (§3) and this tree already carries generated combat and
+> stat blocks for the six bosses (§4), so the work is content and server logic, not
+> assets.
+>
+> This document is the specification. It is written to the same contract as
+> [`zulrah.md`](../../bosses/zulrah.md): the Wiki is authoritative for
+> player-visible behaviour, the cache is authoritative for ids, and **where no
+> source settles a number this plan states a `[MEASURE]` task rather than inventing
+> one.** Every measurement task is listed in §16 and every source disagreement in
+> §15. Do not encode a guess without tagging it in `tob.constant`.
+
+The implementation target is current OSRS behaviour as of **17 August 2026**.
+All sources are downloaded into [`sources/`](sources/) and indexed by
+[`sources/README.md`](sources/README.md), with each Wiki page pinned to a revision
+id so a later edit upstream cannot silently move the acceptance target.
+
+---
+
+## Contents
+
+1. [Definition of done](#1-definition-of-done)
+2. [How the tick data in this plan was obtained](#2-how-the-tick-data-in-this-plan-was-obtained)
+3. [What the rev-239 cache already ships](#3-what-the-rev-239-cache-already-ships)
+4. [What this tree already has](#4-what-this-tree-already-has)
+5. [Raid-wide systems](#5-raid-wide-systems)
+6. [Room 1 — The Maiden of Sugadinti](#6-room-1--the-maiden-of-sugadinti)
+7. [Room 2 — The Pestilent Bloat](#7-room-2--the-pestilent-bloat)
+8. [Room 3 — The Nylocas](#8-room-3--the-nylocas)
+9. [Room 4 — Sotetseg](#9-room-4--sotetseg)
+10. [Room 5 — Xarpus](#10-room-5--xarpus)
+11. [Room 6 — Verzik Vitur](#11-room-6--verzik-vitur)
+12. [Loot room, rewards and drop tables](#12-loot-room-rewards-and-drop-tables)
+13. [Combat Achievements](#13-combat-achievements)
+14. [Engine gaps](#14-engine-gaps)
+15. [Source conflicts register](#15-source-conflicts-register)
+16. [Measurement tasks](#16-measurement-tasks)
+17. [Implementation steps](#17-implementation-steps)
+18. [Constants](#18-constants)
+19. [Test matrix](#19-test-matrix)
+
+---
+
+## 1. Definition of done
+
+A Theatre of Blood implementation is complete only when all of these are true.
+
+1. A player who has completed **Priest in Peril** can reach Ver Sinhaza, use the
+   party board, form or join a party of 1–5, pick a mode, and enter the raid.
+2. The raid is **instanced per party** across seven map squares (§5.2), and every
+   exit path — completion, wipe, logout, disconnect, escape crystal — restores
+   state once and frees the instance once.
+3. All six encounters run their real mechanics on their real tick clocks, matching
+   the per-room play-by-play in §6–§11 tick for tick.
+4. Boss hitpoints scale to party size: 100% at 5, 87.5% at 4, 75% at 3 and below
+   (§5.3), using the per-npc tables in §18.
+5. All three modes exist — Entry, Normal, Hard — and each uses its own npc id set
+   (§3.1), its own hitpoints, and its own mechanic deltas (§6.6, §7.6, §8.7,
+   §9.6, §10.6, §11.7).
+6. The barrier model works: each room's fight begins when the **first** player
+   crosses the barrier, and players outside it are not counted for scaling or for
+   mechanics that key off "players present".
+7. Deaths are dangerous: dying inside the theatre strips Hardcore status, drops
+   the player outside the fight area as a spectator, and routes their items to the
+   reclamation chest. A full team wipe ends the raid (except in Entry Mode).
+8. The two supply chests after Bloat and Sotetseg award points by individual
+   performance, sell the eight-item list, carry points forward, and degrade to an
+   onion for a player who died in both preceding rooms.
+9. Verzik's death opens the vault, spawns one chest per player, rolls the reward
+   table, and shows the performance/MVP board.
+10. Every Combat Achievement bound to the raid fires, including the six
+    `Perfect …` tasks whose definitions are quoted in §13.
+11. The automated selftest matrix in §19 passes and is provably able to fail.
+
+Explicitly **out of scope** for this plan, and owned elsewhere:
+
+- The quest **A Night at the Theatre** and its cutscene versions of these bosses
+  (`myq4_*` npcs, `tobquest*` varbits) — a separate plan.
+- **The Blood Moon Rises** and the post-quest re-skin of Ver Sinhaza.
+- The **scythe of vitur** charge system and **Sanguinesti staff** healing, which
+  belong with the item-charge work already in `skill_combat/scripts/player/gear/`.
+- **Spectating** (`Abigaila`, the ledges, the war table) — worth its own pass once
+  the raid runs.
+
+---
+
+## 2. How the tick data in this plan was obtained
+
+Tick-level behaviour is not on the Wiki in any complete form, so it was
+crowdsourced from four independent classes of source and cross-checked:
+
+1. **The rev-239 cache itself.** Jagex ships an `attackrate` param on most ToB
+   npcs — that is the attack speed in ticks, straight from the game data, and it
+   is the strongest evidence available for the four npcs that carry it (§3.5).
+2. **Tick-accurate recorder code.** [blert-io/plugin](https://github.com/blert-io/plugin)
+   parses live raids into a tick-indexed event stream; every constant in its
+   trackers is a number the recorder must get right or the parse desynchronises.
+   This supplied the Verzik attack clock, the Bloat down cycle, the Nylocas wave
+   cycle and stall table, the Xarpus turn cadence, the Sotetseg attack speed, the
+   room world-areas and the Maiden crab tiles.
+3. **Independent plugin implementations.** The much older
+   [OpenOSRS `theatre` plugin](https://github.com/JourneyDeprecated/OpenOSRS)
+   was used purely as a second opinion: it agrees with blert on the wave table and
+   the stall sequence, which is the strongest single corroboration in this
+   document, and it supplies the Xarpus exhumed counts by party size.
+   [tob-qol](https://github.com/damencs/tob-qol) and
+   [TobUtilities](https://github.com/NCG-RS/TobUtilities) supplied room scenery ids.
+4. **Player-authored tick guides.** The Wiki's
+   [Guide:Advanced Theatre of Blood](https://oldschool.runescape.wiki/w/Guide:Advanced_Theatre_of_Blood?oldid=15222073)
+   and four YouTube guide transcripts (`sources/transcripts/`) explain *why* the
+   cadences matter — Xarpus's `22121`, the Sotetseg maze's 4-tick despawn check,
+   the Verzik P2 "scythe walk". These were used to sanity-check, never as the
+   primary citation for a number.
+
+Where a source is machine-transcribed audio it is treated as the weakest evidence
+and is never the sole citation for a constant.
+
+---
+
+## 3. What the rev-239 cache already ships
+
+Everything below was extracted from `OSRS-Content/osrs239-content/` and is dumped
+in full under [`sources/`](sources/). **Never hardcode these ids in C** — they go
+in `tob.constant` and the `.npc`/`.loc` packs, per the tree's id-authority rule.
+
+Regenerate any table with, e.g.:
+
+```sh
+cd OSRS-Content/osrs239-content
+grep -inE '=(tob_|verzik|nylocas_boss|maiden_)' configs/all.npc.compack
+```
+
+### 3.1 NPCs — 275 records, three modes each
+
+Ids are `normal` / `entry ("story")` / `hard`. Full records with stats, sizes and
+params are in `sources/cache_npc_*.txt`.
+
+| Role | Symbol (normal) | Normal | Entry | Hard |
+|---|---|---:|---:|---:|
+| Maiden 100% | `tob_maiden_100` | 8360 | 10814 | 10822 |
+| Maiden 70% / 50% / 30% | `tob_maiden_70/50/30` | 8361/8362/8363 | 10815–10817 | 10823–10825 |
+| Maiden dying A / B | `tob_maiden_dying_a/b` | 8364/8365 | 10818/10819 | 10826/10827 |
+| Nylocas Matomenos (crab) | `maiden_elemental` | 8366 | 10820 | 10828 |
+| Blood spawn | `maiden_blood_slug` | 8367 | 10821 | 10829 |
+| Pestilent Bloat | `tob_bloat` | 8359 | 10812 | 10813 |
+| Nylo small mel/rng/mag (pillar-bound) | `tob_nylocas_incoming_*` | 8342/8343/8344 | 10774–10776 | 10791–10793 |
+| Nylo big mel/rng/mag (pillar-bound) | `tob_nylocas_big_incoming_*` | 8345/8346/8347 | 10777–10779 | 10794–10796 |
+| Nylo small mel/rng/mag (**aggro**) | `tob_nylocas_fighting_*` | 8348/8349/8350 | 10780–10782 | 10797–10799 |
+| Nylo big mel/rng/mag (**aggro**) | `tob_nylocas_big_fighting_*` | 8351/8352/8353 | 10783–10785 | 10800–10802 |
+| Vasilias spawning / mel / mag / rng | `nylocas_boss_*` | 8354/8355/8356/8357 | 10786–10789 | 10807–10810 |
+| Nylocas Prinkipas (HM demi-boss) | — | — | — | 10803 |
+| Pillar (support) npc | `tob_nylocas_support` | 8358 | 10790 | 10811 |
+| Sotetseg idle / combat | `tob_sotetseg_noncombat/combat` | 8387/8388 | 10864/10865 | 10867/10868 |
+| Sotetseg tornado | `tob_sotetseg_creeper` | 8389 | 10866 | 10869 |
+| Xarpus idle / P1 / P2+ / death | `tob_xarpus_static/feeding/combat`, `xarpus_death` | 8338–8341 | 10766–10769 | 10770–10773 |
+| Verzik idle | `verzik_initial` | 8369 | 10830 | 10847 |
+| Verzik idle base / quick-start | `verzik_initial_base/_quickstart` | 14795/14796 | — | 14797/14798 |
+| Verzik P1 | `verzik_phase1` | 8370 | 10831 | 10848 |
+| Verzik P1→P2 transition | `verzik_phase1_to2_transition` | 8371 | 10832 | 10849 |
+| Verzik P2 | `verzik_phase2` | 8372 | 10833 | 10850 |
+| Verzik P2→P3 transition | `verzik_phase2_to3_transition` | 8373 | 10834 | 10851 |
+| Verzik P3 | `verzik_phase3` | 8374 | 10835 | 10852 |
+| Verzik death bat | `verzik_death_bat` | 8375 | 10836 | 10853 |
+| Verzik web | `verzik_web_npc` | 8376 | 10837 | 10854 |
+| Verzik pillar / collapsing / rubble | `verzik_*pillar*`, `verzik_fading_rubble_npc` | 8379/8377/8378 | 10840/10838/10839 | 10857/10855/10856 |
+| Verzik throne | `verzik_throne_npc` | 8380 | — | — |
+| Verzik combat nylocas mel/rng/mag | `verzik_nylocas_*` | 8381/8382/8383 | 10841–10843 | 10858–10860 |
+| Nylocas Athanatos (purple healer) | `tob_verzik_phase2_armourednylocas` | 8384 | 10844 | 10861 |
+| Nylocas Matomenos (Verzik reds) | `tob_verzik_phase2_bloodnylocas` | 8385 | 10845 | 10862 |
+| Verzik tornado | `tob_verzik_creeper` | 8386 | 10846 | 10863 |
+
+Support cast: `tob_male_orator` 8323, `tob_female_orator` 8324, `tob_stranger`
+8325 (+ per-room variants 11162–11168), `tob_door_guard` 8326,
+`tob_door_guard_inner` 8327, `tob_citizen_1..4` 8328–8331, `tob_noble_1..4`
+8332–8335, `tob_spectator_misthalin` 8368, `verzik_pet` 8337 and the five boss
+pets 10870–10874.
+
+### 3.2 Animations — 131 sequences (`sources/cache_seq.txt`)
+
+| Room | Sequences |
+|---|---|
+| Maiden | `maiden_idle` 8090, `maiden_attack_blood` **8091**, `maiden_attack_special` **8092**, `maiden_death_a/b` 8093/8094, `maiden_spawn` 14399, `tob_blood_spawn_walk/idle/death` 8101–8103, `tob_blood_splat` 8099, `tob_shadow_projectile` 8100 |
+| Bloat | `tob_bloat_ready` 8080, `tob_bloat_walk` 8081, `tob_bloat_sleep` **8082** (the "down"), `tob_bloat_flies_large/small` 8083/8084, `tob_bloat_death` 8085, `tob_bloat_chamber_idle` 8086, `tob_bloat_swinging_chain` 8087, `tob_bloat_falling_flesh` 8088, `tob_bloat_stunned_short` 8089 |
+| Nylocas | `top_spider_{melee,ranged,magic}_{idle,walk,attack,meleeattack,death,death_detonate}` 7987–8006, `top_spider_melee_spawn` 8075, `_noloop` 9030, `_quiet` variants 14387–14394, `nylocas_pillar_precollapse/collapse` 8073/8074 |
+| Sotetseg | `tob_sotetseg_walk` 8136, `_idle` 8137, `_attack_melee` **8138**, `_attack_ranged` **8139**, `_death` 8140, `_wall_float` 8141, `_shadow_portal` 8142, `_tile_glow` 8143, `_shared_projectile` 8144 |
+| Xarpus | `tob_xarpus_idle` 8058, `_attack_ranged` **8059**, `_absorb` 8060, `_fly_up` 8061, `_death_a/b` 8062/8063, `_exhumed_start/loop/end` 8064–8066, `_acid_splat_start/loop/end` 8067–8069 |
+| Verzik | `verzik_throne_transform_initial` 8053, `verzik_phase1_idle` 8107, `verzik_throne_transform` 8108, `verzik_phase1_attack_magic` **8109**, `_defend` 8110, `_death` 8111, `verzik_phase2_spawn` 8112, `_idle` 8113, `_attack_magic` **8114**, `_lightning_spot` 8115, `_attack_melee` **8116**, `_heal` **8117**, `_death` **8118**, `verzik_phase3_spawn` 8119, `_idle` 8120, `_walk` 8121, `_attack_melee` **8123**, `_attack_magic` **8124**, `_attack_ranged` **8125**, `_attack_powerblast` **8126**, `_attack_webspin` **8127**, `_death_a/b` 8128/8129, `verzik_phase3_attack_summon` 14406, `verzik_pillar_collapse` 8052, `verzik_pillar_fade` 8104 |
+
+The bolded ids are the ones the tick clocks key off; they match the animation
+constants in both blert and OpenOSRS exactly, which is a useful confirmation that
+the cache in this tree is the same revision the plugins were written against.
+
+### 3.3 Graphics — 64 spotanims (`sources/cache_spotanim.txt`)
+
+Maiden `maiden_shadow_proj` 1577, `maiden_blood_proj` 1578,
+`maiden_lingering_blood` **1579** (+ `_sw/_nw/_ne` 3982–3984).
+Bloat `tob_bloat_flies_large/small` 1568/1569, `tob_bloat_falling_flesh1..4`
+**1570–1573**, `tob_bloat_stunned` 1575, `tob_bloat_blood_splat` **1576**.
+Nylocas `tob_nylocas_shielded` 1558, ranged projectiles 1559–1561, deaths
+1562–1567. Sotetseg `tob_sotetseg_zap` 1603, `_sharedattack` **1604** (the death
+ball), `_sharedattack_impact` 1605, `_maging` **1606**, `_ranging` **1607**,
+`_drain` 1608. Xarpus exhumed end 1549, `tob_xarpus_exhumed_energyorb` **1550**,
+acid-pool ends 1551–1554, `tob_xarpus_acidspit` **1555**, `_acidsplash` 1556,
+`_guano` 1557. Verzik P1 projectile/impact 1580–1582, P2 ranged **1583**, impact
+1584, lightning **1585**, armoured-tank projectile **1586**, blood/poison globule
+1587/1588, spawning 1589, poison aura 1590, blood projectile **1591**, blood
+impact 1592, P3 ranged **1593**, P3 magic **1594**, power-blast safe zone
+**1595** (+ `_quick` 3028), projanim down 1596, protection 1597, acid bomb
+**1598**, impacts 1599/1600, P3 web projectile 1601, creeper spot **1602**.
+
+### 3.4 Sounds — 113 effects (`sources/cache_sounds.txt`)
+
+Every attack, death, footstep and ambience has a named id: e.g. Maiden
+`tob_maiden_shadow_attack` 3293 (+ part 2 3234), `tob_maiden_blood_attack` 3981
+(+ part 2 4002), `tob_maiden_blood_impact` 3547, `tob_maiden_hit` 3999, death
+3942/3955/3958. Bloat `tob_bloat_shout` 3545, `tob_bloat_flies_attack_1..6`
+3544/3945/3954/3951/3983, `tob_bloat_footstep_1/2` 3931/3998,
+`tob_bloat_foot_unstick` 3935, `tob_bloat_snore` 3976, `tob_bloat_hit` 3971,
+`tob_bloat_death` 3965, `tob_bloat_jar_bgsound_loop` 3288.
+Sotetseg `_attack_ranged` 3539, `_attack_melee_4` 3540, `_teleport_shadowrealm`
+3963, `_red_spiral_hum` 4001, `_redspiral_grid_playercollision` 3233,
+`_player_tile_explosion_impact(_2)` 3985/3970, `_large_fireball_player_hit` 3947,
+`_death` 3286. Xarpus `_exhumes_open/close` 3230/3995, `_exhume_health_shots`
+3231, `_swollowing_health` 3956, `_player_acid_burn` 3944, `_acid_floor_hit`
+4005, `_damaged_screech` 4007, `_death_screech` 3549. Verzik human/spider/vampire
+attack, defend, death and footstep sets across 3933–4010. Room transition card
+`tob_transition_card` 3952; pillar `tob_pillar_hit` 3291, `tob_pillar_collapse` 3969.
+
+**Do not invent sound ids.** Most of these are carried *in band* on the sequence
+(the generated `.combat` files in §4 already note this: e.g. `maiden_death_a`
+carries synths 3942, 3955 and 3958), so playing the animation plays the sound.
+Only the ones that are not attached to an animation need an explicit `sound_synth`.
+
+### 3.5 The `attackrate` param — attack speeds shipped in the cache
+
+`sources/cache_npc_attackrates.txt`. This is the highest-quality evidence for
+these four:
+
+| NPC | `attackrate` | `param_26` (attack type) |
+|---|---:|---|
+| `tob_bloat` (all modes) | **1** | 3 (ranged) |
+| every `tob_nylocas_*` small and big | **3** | 0 melee / 4 ranged / 5 magic |
+| every `nylocas_boss_*` (Vasilias) | **4** | matches its form |
+| `tob_maiden_*` | *(absent from the record; the generated `.stats` says 10)* | 5 (magic) |
+
+Bloat's `attackrate = 1` is not a typo — the flies are a **per-tick** attack, and
+that is exactly how the Wiki describes them.
+
+### 3.6 Locs — 456 records (`sources/cache_locs.txt`)
+
+The surface (`tob_surface_*` 32653–32683: raid entrance, blood well, notice
+board, gravestone chest, deposit box, bank booths, 12 teleport pads), the whole
+dungeon (`tob_dungeon_*`), Verzik's throne room (32686–32718 including the throne,
+pillars, pillar-collapse and rubble variants, the death cage and the floor tiles),
+and the Nylocas supports **32862 (support) / 32863 (breaking) / 32864 (broken)**.
+Sotetseg's maze uses ground objects **33033 (disabled) / 33034 (inactive) /
+33035 (active)**; Xarpus's exhumed is ground object **32743** and its acid splat
+**32744**; Maiden's blood trail is game object **32984**; Bloat's floor is
+32941–32948, its tank 32955/32957/32959/32960/32964/33084, its ceiling chains
+32949–32954 and 32970.
+
+### 3.7 Varbits (`sources/cache_vars.txt`)
+
+| Varbit | Symbol | Use |
+|---:|---|---|
+| 6440 | `tob_client_partystatus` | party state for the sidebar |
+| 6441 | `tob_client_partyslot` | this player's orb slot (drives **orb order**, §5.4) |
+| 6442–6446 | `tob_client_p0..p4` | per-slot orb state |
+| 6447 | `tob_client_waveprogress_type` | which room/health bar the top bar shows |
+| 6448 | `tob_client_waveprogress_val` | current value of the boss health bar |
+| 6449 | `tob_client_waveprogress_max` | max value of the boss health bar |
+| 6450–6454 | `tob_treasureroom_chest_0..4` | loot-room chest states |
+| 6455 | `tob_lobby_well_contents` | the blood well outside |
+| 6460 / 6461 | `tob_midwaychest_points` / `_boobyprize` | supply chest points; the onion |
+| 12271 / 12272 | `tob_midwaychest_staminapot` / `_last_x` | chest UI state |
+| 11469 | `tob_damage_taken` | per-player damage, for MVP and points |
+| 11958 | `tob_should_have_loot` | eligibility for a vault chest |
+| 12269 | `tob_sotetseg_hard_tiles_visible` | HM maze split |
+| 12270 | `tob_scoreboard_tab` | scoreboard |
+| 12971 | `tob_progress` | raid progress |
+| 6400 | `tob_verzik_throne_visible` | throne loc state |
+| 14980 | `tob_crystal_antispam` | escape crystal |
+| 12988 | `tob_lobby_friends_filter` | lobby |
+
+The `tobquest*` varbits (6573, 10996, 12276, 12277, 12972–12975, 14610, 15607)
+belong to A Night at the Theatre and are out of scope.
+
+Interface `tob_infoboard.if` exists in `OSRS-Content/osrs239-content/interfaces/`.
+
+---
+
+## 4. What this tree already has
+
+`tools/gen_npc_stats.py` and `tools/gen_npc_combat.py` have already run over the
+ToB npcs:
+
+- **263** `npc_combat/*/tob_*.combat`, `verzik_*.combat`, `nylocas_*.combat` files
+  — death/attack/defend animation and sound bindings for every mode variant,
+  all `source = generated`.
+- **6** `npc_stats/*.stats` files: `tob_maiden_100`, `tob_bloat`,
+  `nylocas_boss_melee`, `tob_sotetseg_combat`, `tob_xarpus_combat_story`,
+  `tob_verzik_phase2_bloodnylocas_story`. These carry hitpoints, the six combat
+  levels, offensive/defensive bonuses, `attackrate`, `damagetype`, `huntmode`,
+  `huntrange` and `death_drop`.
+- **6** wiki source files under `OSRS-Content/osrs239-content/wiki/monsters/`
+  (`The Maiden of Sugadinti`, `Pestilent Bloat`, `Nylocas Vasilias`,
+  `Nylocas Matomenos`, `Sotetseg`, `Xarpus`).
+
+**The gap:** `.stats` exist for only six of ~90 combat-relevant ToB npcs, and the
+two that do exist for Xarpus and Verzik are the *story* (Entry Mode) variants, not
+the normal ones. Step 1 of §17 is to extend the generator's roster so every
+fighting ToB npc in all three modes gets a stat block, then hand-pin the handful
+the Wiki does not cover (the pillar npc, the webs, the tornadoes).
+
+Existing generated values worth knowing:
+
+| NPC | HP | Att | Str | Def | Mag | Rng | Notes |
+|---|---:|---:|---:|---:|---:|---:|---|
+| `tob_maiden_100` | 3500 | 350 | 350 | 200 | 350 | 350 | `attackrate 10`, `damagetype 4`, magic attack +300, `magic_maxhit 36` |
+| `tob_bloat` | 2000 | 250 | 340 | 100 | 150 | 180 | `attackrate 1`, `damagetype 3`, `undead 1`, mage def **600**, range def **800**, stab/slash/crush def 40/20/40 |
+| `nylocas_boss_melee` | 2500 | 400 | 350 | **50** | 50 | 350 | `attackrate 4`, zero defence bonuses, str bonus 60 |
+| `tob_sotetseg_combat` | 4000 | — | — | — | — | — | see `npc_stats/t/tob_sotetseg_combat.stats` |
+
+---
+
+## 5. Raid-wide systems
+
+### 5.1 The lobby — Ver Sinhaza
+
+Surface region **14642**. Everything is already in the cache as `tob_surface_*`
+locs (§3.6): the raid entrance, the party/notice board (`tob_surface_notice_board`
+32655), the blood well 32654, the gravestone reclamation chest 32656, the deposit
+box 32665, two bank booths 32666/32667 and twelve teleport pads.
+
+Requirements:
+
+- Party board: create/join/leave a party of up to 5, pick the mode, mark ready.
+- The **Mysterious Stranger** (`tob_stranger` 8325 and variants) sells escape
+  crystals at 75,000 gp and hands out Sinhaza shrouds by completion count.
+- The gravestone chest is the item-reclamation service — 100,000 gp, and a second
+  death before reclaiming loses the items permanently.
+- All normal teleports are blocked inside the theatre; the escape crystal is the
+  one exception.
+- Access requires **Priest in Peril**; Hard Mode additionally requires at least one
+  Normal Mode completion by *every* participant.
+
+### 5.2 Instancing and regions
+
+Seven map squares per party. Region ids and room world-areas are from blert's
+`Location.java`:
+
+| Room | Region | World area (x, y, w, h, plane) |
+|---|---:|---|
+| Lobby (Ver Sinhaza) | 14642 | — (not instanced) |
+| Corridor / purgatory | 12869 | — |
+| Maiden | **12613** | 3159, 4434, 29 × 25, plane 0 (staircase 3185, 4444, 3 × 6) |
+| Bloat | **13125** | 3287, 4439, 18 × 17 |
+| Nylocas | **13122** | 3276, 4228, 38 × 27 |
+| Sotetseg (overworld) | **13123** | 3271, 4304, 17 × 30 (staircase 3277, 4304, 6 × 3) |
+| Sotetseg (shadow realm) | **13379** | maze origin 3354, 4311, **plane 3** |
+| Xarpus | **12612** | 3162, 4379, 17 × 17 |
+| Verzik | **12611** | 3154, 4302, 28 × 21 |
+| Loot room / vault | 12867 | — |
+
+Use `map_instance_from_square` per room, as `minigame_inferno` does. The Sotetseg
+shadow realm is a **second simultaneous instance** on plane 3 that must exist
+while the overworld one is still live — that is the hardest instancing requirement
+in the raid and it is called out as a step of its own in §17.
+
+### 5.3 Hitpoint scaling
+
+Bosses are authored at 5-man values; scale is applied on spawn:
+
+| Party size | Multiplier |
+|---:|---:|
+| 5 | 100 % |
+| 4 | 87.5 % |
+| 3, 2, 1 | 75 % |
+
+The per-npc scaled values are tabulated in §18 from blert's `TobNpc.java`
+(`{trio-and-below, 4-man, 5-man}`). Note that these are **not** always exactly
+0.75/0.875 of the 5-man value — e.g. Maiden is 2625/3062/3500, and 3500 × 0.875 =
+3062.5, so the game truncates. Encode the tabulated integers, not the formula.
+
+**Scale is fixed by the number of players who cross the barrier**, not by party
+size, which is how a 5-party can deliberately run a room at a lower scale.
+
+### 5.4 Orb order
+
+Several mechanics resolve ties by *orb order* — the top-to-bottom order of the
+party health orbs, which is the party's join order and is exposed to the client in
+varbits 6441–6446. Orb order is the tiebreak for Maiden's target selection (§6.2)
+and the ordering for Xarpus's poison chain (§10.3) and Verzik's Dawnbringer
+rotation. It must be a stable, server-side property of the party, not something
+derived per tick.
+
+### 5.5 Barriers, deaths, and the supply chests
+
+- Every room before Verzik has a **barrier**. The fight starts when the first
+  player crosses it. Players who never cross are not in the fight.
+- A death inside a fight teleports the player to the room's spectator area; they
+  rejoin at the next room. Hardcore status is lost. A **logout or disconnect
+  during a fight counts as a death**; a logout in a corridor is safe.
+- The two supply chests (after Bloat, after Sotetseg) award points:
+  above average 10–13, average 8–11, below average 6–9, carried forward between
+  chests. Contents and prices:
+
+| Item | Points | Item | Points |
+|---|---:|---|---:|
+| Stamina potion(4) | 1 | Prayer potion(4) | 2 |
+| Saradomin brew(4) | 3 | Super restore(4) | 3 |
+| Mushroom potato | 1 | Shark | 1 |
+| Sea turtle | 2 | Manta ray | 2 |
+
+  A player who died in **both** preceding rooms gets only an **onion**; taking the
+  onion restores their eligibility for the next chest. A `Message` is always present.
+  Entry Mode replaces this with **bandages** after rooms 2 and 4 and after any wipe.
+
+### 5.6 Between-room restoration
+
+On each boss kill, every team member has **hitpoints, prayer points, run energy
+and special attack energy restored to full**. Drained *stats* are deliberately
+**not** restored — that is what makes Maiden's drain matter for the rest of the raid.
+
+---
+
+## 6. Room 1 — The Maiden of Sugadinti
+
+Region 12613, area (3159, 4434) 29 × 25. Maiden is **size 6**, level 940 (324
+Entry / 1128 Hard), and never moves — `readyanim` and `walkanim` are both
+`maiden_idle` 8090.
+
+### 6.1 Stats and scaling
+
+| | ≤3 | 4 | 5 |
+|---|---:|---:|---:|
+| Maiden HP | 2625 | 3062 | 3500 |
+| Nylocas Matomenos HP | 75 | 87 | **100** |
+| Blood spawn HP | 90 | 105 | 120 |
+
+Attack 350, Strength 350, Defence **200**, Magic 350, Ranged 350, magic attack
+bonus +300, **all defensive bonuses 0**, poison and venom immune. Max hit 36 (18
+in Entry). Entry Mode HP is 2000 at 5-scale falling to 20 % of that solo —
+see §15 for the conflict with blert's flat 500.
+
+Her body swaps npc id as she crosses each threshold: 8360 → 8361 (70 %) → 8362
+(50 %) → 8363 (30 %) → 8364/8365 while dying.
+
+### 6.2 The three attacks
+
+**Blackstorm** (the auto). Animation `maiden_attack_special` **8092**, projectile
+`maiden_shadow_proj` 1577, sounds 3293 + 3234.
+
+- Fires **every 10 ticks (6.0 s)**.
+- Target priority: **closest player → players on her north/east side → orb order**.
+- Always a *successful hit*: damage is `36.5 + 3.5·c` where `c` is the number of
+  Matomenos that have reached her. Halved by Protect from Magic.
+- **Over-hits like TzKal-Zuk** — the damage is computed against the player's
+  current health *plus* the excess, so it cannot be tick-eaten.
+- 50 % chance to drain combat stats by `(damage + 1) / 5`. **The stat drained is
+  the one backing the player's highest attack bonus at the moment they are
+  targeted** — which is what makes "bow flicking" work: swapping to a ranged
+  weapon on the tick she targets moves the drain onto Ranged.
+
+**Blood splats.** Animation `maiden_attack_blood` **8091**, projectile
+`maiden_blood_proj` 1578, landing graphic `maiden_lingering_blood` **1579**,
+trail game object **32984**, sounds 3981 + 4002, impact 3547.
+
+- Replaces the auto on the ticks it is used. One splat is thrown at **each
+  player's current tile**; one player additionally gets **two extra splats placed
+  randomly in a 5 × 5 centred on them**.
+- After a blood-splat attack, **the next two attacks cannot be blood splats** —
+  i.e. a 3-attack (30-tick) cooldown measured from the throw.
+- Standing on a splat deals `10 + 2·c`, **heals the Maiden for the same amount**,
+  and drains prayer.
+- Trails left by blood spawns expire in roughly 20–30 s in Normal Mode and
+  **never** in Hard Mode.
+
+**Nylocas Matomenos.** Npc `maiden_elemental` 8366.
+
+- Spawn the first time she reaches **70 %, 50 % and 30 %**; her model visibly
+  changes on the same tick.
+- **Two per player, capped at 10.** With fewer than 5 players the occupied spawn
+  positions are chosen at random from the ten — which is why a 4-scale can be
+  missing an N1 or S1 ("scuffed" spawns, §6.3).
+- They walk straight at her. Reaching her **heals her for double their current
+  hitpoints** and increments `c`, permanently raising blackstorm and blood-splat
+  damage.
+- Freezing them is the intended counter; freeze success scales with effective
+  magic attack bonus and is 100 % at +140.
+
+**Blood spawns.** Npc `maiden_blood_slug` 8367, walk/idle/death anims 8101–8103.
+
+- 10 % chance to appear from a blood splat; **20 %** if the splat was stepped on;
+  the overall chance is **halved if every player dodged**, and there are never
+  more than **8** at once.
+- They wander the arena leaving damaging trails that heal her.
+- Hard Mode: invulnerable to damage (still attackable), and their trails are permanent.
+
+### 6.3 Crab spawn tiles
+
+Twenty tiles: ten positions, each with a normal and a "scuffed" variant
+(blert `MaidenCrab.java`; the OpenOSRS plugin groups the same tiles as N1/N2/S1/S2
+freeze targets).
+
+| Position | Normal | Scuffed |
+|---|---|---|
+| N1 | (3173, 4456) | (3174, 4457) |
+| N2 | (3177, 4456) | (3178, 4457) |
+| N3 | (3181, 4456) | (3182, 4457) |
+| N4 inner | (3185, 4454) | (3186, 4455) |
+| N4 outer | (3185, 4456) | (3186, 4457) |
+| S1 | (3173, 4436) | (3174, 4435) |
+| S2 | (3177, 4436) | (3178, 4435) |
+| S3 | (3181, 4436) | (3182, 4435) |
+| S4 inner | (3185, 4438) | (3186, 4437) |
+| S4 outer | (3185, 4436) | (3186, 4435) |
+
+All plane 0. The north row is `y = 4456/4457`, the south row `y = 4436/4435`, and
+the x values step by 4 from 3173 — the arena is symmetric about `y = 4446`.
+
+### 6.4 Tick-by-tick — Maiden
+
+`T` counts ticks from the moment the first player crosses the barrier.
+`c` = Matomenos that have reached her, starts at 0.
+
+```
+T = 0    Room starts. Maiden 8360 idle (8090). Health bar varbits 6447/6448/6449 arm.
+         Attack clock starts.                                    [MEASURE M1: is the
+         first auto at T=0, T=1 or T=10?]
+
+T = k·10 ATTACK TICK. Choose an attack:
+           - if the blood-splat cooldown has expired (≥3 attacks since the last
+             one) and the roll says so -> BLOOD SPLAT
+           - otherwise -> BLACKSTORM
+         (The selection rule between the two is [MEASURE M2]; the Wiki gives
+          the cooldown but not the probability.)
+
+  BLACKSTORM branch, on the attack tick:
+    +0   pick target: nearest player; ties -> whoever is to her north/east;
+         ties -> lowest orb order.
+    +0   play seq 8092, sound 3293.
+    +0   launch projectile 1577 at the target's CURRENT tile.
+    +n   on impact (projectile flight, distance-dependent): deal
+         `36.5 + 3.5c`, halved if Protect from Magic is on, applied as an
+         over-hit that ignores tick-eating; sound 3234.
+    +n   50% roll: drain the stat backing the target's highest attack bonus by
+         `(damage+1)/5`.
+
+  BLOOD SPLAT branch, on the attack tick:
+    +0   play seq 8091, sound 3981.
+    +0   for EVERY player: queue a splat on the tile they occupy this tick.
+    +0   pick the player furthest from her: queue two more splats on random tiles
+         in the 5x5 centred on them.
+    +2   splats land: graphic 1579, sound 3547; each becomes a damaging ground
+         object 32984.                                           [MEASURE M3: the
+         throw->land delay in ticks.]
+    every tick a player stands on a splat: deal `10 + 2c`, heal Maiden the same,
+         drain prayer; sound 3989.
+    set blood-splat cooldown = 3 attacks.
+    each landed splat rolls a blood spawn: 10%, or 20% if a player stood on it;
+         halve the roll if no player was hit by any splat this cycle; never
+         exceed 8 live blood spawns.
+
+  On the tick her hitpoints first drop to <= 70% / 50% / 30%:
+    +0   transmog to 8361 / 8362 / 8363 (this is a body swap, not a new npc).
+    +0   choose min(2 * players_in_room, 10) of the 20 spawn tiles in §6.3 and
+         spawn `maiden_elemental` 8366 on each.                  [MEASURE M4: the
+         exact tile-selection rule, and whether the spawn is on the same tick as
+         the transmog or one tick later.]
+    +0   each crab walks the straight line toward her, 1 tile/tick.
+    when a crab's world area is within 1 tile of hers:
+         heal her by 2 * crab.currentHitpoints, c += 1, despawn the crab.
+         (Hard Mode: for the first five crabs, also shorten her attack period.)
+
+  Blood spawns, once alive:
+    each tick: step toward a random reachable tile; leave a trail object on the
+    tile vacated. Trail damages anyone standing on it and heals her the same.
+    Trails expire after ~33-50 ticks (20-30 s)                    [MEASURE M5];
+    in Hard Mode they never expire and the spawn itself is invulnerable.
+
+  On death:
+    +0   transmog 8364 -> 8365, play `maiden_death_a` 8093 then `_b` 8094
+         (sounds 3942/3955/3958 ride the animation).
+    +0   despawn every crab and blood spawn, clear every splat and trail.
+    +0   restore the team's HP/prayer/run/spec; drop `Serafina's diary` once.
+```
+
+### 6.5 Two derived facts worth encoding as tests
+
+- **10 ticks is exactly two 5-tick scythe swings or two 4-tick swings plus a
+  swap.** The advanced guide's "bow flick" — equip a ranged weapon after every two
+  scythe swings, re-equip the scythe the instant her attack animation starts —
+  only works if the drain reads gear at *target-selection* time. That is a
+  testable behaviour, not flavour.
+- **Standing on a blood splat heals her**, so a naive "damage the player" splat
+  implementation that forgets the heal will make the fight measurably easier and
+  will not be caught by any damage test.
+
+### 6.6 Mode deltas
+
+**Hard Mode** (`tob_maiden_100_hard` 10822 …): always spawns all **10** crabs
+regardless of party size; the first five that reach her also **increase her attack
+speed**; her damage cap is raised; blood spawns are invulnerable and their
+splatters are permanent; **her damage increases after three consecutive autos on
+the same target**, which is why teams rotate the tank.
+
+**Entry Mode** (10814 …): fewer crabs, much lower damage, HP scaling down to 20 %
+solo, and a wipe returns the team to the room entrance with unlimited attempts
+(Hardcore status is still lost).
+
+---
+
+## 7. Room 2 — The Pestilent Bloat
+
+Region 13125, area (3287, 4439) 18 × 17. Bloat is **size 5**, level 870, and
+**undead** — the salve amulet applies. It patrols a fixed rectangular circuit
+around the central tank.
+
+### 7.1 Stats and scaling
+
+| | ≤3 | 4 | 5 |
+|---|---:|---:|---:|
+| Normal | 1500 | 1750 | 2000 |
+| Hard | 1800 | 2100 | 2400 |
+| Entry | 320 (blert) | | |
+
+Attack 250, Strength 340, Defence 100, Magic 150, Ranged 180; strength bonus 82;
+**magic defence 600, ranged defence 800**, stab/slash/crush defence 40/20/40 —
+melee, and slash in particular, is the only sane style. Max hit 20 per fly tick.
+
+### 7.2 Room geometry
+
+From V-TOB's `PestilentBloat.java`, cross-checked against the room area:
+
+| Feature | Coordinates |
+|---|---|
+| Fight area | (3288, 4440) – (3304, 4455) |
+| North quadrant | x 3292–3299, y 4451–4455 |
+| East quadrant | x 3298–3303, y 4444–4451 |
+| West quadrant | x 3288–3292, y 4444–4451 |
+| South quadrant | x 3292–3299, y 4440–4444 |
+| Pillar-hug tiles (N/E/S/W) | (3292, 4450) / (3298, 4451) / (3299, 4445) / (3293, 4444) |
+| Barrier tile | (3288, 4447), barrier loc 32755 |
+
+The central tank (locs 32955/32957/32959/32960/32964/33084, top 32958/32962/
+32964/32965/33062) fills the hole in the middle and is what blocks line of sight.
+
+### 7.3 The state machine
+
+Bloat has exactly two states and the whole fight is the transition rule between them.
+
+**WALKING.** Plays `tob_bloat_walk` 8081.
+
+- Moves around the circuit, 1 tile/tick walking or 2 tiles/tick running.
+- **Attacks every tick** (`attackrate = 1`) with flies at anyone in line of sight:
+  10–20 damage, reduced 25 % by Protect from Missiles, and it **spreads** from a
+  hit player to any other player *that player* can see, even if Bloat cannot.
+- Its line-of-sight test is custom: **every tile on the side of the 5 × 5 nearest
+  the player is checked**, and the attack goes through if *any* of them has an
+  unobstructed view. A standard single-tile LOS check will produce a visibly
+  wrong safe spot.
+- **All damage dealt to Bloat while walking is halved (rounded down).**
+- Below **90 %** health, mutilated flesh falls from the ceiling while it walks:
+  graphics 1570–1573 telegraph the landing tile, and a hit deals **30–50** and
+  stuns. (Hard Mode: from the moment the first player enters, and it keeps falling
+  during the down phase too.)
+
+**DOWN.** Plays `tob_bloat_sleep` **8082**.
+
+- Lasts **32 ticks** (`BLOAT_DOWN_CYCLE_TICKS`), rising on tick 33.
+- On the tick **3 ticks before rising** (`BLOAT_STOMP_TICK = 3`), it **stomps**:
+  40–80 damage to everything around it, tick-eatable, and **all drained Defence is
+  restored to full**. Counting the tick it went down as tick 1, that is the **30th
+  tick of the down**, which is how the Wiki words it; counting from 0 it is
+  `down_tick + 29`. Both descriptions name the same tick — write the test against
+  one convention and say which.
+- Damage is not halved.
+
+### 7.4 The walk-length rules
+
+These four rules together are the whole reason Bloat feels random:
+
+1. A walk lasts **34–42 ticks** before it may go down.
+2. **The first walk of the fight is 4 ticks longer** — 38–46 ticks — because
+   "it was not attacked on the previous down" also applies to the non-existent
+   walk before the fight. The Wiki's Bloat page gives this as **39–47**; see §15.
+3. **Any walk after a down where nobody attacked Bloat is also +4 ticks.**
+4. Bloat may **change direction** at most once per **32 ticks** (16 in Hard Mode);
+   the cooldown starts at 32 on entry and **only counts down while it is walking**.
+   For **5 ticks after any turn or speed change it cannot go down**, which can push
+   a walk past 42 ticks.
+
+Movement speed is a pure function of health:
+
+| Health | Speed |
+|---|---|
+| > 60 % | always walks (1 tile/tick) |
+| 40 % – 60 % | always runs (2 tiles/tick) |
+| < 40 % | **alternates walk/run on every attack made against it**, hit or miss |
+
+The starting *direction* is random; the starting *position* is fixed.
+
+### 7.5 Tick-by-tick — Bloat
+
+```
+T = 0     First player crosses the barrier at (3288,4447). Bloat is at its fixed
+          start tile, WALKING, direction chosen at random.
+          turn_cooldown = 32.  walk_ticks_remaining = rand(34..42) + 4.
+          down_lockout = 0.
+
+each tick while WALKING:
+    +0    move 1 tile (or 2 if running) along the circuit.
+    +0    turn_cooldown -= 1.  walk_ticks_remaining -= 1.  down_lockout -= 1.
+    +0    if turn_cooldown <= 0 and the turn roll passes:
+              reverse direction; turn_cooldown = 32 (16 HM); down_lockout = 5.
+    +0    if health crossed a speed band this tick, or (health < 40% and it was
+              attacked this tick): flip walk/run; down_lockout = 5.
+    +0    FLIES: for each player with line of sight (custom near-side test),
+              deal 10-20 (x0.75 with Protect from Missiles); then for each player
+              hit, repeat the test from THAT player to every other player and
+              spread.
+    +0    if health <= 90% (or always, in Hard Mode): roll falling flesh; place
+              graphics 1570-1573 on the target tiles; 30-50 damage + stun on
+              landing.                                      [MEASURE M6: the flesh
+              spawn rate, the shadow->land delay, and the stun length.]
+    +0    incoming damage to Bloat is halved (floor).
+    +0    if walk_ticks_remaining <= 0 and down_lockout <= 0: -> DOWN.
+
+on entering DOWN:
+    +0    play seq 8082, sound 3976. down_tick = 0. was_attacked = false.
+    +0    stop attacking entirely.
+
+each tick while DOWN:
+    +0    down_tick += 1.
+    +0    incoming damage is full; note was_attacked.
+    +29   (down_tick == 29, i.e. 3 remaining of 32) STOMP:
+              40-80 to every player in range, tick-eatable;
+              restore Bloat's Defence to base.
+    +32   rise. -> WALKING with
+              walk_ticks_remaining = rand(34..42) + (was_attacked ? 0 : 4);
+              down_lockout = 0; turn_cooldown continues from where it stood.
+
+on death: seq 8085, sound 3965. Supply chest #1 becomes available.
+```
+
+The team's whole rotation follows from that: ~18 s of down time is **five 4-tick
+attacks up close or four from range**, ending with a crystal-halberd special
+because its 8-tick cooldown does not matter once you are running away.
+
+### 7.6 Mode deltas
+
+**Hard Mode** (10813): 2400/2100/1800 HP; flesh falls for the entire fight
+including the down; **turn eligibility every 16 ticks instead of 32** and it may
+turn several times per circuit.
+
+**Entry Mode** (10812): 320 HP, much weaker flies and stomp.
+
+---
+
+## 8. Room 3 — The Nylocas
+
+Region 13122, area (3276, 4228) 38 × 27. This room is a **wave defence**: 31
+scripted waves feed three lanes, and the team loses if all four pillars fall.
+
+**The complete wave table is [`nylocas_waves.md`](nylocas_waves.md)** — 31 waves
+× 3 lanes × 2 slots, with size, aggro flag, flicker chain and natural stall.
+
+### 8.1 The 4-tick cycle
+
+The room runs a **4-tick cycle**. This is the single most important fact about the
+room and everything else hangs off it.
+
+- A wave may only ever spawn on **cycle tick 0**.
+- **The first wave spawns on the fourth tick of the room** — i.e. on the second
+  cycle. Starting the room on cycle tick 0 is therefore optimal, and the ToB QoL
+  "instance timer" exists to show players the cycle before they cross.
+- After wave *n* spawns, wave *n+1* is blocked for that wave's **natural stall**
+  (always a multiple of 4 — see the table). Natural stalls for waves 1–30 total
+  **232 ticks**, so with no other delay the last wave spawns 236 ticks (141.6 s)
+  after the room starts.
+- On the tick a wave is due, if the room is **at or above the room cap**, the wave
+  does not spawn and the check repeats on the next cycle tick 0. That is a
+  **room-cap stall** and it is the thing teams are avoiding when they "manage cap".
+
+| | Waves 1–19 | Waves 20+ |
+|---|---:|---:|
+| Normal / Entry cap | 12 | 24 |
+| Hard cap | 15 | 24 |
+
+Every regular nylo — small or big, wave spawn or split — counts **1**. A Hard Mode
+Prinkipas counts **3**.
+
+### 8.2 Lane spawn tiles
+
+| Lane | Tiles |
+|---|---|
+| East | (3310, 4249) north, (3310, 4248) south, (3309, 4248) — the last for bigs |
+| West | (3281, 4249) north, (3281, 4248) south |
+| South | (3295, 4233) west, (3296, 4233) east |
+
+Blert's slot key is `[east-south, east-north, south-west, south-east, west-south,
+west-north]`, which is the ordering used in `nylocas_waves.md`.
+
+### 8.3 The nylocas themselves
+
+| | Small | Big |
+|---|---|---|
+| Level | 162 | 260 |
+| Footprint | 1 × 1 | 2 × 2 |
+| HP (≤3 / 4 / 5) | 8 / 9 / 11 | 16 / 19 / 22 |
+| Max hit | 17 | 24 |
+| `attackrate` (cache) | 3 | 3 |
+| On death | — | splits into **two smalls of random style** |
+
+- Three styles: **Ischyros** (grey, melee-only), **Toxobolos** (green, ranged-only),
+  **Hagios** (blue, magic-only). A nylo can only be damaged by its own style.
+- **Nulling:** if a player attacks a nylo with the wrong style, *that player* can
+  never damage it again. In Hard Mode the wrong-style hit is also **reflected onto
+  the player** (capped at the nylo's remaining health).
+- **Pillar-bound vs aggro** is a separate npc id, not a flag: `tob_nylocas_incoming_*`
+  walks to a pillar, `tob_nylocas_fighting_*` walks at the players. Aggro
+  assignment is **fixed per wave** and is in the wave table. Splits are never aggros.
+- **Flickers** start at wave 16. A flicker spawns as style *a*, switches to *b*
+  after passing the lane's halfway point, holds *b* for exactly **2 ticks**, then
+  settles on *c* (which may equal *a*). A hit that lands the tick before a switch
+  still damages it.
+- **Every nylo self-destructs 52 ticks (31.2 s) after spawning**, damaging players
+  in a radius: up to 18 from a small, 21 from a big.
+
+### 8.4 The pillars
+
+Four supports, loc **32862** intact → **32863** breaking → **32864** broken, npc
+`tob_nylocas_support` **8358**. Corner tiles (3291, 4244), (3291, 4254),
+(3301, 4244), (3301, 4254).
+
+- The top health bar during the wave phase is the **combined** health of all four.
+- A pillar reaching 0 collapses, deals **up to 50** to everyone in the room, and
+  the nylocas that were attacking it **switch to attacking players**.
+- All four down = **instant team death**.
+- Pillar hitpoints are **[MEASURE M7]** — no source in this folder states them.
+
+### 8.5 Nylocas Vasilias
+
+`nylocas_boss_spawning` 8354 → `nylocas_boss_melee` 8355 / `_magic` 8356 /
+`_ranged` 8357. HP **1875 / 2187 / 2500** for ≤3 / 4 / 5 players. Defence **50**,
+no defensive bonuses.
+
+- Drops from the middle of the room after wave 31 is cleared.
+- **Always spawns in melee form.**
+- **Changes form every 10 ticks (6.0 s)**, always to one of the *other two*
+  styles — never the same style twice in a row.
+- `attackrate = 4`, so it lands **exactly two attacks per form**. 10 ticks is also
+  3 attacks from a 3-tick weapon, 4 from a 2-tick weapon; a player's attack is
+  **cancelled** on the tick it changes form.
+- Wrong style: reflects the damage onto the attacker **and heals itself for it**.
+- Off-prayer it hits up to **70**; correctly prayed, 17 (melee is fully blocked).
+
+### 8.6 Tick-by-tick — Nylocas
+
+```
+T = 0     First player crosses. cycle = T mod 4 as observed on entry.
+          wave = 0; next_spawn_tick = first tick where (T mod 4) == 0 after T=0
+                                      -> in practice T = 4 with an optimal entry.
+
+each tick:
+    +0    cycle tick = T mod 4.
+    +0    if cycle tick == 0 and wave < 31 and T >= next_spawn_tick:
+              if room_nylo_count >= cap(wave):
+                  ROOM-CAP STALL: log it, retry at T+4.
+              else:
+                  wave += 1;
+                  spawn every slot of nylocas_waves.md[wave] on its lane tile,
+                  each as `incoming` or `fighting` per the aggro flag, each with
+                  its flicker rotation armed;
+                  next_spawn_tick = T + naturalStall[wave];
+                  (Hard Mode: on waves 10/20/30 also spawn Prinkipas 10803 and
+                   force naturalStall = 16.)
+    +0    for each nylo: if it has just passed its lane's halfway tile and has a
+              flicker rotation, switch to rotation[1]; 2 ticks later switch to
+              rotation[2].
+    +0    for each nylo: age += 1; if age == 52 -> detonate (seq
+              top_spider_*_death_detonate, graphics 1565-1567, sound 3294),
+              damaging players within its radius, then despawn.
+    +0    pillar-bound nylos path to their assigned pillar and attack it every
+              3 ticks; aggro nylos path to a player and attack every 3 ticks.
+    +0    a pillar reaching 0 hp: loc 32862 -> 32863 -> 32864, seq
+              nylocas_pillar_precollapse 8073 / collapse 8074, sound 3969;
+              up to 50 damage to the whole room; every nylo that was attacking it
+              retargets a player. Fourth collapse -> kill the entire team.
+
+after wave 31 is spawned AND every nylo is dead:
+    +0    room enters cleanup; the pillar health bar is replaced by the boss bar.
+    +k    Vasilias 8354 lands in the centre.               [MEASURE M8: the delay
+              from last-nylo-death to boss landing.]
+    +0    it becomes 8355 (melee) and the 10-tick form clock starts.
+
+each 10 ticks thereafter:
+    +0    pick a style != current; transmog to 8355/8356/8357; interrupt every
+          player's attack; the correct prayer changes.
+    +0/+4 two attacks land inside the window, 4 ticks apart.
+```
+
+### 8.7 Mode deltas
+
+**Hard Mode**: every regular nylo behaves like Vasilias — wrong-style attacks
+reflect. Three **Nylocas Prinkipas** (10803, HP 400/350/300, size 4, counts as 3
+toward the cap) spawn on waves 10, 20 and 30 with a forced 16-tick stall.
+Vasilias's ranged attack hits **everyone within 2 tiles of its target**, and its
+magic attack **bounces through the whole team** unless everyone is on one tile
+(the "death dot"), ignoring prayer and defence, halved within 2 tiles of the
+target and increased beyond that.
+
+**Entry Mode**: same 31 waves and the same failure condition, but ~20 % health on
+everything and a **longer** Vasilias colour-switch interval **[MEASURE M9]**.
+
+---
+
+## 9. Room 4 — Sotetseg
+
+Region 13123 (overworld), area (3271, 4304) 17 × 30; the shadow realm is region
+**13379 on plane 3**. Sotetseg stands immobile in the north of a **14 × 15** arena.
+
+### 9.1 Stats
+
+HP **3000 / 3500 / 4000** for ≤3 / 4 / 5 players, identical in Hard Mode. Level
+995. Defence can be drained
+to a floor of **100**, and it is **restored to full after each maze**, which is why
+the team assigns special attacks in a 1-2 / 1-3 / 2-3 / backup pattern. It is a
+dark beast but **does not count for a Slayer task**.
+
+**Attack speed 5 ticks** (blert `SOTE_ATTACK_SPEED`).
+
+### 9.2 Attacks
+
+**Melee** — seq `tob_sotetseg_attack_melee` **8138**, sound 3540. Up to 45 (22
+prayed). Used only when a player is in melee range. **The hitsplat lands one tick
+after the attack**, unlike almost every other NPC melee, and it is **not
+tick-eatable**.
+
+**Magic ball** — seq `tob_sotetseg_attack_ranged` **8139**, projectile
+`tob_sotetseg_maging` **1606**, sound 3539.
+
+- A small red projectile at the primary target. Blocked entirely by Protect from
+  Magic.
+- **On impact it splits into two more projectiles** aimed at other players: one
+  **red** (magic, spotanim 1606) and one **grey** (ranged, spotanim
+  `tob_sotetseg_ranging` **1607**), each blocked by its matching prayer.
+- Damage up to 50 as a *successful hit*. **Failing to pray disables the victim's
+  protection prayers for 3 seconds (5 ticks)** — Retribution, Smite and
+  Redemption still work during that window.
+- Not tick-eatable up close; is tick-eatable at range.
+
+**Death ball** — projectile `tob_sotetseg_sharedattack` **1604**, impact 1605,
+hum 4001, message *"[name] has discovered a large ball of energy coming their
+way…"*.
+
+- Fires **after 10 magic attacks**.
+- Up to **188** damage scaled by party size; **split among every player inside the
+  3 × 3 centred on the target**. With two or more players alive and nobody
+  sharing, it is a guaranteed kill (121+).
+- **Tick-eatable** — the reliable cue is the second attack animation starting.
+
+### 9.3 The shadow maze
+
+At **66.6 %** and **33.3 %**, one player is chosen (*"Sotetseg chooses you…"*,
+seq `tob_sotetseg_shadow_portal` 8142, sound 3963) and pulled to the shadow realm;
+everyone else is teleported to the far end of the arena. **Sotetseg's attacks deal
+no damage during the maze.**
+
+- Grid **14 wide × 15 high**. Overworld origin **(3273, 4310, 0)**, underworld
+  origin **(3354, 4311, 3)**.
+- Ground objects: **33033** disabled, **33034** inactive, **33035** active/red.
+- The chosen player sees a randomly generated red path and must reach the portal.
+  They take **1–3 damage every 7 ticks (4.2 s)** while in the realm.
+- The overworld team sees **only the tile the chosen player is standing on**, lit
+  red (`tob_sotetseg_tile_glow` 8143), and must walk the same path.
+- **Stepping on a wrong tile ("ragging") deals `6.67 % of current hitpoints + 15`
+  per tick** (+11 in Entry Mode) to nearby players.
+- Once anyone steps onto the **fourth row**, a **tornado** (`tob_sotetseg_creeper`
+  8389) spawns and follows the path, dealing heavy damage to anyone it catches.
+  Stepping back to the third row despawns it. The tornado does not appear for the
+  maze runner unless they are solo.
+- **The maze runs its own 4-tick cycle**: every 4 ticks the game checks whether
+  anyone is still on the grid, and despawns the maze if not. This is the mechanic
+  behind "off on 3" — clicking off the second-to-last row on cycle tick 3 puts you
+  off the grid on tick 0, the same tick the maze despawns, so any rag damage is
+  nulled.
+- After the maze, **Sotetseg's Defence is restored to full**.
+
+### 9.4 Tick-by-tick — Sotetseg
+
+```
+T = 0     First player crosses. Sotetseg is 8387 (idle) and becomes 8388.
+          attack_clock = 5.  magic_attacks_since_ball = 0.
+
+every 5 ticks (attack tick):
+    if any player is in melee range of the chosen target:
+        roll melee:
+            seq 8138, sound 3540; hitsplat lands at +1; up to 45 (22 prayed);
+            NOT tick-eatable.
+    otherwise (or on the magic roll):
+        seq 8139, sound 3539; launch projectile 1606 at the primary target.
+        magic_attacks_since_ball += 1.
+        on impact:
+            up to 50, blocked by Protect from Magic; if unblocked, disable the
+            victim's protection prayers for 5 ticks.
+            pick up to two other players; launch one 1606 (magic) and one 1607
+            (ranged) at them; same damage and same prayer-disable rule.
+
+    if magic_attacks_since_ball == 10:
+        magic_attacks_since_ball = 0;
+        DEATH BALL: message to the target; launch projectile 1604, slow;
+        on impact: up to 188 (party-scaled) split evenly among every player in
+        the 3x3 around the target; tick-eatable.
+        (Hard Mode: two balls at two targets.)
+
+on first reaching 66.6% and 33.3% health:
+    +0    seq 8142, sound 3963. Choose one player (all but one, in Hard Mode);
+          teleport them to region 13379 plane 3 at (3354,4311); teleport everyone
+          else to the far end of the overworld arena.
+    +0    generate the maze path; place ground objects 33034/33035.
+    +0    Sotetseg becomes 8387 and stops dealing damage.
+    every 7 ticks while a player is in the realm: 1-3 chip damage to them.
+    every tick: mirror the chosen player's tile as a red 33035 in the overworld.
+    on the first step onto row 4: spawn tornado 8389 on the path start.
+    on stepping onto a non-path tile: 6.67%*currentHP + 15 per tick to nearby
+          players (11 in Entry Mode).
+    every 4 ticks: if nobody is on the grid, despawn it and end the maze.
+    on maze end:
+    +0    return everyone to the arena; Sotetseg becomes 8388;
+          restore its Defence to base; resume the attack clock.
+                                                     [MEASURE M10: the tick gap
+          between maze end and the first post-maze attack.]
+
+on death: seq 8140, sound 3286. Supply chest #2 becomes available.
+```
+
+### 9.5 Maze generation
+
+The path is randomly generated per maze. A community simulator that reproduces the
+game's generator and movement rules exists at
+<https://devqhp.github.io/osrs/sotetseg/> and accepts an 8-number seed
+(the Wiki's example is `7 10 12 11 12 7 11 12`), which suggests **the path is 8
+segments over the 15 rows**. The exact generator is **[MEASURE M11]**; a plausible
+first implementation is a random walk from a random column on row 1 to the portal,
+one row per step, with the column changing by at most one per row — but that must
+be validated against the simulator before it is trusted.
+
+### 9.6 Mode deltas
+
+**Hard Mode**: **all but one** player goes into the shadow realm and the maze is
+divided among them by orb order; the tornado spawns inside the realm once the
+lowest-orb-order player passes row 3, and spawns in **both** worlds if the
+overworld player passes row 3 first; **two** death balls per cast.
+
+**Entry Mode**: the death ball deals 15 solo and ~80 in a group; rag damage is
+`6.67 % + 11`.
+
+---
+
+## 10. Room 5 — Xarpus
+
+Region 12612, area (3162, 4379) 17 × 17. Three phases with three different clocks.
+
+### 10.1 Stats
+
+| | ≤3 | 4 | 5 |
+|---|---:|---:|---:|
+| Normal | 3810 | 4445 | 5080 |
+| Hard | 4500 | 5250 | 6000 |
+| Entry | 680 (blert) | | |
+
+Level 960. Defence **250** in Normal, lowered to **200** in Hard Mode. Ranged
+defence +160 across the board; **no melee defence** — which is why a scythe is the
+weapon of choice and why the melee tick-dance in §10.4 is worth learning.
+
+Npc ids: `tob_xarpus_static` 8338 (pre-fight) → `tob_xarpus_feeding` 8339 (P1) →
+`tob_xarpus_combat` 8340 (P2/P3) → `xarpus_death` 8341.
+
+### 10.2 Phase 1 — Recovery
+
+Xarpus starts at **75 %** health and does not attack. He unearths **exhumed**
+(ground object **32743**, seqs `tob_xarpus_exhumed_start/loop/end` 8064–8066,
+sounds 3230 open / 3995 close) which fire green orbs (`tob_xarpus_exhumed_energyorb`
+**1550**) at him, healing him (`tob_xarpus_absorb` 8060, sound 3956).
+
+- **Standing on an exhumed stops it healing him** for as long as you stand there.
+- Total exhumed for the phase, by number of players present (OpenOSRS
+  `XarpusHandler`):
+
+| Players | 1 | 2 | 3 | 4 | 5 |
+|---|---:|---:|---:|---:|---:|
+| Exhumed | 7 | 9 | 12 | 15 | 18 |
+
+  The Wiki gives different figures in two places; see §15. **[MEASURE M12]**
+- Each exhumed heals **more than once** — the `Perfect Xarpus` achievement is
+  worded "without letting an exhumed heal Xarpus **more than twice**", so an
+  exhumed that is covered late can still have healed twice legally.
+- The number absorbed permanently scales two later numbers: the P2 poison damage,
+  and the P3 retaliation damage (§10.5).
+- Phase 1 ends when the exhumed budget is exhausted; the npc changes 8339 → 8340
+  and he **stands up with the health he ended P1 with**.
+
+### 10.3 Phase 2 — Poison
+
+Clock, from blert: **the first spit is 7 ticks after the phase starts, then every
+4 ticks.**
+
+- Seq `tob_xarpus_attack_ranged` **8059**, projectile `tob_xarpus_acidspit`
+  **1555**, splash 1556, ground object **32744**, sounds 3290 / 4005.
+- The spit is aimed at a player chosen by **orb order**, lands on one tile, and
+  splashes a **3 × 3**. The **first** player's splat chains to the next player in
+  order; the rest chain to the next **two**.
+- If every player is on the same tile, or only one player is present, the splat
+  goes to a **random uncovered tile**.
+- A poisoned tile is **permanent for the rest of the fight**. Standing on or
+  crossing one deals **4–8 base damage per tick**, scaled up by the fraction of
+  exhumed that healed him. Crossing (rather than stopping on) one produces a
+  **delayed** hit.
+- Standing **underneath** him triggers a pebble stomp: light damage every tick,
+  and it **interrupts his poison attack**.
+
+### 10.4 Why 4 ticks matters
+
+Xarpus is a 4-tick monster and the scythe is a 5-tick weapon, so a melee player's
+step-back cycle desynchronises by one tick every three attacks. The community
+notation for this is:
+
+```
+1) swing while running in
+2) swing after moving close
+3) swing while running away        <- the recognisable one
+4) the missed hit                  <- 5.33t if you step back; 5t if you rag a tile
+```
+
+Deliberately poisoning ("ragging") one disposable tile on step 4 buys the tick
+back. Nothing in the server has to implement this — but the server must be
+**tick-exact enough that it works**, which makes it a good acceptance test.
+
+### 10.5 Phase 3 — Counter
+
+At **25 %** health (22.5 % in Entry Mode) he screeches (overhead text; sound
+4007), stops spitting, and stares at one quadrant at a time.
+
+- **He turns every 8 ticks** (blert `TICKS_PER_TURN_P3`).
+- **He never looks at the same quadrant twice in a row.**
+- Attacking him **from the quadrant he is facing** makes him retaliate with an
+  unblockable poison hit of base **50–75 per hitsplat**, scaled up by 40 % of the
+  relative stat uplift the exhumed gave him. A multi-hit weapon therefore takes
+  that hit once **per hitsplat** — which is why a scythe swing into his gaze is
+  usually fatal.
+- 8 ticks = **2 swings of a 4-tick weapon, 4 of a 2-tick weapon, and 1-or-2 of a
+  5-tick weapon** — the "22121" cycle players talk about is the repeating
+  scythe-swings-per-turn pattern that falls out of 5 into 8.
+
+### 10.6 Tick-by-tick — Xarpus
+
+```
+T = 0     First player crosses. Xarpus 8338 -> 8339. He is at 75% health.
+          exhumed_budget = table above by players present.
+          PHASE 1.
+
+while exhumed_budget > 0:
+    +k    spawn an exhumed: ground object 32743 at a pseudo-random arena tile,
+          seq 8064 then 8066 loop, sound 3230.
+                                            [MEASURE M13: the spawn cadence in
+          ticks, and whether it is fixed or scales with party size.]
+    while the exhumed is open and NO player stands on its tile:
+        every h ticks: fire projectile 1550 at Xarpus; he plays 8060 and heals.
+                                            [MEASURE M14: h, and the heal amount.]
+    +m    the exhumed closes (seq 8066, sound 3995); exhumed_budget -= 1.
+                                            [MEASURE M15: the open duration; the
+          OpenOSRS plugin models it as 11 ticks but has an 18 in a dead comment.]
+
+when exhumed_budget hits 0:
+    +0    npc 8339 -> 8340, seq `tob_xarpus_fly_up` 8061. PHASE 2.
+    +7    FIRST SPIT.
+    then every 4 ticks: SPIT
+        +0  seq 8059; pick the target by orb order; launch 1555 at their tile.
+        +n  land: 3x3 splash, ground objects 32744, sound 4005; chain to the next
+            player (first target) or the next two (subsequent targets); if all
+            players share a tile or only one is present, pick a random uncovered
+            tile instead.
+        every tick a player is on/crossing a poisoned tile: 4-8 base damage scaled
+            by absorbed exhumed; a crossing produces a delayed hitsplat.
+        every tick a player is under him: pebble stomp damage; cancel the next spit.
+
+on first reaching <=25% health:
+    +0    SCREECH: overhead text, sound 4007. PHASE 3. Stop spitting.
+    +0    face a quadrant. next_turn = T + 8.
+    every 8 ticks: face a different quadrant (never the same one twice running).
+    whenever a player attacks him from the quadrant he faces:
+        retaliate: unblockable poison hit, base 50-75 PER HITSPLAT of the
+        incoming attack, scaled by 0.4 x (stat uplift from exhumed).
+        (Hard Mode: instead of the fixed rotation, he immediately turns to face
+         the quadrant he was last hit from.)
+
+on death: seq 8062 then 8063, sound 3549. A Dawnbringer spawns by the exit door
+and one player must pick it up before Verzik.
+```
+
+### 10.7 Mode deltas
+
+**Hard Mode** (10770–10773): as the fight starts he **poisons the outer two rings
+of the arena**, sparing only the six tiles by the entrance — leaving a 3-tile
+working radius; his Defence drops to 200 to compensate; the exhumed cluster more
+predictably; in P3 he faces the last quadrant he was hit from instead of rotating.
+
+**Entry Mode** (10766–10769): screech at 22.5 %; protection prayers have no effect
+at all in this room, so prayer points can go into offensive prayers.
+
+---
+
+## 11. Room 6 — Verzik Vitur
+
+Region 12611, area (3154, 4302) 28 × 21. Three phases, three clocks, and the only
+room with no barrier — the fight is started by **talking to Verzik**.
+
+Her **magic defence is computed from her Defence level, not her Magic level**
+(like the Ice Demon), in every phase, and **her Defence cannot be lowered** in P2
+or P3 — a godsword special produces the message *"Verzik Vitur absorbs the defence
+reduction!"*.
+
+### 11.1 Phase 1 — the throne
+
+Npc `verzik_initial` 8369 → `verzik_phase1` **8370** → `verzik_phase1_to2_transition`
+8371. HP **1500 / 1750 / 2000** for ≤3 / 4 / 5 players. Defence lowered to 20 for
+this phase.
+
+- **She attacks every 14 ticks (8.4 s)** (blert `P1_ATTACK_SPEED`). Seq
+  `verzik_phase1_attack_magic` **8109**, projectile 1580, impact 1581/1582.
+- The attack deals up to **137**, halved to 68 by Protect from Magic, and **cannot
+  be tick-eaten**.
+- **A pillar absorbs it**: one attack is launched at *each pillar that is hiding a
+  player*, and several players behind one pillar cost the pillar only one hit.
+  Pillar npcs `verzik_pillar_npc` 8379; collapse 8377, rubble 8378, seq 8052/8104,
+  sounds 3291 hit / 3969 collapse. A collapsing pillar deals up to **70** (50 in
+  Entry), knocks players back and stuns them.
+- **Damage to her is capped**: 10 per hitsplat with melee, **3** with ranged or
+  magic. The cap is per hitsplat, so multi-hit weapons are strictly better.
+- **The Dawnbringer is exempt** from both the cap and the accuracy roll: its
+  special attack deals **75–150** magic damage (avg 112.5) and always hits, even at
+  −64 magic attack bonus. Teams pass it along in orb order.
+- The phase opens with **4 free attacks from a 4-tick weapon or 3 from a 5-tick**
+  before the first pillar hide, then **2 attacks per 14-tick window** thereafter.
+- When the shield breaks she leaves the throne and **every remaining pillar
+  collapses**.
+
+### 11.2 Phase 2 — the harness
+
+Npc `verzik_phase2` **8372**. HP **2437 / 2843 / 3250** for ≤3 / 4 / 5 players —
+a fresh bar, not a continuation of P1's. Defence raised to 200.
+
+**Clock, from blert:**
+
+| | Ticks |
+|---|---:|
+| Attack speed | **4** |
+| First attack after the phase starts | **+3** |
+| First attack after a reds spawn | **+12** |
+| Attacks between reds spawns | **7** |
+| Minimum attacks between lightning ("zap") | **4** |
+| Minimum attacks between Athanatos ("purple") | **16** |
+
+**Urnbomb** (the auto) — seq `verzik_phase2_attack_magic` **8114**, projectile
+`verzik_phase2_ranged` **1583**. Thrown at **every player's current tile**; up to
+44 (22 with Protect from Missiles); **damage is calculated on impact**, so simply
+stepping off the tile dodges it entirely.
+
+**Body slam** — seq `verzik_phase2_attack_melee` **8116**. If a player is in melee
+range there is a high chance she slams instead: up to 45 rolled against **crush**
+defence, knockback 3 tiles, 3-second stun. Standing *underneath* her instead
+triggers the overhead *"There's nothing for you there!"* and an always-successful
+**82** stomp. Protect from Melee stops neither.
+
+**Lightning** — projectile `verzik_phase2_lightning` **1585**, seq 8115. Fired on
+the 5th attack (min 4 between). Bounces between players up to four times; if it
+passes **through Verzik** she takes 15–20 with no accuracy roll; if it bounces four
+times without doing so, or the target has no neighbour, that player takes up to 48
+(25 with insulated boots).
+
+**Nylocas** — the three `verzik_nylocas_*` (8381/8382/8383, 11 HP each) home in on
+a player and explode for up to **46**, or 8 if popped from three tiles away, and
+die on their own after about 15 s.
+
+**Nylocas Athanatos** — `tob_verzik_phase2_armourednylocas` **8384**, arriving as
+the slow purple projectile 1586 (up to 78 on the tile it lands). It heals her
+9–10 every few ticks; **hitting it with poison or venom** makes it absorb the
+poison and deal up to **70 to Verzik** instead. Blert enforces a minimum of **16
+attacks between purples**; the Wiki's rule of thumb is "after every third lightning
+ball there is a 25 % chance, suppressed while an Athanatos is alive".
+
+**Phase 2.5** — at **≤ 35 %** health she stops attacking and summons **two
+Nylocas Matomenos** (`tob_verzik_phase2_bloodnylocas` 8385, HP 200/175/150) to her
+left and right, seq `verzik_phase2_heal` **8117**.
+
+- **During the summon animation all damage dealt to her heals her instead** — the
+  first ~3 seconds.
+- The reds clock takes over: her next attack is **12 ticks** after the spawn, and
+  the next reds come **7 attacks** later.
+- She now prefers an **AoE blood spell** (projectile 1591, impact 1592) which
+  targets one player, damages everyone in a 3 × 3 around them for up to 45, and
+  **heals her for half the total damage dealt** — including damage that Protect
+  from Magic blocked. Mod Ash: *"75 % chance of using a healing spell… heals her
+  for half of the total."*
+- Exploding nylocas and the Athanatos stop spawning; urnbombs and lightning continue.
+- Any red still alive when she absorbs it heals her for its remaining health.
+
+### 11.3 Phase 3 — the hybrid
+
+Npc `verzik_phase2_to3_transition` 8373 → `verzik_phase3` **8374**. She takes a
+general combat drain on transition (some Defence, Magic and Ranged) while her
+**melee accuracy increases**.
+
+**Clock, from blert:**
+
+| | Ticks |
+|---|---:|
+| Attack speed | **7** |
+| Attack speed once enraged | **5** |
+| First attack after the phase starts | **+12** |
+| Attacks between specials | **4** |
+| Green-ball extra delay | **+12** |
+| Next auto after the yellows special | **+7** |
+| Next auto after any other special | **+10** |
+
+**Autos** — ranged `verzik_phase3_attack_ranged` **8125** + projectile
+`verzik_phase3_rangeproj` **1593** (stomps her front limbs, dark green swirl);
+magic `verzik_phase3_attack_magic` **8124** + projectile **1594** (blue crackle).
+Both up to **34**, halved by the matching prayer, and **they hit every player in
+the room**.
+
+**Melee** — `verzik_phase3_attack_melee` **8123**, animation nearly identical to
+the magic one but with a different sound. On **every** attack she checks whether
+her chosen tank is in melee range; if they are, there is a chance she melees
+instead for up to **63 to every player adjacent to her**, unblockable. The tank
+avoids it by stepping away or walking **under** her one or two ticks before the
+attack.
+
+**Aggro** — she picks **one** player and keeps them for the phase, switching only
+if that player stays out of melee distance for more than **10 seconds**. The timer
+resets whenever they are in range. (Hard Mode: she re-picks on **every special**.)
+
+**The four specials, in a fixed repeating order** (blert `VerzikSpecial.next()`,
+corroborated by both Wiki pages):
+
+```
+CRABS -> WEBS -> YELLOWS -> BALL -> CRABS -> ...
+```
+
+with exactly **four autos between each**.
+
+1. **Crabs** — the same exploding `verzik_nylocas_*` as P2; **no Athanatos ever
+   spawns in P3**.
+2. **Webs** — seq `verzik_phase3_attack_webspin` **8127**, projectile 1601, web
+   npc `verzik_web_npc` **8376** with **10 hitpoints**, sound 3973. She walks to
+   the centre, becomes invulnerable and **hard** (players are knocked out of the
+   way and cannot walk through her), then launches **three webs at a time** at
+   players who are not sharing a tile. A webbed player is bound until a teammate
+   breaks the web; if it snaps on its own it deals heavy damage. Aranea boots
+   negate the damage once per 8 ticks. The DPS pattern is a clockwise rotation
+   from the south attacking **once every 5 ticks** — all players must attack **on
+   the same tick and the same tile**, or the laggard's webs outlive the rotation.
+3. **Yellows (power blast)** — seq `verzik_phase3_attack_powerblast` **8126**,
+   safe-zone graphic **1595**, projectile 1596/1598. She becomes invulnerable and
+   charges; one yellow pool spawns **per living raider** (×3 in Hard Mode). Each
+   pool protects exactly **one** player; two players on one pool means both take
+   the hit and the pool protects neither. Missing it costs up to **80**,
+   tick-eatable. **There are 7 ticks between the end of this special and her next
+   auto.**
+4. **Green ball** — projectile `verzik_acidbomb_projanim` **1598**, message
+   *"Verzik Vitur fires a powerful projectile in your direction…"*. Deals
+   **75 % of the target's Hitpoints level** (74 at 99). It can be bounced by
+   standing next to another player before impact, and **cannot bounce to the same
+   player twice** — doing so hits both. Redemption at low health nulls it.
+
+**Enrage** — at **≤ 20 %** health she yells *"I'm not finished with you just
+yet!"*:
+
+- **Attack speed 7 → 5.**
+- Ranged/magic max hit rises to **34**.
+- **One purple tornado (`tob_verzik_creeper` 8386, graphic 1602) spawns per player
+  in the room** and tracks that player. Contact deals **50 % of the player's
+  current hitpoints** (minimum 5) and **heals Verzik for three times that**.
+- **After a player is hit, their tornado respawns 16 ticks later.**
+- A tornado also heals her if its player dies to anything else.
+- Specials continue in the same order at the faster clock.
+
+### 11.4 Tick-by-tick — Verzik
+
+```
+PHASE 1
+T = 0     A player talks to Verzik and confirms. 8369 -> 8370 (seq 8053/8108).
+          next_attack = T + 14.                       [MEASURE M16: the exact
+          opening offset; the team gets 4 attacks with a 4t weapon before the
+          first hide, which is consistent with ~14 but is not the same claim.]
+every 14 ticks:
+    +0    seq 8109; for each pillar that is hiding at least one player, launch
+          projectile 1580 at that pillar; for every player not behind a pillar,
+          launch at them.
+    +n    impact: pillar takes 1 hit (regardless of how many hid behind it) OR
+          player takes up to 137 (68 with Protect from Magic), no tick-eat.
+    a pillar reaching 0: 8379 -> 8377 -> 8378, seq 8052/8104, sound 3969;
+          up to 70 to adjacent players + knockback + stun.
+    (Hard Mode: each pillar hit also drops three sets of debris within 3 tiles,
+     up to 35 damage + stun.)
+damage cap while the shield is up: 10 melee / 3 ranged / 3 magic per hitsplat.
+Dawnbringer spec: 75-150, ignores cap and accuracy.
+on shield break: 8370 -> 8371; every remaining pillar collapses.
+
+PHASE 2
+T2 = 0    8371 -> 8372 (seq 8112). next_attack = T2 + 3.
+          attacks_until_reds = -; zap_cooldown = 0; purple_cooldown = 0.
+every 4 ticks:
+    +0    choose the attack:
+              if zap_cooldown <= 0 and the roll passes -> LIGHTNING (proj 1585)
+              else if purple_cooldown <= 0 and the roll passes -> ATHANATOS
+                   (proj 1586 -> npc 8384)
+              else -> URNBOMB (seq 8114, proj 1583 at every player's tile)
+          a player in melee range instead draws a BODY SLAM (seq 8116, 45,
+          knockback 3, stun 3s); a player underneath draws the 82 STOMP.
+    +0    if LIGHTNING: zap_cooldown = 4 attacks. Bounce between players up to
+          4 times; passing through Verzik costs her 15-20.
+    +0    if ATHANATOS: purple_cooldown = 16 attacks.
+    +n    urnbomb impact: up to 44 (22 prayed) ONLY to players still on the tile.
+    occasionally: summon a group of exploding nylocas 8381/8382/8383.
+
+on first reaching <=35% health:
+    +0    stop attacking; seq 8117; summon two 8385 reds at her left and right.
+          ALL damage dealt to her during the animation HEALS her.
+    +0    next_attack = T + 12;  attacks_until_reds = 7.
+    thereafter every 4 ticks, preferring the AoE blood spell:
+          proj 1591; up to 45 in a 3x3 around one player; heal her for half the
+          TOTAL damage including damage blocked by Protect from Magic.
+    when attacks_until_reds reaches 0: absorb any surviving reds (healing for
+          their remaining hp) and summon a new pair; next_attack = T + 12.
+
+PHASE 3
+T3 = 0    8372 -> 8373 -> 8374 (seq 8118 then 8119). She lands.
+          next_attack = T3 + 12.  attacks_until_special = 4.
+          next_special = CRABS.  enraged = false.
+          Pick a tank; start the 10-second out-of-melee timer.
+every attack tick (7 ticks, or 5 while enraged):
+    +0    if attacks_until_special == 0:
+              fire next_special; advance next_special CRABS->WEBS->YELLOWS->BALL;
+              attacks_until_special = 4 (+1 for BALL and CRABS, which also
+              consume the attack slot);
+              WEBS/YELLOWS suspend the auto clock entirely until she re-acquires
+              a target, then next_attack = tick + 7 (YELLOWS) or +10 (others);
+              BALL adds +12 - attack_speed to the next auto.
+          else:
+              AUTO: roll ranged (seq 8125, proj 1593) or magic (seq 8124, proj
+              1594); up to 34 each, halved by the matching prayer; hits EVERY
+              player in the room.
+    +0    on every attack tick, if the tank is in melee range and not under her,
+          roll MELEE (seq 8123): up to 63 to every adjacent player, unblockable.
+    -1    (one tick before the attack) is the tick the tank must have stepped
+          away or under her.
+
+on first reaching <=20% health:
+    +0    overhead "I'm not finished with you just yet!"; enraged = true.
+    +0    attack speed 7 -> 5; next_attack = tick + 5 unless webs are active.
+    +0    spawn one tornado 8386 per player in the room, each tracking its player.
+    on tornado contact: damage = max(5, currentHp / 2); heal Verzik 3 x damage;
+          respawn that player's tornado 16 ticks later.
+    (Hard Mode: at <=5% health, a one-time 30% heal with "You think this is over?")
+
+on death: 8374 -> 8375 (seq 8128/8129, sound 3542); the throne collapses and the
+vault opens.
+```
+
+### 11.5 Mode deltas
+
+**Hard Mode**: P1 pillar hits drop debris; P2 urnbombs deal ~20 % more and leave a
+**16-tick poison pool** dealing up to 10, and the reds explode on the next summon
+if still alive; the combat nylocas **cycle melee → ranged → magic** and persist
+until killed; P3 re-picks the tank on every special, the power blast strikes
+**three times per player** with three pools each, and the green ball **instantly
+kills** if two or more players are present and it has not bounced (damage 89/74/49
+after 1/2/3 bounces otherwise).
+
+**Entry Mode**: P1 2-4 Dawnbringer specials clear the shield; pillar collapse deals
+50; everything else is proportionally weaker.
+
+---
+
+## 12. Loot room, rewards and drop tables
+
+Region 12867. Verzik's death opens a trapdoor under her throne into the vault.
+
+- **One chest per player** (varbits 6450–6454), each player able to open exactly
+  their own, marked by an arrow.
+- A unique roll shows a **purple aura** on the chest, as in Chambers of Xeric.
+- No unique → **three rolls of the common table**.
+- Uniques: `Avernic defender hilt`, `Justiciar faceguard/chestguard/legguards`,
+  `Ghrazi rapier`, `Sanguinesti staff (uncharged)`, `Scythe of vitur (uncharged)`.
+- Common table includes **vials of blood**.
+- **Normal Mode unique chance 1/8.7 (~11 %)**; **Hard Mode 1/7.7 (~13 %)** with the
+  Avernic hilt's weight reduced by 1, plus **+15 % common loot** and a further
+  **+15 %** for beating the challenge time.
+- Hard Mode tertiaries: elite clue 3.5/25 (scaled by individual performance),
+  `Sanguine dust` 1/275, `Sanguine ornament kit` 1/150, `Holy ornament kit` 1/100,
+  `Lil' Zik` 1/500.
+- **Entry Mode awards 80 % less loot and cannot roll uniques or the pet.**
+- Books drop per boss (Serafina's diary from Maiden, etc.) and appear on the
+  vault's grand bookshelves.
+- The **strategy table** shows the performance board: per-player deaths, total
+  deaths, per-wave times, MVP (by damage and deaths), challenge time and overall time.
+- The **scoreboard** by the entrance shows personal and global attempt/completion/
+  death counts and best times.
+- **Sinhaza shrouds** are claimed from the Mysterious Stranger by completion count.
+
+---
+
+## 13. Combat Achievements
+
+The six `Perfect …` tasks are the tightest specification of "correct" that exists
+for these fights, and each one names mechanics the server must be able to observe:
+
+| Task | Definition (verbatim) |
+|---|---|
+| Perfect Maiden | *Kill The Maiden of Sugadinti without anyone in the team taking damage from the following sources: Blood Spawn projectiles and Blood Spawn trails. Also, without taking damage off prayer and without letting any of the Nylocas Matomenos heal The Maiden.* |
+| Perfect Bloat | *Kill the Pestilent Bloat without anyone in the team taking damage from the following sources: Pestilent flies, Falling body parts or The Pestilent Bloats stomp attack.* |
+| Perfect Nylocas | *Kill the Nylocas Vasilias without anyone in the team attacking any Nylocas with the wrong attack style, without letting a pillar collapse and without getting hit by any of the Nylocas Vasilias attacks whilst off prayer.* |
+| Perfect Sotetseg | *Kill Sotetseg without anyone in the team stepping on the wrong tile in the maze, without getting hit by the tornado and without taking any damage from Sotetseg's attacks whilst off prayer.* |
+| Perfect Xarpus | *Kill Xarpus without anyone in the team taking any damage from Xarpus' attacks and without letting an exhumed heal Xarpus more than twice.* |
+| Perfect Verzik | *Defeat Verzik Vitur without anyone in the team taking damage from Verzik Vitur's attacks other than her spider form's correctly prayed against regular magical and ranged attacks.* |
+
+Reading these as requirements: the server must distinguish **damage source** per
+hitsplat (fly vs flesh vs stomp; blood projectile vs blood trail), must know
+whether a hit was **off-prayer**, must count **per-exhumed heals**, and must record
+**wrong-style attacks per player**. Design the damage path so those facts are
+available, not reconstructed.
+
+Beyond the perfects, the raid carries the full CA ladder (`Theatre of Blood`,
+`Theatre of Blood: Entry Mode`, `Theatre of Blood: Hard Mode`, plus the speed and
+"Theatre (Duo) Speed-Runner"-style tasks) and the accolade tiers
+`Theatre of Blood Veteran / Master / Grandmaster` and
+`Theatre of Blood: SM Adept / SM Speed-Chaser / HM Grandmaster`.
+
+---
+
+## 14. Engine gaps
+
+Things this raid needs that the server does not obviously have yet. Each is a
+prerequisite, not a detail.
+
+1. **A party system.** ToB needs a persistent, ordered, cross-player party with a
+   lobby UI, a ready check, and orb-order semantics (§5.4). Nothing in the tree
+   currently does this; the Zulrah/Gauntlet instances are single-player.
+2. **Multi-player instances.** `map_instance_from_square` is used single-player by
+   Inferno and Gauntlet. ToB needs one instance shared by up to five players,
+   across seven squares, with players entering and leaving it independently.
+3. **Two live instances at once** for Sotetseg's shadow realm (region 13379,
+   plane 3) while the overworld instance is still running.
+4. **Per-hitsplat damage source tagging** — required by four of the six Perfect
+   achievements (§13) and by Maiden's "heal for the damage the splat dealt".
+5. **Over-hit damage** (Maiden's blackstorm, TzKal-Zuk style): damage computed
+   past the player's current health so tick-eating cannot save them. Check whether
+   the Zuk work already landed a primitive for this.
+6. **Prayer disable** for 5 ticks (Sotetseg) and **player stun** (Bloat flesh,
+   Verzik slam and pillar collapse). The Zulrah plan noted there is no engine
+   player-stun primitive; that is still true and now blocks three mechanics.
+7. **Freeze with a magic-attack-bonus-scaled success chance** capping at +140 —
+   Maiden's crabs.
+8. **NPC line of sight with a custom near-side test** for Bloat, plus
+   **LOS chaining between players** for the fly spread.
+9. **A "hard" NPC** that cannot be walked through and knocks players out of its
+   square, for Verzik's web special.
+10. **Damage caps per hitsplat** with a per-weapon exemption (Verzik P1 / the
+    Dawnbringer).
+11. **Reflect-and-heal on wrong-style attacks**, plus a per-player "this player can
+    no longer damage this npc" flag (nulling).
+12. **A boss health bar in percent** driven by varbits 6447/6448/6449, including
+    the Nylocas room's combined-pillar bar.
+
+---
+
+## 15. Source conflicts register
+
+Every disagreement found between sources. Resolve each by measurement before
+shipping; do not silently pick one.
+
+| # | Subject | Source A | Source B | Resolution |
+|---|---|---|---|---|
+| C1 | **Nylocas Matomenos HP** | Strategies page: *"200 Hitpoints (175 in 4-man and 150 in trios)"* | Nylocas Matomenos infobox `hitpoints1 = 100` for id 8366; blert `{75, 87, 100}` | **Use 100/87/75.** The Strategies page has conflated the Maiden crab (8366, 100 hp) with Verzik's red crab (8385, 200 hp), whose infobox value is exactly 200. |
+| C2 | **Bloat first walk length** | Strategies: *"between 38 and 46 ticks"* (34–42 base, +4) | Pestilent Bloat page: *"On the first walk after 39–47 game ticks"* | Unresolved — a one-tick offset, probably an inclusive/exclusive boundary. **[MEASURE M17]** |
+| C3 | **Xarpus exhumed count** | Xarpus §Phase 1: *"12 exhumed in trios, 9 in 4-man and 6 in 5-man"*, then *"After 15 exhumed have been exhausted (12 in trio)"* — self-contradictory | OpenOSRS: 7/9/12/15/18 for 1/2/3/4/5 players | **Provisionally use 7/9/12/15/18** — it is monotonic in party size and the Wiki's first figure is decreasing, which cannot be right. **[MEASURE M12]** |
+| C4 | **Verzik P2 attack speed** | Strategies implies ~5 (*"Every five attacks… lightning"*) | blert `P2_ATTACK_SPEED = 4`; Entry Mode page: *"Every 4 ticks she will throw an urn-shaped bomb"* | **Use 4.** The "every five attacks" line is about the lightning cadence, not the attack speed. |
+| C5 | **Verzik P2 Athanatos frequency** | Strategies: *"After every third lightning ball, 25 % chance"* | blert `MIN_ATTACKS_BEFORE_PURPLE = 16` | Both can be true — a minimum gap plus a roll. Implement blert's floor and the Wiki's roll on top. **[MEASURE M18]** |
+| C6 | **Entry Mode hitpoints** | Wiki infoboxes give per-boss Entry HP (Maiden 2000) and say it scales to 20 % solo | blert gives flat, much lower Entry numbers (Maiden 500) | blert's numbers look like the solo (20 %) figures: 2000 × 0.25 = 500. Treat the Wiki value as the 5-scale base and derive. **[MEASURE M19]** |
+| C7 | **Wave 7 east lane** | Strategies/Nylocas table: big MELEE east | blert JSON and OpenOSRS: small melee east | **Use blert/OpenOSRS** — two independent code sources agree against one Wiki table cell. |
+| C8 | **Xarpus P3 threshold** | Xarpus page and Strategies: 25 % | Entry Mode page: 22.5 % | Both, mode-dependent: 25 % Normal/Hard, 22.5 % Entry. |
+
+---
+
+## 16. Measurement tasks
+
+Numbers no source in `sources/` settles. Each must be measured against live OSRS
+(or a recorded raid) before it is treated as correct; until then, encode the stated
+approximation and tag it in `tob.constant`.
+
+| # | Room | Question |
+|---|---|---|
+| M1 | Maiden | Does her first blackstorm land on the tick the room starts, or 10 ticks later? |
+| M2 | Maiden | What decides blood splat vs blackstorm on an attack tick, beyond the 3-attack cooldown? |
+| M3 | Maiden | Throw → land delay for blood splats, in ticks. |
+| M4 | Maiden | Exact spawn-tile selection for <10 crabs, and whether spawn is on the transmog tick or the next. |
+| M5 | Maiden | Blood-trail lifetime in ticks (Wiki says "roughly 20–30 seconds"). |
+| M6 | Bloat | Falling-flesh spawn rate, shadow→land delay, and stun duration. |
+| M7 | Nylocas | **Pillar hitpoints** (per pillar, per scale, per mode). No source states them. |
+| M8 | Nylocas | Delay from the last wave-31 nylo dying to Vasilias landing. |
+| M9 | Nylocas | Entry Mode's Vasilias colour-switch interval ("takes longer" — how long?). |
+| M10 | Sotetseg | Tick gap between maze end and his first post-maze attack. |
+| M11 | Sotetseg | The maze path generator: segment count, column-step rule, seed format. |
+| M12 | Xarpus | Exhumed count per party size (see C3). |
+| M13 | Xarpus | Exhumed spawn cadence in ticks; fixed or scaled? |
+| M14 | Xarpus | Ticks between an uncovered exhumed's heal orbs, and the heal amount. |
+| M15 | Xarpus | How long an exhumed stays open (OpenOSRS models 11 ticks; a dead comment says 18). |
+| M16 | Verzik | The exact P1 opening offset before her first attack. |
+| M17 | Bloat | First-walk length: 38–46 or 39–47 (see C2). |
+| M18 | Verzik | Athanatos spawn rule: floor + roll, or floor only (see C5). |
+| M19 | Verzik / all | Entry Mode hitpoints: is the Wiki figure the 5-scale base (see C6)? |
+| M20 | All | Boss attack clocks across a room transition — does the clock reset on phase change or free-run? |
+| M21 | Verzik | Web hitpoints by party size ("depends on the amount of team members"; the Wiki's Web page says 10). |
+| M22 | All | The supply-chest point formula behind "above average / average / below average". |
+
+---
+
+## 17. Implementation steps
+
+Ordered so that each step is independently testable and nothing later depends on
+an unmeasured number.
+
+1. **Stat and combat blocks.** Extend `tools/gen_npc_stats.py`'s roster to every
+   fighting ToB npc in all three modes; hand-pin the ones the Wiki does not cover
+   (pillar 8358, webs 8376, tornadoes 8386/8389, the transitions). Verify against
+   the §18 table. Re-run `gen_npc_combat.py`. **No behaviour yet.**
+2. **`tob.constant` / `tob.varp`.** Every id, tile, tick count and threshold in
+   this document, one name each, every approximation tagged. This file is the
+   single place a `[MEASURE]` answer lands later.
+3. **Party system + lobby.** Ver Sinhaza scenery is already in the cache; wire the
+   party board, the ready check, orb order, the Mysterious Stranger, the escape
+   crystal and the reclamation chest. Testable without any boss.
+4. **Instancing.** One shared instance per party per room; enter/leave; the barrier
+   model; the health-bar varbits; the between-room restore (§5.6). Prove it with a
+   room that contains nothing.
+5. **Maiden.** The simplest clock (one 10-tick timer) and the widest set of
+   sub-entities. Do the crabs before the blood spawns.
+6. **Bloat.** Pure state machine; no minions. Needs the custom LOS work (§14.8).
+7. **Supply chest.** Points, the eight-item shop, carry-forward, the onion.
+8. **Nylocas.** Load `nylocas_waves.md` as data — a `.dbtable` or an enum, never
+   31 hand-written spawn calls. Build the 4-tick cycle and the cap/stall logic
+   first and verify the spawn ticks against the table before adding pillars.
+9. **Sotetseg**, part 1: the fight without the maze (5-tick clock, splitting
+   projectiles, death ball).
+10. **Sotetseg**, part 2: the shadow realm. This is the second-instance step (§14.3)
+    and the maze generator (M11).
+11. **Xarpus.** All three phases; the P2 4-tick and P3 8-tick clocks are the
+    acceptance criteria.
+12. **Verzik P1**, then **P2**, then **P3** — three separate steps. P3's special
+    rotation is data (`CRABS → WEBS → YELLOWS → BALL`), not a switch statement
+    scattered through the attack handler.
+13. **Vault, chests and the drop table.**
+14. **Performance board, MVP, scoreboard, records.**
+15. **Combat Achievements** — needs the damage-source tagging from step 4 onward,
+    so audit that the earlier steps actually recorded what §13 requires.
+16. **Entry Mode** and **Hard Mode** as data deltas over the same scripts, not as
+    forks.
+17. **`::tobrun` selftest** (§19), and prove it can fail.
+
+---
+
+## 18. Constants
+
+Everything in one table so `tob.constant` can be written from it directly.
+Bold values are from code that must match live behaviour (blert / the cache);
+italic values are Wiki prose; anything marked `[Mn]` is unmeasured.
+
+### 18.1 Hitpoints by scale (`{≤3, 4, 5}`)
+
+| NPC | Normal | Hard | Entry |
+|---|---|---|---|
+| Maiden | **2625 / 3062 / 3500** | **2625 / 3062 / 3500** | *2000 base* `[M19]` |
+| Maiden Matomenos | **75 / 87 / 100** | **75 / 87 / 100** | 16 |
+| Blood spawn | **90 / 105 / 120** | **90 / 105 / 120** | 0 (invuln.) |
+| Bloat | **1500 / 1750 / 2000** | **1800 / 2100 / 2400** | 320 |
+| Nylo small | **8 / 9 / 11** | **8 / 9 / 11** | 2 |
+| Nylo big | **16 / 19 / 22** | **16 / 19 / 22** | 3 |
+| Nylocas Prinkipas | — | **300 / 350 / 400** | — |
+| Nylocas Vasilias | **1875 / 2187 / 2500** | **1875 / 2187 / 2500** | 360 |
+| Sotetseg | **3000 / 3500 / 4000** | **3000 / 3500 / 4000** | 560 |
+| Xarpus | **3810 / 4445 / 5080** | **4500 / 5250 / 6000** | 680 |
+| Verzik P1 | **1500 / 1750 / 2000** | **1500 / 1750 / 2000** | 240 |
+| Verzik P2 / P3 | **2437 / 2843 / 3250** | **2437 / 2843 / 3250** | 320 |
+| Verzik Matomenos | **150 / 175 / 200** | **150 / 175 / 200** | — |
+| Verzik combat nylo | **11** | **11** | 11 |
+| Verzik web | *10* `[M21]` | | |
+
+### 18.2 Tick constants
+
+| Constant | Value | Source |
+|---|---:|---|
+| `maiden_attack_ticks` | 10 | *Wiki* + generated `.stats` |
+| `maiden_blood_cooldown_attacks` | 3 | *Wiki* |
+| `bloat_down_ticks` | **32** | blert |
+| `bloat_stomp_ticks_before_up` | **3** | blert |
+| `bloat_walk_min / max` | 34 / 42 | *Wiki* |
+| `bloat_first_walk_bonus` | +4 | *Wiki* `[M17]` |
+| `bloat_turn_cooldown` (normal / hard) | 32 / 16 | *Wiki* |
+| `bloat_down_lockout_after_turn` | 5 | *Wiki* |
+| `bloat_flies_attackrate` | **1** | cache param |
+| `nylo_cycle_ticks` | **4** | blert |
+| `nylo_first_wave_tick` | **4** | blert guide |
+| `nylo_natural_stall[1..31]` | **see `nylocas_waves.md`** | blert data |
+| `nylo_cap_early` (normal / hard) | **12 / 15** | blert |
+| `nylo_cap_late` | **24** | blert |
+| `nylo_cap_increase_wave` | **20** | blert |
+| `nylo_lifetime_ticks` | **52** | blert guide |
+| `nylo_flicker_hold_ticks` | **2** | blert guide |
+| `nylo_attackrate` | **3** | cache param |
+| `nylo_prince_cap_weight` | **3** | blert |
+| `vasilias_switch_ticks` | **10** | *Wiki* + blert guide |
+| `vasilias_attackrate` | **4** | cache param |
+| `sote_attack_ticks` | **5** | blert |
+| `sote_magic_attacks_per_ball` | 10 | *Wiki* |
+| `sote_prayer_disable_ticks` | 5 | *Wiki* (3 s) |
+| `sote_maze_chip_ticks` | 7 | *Wiki* |
+| `sote_maze_cycle_ticks` | 4 | *Wiki guide* |
+| `sote_maze_w / h` | **14 / 15** | blert |
+| `xarpus_first_spit_ticks` | **7** | blert |
+| `xarpus_p2_ticks` | **4** | blert |
+| `xarpus_p3_turn_ticks` | **8** | blert |
+| `verzik_p1_attack_ticks` | **14** | blert + *Wiki* |
+| `verzik_p2_attack_ticks` | **4** | blert + *Wiki* |
+| `verzik_p2_first_attack_after_spawn` | **3** | blert |
+| `verzik_p2_first_attack_after_reds` | **12** | blert |
+| `verzik_p2_attacks_per_reds` | **7** | blert |
+| `verzik_p2_min_attacks_zap` | **4** | blert |
+| `verzik_p2_min_attacks_purple` | **16** | blert |
+| `verzik_p3_attack_ticks` | **7** | blert + *Wiki* |
+| `verzik_p3_enraged_attack_ticks` | **5** | blert + *Wiki* |
+| `verzik_p3_first_attack_ticks` | **12** | blert |
+| `verzik_p3_attacks_per_special` | **4** | blert + *Wiki* |
+| `verzik_p3_green_ball_delay` | **12** | blert |
+| `verzik_p3_after_yellows_ticks` | **7** | *Wiki* |
+| `verzik_p3_after_special_ticks` | **10** | blert |
+| `verzik_tornado_respawn_ticks` | 16 | *Wiki* |
+| `verzik_p3_aggro_timeout_ticks` | ~17 (10 s) | *Wiki* |
+
+### 18.3 Damage formulas
+
+| Formula | Value |
+|---|---|
+| Maiden blackstorm | `36.5 + 3.5·c`, halved by Protect from Magic, over-hits |
+| Maiden stat drain | 50 % chance of `(damage + 1) / 5` on the highest-attack-bonus stat |
+| Maiden blood splat | `10 + 2·c`, heals her the same, drains prayer |
+| Bloat flies | 10–20 per tick, ×0.75 with Protect from Missiles |
+| Bloat stomp | 40–80, tick-eatable, restores Defence |
+| Bloat flesh | 30–50 + stun |
+| Pillar collapse (nylocas) | up to 50 to the whole room |
+| Nylo explosion | up to 18 small / 21 big |
+| Vasilias | up to 70 off-prayer, 17 prayed |
+| Sotetseg projectiles | up to 50, prayer-blockable, disables prayers 5 ticks |
+| Sotetseg melee | up to 45 (22 prayed), hitsplat at +1 tick |
+| Sotetseg death ball | up to 188 party-scaled, split across the 3×3 |
+| Sotetseg wrong maze tile | `6.67 % currentHp + 15` per tick (11 Entry) |
+| Xarpus poison tile | 4–8 base per tick, scaled by absorbed exhumed |
+| Xarpus P3 retaliation | 50–75 base **per hitsplat**, × (1 + 0.4 × stat uplift) |
+| Verzik P1 magic | up to 137 (68 prayed), no tick-eat |
+| Verzik P1 damage cap | 10 melee / 3 ranged / 3 magic per hitsplat; Dawnbringer exempt |
+| Dawnbringer spec | 75–150 magic, always hits |
+| Verzik P2 urnbomb | up to 44 (22 prayed), on impact only |
+| Verzik P2 slam / stomp | 45 (crush roll, knockback 3, stun 3 s) / 82 (always hits) |
+| Verzik P2 lightning | up to 48 (25 with insulated boots); 15–20 to Verzik if it passes through her |
+| Verzik P2.5 blood spell | up to 45 in a 3×3, heals her half the total dealt |
+| Verzik P3 auto | up to 34 (17 prayed), hits every player |
+| Verzik P3 melee | up to 63 to everyone adjacent, unblockable |
+| Verzik P3 power blast | up to 80 if not on a pool, tick-eatable |
+| Verzik P3 green ball | 75 % of the target's Hitpoints **level** |
+| Verzik tornado | 50 % of current hp (min 5); heals Verzik ×3 |
+
+---
+
+## 19. Test matrix
+
+### Automated (`::tobrun` in `mock230_world.c`, following `::zulrahrun`)
+
+| # | Check |
+|---|---|
+| 1 | Every npc id in §3.1 resolves in the cache, all three modes. |
+| 2 | Every seq, spotanim, sound and loc id in §3.2–§3.6 resolves. |
+| 3 | HP scaling: for each boss and each party size 1–5, the spawned npc's hitpoints equal the §18.1 table. |
+| 4 | Maiden: 100 simulated attack ticks land exactly 10 ticks apart; no two blood splats occur within 3 attacks. |
+| 5 | Maiden: crabs spawn on exactly the tiles in §6.3, `min(2·players, 10)` of them, at 70/50/30 %. |
+| 6 | Bloat: down lasts exactly 32 ticks; the stomp fires on down tick 29; the next walk is 34–42, or 38–46 if the down was unattacked. |
+| 7 | Nylocas: replay all 31 waves with no cap stalls and assert the spawn tick of wave *n* equals `4 + Σ stall[1..n-1]`; total 236. |
+| 8 | Nylocas: every wave's composition matches `nylocas_waves.md` slot for slot, including size, aggro npc id and flicker chain. |
+| 9 | Nylocas: with the cap forced to 12, assert a stall is emitted and the wave spawns 4 ticks later. |
+| 10 | Vasilias: 30 form changes, all exactly 10 ticks apart, never repeating a style. |
+| 11 | Sotetseg: 50 attacks exactly 5 ticks apart; the death ball fires on the 10th magic attack and the counter resets. |
+| 12 | Sotetseg: a generated maze is 14×15, the path is contiguous, and the overworld mirror tile tracks the underworld player every tick. |
+| 13 | Xarpus: first spit at phase-tick 7, then 4-tick spacing; on screech the turn clock becomes 8 and no quadrant repeats. |
+| 14 | Verzik: P1 attacks 14 apart; P2 first at +3 then 4 apart; P3 first at +12 then 7 apart, 5 after enrage. |
+| 15 | Verzik: over 3 full cycles the special order is exactly CRABS, WEBS, YELLOWS, BALL with 4 autos between. |
+| 16 | Verzik: enrage at ≤20 % spawns one tornado per player and re-spawns one 16 ticks after a hit. |
+| 17 | Damage-source tagging: each of the sources named in §13 produces a distinguishable tag. |
+
+Every check must be **proven able to fail** — flip one constant (e.g. Bloat's 32 to
+31, or a wave's stall from 16 to 8) and confirm the run reports it, exactly as the
+Zulrah selftest was validated.
+
+### Live client
+
+| # | Check |
+|---|---|
+| L1 | Five accounts form a party, enter, and all six rooms run to completion. |
+| L2 | The top health bar reads correctly in every room, including the combined-pillar bar. |
+| L3 | Every animation and sound in §3.2–§3.4 fires at the right moment; no silent attacks. |
+| L4 | A Maiden bow-flick moves the drained stat. |
+| L5 | A player can hug the Bloat pillar for a full circuit and take zero fly damage. |
+| L6 | Melee 5-ticking Xarpus with a scythe works without a wasted tick when the player rags a tile on step 4. |
+| L7 | A five-man Verzik web rotation with all players attacking on the same tick leaves no orphaned webs. |
+| L8 | Deaths, disconnects, wipes and escape crystals each leave exactly one consistent state. |
+| L9 | Hard Mode and Entry Mode run end to end with their own npc ids and deltas. |
+
+---
+
+*Plan compiled 17 August 2026. Sources downloaded to [`sources/`](sources/) and
+indexed by [`sources/README.md`](sources/README.md); the full Nylocas wave table is
+[`nylocas_waves.md`](nylocas_waves.md).*

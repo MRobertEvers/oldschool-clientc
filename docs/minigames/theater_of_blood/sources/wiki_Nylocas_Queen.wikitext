@@ -1,0 +1,38 @@
+{{Infobox NPC
+|name = Nylocas Queen
+|image = [[File:Nylocas Queen.png|280px]]
+|release = [[28 July]] [[2021]]
+|update = A Night At The Theatre Rework
+|members = Yes
+|race = [[Nylocas]]/[[araxyte]]/[[vampyre]] tribrid
+|quest = [[A Night at the Theatre]]<br/>[[The Blood Moon Rises]]
+|location = [[Ver Sinhaza]]
+|gender = Female
+|options = None
+|examine = A nylocas of extraordinary power.
+|map = No
+|id = 11181,15967,15968,15969,16190
+|leagueRegion = Morytania
+}}
+[[File:Nylocas Queen chathead.png|left]]
+The '''Nylocas Queen''' is a massive [[nylocas]] created by [[Verzik Vitur]] through her extensive breeding program in order to create "the nylocas to end all nylocas". The Nylocas Queen had been growing inside Verzik Vitur after she was bitten by a young prototype nylocas, with the Nylocas Queen ending up killing Verzik, but assuming both her form and her nature.
+
+==History==
+The Nylocas Queen came into existence through Verzik's attempt to breed forth new and more powerful variants of nylocas. By cross-breeding a nylocas from her homeworld [[Vampyrium]] with a [[Gielinor]]ian [[araxyte]], Verzik created this new variant. The young prototype spider bit Verzik and perished instantly after; Verzik thought her experiment was a failure, not knowing of the consequences of the bite.
+The nylocas made Verzik Vitur change, as she began to put on excessive amounts of weight and began to become ill. She sent for the [[vampyre]] doctor and surgeon [[Vulcan Orvoros]], who tried to find the source of her illness.
+
+At first, Orvoros noted Verzik's weight gain as well as her losing her invulnerability to non-silver weapons. He started to do some tests, eventually discovering some eggs within Verzik's abdomen, which he removed, only for them to reappear shortly after. Orvoros noted that more than just the strange eggs were found inside Verzik's body, but before he could leave, the Nylocas Queen burst forth from Verzik's body, presumably killing her in the process. The Nylocas Queen declared that the Nylocas would overthrow the vampyres and rule in their place, before abruptly killing Orvoros.
+
+The Nylocas Queen has remained in [[Ver Sinhaza]] since, having adopted Verzik's behaviour and appearing in her form. Only when a group of brave adventurers went up against her – after completing all the challenges of the [[Theatre of Blood]] – did the Nylocas Queen reveal her true form as a vampyre/nylocas/araxyte tribrid. However, the queen made her escape by transforming into a bat and flying away. Nonetheless, she returned to face more challengers, even if they were the same ones that had bested her.
+
+During [[The Blood Moon Rises]], [[Sugadinti Vitur]] forces an audience with the queen. After some "minor" disagreements and an adventurer preventing her swarm from assisting her, the Queen ultimately agrees to Sugadinti's terms; the Theatre of Blood would now allow everyone to challenge it, and she and her swarm would feast on any that died during the challenges, something which she is keen on enjoying as many of the challengers were too weak. She later assists them in fighting Lowerniel with her swarm. While the Queen was upset that she could not rule and Sugadinti had many ways to hurt her, she is ultimately content with their agreement. She asks the adventurer to return to the Theatre for the possibility of potentially consuming them before she makes her leave.
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Araxyte concept art.jpg|Concept art for [[araxyte]]s (left) and the Nylocas Queen (right) by [[Mod Jerv]].
+</gallery>
+
+{{A Night at the Theatre}}

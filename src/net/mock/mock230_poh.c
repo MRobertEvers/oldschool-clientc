@@ -80,6 +80,14 @@ mock230_poh_get(
         return poh->tip_notify;
     case MOCK230_POH_FIELD_TIP_AUTO_BANK:
         return poh->tip_auto_bank;
+    case MOCK230_POH_FIELD_TREASURE_COINS:
+        return poh->treasure_coins;
+    case MOCK230_POH_FIELD_TREASURE_READY_MINUTE:
+        return poh->treasure_ready_minute;
+    case MOCK230_POH_FIELD_BOSS_JARS:
+        return poh->boss_jars;
+    case MOCK230_POH_FIELD_DUMMY_VARIANTS:
+        return poh->dummy_variants;
     default:
         return 0;
     }
@@ -207,6 +215,26 @@ mock230_poh_set(
         if( !boolean_value(value) )
             return 0;
         poh->tip_auto_bank = value;
+        return 1;
+    case MOCK230_POH_FIELD_TREASURE_COINS:
+        if( value < 0 || value > MOCK230_POH_TREASURE_MAX )
+            return 0;
+        poh->treasure_coins = value;
+        return 1;
+    case MOCK230_POH_FIELD_TREASURE_READY_MINUTE:
+        if( value < 0 )
+            return 0;
+        poh->treasure_ready_minute = value;
+        return 1;
+    case MOCK230_POH_FIELD_BOSS_JARS:
+        if( value < 0 || value > MOCK230_POH_BOSS_JAR_MASK_MAX )
+            return 0;
+        poh->boss_jars = value;
+        return 1;
+    case MOCK230_POH_FIELD_DUMMY_VARIANTS:
+        if( value < 0 || value > MOCK230_POH_DUMMY_VARIANT_MASK_MAX )
+            return 0;
+        poh->dummy_variants = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -515,6 +543,13 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->tip_coins < 0 || poh->tip_platinum < 0 ||
         !boolean_value(poh->tip_notify) ||
         !boolean_value(poh->tip_auto_bank) ||
+        poh->treasure_coins < 0 ||
+        poh->treasure_coins > MOCK230_POH_TREASURE_MAX ||
+        poh->treasure_ready_minute < 0 ||
+        poh->boss_jars < 0 ||
+        poh->boss_jars > MOCK230_POH_BOSS_JAR_MASK_MAX ||
+        poh->dummy_variants < 0 ||
+        poh->dummy_variants > MOCK230_POH_DUMMY_VARIANT_MASK_MAX ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )

@@ -1,0 +1,47 @@
+{{Infobox Location
+|name = Ver Sinhaza
+|image = [[File:Ver Sinhaza.png|300px]]
+|release = [[24 May]] [[2018]]
+|update = A Taste of Hope
+|members = Yes
+|location = [[Morytania]]
+|teleport = [[Drakan's medallion]]
+|music = [[Welcome to the Theatre]]
+|map = {{Map|name=Ver Sinhaza|x=3663|y=3220|height=250|width=300|zoom=2}}
+|type = building
+|leagueRegion = Morytania
+}}
+{{Relative location
+|location = Ver Sinhaza
+|north = Slepe
+|east = Eastern Ocean
+|south = Icyene Graveyard
+|west = Meiyerditch
+}}
+'''Ver Sinhaza''' is a castle found in the southern sector of [[Meiyerditch]], where the vampyre noble [[Verzik Vitur]] currently resides. Beneath the castle is the [[Theatre of Blood]], where people take on ferocious monsters and challenges set up by Verzik to provide entertainment for the [[vampyre]]s.
+
+According to [[Garth (Theatre of Blood)|Garth]], the castle was once home to the Saradominist queen, [[Queen Efaritay]].
+
+{{Clear|left}}
+==Transportation==
+Players who have completed [[A Taste of Hope]] may teleport directly to Ver Sinhaza by rubbing [[Drakan's medallion]]. Alternatively, players may pay 10,000 coins to [[Andras]] north of the [[Ectofuntus]] in [[Port Phasmatys]] to travel to [[Slepe]], then run south from there. Players can also use an [[Ectophial]] to travel to the [[Ectofuntus]] and run south from there.
+[[File:Ver_Sinhaza_bank.png|thumb|250px|The bank in Ver Sinhaza, displaying the massive amount of wealth.]]
+Otherwise, the player will need to traverse from [[Burgh de Rott]] and ride the boat there to [[Meiyerditch]].
+
+==Personalities==
+*[[Garth (Theatre of Blood)|Garth]]
+*[[Harpert]]
+*[[Meiyerditch citizen]]
+*[[Mercenary (Theatre of Blood)|Mercenaries]]
+*[[Mysterious Stranger]]
+*[[Vyre Orator]]
+*[[Vyrelord]]
+*[[Vyrelady]]
+
+==Trivia==
+*The name "'''Vér Színháza'''" translates to "Theatre of Blood" in Hungarian.
+
+{{A Taste of Hope}}
+{{Theatre of Blood}}
+{{Meiyerditch}}
+[[Category:Castles]]

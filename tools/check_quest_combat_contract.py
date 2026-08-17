@@ -135,6 +135,40 @@ REG_DROP = CONTENT / "drop_tables/scripts/wiki_tyras_guard.rs2"
 REG_BOMB = CONTENT / "quests/quest_regicide/scripts/regicide_bombcraft.rs2"
 REG_STILL = CONTENT / "quests/quest_regicide/scripts/regicide_fractionalising_still.rs2"
 REG_KING = CONTENT / "areas/area_ardougne_east/scripts/king_lathas.rs2"
+REG_SHARED_STILL = CONTENT / "quests/quest_mourningsendparti/scripts/mend1_poison.rs2"
+TBWT_CORE = CONTENT / "quests/quest_tbwt/scripts/quest_tbwt.rs2"
+TBWT_MONKEY = CONTENT / "quests/quest_tbwt/scripts/tbwt_monkey.rs2"
+TBWT_TAMAYU = CONTENT / "quests/quest_tbwt/scripts/tbwt_tamayu.rs2"
+TBWT_JOGRE = CONTENT / "quests/quest_tbwt/scripts/tbwt_jogre_bones.rs2"
+TBWT_SHAIKAHAN = CONTENT / "quests/quest_tbwt/scripts/tbwt_shaikahan.rs2"
+TBWT_GRIND = CONTENT / "quests/quest_tbwt/configs/tbwt_grind.dbrow"
+TBWT_NPC = CONTENT / "quests/quest_tbwt/configs/tbwt_npcs.npc"
+TBWT_COOKING = CONTENT / "skill_cooking/scripts/cooking.rs2"
+TBWT_COOKING_ROWS = CONTENT / "skill_cooking/configs/cooking_generic.dbrow"
+TBWT_FIREMAKING = CONTENT / "skill_firemaking/scripts/firemaking.rs2"
+TBWT_SUPERHEAT = CONTENT / "skill_magic/scripts/spells/superheat.rs2"
+TBWT_POISON = CONTENT / "skill_combat/scripts/weapon_poison.rs2"
+TBWT_TAMAYU_FINAL = CONTENT / "areas/area_karamja/scripts/tbwt_tamayu_final.rs2"
+TBWT_TIADECHE_FINAL = CONTENT / "areas/area_karamja/scripts/tbwt_tiadeche_final.rs2"
+TBWT_TINSAY_FINAL = CONTENT / "areas/area_karamja/scripts/tbwt_tinsay_final.rs2"
+TBWT_TAMAYU_SHOP = CONTENT / "shop/tai_bwo_wannai/scripts/tamayus_spear_stall__1.rs2"
+TBWT_TIADECHE_SHOP = CONTENT / "shop/tai_bwo_wannai/scripts/tiadeches_karambwan_stall.rs2"
+TBWT_TAMAYU_STOCK = CONTENT / "shop/tai_bwo_wannai/configs/tamayus_spear_stall__1.inv"
+TBWT_TIADECHE_STOCK = CONTENT / "shop/tai_bwo_wannai/configs/tiadeches_karambwan_stall.inv"
+TBWT_COMBAT_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
+TROLL_CORE = CONTENT / "quests/quest_troll/scripts/quest_troll.rs2"
+TROLL_DAD = CONTENT / "quests/quest_troll/scripts/troll_champion.rs2"
+TROLL_GUARDS = CONTENT / "quests/quest_troll/scripts/troll_stronghold_camp_guard.rs2"
+TROLL_NPC = CONTENT / "quests/quest_troll/configs/quest_troll.npc"
+TROLL_GENERAL_DROP = CONTENT / "drop_tables/scripts/troll_commander.rs2"
+TROLL_GUARD_DROP = CONTENT / "drop_tables/scripts/mountain_troll.rs2"
+TROLL_DENULTH = CONTENT / "quests/quest_death/scripts/death_denulth.rs2"
+TROLL_DUNSTAN = CONTENT / "quests/quest_death/scripts/death_dunstan.rs2"
+TROLL_DAD_SPAWN = CONTENT / "areas/world/configs/m45_56.spawn"
+TROLL_PRISON_SPAWN = CONTENT / "areas/world/configs/m44_157.spawn"
+COMBAT_XP = CONTENT / "skill_combat/combat.rs2"
+SHOP_GENERATOR = ROOT / "tools/gen_shop_scripts.py"
+QUEST_MANIFEST_GENERATOR = ROOT / "tools/generate_quest_combat_manifest.py"
 PIP_MYREQUE_WELL = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_rod.rs2"
 PIP_WORLD_SPAWN = CONTENT / "areas/world/configs/m53_154.spawn"
 PIP_VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
@@ -277,6 +311,28 @@ def check_manifest() -> None:
             "Regicide: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(regicide[0][key]), f"Regicide: empty evidence field {key}")
+    tbwt = [row for row in rows if row["id"] == "quest-tai-bwo-wannai-trio"]
+    require(len(tbwt) == 1, "manifest: expected exactly one Tai Bwo Wannai Trio row")
+    require(tbwt[0]["implementation_status"] == "implementation-in-progress",
+            "Tai Bwo Wannai Trio: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(tbwt[0][key]), f"Tai Bwo Wannai Trio: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in tbwt[0]["source_audits"]}
+    require({15265886, 15267185, 15302415, 15217840, 15196252,
+             14918139, 15070106, 15196408, 15206313} <= revisions,
+            "Tai Bwo Wannai Trio: pinned Wiki audit set drifted")
+    troll = [row for row in rows if row["id"] == "quest-troll-stronghold"]
+    require(len(troll) == 1, "manifest: expected exactly one Troll Stronghold row")
+    require(troll[0]["implementation_status"] == "implementation-in-progress",
+            "Troll Stronghold: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(troll[0][key]), f"Troll Stronghold: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in troll[0]["source_audits"]}
+    require({15231622, 14728817, 15263286, 15199512, 15267877,
+             15199781, 15199816, 15267891, 15185591, 15185592,
+             15031769, 15003284, 15289542, 15284766} <= revisions,
+            "Troll Stronghold: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -1974,6 +2030,426 @@ def check_priest_in_peril() -> None:
     )
 
 
+def check_regicide() -> None:
+    route = REG_ROUTE.read_text()
+    require_text(
+        route,
+        (
+            "[oploc1,regicide_voyage_temple_well1]", "p_teleport(0_36_150_39_22);",
+            "[zone,0_36_50_8_16]", "@regicide_idris_encounter;",
+            "npc_add(map_findsquare(coord, 1, 3, ^map_findsquare_lineofwalk), regicide_good_elf1, 200);",
+            "npc_setowner;", "[oploc1,regicide_cross_over2_tyras_camp]",
+            "stat(agility) < 56", "regicide_old_camp_guard, 32000", "^regicide_entered_camp",
+            "[zone,0_40_51_24_32]", "@regicide_arianwyn_encounter;",
+            "%regicide_quest = ^regicide_spoken_arianwyn;", "[opheld1,regicide_iorwerth_message]",
+        ),
+        "Regicide Well, Idris, private guard and Arianwyn route",
+    )
+
+    traps = REG_TRAPS.read_text()
+    require_text(
+        traps,
+        (
+            "[oploc1,regicide_trap_woodspring]", "damage(uid, hitsplat_damage, 8);",
+            "[oploc1,regicide_trap_tripwire]", "queue(poison_player, 0, 10);",
+            "[oploc1,regicide_pitfall_corner]", "damage(uid, hitsplat_damage, 15);",
+            "[oploc1,regicide_logbalance1_start]", "stat(agility) < 45",
+            "[timer,regicide_tripwire_walk]", "[timer,regicide_pitfall_walk]",
+        ),
+        "Regicide forest hazards",
+    )
+
+    guard = REG_GUARD.read_text()
+    drops = REG_DROP.read_text()
+    require_text(
+        guard,
+        (
+            "[ai_queue3,regicide_tyras_guard]\n@wiki_tyras_guard_drop;",
+            "[ai_queue3,regicide_tyras_camp_guard]\n@wiki_tyras_guard_drop;",
+            "[queue,regicide_quest_guard_defeated]", "%regicide_quest = ^regicide_defeated_guard;",
+        ),
+        "Regicide encounter-specific guard credit",
+    )
+    require("regicide_tyras_guard_defeated" not in guard,
+            "Regicide: generic guard death can still satisfy quest stage")
+    require_text(
+        drops,
+        (
+            "[ai_queue3,regicide_old_camp_guard]", "queue(regicide_quest_guard_defeated, 0, 0);",
+            "def_int $dropint = random(128);", "obj_add(npc_coord, ~randomjewel, ^lootdrop_duration);",
+        ),
+        "Regicide exact Tyras guard loot",
+    )
+
+    bomb = REG_BOMB.read_text()
+    still = REG_STILL.read_text()
+    require_text(
+        bomb,
+        (
+            "inv_getobj(worn, ^wearpos_hands) = null", "damage(uid, hitsplat_damage, 8);",
+            "stat(crafting) < 10", "inv_total(inv, ball_of_wool) < 4",
+            "inv_total(inv, tinderbox) = 0", "anim(regicide_catapultwind, 0);",
+            "loc_anim(fire_catapult);", "regicide_barrelflight", "regicide_tent_human_fire",
+            "%regicide_quest = ^regicide_killed_tyras;",
+        ),
+        "Regicide bomb and catapult pipeline",
+    )
+    require_text(
+        still,
+        (
+            "[oplocu,regicide_fractionalizing_still]", "[if_close,regicide_still]",
+            "[if_button,regicide_still:regicide_add_coal]", "[softtimer,regicide_still_progress]",
+            "%regicide_still_total >= 26", "inv_add(inv, regicide_barrel_naphtha, 1);",
+        ),
+        "Regicide fractionalising still",
+    )
+    shared_still = REG_SHARED_STILL.read_text()
+    require("if (inv_total(inv, regicide_barrel_tar) >= 1)" not in shared_still,
+            "Regicide: shared MEP handler restored the ten-coal still shortcut")
+    grind = (CONTENT / "skill_herblore/scripts/grind_ingredient.rs2").read_text()
+    require_text(
+        grind,
+        (
+            "if ($grindable = regicide_quicklime)", "inv_total(inv, pot_empty) = 0",
+            "min(5, sub(stat(hitpoints), 1))", "inv_add(inv, regicide_quicklime_dust, 1);",
+        ),
+        "Regicide quicklime grinding",
+    )
+    xp = PLAYER_HIT_FUNNEL.read_text()
+    require_text(
+        xp,
+        ("npc_type = regicide_old_camp_guard", "npc_type = regicide_tyras_camp_guard",
+         "npc_type = regicide_tyras_guard", "$xp_damage = scale(105, 100, $prepared);"),
+        "Regicide Tyras guard XP modifier",
+    )
+    generator = SPAWN_GENERATOR.read_text()
+    require(generator.count('(\"regicide_old_camp_guard\",') == 3,
+            "Regicide: spawn generator must exclude all three public old-camp guards")
+    king = REG_KING.read_text()
+    require_text(
+        king,
+        (
+            "case ^regicide_reported_iorwerth :", "case ^regicide_spoken_arianwyn :",
+            "stat_advance(agility, 137500);", "inv_add(inv, coins, 15000);",
+            "~quest_complete_rewards(quest_regicide", "%regicide_quest = ^regicide_complete;",
+        ),
+        "Regicide Arianwyn gate and reward",
+    )
+
+
+def check_tai_bwo_wannai_trio() -> None:
+    monkey = TBWT_MONKEY.read_text()
+    require_text(
+        monkey,
+        (
+            "[opnpc2,monkey]", "~player_attackrange(inv_getobj(worn, ^wearpos_rhand))",
+            "%tbwt_main >= ^tbwt_started & %tbwt_main < ^tbwt_complete & $attackrange <= 1",
+            "npc_setmode(playerescape);", "@player_combat_start;", "[ai_queue3,monkey]",
+            "obj_add(npc_coord, tbwt_monkey_corpse, 1, ^lootdrop_duration);",
+            "obj_add(npc_coord, mm_normal_monkey_bones, 1, ^lootdrop_duration);",
+        ),
+        "Tai Bwo Wannai Trio monkey",
+    )
+
+    core = TBWT_CORE.read_text()
+    require_text(
+        core,
+        (
+            "[proc,tbwt_is_kp_spear]", "brut_rune_spear_kp",
+            "[proc,tbwt_is_acceptable_tamayu_spear]", "iron_spear, iron_spear_p",
+            "dragon_spear, dragon_spear_p", "brut_iron_spear, brut_iron_spear_p",
+            "[proc,tbwt_kp_weapon_for]", "case black_spear : return(tbwt_black_spear_kp);",
+            "case brut_rune_spear : return(brut_rune_spear_kp);",
+            "[opheldu,tbwt_poisonous_karambwan_paste]", "inv_setslot(inv, last_useslot, $product, 1);",
+            "[oploc1,tbwt_bamboo_door]", "~door_selfstage_open;",
+            "[oploc2,tbwt_bamboo_door]", "~door_selfstage_close;",
+            "%tbwt_tinsay < ^tbwt_tinsay_claimed_final_reward | %tbwt_tiadeche < ^tbwt_tiadeche_claimed_final_reward",
+            "@pray_at_altar(stat_base(prayer));", "[queue,tbwt_quest_complete]",
+            '"2000 coins|The three brothers return to Tai Bwo Wannai"',
+        ),
+        "Tai Bwo Wannai Trio core item, door, altar and reward contract",
+    )
+    require("black_spear, black_spear_p" not in core,
+            "Tai Bwo Wannai Trio: black spear restored to Tamayu acceptance list")
+
+    tamayu = TBWT_TAMAYU.read_text()
+    require_text(
+        tamayu,
+        (
+            "sub(4, $current)", "~set_tbwt_tamayu_agility_count(add($doses, $current));",
+            "~tbwt_is_acceptable_tamayu_spear($spear)", "~tbwt_is_kp_spear($spear)",
+            "testbit(%tbwt_flags, ^tbwt_tamayu_received_acceptable_spear) = ^true",
+            "testbit(%tbwt_flags, ^tbwt_tamayu_received_kp_spear) = ^true",
+            "npc_add(^tbwt_tamayu_hunter_cutscene_spawn, tbwt_tamayu_hunter, 200);",
+            "npc_add(^tbwt_shaikahan_cutscene_spawn, tbwt_beast_cutscene, 200);",
+            "npc_add(^tbwt_tamayu_hunter_cutscene_final_spawn, tbwt_tamayu_final_hunter, 100);",
+            "npc_add(^tbwt_shaikahan_cutscene_final_spawn, tbwt_beast_cutscene, 100);",
+            "sound_synth(beast_hit, 1, 0);", "%tbwt_tamayu = ^tbwt_tamayu_complete;",
+        ),
+        "Tai Bwo Wannai Trio Tamayu hunt",
+    )
+    require(tamayu.count("npc_setowner;") >= 4,
+            "Tai Bwo Wannai Trio: every hunt actor must be owner-private")
+    spawn_generator = SPAWN_GENERATOR.read_text()
+    for actor in ("tbwt_tamayu_hunter", "tbwt_tamayu_final_hunter", "tbwt_beast_cutscene"):
+        require(f'(\"{actor}\",' in spawn_generator,
+                f"Tai Bwo Wannai Trio: spawn generator must exclude {actor}")
+
+    jogre = TBWT_JOGRE.read_text()
+    require_text(
+        jogre,
+        (
+            "[label,tbwt_smelt_jogre_bones]", "stat_advance(cooking, 250);",
+            "[label,tbwt_jogre_bones_superheat]", "~delete_spell_runes(~get_spell_data(^superheat_item));",
+            "~give_spell_xp(~get_spell_data(^superheat_item));",
+            "[label,light_jogre_bones_inv](int $slot)", "stat(firemaking) < 30",
+            "walktrigger(clear_jogre_timer);", "stat_advance(firemaking, 900);",
+            "loc_add($fire_coord, bones_in_paste_fire", "obj_addall($fire_coord, tbwt_burnt_jogre_bones, 1, 100);",
+            "[label,cook_pasty_jogre_bones](obj $bones)", "tbwt_burnt_jogre_bones_marinated_in_karambwanji",
+            "[label,explode_cooked_jogre_bones](obj $bones)", "inv_add(inv, ashes, 1);",
+            "damage(uid, hitsplat_damage, 2);",
+        ),
+        "Tai Bwo Wannai Trio jogre-bone pipeline",
+    )
+    require_text(TBWT_FIREMAKING.read_text(),
+                 ("last_useitem = tbwt_jogre_bones", "@light_jogre_bones_inv(last_useslot);"),
+                 "Tai Bwo Wannai Trio Firemaking hook")
+    require_text(TBWT_SUPERHEAT.read_text(),
+                 ("if ($ore1 = tbwt_jogre_bones)", "@tbwt_jogre_bones_superheat;"),
+                 "Tai Bwo Wannai Trio Superheat hook")
+
+    grind = TBWT_GRIND.read_text()
+    for source, product in (
+        ("tbwt_raw_karambwan", "tbwt_raw_karambwan_paste"),
+        ("tbwt_poorly_cooked_karambwan", "tbwt_poisonous_karambwan_paste"),
+        ("tbwt_cooked_karambwan", "tbwt_cooked_karambwan_paste"),
+        ("tbwt_raw_karambwanji", "tbwt_raw_karambwanji_paste"),
+        ("tbwt_cooked_karambwanji", "tbwt_cooked_karambwanji_paste"),
+    ):
+        require_text(grind, (f"data=input,{source}", f"data=output,{product}"),
+                     f"Tai Bwo Wannai Trio grind row {source}")
+
+    cooking = TBWT_COOKING.read_text()
+    require_text(
+        cooking,
+        (
+            "[label,cook_tbwt_karambwan](category $source)",
+            "%tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
+            '"Cook it thoroughly."', "stat_random(cooking, 70, 256)",
+            "inv_add(inv, tbwt_burnt_karambwan, 1);", "inv_add(inv, tbwt_cooked_karambwan, 1);",
+            "stat_advance(cooking, 1900);", "inv_add(inv, tbwt_poorly_cooked_karambwan, 1);",
+            "stat_advance(cooking, 800);", "@cook_pasty_jogre_bones(last_useitem);",
+            "@explode_cooked_jogre_bones(last_useitem);",
+        ),
+        "Tai Bwo Wannai Trio Karambwan cooking",
+    )
+    require_text(
+        TBWT_COOKING_ROWS.read_text(),
+        ("data=uncooked,tbwt_raw_karambwanji", "data=cooked,tbwt_cooked_karambwanji",
+         "data=experience,100", "data=uncooked,tbwt_raw_karambwan", "data=burnt,tbwt_burnt_karambwan"),
+        "Tai Bwo Wannai Trio cooking discovery rows",
+    )
+    poison = TBWT_POISON.read_text()
+    require_text(poison,
+                 ("case tbwt_dragon_spear_kp : return(dragon_spear);",
+                  "case brut_bronze_spear_kp : return(brut_bronze_spear);",
+                  "case brut_rune_spear_kp : return(brut_rune_spear);"),
+                 "Tai Bwo Wannai Trio cleaning cloth reverse map")
+
+    tamayu_final = TBWT_TAMAYU_FINAL.read_text()
+    tiadeche_final = TBWT_TIADECHE_FINAL.read_text()
+    tinsay_final = TBWT_TINSAY_FINAL.read_text()
+    require_text(tamayu_final,
+                 ("inv_freespace(inv) < 1", "stat_advance(attack, 25000);",
+                  "stat_advance(strength, 25000);", "inv_add(inv, tbwt_rune_spear_kp, 1);",
+                  "else @tamayus_spear_stall__1_open;"),
+                 "Tai Bwo Wannai Trio Tamayu reward and shop gate")
+    require_text(tiadeche_final,
+                 ("stat_advance(fishing, 50000);", "else @tiadeches_karambwan_stall_open;"),
+                 "Tai Bwo Wannai Trio Tiadeche reward and shop gate")
+    require("properly cook Karambwan" not in tiadeche_final,
+            "Tai Bwo Wannai Trio: Tiadeche incorrectly teaches modern Karambwan cooking")
+    require_text(tinsay_final,
+                 ("stat_advance(cooking, 50000);", "teaches you how to cook Karambwan thoroughly"),
+                 "Tai Bwo Wannai Trio Tinsay cooking lesson")
+
+    tamayu_shop = TBWT_TAMAYU_SHOP.read_text()
+    tiadeche_shop = TBWT_TIADECHE_SHOP.read_text()
+    require("[opnpc3," not in tamayu_shop and "[opnpc3," not in tiadeche_shop,
+            "Tai Bwo Wannai Trio: generated shops must not bind pre-quest/cutscene owners")
+    require_text(SHOP_GENERATOR.read_text(),
+                 ('"tamayus_spear_stall__1": []', '"tiadeches_karambwan_stall": []',
+                  "QUEST_GATED_OWNER_OVERRIDES.get(shop_key, discovered_owners)"),
+                 "Tai Bwo Wannai Trio durable shop generation gate")
+    require_text(TBWT_TAMAYU_STOCK.read_text(),
+                 ("stock1=tbwt_bronze_spear_kp,10,10", "stock6=tbwt_rune_spear_kp,0,100",
+                  "stock7=tbwt_cleaning_cloth,10,5"),
+                 "Tai Bwo Wannai Trio Tamayu stock")
+    require_text(TBWT_TIADECHE_STOCK.read_text(),
+                 ("stock1=tbwt_raw_karambwan,10,10", "stock2=tbwt_raw_karambwanji,50,10",
+                  "stock3=tbwt_karambwan_vessel,2,100"),
+                 "Tai Bwo Wannai Trio Tiadeche stock")
+    require_text(TBWT_NPC.read_text(),
+                 ("[tbwt_tamayu_multinpc_house]", "multinpc7=tbwt_tamayu_final"),
+                 "Tai Bwo Wannai Trio returned Tamayu form")
+
+    shaikahan = TBWT_SHAIKAHAN.read_text()
+    require_text(shaikahan,
+                 ("[opnpc2,tbwt_beast]", "%tbwt_main < ^tbwt_complete", "@player_combat_start;"),
+                 "Tai Bwo Wannai Trio post-quest Shaikahan gate")
+    require_text(PLAYER_HIT_FUNNEL.read_text(),
+                 ("npc_type = tbwt_beast & ~tbwt_is_kp_spear", "$prepared = 0;"),
+                 "Tai Bwo Wannai Trio Shaikahan direct-damage immunity")
+    require_text(TBWT_COMBAT_NPC.read_text(),
+                 ("[tbwt_beast]", "hitpoints=100", "attack=80", "strength=80", "defence=25",
+                  "param=attackrate,4", "param=damagetype,1", "param=death_drop,tbwt_beast_bones"),
+                 "Tai Bwo Wannai Trio Shaikahan combat row")
+
+
+def check_troll_stronghold() -> None:
+    core = TROLL_CORE.read_text()
+    require_text(
+        core,
+        (
+            "[oploc1,troll_climbingrocks]", "%troll_quest < ^troll_started",
+            "stat(agility) < 15", "inv_total(worn, death_climbingboots) = 0",
+            "[mapzone,0_45_56]", "[proc,troll_ensure_dad]", "npc_setowner;",
+            "[oploc1,troll_stronghold_arena_exit_left]", "%troll_accepted_challenge = ^true",
+            "[oploc1,troll_stronghold_prison_door_closed]", "inv_del(inv, troll_key_prison, 1);",
+            "[mapzone,0_44_157]", "[proc,troll_ensure_prisoners]",
+            "npc_add(0_44_157_11_29, troll_godric, 32000);",
+            "npc_add(0_44_157_11_33, troll_eadgar, 32000);",
+            "[label,troll_unlock_cell_1]", "%troll_quest = ^troll_freed_godric;",
+            "inv_del(inv, troll_key_godric, 1);", "[label,troll_unlock_cell_2]",
+            "%troll_freed_eadgar = ^true;", "inv_del(inv, troll_key_eadgar, 1);",
+            "[proc,troll_npc_forcewalk]", "[queue,troll_quest_complete]",
+            "inv_freespace(inv) < 1", "%troll_quest = ^troll_complete;",
+            "inv_add(inv, law_talisman, 1);", "~quest_complete_rewards(quest_trollstronghold",
+        ),
+        "Troll Stronghold route, private prisoners and reward",
+    )
+    require(core.count("npc_setowner;") >= 3,
+            "Troll Stronghold: Dad and both prisoners must be owner-private")
+
+    dad = TROLL_DAD.read_text()
+    require_text(
+        dad,
+        (
+            "[opnpc2,troll_champion]", "[apnpc2,troll_champion]",
+            "[ai_opplayer2,troll_champion]", "random(3) = 0",
+            "%aggressive_npc = npc_uid;", "movecoord(coord, -5, 0, 0)",
+            "npc_attackdelay(8);", "[ai_queue2,troll_champion]",
+            "$damage = max(0, sub(npc_stat(hitpoints), 19));",
+            "[label,troll_dad_surrender]", "%troll_quest = ^troll_defeated_dad;",
+            "I'm not done yet! Prepare to die!", "%troll_to_the_death = ^true;",
+            "[ai_queue3,troll_champion]", "obj_add(npc_coord, big_bones, 1",
+            "random(400) = 0", "random(10025) < 2", "troll_spectator7",
+            "npc_setmode(opplayer2);",
+        ),
+        "Troll Stronghold Dad combat contract",
+    )
+
+    guards = TROLL_GUARDS.read_text()
+    require_text(
+        guards,
+        (
+            "[ai_timer,troll_prison_guard1]", "[ai_timer,troll_prison_guard2]",
+            "npc_changetype_keepall(troll_prison_guard1_awake, 500)",
+            "npc_changetype_keepall(troll_prison_guard2_awake, 500)",
+            "[opnpc3,troll_prison_guard1]", "troll_key_godric",
+            "[opnpc3,troll_prison_guard2]", "troll_key_eadgar",
+            "stat(thieving) < 30", "stat_random(thieving, 60, 300) = false",
+            "npc_setmode(opplayer2);", "~obj_gettotal($key) > 0",
+            "inv_freespace(inv) = 0", "sound_synth(pick, 1, 0);",
+        ),
+        "Troll Stronghold Twig/Berry wake and pickpocket contract",
+    )
+
+    general_drop = TROLL_GENERAL_DROP.read_text()
+    require_text(
+        general_drop,
+        (
+            "[ai_queue3,troll_general]", "[ai_queue3,troll_general2]",
+            "[ai_queue3,troll_general3]", "~obj_gettotal(troll_key_prison) = 0",
+            "obj_add_private(npc_coord, troll_key_prison, 1", "random(128)",
+            "~troll_gem_drop(true)", "random(28) = 0", "random(98) = 0",
+            "random(400) = 0", "random(10025) < 2",
+        ),
+        "Troll Stronghold general key and drop contract",
+    )
+    guard_drop = TROLL_GUARD_DROP.read_text()
+    require_text(
+        guard_drop,
+        (
+            "[ai_queue3,troll_prison_guard1]", "[ai_queue3,troll_prison_guard2]",
+            "obj_add_private(npc_coord, troll_key_godric, 1",
+            "obj_add_private(npc_coord, troll_key_eadgar, 1", "random(128)",
+            "~troll_uncommon_seed", "[proc,troll_uncommon_seed]", "random(1048)",
+            "~troll_gem_drop(false)", "[proc,troll_gem_drop]", "random(45) = 0",
+            "random(268) = 0", "random(400) = 0", "random(10025) < 2",
+        ),
+        "Troll Stronghold Twig/Berry key and drop contract",
+    )
+
+    overlay = TROLL_NPC.read_text()
+    require_text(
+        overlay,
+        (
+            "[troll_champion]", "timer=1", "param=elemental_weakness_percent,40",
+            "param=combat_xp_multiplier,1050", "param=death_drop,null",
+            "[troll_general]", "[troll_general2]", "[troll_general3]",
+            "param=elemental_weakness_percent,20", "param=combat_xp_multiplier,1075",
+            "[troll_prison_guard1]", "[troll_prison_guard1_awake]",
+            "[troll_prison_guard2]", "[troll_prison_guard2_awake]",
+        ),
+        "Troll Stronghold NPC overlays",
+    )
+    require_text(
+        TBWT_COMBAT_NPC.read_text(),
+        (
+            "[troll_champion]", "hitpoints=120", "attack=60", "strength=120", "defence=50",
+            "param=attackrate,8", "[troll_general]", "hitpoints=140",
+            "attack=70", "strength=140", "defence=40", "param=attackrate,4",
+            "[troll_prison_guard1]", "hitpoints=90", "attack=40",
+            "strength=90", "defence=25", "param=attackrate,6",
+        ),
+        "Troll Stronghold generated combat rows",
+    )
+    require_text(COMBAT_PARAM.read_text(),
+                 ("[combat_xp_multiplier]", "default=1000"),
+                 "Troll Stronghold combat-XP parameter")
+    require_text(COMBAT_XP.read_text(),
+                 ("scale(npc_param(combat_xp_multiplier), 1000, multiply($damage, 10))",),
+                 "Troll Stronghold combat-XP multiplier application")
+
+    generator = SPAWN_GENERATOR.read_text()
+    for actor, x, z in (("troll_champion", 2911, 3612),
+                        ("troll_godric", 2827, 10077),
+                        ("troll_eadgar", 2829, 10083)):
+        require(f'(\"{actor}\", {x}, {z}, 0)' in generator,
+                f"Troll Stronghold: spawn generator must exclude {actor}")
+    require("troll_champion" not in TROLL_DAD_SPAWN.read_text(),
+            "Troll Stronghold: Dad must not have a public static spawn")
+    prison_spawns = TROLL_PRISON_SPAWN.read_text()
+    require("troll_godric" not in prison_spawns and "troll_eadgar" not in prison_spawns,
+            "Troll Stronghold: prisoners must not have public static spawns")
+
+    require_text(
+        TROLL_DENULTH.read_text(),
+        ("%troll_quest >= ^troll_started", "[label,denulth_troll]",
+         "%troll_quest = ^troll_started;", "[label,denulth_trollquest]"),
+        "Troll Stronghold Denulth start and reminders",
+    )
+    require_text(
+        TROLL_DUNSTAN.read_text(),
+        ("%troll_quest = ^troll_freed_godric", "inv_freespace(inv) = 0",
+         "queue(troll_quest_complete, 0, 0);", "~obj_gettotal(law_talisman) = 0",
+         "[label,dunstan_lawtali]", "inv_total(inv, coins) < 1000",
+         "inv_del(inv, coins, 1000);", "inv_add(inv, law_talisman, 1);"),
+        "Troll Stronghold Dunstan completion and replacement",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -1992,10 +2468,13 @@ def main() -> int:
         check_elemental_workshops()
         check_nature_spirit()
         check_priest_in_peril()
+        check_regicide()
+        check_tai_bwo_wannai_trio()
+        check_troll_stronghold()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit and Priest in Peril (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio and Troll Stronghold (ok)")
     return 0
 
 
