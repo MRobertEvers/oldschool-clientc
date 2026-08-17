@@ -29,6 +29,10 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_COMPASS;
     if( strcmp(type, "cross") == 0 )
         return UIELEM_BUILTIN_CROSS;
+    if( strcmp(type, "entity_overlay") == 0 )
+        return UIELEM_BUILTIN_ENTITY_OVERLAY;
+    if( strcmp(type, "hovertext") == 0 )
+        return UIELEM_BUILTIN_HOVERTEXT;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -508,6 +512,22 @@ push_builtin_op(
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = 0;
         break;
+    case UIELEM_BUILTIN_ENTITY_OVERLAY:
+        spec.always_dirty = 1;
+        break;
+    case UIELEM_BUILTIN_HOVERTEXT:
+        spec.always_dirty = 1;
+        if( op->has_font_ref && op->font_ref[0] )
+        {
+            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            assert(font_id >= 0 && "hovertext font missing");
+            spec.u.hovertext.font_id = font_id;
+        }
+        else if( op->font >= 0 )
+        {
+            spec.u.hovertext.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
+        }
+        break;
     case UIELEM_BUILTIN_MINIMENU:
         spec.always_dirty = 1;
         if( op->has_font_ref && op->font_ref[0] )
@@ -871,8 +891,9 @@ uitree_builder_hide_unmounted_spillover(
         int group = (cid >> 16) & 0xffff;
         if( cid < 0 || group <= 0 )
             continue;
-        /* App-pushed chrome (world viewport, cross, minimenu) lives in the
-         * reserved group 0x7FFE — never interface spillover. */
+        /* Reserved client chrome ids are never interface spillover. Current
+         * visual overlays come from RevConfig and normally have id -1, but
+         * retain the guard for older/custom profiles that assigned this group. */
         if( group == 0x7FFE )
             continue;
         if( opening_group >= 0 && group == opening_group )

@@ -581,7 +581,7 @@ test_debug_overlay_emit_pass(void)
     UITree_EmitBufferInit(&buf);
 
     /* Something ordinary for the walk to emit, then the overlay node last —
-     * the position app_push_builtin_overlay_nodes would give it. */
+     * the position a RevConfig root layout normally gives it. */
     UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 500, 0, 0, 50, 50);
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_BUILTIN_DEBUG_OVERLAY;

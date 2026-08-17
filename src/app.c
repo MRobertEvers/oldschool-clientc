@@ -4543,8 +4543,8 @@ app_minimenu_font_scene_id(struct App* app)
     if( scene_id <= 0 )
     {
         /* Queue the load (no blocking drain — the boot task awaits this font
-         * before the overlays are pushed, so at runtime a miss just falls
-         * through to the text-node scan below until the load lands). */
+         * before binding the configured overlay models, so at runtime a miss
+         * just falls through to the text-node scan below until it lands). */
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
         if( task )
             ToriRS_TaskQueue_Add(app->runner.queue, task);
@@ -4564,48 +4564,24 @@ app_minimenu_font_scene_id(struct App* app)
     return scene_id;
 }
 
-/* Overlay chrome the interface pack does not provide: the click cross and the
- * minimenu popup live as late root siblings (drawn/hit-tested above the
- * interface) and stay invisible until the host reports them active. */
+/* Bind app-owned overlay models to their revision-configured nodes. No node
+ * means that overlay does not exist for the revision; there is intentionally
+ * no C fallback that changes the shape of the UITree. */
 static void
-app_push_builtin_overlay_nodes(struct App* app)
+app_bind_configured_overlays(struct App* app)
 {
-    struct UITreeNodeSpec spec;
-    int font_id = app_minimenu_font_scene_id(app);
-
-    /* Entity overlays first: health bars and hitsplats belong above the world
-     * but below the cross/hovertext/minimenu, and the emit walk draws root
-     * siblings in push order. The desc clips itself to the world box, so the
-     * late position never lets them paint over the chrome. */
-    memset(&spec, 0, sizeof(spec));
-    spec.type = UIELEM_BUILTIN_ENTITY_OVERLAY;
-    spec.component_id = APP_COM_ID_ENTITY_OVERLAY;
-    assert(UITree_Push(app->tree, -1, &spec) >= 0);
-
-    memset(&spec, 0, sizeof(spec));
-    spec.type = UIELEM_BUILTIN_CROSS;
-    spec.component_id = APP_COM_ID_CROSS;
-    spec.width = 16;
-    spec.height = 16;
-    assert(UITree_Push(app->tree, -1, &spec) >= 0);
-
-    /* Pushed before the minimenu so the popup draws over the hover line — the
-     * two are never both up (4726 returns early on minimenu_isopen), but the
-     * ordering keeps that invariant from mattering. */
-    memset(&spec, 0, sizeof(spec));
-    spec.type = UIELEM_BUILTIN_HOVERTEXT;
-    spec.component_id = APP_COM_ID_HOVERTEXT;
-    spec.u.hovertext.font_id = font_id;
-    assert(UITree_Push(app->tree, -1, &spec) >= 0);
-
-    memset(&spec, 0, sizeof(spec));
-    spec.type = UIELEM_BUILTIN_MINIMENU;
-    spec.component_id = APP_COM_ID_MINIMENU;
-    spec.u.minimenu.font_id = font_id;
-    assert(UITree_Push(app->tree, -1, &spec) >= 0);
-
-    app->interact.minimenu.font_id = font_id;
-    app->hover_text.font_id = font_id;
+    app->interact.minimenu.font_id = -1;
+    app->hover_text.font_id = -1;
+    for( uint32_t i = 0; i < app->tree->component_count; i++ )
+    {
+        struct UITreeComponent const* node = &app->tree->components[i];
+        if( node->freed )
+            continue;
+        if( node->type == UIELEM_BUILTIN_MINIMENU )
+            app->interact.minimenu.font_id = node->u.minimenu.font_id;
+        else if( node->type == UIELEM_BUILTIN_HOVERTEXT )
+            app->hover_text.font_id = node->u.hovertext.font_id;
+    }
 }
 
 /* World_HeightFn: projectiles/movers track terrain height (world units).
@@ -5780,7 +5756,7 @@ Task_AppBoot_Run(
 
     app->boot_progress = 60;
 
-    /* Minimenu/hovertext font before the overlay nodes are pushed. */
+    /* Shared b12 fallback before configured overlay models are bound. */
     PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
 
     app->boot_progress = 75;
@@ -5801,7 +5777,7 @@ Task_AppBoot_Run(
         }
     }
 
-    app_push_builtin_overlay_nodes(app);
+    app_bind_configured_overlays(app);
 
     /*
      * `[ui:gameframe]` — the login IF_OPENSUB burst, from the manifest.
@@ -13923,10 +13899,14 @@ app_minimenu_open(
             int const resolved = app_minimenu_font_scene_id(app);
             if( resolved > 0 )
             {
-                int32_t const idx = UITree_FindByComponentId(app->tree, APP_COM_ID_MINIMENU);
                 menu->font_id = resolved;
-                if( idx >= 0 )
-                    app->tree->components[idx].u.minimenu.font_id = resolved;
+                for( uint32_t i = 0; i < app->tree->component_count; i++ )
+                    if( !app->tree->components[i].freed &&
+                        app->tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
+                    {
+                        app->tree->components[i].u.minimenu.font_id = resolved;
+                        break;
+                    }
                 font = ToriDraw_SceneFontGet(app->scene, resolved);
             }
         }

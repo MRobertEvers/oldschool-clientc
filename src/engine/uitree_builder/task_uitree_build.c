@@ -135,8 +135,9 @@ Task_UITreeBuild_Run(
     /* 2. Load every cache asset the manifest needs. */
     PT_TASK_AWAITSELF(CreateTask_UIBuilderAssetsLoad(self->builder, &self->manifest));
 
-    /* 2b. Client-hardcoded sprites (compass, cross, hitmarks, …) — no INI node
-     * owns these, so they bind to bridge slots instead of tree nodes. */
+    /* 2b. Host static sprite packs (cross fallback, hitmarks, map dots, …).
+     * Configured nodes prefer their own sprite= binding; bridge slots cover
+     * overlays and compatibility profiles with no explicit binding. */
     PT_TASK_AWAITSELF_IF(
         CreateTask_StaticSpritesLoad(self->builder->provider, self->builder->bridge));
 

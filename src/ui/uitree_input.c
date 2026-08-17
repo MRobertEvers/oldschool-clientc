@@ -164,11 +164,11 @@ UITree_ComponentIsPassThrough(
         /* Purely decorative overlays (the "Walk here /..." line; health bars
          * and hitsplats); they must never eat world clicks.
          *
-         * These are pushed as *late* root siblings, and UITree_HitTestInteractive
-         * lets a later root's hit win over earlier ones — so a non-passthrough
-         * unsized overlay node here does not just shadow the world, it shadows
-         * the entire interface. Anything added to app_push_builtin_overlay_nodes
-         * needs an entry in this switch. */
+         * RevConfig normally places these as late siblings, and
+         * UITree_HitTestInteractive lets a later root's hit win over earlier
+         * ones — so a non-passthrough unsized overlay node here does not just
+         * shadow the world, it shadows the entire interface. Every decorative
+         * overlay type needs an entry in this switch. */
         return true;
     case UIELEM_RS_INV:
     case UIELEM_RS_INV_TEXT:

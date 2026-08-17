@@ -378,7 +378,8 @@ struct RevConfigUIComponentItem
     /*
      * INI: type=
      * Widget kind; mapped by component_type_from_string() to StaticUIComponentType.
-     * Builtin: compass, minimap, world, sidebar, chat, chat_button, sprite, redstone_tab, tab_icon.
+     * Builtin: compass, cross, entity_overlay, hovertext, minimenu, minimap,
+     * world, sidebar, chat, chat_button, sprite, redstone_tab, tab_icon.
      * RS (static owner or RS-load trigger): rs_layer, rs_graphic, rs_text, rs_rect,
      * rs_model, rs_inv, rs_line.
      */
@@ -502,7 +503,8 @@ struct RevConfigUIComponentItem
      */
     int filled;
 
-    /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name for minimenu. */
+    /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name
+     * for hovertext/minimenu. */
     int font;
     /** When font= is non-numeric, resolved via ui_font_lookup. */
     char font_ref[64];

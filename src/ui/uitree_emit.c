@@ -665,7 +665,12 @@ UITree_EmitFill(
         if( !UITree_Host(host, &pos_req) )
             return false;
         out->kind = UITREE_EMIT_SPRITE;
-        out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_CROSS);
+        /* RevConfig's sprite= binding owns the revision-specific pack. Keep
+         * the static-sprite lookup as compatibility for a configured cross
+         * node whose old profile omitted sprite=. */
+        out->scene_id = component->u.sprite.scene_id;
+        if( out->scene_id <= 0 )
+            out->scene_id = host_static_sprite_scene(host, UITREE_STATIC_SPRITE_CROSS);
         if( out->scene_id <= 0 )
             return false;
         {

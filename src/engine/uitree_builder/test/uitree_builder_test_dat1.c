@@ -164,6 +164,39 @@ main(
 
     CHECK(tree->component_count > 30, "baked tree has chrome nodes");
 
+    /* Overlay presence is a RevConfig property: the builder must bake exactly
+     * one of each configured node, with no app-side injection required. */
+    {
+        int entity_overlays = 0;
+        int crosses = 0;
+        int hovertexts = 0;
+        int minimenus = 0;
+        for( uint32_t i = 0; i < tree->component_count; i++ )
+        {
+            switch( tree->components[i].type )
+            {
+            case UIELEM_BUILTIN_ENTITY_OVERLAY:
+                entity_overlays++;
+                break;
+            case UIELEM_BUILTIN_CROSS:
+                crosses++;
+                break;
+            case UIELEM_BUILTIN_HOVERTEXT:
+                hovertexts++;
+                break;
+            case UIELEM_BUILTIN_MINIMENU:
+                minimenus++;
+                break;
+            default:
+                break;
+            }
+        }
+        CHECK(entity_overlays == 1, "one RevConfig entity overlay node");
+        CHECK(crosses == 1, "one RevConfig cross node");
+        CHECK(hovertexts == 1, "one RevConfig hovertext node");
+        CHECK(minimenus == 1, "one RevConfig minimenu node");
+    }
+
     /* [hotkey:…] bindings resolved onto real nodes. The INI binds 22 keys (F1
      * through F12 plus the digit row) and one more to the compass, which never
      * advertised select_tab — that last one must not survive. */

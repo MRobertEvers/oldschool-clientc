@@ -289,7 +289,7 @@ test_hover_input(void)
         UITree_Free(st);
     }
 
-    /* Regression: app-pushed decorative overlays are late root siblings, and
+    /* Regression: configured decorative overlays are late root siblings, and
      * UITree_HitTestInteractive lets a later root win — so a non-passthrough
      * one shadows the entire interface, not just the world. */
     {

@@ -202,10 +202,21 @@ static char const k_inline_manifest[] =
     "[revconfig:component:overlay]\r\n"
     "type=debug_overlay\r\n"
     "\r\n"
+    "[revconfig:component:cross]\r\n"
+    "type=cross\r\n"
+    "\r\n"
+    "[revconfig:component:minimenu]\r\n"
+    "type=minimenu\r\n"
+    "font=496\r\n"
+    "\r\n"
     "[revconfig:layout:root]\r\n"
     "c=gameframe\r\n"
     "=\r\n"
-    "c=overlay\r\n";
+    "c=overlay\r\n"
+    "=\r\n"
+    "c=cross\r\n"
+    "=\r\n"
+    "c=minimenu\r\n";
 
 static char const k_inline_path[] = "uitree_builder_test_inline.tmp.ini";
 
@@ -241,10 +252,10 @@ test_manifest_from_inline_sources(void)
     uibuilder_manifest_init(&manifest);
     TEST_ASSERT(uibuilder_manifest_from_sources(&manifest, &src) == 0, "from_sources inline");
 
-    /* Two ops, not three: the unprefixed `[layout:root] c=decoy` is the boot
+    /* Four ops, not five: the unprefixed `[layout:root] c=decoy` is the boot
      * dialect's and stays out of this. Not zero either — that is the CRLF read. */
-    TEST_ASSERT(manifest.op_count == 2, "inline op count");
-    if( manifest.op_count == 2 )
+    TEST_ASSERT(manifest.op_count == 4, "inline op count");
+    if( manifest.op_count == 4 )
     {
         /* Declaration order is sibling order is paint order. The frame is
          * declared first and the overlay second, so the overlay paints over it —
@@ -257,6 +268,10 @@ test_manifest_from_inline_sources(void)
         /* No componentno= on the mount: it resolves to root_interface_id, which
          * is where the interface id lives once and only once. */
         TEST_ASSERT(manifest.ops[0].componentno == 161, "inline op0 root iface");
+        TEST_ASSERT(strcmp(manifest.ops[2].type, "cross") == 0, "inline cross from revconfig");
+        TEST_ASSERT(
+            strcmp(manifest.ops[3].type, "minimenu") == 0,
+            "inline minimenu from revconfig");
 
         TEST_ASSERT(
             strcmp(manifest.ops[1].component_name, "overlay") == 0, "inline op1 component");

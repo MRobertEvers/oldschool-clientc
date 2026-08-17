@@ -906,11 +906,11 @@ that catastrophic rather than local:
   canvas (the same reason `UIELEM_BUILTIN_HOVERTEXT` carries an explicit "must
   never eat world clicks" pass-through case).
 - `UITree_HitTestInteractive` walks root siblings in order and lets a **later**
-  root's hit win. `app_push_builtin_overlay_nodes` appends after the interface,
-  so the overlay shadowed the entire UI, not just the world.
+  root's hit win. RevConfig placed the overlay after the interface, so the
+  overlay shadowed the entire UI, not just the world.
 
-Fix: one `case` in `uitree_input.c`. Anything added to
-`app_push_builtin_overlay_nodes` needs an entry there. Regression test:
+Fix: one `case` in `uitree_input.c`. Every decorative overlay node type needs
+an entry there. Regression test:
 `uitree_test_hover.c` "entity overlay never eats clicks" (verified to fail
 without the case).
 
@@ -3322,9 +3322,9 @@ surrounding chrome.
 
 ### torirs
 
-The overlay node (`UIELEM_BUILTIN_ENTITY_OVERLAY`) is pushed as a late root
-sibling (`app_push_builtin_overlay_nodes`, `app.c`), so its `parent_clip` in the
-emit walk is the whole canvas. `UITree_EmitFill` already populated the desc's
+The overlay node (`UIELEM_BUILTIN_ENTITY_OVERLAY`) is declared as a late root
+sibling in RevConfig, so its `parent_clip` in the emit walk is the whole canvas.
+`UITree_EmitFill` already populated the desc's
 clip with the world viewport box the host reports
 (`UITREE_HOST_GET_ENTITY_OVERLAYS` → `world_emit_desc.x/y/w/h`, `app.c:836`), but
 `emit_walk_node` (`uitree_emit.c`) then unconditionally overwrote it with

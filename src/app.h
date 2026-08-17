@@ -66,18 +66,6 @@ struct PktPlayerInfoOp;
  * frame, and blits App_Render's pixels.
  */
 
-/*
- * Component ids for the app-pushed overlay nodes (click cross, minimenu).
- * High interface group 0x7FFE keeps them outside any cache interface id.
- */
-enum
-{
-    APP_COM_ID_CROSS = (0x7FFE << 16) | 0,
-    APP_COM_ID_MINIMENU = (0x7FFE << 16) | 1,
-    APP_COM_ID_HOVERTEXT = (0x7FFE << 16) | 2,
-    APP_COM_ID_ENTITY_OVERLAY = (0x7FFE << 16) | 3,
-};
-
 /* Which on-disk cache format cache_dir holds. dat2 is the js5-era cache
  * (main_file_cache.dat2 + reference tables); dat1 is the 317/254-era one
  * (main_file_cache.dat + jagfile archives). They differ in every decoder, so
