@@ -4611,7 +4611,8 @@ mock230_send_npc_info(struct Mock230Player* player)
              * "something else lives here now" and reads the new occupant as
              * an ordinary continuation of the old one.
              */
-            in_range = npc->active && npc->level == player->level &&
+            in_range = npc->active && mock230_world_npc_visible_to(srv, npc, player) &&
+                       npc->level == player->level &&
                        npc->generation == player->tracked_generation[i] &&
                        view_dx <= MOCK230_NPC_VIEW_TILES && view_dz <= MOCK230_NPC_VIEW_TILES;
 
@@ -4698,7 +4699,8 @@ mock230_send_npc_info(struct Mock230Player* player)
             int view_dx;
             int view_dz;
 
-            if( !npc->active || player->npc_tracked[slot] )
+            if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
+                player->npc_tracked[slot] )
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
@@ -4894,7 +4896,8 @@ mock230_send_npc_info(struct Mock230Player* player)
          * ordinary continuation of the old one — including its masks, so a
          * same-tick hit on the new npc renders on the client's stale entity.
          */
-        int in_range = npc->active && npc->level == player->level &&
+        int in_range = npc->active && mock230_world_npc_visible_to(srv, npc, player) &&
+                       npc->level == player->level &&
                        npc->generation == player->tracked_generation[i] && dx >= -15 &&
                        dx <= 15 && dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
@@ -4986,7 +4989,8 @@ mock230_send_npc_info(struct Mock230Player* player)
         int slot = nearby[i];
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx, dz;
-        if( !npc->active || player->npc_tracked[slot] )
+        if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
+            player->npc_tracked[slot] )
             continue;
         dx = npc->x - player->x;
         dz = npc->z - player->z;

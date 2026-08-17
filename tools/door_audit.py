@@ -58,6 +58,10 @@ INTERACTIVE_OPS = {
 }
 
 OPLOC_BINDING_RE = re.compile(r"^\[(oploc\d|aplloc\d|opheldloc)\s*,\s*([A-Za-z0-9_]+)\s*\]")
+# Any loc-shaped identifier in a script, for the ownership scan below. Loc names
+# are lowercase with underscores and digits; `+` appears in a handful
+# (`enakh_b+w_arm`), so it is part of the token rather than a separator.
+LOC_NAME_RE = re.compile(r"[a-z][a-z0-9_+]{3,}")
 OP_FIELD_RE = re.compile(r"^op([1-5])=(.*)$")
 # `plane x z: loc shape [angle]` -- the angle is OMITTED when it is 0, which is
 # 1,665,853 of the tree's 4,968,455 placements (33%). Requiring the third field
@@ -642,6 +646,18 @@ SWING_SHAPES = {0, 9}  # wall_straight, wall_diagonal
 GATED_OPS = {"pick-lock", "picklock", "unlock", "lock"}
 GATED_OP_PREFIXES = ("quick-pay", "pay")
 
+# Named outright, because no rule reaches them. Enakhra's Lament builds a statue
+# out of "doors": `enakh_b+w_arm` / `_leg` are limbs its temple puzzle rotates,
+# and unlike the sigil pair they share no name with anything
+# `enakhraslament_temple.rs2` binds, so neither the ownership scan nor the prefix
+# check sees the quest behind them. A generic swing would slide a statue's arm
+# one tile sideways. Two entries and one reason; if this grows past a handful,
+# the rule is missing rather than the list being short.
+QUEST_OWNED = {
+    "enakh_b+w_arm",
+    "enakh_b+w_leg",
+}
+
 # Same judgement from the loc's own name, for the records whose gate is not
 # spelled as an op. "locked"/"unopenable" state it outright; the puzzle words
 # name mechanisms (Rogues' Den obstacle course, the macro maze) whose doors are
@@ -651,6 +667,8 @@ GATED_NAME_WORDS = ("locked", "unopenable", "puzzle", "maze", "obstacle")
 
 def selfstage_reason(row):
     """None when the row may self-stage, else why it may not."""
+    if row["name"] in QUEST_OWNED:
+        return "a quest drives it (see QUEST_OWNED)"
     if row["placed"] == 0:
         return "not placed"
     shapes = set(row["shapes"])
@@ -691,11 +709,12 @@ SELFSTAGE_HEADER = """\
 //     `general_use/scripts/door_locked_fallback.rs2`.
 //   * "puzzle" / "maze" / "obstacle" records — the Rogues' Den course and the
 //     macro maze move their doors by something other than a click.
-//   * anything another content `.loc` already files under a category. A loc has
-//     one category and the last file read wins, so claiming one of Enakhra's
-//     statue-limb doors here would take it out of `enakhraslament.loc` and
-//     unbind the puzzle it belongs to — the door would swing and the quest
-//     would stop working.
+//   * anything another content `.loc` declares at all. A file that names a loc
+//     owns what that loc does: a `category=` here would displace its own (a loc
+//     has one, last file wins), and a swing here would compete with whatever it
+//     is building. Enakhra's statue-limb doors are the case — they state only
+//     `op1=Open` and a `next_loc_stage`, so there is no category to displace and
+//     they are still not ours to swing.
 //   * anything placed on a shape that is not a wall. There is no direction to
 //     swing a centrepiece, a ground decoration or a wall decoration in, which
 //     is exactly the arm `~door_open` refuses.
@@ -706,36 +725,78 @@ SELFSTAGE_HEADER = """\
 """
 
 
-def load_content_categories(tree, skip):
-    """Loc names some other content `.loc` already files under a category.
+def load_content_claims(tree, skip):
+    """Loc names some other content `.loc` already declares. name -> file.
 
-    A loc has ONE category, and the last `.loc` read wins. Filing an Enakhra
-    statue-limb door under `door_selfstage` therefore takes it out of
-    `enakhraslament.loc`'s own category and silently unbinds the quest — the
-    door still swings, and the puzzle it belongs to stops working. So a name
-    another file has already claimed is not eligible, whatever its shape.
+    Any block at all, not just one carrying a `category=`. A file that names a
+    loc owns what that loc does, and there are two different ways this pass
+    could break one:
+
+      * a `category=` here would DISPLACE that file's own, because a loc has one
+        category and the last `.loc` read wins;
+      * a swing here would compete with the mechanism that file is building.
+        Enakhra's statue-limb doors state only `op1=Open` and a
+        `next_loc_stage` on their inactive halves — no category to displace,
+        and still not ours to swing.
+
+    Both are silent. The door works, and the puzzle it belongs to stops.
+
+    `.rs2` files count too, and by MENTION rather than by binding. A quest that
+    reads a loc by name — `loc_find`, a `loc_add`, a coord comparison — is
+    driving it even when no `[oplocN]` names it, and `load_script_bindings`
+    above only sees the trigger form. Enakhra's sigil and limb doors are exactly
+    that: `enakhraslament_temple.rs2` rotates them as a statue puzzle and binds
+    none of them, so the binding scan calls them uncovered and the shape test
+    calls them ordinary walls. A mention is a coarse signal, and it is the right
+    side to be coarse on — a door left in the queue costs a click, a door swung
+    out from under a quest costs the quest.
     """
     claimed = {}
-    for p in glob.glob(os.path.join(tree, "server", "scripts", "**", "*.loc"), recursive=True):
-        if os.path.abspath(p) == os.path.abspath(skip):
-            continue
-        rel = os.path.relpath(p, tree).replace("\\", "/")
-        cur = None
-        with open(p, encoding="utf8", errors="replace") as f:
-            for line in f:
-                s = line.strip()
-                if s.startswith("[") and s.endswith("]"):
-                    cur = s[1:-1]
-                elif s.startswith("category=") and cur:
-                    claimed[cur] = rel
+    for pat in ("*.loc", "*.rs2"):
+        for p in glob.glob(os.path.join(tree, "server", "scripts", "**", pat), recursive=True):
+            if os.path.abspath(p) == os.path.abspath(skip):
+                continue
+            rel = os.path.relpath(p, tree).replace("\\", "/")
+            with open(p, encoding="utf8", errors="replace") as f:
+                text = f.read()
+            if pat == "*.loc":
+                for line in text.splitlines():
+                    line = line.strip()
+                    if line.startswith("[") and line.endswith("]"):
+                        claimed.setdefault(line[1:-1], rel)
+            else:
+                # Comments do not own anything. `doors_selfstage.rs2` names the
+                # Lumbridge Swamp hut door in its header to explain itself, and
+                # a scan that counted that would have the generator exclude the
+                # one door the file exists for.
+                code = "\n".join(line.split("//", 1)[0] for line in text.splitlines())
+                for name in LOC_NAME_RE.findall(code):
+                    claimed.setdefault(name, rel)
     return claimed
+
+
+def claimed_by(claimed, name):
+    """The file that owns `name`, or None.
+
+    Prefix-aware, and that is the Enakhra case rather than a generality for its
+    own sake. `enakhraslament_temple.rs2` binds `enakh_door_k_sigil_inactive`
+    and never names `enakh_door_k_sigil`, but the two are the same door in two
+    states and the quest drives both. An exact-name check calls the active half
+    unowned and hands it a generic swing, in the middle of a statue puzzle.
+    """
+    if name in claimed:
+        return claimed[name]
+    for other, where in claimed.items():
+        if other.startswith(name + "_"):
+            return where
+    return None
 
 
 SELFSTAGE_CATEGORY = "door_selfstage"
 
 
 def cmd_write_selfstage(rows, buckets, tree, path):
-    claimed = load_content_categories(tree, path)
+    claimed = load_content_claims(tree, path)
     eligible = []
     for row in rows:
         # This file's OWN output does not disqualify a row — `build_rows` reads
@@ -745,8 +806,8 @@ def cmd_write_selfstage(rows, buckets, tree, path):
         # `.loc` read wins.
         if row["cat"] and row["cat"] != SELFSTAGE_CATEGORY:
             continue
-        if row["name"] in claimed:
-            continue  # another content .loc already gives it a category
+        if claimed_by(claimed, row["name"]):
+            continue  # another content file already owns it
         # Script-bound rows are eligible only when the binding is one of the two
         # fallbacks this replaces; anything else is a real mechanism.
         if row["scripts"] and any(

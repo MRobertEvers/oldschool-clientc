@@ -89,7 +89,6 @@
         "quest-combat-contract:delrith"
       ],
       "known_gaps": [
-        "Per-player incantation permutation is still fixed.",
         "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
         "True per-player actor visibility awaits the shared encounter-ownership runtime."
       ]

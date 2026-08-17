@@ -24,6 +24,7 @@ FROZEN = (GWD / "scripts/godwars_frozen_door.rs2").read_text()
 ENTRANCE = (GWD / "scripts/godwars_entrance.rs2").read_text()
 BOSSES = (GWD / "scripts/godwars_bosses.rs2").read_text()
 CHAMBER = (GWD / "scripts/godwars_chamber.rs2").read_text()
+PRIVATE = (GWD / "scripts/godwars_private.rs2").read_text()
 NPC = (GWD / "configs/godwars.npc").read_text()
 LOC = (GWD / "configs/godwars.loc").read_text()
 CONSTANT = (GWD / "configs/godwars.constant").read_text()
@@ -126,7 +127,8 @@ def main() -> None:
         require(required, f"return({amount});", f"{tier} GWD KC amount")
     assert "gwd_ecumenical_charges" not in ENTRANCE
     assert "gwd_ecumenical_charges" not in FROZEN
-    assert ENTRANCE.index("~gwd_kc_of($f) >= $need") < ENTRANCE.index("inv_total(inv, ecumenical_key)")
+    access = proc_body(ENTRANCE, "gwd_has_chamber_access")
+    assert access.index("~gwd_kc_of($faction) >= ~gwd_kc_required") < access.index("inv_total(inv, ecumenical_key)")
     assert FROZEN.index("%godwars_counter_zaros >= $need") < FROZEN.index("inv_total(inv, ecumenical_key)")
     require(ENTRANCE, "stat_base(agility) < ^gwd_agility_rope", "unboostable Saradomin access")
     require(ENTRANCE, "stat_base(strength) < ^gwd_str_bandos_door", "unboostable Bandos access")
@@ -149,6 +151,32 @@ def main() -> None:
     require(peek, "huntall($centre, 20, 0);", "boss-room occupancy scan")
     require(peek, "if (inzone($sw, $ne, coord) = true)", "boss-room occupancy bounds")
     require(peek, "p_finduid($viewer);", "Peek viewer context restoration")
+    # Hard CA personal rooms: exact tier fees, cloned map ownership, complete
+    # quartet roster, delayed respawns, and every terminal release path.
+    require(ENTRANCE, "~gwd_private_enter($private_faction);", "private-room door entry")
+    for tier, fee in (("grandmaster", 75000), ("master", 100000), ("elite", 125000)):
+        require(PRIVATE, f"%ca_tier_status_{tier} = 2", f"{tier} private fee tier")
+        require(PRIVATE, f"return({fee});", f"{tier} private fee")
+    require(PRIVATE, "return(150000);", "Hard private fee")
+    require(PRIVATE, "~map_instance_from_square", "private-room map clone")
+    require(PRIVATE, "%map_instance_handle = $handle;", "private-room ownership")
+    for actor in (
+        "godwars_armadyl_avatar", "godwars_armadyl_bodyguard_skree",
+        "godwars_armadyl_bodyguard_geerin", "godwars_armadyl_bodyguard_kilisa",
+        "godwars_bandos_avatar", "godwars_sergeant_goblin1",
+        "godwars_sergeant_goblin2", "godwars_sergeant_goblin3",
+        "godwars_saradomin_avatar", "godwars_saradomin_unicorn",
+        "godwars_saradomin_lion", "godwars_saradomin_centaur",
+        "godwars_zamorak_avatar", "godwars_ancient_greater_demon",
+        "godwars_ancient_lesser_demon", "godwars_ancient_black_demon",
+    ):
+        require(PRIVATE, f"$type = {actor}", f"private spawn {actor}")
+    require(PRIVATE, "queue(gwd_private_respawn_npc", "private actor respawn")
+    require(PRIVATE, "[softtimer,gwd_private_lifecycle]", "private departure watchdog")
+    for terminal in ("gwd_private_altar_exit", "gwd_private_on_death", "gwd_private_on_logout"):
+        require(PRIVATE, f"[proc,{terminal}]", f"private terminal {terminal}")
+    require(CHAMBER, "map_instance_coord($handle", "instance-relative chamber bounds")
+    require(CONSTANT, "^gwd_private_loot_duration = 30000", "three-hour private loot")
     # Frozen surface and its permanent, player-owned fire. Pin both the
     # ten-tick environmental effect and the exact Wiki construction recipe.
     require(ENTRANCE, "[mapzone,0_45_58]", "GWD surface chill entry")

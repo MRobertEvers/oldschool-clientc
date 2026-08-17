@@ -460,10 +460,12 @@ why each one is the way it is.
 
 The Inferno changes are pinned in `mock230_world_selftest`'s rev-239 Zuk
 section, extending the existing `::zukstill 4` fixture: after the shield dies
-and Jad turns on the player, 40 ticks of its `attack_clock` are sampled and two
-things are asserted — that its mode is never an AP mode (item 6 above), and
-that every clock reload is one of the two numbers content states, 8 from the
-record or 4 from `~inferno_jad_pace`'s melee branch. Both pass.
+and Jad turns on the player, 60 ticks are sampled and two things are asserted —
+that its mode is never an AP mode (item 6 above), and that the gap between
+consecutive swings is one of the two numbers content states, 8 from the record
+or 4 from `~inferno_jad_pace`'s melee branch. Both pass. That second assertion
+is also the fence for §7's engine fix: 9 there means the attack clock is a
+countdown again, 10 means the AP redirect is back.
 
 The Fight Caves side has its own stanza and its own fixture, `::fightcave
 <wave>`, added beside `::inferno <wave>` for it. It asserts the authored record
@@ -499,32 +501,81 @@ second set.
 
 ---
 
-## 7. One engine finding, not fixed here
+## 7. The engine's attack clock — found here, fixed here
 
-**Every npc in this tree swings on `attackrate + 1` ticks, not `attackrate`.**
+Everything above is about content stating the right numbers. It only means
+anything if the engine spends them correctly, and it did not.
 
-`mock230_combat_npc_tick` (and its npc-versus-npc twin) count the clock down
+**Every npc in the tree swung on `attackrate + 1` ticks, not `attackrate`.**
+`mock230_combat_npc_tick` and its npc-versus-npc twin counted a countdown down
 *before* testing it against zero:
 
 ```c
 if( npc->attack_clock > 0 ) { npc->attack_clock--; return; }
-npc->attack_clock = npc_def(npc)->attackrate;
-/* ... fire the swing trigger ... */
+npc->attack_clock = npc_def(npc)->attackrate;   /* then fire the swing */
 ```
 
-so a reload of N is spent over N ticks and the next swing lands on the tick
-after that. Measured directly on the Zuk-phase Jad: reloads of 4 produced
-swings 5 ticks apart and reloads of 8 produced swings 9 ticks apart. `npc_attackdelay(N)`
-inherits the same convention, since it writes the same field.
+A reload of N is spent over N whole ticks and only the tick *after* them may
+swing. Measured on the Zuk-phase Jad before the fix: reloads of 4 produced
+swings 5 apart, reloads of 8 produced swings 9 apart. `npc_attackdelay(N)`
+inherited it, and so did the retaliation flinch.
 
-This is **not** specific to Jad — it is how every monster in the game is paced
-here, and the player's own swing timing is content-driven (`%action_delay`)
-rather than sharing this clock, so npcs are uniformly one tick slower than
-their records say relative to the player. Jad is therefore implemented in the
-engine's own terms rather than compensating for it with `attackrate - 1`, which
-would make one boss disagree with the whole roster and would silently become
-wrong the day the engine is corrected.
+### What the reference does
 
-The fix is one line in each of the two functions (seed `attackrate - 1`, or
-decrement before the test), but it re-times every fight in the tree and belongs
-in its own change with its own verification pass.
+LostCity keeps no countdown. It keeps a **deadline** on the map clock — armed
+with `add`, read with `>`:
+
+```
+%npc_action_delay = add(map_clock, npc_param(attackrate));   // npc_combat_melee.rs2
+...
+if (%npc_action_delay > map_clock) return;                   // ~60 monster scripts
+```
+
+A swing on tick *T* sets the deadline to *T+N*; on *T+N* the guard is false and
+the npc swings. The interval is exactly N, with no arithmetic anywhere that
+could be off by one.
+
+### The fix
+
+`attack_clock` is now that deadline, in `srv->tick` — which is also how
+`poison_clock` and `death_tick` are already written two fields away in the same
+struct:
+
+```c
+if( srv->tick < npc->attack_clock )
+    return;
+npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
+```
+
+A deadline rather than a corrected countdown (`attackrate - 1`) because the ±1
+has to live in one place or it lives in all of them: the swing reload, the
+flinch (`+ attackrate / 2`, the reference's own halving) and `npc_attackdelay`
+would each need their own correction, and the one that got it wrong would be a
+second silent off-by-one. Zero keeps meaning "swing at the first opportunity" —
+tick 0 is always in the past — so every `= 0` site (`npc_attackplayer`,
+`npc_attacknpc`, `maybe_aggress`, `mock230_combat_stop_npc`, respawn) is
+untouched, and a target switch mid-cooldown carries the deadline over for free,
+which is the behaviour `mock230_combat_hit_npc` had to argue for in prose
+before.
+
+### Verified
+
+- **Default lane:** a new zero-cost assertion in the cow-retaliation stanza —
+  folded into the tick loop that already runs, so the suite's timing is
+  unchanged — pins that a cow which swings on tick *T* arms *T + attackrate*.
+  Failure set identical to before the change (3, all pre-existing and all from
+  unrelated in-flight work).
+- **rev-239 lane:** the Jad stanza now measures the interval between
+  consecutive swings end to end and accepts only 8 (the record) or 4 (the melee
+  branch). 224 failures against a 225 baseline: **no new failures, and one
+  fixed** — `the shot should land inside the window (flinch tick -1)`, which
+  was the flinch paying the same off-by-one.
+- `npc_attackdelay(7)`'s own assertion now reads `srv->tick + 7`. It used to
+  assert a bare `7` and passed while the swing it bought was eight ticks away.
+
+One harness fault surfaced with it and is fixed: `selftest_park_player` topped
+`hitpoints` up without `mock230_combat_sync_hitpoints`, leaving the hitpoints
+*stat* stale. Whether the later "the hitpoints stat should track the player's
+hitpoints" check passed depended on which side of that reset the previous
+section's last npc swing landed — latent for as long as it has existed, and
+exposed the moment every fight in the suite shifted by a tick.

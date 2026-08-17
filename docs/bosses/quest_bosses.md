@@ -319,8 +319,9 @@ Quick guide, Transcript, and NPC/item pages.
   **Implementation status — in progress (2026-08-17):** the state/item gates,
   doubled damage, exact-UID weakened/Banish flow, wrong-chant heal, quest credit,
   explicit no-drop config, source ledger and structural regression contract are
-  implemented. Per-player incantation randomisation, full ritual choreography,
-  shared actor ownership and runtime concurrency/relog tests remain open; the
+  implemented, including the persistent per-player incantation permutation and
+  Aris reminder. Full ritual choreography, shared actor ownership, and runtime
+  concurrency/relog tests remain open; the
   manifest deliberately does not mark this encounter verified.
 - [ ] **[Shield of Arrav](https://oldschool.runescape.wiki/w/Shield_of_Arrav/Quick_guide) — gang-route kills.** Bind Weaponsmaster/Jonny to the selected gang route, make the weapons-store/cupboard and Phoenix crossbow interactions reachable, and drop/grant the required shield half only through the correct gang sequence. Preserve partner exchange and make the non-selected fight neither required nor a source of duplicate halves.
 - [ ] **[The Restless Ghost](https://oldschool.runescape.wiki/w/The_Restless_Ghost/Quick_guide) — skull skeleton.** Searching the coffin/grave path spawns the avoidable skeleton without making its death a quest gate; the [ghost's skull](https://oldschool.runescape.wiki/w/Ghost%27s_skull) is obtained/replaced from the altar independently and returned to the coffin atomically.

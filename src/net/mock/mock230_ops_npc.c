@@ -194,12 +194,15 @@ euclidean_sq(
  */
 static int
 search_matches(
+    struct Mock230Server* srv,
+    const struct Mock230Player* player,
     const struct Mock230Npc* npc,
     int32_t coord,
     int32_t distance,
     int32_t checkvis)
 {
-    if( !npc->active || npc->level != mock230_coord_level(coord) )
+    if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
+        npc->level != mock230_coord_level(coord) )
         return 0;
     if( coord_range(npc, coord) > distance )
         return 0;
@@ -375,7 +378,8 @@ mock230_ops_npc(
         {
             const struct Mock230Npc* npc = &srv->npcs[slot];
 
-            if( !search_matches(npc, coord, distance, checkvis) || !huntable(npc->type) )
+            if( !search_matches(srv, srv->active_player, npc, coord, distance, checkvis) ||
+                !huntable(npc->type) )
                 continue;
             if( srv->iterator.count <
                 (int)(sizeof(srv->iterator.slots) / sizeof(srv->iterator.slots[0])) )
@@ -429,7 +433,9 @@ mock230_ops_npc(
         {
             const struct Mock230Npc* npc = &srv->npcs[slot];
 
-            if( !npc->active || npc->level != mock230_coord_level(coord) )
+            if( !npc->active ||
+                !mock230_world_npc_visible_to(srv, npc, srv->active_player) ||
+                npc->level != mock230_coord_level(coord) )
                 continue;
             if( npc->x < zone_x || npc->x >= zone_x + 8 || npc->z < zone_z ||
                 npc->z >= zone_z + 8 )
@@ -483,7 +489,7 @@ mock230_ops_npc(
             const struct Mock230Npc* npc = &srv->npcs[slot];
             int rank;
 
-            if( !search_matches(npc, coord, distance, checkvis) )
+            if( !search_matches(srv, srv->active_player, npc, coord, distance, checkvis) )
                 continue;
             if( opcode == SS_OP_NPC_HUNT )
             {

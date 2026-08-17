@@ -2868,6 +2868,21 @@ mock230_world_npc_owner(
     return player;
 }
 
+int
+mock230_world_npc_visible_to(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    if( !npc )
+        return 0;
+    if( npc->owner_gen == 0 )
+        return 1;
+    if( !srv || !player || !player->active )
+        return 0;
+    return mock230_world_npc_owner(srv, npc) == player;
+}
+
 void
 mock230_world_npc_set_follower(
     struct Mock230Player* player,
@@ -8803,6 +8818,16 @@ mock230_world_remove_player(
         }
     }
 
+    /* `npc_setowner` binds a runtime actor to this login generation. Anything
+     * still bound after feature-specific logout and instance teardown is an
+     * abandoned private encounter actor; leaving it active makes it invisible
+     * to every future login while still consuming a world slot. */
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active && mock230_world_npc_owner(srv, &srv->npcs[i]) == player )
+            mock230_world_npc_free(srv, i);
+    }
+
     /*
      * Write the save first, while the player is still whole.
      *
@@ -12926,6 +12951,10 @@ mock230_world_selftest(void)
                            "two player logins get a non-zero generation");
             SELFTEST_CHECK(mock230_world_npc_owner(&owners, familiar) == first,
                            "an owner handle resolves its exact login");
+            SELFTEST_CHECK(mock230_world_npc_visible_to(&owners, familiar, first),
+                           "an owned npc is visible to its exact owner");
+            SELFTEST_CHECK(!mock230_world_npc_visible_to(&owners, familiar, other),
+                           "an owned npc is hidden from another player");
             SELFTEST_CHECK(npc_run_mode(&owners, familiar, 0) == 1 &&
                                familiar->face_entity == MOCK230_FACE_PLAYER_BASE + first->pid,
                            "an owned npc faces its owner, not active_player");
@@ -12937,6 +12966,8 @@ mock230_world_selftest(void)
                            "a reused pid advances its login generation");
             SELFTEST_CHECK(mock230_world_npc_owner(&owners, familiar) == NULL,
                            "a stale owner handle does not transfer to the replacement");
+            SELFTEST_CHECK(!mock230_world_npc_visible_to(&owners, familiar, replacement),
+                           "a stale owned npc stays hidden after pid reuse");
         }
 
         SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
@@ -19948,6 +19979,12 @@ mock230_world_selftest(void)
                 int start_x = npc->x;
                 int start_z = npc->z;
                 int retaliated = 0;
+                /* The swing tick and the deadline it armed — see the attack
+                 * speed check below, which reads them rather than ticking the
+                 * world again for itself. */
+                int arm_tick = -1;
+                int armed = -1;
+                int previous_deadline;
 
                 selftest_park_player(srv, start_x + 1, start_z);
                 player_set_occupancy(player, 1);
@@ -19957,9 +19994,16 @@ mock230_world_selftest(void)
                 npc->hitpoints = npc->max_hitpoints;
 
                 mock230_combat_hit_npc(srv, cow, 0, 1);
+                previous_deadline = npc->attack_clock;
                 for( int i = 0; i < 20 && !retaliated; i++ )
                 {
                     mock230_world_tick(srv);
+                    if( arm_tick < 0 && npc->attack_clock > previous_deadline )
+                    {
+                        arm_tick = srv->tick;
+                        armed = npc->attack_clock;
+                    }
+                    previous_deadline = npc->attack_clock;
                     retaliated = player->hitpoints < player->max_hitpoints ||
                                  player->damage_type >= 0;
                 }
@@ -19993,35 +20037,14 @@ mock230_world_selftest(void)
                  */
                 {
                     int rate = npc->def ? npc->def->attackrate : 0;
-                    int previous = npc->attack_clock;
-                    int first_arm = -1;
-                    int gap = -1;
-                    /* Two arms is the whole measurement, so the budget is two
-                     * cycles and a tick of slack. Every tick spent here is a
-                     * tick the rest of the suite also runs, and a probe long
-                     * enough to expire someone else's respawn timer measures
-                     * this correctly by breaking a section four screens down. */
-                    int budget = rate * 2 + 2;
 
-                    for( int i = 0; i < budget && gap < 0; i++ )
-                    {
-                        player->hitpoints = player->max_hitpoints;
-                        mock230_combat_sync_hitpoints(player);
-                        mock230_world_tick(srv);
-                        if( npc->attack_clock > previous )
-                        {
-                            if( first_arm >= 0 )
-                                gap = srv->tick - first_arm;
-                            else
-                                first_arm = srv->tick;
-                        }
-                        previous = npc->attack_clock;
-                    }
-                    SELFTEST_CHECK(rate > 0 && gap == rate,
-                                   "a cow's swings must be its record's %d ticks apart, got "
-                                   "%d — one over is the attack clock counting down before it "
-                                   "is tested rather than holding a deadline",
-                                   rate, gap);
+                    SELFTEST_CHECK(rate > 0 && arm_tick >= 0 && armed == arm_tick + rate,
+                                   "a cow that swings on tick %d owes its next swing on %d — "
+                                   "its record's %d ticks later — and armed %d. One over is "
+                                   "the attack clock counting DOWN before it is tested "
+                                   "instead of holding a deadline, which made every npc in "
+                                   "the game attack a tick slower than its record",
+                                   arm_tick, arm_tick + rate, rate, armed);
                 }
 
                 player_set_occupancy(player, 0);

@@ -14,6 +14,7 @@ MANIFEST = ROOT / "docs/bosses/quest_combat_manifest.json"
 DELRITH = CONTENT / "quests/quest_demon/scripts/delrith.rs2"
 DELRITH_NPC = CONTENT / "quests/quest_demon/configs/quest_demon.npc"
 DELRITH_VARP = CONTENT / "quests/quest_demon/configs/quest_demon.varp"
+ARIS = CONTENT / "areas/varrock/scripts/aris.rs2"
 
 
 def require(condition: bool, message: str) -> None:
@@ -45,11 +46,19 @@ def check_delrith() -> None:
         (
             "[zone,0_50_52_24_32]",
             "[zone,0_50_52_24_40]",
+            "[proc,demon_slayer_init_incantation]",
+            "[proc,demon_slayer_incantation_word](int $word)(string)",
+            "[proc,demon_slayer_incantation_text]()(string)",
+            "[proc,demon_slayer_choose_incantation_word](string $position)(int)",
+            "add(random(5), 1)",
+            "def_int $word_5 = ~demon_slayer_choose_incantation_word(\"fifth\");",
+            "$word_5 = %demon_incantation_5",
             "[opnpc2,delrith]",
             "[apnpc2,delrith]",
             "[ai_queue2,delrith]",
             "$damage = calc($damage * 2);",
             "[ai_queue3,delrith]",
+            "npc_setowner;",
             "%demonstart = ^demon_silverlight",
             "inv_total(worn, silverlight) > 0",
             "npc_changetype(delrith_weakened, 500);",
@@ -64,6 +73,8 @@ def check_delrith() -> None:
         "Delrith",
     )
     require("npc_find(coord, delrith_weakened" not in script, "Delrith: ambiguous radius lookup restored")
+    require("~p_choice4(" not in script, "Delrith: fixed whole-chant menu restored")
+    require("Zaree" not in script, "Delrith: non-incantation word restored")
 
     npc = DELRITH_NPC.read_text()
     require_text(
@@ -74,7 +85,36 @@ def check_delrith() -> None:
     require(npc.count("param=death_drop,null") == 2, "Delrith NPC config: both forms must have null drops")
 
     varp = DELRITH_VARP.read_text()
-    require_text(varp, ("[demon_delrith_engaged]", "scope=temp"), "Delrith engagement state")
+    require_text(
+        varp,
+        (
+            "[demon_delrith_engaged]",
+            "scope=temp",
+            "[demon_incantation_1]",
+            "[demon_incantation_2]",
+            "[demon_incantation_3]",
+            "[demon_incantation_4]",
+            "[demon_incantation_5]",
+        ),
+        "Delrith engagement/incantation state",
+    )
+
+    aris = ARIS.read_text()
+    require_text(
+        aris,
+        (
+            "[label,demon_slayer_aris_quest_start]",
+            "~demon_slayer_init_incantation;",
+            "[label,demon_slayer_aris_incantation]",
+            "~demon_slayer_incantation_text",
+            "~chatnpc_anim(^chat_happy, $incantation);",
+        ),
+        "Aris incantation reminder",
+    )
+    require(
+        "Carlem... Aber... Camerinthum... Purchai... Gabindo" not in aris,
+        "Aris: fixed incantation reminder restored",
+    )
 
 
 def main() -> int:

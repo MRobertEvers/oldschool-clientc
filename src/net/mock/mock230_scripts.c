@@ -5581,7 +5581,9 @@ mock230_script_command(
             int dx;
             int dz;
 
-            if( !npc->active || npc->level != coord_level(coord) )
+            if( !npc->active ||
+                !mock230_world_npc_visible_to(srv, npc, srv->active_player) ||
+                npc->level != coord_level(coord) )
                 continue;
             if( opcode == SS_OP_NPC_FINDALL && npc->type != npc_type )
                 continue;
@@ -5616,7 +5618,9 @@ mock230_script_command(
 
             /* Re-checked, because the list was built before the loop body ran
              * and the body may have killed one of them. */
-            if( !srv->npcs[slot].active )
+            if( !srv->npcs[slot].active ||
+                !mock230_world_npc_visible_to(
+                    srv, &srv->npcs[slot], srv->active_player) )
                 continue;
             SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
             state->host_tag = slot + 1;
@@ -5805,7 +5809,8 @@ mock230_script_command(
             int dz;
             int range;
 
-            if( !npc->active || npc->type != npc_type )
+            if( !npc->active || npc->type != npc_type ||
+                !mock230_world_npc_visible_to(srv, npc, srv->active_player) )
                 continue;
             if( npc->level != coord_level(coord) )
                 continue;
@@ -5877,6 +5882,7 @@ mock230_script_command(
         uint16_t generation = (uint16_t)((uint32_t)uid >> 16);
 
         if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+            !mock230_world_npc_visible_to(srv, &srv->npcs[slot], srv->active_player) ||
             generation == 0 || srv->npcs[slot].generation != generation )
         {
             SSVM_PushInt(state, 0);

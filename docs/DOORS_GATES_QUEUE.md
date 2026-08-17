@@ -60,10 +60,10 @@ tracked separately below rather than silently dropped.
 |---|---|
 | door/gate-named cache records | 3096 |
 | placed on a map | 1836 |
-| paired or self-staging (doors.loc + doors_selfstage.loc) | 604 |
-| bound to a named script | 245 |
+| paired or self-staging (doors.loc + doors_selfstage.loc) | 592 |
+| bound to a named script | 252 |
 | inert (no interactive op) | 833 |
-| **gap: swing (Open/Close/etc.)** | **40** |
+| **gap: swing (Open/Close/etc.)** | **45** |
 | gap: Enter/Pass-through (out of scope) | 113 |
 | gap: other op | 1 |
 
@@ -80,6 +80,8 @@ tracked separately below rather than silently dropped.
 | 5185 | `fenk_door_arch_mirror` |  | 5 | op1=Open | pending |
 | 2417 | `kr_opendoubledoor_l` | Large door | 2 | op1=Close | pending |
 | 4465 | `castlewars_saradomin_sidedoor` | Door | 2 | op1=Unlock | pending |
+| 11151 | `enakh_b+w_arm` | Door | 2 | op1=Open | pending |
+| 11152 | `enakh_b+w_leg` | Door | 2 | op1=Open | pending |
 | 2109 | `slayertower_door_arch` |  | 1 | op1=Open | pending |
 | 2110 | `slayertower_door_arch_mirror` |  | 1 | op1=Open | pending |
 | 3765 | `troll_celldoor_eadgar` | Cell Door | 1 | op1=Unlock | pending |
@@ -95,9 +97,12 @@ tracked separately below rather than silently dropped.
 | 8960 | `dagannoth_pressure_door3` | Door | 1 | op1=Open | pending |
 | 9038 | `tbwcu_bamboo_door_l` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
 | 9039 | `tbwcu_bamboo_door_r` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
+| 11057 | `enakh_door_k_sigil` | Door | 1 | op1=Open | pending |
+| 11064 | `enakh_door_left_arm` | Door | 1 | op1=Open | pending |
 | 14974 | `mm_door_unopenable` | Bamboo Door | 1 | op1=Open | pending |
 | 14983 | `macro_maze_walllow_safe4` | Gate | 1 | op1=Open | pending |
 | 18359 | `slug2_dungeon_door_close` | Wall | 1 | op1=Push | pending |
+| 19843 | `eaglepeak_gate` |  | 1 | op1=Open | pending |
 | 20341 | `contact_barricade` | Gate | 1 | op1=Open | pending |
 | 21068 | `peng_base_blast_door` | Door | 1 | op1=Open | pending |
 | 21400 | `frisd_town_wall_door_locked` | Large door | 1 | op1=Open | pending |

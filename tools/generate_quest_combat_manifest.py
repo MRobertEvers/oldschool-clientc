@@ -109,7 +109,6 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
         "loot_contract": "No ordinary or bones drop; successful banishment grants quest completion only.",
         "test_ids": ["quest-combat-contract:delrith"],
         "known_gaps": [
-            "Per-player incantation permutation is still fixed.",
             "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
             "True per-player actor visibility awaits the shared encounter-ownership runtime.",
         ],

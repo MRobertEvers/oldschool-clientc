@@ -4538,6 +4538,14 @@ mock230_world_npc_owner(
     struct Mock230Server* srv,
     const struct Mock230Npc* npc);
 
+/** Whether this player may observe/address an npc. Unowned npcs are public;
+ * owned npcs are private to the exact login generation that owns them. */
+int
+mock230_world_npc_visible_to(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player);
+
 /** Bind an npc to this exact player login. NULL clears the relation. */
 void
 mock230_world_npc_set_owner(
