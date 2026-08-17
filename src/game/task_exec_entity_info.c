@@ -1040,53 +1040,15 @@ struct Task_ExecNpcInfo
 
     int cur_slot;
 
+    /* The wire type remains the per-player multiNpc wrapper; pending_npc_type
+     * is the child selected from this App's local varps after async loading. */
+    int pending_npc_base_type;
     int pending_npc_type;
-    int model_i;
-    int seq_i;
     int pending_seq;
     int pending_delay;
 
     uint64_t bd_start; /* TORIRS_NPCINFO_BREAKDOWN only */
 };
-
-/* Reads npctype->models[model_i] fresh each call (config already loaded). */
-static struct ToriRS_Task*
-npc_model_task(struct Task_ExecNpcInfo* self)
-{
-    struct ToriRS_Npctype* npctype =
-        CacheProvider_NpctypeGet(self->app->provider, self->pending_npc_type);
-    if( !npctype || self->model_i >= npctype->models_count )
-        return NULL;
-    return CreateTask_ModelLoad(self->app->provider, npctype->models[self->model_i]);
-}
-
-static int
-npc_model_count(struct Task_ExecNpcInfo* self)
-{
-    struct ToriRS_Npctype* npctype =
-        CacheProvider_NpctypeGet(self->app->provider, self->pending_npc_type);
-    return npctype ? npctype->models_count : 0;
-}
-
-static struct ToriRS_Task*
-npc_idle_seq_task(struct Task_ExecNpcInfo* self)
-{
-    struct ToriRS_Npctype* npctype =
-        CacheProvider_NpctypeGet(self->app->provider, self->pending_npc_type);
-    int ids[5];
-    int seq_id;
-    if( !npctype )
-        return NULL;
-    ids[0] = npctype->readyanim;
-    ids[1] = npctype->walkanim;
-    ids[2] = npctype->walkanim_b;
-    ids[3] = npctype->walkanim_r;
-    ids[4] = npctype->walkanim_l;
-    seq_id = ids[self->seq_i];
-    if( seq_id < 0 )
-        return NULL;
-    return CreateTask_SequenceLoad(self->app->provider, self->app->scene, seq_id);
-}
 
 static void
 npc_local_tile(
@@ -1141,6 +1103,7 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
         int element_id = -1;
         if( npc )
         {
+            npc->base_npc_id = self->pending_npc_base_type;
             npc->server_slot = self->cur_slot;
             element_id = npc->element_id;
             RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
@@ -1322,15 +1285,10 @@ npc_apply_op(
     switch( op->kind )
     {
     case PKT_NPC_INFO_OPBITS_NPCTYPE:
-        /* Arrives right after ADD_NEW; spawn once the config/models load.
-         * Resolved once here (App_NpctypeResolveMultiId) rather than at
-         * every downstream lookup: everything from here on -- model
-         * preload, spawn, and npc->npc_id itself -- reads pending_npc_type,
-         * so a `multinpc` shell (no model of its own) never leaks past this
-         * point. The world spawn roster names the shell id directly (e.g.
-         * "gertrude", not "gertrude_quest"), so this is the only place that
-         * substitution can happen. */
-        self->pending_npc_type = App_NpctypeResolveMultiId(app, (int)op->_bitvalue);
+        /* Preserve the wire wrapper. It is resolved only after its config is
+         * loaded, and retained on the entity so later local varp changes can
+         * select a different child for this player without server mutation. */
+        self->pending_npc_base_type = (int)op->_bitvalue;
         if( self->cur_slot >= 0 && idx < 0 )
             return NPC_NEED_SPAWN;
         break;
@@ -1447,10 +1405,9 @@ npc_apply_op(
         }
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:
-        /* Same resolution as OPBITS_NPCTYPE above -- a TRANSFORMATION can
-         * retype an npc onto another multinpc shell just as legitimately as
-         * ADD can. */
-        self->pending_npc_type = App_NpctypeResolveMultiId(app, op->_change_type.npc_type);
+        /* A server transformation replaces the wrapper itself. The selected
+         * child remains client-local and may differ between observers. */
+        self->pending_npc_base_type = op->_change_type.npc_type;
         if( idx >= 0 )
             return NPC_NEED_CHANGE_TYPE;
         break;
@@ -1621,15 +1578,13 @@ Task_ExecNpcInfo_Run(
             if( need == NPC_NEED_SPAWN || need == NPC_NEED_CHANGE_TYPE )
             {
                 g_bd_spawns++;
-                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->pending_npc_type));
-                for( self->model_i = 0; self->model_i < npc_model_count(self); self->model_i++ )
-                {
-                    PT_TASK_AWAITSELF_IF(npc_model_task(self));
-                }
-                for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
-                {
-                    PT_TASK_AWAITSELF_IF(npc_idle_seq_task(self));
-                }
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(
+                    app, self->pending_npc_base_type, &self->pending_npc_type));
+                /* A hidden transform still needs a live entity for later
+                 * masks and varp-driven reappearance. Mount the model-less
+                 * wrapper as that marker until its selected child changes. */
+                if( self->pending_npc_type < 0 )
+                    self->pending_npc_type = self->pending_npc_base_type;
                 /*
                  * Resolved AFTER the awaits, never before them.
                  *
@@ -1660,6 +1615,10 @@ Task_ExecNpcInfo_Run(
                     }
                     else
                     {
+                        struct WorldEntity_NPC* npc =
+                            World_EntityPoolGet(&app->world->entities.npc, world_idx);
+                        if( npc )
+                            npc->base_npc_id = self->pending_npc_base_type;
                         App_WorldApplyNpcType(
                             app, world_idx, element_id, self->pending_npc_type);
                         BD_ADD(g_bd_retype, bd_t);

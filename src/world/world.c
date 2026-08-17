@@ -665,6 +665,7 @@ World_NpcSpawn(
         .pathing = { .route_length = 0,
                      .route_x = { (uint8_t)scene_x },
                      .route_z = { (uint8_t)scene_z } },
+        .base_npc_id = npc_id,
         .npc_id = npc_id,
         .size = size,
         /* Default-on: the config flag only ever clears it, and a spawn whose

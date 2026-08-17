@@ -619,8 +619,11 @@ VarPManager_ResolveTransform(
     else if( transform_varp != -1 )
         transform_index = VarPManager_GetVarp(mgr, transform_varp);
 
-    if( transform_index >= 0 && transform_index < transform_count - 1 &&
-        transforms[transform_index] != -1 )
+    /* -1 is a real positional entry: it means this loc/NPC is hidden for that
+     * value. Falling through to the fallback here made internal `multinpcN=-1`
+     * slots show the fallback form instead, which is especially visible when
+     * two players are at different quest stages. */
+    if( transform_index >= 0 && transform_index < transform_count - 1 )
         return transforms[transform_index];
 
     return transforms[transform_count - 1];

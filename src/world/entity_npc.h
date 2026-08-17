@@ -12,6 +12,11 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_DrawPosition draw_position;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_Pathing pathing;
+    /** Type named by the server. For a multiNpc this remains the wrapper while
+     *  npc_id is the child selected by this client's local varp/varbit state.
+     *  Keeping both is what lets two players see different quest forms and
+     *  lets a later varp update remorph an NPC without another NPC_INFO add. */
+    int base_npc_id;
     int npc_id;
     int size;
     /** NpcType.alwaysontop (opcode 99). Draw-order tier: alwaysontop NPCs

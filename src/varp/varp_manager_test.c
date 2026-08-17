@@ -363,11 +363,11 @@ test_resolve_transform(void)
     TEST_ASSERT(
         VarPManager_ResolveTransform(&mgr, transforms, 3, 0, -1) == 300, "oob index uses last");
 
-    /* transforms[index] == -1 → last entry */
+    /* -1 is a positional hide entry, not a request for the fallback. */
     const int with_hide[] = { -1, 200, 300 };
     mgr.var[0] = 0;
     TEST_ASSERT(
-        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == 300, "hide entry uses last");
+        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == -1, "hide entry stays hidden");
 
     VarPManager_Free(&mgr);
 }

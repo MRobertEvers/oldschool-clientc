@@ -1506,15 +1506,25 @@ App_WorldSpawnSyncedNpc(
 /** Follow NpcType.multiNpc (opcode 106) to the variant that's actually live
  * under the local player's current varp/varbit state, same rule as a loc
  * transform table (VarPManager_ResolveTransform). A `multinpc` shell record
- * carries no model of its own, so every wire npc type -- NPC_INFO's initial
- * type and every CHANGE_TYPE -- must be resolved through this before it is
- * used for anything (spawn, retype, preload). Returns `npc_id` unchanged when
- * it doesn't name a shell, or on a lookup miss. Depth-capped at 4, matching
- * tools/gen_multinpc_catalog.py's chain-walk. */
+ * carries no model of its own. Returns -1 when the selected entry hides the
+ * NPC, `npc_id` unchanged when it does not name a shell or on a lookup miss.
+ * This synchronous helper only follows already-resident configs; packet and
+ * live-remorph paths use CreateTask_NpcMultiLoad so a cold cache cannot strand
+ * the entity on its wrapper. Depth-capped at 4, matching the catalog walk. */
 int
 App_NpctypeResolveMultiId(
     struct App* app,
     int npc_id);
+
+/** Load a multiNpc wrapper and the locally selected child chain, then all body
+ * models and movement sequences needed to spawn/retype it. `*out_npc_id` is
+ * the selected leaf or -1 for a hidden entry. The caller must keep the output
+ * storage alive until the returned task completes. */
+struct ToriRS_Task*
+CreateTask_NpcMultiLoad(
+    struct App* app,
+    int base_npc_id,
+    int* out_npc_id);
 
 struct UITreeMinimapDot;
 

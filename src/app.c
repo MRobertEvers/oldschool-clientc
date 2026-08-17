@@ -3186,6 +3186,272 @@ app_sync_textures_poll(struct App* app)
     }
 }
 
+enum
+{
+    APP_MULTINPC_MAX_DEPTH = 4,
+};
+
+/*
+ * A multiNpc cannot be resolved before its wrapper config is resident. The
+ * packet path used to try exactly that, get a cache miss, and permanently
+ * spawn the model-less wrapper. Keep the config walk and its asset waits in a
+ * reusable task so initial adds, server retypes and local-var remorphs all obey
+ * the same cold-cache-safe rule.
+ */
+struct Task_NpcMultiLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int base_npc_id;
+    int* out_npc_id;
+    int current_npc_id;
+    int depth;
+    int hidden;
+    int model_i;
+    int seq_i;
+};
+
+static int
+Task_NpcMultiLoad_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+
+    self->current_npc_id = self->base_npc_id;
+    self->hidden = 0;
+    *self->out_npc_id = self->base_npc_id;
+
+    for( self->depth = 0; self->depth <= APP_MULTINPC_MAX_DEPTH; self->depth++ )
+    {
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->current_npc_id));
+        {
+            struct ToriRS_Npctype* npctype =
+                CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
+            int next;
+
+            if( !npctype || npctype->transform_count <= 0 || !npctype->transforms )
+                break;
+            next = VarPManager_ResolveTransform(
+                &app->varps,
+                npctype->transforms,
+                npctype->transform_count,
+                npctype->transform_varbit,
+                npctype->transform_varp);
+            if( next < 0 )
+            {
+                self->hidden = 1;
+                break;
+            }
+            if( next == self->current_npc_id )
+                break;
+            self->current_npc_id = next;
+        }
+    }
+
+    if( !self->hidden )
+    {
+        /* The terminal config was loaded by the walk above. Load its complete
+         * body and movement set before the caller mounts/replaces the model. */
+        for( self->model_i = 0;; self->model_i++ )
+        {
+            struct ToriRS_Npctype* npctype =
+                CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
+            if( !npctype || self->model_i >= npctype->models_count )
+                break;
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]));
+        }
+        for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
+        {
+            int seq_id = -1;
+            struct ToriRS_Npctype* npctype =
+                CacheProvider_NpctypeGet(app->provider, self->current_npc_id);
+            if( npctype )
+            {
+                int seqs[5] = {
+                    npctype->readyanim,
+                    npctype->walkanim,
+                    npctype->walkanim_b,
+                    npctype->walkanim_r,
+                    npctype->walkanim_l,
+                };
+                seq_id = seqs[self->seq_i];
+            }
+            if( seq_id >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, seq_id));
+        }
+    }
+
+    *self->out_npc_id = self->hidden ? -1 : self->current_npc_id;
+    PT_END(&self->pt);
+}
+
+static void
+Task_NpcMultiLoad_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_NpcMultiLoad_VTable = {
+    .run = Task_NpcMultiLoad_Run,
+    .free = Task_NpcMultiLoad_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_NpcMultiLoad(
+    struct App* app,
+    int base_npc_id,
+    int* out_npc_id)
+{
+    struct Task_NpcMultiLoad* task;
+
+    assert(app && out_npc_id);
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_NpcMultiLoad_VTable;
+    strncpy(task->task.name, "NpcMultiLoad", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->base_npc_id = base_npc_id;
+    task->out_npc_id = out_npc_id;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+static int
+app_npc_transform_depends_on_varp(
+    struct App* app,
+    int base_npc_id,
+    int varp_id)
+{
+    int npc_id = base_npc_id;
+
+    for( int depth = 0; depth <= APP_MULTINPC_MAX_DEPTH && npc_id >= 0; depth++ )
+    {
+        struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, npc_id);
+        int next;
+
+        if( !npc || npc->transform_count <= 0 || !npc->transforms )
+            return 0;
+        if( varp_id < 0 || npc->transform_varp == varp_id )
+            return 1;
+        if( npc->transform_varbit >= 0 && npc->transform_varbit < app->varps.varbit_count )
+        {
+            struct VarBitType const* vb = &app->varps.varbit_types[npc->transform_varbit];
+            if( vb->basevar == varp_id )
+                return 1;
+        }
+        next = VarPManager_ResolveTransform(
+            &app->varps,
+            npc->transforms,
+            npc->transform_count,
+            npc->transform_varbit,
+            npc->transform_varp);
+        if( next < 0 || next == npc_id )
+            return 0;
+        npc_id = next;
+    }
+    return 0;
+}
+
+struct Task_AppNpcTransform
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int world_idx;
+    int element_id;
+    int server_slot;
+    int base_npc_id;
+    int resolved_npc_id;
+};
+
+static int
+Task_AppNpcTransform_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct Task_AppNpcTransform* self = (struct Task_AppNpcTransform*)base;
+    struct App* app = self->app;
+
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF_IF(
+        CreateTask_NpcMultiLoad(app, self->base_npc_id, &self->resolved_npc_id));
+    {
+        int world_idx = self->world_idx;
+        int element_id = self->element_id;
+        struct WorldEntity_NPC* npc;
+
+        if( self->server_slot >= 0 &&
+            !RS_EntitySync_FindNpc(&app->esync, self->server_slot, &world_idx, &element_id) )
+            world_idx = -1;
+        npc = world_idx >= 0
+                  ? World_EntityPoolGet(&app->world->entities.npc, world_idx)
+                  : NULL;
+        /* Asset IO can yield for several frames. Revalidate the exact entity
+         * and wrapper so a despawn/slot reuse or server CHANGE_TYPE cannot be
+         * overwritten by this older local-var refresh. */
+        if( npc && npc->element_id == self->element_id &&
+            npc->base_npc_id == self->base_npc_id )
+        {
+            int effective =
+                self->resolved_npc_id >= 0 ? self->resolved_npc_id : self->base_npc_id;
+            if( npc->npc_id != effective )
+                App_WorldApplyNpcType(app, world_idx, npc->element_id, effective);
+        }
+    }
+    PT_END(&self->pt);
+}
+
+static void
+Task_AppNpcTransform_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_AppNpcTransform_VTable = {
+    .run = Task_AppNpcTransform_Run,
+    .free = Task_AppNpcTransform_Free,
+};
+
+static void
+app_varp_refresh_npc_transforms(
+    struct App* app,
+    int varp_id)
+{
+    struct World_EntityPool* pool;
+
+    if( !app || !app->world || !app->world->load_complete || !app->provider )
+        return;
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        struct Task_AppNpcTransform* task;
+
+        if( !npc ||
+            !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
+            continue;
+        task = calloc(1, sizeof(*task));
+        assert(task);
+        task->task.vtable = &Task_AppNpcTransform_VTable;
+        strncpy(task->task.name, "NpcTransform", sizeof(task->task.name) - 1);
+        task->app = app;
+        task->world_idx = i;
+        task->element_id = npc->element_id;
+        task->server_slot = npc->server_slot;
+        task->base_npc_id = npc->base_npc_id;
+        task->resolved_npc_id = npc->npc_id;
+        PT_INIT(&task->pt);
+        ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    }
+}
+
 /*
  * Live multiloc remorph (Java ClientLocAnim / OpenRS2 Loc.getMultiLoc): when a
  * varp that drives a LocType transform table changes, re-apply each matching
@@ -3297,6 +3563,7 @@ app_varp_change(void* userdata, int varp_id)
     struct App* app = (struct App*)userdata;
 
     app_varp_refresh_loc_transforms(app, varp_id);
+    app_varp_refresh_npc_transforms(app, varp_id);
     /* Modern audio slider clicks call GAMEOPTION/DEVICEOPTION directly, while
      * the four mute icons only write their backing varps. Both paths must
      * reach the same host snapshot; this is the reference's client-side varp
@@ -11345,44 +11612,19 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_NPC )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
-        for( self->model_i = 0;; self->model_i++ )
+        /* npc_id is the requested/wrapper id; model_id temporarily carries
+         * this player's selected child so developer/content spawns follow the
+         * same multiNpc path as NPC_INFO. */
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
         {
-            {
-                struct ToriRS_Npctype* npctype =
-                    CacheProvider_NpctypeGet(app->provider, self->npc_id);
-                if( !npctype || self->model_i >= npctype->models_count )
-                    break;
-            }
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(
-                app->provider,
-                CacheProvider_NpctypeGet(app->provider, self->npc_id)->models[self->model_i]));
+            int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
+            int idx = app_world_spawn_npc_now(
+                app, effective, self->tile_x, self->tile_z, self->level);
+            struct WorldEntity_NPC* npc =
+                idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
+            if( npc )
+                npc->base_npc_id = self->npc_id;
         }
-        /* Idle/walk(/turn) seqs — same set Task_ExecNpcInfo awaits.
-         * Re-fetch npctype each iteration: locals do not survive PT_YIELD. */
-        for( self->model_i = 0; self->model_i < 5; self->model_i++ )
-        {
-            int seq_id = -1;
-            {
-                struct ToriRS_Npctype* npctype =
-                    CacheProvider_NpctypeGet(app->provider, self->npc_id);
-                if( npctype )
-                {
-                    int seqs[5] = {
-                        npctype->readyanim,
-                        npctype->walkanim,
-                        npctype->walkanim_b,
-                        npctype->walkanim_r,
-                        npctype->walkanim_l,
-                    };
-                    seq_id = seqs[self->model_i];
-                }
-            }
-            if( seq_id >= 0 )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_SequenceLoad(app->provider, app->scene, seq_id));
-        }
-        app_world_spawn_npc_now(app, self->npc_id, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_OBJ )
     {
@@ -17561,13 +17803,10 @@ App_WorldSpawnSyncedNpc(
     return app_world_spawn_npc_now(app, npc_id, scene_x, scene_z, level);
 }
 
-/* See the declaration in app.h. Reference NPCType.method461 (getMultiNPC):
- * every call site that turns an npc id into a NpcType is supposed to go
- * through this, not CacheProvider_NpctypeGet directly, or a shell (no model,
- * no real ops) is what gets used. Wired at the one point every wire npc type
- * passes through -- see PKT_NPC_INFO_OPBITS_NPCTYPE / OP_CHANGE_TYPE in
- * task_exec_entity_info.c -- so nothing downstream (model preload, spawn,
- * retype, and npc->npc_id itself) has to know shells exist. */
+/* See the declaration in app.h. This is the resident-config half of the
+ * reference NPCType.method461/getMultiNPC walk. Packet application uses the
+ * async CreateTask_NpcMultiLoad wrapper above so the first lookup of a cold
+ * shell cannot fail before the config has had a chance to load. */
 int
 App_NpctypeResolveMultiId(
     struct App* app,
@@ -17589,7 +17828,9 @@ App_NpctypeResolveMultiId(
             npctype->transform_count,
             npctype->transform_varbit,
             npctype->transform_varp);
-        if( resolved < 0 || resolved == npc_id )
+        if( resolved < 0 )
+            return -1;
+        if( resolved == npc_id )
             return npc_id;
         npc_id = resolved;
     }
