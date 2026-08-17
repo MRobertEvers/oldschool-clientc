@@ -4668,6 +4668,190 @@ handle_opheld(
         mock230_say(srv, "nothing_interesting_message", NULL);
 }
 
+/*
+ * Portal Nexus configuration is deliberately client-staged.  Interface 19's
+ * original CS2 mutates the *_temp varbits while an entry is dragged, then the
+ * server validates and commits that staging area when Confirm is clicked.
+ * IF_BUTTOND carries enough information to mirror those mutations: the source
+ * and destination dynamic-child ids are the destination-list ordinal and slot.
+ *
+ * https://oldschool.runescape.wiki/w/Portal_nexus#Customisation_and_usage
+ */
+static int
+mock230_telenexus_slot_varbit(int slot, int temporary)
+{
+    char name[64];
+
+    if( slot < 1 || slot > 45 )
+        return -1;
+    snprintf(name, sizeof(name), "poh_nexus_tele_%d%s", slot,
+             temporary ? "_temp" : "");
+    return mock230_content_symbol(MOCK230_PACK_VARBIT, name);
+}
+
+static int
+mock230_telenexus_slot_get(struct Mock230Player* player, int slot, int temporary)
+{
+    int varbit = mock230_telenexus_slot_varbit(slot, temporary);
+
+    return varbit >= 0 ? mock230_varbit_get(player, varbit) : 0;
+}
+
+static void
+mock230_telenexus_slot_set(
+    struct Mock230Server* srv,
+    int slot,
+    int temporary,
+    int value)
+{
+    int varbit = mock230_telenexus_slot_varbit(slot, temporary);
+
+    if( varbit >= 0 )
+        mock230_varbit_set(srv, varbit, value);
+}
+
+static int
+mock230_telenexus_capacity(struct Mock230Player* player)
+{
+    int id = mock230_content_symbol(MOCK230_PACK_VARBIT, "poh_nexus_id");
+    int tier = id >= 0 ? mock230_varbit_get(player, id) : 0;
+
+    if( tier == 1 )
+        return 4;
+    if( tier == 2 )
+        return 8;
+    if( tier == 3 )
+        return 41;
+    return 0;
+}
+
+static int
+mock230_telenexus_stage_drag(
+    struct Mock230Server* srv,
+    int src_com,
+    int src_slot,
+    int dst_com,
+    int dst_slot)
+{
+    /* enum_1375's exact 41-entry ordering in the rev-239 cache. */
+    static const int destination_by_row[41] = {
+        1,  2,  3,  4,  11, 5,  31, 6,  8,  7,  9,  18, 14, 17,
+        10, 12, 13, 16, 15, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+        28, 29, 30, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+    };
+    struct Mock230Player* player = srv->active_player;
+    int available = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus:non_slotted_list");
+    int slotted = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus:slotted_list");
+    int left_click = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus:click_layer");
+    int capacity = mock230_telenexus_capacity(player);
+
+    if( capacity == 0 || available < 0 || slotted < 0 || left_click < 0 )
+        return 0;
+
+    if( src_com == available && dst_com == slotted )
+    {
+        int destination;
+
+        if( src_slot < 1 || src_slot > 41 )
+            return 1;
+        destination = destination_by_row[src_slot - 1];
+        for( int slot = 1; slot <= capacity; slot++ )
+            if( mock230_telenexus_slot_get(player, slot, 1) == destination )
+                return 1;
+        for( int slot = 1; slot <= capacity; slot++ )
+        {
+            if( mock230_telenexus_slot_get(player, slot, 1) == 0 )
+            {
+                mock230_telenexus_slot_set(srv, slot, 1, destination);
+                break;
+            }
+        }
+        return 1;
+    }
+
+    if( src_com != slotted || src_slot < 1 || src_slot > capacity )
+        return 0;
+    if( dst_com == slotted )
+    {
+        int source;
+        int target;
+
+        if( dst_slot < 1 || dst_slot > capacity || dst_slot == src_slot )
+            return 1;
+        source = mock230_telenexus_slot_get(player, src_slot, 1);
+        target = mock230_telenexus_slot_get(player, dst_slot, 1);
+        mock230_telenexus_slot_set(srv, src_slot, 1, target);
+        mock230_telenexus_slot_set(srv, dst_slot, 1, source);
+        return 1;
+    }
+    if( dst_com == available )
+    {
+        mock230_telenexus_slot_set(srv, src_slot, 1, 0);
+        return 1;
+    }
+    if( dst_com == left_click )
+    {
+        int varbit = mock230_content_symbol(
+            MOCK230_PACK_VARBIT, "poh_nexus_left_click_temp");
+        int destination = mock230_telenexus_slot_get(player, src_slot, 1);
+
+        if( varbit >= 0 && destination > 0 )
+            mock230_varbit_set(srv, varbit, destination);
+        return 1;
+    }
+    return 0;
+}
+
+static void
+mock230_telenexus_stage_click(
+    struct Mock230Server* srv,
+    int component,
+    int sub,
+    int op_num)
+{
+    int clear = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus:click_text");
+    int options = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus:radio_button_options");
+    int mode_options = mock230_content_symbol(
+        MOCK230_PACK_COMPONENT, "telenexus_teleport:options_layer");
+    int varbit = mock230_content_symbol(
+        MOCK230_PACK_VARBIT, "poh_nexus_left_click_temp");
+    int value;
+
+    if( op_num != 1 )
+        return;
+    if( component == mode_options && (sub == 2 || sub == 3) )
+    {
+        int mode = mock230_content_symbol(
+            MOCK230_PACK_VARBIT, "poh_nexus_tele_scry_mode");
+
+        if( mode >= 0 )
+            mock230_varbit_set(srv, mode, sub == 3);
+        return;
+    }
+    if( varbit < 0 )
+        return;
+    if( component == clear )
+    {
+        mock230_varbit_set(srv, varbit, 0);
+        return;
+    }
+    if( component != options )
+        return;
+
+    value = mock230_varbit_get(srv->active_player, varbit);
+    /* The alternate teleport paired by param_679 is encoded as base + 150,
+     * exactly as clientscript telenexus_radio_click does it. */
+    if( sub == 2 && value > 150 )
+        mock230_varbit_set(srv, varbit, value - 150);
+    else if( sub == 3 && value > 0 && value < 150 )
+        mock230_varbit_set(srv, varbit, value + 150);
+}
+
 /* INV_BUTTOND / IfButtonD: rev-230 dual-endpoint frame (16 bytes):
  *   srcCom p4 LE, srcObj p2 LE, srcSlot p2 LE+128,
  *   dstCom p4 BE, dstObj p2 BE+128, dstSlot p2 BE+128.
@@ -4726,6 +4910,10 @@ handle_inv_buttond(
             dst_com & 0xffff,
             dst_slot,
             dst_obj);
+
+    if( mock230_telenexus_stage_drag(
+            srv, src_com, src_slot, dst_com, dst_slot) )
+        return;
 
     if( src_com == ids->com_inventory_items || src_com == ids->com_bankside_items )
     {
@@ -6809,9 +6997,22 @@ handle_resume_pausebutton(
 
     /* Revision 239 sends a dynamic IF3 child as uid(parent) + sub.  Server
      * scripts consume the row through last_slot before p_pausebutton resumes,
-     * exactly as the IF_BUTTON1 path does. */
-    if( sub > 0 )
-        srv->active_player->last_slot = sub;
+     * exactly as the IF_BUTTON1 path does.  Portal Nexus rows are zero-based,
+     * so preserve both their parent component and row zero explicitly. */
+    {
+        int nexus_main = mock230_content_symbol(
+            MOCK230_PACK_COMPONENT, "telenexus_teleport:key_listeners");
+        int nexus_extra = mock230_content_symbol(
+            MOCK230_PACK_COMPONENT, "telenexus_teleport:extra_key_listeners");
+
+        if( uid == nexus_main || uid == nexus_extra )
+        {
+            srv->active_player->last_com = uid;
+            srv->active_player->last_slot = sub;
+        }
+        else if( sub > 0 )
+            srv->active_player->last_slot = sub;
+    }
     if( mock230_scripts_resume_button(srv, uid) )
         return;
 
@@ -6902,6 +7103,7 @@ handle_if_button_op(
     srv->active_player->last_com = uid;
     srv->active_player->last_slot = sub;
     srv->active_player->last_verb = op_num;
+    mock230_telenexus_stage_click(srv, uid, sub, op_num);
 
     /* The rev-239 Display dropdown has three rows, but WINDOW_STATUS does not:
      * the golden client writes 1 for fixed and 2 for either resizable layout
@@ -13447,22 +13649,41 @@ mock230_world_selftest(void)
                            "region 9043 should carry a music track");
 
             {
-                int coins = mock230_content_symbol(MOCK230_PACK_OBJ, "coins");
-                int inside = mock230_world_obj_add(
-                    srv, coins, 1, base_x + 32, base_z + 32, 0, 100);
-                int outside = mock230_world_obj_add(srv, coins, 1, old_x, old_z, 0, 100);
+                int inside = MOCK230_GROUND_MAX - 2;
+                int outside = MOCK230_GROUND_MAX - 1;
+                struct Mock230GroundObj saved_inside = srv->ground[inside];
+                struct Mock230GroundObj saved_outside = srv->ground[outside];
 
-                SELFTEST_CHECK(inside >= 0 && outside >= 0,
-                               "the instance cleanup test should place both floor objects");
+                /* The full-world fixture can legitimately occupy every floor
+                 * slot with map spawns. Borrow two deterministically and put
+                 * their complete records back after exercising release. */
+                ground_clear(srv, inside);
+                ground_clear(srv, outside);
+                memset(&srv->ground[inside], 0, sizeof(srv->ground[inside]));
+                srv->ground[inside].active = 1;
+                srv->ground[inside].x = base_x + 32;
+                srv->ground[inside].z = base_z + 32;
+                srv->ground[inside].despawn_tick = srv->tick + 100;
+                mock230_zone_obj_refile(srv, inside);
+                memset(&srv->ground[outside], 0, sizeof(srv->ground[outside]));
+                srv->ground[outside].active = 1;
+                srv->ground[outside].x = old_x;
+                srv->ground[outside].z = old_z;
+                srv->ground[outside].despawn_tick = srv->tick + 100;
+                mock230_zone_obj_refile(srv, outside);
+
                 player->x = old_x;
                 player->z = old_z;
                 mock230_world_mapinstance_free(srv, handle);
-                SELFTEST_CHECK(inside < 0 || !srv->ground[inside].active,
+                SELFTEST_CHECK(!srv->ground[inside].active,
                                "releasing an instance should purge its floor objects");
-                SELFTEST_CHECK(outside < 0 || srv->ground[outside].active,
+                SELFTEST_CHECK(srv->ground[outside].active,
                                "releasing an instance must preserve ordinary-world objects");
-                if( outside >= 0 )
-                    mock230_world_ground_take(srv, outside);
+                ground_clear(srv, outside);
+                srv->ground[inside] = saved_inside;
+                mock230_zone_obj_refile(srv, inside);
+                srv->ground[outside] = saved_outside;
+                mock230_zone_obj_refile(srv, outside);
             }
         }
 
@@ -37385,6 +37606,70 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::hunterrun should report no failures");
             SELFTEST_CHECK(said_ok, "::hunterrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::trekrun\n");
+    {
+        /*
+         * Temple Trekking / Burgh de Rott Ramble content contracts: the
+         * follower tier table (easy followers are the STRONGEST, which is the
+         * inversion the whole reward curve hangs on), the route tables, the
+         * 13-bit point mirror's clamp, the per-route evade rule, the measured
+         * room table's bounds, the reward bands and the food whitelist.
+         *
+         * Asserted on the OK line rather than by counting FAILs, same as
+         * ::chargesrun above: the debugproc can abort on line one, and "no
+         * FAIL was printed" is what that looks like too.
+         *
+         * Nothing here rolls a die. The event roll, the room roll and every
+         * drop rate are deliberately outside the contract — asserting on
+         * random() would either pin the shared RNG stream or report a coin
+         * flip as a regression, and this suite already has that problem
+         * elsewhere. The debugproc saves and restores every varp it writes,
+         * because the stanzas after it run on the same player.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture trekrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &trekrun_capture);
+            mock230_scripts_run_debugproc(srv, "trekrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&trekrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&trekrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &trekrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "trekrun OK", 10) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "trekrun FAIL", 12) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::trekrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::trekrun should reach its OK line");
             mock230_scripts_free(srv);
         }
     }

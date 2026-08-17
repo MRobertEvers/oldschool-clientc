@@ -18,6 +18,13 @@ ARIS = CONTENT / "areas/varrock/scripts/aris.rs2"
 WITCH_SCRIPT = CONTENT / "quests/quest_ball/scripts/quest_ball_locs.rs2"
 WITCH_NPC = CONTENT / "quests/quest_ball/configs/witches_house.npc"
 WITCH_VARP = CONTENT / "quests/quest_ball/configs/quest_ball.varp"
+ARENA = CONTENT / "quests/quest_arena/scripts/arena_encounter.rs2"
+ARENA_LOCS = CONTENT / "quests/quest_arena/scripts/arena_locs.rs2"
+ARENA_NPC = CONTENT / "quests/quest_arena/configs/quest_arena.npc"
+ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
+ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
+ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
+SPAWN_GENERATOR = ROOT / "tools/gen_spawns.py"
 MOCK_HEADER = ROOT / "src/net/mock/mock230.h"
 MOCK_WORLD = ROOT / "src/net/mock/mock230_world.c"
 MOCK_ENCODE = ROOT / "src/net/mock/mock230_encode.c"
@@ -51,6 +58,12 @@ def check_manifest() -> None:
             "Witch's House: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(witch[0][key]), f"Witch's House: empty evidence field {key}")
+    arena = [row for row in rows if row["id"] == "quest-fight-arena"]
+    require(len(arena) == 1, "manifest: expected exactly one Fight Arena row")
+    require(arena[0]["implementation_status"] == "implementation-in-progress",
+            "Fight Arena: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(arena[0][key]), f"Fight Arena: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -216,16 +229,120 @@ def check_witches_experiment() -> None:
                  "Witch's House shed lock state")
 
 
+def check_fight_arena() -> None:
+    encounter = ARENA.read_text()
+    require_text(
+        encounter,
+        (
+            "[label,arena_start_ogre]",
+            "npc_add(0_40_49_44_29, arena_ogre, 32000);",
+            "[label,arena_start_scorpion]",
+            "npc_add(0_40_49_44_23, arena_scorpion, 32000);",
+            "[label,arena_start_bouncer]",
+            "npc_add(0_40_49_44_26, arena_bouncer, 32000);",
+            "[label,arena_start_general]",
+            "npc_add(0_40_49_44_18, general_khazard_arena, 32000);",
+            "[label,arena_after_ogre]",
+            "%arenaquest = ^arena_sent_jail;",
+            "[label,arena_general_after_bouncer]",
+            "%arenaquest = ^arena_freed_servils;",
+            "[proc,arena_remove_owned_fighters]",
+            "[ai_queue3,arena_ogre]",
+            "[ai_queue3,arena_scorpion]",
+            "[ai_queue3,arena_bouncer]",
+            "[ai_queue3,general_khazard_arena]",
+            "obj_add(npc_coord, dorgesh_construction_bone, 1, ^lootdrop_duration);",
+            "obj_add(npc_coord, dorgesh_construction_bone_curved, 1, ^lootdrop_duration);",
+            "obj_add(npc_coord, vile_ashes, 1, ^lootdrop_duration);",
+        ),
+        "Fight Arena encounter",
+    )
+    require(encounter.count("npc_setowner;") == 4,
+            "Fight Arena: every dynamically spawned combat type must be owner-private")
+    require("random(400) = 0" in encounter and "random(5013) = 0" in encounter,
+            "Fight Arena: Ogre tertiary drop rates drifted")
+
+    locs = ARENA_LOCS.read_text()
+    require_text(
+        locs,
+        (
+            "[oploc1,arena_guard_chest_shut]",
+            "[oploc1,arena_guard_chest_open]",
+            "[oplocu,arena_jeremydoor]",
+            "[label,arena_free_sammy]",
+            "[oploc1,fightarena_door2]",
+            "[oploc2,fightarena_door2]",
+            "[label,arena_enter_current_round]",
+            "[label,arena_escape]",
+        ),
+        "Fight Arena route",
+    )
+
+    npc = ARENA_NPC.read_text()
+    for name, hp, attack, strength, defence, rate, style in (
+        ("arena_ogre", 60, 54, 53, 53, 6, 2),
+        ("arena_scorpion", 40, 40, 39, 34, 4, 0),
+        ("arena_bouncer", 116, 120, 120, 120, 4, 0),
+        ("general_khazard_arena", 170, 75, 78, 80, 4, 1),
+    ):
+        require_text(
+            npc,
+            (
+                f"[{name}]",
+                f"hitpoints={hp}",
+                f"attack={attack}",
+                f"strength={strength}",
+                f"defence={defence}",
+                f"param=attackrate,{rate}",
+                f"param=damagetype,{style}",
+                "param=death_drop,null",
+            ),
+            f"Fight Arena NPC {name}",
+        )
+    require_text(npc, ("[general_khazard_arena]", "op2=Attack", "vislevel=142"),
+                 "Fight Arena General Khazard")
+
+    curated = ARENA_SPAWN.read_text()
+    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "sammy_servil_arena", "justin_servil"):
+        require(actor in curated, f"Fight Arena spawn: missing {actor}")
+    world_spawn = ARENA_WORLD_SPAWN.read_text()
+    for actor in ("arena_ogre", "arena_scorpion", "arena_bouncer"):
+        require(actor not in world_spawn, f"Fight Arena: public combat spawn restored for {actor}")
+    require_text(
+        SPAWN_GENERATOR.read_text(),
+        ("NPC_SPAWN_EXCLUSIONS", "scripted owner-private encounter actor",
+         '("arena_scorpion", 2608, 3159, 0)',
+         '("arena_bouncer", 2608, 3162, 0)',
+         '("arena_ogre", 2608, 3165, 0)'),
+        "Fight Arena spawn regeneration",
+    )
+
+    lady = ARENA_LADY.read_text()
+    require_text(
+        lady,
+        (
+            "%arenaquest = ^arena_complete;",
+            "%arenaquest = ^arena_complete_defeated_genkhazard;",
+            "inv_add(inv, coins, 1000);",
+            "stat_advance(attack, 121750);",
+            "stat_advance(thieving, 21750);",
+            "~quest_complete_rewards(quest_fightarena",
+        ),
+        "Fight Arena rewards",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
         check_delrith()
         check_owned_npc_runtime()
         check_witches_experiment()
+        check_fight_arena()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith and Witch's experiment (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment and Fight Arena (ok)")
     return 0
 
 

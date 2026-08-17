@@ -63,6 +63,8 @@ test_opcode_names(void)
              "compiler command lookup sees player_lock");
     CHECK_EQ(SSVM_OpcodeFromName("obj_add_private"), SS_OP_OBJ_ADD_PRIVATE,
              "compiler command lookup sees private ground drops");
+    CHECK_EQ(SSVM_OpcodeFromName("remote_view_start"), SS_OP_REMOTE_VIEW_START,
+             "compiler command lookup sees remote scene views");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -158,6 +160,12 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_OBJ_ADD_PRIVATE);
     CHECK(m->int_in == 5 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "obj_add_private(coord, obj, count, duration, private_ticks)");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_START);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "remote_view_start(coord, ticks)");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "remote_view_end()");
 }
 
 static void
@@ -223,6 +231,12 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
     CHECK(m->require == 0,
           "player_unlock remains callable from a player-bound softtimer cleanup");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_START);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "remote_view_start requires the protected active player");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "remote_view_end requires the protected active player");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */

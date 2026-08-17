@@ -100,6 +100,14 @@ by the existence of code. As of the audit date, the repository now has:
   exact translated tiles, translates every centre/corner/boundary mechanic,
   restores the complete roster for the next kill, and shares the same
   departure/death lifecycle and three-hour floor-object policy.
+- [x] Instance release purges dynamic floor objects in the world-level teardown
+  used by scripted exits and disconnect fallback; an engine self-test proves an
+  instanced pile is removed without deleting an ordinary-world pile.
+- [x] The 69-NPC/126-attack contract now rejects blank asset/timing/mechanic
+  fields, dead handler paths, non-Wiki references, un-translated Nex room
+  coordinates, non-instance-aware Nex loot, and missing faction-war launch,
+  travel, or impact graphics. Runtime NPC metadata accepts those projectile and
+  poison parameters, and ranged max-hit includes cache ammunition strength.
 
 The remaining acceptance work is runtime-focused: nearest-player/defence
 tie-breaking is scripted but still needs multiplayer trace validation;

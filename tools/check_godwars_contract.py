@@ -23,11 +23,21 @@ PRISON_DROPS = (GWD / "scripts/godwars_prison_drops.rs2").read_text()
 FROZEN = (GWD / "scripts/godwars_frozen_door.rs2").read_text()
 ENTRANCE = (GWD / "scripts/godwars_entrance.rs2").read_text()
 BOSSES = (GWD / "scripts/godwars_bosses.rs2").read_text()
+DROPS = (GWD / "scripts/godwars_drops.rs2").read_text()
 CHAMBER = (GWD / "scripts/godwars_chamber.rs2").read_text()
 PRIVATE = (GWD / "scripts/godwars_private.rs2").read_text()
+AMBIENT = (GWD / "scripts/godwars_ambient.rs2").read_text()
 NPC = (GWD / "configs/godwars.npc").read_text()
 LOC = (GWD / "configs/godwars.loc").read_text()
 CONSTANT = (GWD / "configs/godwars.constant").read_text()
+COMBAT_PARAM = (
+    ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param"
+).read_text()
+RANGED_COMBAT = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/npc_combat_ranged.rs2"
+).read_text()
+CONTENT_ENGINE = (ROOT / "src/net/mock/mock230_content.c").read_text()
 MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
 
 
@@ -47,6 +57,17 @@ def proc_body(text: str, name: str) -> str:
     return match.group(1)
 
 
+def script_body(text: str, trigger: str, subject: str) -> str:
+    match = re.search(
+        rf"^\[{re.escape(trigger)},{re.escape(subject)}\][^\n]*\n(.*?)(?=^\[|\Z)",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        raise AssertionError(f"missing [{trigger},{subject}]")
+    return match.group(1)
+
+
 def scaled(pool: int, damage: int, total: int, mvp: bool) -> int:
     quantity = pool * damage // total
     return quantity * 11 // 10 if mvp else quantity
@@ -58,7 +79,11 @@ def main() -> None:
     npcs = {row["gameval"] for row in rows}
     assert len(npcs) == 69, f"classic roster drifted to {len(npcs)} NPCs"
     assert len(rows) == 126, f"classic attack ledger drifted to {len(rows)} rows"
-    assert all(row["attack_handler"] and row["drop_handler"] for row in rows)
+    for row in rows:
+        assert all(value.strip() for value in row.values()), f"blank manifest field: {row}"
+        assert row["wiki_url"].startswith("https://oldschool.runescape.wiki/w/")
+        for handler in ("attack_handler", "drop_handler"):
+            assert (ROOT / row[handler]).is_file(), f"missing {handler}: {row[handler]}"
 
     # Phase floors, five-attack special cadence, and forced melee sequence.
     for floor in (2720, 2040, 1360, 680):
@@ -118,6 +143,47 @@ def main() -> None:
     require(BOSSES, "inv_getobj(worn, ^wearpos_lhand) = spectral", "spectral shield check")
     require(BOSSES, "$prayer_drain = divide(stat(prayer), 4);", "spectral K'ril special")
     assert NEX.count("~gwd_prayer_drain_amount") >= 6
+    war = proc_body(AMBIENT, "gwd_war_swing")
+    require(war, "npc_param(proj_launch)", "ambient launch spot animation")
+    require(war, "npc_param(proj_travel)", "ambient travel projectile")
+    require(war, "npc_param(proj_impact)", "ambient impact spot animation")
+    require(COMBAT_PARAM, "[proj_impact]", "impact spot-animation parameter")
+    require(RANGED_COMBAT, "npc_param(rangebonus_ammo)", "NPC ammunition strength")
+    for param in ("rangebonus_ammo", "poison_severity", "proj_launch", "proj_travel", "proj_impact"):
+        require(CONTENT_ENGINE, f'"{param}"', f"runtime NPC parameter {param}")
+
+    # The classic tables are exact integer partitions, not approximate rarity
+    # labels. Pin every ordinary-table boundary and each nested unique divisor.
+    classic_main_bounds = {
+        "gwd_drop_graardor_main": [8, 16, 24, 30, 38, 46, 54, 62, 70, 78, 86, 96],
+        "gwd_drop_kree_main": [8, 16, 24, 32, 40, 48, 56, 64, 72, 73, 74, 84],
+        "gwd_drop_zilyana_main": [8, 16, 24, 32, 40, 46, 54, 62, 70, 78, 86, 87, 97],
+        "gwd_drop_kril_main": [8, 16, 24, 31, 33, 41, 49, 57, 65, 73, 81, 91],
+        "gwd_bodyguard_bandos_main": [7, 15, 23, 31, 39, 47, 113, 121, 123],
+        "gwd_bodyguard_armadyl_main": [7, 15, 23, 31, 39, 109, 117],
+        "gwd_bodyguard_saradomin_main": [8, 16, 24, 32, 40, 102, 110, 117],
+        "gwd_bodyguard_zamorak_main": [7, 15, 23, 31, 97, 105, 113, 121, 123],
+    }
+    for name, expected in classic_main_bounds.items():
+        actual = [int(value) for value in re.findall(r"\$roll < (\d+)", proc_body(DROPS, name))]
+        assert actual == expected, f"{name}: boundaries {actual}, expected {expected}"
+    boss_unique_contracts = {
+        "godwars_bandos_avatar": ("bandos_chestplate", "random(3)", "random(4)", "random(2)"),
+        "godwars_armadyl_avatar": ("armadyl_chestplate", "random(3)", "random(4)", "random(2)"),
+        "godwars_saradomin_avatar": ("saradomin_sword", "saradomin_light", "random(4)", "random(2)"),
+        "godwars_zamorak_avatar": ("steam_battlestaff", "zamorak_spear", "random(4)", "random(2)"),
+    }
+    for subject, needles in boss_unique_contracts.items():
+        body = script_body(DROPS, "ai_queue3", subject)
+        require(body, "random(127)", f"{subject} 127-slot table")
+        for needle in needles:
+            require(body, needle, f"{subject} unique table")
+    for name in (
+        "gwd_bodyguard_bandos", "gwd_bodyguard_armadyl",
+        "gwd_bodyguard_saradomin", "gwd_bodyguard_zamorak",
+    ):
+        require(proc_body(DROPS, name), "random(127)", f"{name} 127-slot table")
+    require(proc_body(DROPS, "gwd_bodyguard_shard"), "random(12)", "bodyguard shard divisor")
 
     # CA tier rewards lower all five barriers. Existing essence has priority
     # over a one-use ecumenical key; the obsolete three-charge varp is unused.

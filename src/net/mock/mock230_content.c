@@ -1204,8 +1204,9 @@ apply_param(
      * not engine fields: ranged and magic swing code reads them through
      * npc_param, and keeping them here preserves the normal overlay precedence
      * over cache defaults. */
-    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0 ||
-             strcmp(text, "magic_maxhit") == 0 )
+    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "rangebonus_ammo") == 0 ||
+             strcmp(text, "magicdamage") == 0 || strcmp(text, "magic_maxhit") == 0 ||
+             strcmp(text, "poison_severity") == 0 )
         resolved = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
         resolved = def->damagetype = atoi(value);
@@ -1258,6 +1259,12 @@ apply_param(
         if( !param_symbol(&def->death_drop, MOCK230_PACK_OBJ, text, value, where) )
             return 0;
         resolved = def->death_drop;
+    }
+    else if( strcmp(text, "proj_launch") == 0 || strcmp(text, "proj_travel") == 0 ||
+             strcmp(text, "proj_impact") == 0 )
+    {
+        if( !param_symbol(&resolved, MOCK230_PACK_SPOTANIM, text, value, where) )
+            return 0;
     }
     /*
      * Fishing spot relocation target (docs/FISHING_COMPLETION_PLAN.md S10).

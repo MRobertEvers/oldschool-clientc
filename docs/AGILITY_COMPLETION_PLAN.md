@@ -185,12 +185,37 @@ course reads it. Either the courses move onto it (§6.4, recommended) or it
 should be deleted; leaving a declared-but-unread schema invites a future
 course to half-adopt it.
 
-### 1.6 Run energy is on the pre-2025 formula and has no modifier hooks
+### 1.6 Run energy — now a feature flag; the modifier hooks are still missing
 
-`run_energy_tick` in [mock230_world.c:2001](../src/net/mock/mock230_world.c#L2001)
-implements LostCity's 2004 arithmetic, and its own comment flags the restore
-half as the one to revisit. [Run energy](https://oldschool.runescape.wiki/w/Run_energy)
-gives the current rules (8 January 2025 rework):
+**Landed.** The formula pair is an era decision, selected by
+`run_energy_model` in the feature table
+([features.h](../src/features/features.h), `enum ToriRS_RunEnergyModel`) and
+implemented in [mock230_runenergy.c](../src/net/mock/mock230_runenergy.c):
+
+| model | drain per running tick | restore per idle tick |
+|---|---|---|
+| `classic` (0, the `lostcity` era) | `67 + 67·kg/64` | `agility/6 + 8` |
+| `osrs2025` (1, the `osrs` and `server_routed` eras) | `floor((60 + 67·kg/64) · (1 − agility/300))` | `floor(agility/10) + 15` |
+
+Zero stays the 2004 pair, per the table's zero-is-classic rule; the `osrs` era
+selects the modern one because every Agility number in this document is a
+current-wiki number. Server-only — the client is sent a percentage and computes
+nothing — so there is no client half to keep in step. Overridable per boot with
+`MOCK230_RUN_ENERGY=classic|osrs2025`, which is what makes the two answers
+measurable back to back on one account, and reported in the boot's own feature
+line (`run_energy=osrs2025`). Verified by `make -C src test-run-energy` (the
+arithmetic, as literals from each reference) and by the world selftest (the
+wiring: that the tick charges this player's weight and level through the
+selected model, once).
+
+Still open, and what A5 now means: the three multipliers the modern model
+takes — graceful ×1.3 restore, stamina ×0.3 drain, charged ring of endurance
+×0.85 drain. `ring_of_endurance.rs2`'s own header records that no drain-rate
+hook exists for content to attach to; stamina is the one modifier already
+wired, through the `stamina_active` varbit read in the tick.
+
+[Run energy](https://oldschool.runescape.wiki/w/Run_energy) gives the current
+rules (8 January 2025 rework):
 
 ```
 drain per running tick   = floor((60 + 67 * clamp(weight,0,64) / 64) * (1 - agility/300))
@@ -200,10 +225,8 @@ stamina potion           drain   = floor(0.30 * drain)
 charged ring of endurance (>=500 charges) drain = floor(0.85 * drain)
 ```
 
-In tree: drain is `67 + 67*kg/64` (no agility term at all), restore is
-`agility/6 + 8`, and there is no hook for graceful, stamina or the ring. This
-is the single change that makes Agility *matter* outside its own courses, and
-it is engine work, not content (§8).
+Both halves of that pair are implemented and selected by the flag above. The
+modifiers are the remainder, and they are engine work, not content (§8).
 
 ---
 
@@ -740,7 +763,7 @@ A1–A5 must precede the rest; the course slices after them are parallel.
 | **A2** | Marks of grace rebuilt (§6.3) | A1 | cooldown, per-course rates and spawn tiles, level penalty + Canifis exemption, 10-min despawn, per-player visibility |
 | **A3** | XP reconciliation | A1 | Al Kharid, Varrock, Falador (incl. its 2 missing obstacles), Ardougne, Gnome brought to the published per-obstacle values; Draynor's gate 10→1 |
 | **A4** | Obstacle dbtable (§6.4) | A1 | `agility_obstacle` dbtable + generic category trigger + a category id in `pack/category.pack`; the 8 rooftops migrated onto it as the proof |
-| **A5** | Run energy rework (§8.1) | — | engine formulas updated; graceful / stamina / ring-of-endurance modifiers applied |
+| **A5** | Run energy modifiers (§8.1) | — | **the era flag and both formula pairs have landed** (§1.6); what remains is graceful ×1.3 restore and ring-of-endurance ×0.85 drain, and a content-visible seam for them |
 | **A6** | Pollnivneach rooftop | A4 | the ninth rooftop; 890/1,016 XP with the hard Desert diary variant |
 | **A7** | Rellekka + Pollnivneach diary XP variants | A6 | Fremennik hard 780→920, Desert hard 890→1,016 |
 | **A8** | Barbarian Outpost | A4 | LC port; 153.3 Agility **+ 41.3 Strength** per lap, fails until 93, `gunnjorn` barks |
@@ -771,16 +794,18 @@ live in Fishing).
 
 ## 8. Engine-side work
 
-### 8.1 Run energy (blocking A18, and the reason Agility matters)
+### 8.1 Run energy modifiers (blocking A18, and the reason Agility matters)
 
-Replace `run_energy_tick`'s 2004 arithmetic in
-[mock230_world.c](../src/net/mock/mock230_world.c#L1956) with the current
-formulas from §1.6, and add the three modifier hooks. `player_weight_grams`
-already computes weight correctly from cache opcode 75 (stackables excluded,
-negatives preserved) so only the clamp and the formulas change. The modifiers
-need a content-visible seam: worn-graceful detection and the stamina timer are
-content state, and `ring_of_endurance.rs2`'s header already records that no
-drain-rate hook exists. `SS_OP_RUNENERGY` (2100) and `SS_OP_HEALENERGY` (2026)
+The formulas themselves are done: `run_energy_tick` now calls
+[mock230_runenergy.c](../src/net/mock/mock230_runenergy.c) through the era
+flag (§1.6), and `player_weight_grams` already computes weight correctly from
+cache opcode 75 (stackables excluded, negatives preserved), so a
+weight-reducing set's negative total reaches the model and is clamped there.
+
+What is left is the three multipliers, which need a content-visible seam:
+worn-graceful detection and the stamina timer are content state, and
+`ring_of_endurance.rs2`'s header already records that no drain-rate hook
+exists. `SS_OP_RUNENERGY` (2100) and `SS_OP_HEALENERGY` (2026)
 are implemented in `mock230_scripts.c`; a `%runenergy_drain_scale`-style
 varp read by the tick, or an engine-side worn-item check, are the two options —
 prefer the engine-side check for graceful (it is cache data) and a timer varp
@@ -832,8 +857,9 @@ Per slice:
    - shortcut level gates: one under, one at, for every gated shortcut;
    - grapple shortcuts reject a missing crossbow, a missing grapple, and each
      of the three skill gates independently;
-   - the run-energy formulas at (level 1, 0 kg), (99, 0 kg), (1, 64 kg),
-     (99, 64 kg), with and without graceful/stamina/ring.
+   - the run-energy modifiers on top of `make -C src test-run-energy`'s
+     per-model formula checks: graceful, stamina and the ring, each alone and
+     combined, under both flag values.
 4. **Headless client matrix** — for one obstacle of each animation family
    (log balance, sidestep, wall scramble, pipe, monkeybars, zipline, grapple,
    rope swing), confirm the anim plays, the sound fires and the player ends on

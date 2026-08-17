@@ -182,6 +182,112 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "A real-client concurrent-player, flee, death, and relog smoke is still pending.",
         ],
     },
+    "Fight Arena": {
+        "source_audits": [
+            {
+                "url": "https://oldschool.runescape.wiki/w/Fight_Arena?oldid=15240956",
+                "revision": 15240956,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Fight_Arena/Quick_guide?oldid=14886724",
+                "revision": 14886724,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Transcript:Fight_Arena?oldid=15263253",
+                "revision": 15263253,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Khazard_Ogre?oldid=15199670",
+                "revision": 15199670,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Khazard_Scorpion?oldid=15199669",
+                "revision": 15199669,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Bouncer?oldid=15199444",
+                "revision": 15199444,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/General_Khazard?oldid=15216084",
+                "revision": 15216084,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Khazard_armour?oldid=15262779",
+                "revision": 15262779,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Khazard_cell_keys?oldid=15185558",
+                "revision": 15185558,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Khali_brew?oldid=15184623",
+                "revision": 15184623,
+                "retrieved": "2026-08-17",
+            },
+        ],
+        "npc_gamevals": [
+            "lady_servil",
+            "arena_guard2",
+            "sammy_servil",
+            "sammy_servil_arena",
+            "justin_servil",
+            "hengrad",
+            "arena_ogre",
+            "arena_scorpion",
+            "arena_bouncer",
+            "general_khazard_arena",
+        ],
+        "item_gamevals": [
+            "khazard_helmet",
+            "khazard_platemail",
+            "khazard_cellkeys",
+            "khali_brew",
+            "coins",
+            "dorgesh_construction_bone",
+            "dorgesh_construction_bone_curved",
+            "vile_ashes",
+        ],
+        "loc_gamevals": [
+            "arena_guard_chest_shut",
+            "arena_guard_chest_open",
+            "arena_prisondoor",
+            "arena_jeremydoor",
+            "fightarena_door1",
+            "fightarena_door2",
+        ],
+        "trigger_handlers": [
+            "oploc1:arena_guard_chest_shut",
+            "oploc1:arena_guard_chest_open",
+            "oplocu:arena_jeremydoor",
+            "oploc1:fightarena_door2",
+            "oploc2:fightarena_door2",
+            "ai_queue3:arena_ogre",
+            "ai_queue3:arena_scorpion",
+            "ai_queue3:arena_bouncer",
+            "ai_queue3:general_khazard_arena",
+            "opnpc1:lady_servil",
+        ],
+        "loot_contract": "Khazard Ogre has only independent 1/400 long-bone and 1/5013 curved-bone tertiary rolls; the scorpion and General have no drops; Bouncer drops one vile ashes. Quest completion grants 1,000 coins, 12,175 Attack XP, 2,175 Thieving XP and retains the Khazard armour set.",
+        "test_ids": [
+            "quest-combat-contract:fight-arena",
+            "mock230-selftest:npc-owner-visibility",
+        ],
+        "known_gaps": [
+            "The jail and opponent-release transitions use authored dialogue and teleports; full camera, guard-walk and temporary-door choreography remains pending.",
+            "The arena-specific Dwarf multicannon placement refusal awaits the shared cannon placement gate.",
+            "A real-client disguise, concurrent-player, escape, death and relog smoke is still pending.",
+        ],
+    },
 }
 
 ROW = re.compile(
