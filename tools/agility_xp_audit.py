@@ -68,6 +68,12 @@ COURSES = {
         "Werewolf_Agility_Course", 350.0),
     "skill_agility/scripts/penguin_course.rs2": (
         "Penguin_Agility_Course", 540.0),
+    # Both Colossal Wyrm routes live in one file because they share three
+    # obstacles and the zip line. The expected sum is the basic lap (601.6)
+    # plus the four advanced-only obstacles (280) plus the zip line's advanced
+    # top-up (320.8, which takes its 341.2 to the published 662) = 1,202.4.
+    "skill_agility/scripts/wyrm_course.rs2": (
+        "Colossal_Wyrm_Agility_Course", 1202.4),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is

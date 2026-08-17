@@ -1047,6 +1047,13 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                          strcmp(op_name, "OBJ_ADD_PRIVATE") == 0 ||
                          strcmp(op_name, "OBJ_FIND") == 0) )
                         compiler->arg_kind_hint = SSC_SYM_OBJ;
+                    /* `sound_synth(arrow_launch, ...)` names a synth, not the
+                     * sequence which shares that cache name. As with the
+                     * spotanim family, the command signature supplies the
+                     * namespace which bare-name sorting cannot infer. */
+                    if( arg_index == 0 && op_name &&
+                        strcmp(op_name, "SOUND_SYNTH") == 0 )
+                        compiler->arg_kind_hint = SSC_SYM_SYNTH;
                     compiler->arg_is_script_name = arg_index < script_args;
                     compiler->arg_script_trigger =
                         arg_index < script_args ? script_trigger : NULL;

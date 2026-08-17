@@ -117,6 +117,22 @@ NATURE_CORE = CONTENT / "quests/quest_druidspirit/scripts/quest_druidspirit.rs2"
 NATURE_FILLIMAN = CONTENT / "quests/quest_druidspirit/scripts/filliman.rs2"
 NATURE_DECAY = CONTENT / "quests/quest_druidspirit/scripts/swamp_decay.rs2"
 NATURE_GROTTO_SPAWN = CONTENT / "areas/world/configs/m53_152.spawn"
+PIP_GUARDIAN = CONTENT / "quests/quest_priestperil/scripts/temple_guardian.rs2"
+PIP_NPC = CONTENT / "quests/quest_priestperil/configs/quest_priestperil.npc"
+PIP_MONKS = CONTENT / "quests/quest_priestperil/scripts/evil_monks.rs2"
+PIP_MONUMENTS = CONTENT / "quests/quest_priestperil/scripts/monuments.rs2"
+PIP_WELL = CONTENT / "quests/quest_priestperil/scripts/mausoleum_interactions.rs2"
+PIP_DREZEL = CONTENT / "quests/quest_priestperil/scripts/mausoleum_drezel.rs2"
+PIP_TRAPPED_DREZEL = CONTENT / "quests/quest_priestperil/scripts/trapped_drezel.rs2"
+PIP_COFFIN = CONTENT / "quests/quest_priestperil/scripts/vampire_coffin.rs2"
+PIP_TEMPLE_DOORS = CONTENT / "quests/quest_priestperil/scripts/temple_doors.rs2"
+PIP_GATES = CONTENT / "areas/area_mausoleum/scripts/gates.rs2"
+PIP_KING = CONTENT / "areas/varrock/scripts/king_roald.rs2"
+PIP_MYREQUE_WELL = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_rod.rs2"
+PIP_WORLD_SPAWN = CONTENT / "areas/world/configs/m53_154.spawn"
+PIP_VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
+POWERED_STAFF = CONTENT / "skill_combat/scripts/player/gear/powered_staff.rs2"
+PLAYER_HIT_FUNNEL = CONTENT / "areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2"
 NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
 NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
@@ -242,6 +258,12 @@ def check_manifest() -> None:
             "Nature Spirit: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(nature[0][key]), f"Nature Spirit: empty evidence field {key}")
+    priest = [row for row in rows if row["id"] == "quest-priest-in-peril"]
+    require(len(priest) == 1, "manifest: expected exactly one Priest in Peril row")
+    require(priest[0]["implementation_status"] == "implementation-in-progress",
+            "Priest in Peril: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(priest[0][key]), f"Priest in Peril: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -1731,6 +1753,214 @@ def check_nature_spirit() -> None:
     )
 
 
+def check_priest_in_peril() -> None:
+    npc = PIP_NPC.read_text()
+    guardian_block = npc.split("[priestperilguarddog]", 1)[1].split(
+        "[priestperilevilmonk1]", 1
+    )[0]
+    require_text(
+        guardian_block,
+        (
+            "hitpoints=45", "attack=20", "strength=20", "defence=20",
+            "magic=1", "ranged=1", "respawnrate=500",
+            "param=attackrate,4", "param=damagetype,0", "param=death_drop,null",
+        ),
+        "Priest in Peril Temple Guardian config",
+    )
+    require("huntmode=aggressive" not in guardian_block,
+            "Priest in Peril: Temple Guardian must remain non-aggressive")
+
+    monk_contracts = {
+        "priestperilevilmonk1": (
+            "hitpoints=20", "attack=18", "strength=18", "defence=22",
+            "magic=25", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "param=attackrate,4", "param=damagetype,2", "param=death_drop,null",
+        ),
+        "priestperilevilmonk2": (
+            "hitpoints=10", "attack=8", "strength=8", "defence=12",
+            "magic=25", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "param=attackrate,4", "param=damagetype,2",
+            "param=strengthbonus,124", "param=death_drop,null",
+        ),
+        "priestperilevilmonk3": (
+            "hitpoints=25", "attack=25", "strength=25", "defence=25",
+            "magic=40", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "param=attackrate,4", "param=damagetype,2", "param=death_drop,null",
+        ),
+    }
+    for index, (monk, needles) in enumerate(monk_contracts.items()):
+        block = npc.split(f"[{monk}]", 1)[1]
+        later = list(monk_contracts)[index + 1:]
+        if later:
+            block = block.split(f"[{later[0]}]", 1)[0]
+        require_text(block, needles, f"Priest in Peril {monk} config")
+
+    guardian = PIP_GUARDIAN.read_text()
+    require_text(
+        guardian,
+        (
+            "[zone,0_53_154_8_40]", "[zone,0_53_154_8_48]",
+            "%priestperil ! ^priestperil_agree_to_kill_dog",
+            "npc_add(0_53_154_13_46, priestperilguarddog, 32000);",
+            "npc_setowner;", "[opnpc2,priestperilguarddog]",
+            "[apnpc2,priestperilguarddog]", "@player_combat_start;",
+            "@player_combat_start_ap;", "[ai_queue3,priestperilguarddog]",
+            "if (npc_findhero = ^false)", "npc_statheal(hitpoints, 0, 100);",
+            "%priestperil = ^priestperil_killed_dog;",
+        ),
+        "Priest in Peril owner-private Guardian lifecycle",
+    )
+    require("obj_add" not in guardian,
+            "Priest in Peril: Temple Guardian must not drop loot")
+    require("priestperilguarddog" in SPAWN_GENERATOR.read_text(),
+            "Priest in Peril: spawn generator must exclude the public Guardian")
+    require("priestperilguarddog" not in PIP_WORLD_SPAWN.read_text(),
+            "Priest in Peril: public Guardian remained in generated world spawns")
+
+    magic = PLAYER_MAGIC.read_text()
+    require_text(
+        magic,
+        (
+            "[proc,npc_immune_to_magic]()(boolean)",
+            "if (npc_type = priestperilguarddog)",
+            "if (~npc_immune_to_magic = true)",
+            "npc_stat(hitpoints) > 0 & ~npc_immune_to_magic = false",
+        ),
+        "Priest in Peril Guardian spell immunity",
+    )
+    require_text(
+        POWERED_STAFF.read_text(),
+        ("if (~npc_immune_to_magic = true)", "Your spells do not seem to affect it."),
+        "Priest in Peril Guardian powered-staff immunity",
+    )
+
+    monks = PIP_MONKS.read_text()
+    require_text(
+        monks,
+        (
+            "[ai_opplayer2,priestperilevilmonk1]", "~npc_zap_attack(10, npc_param(attackrate));",
+            "[ai_opplayer2,priestperilevilmonk2]", "~npc_meleeattack;",
+            "[ai_opplayer2,priestperilevilmonk3]", "~npc_zap_attack(8, npc_param(attackrate));",
+            "if (npc_findhero = ^false)",
+            "obj_add_private(npc_coord, bones, 1, ^lootdrop_duration, 100);",
+            "def_int $robe = random(20);", "if ($robe = 0)",
+            "obj_add_private(npc_coord, monkrobetop, 1, ^lootdrop_duration, 100);",
+            "else if ($robe = 1)",
+            "obj_add_private(npc_coord, monkrobebottom, 1, ^lootdrop_duration, 100);",
+            "npc_type = priestperilevilmonk3 & %priestperil < ^priestperil_unlocked_drezel",
+            "obj_add_private(npc_coord, pipkey_gold, 1, ^lootdrop_duration, 100);",
+        ),
+        "Priest in Peril monk AI and private loot",
+    )
+    require_text(
+        PLAYER_HIT_FUNNEL.read_text(),
+        (
+            "npc_type = priestperilevilmonk1 | npc_type = priestperilevilmonk2 | npc_type = priestperilevilmonk3",
+            "$xp_damage = divide($prepared, 4);",
+        ),
+        "Priest in Peril monk -75 percent XP",
+    )
+
+    monuments = PIP_MONUMENTS.read_text()
+    require_text(
+        monuments,
+        (
+            "[oploc1,priestperil_grave_base1]", "[oploc1,priestperil_grave_base7]",
+            "[oploc2,priestperil_grave_base1]", "[oplocu,priestperil_grave_base7]",
+            "testbit(%priestperil_mausoleum, 21)",
+            "setbit_range_toint(%priestperil_mausoleum, random(100), 22, 28)",
+            "multiply($grave_no, 17)", "modulo($seed, 7)",
+            "if ($grave_item = pipkey_iron)", "last_useitem ! pipkey_gold",
+            "if (~obj_gettotal(pipkey_iron) > 0)",
+            "inv_del(inv, pipkey_gold, 1);", "inv_add(inv, pipkey_iron, 1);",
+            "setbit(%priestperil_mausoleum, $swap_bit)",
+            "damage(uid, hitsplat_damage, add(random(6), 1));",
+        ),
+        "Priest in Peril randomized monument swaps",
+    )
+    require("6733=priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
+            "Priest in Peril: durable monument varp allocation missing")
+
+    gates = PIP_GATES.read_text()
+    require_text(
+        gates,
+        (
+            "[oploc1,pip_underground_door1]", "testbit(%priestperil_mausoleum, 20)",
+            "inv_total(inv, pipkey_gold) = 0", "setbit(%priestperil_mausoleum, 20)",
+            "[oploc1,pip_underground_door2]",
+            "~check_priest_peril_gate(^priestperil_meet_in_mausoleum);",
+        ),
+        "Priest in Peril durable gate unlock",
+    )
+
+    require_text(
+        PIP_KING.read_text(),
+        (
+            "[label,roald_priestperil_dialogue]", "%priestperil = ^priestperil_started;",
+            "%priestperil = ^priestperil_return_to_drezel;",
+            "%priestperil = ^priestperil_poured_blessed_water",
+        ),
+        "Priest in Peril King Roald start and return path",
+    )
+    require_text(
+        PIP_TEMPLE_DOORS.read_text(),
+        ("[label,templedoors_agree_help]", "%priestperil = ^priestperil_agree_to_kill_dog;"),
+        "Priest in Peril temple deception",
+    )
+    require_text(
+        PIP_TRAPPED_DREZEL.read_text(),
+        (
+            "[oplocu,pip_prisondoor]", "inv_del(inv, pipkey_iron, 1);",
+            "%priestperil = ^priestperil_unlocked_drezel;", "def_int $water = inv_total(inv, bucket_murkywater);",
+            "inv_del(inv, bucket_murkywater, $water);", "inv_add(inv, bucket_blessedwater, $water);",
+        ),
+        "Priest in Peril cell and all-bucket blessing",
+    )
+    require_text(
+        PIP_COFFIN.read_text(),
+        (
+            "last_useitem = bucket_blessedwater", "%priestperil = ^priestperil_poured_blessed_water;",
+            "inv_del(inv, bucket_blessedwater, 1);", "inv_add(inv, bucket_empty, 1);",
+        ),
+        "Priest in Peril vampyre containment",
+    )
+
+    well = PIP_WELL.read_text()
+    require_text(
+        well,
+        (
+            "[oploc1,priestperil_well]", "[proc,priestperil_use_well]",
+            "inv_del(inv, bucket_empty, 1);", "inv_add(inv, bucket_murkywater, 1);",
+            "inv_add(inv, bucket_water, 1);", "[oploc1,pip_underground_wall_side_withportal]",
+            "%priestperil >= ^priestperil_access_holy_barrier", "p_telejump(0_53_54_31_29);",
+        ),
+        "Priest in Peril well and holy barrier",
+    )
+    myreque_well = PIP_MYREQUE_WELL.read_text()
+    require(myreque_well.count("[oplocu,priestperil_well]") == 1,
+            "Priest in Peril: shared well must have one item-use trigger")
+    require_text(
+        myreque_well,
+        ("if (last_useitem = bucket_empty)", "~priestperil_use_well;", "last_useitem != burgh_rod_command2"),
+        "Priest in Peril/In Aid of the Myreque shared well dispatch",
+    )
+
+    drezel = PIP_DREZEL.read_text()
+    require_text(
+        drezel,
+        (
+            "[opnpc1,priestperiltrappedmonk2]", "[opnpcu,priestperiltrappedmonk2]",
+            "add(inv_total(inv, blankrune), inv_total(inv, blankrune_high))",
+            "def_int $take = min($have, $need);", "inv_del(inv, blankrune_high, $take_high);",
+            "inv_del(inv, blankrune, $take_low);", "%priestperil = add(%priestperil, $take);",
+            "%priestperil = ^priestperil_complete;", "stat_advance(prayer, ^priestperil_reward_prayer_xp);",
+            "inv_add(inv, dagger_wolfbane, 1);", "~quest_complete_rewards(quest_priestinperil",
+            "if (~obj_gettotal(dagger_wolfbane) = 0)", "%priestperil = ^priestperil_access_holy_barrier;",
+        ),
+        "Priest in Peril essence, reward, reclaim and barrier access",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -1748,10 +1978,11 @@ def main() -> int:
         check_big_chompy()
         check_elemental_workshops()
         check_nature_spirit()
+        check_priest_in_peril()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II and Nature Spirit (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit and Priest in Peril (ok)")
     return 0
 
 

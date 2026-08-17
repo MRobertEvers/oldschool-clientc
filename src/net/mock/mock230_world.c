@@ -12290,6 +12290,71 @@ selftest_gwd_npc_attack_trace(
     }
 }
 
+/* Shared targeted-projectile oracle for the Ancient Prison and Nex matrices.
+ * Returns the authored end cycle so the caller can pin the matching landing
+ * queue, or -1 when the projectile was absent. */
+static int
+selftest_nex_projectile_trace(
+    struct Mock230Server* srv,
+    const char* label,
+    const char* projectile_name,
+    int target,
+    int src_height)
+{
+    struct Mock230ZoneEvent event;
+    int projectile = mock230_content_symbol(
+        MOCK230_PACK_SPOTANIM, projectile_name);
+    int found = mock230_zone_event_last(
+        srv, MOCK230_ZONE_EV_PROJANIM, projectile, &event);
+
+    SELFTEST_CHECK(
+        found, "%s queues projectile %s (%d)",
+        label, projectile_name, projectile);
+    if( !found )
+        return -1;
+    {
+        int dx = event.dx_offset < 0 ? -event.dx_offset : event.dx_offset;
+        int dz = event.dz_offset < 0 ? -event.dz_offset : event.dz_offset;
+        int distance = dx > dz ? dx : dz;
+        int duration = 32 + distance * 5;
+
+        SELFTEST_CHECK(
+            event.start_delay == 32 && event.end_delay == duration &&
+                event.target == target && event.src_height == src_height &&
+                event.dst_height == 36 && event.peak == 15 && event.arc == 11,
+            "%s projectile timing/geometry is 32..%d, target %d, heights "
+            "%d/36, peak/arc 15/11 (got %d..%d target %d %d/%d %d/%d)",
+            label, duration, target, src_height, event.start_delay,
+            event.end_delay, event.target, event.src_height,
+            event.dst_height, event.peak, event.arc);
+        return duration;
+    }
+}
+
+static int
+selftest_player_queue_match(
+    const struct Mock230Player* player,
+    const struct SSVM_Script* script,
+    int delay,
+    int arg_index,
+    int arg_value)
+{
+    int found = 0;
+
+    if( !player || !script )
+        return 0;
+    for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+    {
+        const struct Mock230Queued* queue = &player->queue[q];
+
+        found += queue->active && queue->script_id == script->id &&
+                 (delay < 0 || queue->delay == delay) &&
+                 (arg_index < 0 ||
+                  (queue->argc > arg_index && queue->args[arg_index] == arg_value));
+    }
+    return found;
+}
+
 /* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
  * zero-terminated type string and reverse-ordered arguments. The Zuk timing
  * gate only needs to identify fade_overlay's 948, not decode its arguments. */
@@ -13032,6 +13097,61 @@ selftest_count_obj(
  * and is deliberately un-resumable, which is why this goes through IF_BUTTON1
  * on `chatmenu:options` rather than RESUME_PAUSEBUTTON.
  */
+/**
+ * The sub-id of a charter destination's clickable pin on `sailing_menu:content`.
+ *
+ * Clientscript 8941 creates two children per row of dbtable 206 — a graphic at
+ * `2i` and the op-carrying rectangle at `2i + 1` — walking the table in
+ * `db_findall` order. This asks the server's own DB for the same walk and
+ * returns the rectangle's sub-id, so the test clicks where the client would put
+ * the pin rather than where this file guesses it is.
+ *
+ * Doing it this way is also the check: the cache's `dbindex_206.dbi` `[master]`
+ * block is the order the client walks, and if the server's row order ever
+ * stopped matching it, the returned sub-id would name a different port and the
+ * arrival assertion would fail with the wrong destination named.
+ *
+ * -1 if that dbrow is not in the table.
+ */
+static int
+selftest_charter_pin(const char* dbrow_symbol)
+{
+    int table = mock230_content_symbol(MOCK230_PACK_DBTABLE, "chartering_destinations");
+    int wanted = mock230_content_symbol(MOCK230_PACK_DBROW, dbrow_symbol);
+
+    if( table < 0 || wanted < 0 )
+        return -1;
+    for( int i = 0;; i++ )
+    {
+        const struct Mock230DbRow* row = mock230_db_row_in_table(table, i);
+
+        if( !row )
+            return -1;
+        if( row->row_id == wanted )
+            return i * 2 + 1;
+    }
+}
+
+/** Click a pin on `sailing_menu:content` by its sub-id. */
+static void
+selftest_charter_click_pin(
+    struct Mock230Server* srv,
+    int sub)
+{
+    int uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "sailing_menu:content");
+    uint8_t button[6];
+
+    if( uid < 0 || sub < 0 )
+        return;
+    button[0] = (uint8_t)(uid >> 24);
+    button[1] = (uint8_t)(uid >> 16);
+    button[2] = (uint8_t)(uid >> 8);
+    button[3] = (uint8_t)uid;
+    button[4] = (uint8_t)(sub >> 8);
+    button[5] = (uint8_t)sub;
+    mock230_world_handle(srv->active_player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+}
+
 static void
 selftest_charter_choose(
     struct Mock230Server* srv,
@@ -13947,28 +14067,50 @@ mock230_world_selftest(void)
             const char* proc;
             int arg;
             const char* anim;
+            const char* projectile;
+            const char* impact;
+            const char* sound;
         } nex_attack_cases[] = {
-            { "[proc,nex_magic_auto]", 1, "nex_cast_attack" },
-            { "[proc,nex_magic_auto]", 3, "nex_cast_attack" },
-            { "[proc,nex_magic_auto]", 4, "nex_cast_attack" },
-            { "[proc,nex_magic_auto]", 5, "nex_cast_attack" },
-            { "[proc,nex_melee_auto]", 1, "nex_attack" },
-            { "[proc,nex_melee_auto]", 5, "nex_attack" },
+            { "[proc,nex_magic_auto]", 1, "nex_cast_attack",
+              "nex_smoke_attack_proj", "nex_smoke_attack_impact",
+              "nex2021_smoke_magic_attack" },
+            { "[proc,nex_magic_auto]", 3, "nex_cast_attack",
+              "nex_blood_attack_proj", "nex_blood_attack_impact",
+              "nex2021_blood_magic_attack" },
+            { "[proc,nex_magic_auto]", 4, "nex_cast_attack",
+              "nex_ice_attack_proj", "nex_ice_attack_impact",
+              "nex2021_first_cast_attack" },
+            { "[proc,nex_magic_auto]", 5, "nex_cast_attack",
+              "nex_finale_attack_proj", "nex_finale_attack_impact",
+              "nex2021_finale_magic_attack" },
+            { "[proc,nex_melee_auto]", 1, "nex_attack", NULL, NULL,
+              "nex2021_melee_attack" },
+            { "[proc,nex_melee_auto]", 5, "nex_attack", NULL, NULL,
+              "nex2021_melee_attack" },
         };
         static const struct
         {
             const char* proc;
             int which;
             const char* anim;
+            const char* sound;
         } nex_special_cases[] = {
-            { "[proc,nex_special_smoke]", 0, NULL },
-            { "[proc,nex_special_smoke]", 1, "nex_dash_attack" },
-            { "[proc,nex_special_shadow]", 0, NULL },
-            { "[proc,nex_special_shadow]", 1, NULL },
-            { "[proc,nex_special_blood]", 0, "nex_blood_siphon" },
-            { "[proc,nex_special_blood]", 1, NULL },
-            { "[proc,nex_special_ice]", 0, "nex_smash_attack" },
-            { "[proc,nex_special_ice]", 1, NULL },
+            { "[proc,nex_special_smoke]", 0, NULL,
+              "nex2021_player_smoked" },
+            { "[proc,nex_special_smoke]", 1, "nex_dash_attack",
+              "nex2021_dash_prepare" },
+            { "[proc,nex_special_shadow]", 0, NULL,
+              "nex2021_shadow_cast" },
+            { "[proc,nex_special_shadow]", 1, NULL,
+              "nex2021_embrace_darkness" },
+            { "[proc,nex_special_blood]", 0, "nex_blood_siphon",
+              "nex2021_siphon" },
+            { "[proc,nex_special_blood]", 1, NULL,
+              "nex2021_sacrifice_cast" },
+            { "[proc,nex_special_ice]", 0, "nex_smash_attack",
+              "nex2021_smash_attack_charge" },
+            { "[proc,nex_special_ice]", 1, NULL,
+              "nex2021_ice_prison_attack" },
         };
         const char* script_dir = getenv("MOCK230_SCRIPTS");
         int loaded = script_dir && script_dir[0] ? mock230_scripts_load(srv, script_dir) : 0;
@@ -15313,6 +15455,11 @@ mock230_world_selftest(void)
              * in a live player/NPC context and chooses its authored animation
              * when the branch has one. */
             {
+                static struct Mock230Capture nex_attack_capture;
+                const struct SSVM_Script* magic_land =
+                    SSVM_ProviderGetByName(srv->scripts, "[queue,nex_magic_land]");
+                const struct SSVM_Script* shadow_land =
+                    SSVM_ProviderGetByName(srv->scripts, "[queue,nex_shadow_land]");
                 int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
                 int boss;
 
@@ -15346,17 +15493,64 @@ mock230_world_selftest(void)
                         player->z = srv->npcs[boss].z;
                         player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
+                        memset(player->queue, 0, sizeof(player->queue));
+                        memset(player->engine_queue, 0,
+                               sizeof(player->engine_queue));
+                        mock230_zone_reset(srv);
                         args[0] = nex_attack_cases[i].arg;
+                        mock230_capture_begin(srv, &nex_attack_capture);
                         SELFTEST_CHECK(
                             mock230_scripts_run_proc_args_on_npc(
                                 srv, nex_attack_cases[i].proc, boss, args, 1),
                             "%s phase %d executes", nex_attack_cases[i].proc,
                             nex_attack_cases[i].arg);
+                        mock230_capture_end(srv);
                         SELFTEST_CHECK(
                             srv->npcs[boss].anim_id == anim,
                             "%s phase %d selects %s (got %d, want %d)",
                             nex_attack_cases[i].proc, nex_attack_cases[i].arg,
                             nex_attack_cases[i].anim, srv->npcs[boss].anim_id, anim);
+                        SELFTEST_CHECK(
+                            selftest_capture_synth_count(
+                                &nex_attack_capture, srv->wire,
+                                mock230_content_symbol(
+                                    MOCK230_PACK_SYNTH,
+                                    nex_attack_cases[i].sound)) > 0,
+                            "%s phase %d emits %s",
+                            nex_attack_cases[i].proc, nex_attack_cases[i].arg,
+                            nex_attack_cases[i].sound);
+                        if( nex_attack_cases[i].projectile )
+                        {
+                            int duration = selftest_nex_projectile_trace(
+                                srv, nex_attack_cases[i].proc,
+                                nex_attack_cases[i].projectile,
+                                -player->pid - 1, 40);
+                            int delay = duration >= 0 ? duration / 30 : -1;
+                            int impact = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                nex_attack_cases[i].impact);
+
+                            if( delay < 1 && duration >= 0 )
+                                delay = 1;
+                            SELFTEST_CHECK(
+                                duration >= 0 &&
+                                    selftest_player_queue_match(
+                                        player, magic_land, delay + 1, 3,
+                                        impact) == 1,
+                                "%s phase %d queues one %s landing at tick %d",
+                                nex_attack_cases[i].proc,
+                                nex_attack_cases[i].arg,
+                                nex_attack_cases[i].impact, delay);
+                        }
+                        else
+                        {
+                            SELFTEST_CHECK(
+                                mock230_zone_event_count(
+                                    srv, MOCK230_ZONE_EV_PROJANIM, -1) == 0,
+                                "%s phase %d emits no projectile",
+                                nex_attack_cases[i].proc,
+                                nex_attack_cases[i].arg);
+                        }
                         for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                             player->queue[q].active = 0;
                         for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -15366,14 +15560,42 @@ mock230_world_selftest(void)
                     srv->npcs[boss].anim_id = -1;
                     player->x = srv->npcs[boss].x + 4;
                     player->z = srv->npcs[boss].z;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    memset(player->engine_queue, 0,
+                           sizeof(player->engine_queue));
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &nex_attack_capture);
                     SELFTEST_CHECK(
                         mock230_scripts_run_proc_on_npc(
                             srv, "[proc,nex_shadow_auto]", boss),
                         "Nex Shadow ranged auto executes");
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(
                         srv->npcs[boss].anim_id == mock230_content_symbol(
                             MOCK230_PACK_SEQ, "nex_alternate_cast_attack"),
                         "Nex Shadow auto selects nex_alternate_cast_attack");
+                    SELFTEST_CHECK(
+                        selftest_capture_synth_count(
+                            &nex_attack_capture, srv->wire,
+                            mock230_content_symbol(
+                                MOCK230_PACK_SYNTH,
+                                "nex2021_alternate_cast_attack")) > 0,
+                        "Nex Shadow auto emits alternate-cast sound");
+                    {
+                        int duration = selftest_nex_projectile_trace(
+                            srv, "Nex Shadow auto", "nex_shadow_attack_proj",
+                            -player->pid - 1, 40);
+                        int delay = duration >= 0 ? duration / 30 : -1;
+
+                        if( delay < 1 && duration >= 0 )
+                            delay = 1;
+                        SELFTEST_CHECK(
+                            duration >= 0 &&
+                                selftest_player_queue_match(
+                                    player, shadow_land, delay + 1, -1, 0) == 1,
+                            "Nex Shadow auto queues one landing at tick %d",
+                            delay);
+                    }
                     for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                         player->queue[q].active = 0;
                     for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -15395,12 +15617,19 @@ mock230_world_selftest(void)
                         player->z = srv->npcs[boss].z;
                         player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
+                        player->spotanim_id = -1;
+                        memset(player->queue, 0, sizeof(player->queue));
+                        memset(player->engine_queue, 0,
+                               sizeof(player->engine_queue));
+                        mock230_zone_reset(srv);
                         args[0] = nex_special_cases[i].which;
+                        mock230_capture_begin(srv, &nex_attack_capture);
                         SELFTEST_CHECK(
                             mock230_scripts_run_proc_args_on_npc(
                                 srv, nex_special_cases[i].proc, boss, args, 1),
                             "%s branch %d executes", nex_special_cases[i].proc,
                             nex_special_cases[i].which);
+                        mock230_capture_end(srv);
                         if( nex_special_cases[i].anim )
                             SELFTEST_CHECK(
                                 srv->npcs[boss].anim_id == anim,
@@ -15408,6 +15637,139 @@ mock230_world_selftest(void)
                                 nex_special_cases[i].proc, nex_special_cases[i].which,
                                 nex_special_cases[i].anim,
                                 srv->npcs[boss].anim_id, anim);
+                        SELFTEST_CHECK(
+                            selftest_capture_synth_count(
+                                &nex_attack_capture, srv->wire,
+                                mock230_content_symbol(
+                                    MOCK230_PACK_SYNTH,
+                                    nex_special_cases[i].sound)) > 0,
+                            "%s branch %d emits %s",
+                            nex_special_cases[i].proc,
+                            nex_special_cases[i].which,
+                            nex_special_cases[i].sound);
+                        if( i == 0 )
+                        {
+                            const struct SSVM_Script* cough =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts, "[queue,nex_cough_tick]");
+                            int smoke = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                "nex_smoke_attack_impact");
+
+                            SELFTEST_CHECK(
+                                player->spotanim_id == smoke &&
+                                    selftest_player_queue_match(
+                                        player, cough, 3, -1, 0) == 1,
+                                "Nex virus applies smoke impact and one "
+                                "two-tick cough queue");
+                        }
+                        else if( i == 1 )
+                        {
+                            SELFTEST_CHECK(
+                                selftest_capture_synth_count(
+                                    &nex_attack_capture, srv->wire,
+                                    mock230_content_symbol(
+                                        MOCK230_PACK_SYNTH,
+                                        "nex2021_dash_movement")) > 0,
+                                "Nex escape dash emits movement sound after charge");
+                        }
+                        else if( i == 2 )
+                        {
+                            const struct SSVM_Script* smash =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts,
+                                    "[queue,nex_shadow_smash_land]");
+                            int loc = mock230_content_symbol(
+                                MOCK230_PACK_LOC, "nex_shadow_smash");
+
+                            SELFTEST_CHECK(
+                                mock230_zone_event_count(
+                                    srv, MOCK230_ZONE_EV_LOC_ADD_CHANGE,
+                                    loc) == 1 &&
+                                    selftest_player_queue_match(
+                                        player, smash, 4, -1, 0) == 1,
+                                "Nex Shadow Smash creates one warning and one "
+                                "three-tick landing queue");
+                        }
+                        else if( i == 3 )
+                        {
+                            const struct SSVM_Script* darkness =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts, "[queue,nex_darkness_tick]");
+
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, darkness, 2, -1, 0) == 1,
+                                "Nex darkness arms one one-tick player queue");
+                        }
+                        else if( i == 4 )
+                        {
+                            int siphon = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM, "nex_blood_siphon");
+                            int reaver = mock230_content_symbol(
+                                MOCK230_PACK_NPC,
+                                "nex_prison_blood_reaver_boss");
+                            int reavers = 0;
+                            int release = 0;
+
+                            for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                                reavers += srv->npcs[n].active &&
+                                           srv->npcs[n].type == reaver;
+                            for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+                                release += srv->npcs[boss].queue[q].active &&
+                                           srv->npcs[boss].queue[q].queue == 6;
+                            SELFTEST_CHECK(
+                                srv->npcs[boss].spotanim_id == siphon &&
+                                    reavers >= 1 && release == 1,
+                                "Nex siphon emits its graphic, summons a reaver, "
+                                "and arms one immunity-release queue");
+                        }
+                        else if( i == 5 )
+                        {
+                            const struct SSVM_Script* sacrifice =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts,
+                                    "[queue,nex_blood_sacrifice_land]");
+                            int mark = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                "nex_blood_siphon_proj");
+
+                            SELFTEST_CHECK(
+                                player->spotanim_id == mark &&
+                                    selftest_player_queue_match(
+                                        player, sacrifice, 8, -1, 0) == 1,
+                                "Nex blood sacrifice marks its target and arms "
+                                "one seven-tick landing queue");
+                        }
+                        else if( i == 7 )
+                        {
+                            const struct SSVM_Script* prison =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts,
+                                    "[queue,nex_ice_prison_land]");
+                            int projectile = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                "nex_ice_prison_proj");
+                            int centre = mock230_content_symbol(
+                                MOCK230_PACK_LOC, "nex_icicle_2");
+                            int outer = mock230_content_symbol(
+                                MOCK230_PACK_LOC, "nex_icicle_1");
+
+                            SELFTEST_CHECK(
+                                mock230_zone_event_count(
+                                    srv, MOCK230_ZONE_EV_MAPANIM,
+                                    projectile) == 1 &&
+                                    mock230_zone_event_count(
+                                        srv, MOCK230_ZONE_EV_LOC_ADD_CHANGE,
+                                        centre) == 1 &&
+                                    mock230_zone_event_count(
+                                        srv, MOCK230_ZONE_EV_LOC_ADD_CHANGE,
+                                        outer) == 4 &&
+                                    selftest_player_queue_match(
+                                        player, prison, 8, -1, 0) == 1,
+                                "Nex ice prison emits one warning, centre plus "
+                                "four walls, and one seven-tick landing queue");
+                        }
                         for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                             player->queue[q].active = 0;
                         for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -15680,20 +16042,38 @@ mock230_world_selftest(void)
              * spell rotations. The mage landing is the second real five-arg
              * queue user, so this also guards the widened queue ABI. */
             {
+                static struct Mock230Capture prison_attack_capture;
                 static const struct
                 {
                     const char* npc;
                     const char* proc;
                     const char* anim;
+                    const char* projectile;
+                    const char* sound;
+                    int src_height;
                 } prison_cases[] = {
                     { "nex_prison_warrior", "[proc,gwd_prison_warrior_smoke]",
-                      "human_sword_slash" },
+                      "human_sword_slash", NULL,
+                      "nex2021_smoke_magic_attack", 0 },
                     { "nex_prison_ranger", "[proc,gwd_prison_ranger_bind]",
-                      "human_bow" },
+                      "human_bow", "godwars_centaur_arrow_proj",
+                      "arrow_launch", 80 },
                     { "nex_prison_blood_reaver",
                       "[ai_opplayer2,nex_prison_blood_reaver]",
-                      "blood_reaver_attack" },
+                      "blood_reaver_attack", "nex_blood_attack_proj",
+                      "nex2021_blood_reaver_attack", 40 },
                 };
+                static const char* const mage_projectiles[] = {
+                    "nex_smoke_attack_proj", "nex_shadow_attack_proj",
+                    "nex_blood_attack_proj", "nex_ice_attack_proj",
+                };
+                static const char* const mage_impacts[] = {
+                    "nex_smoke_attack_impact", "shadow_barrage_impact",
+                    "nex_blood_attack_impact", "nex_ice_attack_impact",
+                };
+                const struct SSVM_Script* mage_land =
+                    SSVM_ProviderGetByName(
+                        srv->scripts, "[queue,gwd_prison_mage_land]");
 
                 player->x = 45 * 64 + 44;
                 player->z = 81 * 64 + 45;
@@ -15718,14 +16098,92 @@ mock230_world_selftest(void)
                         continue;
                     srv->npcs[slot].spawn_pending = 0;
                     srv->npcs[slot].anim_id = -1;
+                    player->spotanim_id = -1;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    memset(player->engine_queue, 0,
+                           sizeof(player->engine_queue));
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &prison_attack_capture);
                     SELFTEST_CHECK(
                         mock230_scripts_run_proc_on_npc(
                             srv, prison_cases[i].proc, slot),
                         "%s attack path executes", prison_cases[i].npc);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(
                         srv->npcs[slot].anim_id == anim,
                         "%s selects %s (got %d, want %d)", prison_cases[i].npc,
                         prison_cases[i].anim, srv->npcs[slot].anim_id, anim);
+                    SELFTEST_CHECK(
+                        selftest_capture_synth_count(
+                            &prison_attack_capture, srv->wire,
+                            mock230_content_symbol(
+                                MOCK230_PACK_SYNTH,
+                                prison_cases[i].sound)) > 0,
+                        "%s emits %s", prison_cases[i].npc,
+                        prison_cases[i].sound);
+                    if( prison_cases[i].projectile )
+                    {
+                        int duration = selftest_nex_projectile_trace(
+                            srv, prison_cases[i].npc,
+                            prison_cases[i].projectile,
+                            -player->pid - 1,
+                            prison_cases[i].src_height);
+                        int delay = duration >= 0 ? duration / 30 : -1;
+
+                        if( delay < 1 && duration >= 0 )
+                            delay = 1;
+                        if( i == 1 )
+                        {
+                            const struct SSVM_Script* bind =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts,
+                                    "[queue,gwd_prison_ranger_bind_land]");
+
+                            SELFTEST_CHECK(
+                                duration >= 0 &&
+                                    selftest_player_queue_match(
+                                        player, bind, delay + 1, -1, 0) == 1,
+                                "Nex prison ranger queues one bind landing at "
+                                "tick %d",
+                                delay);
+                        }
+                        else
+                        {
+                            const struct SSVM_Script* impact =
+                                SSVM_ProviderGetByName(
+                                    srv->scripts,
+                                    "[queue,gwd_bodyguard_impact]");
+                            int impact_id = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                "nex_blood_attack_impact");
+
+                            SELFTEST_CHECK(
+                                duration >= 0 &&
+                                    selftest_player_queue_match(
+                                        player, impact, delay + 1, 0,
+                                        impact_id) == 1,
+                                "Blood Reaver queues one impact at tick %d",
+                                delay);
+                        }
+                    }
+                    else
+                    {
+                        int smoke = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM,
+                            "nex_smoke_attack_proj_big");
+                        const struct SSVM_Script* land =
+                            SSVM_ProviderGetByName(
+                                srv->scripts,
+                                "[queue,gwd_prison_smoke_land]");
+
+                        SELFTEST_CHECK(
+                            mock230_zone_event_count(
+                                srv, MOCK230_ZONE_EV_MAPANIM, smoke) == 5 &&
+                                selftest_player_queue_match(
+                                    player, land, 6, -1, 0) == 1,
+                            "Nex prison warrior emits five smoke warnings and "
+                            "one five-tick landing queue");
+                    }
                     for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                         player->queue[q].active = 0;
                     for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -15749,16 +16207,56 @@ mock230_world_selftest(void)
                         for( int spell = 0; spell < 4; spell++ )
                         {
                             srv->npcs[slot].anim_id = -1;
+                            memset(player->queue, 0, sizeof(player->queue));
+                            memset(player->engine_queue, 0,
+                                   sizeof(player->engine_queue));
+                            mock230_zone_reset(srv);
                             args[0] = spell;
+                            mock230_capture_begin(srv, &prison_attack_capture);
                             SELFTEST_CHECK(
                                 mock230_scripts_run_proc_args_on_npc(
                                     srv, "[proc,gwd_prison_mage_attack_roll]",
                                     slot, args, 1),
                                 "Nex prison mage spell %d executes", spell);
+                            mock230_capture_end(srv);
                             SELFTEST_CHECK(
                                 srv->npcs[slot].anim_id == anim,
                                 "Nex prison mage spell %d selects human_staff_pummel",
                                 spell);
+                            SELFTEST_CHECK(
+                                selftest_capture_synth_count(
+                                    &prison_attack_capture, srv->wire,
+                                    mock230_content_symbol(
+                                        MOCK230_PACK_SYNTH,
+                                        "nex2021_mage_projectile")) > 0,
+                                "Nex prison mage spell %d emits projectile sound",
+                                spell);
+                            {
+                                char label[64];
+                                int duration;
+                                int delay;
+                                int impact;
+
+                                snprintf(label, sizeof(label),
+                                         "Nex prison mage spell %d", spell);
+                                duration = selftest_nex_projectile_trace(
+                                    srv, label, mage_projectiles[spell],
+                                    -player->pid - 1, 40);
+                                delay = duration >= 0 ? duration / 30 : -1;
+                                if( delay < 1 && duration >= 0 )
+                                    delay = 1;
+                                impact = mock230_content_symbol(
+                                    MOCK230_PACK_SPOTANIM,
+                                    mage_impacts[spell]);
+                                SELFTEST_CHECK(
+                                    duration >= 0 &&
+                                        selftest_player_queue_match(
+                                            player, mage_land, delay + 1, 3,
+                                            impact) == 1,
+                                    "Nex prison mage spell %d queues %s at "
+                                    "tick %d",
+                                    spell, mage_impacts[spell], delay);
+                            }
                             for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                                 player->queue[q].active = 0;
                             for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -29148,10 +29646,26 @@ mock230_world_selftest(void)
 
             if( slot >= 0 && prev_bit >= 0 && coins >= 0 )
             {
+                static struct Mock230Capture charter_open;
                 struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
                 int saved_regicide = regicide >= 0 ? player->varps[regicide] : 0;
                 uint8_t payload[2];
                 int refused = 0;
+                /* Resolved out of the table rather than written down: Catherby
+                 * is dbrow 4149, third in the master order, so pin sub-id 5 —
+                 * but that is a fact about the cache, not about this test. */
+                int catherby_pin = selftest_charter_pin("chartering_destination_catherby");
+                int tyras_pin = selftest_charter_pin("chartering_destination_porttyras");
+
+                SELFTEST_CHECK(catherby_pin == 5,
+                               "Catherby should be the third row of dbtable 206, pin sub-id 5, "
+                               "got %d — the server's db_listall order no longer matches the "
+                               "cache's own dbindex_206 [master] block, which is what the "
+                               "client walks",
+                               catherby_pin);
+                SELFTEST_CHECK(tyras_pin == 17,
+                               "Port Tyras should be the ninth row, pin sub-id 17, got %d",
+                               tyras_pin);
 
                 memcpy(saved_inv, player->inv, sizeof(saved_inv));
                 selftest_park_player(srv, jetty_x, jetty_z);
@@ -29194,16 +29708,21 @@ mock230_world_selftest(void)
                 /* ---- Refused: Port Tyras needs Regicide, which is at 0 above.
                  * Tirannwn is row 4 of the region menu, Port Tyras row 1 of it. */
                 selftest_npc_payload(player, slot, payload);
+                mock230_capture_begin(srv, &charter_open);
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC4, payload, 2);
                 SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                "the walk to the trader should complete");
-                SELFTEST_CHECK(player->active_script != NULL,
-                               "[opnpc4] Charter should park on the destination menu — a "
-                               "binding that only names the per-port leaves would do nothing "
-                               "here, silently");
+                mock230_capture_end(srv);
+                /* Charter opens the cache's own picker and returns — there is no
+                 * p_pausebutton in it, so the script SHOULD finish. What proves
+                 * it ran is the interface going out, which is why this looks for
+                 * IF_OPENSUB rather than for a parked script. */
+                SELFTEST_CHECK(mock230_capture_find(&charter_open, 6 /* IF_OPENSUB */, 0) >= 0,
+                               "[opnpc4] Charter should open sailing_menu — the cache's own "
+                               "destination map, which clientscripts 8940/8941 fill from "
+                               "dbtable 206");
 
-                selftest_charter_choose(srv, 4); /* Tirannwn */
-                selftest_charter_choose(srv, 1); /* Port Tyras */
+                selftest_charter_click_pin(srv, tyras_pin);
                 for( int tick = 0; tick < 4; tick++ )
                     mock230_world_tick(srv);
 
@@ -29236,9 +29755,8 @@ mock230_world_selftest(void)
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC4, payload, 2);
                 SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                "the second walk to the trader should complete");
-                selftest_charter_choose(srv, 2); /* Kandarin and the Feldip Hills */
-                selftest_charter_choose(srv, 1); /* Catherby */
-                selftest_charter_choose(srv, 1); /* Okay */
+                selftest_charter_click_pin(srv, catherby_pin);
+                selftest_charter_choose(srv, 1); /* "Okay" on the fare prompt */
                 /* The voyage is ^charter_voyage_delay ticks behind a p_delay,
                  * so the landing is several ticks after the click. */
                 for( int tick = 0; tick < 20; tick++ )
@@ -31485,10 +32003,13 @@ mock230_world_selftest(void)
                 if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
                     continue;
                 text = (const char*)packet->data + 1;
+                if( strstr(text, "zulrahrun") == NULL )
+                    continue;
+                /* Echoed whether it passed or failed: a stanza that is silent on
+                 * success cannot be told apart from a stanza that never ran. */
+                fprintf(stderr, "  %s\n", text);
                 if( strstr(text, "zulrahrun OK") != NULL )
                     zulrah_said_ok = 1;
-                else if( strstr(text, "zulrahrun") != NULL || strstr(text, "  ") == text )
-                    fprintf(stderr, "  %s\n", text);
             }
             SELFTEST_CHECK(zulrah_said_ok, "::zulrahrun should reach its OK line");
         }
@@ -40447,10 +40968,10 @@ mock230_world_selftest(void)
                                    "::fightcavetest should run");
                     if( test_varp >= 0 )
                         SELFTEST_CHECK(player->varps[test_varp] == 0,
-                                       "::fightcavetest should pass every group, got %d "
-                                       "failing (-1 means it aborted before reporting; run "
-                                       "`::fightcavetest` in a client for the per-check "
-                                       "lines)",
+                                       "::fightcavetest should pass every group, got mask "
+                                       "%d (1=rotations 2=tokkul 4=records; -1 means it "
+                                       "aborted before reporting). Run `::fightcavetest` in "
+                                       "a client for the per-check lines",
                                        player->varps[test_varp]);
 
                     SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "fightcave 63"),

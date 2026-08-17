@@ -91,6 +91,50 @@ is actually placed on, one by following Kronos' own neighbouring tile (the Al
 Kharid zipline descends to plane 1, not the plane 3 its loc sits at), and one
 by dropping a Canifis mark spawn whose tile is blocked floor in this cache.
 
+### A17 Dorgesh-Kaan — harvested, and why it is not a course-shaped job
+
+The obstacles are found and their XP splits cleanly:
+
+| loc | name= / op | placements | XP |
+|---|---|---|---|
+| `dorgesh_cablebalance_start` | Cable / Walk-across | (2720,5195,3), (2720,5204,3), (2721,5231,3) | 25 each |
+| `dorgesh_caves_rope_swing` | Cable / Swing | (2728,5215/5216,3), (2729,5228,3) | 22 each |
+| `dorgesh_cavewall_slope_steps` | Ladder / Climb-up | (2716,5241,0), (2717,5241,1), (2718,5241,2) | 25 |
+| `dorgesh_cave_juttingwall` | Jutting wall / Squeeze-past | (2721,5214,3) | 7.5 |
+| `dorgesh_caves_pipe_agility2` | Tunnel / Squeeze-through | (2721,5206,3) | 7.5 |
+| `dorgesh_caves_monkeybars_end` | Ladder / Swing-across | (2708,5192,3), (2717,5192,3), (2740,5215,3) | — |
+| `dorgesh_pylon_grapple_base` | Pylon / Grapple | three | the grapple route |
+
+2 x 25 + 2 x 22 + 7.5 + 7.5 + 2 x 25 = **159**, matching the wiki's per-obstacle
+list exactly.
+
+**But 159 is 6% of the course.** Its published 2,750 a lap is 2,432 of
+delivery bonus: retrieve one of six parts (powerbox, lever, cog, capacitor,
+fuse, meter), carry it, and hand it to Turgall — with heavy parts required to
+return by the agility route and delicate ones by the grapple route. That is a
+retrieval-and-delivery subsystem, not eight triggers, and implementing only the
+obstacles would ship a course paying a sixteenth of its real rate.
+
+The cave is also a maze rather than a corridor: the plane-3 floor map around
+(2716..2732, 5192..5219) is mapped in this session's transcript, and the route
+direction through it is not decidable from the floor alone the way Shayzien's
+and Werewolf's were.
+
+### The remaining seven are all subsystem-shaped
+
+This is the honest boundary, and it moved: the *course-shaped* slices are now
+done. Every one still open is dominated by a mechanism rather than by
+obstacles —
+
+| slice | what actually has to be built |
+|---|---|
+| A17 Dorgesh-Kaan | six-part retrieval + Turgall delivery (88% of its XP) |
+| A20 Prifddinas | six random portals, crystal shards |
+| A11 Brimhaven Arena | 24-dispenser rotation, tickets, vouchers, shop, a whole minigame |
+| A10 Agility Pyramid | 575-line port, rolling-block NPC, desert heat, pyramid top |
+| A21 Hallowed Sepulchre | five floors, timed, statue hazards, coffins, five skill challenges, reward shop |
+| A18/A9 partials | Kourend recolour state; the Wilderness dispenser's loot subsystem |
+
 ### Implementation progress (2026-08-17)
 
 | slice | state |
@@ -106,6 +150,7 @@ by dropping a Canifis mark spawn whose tile is blocked floor in this cache.
 | A14 Ape Atoll | **done** — `apeatoll_course.rs2`, 580 XP a lap including the 300 completion bonus the wiki gates on a full in-order lap. The obstacles are the cache's `100_ilm_*` set; the corridor is one to two tiles wide across three planes, so it was mapped tile by tile rather than inferred. Unboostable 48 (`stat_base`), greegree checked worn |
 | A15 Werewolf course | **partial** — `werewolf_course.rs2`, the 350 XP of obstacles, all five, with the hurdles and pipes paying per lane (3 x 20 and 2 x 7.5, the only split that reproduces both the per-obstacle figures and the total). Destinations are relative to `loc_coord` so a player keeps their lane. The stick — `waa_stick`, 380 XP handed to the Agility Trainer, more than half the course's 730 — needs that NPC and a ground-spawn lifetime and is the remainder |
 | A16 Penguin course | **done** — `penguin_course.rs2`, 540 XP a lap. The Crusher is the plan's only `[opnpc1,...]` obstacle: the wiki calls it an NPC and the cache agrees, carrying no crusher loc at all. Destinations are relative throughout, which also sidesteps the fact that the stepping stones are locs the player stands *on* — blocked in the collision map, correct in game |
+| A19 Colossal Wyrm | **done** for both routes — `wyrm_course.rs2`, 601.6 basic and 1,053.6 advanced, termite scoops (8-10 basic, 12-21 advanced) and the 80%/22-38 blessed bone shards. The zip line is one loc paying two values, 341.2 or 662, decided by which lap the tracker has in progress. Worm Tongue's shop is the remainder — a termite sink, and its recolour needs the same graceful state A18 waits on |
 | A12 Yanille dungeon | **done** — the dungeon was already ported except its monkey bars (57, 20 XP), which are now in `areas/area_yanille/scripts/agility_dungeon.rs2`; that file's ledge roll moved onto the shared curve |
 | A18 Grace's shop | **partial** — `grace.rs2` exchanges marks for all six graceful pieces and amylase packs at the published prices. The recolours are deferred: each is gated behind its own Kourend quest and there is no recolour state to hang them on |
 | A6 Pollnivneach rooftop | **done** — `rooftop_pollnivneach.rs2`, the ninth rooftop, 890 XP a lap. No corpus has this course, so every landing tile is derived from the cache's own collision map and checked standable by the new `make -C src walkable-probe`; the hard-Desert-diary variant and the market stall's failure curve are deferred for want of published data |

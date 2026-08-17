@@ -1999,15 +1999,121 @@
       "encounter_summary": "Temple guardian dog (30, Magic-immune); Monk of Zamorak (30)",
       "plan_line": 103,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Priest_in_Peril?oldid=15292273",
+          "revision": 15292273,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Priest_in_Peril/Quick_guide?oldid=15266571",
+          "revision": 15266571,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Priest_in_Peril?oldid=15290079",
+          "revision": 15290079,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Temple_Guardian?oldid=15237248",
+          "revision": 15237248,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Monk_of_Zamorak_(Paterdomus)?oldid=15290091",
+          "revision": 15290091,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Golden_key?oldid=15254446",
+          "revision": 15254446,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Iron_key?oldid=15254444",
+          "revision": 15254444,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Monument?oldid=15271167",
+          "revision": 15271167,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Well_(Paterdomus)?oldid=15247737",
+          "revision": 15247737,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Murky_water?oldid=15187401",
+          "revision": 15187401,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Blessed_water?oldid=15302236",
+          "revision": 15302236,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Wolfbane?oldid=15183276",
+          "revision": 15183276,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Drezel?oldid=15271643",
+          "revision": 15271643,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "priestperilguarddog/priestperil_guardian_model",
+        "priestperilevilmonk1/2/3",
+        "priestperiltrappedmonk/2",
+        "priestperilvampire"
+      ],
+      "item_gamevals": [
+        "pipkey_gold/pipkey_iron",
+        "bucket_empty/bucket_murkywater/bucket_blessedwater/bucket_water",
+        "pipneedle_gold/pipfeather_gold/pippot_gold/piptinderbox_gold/piphammer_gold/pipcandle_gold",
+        "needle/feather/pot_empty/tinderbox/hammer/unlit_candle",
+        "blankrune/blankrune_high",
+        "monkrobetop/monkrobebottom/bones",
+        "dagger_wolfbane"
+      ],
+      "loc_gamevals": [
+        "priestperil_grave_base1..7",
+        "priestperil_well",
+        "pip_underground_door1/2",
+        "pip_prisondoor",
+        "priestperil_vampirecoffin",
+        "pip_underground_wall_side_withportal"
+      ],
+      "trigger_handlers": [
+        "zone/opnpc2/apnpc2/ai_queue3:priestperilguarddog",
+        "ai_opplayer2/ai_queue3:priestperilevilmonk1/2/3",
+        "oploc1/2/u:priestperil_grave_base1..7",
+        "oploc1/u:priestperil_well",
+        "oploc1:pip_underground_door1/2",
+        "opnpc1/opnpcu:priestperiltrappedmonk/2",
+        "oploc1/u/2:pip_prisondoor",
+        "oploc1:pip_underground_wall_side_withportal",
+        "opnpc1:king_roald",
+        "npc_immune_to_magic:cast/barrage/powered-staff dispatch"
+      ],
+      "loot_contract": "The level-30 Temple Guardian is one owner-private 45/20/20/20/1/1 actor, speed 4, max hit 3, stab-based, non-aggressive, cannon-immune by private ownership, and immune to cast spells, barrage secondary hits and powered staves before any runes, charges, projectile or XP are spent. It drops nothing and advances 2->3 only for its owner after at least one point of direct player damage; recoil-only death heals/resets it. The aggressive level-17/22/30 Paterdomus monks have exact 10/8/8/12/25/1, 20/18/18/22/25/1 and 25/25/25/25/40/1 stats, speed 4, max hits 5, melee 3/magic 10, and melee 3/magic 8 respectively, 25-tick respawns, and -75% combat XP. A directly credited killer receives private bones plus one shared 20-way roll: robe top 1/20, robe bottom 1/20, nothing 18/20. The level-30 monk also guarantees one private golden key until Drezel is unlocked. The key opens the first gate without consumption and swaps at a per-player randomized monument for the iron key; six optional golden souvenirs are one-time swaps and raw theft deals 1-6 damage. Drezel converts every carried murky-water bucket, accepts any mixture of 50 unnoted rune/pure essence over partial talk or use hand-ins, then grants 1 Quest Point, 1,406 Prayer XP, Wolfbane and barrier access; Wolfbane is reclaimable when no copy is owned.",
+      "test_ids": [
+        "quest-combat-contract:priest-peril-guardian",
+        "quest-combat-contract:priest-peril-monks",
+        "quest-combat-contract:priest-peril-monuments",
+        "quest-combat-contract:priest-peril-completion"
+      ],
+      "known_gaps": [
+        "The modern encounter instance is represented by the server's owner-private actor contract inside the shared classic map square rather than a separately cloned map instance.",
+        "Some cutscene camera, exact animation and sound choreography uses the closest cache-era presentation.",
+        "A real-client two-player ownership, recoil-only, all magic paths, randomized monuments, lost-key recovery, partial mixed-essence, inventory-full, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-regicide",

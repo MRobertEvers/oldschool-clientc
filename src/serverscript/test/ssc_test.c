@@ -277,6 +277,10 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * 451, and SEQ sorts before SPOTANIM. See test_spotanim_argument_hint. */
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 2660, SSC_SYM_SEQ, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 451, SSC_SYM_SPOTANIM, NULL);
+    /* Rev 239's Ancient Prison ranger collision: arrow_launch is seq 366 and
+     * synth 2692. SOUND_SYNTH's first argument must choose the latter. */
+    SSC_SymbolsAdd(&fixture->symbols, "arrow_launch", 366, SSC_SYM_SEQ, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "arrow_launch", 2692, SSC_SYM_SYNTH, NULL);
     /*
      * Two `table:column` references, carrying the declared types the `.dbtable`
      * loader puts in `text`. That text is the compiler's only way to know which
@@ -1155,6 +1159,46 @@ test_spotanim_argument_hint(void)
     fixture_close(&fixture);
 }
 
+static void
+test_synth_argument_hint(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    int found = 0;
+
+    printf("bare synth names in sound_synth arguments\n");
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "sound_synth(arrow_launch, 1, 0);\n",
+                         "synth argument hint") )
+        return;
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,s0]");
+    if( !script )
+    {
+        printf("  FAIL synth argument hint: no script\n");
+        g_fail++;
+        fixture_close(&fixture);
+        return;
+    }
+    for( int op = 0; op < script->op_count; op++ )
+    {
+        if( script->opcodes[op] != SS_OP_SOUND_SYNTH )
+            continue;
+        found = 1;
+        CHECK(op >= 3 && script->opcodes[op - 3] == SS_OP_PUSH_CONSTANT_INT,
+              "the synth argument is a constant push");
+        if( op >= 3 && script->opcodes[op - 3] == SS_OP_PUSH_CONSTANT_INT )
+        {
+            CHECK_EQ(script->int_operands[op - 3], 2692,
+                     "sound_synth resolves arrow_launch as synth 2692");
+            CHECK(script->int_operands[op - 3] != 366,
+                  "and not the sequence that shares the name");
+        }
+    }
+    CHECK(found, "sound_synth compiled to its host opcode");
+    fixture_close(&fixture);
+}
+
 /* Floor-object commands declare argument 1 as an obj. That type must win when
  * a cache gives an NPC the same bare name, otherwise valid drop source compiles
  * and executes with the NPC id. */
@@ -1841,6 +1885,7 @@ main(void)
     test_subject_namespace();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
+    test_synth_argument_hint();
     test_obj_command_argument_hint();
     test_proc_param_kind_hint();
     test_param_type_shadowing();
