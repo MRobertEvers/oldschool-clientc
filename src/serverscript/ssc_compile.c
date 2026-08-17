@@ -627,6 +627,15 @@ parse_call(
         int saved_saw_command = compiler->saw_command_call;
         const uint8_t* param_kinds =
             script_id < compiler->name_count ? compiler->name_param_kinds[script_id] : NULL;
+        if( strcmp(bare_name, "player_projectile") == 0 )
+            fprintf(stderr,
+                    "ssc debug: call %s id=%d count=%d kinds=%d,%d,%d,%d,%d\n",
+                    bare_name, script_id, compiler->name_count,
+                    param_kinds ? param_kinds[0] : -1,
+                    param_kinds ? param_kinds[1] : -1,
+                    param_kinds ? param_kinds[2] : -1,
+                    param_kinds ? param_kinds[3] : -1,
+                    param_kinds ? param_kinds[4] : -1);
 
         compiler->arg_is_script_name = 0;
         compiler->arg_script_trigger = NULL;
@@ -1616,6 +1625,10 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         if( compiler->arg_kind_hint != SSC_SYM_UNKNOWN )
         {
             symbol = SSC_SymbolsFind(compiler->symbols, text, compiler->arg_kind_hint);
+            if( strcmp(text, "godwars_zamorak_magic_attack_proj") == 0 )
+                fprintf(stderr, "ssc debug: %s hint=%d resolved=%d kind=%d\n", text,
+                        compiler->arg_kind_hint, symbol ? symbol->value : -1,
+                        symbol ? symbol->kind : -1);
             if( symbol )
             {
                 emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);

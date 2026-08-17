@@ -939,6 +939,57 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "A real-client two-player ownership, replacement-item, wrong-order machinery, pre-owned-bar bypass, Magic-drain, death and relog smoke is still pending.",
         ],
     },
+    "Nature Spirit": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/Nature_Spirit?oldid=15292274", "revision": 15292274, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Nature_Spirit/Quick_guide?oldid=15204119", "revision": 15204119, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Transcript:Nature_Spirit?oldid=15263282", "revision": 15263282, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Ghast?oldid=15266981", "revision": 15266981, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Druid_pouch?oldid=15286832", "revision": 15286832, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Silver_sickle_(b)?oldid=15254467", "revision": 15254467, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Bloom?oldid=15271265", "revision": 15271265, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Rotten_food?oldid=15258515", "revision": 15258515, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Mort_myre_fungus?oldid=15271259", "revision": 15271259, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Mort_myre_stem?oldid=15271270", "revision": 15271270, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Mort_myre_pear?oldid=15271273", "revision": 15271273, "retrieved": "2026-08-17"},
+        ],
+        "npc_gamevals": [
+            "filliman_tarlock_spirit", "filliman_tarlock_ns",
+            "ghast_invis", "ghast_vis", "mort_myre_gate_guard",
+        ],
+        "item_gamevals": [
+            "meat_pie/apple_pie", "amulet_of_ghostspeak", "mirror",
+            "filliman_journal", "bloom_spell/used_bloom_spell",
+            "silver_sickle/silver_sickle_blessed",
+            "mortmyremushroom/mortmyrebuddingstem/mortmyrepear",
+            "druid_pouch_empty/druid_pouch", "rotten_food", "bones",
+        ],
+        "loc_gamevals": [
+            "mortmyre_metalgateclosed_l/r", "druidjump_loc",
+            "grotto_druidicspirit/grotto_door_druidicspirit",
+            "stonedisc_ds_faith/nature/spirit",
+            "log/branch/peartree_druidicspirit and blossomed variants",
+            "druidic_spirit_grotto/druidic_spirit_grotto_naturealtar",
+        ],
+        "trigger_handlers": [
+            "ai_opplayer2/opnpcu:ghast_invis",
+            "opnpc2/apnpc2/ai_opplayer2/ai_queue3/ai_timer:ghast_vis",
+            "opheld3:silver_sickle_blessed", "opheld1/opheldu:druid_pouch(_empty)",
+            "oplocu:stonedisc_ds_nature/spirit", "oploc1:grotto door/altar",
+            "queue:ghast_vis_reward/druidspirit_quest_complete",
+        ],
+        "loot_contract": "An invisible ghast rolls a 3/10 successful attack after the shared 26-tick delay: one eligible food becomes rotten food, or a foodless player takes 1-3 typeless damage; a filled pouch instead consumes one charge and manifests the ghast. The public level-30 visible ghast has exact 45/22/22/18/1/1 stats, speed 4, max hit 3 and 25% air weakness. It intentionally remains public: whichever player gets last-hit credit while close receives 30 Prayer XP and the public guaranteed bones plus exact 128-way weapon/rune/herb/coin/other/gem table. Only killers in the three exact quest states advance one step, preventing duplicate credit. Blossomed fungus/stem/pear contribute 1/2/3 charges, with three items consumed pear-first; the grotto respawn and full-inventory dialogue recover an empty pouch.",
+        "test_ids": [
+            "quest-combat-contract:nature-spirit-ghast",
+            "quest-combat-contract:nature-spirit-pouch",
+            "quest-combat-contract:nature-spirit-ritual",
+        ],
+        "known_gaps": [
+            "The druid-pouch projectile and several quest camera/sound effects use the closest era-compatible spot-animation/dialogue presentation.",
+            "Morytania diary attack avoidance and the post-quest Fire of Dehumidification belong to their diary/quest systems and are not yet integrated with this classic encounter.",
+            "A real-client public kill-steal, pouch exhaustion, all-food/full-inventory, retreat/reversion, death and relog smoke is still pending.",
+        ],
+    },
 }
 
 # The two inventory rows share one physical encounter and one continuous item/

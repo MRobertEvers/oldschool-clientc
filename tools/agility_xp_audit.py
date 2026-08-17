@@ -60,6 +60,8 @@ COURSES = {
     # player twice for one climb.
     "skill_agility/scripts/shayzien_advanced.rs2": (
         "Shayzien_Agility_Course", 485.0),
+    "skill_agility/scripts/apeatoll_course.rs2": (
+        "Ape_Atoll_Agility_Course", 580.0),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is

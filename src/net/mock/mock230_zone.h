@@ -597,6 +597,12 @@ mock230_zone_event_count(
     int kind,
     int id);
 
+/** Last current-tick event id of `kind`, or -1 when none exists. */
+int
+mock230_zone_event_last_id(
+    struct Mock230Server* srv,
+    int kind);
+
 /** Growth gauges for the perf harness: how many zones the map holds and the
  *  hash table capacity (never shrinks during a session). */
 void

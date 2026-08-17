@@ -12113,12 +12113,20 @@ selftest_gwd_player_attack_trace(
     {
         const int projectile = mock230_content_symbol(
             MOCK230_PACK_SPOTANIM, row->projectile);
+        const int exact_events = mock230_zone_event_count(
+            srv, MOCK230_ZONE_EV_PROJANIM, projectile);
+        const int all_events = mock230_zone_event_count(
+            srv, MOCK230_ZONE_EV_PROJANIM, -1);
 
         SELFTEST_CHECK(
-            mock230_zone_event_count(
-                srv, MOCK230_ZONE_EV_PROJANIM, projectile) > 0,
-            "%s/%s trace queues projectile %s (%d)",
-            row->gameval, row->attack_name, row->projectile, projectile);
+            exact_events > 0,
+            "%s/%s trace queues projectile %s (%d), exact/all %d/%d, last %d (%s)",
+            row->gameval, row->attack_name, row->projectile, projectile,
+            exact_events, all_events,
+            mock230_zone_event_last_id(srv, MOCK230_ZONE_EV_PROJANIM),
+            mock230_content_symbol_name(
+                MOCK230_PACK_SPOTANIM,
+                mock230_zone_event_last_id(srv, MOCK230_ZONE_EV_PROJANIM)));
     }
     if( strcmp(row->sound, "none") != 0 )
     {
@@ -14292,8 +14300,9 @@ mock230_world_selftest(void)
             /* Kree's close melee is conditional on the player not targeting
              * him; targeting him switches the same real label to wind magic/
              * ranged. Exercise both sides explicitly instead of waiting on an
-             * impossible random transition. */
+            * impossible random transition. */
             {
+                static struct Mock230Capture kree_capture;
                 int npc_id = mock230_content_symbol(
                     MOCK230_PACK_NPC, "godwars_armadyl_avatar");
                 int claw = mock230_content_symbol(
@@ -14317,11 +14326,20 @@ mock230_world_selftest(void)
                     srv->npcs[slot].spawn_pending = 0;
                     srv->npcs[slot].combat_target = player->pid;
                     player->combat_target = -1;
+                    srv->npcs[slot].spotanim_id = -1;
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &kree_capture);
+                    out = mock230_scripts_run_proc_on_npc(
+                        srv, "[label,gwd_kree_attack]", slot);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(
-                        mock230_scripts_run_proc_on_npc(
-                            srv, "[label,gwd_kree_attack]", slot) &&
-                            srv->npcs[slot].anim_id == claw,
+                        out && srv->npcs[slot].anim_id == claw,
                         "Kree'arra uses claws when adjacent and not targeted");
+                    selftest_gwd_player_attack_trace(
+                        srv,
+                        selftest_gwd_manifest_find(
+                            "godwars_armadyl_avatar", "magical_melee", 0),
+                        &srv->npcs[slot], &kree_capture);
                     player->combat_target = slot;
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                     player->hitpoints = 99;
@@ -14331,12 +14349,56 @@ mock230_world_selftest(void)
                             NULL, 0, &out) && out == 1,
                         "Kree'arra target comparison sees the player's target, got %d",
                         out);
-                    SELFTEST_CHECK(
-                        mock230_scripts_run_proc_on_npc(
-                            srv, "[label,gwd_kree_attack]", slot) &&
-                            srv->npcs[slot].anim_id == wind,
-                        "Kree'arra uses a wind attack when targeted (got anim %d, want %d)",
-                        srv->npcs[slot].anim_id, wind);
+                    {
+                        int wind_seen = 0;
+
+                        for( int sample = 0;
+                             sample < 96 && wind_seen != 3; sample++ )
+                        {
+                            const char* selected;
+                            const int bolt = mock230_content_symbol(
+                                MOCK230_PACK_SPOTANIM,
+                                "godwars_armadyl_bolt_attack_projanim");
+
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                            player->hitpoints = 99;
+                            player->spotanim_id = -1;
+                            srv->npcs[slot].anim_id = -1;
+                            srv->npcs[slot].spotanim_id = -1;
+                            mock230_zone_reset(srv);
+                            mock230_capture_begin(srv, &kree_capture);
+                            out = mock230_scripts_run_proc_on_npc(
+                                srv, "[label,gwd_kree_attack]", slot);
+                            mock230_capture_end(srv);
+                            if( mock230_zone_event_count(
+                                    srv, MOCK230_ZONE_EV_PROJANIM, bolt) > 0 )
+                            {
+                                wind_seen |= 1;
+                                selected = "ranged_wind";
+                            }
+                            else
+                            {
+                                wind_seen |= 2;
+                                selected = "magic_wind";
+                            }
+                            SELFTEST_CHECK(
+                                out && srv->npcs[slot].anim_id == wind,
+                                "Kree'arra uses a wind attack when targeted "
+                                "(got anim %d, want %d)",
+                                srv->npcs[slot].anim_id, wind);
+                            selftest_gwd_player_attack_trace(
+                                srv,
+                                selftest_gwd_manifest_find(
+                                    "godwars_armadyl_avatar", selected, 0),
+                                &srv->npcs[slot], &kree_capture);
+                            memset(player->queue, 0, sizeof(player->queue));
+                            memset(player->engine_queue, 0,
+                                   sizeof(player->engine_queue));
+                        }
+                        SELFTEST_CHECK(
+                            wind_seen == 3,
+                            "Kree'arra traces both ranged and magic wind paths");
+                    }
                     srv->npcs[slot].active = 0;
                 }
                 player->combat_target = -1;

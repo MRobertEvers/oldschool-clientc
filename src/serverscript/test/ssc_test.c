@@ -1245,6 +1245,8 @@ test_proc_param_kind_hint(void)
     } k_cases[] = {
         { "[proc,s0]", 3, "a `stat` parameter resolves the stat" },
         { "[proc,s1]", 2100, "an `int` parameter resolves unhinted" },
+        { "[proc,s2]", 451,
+          "a `spotanim` parameter resolves the spotanim, not its seq" },
     };
 
     printf("bare names in ~proc arguments\n");
@@ -1256,13 +1258,19 @@ test_proc_param_kind_hint(void)
                          "[proc,take_int](int $n)\n"
                          "~noop;\n"
                          "\n"
+                         "[proc,take_spotanim](spotanim $graphic)\n"
+                         "spotanim_map($graphic, 0_50_50, 0, 0);\n"
+                         "\n"
                          "[proc,noop]()\n"
                          "\n"
                          "[proc,s0]\n"
                          "~max_stat(hitpoints);\n"
                          "\n"
                          "[proc,s1]\n"
-                         "~take_int(hitpoints);\n",
+                         "~take_int(hitpoints);\n"
+                         "\n"
+                         "[proc,s2]\n"
+                         "~take_spotanim(tzhaar_rock_smash);\n",
                          "proc param kind hint") )
         return;
 

@@ -111,6 +111,12 @@ ELEM2_HELM = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_helm.rs2"
 ELEM2_REPAIR = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_repair.rs2"
 ELEM2_PRIMING = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_priming.rs2"
 ELEM2_SHARED = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_shared.rs2"
+NATURE_GHAST = CONTENT / "quests/quest_druidspirit/scripts/ghast.rs2"
+NATURE_NPC = CONTENT / "quests/quest_druidspirit/configs/quest_druidspirit.npc"
+NATURE_CORE = CONTENT / "quests/quest_druidspirit/scripts/quest_druidspirit.rs2"
+NATURE_FILLIMAN = CONTENT / "quests/quest_druidspirit/scripts/filliman.rs2"
+NATURE_DECAY = CONTENT / "quests/quest_druidspirit/scripts/swamp_decay.rs2"
+NATURE_GROTTO_SPAWN = CONTENT / "areas/world/configs/m53_152.spawn"
 NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
 NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
@@ -225,6 +231,12 @@ def check_manifest() -> None:
                 f"{name}: status drift")
         for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
             require(bool(elemental[0][key]), f"{name}: empty evidence field {key}")
+    nature = [row for row in rows if row["id"] == "quest-nature-spirit"]
+    require(len(nature) == 1, "manifest: expected exactly one Nature Spirit row")
+    require(nature[0]["implementation_status"] == "implementation-in-progress",
+            "Nature Spirit: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(nature[0][key]), f"Nature Spirit: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -1564,6 +1576,115 @@ def check_elemental_workshops() -> None:
     )
 
 
+def check_nature_spirit() -> None:
+    npc = NATURE_NPC.read_text()
+    for ghast in ("ghast_invis", "ghast_vis"):
+        block = npc.split(f"[{ghast}]", 1)[1]
+        if ghast == "ghast_invis":
+            block = block.split("[ghast_vis]", 1)[0]
+        require_text(
+            block,
+            (
+                "hitpoints=45", "attack=22", "strength=22", "defence=18",
+                "magic=1", "ranged=1", "respawnrate=40",
+                "param=attackrate,4", "param=damagetype,0",
+                "param=elemental_weakness,^element_air",
+                "param=elemental_weakness_percent,25", "param=death_drop,null",
+            ),
+            f"Nature Spirit {ghast} config",
+        )
+
+    ghast = NATURE_GHAST.read_text()
+    require_text(
+        ghast,
+        (
+            "add(%ghast_delay, 26) > map_clock", "def_int $rand = random(10);",
+            "if ($rand < 3)", "~random_range(1, 3)",
+            "[opnpcu,ghast_invis]", "~player_in_combat_check = false",
+            "inv_del(inv, druid_pouch, 1);", "inv_add(inv, druid_pouch_empty, 1);",
+            "npc_changetype(ghast_vis, 500);", "npc_setmode(opplayer2);",
+            "[ai_timer,ghast_vis]", "npc_changetype(ghast_invis, 500);",
+        ),
+        "Nature Spirit ghast reveal cycle",
+    )
+    require("npc_setowner" not in ghast,
+            "Nature Spirit: ordinary ghasts must remain public")
+    require_text(
+        ghast,
+        (
+            "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
+            "def_int $random = random(128);", "$random < 47",
+            "obj_add(npc_coord, ~randomherb, ^lootdrop_duration);",
+            "$random < 125", "obj_add(npc_coord, ~randomjewel, ^lootdrop_duration);",
+            "stat_advance(prayer, 300);",
+            "%druidspirit = ^druidspirit_killed_ghast1;",
+            "%druidspirit = ^druidspirit_killed_ghast2;",
+            "%druidspirit = ^druidspirit_killed_ghast3;",
+        ),
+        "Nature Spirit public loot and exact kill credit",
+    )
+    require_text(
+        ghast,
+        (
+            "[proc,ghast_check_food]()(boolean)",
+            "inv_setslot(inv, $slot, rotten_food, 1);",
+            "oc_category($consumable) = pies", "inv_add(inv, piedish, 1);",
+            "oc_category($slotobj) = cooked_meat",
+            "oc_category($slotobj) = cooked_fish",
+            "oc_category($slotobj) = misc_food",
+            "oc_category($slotobj) = pies",
+            "oc_category($slotobj) = pizzas",
+            "oc_category($slotobj) = filled_potatoes",
+        ),
+        "Nature Spirit rotten-food coverage",
+    )
+
+    core = NATURE_CORE.read_text()
+    require_text(
+        core,
+        (
+            "[opheld3,silver_sickle_blessed]", "~random_range(1, 7)",
+            "stat_sub(prayer, $pray_pts, 0);",
+            "[label,druid_pouch_fill](int $empty_pouch)",
+            "min(sub(3, $total_count), inv_total(inv, mortmyrepear))",
+            "multiply(3, $count)", "inv_total(inv, mortmyrebuddingstem)",
+            "multiply(2, $count)", "inv_total(inv, mortmyremushroom)",
+            "if ($total_count = 3)", "inv_add(inv, druid_pouch, $pts);",
+            "[oplocu,stonedisc_ds_nature]", "[oplocu,stonedisc_ds_spirit]",
+            "[oploc1,druidic_spirit_grotto_naturealtar]",
+            "stat_base(prayer) + 2",
+        ),
+        "Nature Spirit ritual, Bloom, pouch and reward pipeline",
+    )
+    filliman = NATURE_FILLIMAN.read_text()
+    require_text(
+        filliman,
+        (
+            "%druidspirit >= ^druidspirit_blessed_sickle",
+            "%druidspirit < ^druidspirit_added_pouch",
+            "inv_total(inv, druid_pouch_empty) = 0",
+            "inv_total(inv, druid_pouch) = 0",
+            "if (inv_freespace(inv) = 0)",
+            "inv_add(inv, druid_pouch_empty, 1);",
+            "queue(druidspirit_quest_complete, 0, 0);",
+            "stat_advance(crafting, 30000);", "stat_advance(hitpoints, 20000);",
+            "stat_advance(defence, 20000);",
+            "~quest_complete_rewards(quest_naturespirit",
+        ),
+        "Nature Spirit Filliman transformation and pouch recovery",
+    )
+    spawn = NATURE_GROTTO_SPAWN.read_text()
+    require("druid_pouch_empty                             3443  9741 1 1" in spawn,
+            "Nature Spirit: grotto must respawn the empty pouch")
+    require("druid_pouch                                   3443  9741 1 1" not in spawn,
+            "Nature Spirit: grotto restored an incorrectly charged pouch")
+    require_text(
+        NATURE_DECAY.read_text(),
+        ("settimer(swamp_decay, 200);", "damage(uid, hitsplat_damage, 3);"),
+        "Nature Spirit swamp decay",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -1580,10 +1701,11 @@ def main() -> int:
         check_legends_quest()
         check_big_chompy()
         check_elemental_workshops()
+        check_nature_spirit()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting and Elemental Workshops I/II (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II and Nature Spirit (ok)")
     return 0
 
 

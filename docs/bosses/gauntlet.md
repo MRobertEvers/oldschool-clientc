@@ -463,10 +463,11 @@ normal private ground/inventory behaviour and must survive a full inventory.
 
 The corrupted NPC pages publish the exact denominators above from very large
 Drop Log Project samples: for example,
-[Corrupted Rat](https://oldschool.runescape.wiki/w/Corrupted_Rat),
-[Corrupted Unicorn](https://oldschool.runescape.wiki/w/Corrupted_Unicorn) and
-[Corrupted Bear](https://oldschool.runescape.wiki/w/Corrupted_Bear). The normal
-NPC pages render only “common/uncommon”, but the
+[Corrupted Rat](https://oldschool.runescape.wiki/w/Corrupted_Rat) (2,758,424
+kills at the audit date),
+[Corrupted Unicorn](https://oldschool.runescape.wiki/w/Corrupted_Unicorn)
+(796,616) and [Corrupted Bear](https://oldschool.runescape.wiki/w/Corrupted_Bear)
+(1,822,439). The normal NPC pages render only “common/uncommon”, but the
 [strategy page](https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies#The_Corrupted_Gauntlet)
 explicitly says the corrupted monsters have the same mechanics and drop tables
 as their crystalline counterparts and differ in combat stats. Therefore use
@@ -584,9 +585,9 @@ The strongest public spawn-location evidence is the community
 at most one tornado per arena corner/quadrant and never on the player's tile,
 although an adjacent tile is possible. Its author explicitly labels this
 anecdotal. Use it as a hypothesis for the trace in §13, not as an exact spawn
-algorithm. A high-level open-source simulator likewise states that the true
-tornado mechanism is unknown in its
-[spawn approximation](https://github.com/ArtemisRS/hunllef/blob/c26b9047756e5ee7f45e2a63da6332007483374c/src/lib.rs#L186-L205).
+algorithm. One open-source practice tool models this as one random tile in each
+[4×4 corner quadrant](https://github.com/kareth/osrs-cg/blob/80e8e01f71644727618c56d1b068a7ce0df78277/index.html#L642-L650),
+but it is a trainer with documented approximations, not server evidence.
 
 ### 8.6 Damaging floor
 
@@ -600,7 +601,9 @@ checked in the same procedure:
   one-third. Corrupted speed thresholds are 1000–667, 666–333 and ≤332;
   normal uses equivalent thirds of 600. The low-HP bank begins below one-third
   (≤332 corrupted, ≤199 normal), not at exactly one-third.
-- During every damaging tick, each player on an orange tile takes 10–20 damage.
+- During every damaging tick, each player on an orange tile takes the Wiki's
+  stated 10–20 damage. The Wiki currently marks that value “confirmation
+  needed”, so §13.5 must verify the support and distribution.
 - Later patterns become harder and warning-to-orange time becomes shorter.
 - The final set preserves the documented door-adjacent safe tiles shown on the
   [strategy page](https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies#Boss_fight).
@@ -840,25 +843,187 @@ boss-fight duration alone.
 
 ---
 
-## 13. Source holes that require measurement
+## 13. Hidden-value research audit — 17 August 2026
 
-Do not guess these:
+### 13.1 Evidence standard and source inventory
 
-1. Full room-archetype/resource/monster probability distribution and exact
-   connectivity algorithm.
-2. Exact normal-mode secondary enemy-drop denominators (the Wiki labels them
-   common/uncommon; same-as-corrupted is an inference).
-3. Exact prayer-disable roll/timing and the normal stomp/wrong-prayer damage
-   ceilings where the Wiki says only “50+”/“very high”; also resolve the main
-   Gauntlet page versus Corrupted Hunllef page disagreement over tier-1/tier-3
-   tornado minima.
-4. Exact floor masks and warning/damage durations represented mainly by Wiki
-   images.
-5. Initial Hunllef protection-prayer distribution and exact tornado spawn tiles.
+This audit searched Jagex news/dev statements, current and historical Wiki
+pages, the current RuneLite Plugin Hub, open-source Gauntlet plugins and
+simulators, Reddit posts and their linked images. Rank evidence as follows:
 
-For each, use a reproducible cache/client trace or sufficiently large live
-sample, store the artifact, and cite it next to the constant/data row. “Feels
-like OSRS” is not an acceptance criterion.
+1. a Jagex statement or reproducible live-game/cache observation;
+2. a specific Wiki value, preferably backed by the Drop Log Project;
+3. current client code that directly observes game state;
+4. a reproducible community dataset or exhaustive diagram;
+5. anecdote or simulator choice, which may form a test hypothesis only.
+
+RuneLite sees NPCs, projectiles, locs and varps **after** the server has made a
+random choice. Client code can prove identifiers and observable outcomes but
+cannot, by itself, prove the hidden probability that selected them. Private
+server implementations and unsourced guide claims are not parity evidence.
+
+Useful pinned research sources:
+
+- Jagex's
+  [Summer Sweep-Up 2026](https://secure.runescape.com/m=news/summer-sweep-up-gear--pvm-changes?oldschool=1)
+  gives the four guaranteed cardinal demi-boss rooms and other July 2026 prep
+  changes.
+- The Plugin Hub currently pins the
+  [Gauntlet Map commit](https://github.com/runelite/plugin-hub/blob/f790018f55c764de0c9cc1c987a9215d16197f5d/plugins/gauntlet-map)
+  used for the 7×7 adjacency and perimeter-room evidence.
+- The community
+  [floor-pattern post](https://www.reddit.com/r/2007scape/comments/jla470/a_comprehensive_list_of_all_of_the_floor_patterns/)
+  links an exhaustive
+  [19-pattern atlas](https://imgur.com/gallery/diagrams-of-floor-tile-patterns-gauntlet-zfwXjSG),
+  split into [14 masks at or above one-third HP](https://i.imgur.com/qOiEQy9.png)
+  and [five masks below one-third HP](https://i.imgur.com/sU15nY5.png).
+- The Plugin Hub also pins the
+  [Gauntlet Recorder commit](https://github.com/runelite/plugin-hub/blob/f790018f55c764de0c9cc1c987a9215d16197f5d/plugins/gauntlet-recorder).
+  Its [trace schema](https://github.com/lsmith090/gauntlet-recorder/blob/4647c8397508d76388772d72d4a94eee2260f6f6/DEVELOPMENT.md#log-format)
+  records per-tick boss/tornado/floor positions, resources, NPC spawns,
+  projectiles, animations, hitsplats, inventory, stats and prayer changes.
+- Mod Curse confirmed the first attack is Ranged and that correct/off-prayer
+  damage was rebalanced in a
+  [2019 Jagex-mod reply](https://www.reddit.com/r/2007scape/comments/cjre20/hunllefs_damage_through_prayer_is_being_changed/evfr9ie/).
+  That statement gives behaviour, not the unpublished normal-mode maxima.
+
+### 13.2 Exact floor masks recovered
+
+The atlas is a community observation rather than Jagex source, but it is an
+explicit exhaustive tile diagram rather than a simulator guess. Its author
+describes the sample as more than 700 kills and explicitly calls out the
+unrotated south-west-only low-HP mask in the
+[methodology comment](https://www.reddit.com/r/2007scape/comments/jla470/a_comprehensive_list_of_all_of_the_floor_patterns/ganvxtd/).
+The following is its machine-readable transcription. Each value is a
+12×12 arena-interior mask: rows run north to south, characters west to east,
+`/` separates rows,
+`#` is dangerous and `.` is safe. Preserve orientation; notably low-HP mask
+`L04` is south-west only, not a mask to rotate randomly.
+
+At or above one-third HP (normal HP 200–600; corrupted HP 333–1,000):
+
+```text
+H01 ###......###/###......###/###......###/###......###/###......###/###......###/###......###/###......###/###......###/###......###/###......###/###......###
+H02 ####......../####......../####......../####......../####......../####......../####......../####......../####......../####......../####......../####........
+H03 ............/............/............/............/....######../....######../....######../....######../....######../....######../............/............
+H04 ######....../######....../######....../######....../######....../######....../............/............/............/............/............/............
+H05 ############/############/############/............/............/............/............/............/............/############/############/############
+H06 ############/############/############/############/............/............/............/............/............/............/............/............
+H07 ............/............/....######../....######../....######../....######../....######../....######../............/............/............/............
+H08 ......######/......######/......######/......######/......######/......######/............/............/............/............/............/............
+H09 ........####/........####/........####/........####/........####/........####/........####/........####/........####/........####/........####/........####
+H10 ............/............/..######..../..######..../..######..../..######..../..######..../..######..../............/............/............/............
+H11 ............/............/............/............/............/............/......######/......######/......######/......######/......######/......######
+H12 ............/............/............/............/............/............/............/............/############/############/############/############
+H13 ............/............/............/............/..######..../..######..../..######..../..######..../..######..../..######..../............/............
+H14 ............/............/............/............/............/............/######....../######....../######....../######....../######....../######......
+```
+
+Below one-third HP (normal HP 0–199; corrupted HP 0–332):
+
+```text
+L01 ############/############/##........##/##........##/##........##/##........##/##........##/##........##/##........##/##........##/############/############
+L02 ####....####/####....####/####....####/####....####/............/............/............/............/####....####/####....####/####....####/####....####
+L03 ............/.####..####./.####..####./.####..####./.####..####./............/............/.####..####./.####..####./.####..####./.####..####./............
+L04 ............/............/............/............/............/............/######....../######....../######....../######....../######....../######......
+L05 ###......###/###......###/###......###/............/....####..../....####..../....####..../....####..../............/###......###/###......###/###......###
+```
+
+Implementation consequences:
+
+- replace the current three synthetic patterns with these 19 masks;
+- select `H01`–`H14` in the first two speed bands and `L01`–`L05` only below
+  one-third HP;
+- do not generate rotations unless that rotated mask is separately present in
+  the bank;
+- validate all strings are exactly 12 rows × 12 columns and render them in a
+  fixture so transcription errors are visible;
+- compare every observed live mask against this set before promoting the atlas
+  from high-confidence community evidence to locally reproduced evidence.
+
+### 13.3 Values no longer blocked
+
+| Question | Finding | Evidence / implementation decision |
+|---|---|---|
+| Room connectivity | Complete orthogonal 7×7 grid; no random missing interior edges | Current [Gauntlet Map adjacency](https://github.com/StickySerum/gauntlet-map/blob/25d36de0cd6a2cd319bd2721885325b81c6756f4/src/main/java/com/gauntletmap/GauntletMapPlugin.java#L478-L555). Remove the matching-based edge deletion in `gauntlet_layout.rs2`. |
+| Guaranteed demi-boss rooms | Four cardinal extremes, indices 4/22/28/46; species remains random | [Jagex update](https://secure.runescape.com/m=news/summer-sweep-up-gear--pvm-changes?oldschool=1) plus [client constants](https://github.com/StickySerum/gauntlet-map/blob/25d36de0cd6a2cd319bd2721885325b81c6756f4/src/main/java/com/gauntletmap/GauntletMapConstants.java#L62-L63). |
+| Normal secondary drops | Same exact 24-, 21- and 18-part tables as corrupted mode | Exact corrupted Wiki tables plus the [Wiki's explicit same-drop-table statement](https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies#The_Corrupted_Gauntlet). No separate normal denominator is required. |
+| Tornado counts/lifetime | Normal 1/2/3, corrupted 2/3/4 by HP thirds; exactly 20 ticks | Dedicated [normal](https://oldschool.runescape.wiki/w/Tornado_%28The_Gauntlet%29) and [corrupted](https://oldschool.runescape.wiki/w/Tornado_%28Corrupted_Gauntlet%29) tornado pages. |
+| Tornado damage | Normal: 10–20, 10–16, 7–13, 5–10; corrupted: 15–30, 15–25, 10–20, 7–15 for armour tier sums 0/3/6/9 | Same dedicated tornado pages; use these over contradictory older main-page minima. |
+| First attack/style counter | First attack Ranged; switch every fourth qualifying attack; prayer-disable/tornado count, stomp does not | Hunllef Wiki pages, Mod Curse's reply above and observable client attack counters. |
+| Corrupted hidden damage | Stomp max 68 typeless; off-prayer maxima 68/55/45/35 at tier sums 0/3/6/9 | [Corrupted Hunllef](https://oldschool.runescape.wiki/w/Corrupted_Hunllef). |
+| Floor loc states | Normal base/warn/damage 36149/36150/36151; corrupted 36046/36047/36048 | Recorder [IDs and observed transitions](https://github.com/lsmith090/gauntlet-recorder/blob/4647c8397508d76388772d72d4a94eee2260f6f6/src/main/java/com/gauntletrecorder/GauntletIds.java#L19-L34). |
+
+### 13.4 Values still genuinely hidden
+
+No credible Jagex, Wiki, RuneLite, Reddit or simulator source found in this
+audit publishes the following exact server values. The current implementation
+choices must stay labelled as provisional:
+
+| Hidden value | What public evidence establishes | Current choice / status |
+|---|---|---|
+| Resource and ordinary-monster generation weights | 0–5 resource nodes, legal tiers and the normal/corrupted guarantees | Uniform node count/type and fixed guarantee rooms are approximations. Exact joint distributions, room/archetype weights and monster-pack weights remain unknown. |
+| Additional perimeter demi-boss probability and species weights | All 24 perimeter rooms are eligible; four cardinal rooms are guaranteed; their species is random | Probability in each of the other 20 rooms and bear/dragon/dark-beast weights are unknown. |
+| Prayer-disable selection | Only occurs during Magic, has distinct projectile IDs 1713/1714 and counts in the four-attack cycle | `random(5) = 0` is unsupported. No source establishes independent Bernoulli selection, a denominator, forced spacing or the exact resolution tick. |
+| Tornado-attack cadence | A summon replaces a qualifying attack and counts in the style cycle | `random(6) = 0` is unsupported. A high-level simulator explicitly says the true mechanism is unknown in its [10–14-attack approximation](https://github.com/ArtemisRS/hunllef/blob/c26b9047756e5ee7f45e2a63da6332007483374c/src/lib.rs#L186-L205). |
+| Tornado spawn tiles | Community observation: no more than one per corner/quadrant, never directly on the player, adjacent is possible | Fixed corner tiles are not parity. Exact candidate tiles, within-quadrant weights, collision rejection and fallback order remain unknown. |
+| Floor-mask selection | The 14 high/mid-HP and five low-HP masks establish the outcome set | Relative weights, repeat prevention and transition restrictions are unknown; uniform selection is a hypothesis. |
+| Floor warning/orange timing | Three speeds; per-tick loc states are observable. The recorder author observed warning leading damage by approximately 5–8 ticks | Exact per-band warning duration, orange duration and next-pattern gap remain unknown. Current 4/3/2 warning and 5/4/3 active values are not sourced. |
+| Floor damage roll | The Wiki states 10–20 per orange-tile tick but marks it “confirmation needed” | Inclusive support, weighting and whether concurrent hazards roll independently need hitsplat traces; uniform 10–20 is provisional. |
+| Normal stomp and off-prayer damage | Correct-prayer maxima are published; normal stomp is described only as very high | Current max 40 and tier maxima 40/32/26/20 are unsupported. Do not infer them by scaling corrupted values. |
+| Initial Hunllef protection | Protection is visible immediately and can be Melee/Ranged/Magic across encounters | The initial distribution and any dependence on mode/entry are unknown; uniform `random(3)` is only a hypothesis. |
+| Projectile impact timing | Projectile IDs and paths are client-visible | Exact server hit/prayer-wipe tick as a function of distance needs a trace; do not rely only on a guessed projectile-delay divisor. |
+| Boss/player/tornado placement fallback | Boss has a stable authored arena placement; tornadoes reject or alter some spawns | Exact entry tile, tornado obstruction rules and fallback choice need coordinate traces. |
+
+Search results also surfaced old guides claiming demi-bosses cannot appear in
+corner rooms. Those claims conflict with the current Wiki, current Plugin Hub
+constants and the July 2026 Jagex update; do not use them.
+
+### 13.5 Reproducible measurement protocol
+
+Use the current Plugin Hub Gauntlet Recorder rather than video timestamps. Its
+`gameTick` stream and raw instance coordinates are sufficient, but its repository
+does **not** publish the author's run logs; the documented “5–8 ticks” is a
+range, not the missing exact duration table.
+
+Check anonymised raw logs, the parser, derived CSV/JSON and game build/date into
+`tools/data/gauntlet_measurements/`. Preserve raw observations so future
+updates can be re-analysed. Required experiments:
+
+1. **Generation census:** in each run reveal all 47 non-start/boss rooms before
+   gathering or killing. Record mode, room index, archetype/rotation, every
+   resource and every NPC. Separate the four forced cardinal rooms and all
+   normal-mode guarantee overrides before estimating base distributions. Use
+   at least 10,000 complete runs per mode and publish multinomial counts plus
+   confidence intervals; a small convenience-route sample is selection-biased.
+2. **Prayer-disable roll:** classify projectile 1707/1708 as ordinary Magic
+   and 1713/1714 as prayer-disable. Exclude stomps and tornado replacements.
+   Record position in the four-attack cycle and attacks since each special.
+   Gather at least 10,000 eligible Magic attacks, test for forced spacing and
+   cycle-position dependence, then rationally reconstruct a denominator only
+   if those tests support an independent roll.
+3. **Tornado cadence/spawn:** for at least 10,000 waves, join the summon
+   animation/attack counter to every `NPC_SPAWN`, player tile, boss footprint,
+   HP and collision state. Test one-per-quadrant, exclusion of the player's
+   tile, distinctness, candidate-tile support, weighting and fallback order.
+4. **Floor timing/masks:** on every boss-room tick, normalise the 36150/36151 or
+   36047/36048 tiles to the 12×12 arena. Group by exact boss HP, measure every
+   warning→orange→base transition and assert the grid is one of the 19 masks in
+   §13.2. Continue until each mask and each speed band has repeated observations
+   in both modes.
+5. **Damage/impact:** record worn tier sum, active protection, cast tick,
+   projectile arrival, prayer delta and hitsplat. Deliberately sample normal
+   stomp/off-prayer hits across tier sums 0/3/6/9. A largest observed hit is a
+   lower bound, not proof of the ceiling; freeze a maximum only with exhaustive
+   roll evidence, a stable inferred support over a large sample and an explicit
+   confidence statement, or a first-party disclosure.
+6. **Initial protection:** record the Hunllef NPC form on the first boss-room
+   tick for a large set of fresh encounters, separately by mode and entry side.
+   Test uniformity and dependence before replacing `random(3)`.
+
+Until those artifacts exist, the residual rows in §13.4 are acceptance blockers
+for **literal** parity, though they do not block a clearly labelled playable
+approximation. “Feels like OSRS” is not an acceptance criterion.
 
 ---
 
@@ -875,8 +1040,9 @@ like OSRS” is not an acceptance criterion.
 
 Required deterministic fixtures:
 
-- 10,000 layout seeds per mode: connected graph, fixed start/boss adjacency,
-  guarantees satisfied, demi-bosses only on perimeter, legal rotations.
+- 10,000 layout seeds per mode: every legal orthogonal edge present, fixed
+  start/boss adjacency, guarantees satisfied, demi-bosses only on perimeter
+  and legal visual-room rotations.
 - Every resource node: exact action count, XP, 1/3 shard branch and depletion.
 - Every recipe: insufficient/exact/surplus ingredients, worn upgrades, full
   inventory, correct XP and points.

@@ -39,6 +39,8 @@ static int g_table_capacity;
 static struct Mock230DbRow* g_rows;
 static int g_row_count;
 static int g_row_capacity;
+/** Cleared by every insertion; see db_sort_rows. */
+static int g_rows_sorted;
 
 static void*
 db_grow(
@@ -256,22 +258,77 @@ mock230_db_row_count(int table_id)
     return count;
 }
 
+/*
+ * Row order within a table is *ascending row id*, not the order the rows were
+ * parsed in.
+ *
+ * This is not tidiness. `DB_LISTALL` hands content a positional cursor —
+ * `db_findbyindex(n)` is the n-th row of the table — and the cache states what
+ * that order is: every `dbindex/dbindex_<table>.dbi` carries a `[master]` block
+ * whose own header says "every row id in the table, which DB_FINDALL returns",
+ * and every one of them is written ascending. The client walks that index; the
+ * server was walking `configs/all.dbrow` in file order and getting the same
+ * answer only because the exporter happens to emit rows sorted.
+ *
+ * "Happens to" is doing real work in that sentence. Across this cache's 144
+ * indexed tables the two orders agree 143 times and disagree once — table 118
+ * `action`, where the file is missing a row the master block has, so every
+ * position from 1675 on is off by one. Any content that indexes by position
+ * against a client that indexes by master order reads a different row than the
+ * player clicked, silently, and only for rows past the divergence.
+ *
+ * `db_find` scans through here too, so its walk order is now the master order
+ * as well — which is what the reference means by scanning an index.
+ *
+ * Sorting is lazy rather than done at the end of load because there is no one
+ * end of load: `mock230_db_load` reads the cache's dbrows and
+ * `mock230_db_ensure_row` adds content-authored ones afterwards, and a content
+ * pack may be reloaded without the cache being.
+ */
+static int
+db_row_order(const void* a, const void* b)
+{
+    const struct Mock230DbRow* left = a;
+    const struct Mock230DbRow* right = b;
+
+    if( left->table_id != right->table_id )
+        return left->table_id < right->table_id ? -1 : 1;
+    if( left->row_id != right->row_id )
+        return left->row_id < right->row_id ? -1 : 1;
+    return 0;
+}
+
+static void
+db_sort_rows(void)
+{
+    if( g_rows_sorted || g_row_count <= 0 )
+        return;
+    assert(g_rows);
+    qsort(g_rows, (size_t)g_row_count, sizeof(*g_rows), db_row_order);
+    g_rows_sorted = 1;
+}
+
 const struct Mock230DbRow*
 mock230_db_row_in_table(
     int table_id,
     int index)
 {
-    int seen = 0;
-
     if( index < 0 )
         return NULL;
+    db_sort_rows();
+    /* Sorted by (table_id, row_id), so a table's rows are contiguous: find the
+     * first and index straight into it. The old linear-filter-per-call made a
+     * full `db_listall` walk quadratic, which for `action`'s 2174 rows is 4.7M
+     * comparisons to read the table once. */
     for( int i = 0; i < g_row_count; i++ )
     {
-        if( g_rows[i].table_id != table_id )
+        if( g_rows[i].table_id < table_id )
             continue;
-        if( seen == index )
-            return &g_rows[i];
-        seen++;
+        if( g_rows[i].table_id > table_id )
+            break;
+        if( i + index >= g_row_count || g_rows[i + index].table_id != table_id )
+            return NULL;
+        return &g_rows[i + index];
     }
     return NULL;
 }
@@ -490,6 +547,7 @@ load_dbrow_file(const char* path)
         if( header )
         {
             g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
+            g_rows_sorted = 0;
             row = &g_rows[g_row_count++];
             memset(row, 0, sizeof(*row));
             row->symbol = strdup(header);
@@ -713,6 +771,7 @@ mock230_db_free(void)
     g_rows = NULL;
     g_row_count = 0;
     g_row_capacity = 0;
+    g_rows_sorted = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -783,11 +842,14 @@ mock230_db_ensure_row(
         /* Authored rows win — do not overwrite. */
         if( has_values )
             return NULL;
+        /* A row changing table changes where it sorts, not just what it holds. */
+        g_rows_sorted = 0;
         row->table_id = table_id;
         return row;
     }
 
     g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
+    g_rows_sorted = 0;
     row = &g_rows[g_row_count++];
     memset(row, 0, sizeof(*row));
     row->symbol = strdup(symbol);

@@ -51,6 +51,7 @@ SCRIPT_GLOBS = (
     "server/scripts/skill_agility/scripts/wilderness_course.rs2",
     "server/scripts/skill_agility/scripts/shayzien_course.rs2",
     "server/scripts/skill_agility/scripts/shayzien_advanced.rs2",
+    "server/scripts/skill_agility/scripts/apeatoll_course.rs2",
     "server/scripts/skill_agility/configs/agility_marks.enum",
 )
 
