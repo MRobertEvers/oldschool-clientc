@@ -76,6 +76,20 @@ COURSES = {
         "Colossal_Wyrm_Agility_Course", 1202.4),
     "skill_agility/scripts/prif_course.rs2": (
         "Prifddinas_Agility_Course", 1285.2),
+    # 159 of obstacles, not the page's 2,750: this course pays per obstacle
+    # used rather than per lap, and the other 2,432 is Turgall's delivery,
+    # which is a hand-in rather than an obstacle. Both halves are in the file;
+    # only the obstacle half is a per-lap sum.
+    "skill_agility/scripts/dorgesh_course.rs2": (
+        "Dorgesh-Kaan_Agility_Course", 159.0),
+    # 206.8 = one of each obstacle, which is what this file contains. The
+    # wiki's 722 "per lap" is the whole spiral climb, where each obstacle type
+    # is used three or four times on the way up; the course pays per use, so a
+    # full climb earns the 722 without any trigger paying it. The doorway's
+    # bonus (300 + level x 8, capped at 1,000) is arithmetic rather than a
+    # literal and cannot be summed here either.
+    "skill_agility/scripts/pyramid_course.rs2": (
+        "Agility_Pyramid", 206.8),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is
@@ -83,6 +97,16 @@ COURSES = {
 # that goes missing in a port without being noticed.
 OFF_SKILL = {
     "skill_agility/scripts/barbarian_course.rs2": ("strength", 41.3),
+}
+
+# Experience a course pays that is NOT per-lap obstacle experience, and so is
+# not part of the total the wiki states per lap. Dorgesh-Kaan's delivery is the
+# only one: 2,432 for handing Turgall a part, which is a hand-in and can happen
+# without touching an obstacle at all.
+#
+#   file -> [xp_tenths_to_ignore]
+NOT_LAP_XP = {
+    "skill_agility/scripts/dorgesh_course.rs2": [24320],
 }
 
 # Obstacles that appear ONCE in the script but are run more than once per lap,
@@ -98,6 +122,8 @@ SHARED_TRIGGERS = {
     "skill_agility/scripts/werewolf_course.rs2": [(200, 3)],
     # Penguin's four icicle pillars share one trigger, 40 each.
     "skill_agility/scripts/penguin_course.rs2": [(400, 4)],
+    # Dorgesh-Kaan's route crosses a cable-walk and a cable-swing twice each.
+    "skill_agility/scripts/dorgesh_course.rs2": [(250, 2), (220, 2)],
 }
 
 # Every way a course script grants Agility experience. `~agility_force_move`
@@ -178,6 +204,16 @@ def main():
                 failures += 1
 
         tenths = course_xp_tenths(text)
+        for value in NOT_LAP_XP.get(rel, ()):
+            if ("stat_advance(agility, %d)" % value) not in text:
+                print(
+                    "agility_xp_audit: %s declares a non-lap award of %d tenths "
+                    "that the script no longer contains" % (rel, value),
+                    file=sys.stderr,
+                )
+                failures += 1
+                continue
+            tenths -= value
         for value, times in SHARED_TRIGGERS.get(rel, ()):
             if ("stat_advance(agility, %d)" % value) not in text:
                 print(

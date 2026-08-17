@@ -670,97 +670,118 @@ jetty footprint; charter out and back.
 
 ## 12. As built (2026-08-17)
 
-Phases 1, 2, 5 and 6 of §8 are done. Phases 3 and 4 are not, and §13 says why.
+Phases 1, 2, 3, 5 and 6 of §8 are done. Phase 4 — the voyage animation — is not,
+and §13 says why.
 
 **What a player can do now.** Right-click any of the seven trader parents at any
-of the sixteen ports: **Trade** opens Trader Stan's Trading Post, **Charter**
-opens a regional chat menu, and after one voyage **Charter-to \<port\>** repeats
-it in one click. Picking a destination quotes the wiki's fare, takes it in
-coins, and lands the player on that port's own jetty tile. Locked ports are
-refused in the crew's voice with the fare untouched; bedsheets, ectoplasm
-bedsheets and Crandor are refused too, and Karamjan rum is lost to a dice game
-mid-voyage as it is on the Karamja ferry.
+of the sixteen ports: **Trade** opens Trader Stan's Trading Post; **Charter**
+opens the cache's own picker — `sailing_menu`'s Gielinor map with a pin per
+destination, and `chartering_menu_side`'s scrollable list beside it — with the
+current port highlighted and every port a quest has not opened hidden; and after
+one voyage **Charter-to \<port\>** repeats the last route in one click. Clicking
+a pin quotes the wiki's fare, takes it in coins, and lands the player on that
+port's own jetty. Locked ports are refused with the fare untouched; bedsheets,
+ectoplasm bedsheets and Crandor are refused too, and Karamjan rum is lost to a
+dice game mid-voyage as it is on the Karamja ferry.
 
 **Files.** `OSRS-Content/osrs239-content/server/scripts/transport_charter/`
 (README, 7 configs, 6 scripts), `tools/gen_charter_tables.py`,
 `tools/check_charter_contract.py`, a `check-charter-contract` target wired into
-`mock230-scripts`, and a `mock230_world.c` selftest section. Two new selftest
-helpers, `selftest_count_obj` and `selftest_charter_choose` — the existing
-`selftest_click_through` always picks row 1, which drains a conversation but
-cannot navigate one four rows deep.
+`mock230-scripts`, and a `mock230_world.c` selftest section with four new
+helpers.
+
+**No engine change was needed, and that was the surprise.** The picker was
+parked in §13 of the first draft of this document on the grounds that the server
+had no `db_findall`/`db_getrow`. It does — under the RuneScript names
+`db_listall` and `db_findbyindex`, both implemented in `mock230_ops_db.c` and
+both already exposed to content. The original claim came from grepping for the
+CS2 spellings.
 
 **Verification, and what each layer actually proves.**
 
 | layer | result |
 |---|---|
-| `sscompile` | clean. Proven to be compiling these files, not skipping them: renaming `charter_fare:cost` to a typo failed at `charter_travel.rs2:22` and nowhere else |
+| `sscompile` | clean. Proven to be compiling these files: renaming `charter_fare:cost` to a typo failed at `charter_travel.rs2:22` and nowhere else |
 | `check_charter_contract.py` | ok, and mutation-proven — see the table below |
-| `mock230 --selftest` | section **"a charter ship takes a fare and sails"**, 7 assertions, all passing |
-| the rest of the suite | 47 failures with this work, 67 without it, and the 47 are a strict **subset** of the 67 — this change introduces none of them |
+| `mock230 --selftest` | section **"a charter ship takes a fare and sails"**, 9 assertions, all passing |
+| the rest of the suite | measured back-to-back on one tree: 57 failures without this work, 51 with it, and **nothing in the with-set that is not in the without-set** |
 
-The 47 are other features mid-flight (movement, QBD, zulrah, plunder, fightcave)
-and were failing before this branch touched anything. They are recorded here
-rather than tidied away because "the suite is green" would be false.
+The remaining failures are other features mid-flight (plunder, zulrah, chompybird,
+Inferno, movement) and were failing before this branch touched anything.
 
 **Mutation table.** A check that cannot fail proves nothing.
 
 | mutation | result |
 |---|---|
 | Catherby's `arrive` moved one tile | selftest: `FAIL the charter should land the player at Catherby's jetty (2792,3417), got 2792,3418` |
-| Catherby's `arrive` moved one tile | checker: `charter_port_catherby: arrive (2793,3417), cache port_coord (2792, 3417)` **and** the doc-agreement check fires too |
+| Catherby's `arrive` moved one tile | checker: `charter_port_catherby: arrive (2793,3417), cache port_coord (2792, 3417)`, plus the doc-agreement check |
 | one fare changed in one direction | checker: `Catherby -> Port Sarim is 1000 but the reverse is 999` |
 | `^regicide_complete` swapped for `^regicide_started` | checker: `^charter_tyras gate does not test ^regicide_complete` |
-| a resolved leaf spawned instead of the parent | checker: `charter.spawn spawns 'sailing_transport_trader_stan_crew_man1_piscarilius', which is a resolved leaf` |
+| a resolved leaf spawned instead of the parent | checker: `charter.spawn spawns '..._crew_man1_piscarilius', which is a resolved leaf` |
+| picker stops reading the row from the cache table | checker: `charter_map.rs2 walks the cache table — 'db_listall(chartering_destinations)' is gone` |
+| crew speech put back on an `[if_button1]` path | checker: `charter_port.rs2 calls ~chatnpc_anim on a path an [if_button1] can reach — NPC_TYPE aborts there` |
 
-**The bug the selftest caught that a clean compile did not.** The first run
-failed on every assertion, and the direct trigger probe named it exactly:
-`npc 1328 should have an [opnpc4]`. The cause turned out to be the harness, not
-the content — `mock230 --selftest` ignores `MOCK230_SCRIPTS` and loads
-`server/scripts/build` unconditionally, so it was running against a script pack
-that predated this feature. Worth knowing before anyone debugs content against
-that suite: **check `strings script.dat | grep -c <your feature>` before
-believing a selftest failure.**
+**Four bugs the runtime caught that a clean compile did not:**
 
-**Two traps found by building this, both now in the README:**
+1. **`[opnpc4]` was unbound.** The first selftest run failed everything, and the
+   direct trigger probe named it: `npc 1328 should have an [opnpc4]`. The cause
+   was the harness — `mock230 --selftest` ignores `MOCK230_SCRIPTS` and loads
+   `server/scripts/build` unconditionally, so it was running a pack that
+   predated the feature. **Check `strings script.dat | grep -c <feature>` before
+   believing a selftest failure.**
+2. **Speech aborts inside an interface trigger.** Moving the refusal from
+   `[opnpc4]` to `[if_button1]` made `~chatnpc_anim` fail with *"NPC_TYPE
+   requires an active entity the script does not have"*, taking the refusal with
+   it — the click looked like it did nothing. Every line on a path a pin click
+   can reach is a `~mesbox` now, and the checker enforces it.
+3. **The section left the player at Port Sarim.** A charter is a cross-region
+   teleport; the sections after it are written against Lumbridge, and three of
+   their assertions failed with nothing in the message to suggest a ship. It
+   restores the entry tile now.
+4. **The section shifted the shared RNG.** Ticking a voyage walks every npc in
+   two scenes, which moved a later wander-radius check off its spawn. It saves
+   and restores `srv->rng` — strictly better than the canoe section's
+   pin-and-leave.
 
-- The compiler will not take a comparison anywhere but an `if` head.
-  `return(%regicide_quest >= ^regicide_complete)` is a syntax error, which is
+**Two language and one map trap, all now in the README:**
+
+- The compiler will not take a comparison anywhere but an `if` head, which is
   why `~charter_port_unlocked` is an if-chain and not a `switch_int` of returns.
 - A jetty is level-1 geometry with `LINK_BELOW` over a `BLOCK`ed level-0 water
   tile, so reading settings bit 0 alone calls every dock in the game solid. The
-  first version of the spawn-tile probe did exactly that and disagreed with the
-  eleven ports whose traders were already standing on those tiles.
+  first spawn-tile probe did exactly that and disagreed with eleven ports whose
+  traders were already standing on those tiles.
 
 ## 13. Still open
 
-**Phase 3, the cache picker, is blocked on a measurement — deliberately.** The
-server has no `db_findall`/`db_getrow` (only `db_find`/`db_findnext`), so the
-row order that clientscript 8940 walks has to be reproduced rather than queried.
-Reproducing it wrongly does not fail loudly: it sails the player to a different
-port than the pin they clicked, which is worse than the chat menu it would
-replace. §5.1 has the sub-id arithmetic; what is missing is a headless
-confirmation of which `db_findall` index each pin's sub-id actually carries.
+**Phase 4, the voyage animation.** The wiki's Gielinor map with a ship crossing
+it is not implemented; the voyage is a narrated hop. §5.3 has the measurement
+that has to come first: `ship_journey` (299) cannot draw fourteen of the sixteen
+ports, and whether `sailing_menu`'s model 50089 is the whole-Gielinor plate is
+unmeasured. It needs the live client under `SDL_VIDEODRIVER=dummy`, which needs
+a tree that builds — `make -C src mock230-scripts` currently fails in other
+features before it reaches this one.
 
-**Phase 4, the voyage animation, is blocked on the same kind of measurement** —
-§5.3. `ship_journey` (299) cannot draw fourteen of the sixteen ports, and
-whether `sailing_menu`'s model 50089 is the whole-Gielinor plate is unmeasured.
-The narrated hop stands until then, and the fare and the arrival are already
-real either way.
-
-Both need the live client under `SDL_VIDEODRIVER=dummy` with `TORIRS_BMP_SERIES`,
-which needs a tree that builds — `make -C src mock230-scripts` currently fails
-in other features (`check-quest-combat-manifest` stale, zulrah, canoe_station)
-before it reaches this one.
-
-**Not verified:** the ten new spawn tiles are checked for terrain walkability and
-for falling inside their port's `inzone` box, but **not** for loc occupancy — a
-crate already standing on the tile would only show in the built scene. That is
-the walk-to-each-port half of Phase 5 and it has not been done.
+**Not verified:** the ten new spawn tiles are checked for terrain walkability
+and for falling inside their port's `inzone` box, but **not** for loc occupancy
+— a crate already on the tile would only show in the built scene.
 
 **Not resolved:** the `port_coord` plane-nibble bias (§3.1). The generator
 asserts the bias is a uniform `1` across every port it emits and refuses to
 guess for any row where it is not, which makes the assumption loud rather than
 correct.
+
+**Found and deliberately not fixed here: `db_listall` returns rows in file
+order, not the cache's documented `[master]` order.** `mock230_db_row_in_table`
+walks `configs/all.dbrow` as parsed; the cache says `DB_FINDALL` returns
+ascending row id. Across this cache's 144 indexed tables the two agree 143 times
+— including table 206, which is why the picker is correct — and disagree once,
+on table 118 `action`, where every position from index 1675 on is off by one.
+Sorting the store by `(table_id, row_id)` fixes it and also fixes the suite's own
+`db_find(quest:id, 1) should resolve a row`, but it shifts which row 30-odd other
+sections read and destabilises 38 unrelated assertions that turn out to depend on
+the current order. That is a change worth making on its own, with its own
+verification pass, and not one to smuggle in behind a content feature.
 
 ## 14. Deliberately not done
 

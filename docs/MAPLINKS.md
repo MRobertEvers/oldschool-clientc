@@ -508,8 +508,10 @@ the standalone portal/lever files, and Agility shortcuts are now covered
   this list got wrong. Sixteen ports, the wiki's fare matrix, and Trader Stan's
   Trading Post at each. `charter_ships.tsv` is used for the destination tiles
   and quest gates only: it disagrees with the wiki on cost and the wiki wins.
-  Full record in `docs/transport/CHARTER_SHIPS.md`; the map picker and the
-  voyage animation are still open there.
+  The picker is the cache's own — interfaces 72 + 885, decoded back to a
+  destination with `db_listall`/`db_findbyindex`, which is what this list
+  assumed did not exist. Full record in `docs/transport/CHARTER_SHIPS.md`; only
+  the voyage animation is still open there.
 - **POH jewellery boxes and portals, Leagues seasonal transports, minigame
   grouping teleports.** No player-owned house, no Leagues mode, no grouping
   interface in this tree — out of scope, not deferred.

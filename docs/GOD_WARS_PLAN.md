@@ -246,6 +246,26 @@ by the existence of code. As of the audit date, the repository now has:
   Prison warning graphic/five locs/delayed hit. This uncovered and fixed the engine queue's stale
   four-integer ceiling: Nex and the Ancient Prison mage legitimately carry five
   landing arguments, so the fixed-size queue now provides eight slots.
+- [x] The focused VM now crosses the queue boundary for every Nex delayed
+  effect rather than stopping at launch: Smoke poison, Blood healing, Ice
+  freeze, Zaros prayer drain/Soul Split healing, Shadow drain, all four mage
+  landings, cough prayer/stat drain and re-arm, Shadow Smash, Darkness damage
+  and re-arm, Blood Sacrifice damage-to-heal transfer, and the armed Ice Prison
+  3x3 hit. Exact damage/drain values, impact spotanimations, effect queue
+  severities, relational healing, and random damage bounds are asserted. The
+  same landing matrix covers the Ancient Prison warrior Smoke tile, ranger
+  prayer-disabling five-tick bind, and the spiritual mage's accurate
+  Smoke/Shadow/Blood/Ice effects and impact sounds.
+- [x] A landing-heal fixture exposed a substantive stat import gap: revision-239
+  stores Nex-family combat levels as cache `stat1..stat6`, but the server's
+  generic NPC overlay does not consume those client fields. Nex and her three
+  overhead/spawn forms had therefore inherited 10 HP, while the phase mages
+  and Ancient Prison soldiers also lacked their exact runtime stats. The area
+  overlay now states all 13 records' HP/Attack/Strength/Defence/Magic/Ranged,
+  defence bonuses, and 4/5-tick rates explicitly, with a full runtime matrix
+  pinning them. Nex's selector is additionally driven across opening Choke,
+  ordinary attack four, mandatory special attack five, and the exact
+  three-swing melee chain; the final-phase cooldown is pinned at four ticks.
 - [x] Zaros-phase state tests drive attack counts 4/8/12 through the actual
   overhead updater and observe Deflect Melee, no overhead, then Soul Split.
   The hit-preparation funnel reflects half of a melee hit while Deflect is
@@ -296,7 +316,7 @@ fixed defence roll need primary-source evidence; private-room and
 high-player-count teardown now have an owner but still require runtime soak
 validation; the engine does not yet expose Friends Chat membership/instance
 ownership needed for friends to join a host's private Nex room; and the
-statistical, tick-trace, relog/restart, and multiplayer matrix at the end of
+client/video replay, relog/restart, and multiplayer soak matrix at the end of
 this plan must still be executed. These are intentionally left unchecked below.
 
 ## Audit-start repository baseline and known gaps
@@ -668,9 +688,10 @@ forced_move, secondary_effect, prayer_rule, player_or_npc_target`.
   projectile/landing timing without making production combat noisy.
 - [x] Extend synchronous launch traces to every Nex auto, all eight pre-Zaros
   special branches, and every Ancient Prison attack/spell path.
-- [ ] Advance every Nex delayed queue and record damage/effect tick plus final
-  cooldown; retain deterministic replay artifacts suitable for client/video
-  comparison.
+- [x] Advance every Nex delayed queue in the deterministic real-VM lane and
+  assert damage/effect state plus the four-tick final cooldown.
+- [ ] Retain client/video replay artifacts for the verified launch, landing,
+  effect, and cooldown traces.
 
 ## Implementation sequence
 

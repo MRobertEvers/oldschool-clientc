@@ -128,9 +128,7 @@ obstacles —
 
 | slice | what actually has to be built |
 |---|---|
-| A17 Dorgesh-Kaan | six-part retrieval + Turgall delivery (88% of its XP) |
 | A11 Brimhaven Arena | 24-dispenser rotation, tickets, vouchers, shop, a whole minigame |
-| A10 Agility Pyramid | 575-line port, rolling-block NPC, desert heat, pyramid top |
 | A21 Hallowed Sepulchre | five floors, timed, statue hazards, coffins, five skill challenges, reward shop |
 | A18/A9 partials | Kourend recolour state; the Wilderness dispenser's loot subsystem |
 
@@ -152,6 +150,8 @@ obstacles —
 | A19 Colossal Wyrm | **done** for both routes — `wyrm_course.rs2`, 601.6 basic and 1,053.6 advanced, termite scoops (8-10 basic, 12-21 advanced) and the 80%/22-38 blessed bone shards. The zip line is one loc paying two values, 341.2 or 662, decided by which lap the tracker has in progress. Worm Tongue's shop is the remainder — a termite sink, and its recolour needs the same graceful state A18 waits on |
 | A20 Prifddinas | **done** for the route — `prif_course.rs2`, all twelve obstacles, 1,285.2 a lap. Each landing is the nearest standable tile beside the NEXT obstacle, so the chain is self-consistent by construction. The six random portals (82 XP and a crystal shard each, the course's whole shard income) are a per-lap spawn mechanic and remain |
 | A11 Brimhaven rewards | **partial** — `agilityarena_rewards.rs2` turns two "isn't open for business yet" stubs into the real thing: tickets exchange at 345 XP (379.5 wearing Karamja gloves, which this cache calls `atjun_gloves_easy..elite`), vouchers buy toadflax/snapdragon/amylase/pirate's hook at published prices, and Cap'n Izzy sells the Agility cape at 99. The arena itself — 25 pillars, the minute rotation, the streak rule, fourteen obstacles — is the ~800-line LostCity port and remains |
+| A17 Dorgesh-Kaan | **partial** — `dorgesh_course.rs2`, all six obstacle types (159 XP, paid per use rather than per lap, which is this course's actual rule) plus Turgall's 2,432 delivery for any of the five power-station parts. Where the parts come from — found in the caves, heavy ones required back by this route and delicate ones by the grapple route — needs the grapple route modelled alongside and remains |
+| A10 Agility Pyramid | **partial** — `pyramid_course.rs2`, all nine obstacle types across both coordinate families the pyramid occupies, paying per use (a lap climbs each type three or four times, which is how the published 722 accumulates). The doorway pays the wiki's own `300 + level x 8` capped at 1,000. Failure damage is documented but not rolled — no published rates, and not rolling means no fall destinations had to be invented. The pyramid top (10,000 gp from Simon Templeton) and desert heat remain |
 | A12 Yanille dungeon | **done** — the dungeon was already ported except its monkey bars (57, 20 XP), which are now in `areas/area_yanille/scripts/agility_dungeon.rs2`; that file's ledge roll moved onto the shared curve |
 | A18 Grace's shop | **partial** — `grace.rs2` exchanges marks for all six graceful pieces and amylase packs at the published prices. The recolours are deferred: each is gated behind its own Kourend quest and there is no recolour state to hang them on |
 | A6 Pollnivneach rooftop | **done** — `rooftop_pollnivneach.rs2`, the ninth rooftop, 890 XP a lap. No corpus has this course, so every landing tile is derived from the cache's own collision map and checked standable by the new `make -C src walkable-probe`; the hard-Desert-diary variant and the market stall's failure curve are deferred for want of published data |

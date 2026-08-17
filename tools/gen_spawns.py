@@ -122,6 +122,29 @@ NPC_SPAWN_EXCLUSIONS = {
     # Priest in Peril's Temple Guardian has been instanced since 2017. The
     # quest zone creates one owner-private actor for each eligible player.
     ("priestperilguarddog", 3405, 9902, 0),
+    # Underground Pass encounter actors are recreated owner-privately by the
+    # quest controller. Keep the pinned dump's scenery/public copies out.
+    ("upass_paladin1", 2424, 9721, 0),
+    ("upass_paladin2", 2422, 9718, 0),
+    ("upass_paladin3", 2426, 9718, 0),
+    ("kalrag", 2356, 9911, 0),
+    ("othainian", 2122, 4562, 1),
+    ("holthion", 2132, 4554, 1),
+    ("doomion", 2134, 4565, 1),
+    ("iban", 2133, 4647, 1),
+    ("ibanmonk", 2149, 4646, 1),
+    ("ibanmonk", 2150, 4648, 1),
+    ("ibanmonk", 2153, 4646, 1),
+    ("ibanmonk", 2153, 4649, 1),
+    ("ibanmonk", 2156, 4646, 1),
+    ("ibanmonk", 2157, 4649, 1),
+    ("ibanmonk", 2159, 4635, 1),
+    ("ibanmonk", 2159, 4642, 1),
+    ("ibanmonk", 2159, 4646, 1),
+    ("ibanmonk", 2159, 4650, 1),
+    ("ibanmonk", 2160, 4662, 1),
+    ("ibanmonk", 2163, 4653, 1),
+    ("ibanmonk", 2163, 4660, 1),
     # Regicide creates the trail-blocking Tyras guard privately at the exact
     # dense-forest crossing. These dump rows are occupants of the later tent
     # cutscene map and must not become public quest-credit targets.
@@ -234,6 +257,11 @@ def main():
         key = ("npc", name, row["x"], row["y"], level)
         if (name, row["x"], row["y"], level) in NPC_SPAWN_EXCLUSIONS:
             reject["npc: scripted owner-private encounter actor"] += 1
+            # Preserve an empty generated file when every row on a shipped map
+            # square is intentionally excluded. Contract checks use the file
+            # as the authoritative statement that the square has no public
+            # encounter actors.
+            kept[square]
             continue
         if key in seen:
             reject["npc: duplicate"] += 1

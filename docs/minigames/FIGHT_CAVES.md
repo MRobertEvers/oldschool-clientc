@@ -601,31 +601,45 @@ and puts the four healers on instance-local corners.
 
 ### Verification status at the time this landed
 
-Run and passing:
+All of the following was run:
 
-- Every file here **compiles** (`sscompile` clean, twice — once on the live tree
-  and once in an isolated worktree carrying only these changes).
+- Every file here **compiles** (`sscompile` clean, on the live tree and again in
+  an isolated worktree carrying only these changes).
 - The content tree **loads with zero errors from any Fight Caves file**, and no
   Fight Caves script aborts at runtime.
-- The C stanza's existing Jad and Yt-HurKot assertions **all pass with the cave
-  instanced**, which is the end-to-end check that `::fightcave 63` allocates a
-  reservation, stands Jad up inside it, and puts four healers on instance-local
-  corners.
+- **`::fightcavetest` passes all three groups**, stably across repeated runs.
+- The C stanza's existing Jad and Yt-HurKot assertions **all still pass with the
+  cave instanced**, which is the end-to-end check that `::fightcave 63` allocates
+  a reservation, stands Jad up inside it, and puts four healers on
+  instance-local corners.
 
-**Not yet run: `::fightcavetest` itself.** It is written, compiled and wired into
-the headless suite, but at the time of writing the shared content tree does not
-reach a clean build — several other features are mid-edit (an undeclared
-`%chompy_baiter`, among others) and `server/scripts/build` is being written by
-more than one build at once. Run it as soon as the tree is green:
+**Every group was proved able to fail**, per `docs/LOSTCITY_PORT_TRIAGE.md`
+§10.3 — a fixture that has never failed has not been tested:
+
+| Mutation | Expected | Observed |
+|---|---|---|
+| `^fightcave_cycle_3` NW → SE | rotations | mask 1 |
+| `^fightcave_tokkul_jad_bonus` 4000 → 4001 | tokkul | mask 2 |
+| Ket-Zek `hitpoints` 160 → 150 | records | mask 4 |
+
+All three were restored and the clean run re-confirmed.
+
+One trap worth recording for anyone re-running this: `server/scripts/build` is a
+**shared output directory** and more than one build can be writing it. A pack
+that looks stale — or a `::fightcavetest` that "should run" and does not — is
+usually somebody else's build, or a partially written `script.dat` read before
+its compiler finished. Build with `--out <own dir>` and run with
+`MOCK230_SCRIPTS=<own dir>`, and confirm provenance with
+`strings script.dat | grep fightcavetest`.
 
 ```sh
 make -C src mock230-scripts && make -C src mock230
 MOCK230_REV=osrs239 src/build_opt/mock230 --selftest 2>&1 | grep -i fightcavetest
 ```
 
-Expected: no output (the suite prints only failures). A verdict of `-1` means the
-fixture aborted before reporting; run `::fightcavetest` in a client for the
-per-check lines.
+Expected: no output — the suite prints only failures. A verdict is a bitmask:
+1 = rotations, 2 = tokkul, 4 = records; `-1` means the fixture aborted before
+reporting. Run `::fightcavetest` in a client for the per-check lines.
 
 ### What is covered now
 

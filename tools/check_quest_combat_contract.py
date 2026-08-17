@@ -128,6 +128,13 @@ PIP_COFFIN = CONTENT / "quests/quest_priestperil/scripts/vampire_coffin.rs2"
 PIP_TEMPLE_DOORS = CONTENT / "quests/quest_priestperil/scripts/temple_doors.rs2"
 PIP_GATES = CONTENT / "areas/area_mausoleum/scripts/gates.rs2"
 PIP_KING = CONTENT / "areas/varrock/scripts/king_roald.rs2"
+REG_ROUTE = CONTENT / "quests/quest_regicide/scripts/regicide_route.rs2"
+REG_TRAPS = CONTENT / "quests/quest_regicide/scripts/regicide_traps.rs2"
+REG_GUARD = CONTENT / "quests/quest_regicide/scripts/regicide_tyras_guard.rs2"
+REG_DROP = CONTENT / "drop_tables/scripts/wiki_tyras_guard.rs2"
+REG_BOMB = CONTENT / "quests/quest_regicide/scripts/regicide_bombcraft.rs2"
+REG_STILL = CONTENT / "quests/quest_regicide/scripts/regicide_fractionalising_still.rs2"
+REG_KING = CONTENT / "areas/area_ardougne_east/scripts/king_lathas.rs2"
 PIP_MYREQUE_WELL = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_rod.rs2"
 PIP_WORLD_SPAWN = CONTENT / "areas/world/configs/m53_154.spawn"
 PIP_VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
@@ -264,6 +271,12 @@ def check_manifest() -> None:
             "Priest in Peril: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(priest[0][key]), f"Priest in Peril: empty evidence field {key}")
+    regicide = [row for row in rows if row["id"] == "quest-regicide"]
+    require(len(regicide) == 1, "manifest: expected exactly one Regicide row")
+    require(regicide[0]["implementation_status"] == "implementation-in-progress",
+            "Regicide: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(regicide[0][key]), f"Regicide: empty evidence field {key}")
 
 
 def check_delrith() -> None:

@@ -1774,6 +1774,13 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
   money; destination ids/arrival tiles/zone boxes come from cache dbtable 206.
   Suite: 47 failures with this work vs 67 without, a strict subset — no new
   ones. Record: docs/transport/CHARTER_SHIPS.md §12.
-- next pending: charter phases 3+4 (cache map picker 72+885, voyage animation)
-  — both blocked on a headless measurement, see CHARTER_SHIPS.md §13
-
+- slice 36b done: charter phase 3 — the cache picker. `charter_map.rs2` opens
+  sailing_menu (72) + chartering_menu_side (885), arms both containers and
+  decodes the pin sub-id back to a destination with db_listall/db_findbyindex.
+  NO engine change was needed: the ops exist under those RuneScript names; the
+  earlier "blocked" note came from grepping the CS2 spellings db_findall/
+  db_getrow. The chat-menu scaffolding is deleted. Suite measured back-to-back
+  on one tree: 57 failures without, 51 with, no new ones.
+- next pending: charter phase 4 (voyage animation) — needs the live client, see
+  CHARTER_SHIPS.md §13. Also open there: db_listall walks all.dbrow file order
+  rather than the cache's documented [master] order (144 tables, 1 disagrees).

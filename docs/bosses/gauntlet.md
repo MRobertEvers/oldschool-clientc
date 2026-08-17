@@ -588,9 +588,9 @@ homing projectile or an A* pursuit of the player's queued destination. Two
 specialist demonstrations expose the actual chase semantics. CaptBartlett's
 [controlled player-path demonstration](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=20s)
 shows that tornadoes use the same direct walk-to-tile geometry as a player and
-[continually click the player's tile rather than predicting it](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=81s).
+[continually click the player's tile rather than predicting it](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=103s).
 Bad OSRS's tick-by-tick
-[Tornado Class](https://www.youtube.com/watch?v=XAq5fRFUOPk&t=55s)
+[Tornado Class](https://www.youtube.com/watch?v=XAq5fRFUOPk&t=106s)
 independently demonstrates that each tornado continues toward the tile occupied
 on the preceding resolution while the player runs away. Implement this order:
 
@@ -605,13 +605,27 @@ on the preceding resolution while the player runs away. Implement this order:
    tick. Crossing in opposite directions and a tornado occupying the skipped
    middle tile of a two-tile run are not contact.
 
+Lock that order down with these unobstructed-arena fixtures. `P0`/`T0` are the
+positions at the start of the tick, `P1`/`T1` are the resolved positions, and
+the tornado always targets `P0`:
+
+| Case | Start and player movement | Expected tornado result | Damage |
+|---|---|---|---|
+| Diagonal then cardinal route | `P0=(5,5)` stays; `T0=(2,1)` | `T1=(3,2)`; repeated steps are `(4,3)`, `(5,4)`, `(5,5)` | only on the final coincidence |
+| No destination interception | `P0=(5,5)` runs east to `P1=(7,5)`; `T0=(5,2)` | `T1=(5,3)`, north toward `P0`, **not** north-east toward `P1` | no |
+| Adjacent cross-through | `P0=(5,5)` runs east over `T0=(6,5)` to `P1=(7,5)` | `T1=(5,5)` | no |
+| Three-tile convergence | `P0=(5,5)` runs east to `P1=(7,5)`; `T0=(8,5)` | `T1=(7,5)` | yes |
+| Perpetual two-tile walk | alternate player `(5,5)↔(6,5)` while the tornado starts on the other tile | player and tornado swap endpoints every tick | never |
+
 The last rule is shown directly in Molgoatkirby's
 [same-tile explanation and two-tile loop](https://www.youtube.com/watch?v=X936zH1VUO8&t=1780s)
-and is why a player can run through an adjacent tornado. Add golden coordinate
-traces for a stationary diagonal target, a moving cardinal target, a 90-degree
-turn, stacked tornadoes, an adjacent cross-through and a skipped-middle-tile
-run. A generic `npc_walk(player_coord)` is acceptable only if those traces pass;
-ordinary collision-aware NPC chase code is not the specification.
+and is why a player can run through an adjacent tornado. A 2020 community
+[before/after tile analysis](https://www.reddit.com/r/2007scape/comments/hw6int/the_gauntlet_tornadoes/)
+independently predicts the same safe one- and two-tile separations and damaging
+three-tile convergence. Add further golden traces for a 90-degree turn and
+stacked tornadoes. A generic `npc_walk(player_coord)` is acceptable only if
+these traces pass; ordinary collision-aware NPC chase code is not the
+specification.
 
 The strongest public spawn-location evidence is the community
 [Gauntlet Safe Tiles observation](https://www.reddit.com/r/2007scape/comments/r1gvfp/gauntlet_safe_tiles/):
@@ -1001,7 +1015,7 @@ Implementation consequences:
 | First attack/style counter | First attack Ranged; switch every fourth qualifying attack; prayer-disable/tornado count, stomp does not | Hunllef Wiki pages, Mod Curse's reply above and observable client attack counters. |
 | Corrupted hidden damage | Stomp max 68 typeless; off-prayer maxima 68/55/45/35 at tier sums 0/3/6/9 | [Corrupted Hunllef](https://oldschool.runescape.wiki/w/Corrupted_Hunllef). |
 | Floor loc states | Normal base/warn/damage 36149/36150/36151; corrupted 36046/36047/36048 | Recorder [IDs and observed transitions](https://github.com/lsmith090/gauntlet-recorder/blob/4647c8397508d76388772d72d4a94eee2260f6f6/src/main/java/com/gauntletrecorder/GauntletIds.java#L19-L34). |
-| Tornado chase and collision | **High confidence, implement now:** one direct walking step per tick toward the player's preceding resolved tile; no interception; tornadoes may stack; damage requires same-tile occupancy on the same tick, so cross-through and run-skipped tiles are safe | The three timestamped video experiments in §8.5 agree, and the Wiki independently fixes speed/lifetime/contact at one tile per tick, 20 ticks and same-tile damage. Replace generic combat-NPC pursuit with the explicit tick order and golden traces in §8.5. |
+| Tornado chase and collision | **High confidence, implement now:** one direct walking step per tick toward the player's preceding resolved tile; no interception; tornadoes may stack; damage requires same-tile occupancy on the same tick, so cross-through and run-skipped tiles are safe | The three timestamped video experiments and community tile trace in §8.5 agree. The Wiki independently confirms 20-tick lifetime and same-tile-per-tick contact damage, but does not document the route algorithm. Replace generic combat-NPC pursuit with the explicit tick order and coordinate fixtures in §8.5. |
 | Current demi-boss species bias | **High-confidence observation, exact generator still inferred:** patch-day full laps repeatedly report ten perimeter demis in a fixed 4 bear / 3 dragon / 3 dark-beast population. In the four guaranteed cardinal rooms, a 150-run sample found 90 bears, 36 dark beasts and 24 dragons, and a Wiki crowdsource check found 1,438 bears, 750 dragons and 782 dark beasts--both close to a 2:1:1 bear/dragon/beast mix | [Dataset and Wiki-admin crowdsource comment](https://www.reddit.com/r/2007scape/comments/1vh5a00/the_corrupted_gauntlet_demiboss_spawn_rates/) plus Gnomonkey's patch guide stating that [extra bears were deliberately made more common](https://www.youtube.com/watch?v=CA6-2CqM_NQ&t=1323s). Model a shuffled four-cardinal multiset of 2/1/1 and two additional copies of each species only behind a parity flag until a full-room trace confirms that allocation; do not use uniform independent species rolls. |
 | Normal unarmoured base/stomp ceiling | **High-confidence derivation: 50.** Crystalline Hunllef has Strength 240 and +64 Strength bonus. The standard NPC effective level of 249 in the [published max-hit formula](https://oldschool.runescape.wiki/w/Strength_max_hit) gives `floor(0.5 + 249 × (64 + 64) / 640) = 50`. The same calculation gives 68 for Corrupted Hunllef (240, +112), exactly matching its published stomp/base maximum | The current normal value 40 is wrong. Use 50 for the unmitigated base roll and stomp, guarded by a regression that also derives corrupted 68. The normal armour-reduced off-prayer rows remain unresolved. Historical [Crystalline Hunllef revision 14321183](https://oldschool.runescape.wiki/w/Crystalline_Hunllef?oldid=14321183) also listed 50 before an unsourced edit changed it to `50+`. |
 | Initial Hunllef protection behaviour | **Exact behaviour, weights unproved:** Hunllef spawns protecting from a random one of Melee, Ranged or Magic | The Wiki's [Protection prayers table](https://oldschool.runescape.wiki/w/Protection_prayers) is explicit. Keep all three outcomes and immediate pre-entry visibility; retain uniform `random(3)` as a labelled distribution hypothesis rather than calling the whole mechanic unknown. |

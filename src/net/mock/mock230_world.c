@@ -16093,6 +16093,177 @@ mock230_world_selftest(void)
                             srv->npcs[boss].hitpoints - npc_hp_before,
                             player->stat_boosted[MOCK230_STAT_PRAYER]);
                     }
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->hitmark_count = 0;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    land_args[0] = 1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,nex_special_ice]", boss,
+                            land_args, 1),
+                        "Nex Ice Prison arms its live loc formation");
+                    land_args[0] = mock230_coord_pack(
+                        player->level, player->x, player->z);
+                    land_args[1] = source;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,nex_ice_prison_land]", boss,
+                            land_args, 2) && player->hitmark_count == 1 &&
+                            player->hitpoints >= 24 && player->hitpoints <= 99,
+                        "Nex Ice Prison hits every player still in the armed "
+                        "3x3 for 0..75 (hp %d)", player->hitpoints);
+                    srv->npcs[boss].active = 0;
+                }
+                memset(player->queue, 0, sizeof(player->queue));
+            }
+
+            /* stat1..stat6 live in the client cache but are not generic NPC
+             * overlay fields. Pin the authored revision-239 values here: a
+             * missing area overlay otherwise silently creates a 10-HP Nex. */
+            {
+                static const struct
+                {
+                    const char* npc;
+                    int hp, attack, strength, defence, magic, ranged, rate;
+                } nex_stats[] = {
+                    { "nex", 3400, 315, 260, 200, 230, 350, 4 },
+                    { "nex_spawning", 3400, 315, 260, 200, 230, 350, 4 },
+                    { "nex_soulsplit", 3400, 315, 260, 200, 230, 350, 4 },
+                    { "nex_deflect", 3400, 315, 260, 200, 230, 350, 4 },
+                    { "nex_smokemage", 500, 1, 200, 1, 200, 0, 5 },
+                    { "nex_shadowmage", 500, 1, 200, 1, 200, 0, 5 },
+                    { "nex_bloodmage", 500, 1, 200, 1, 200, 0, 5 },
+                    { "nex_icemage", 500, 1, 200, 1, 200, 0, 5 },
+                    { "nex_prison_warrior", 100, 190, 100, 190, 50, 0, 5 },
+                    { "nex_prison_ranger", 110, 1, 100, 1, 100, 190, 5 },
+                    { "nex_prison_mage", 125, 1, 100, 1, 200, 0, 5 },
+                    { "nex_prison_blood_reaver", 125, 1, 100, 1, 190, 0, 5 },
+                    { "nex_prison_blood_reaver_boss", 150, 1, 100, 1, 190, 0, 5 },
+                };
+
+                for( size_t i = 0;
+                     i < sizeof(nex_stats) / sizeof(nex_stats[0]); i++ )
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, nex_stats[i].npc);
+                    const struct Mock230NpcDef* def =
+                        npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+
+                    SELFTEST_CHECK(def != NULL, "%s has a runtime NPC record",
+                                   nex_stats[i].npc);
+                    if( !def )
+                        continue;
+                    SELFTEST_CHECK(
+                        def->hitpoints == nex_stats[i].hp &&
+                            def->attack == nex_stats[i].attack &&
+                            def->strength == nex_stats[i].strength &&
+                            def->defence == nex_stats[i].defence &&
+                            def->magic == nex_stats[i].magic &&
+                            def->ranged == nex_stats[i].ranged &&
+                            def->attackrate == nex_stats[i].rate,
+                        "%s runtime hp/att/str/def/mage/range/rate is "
+                        "%d/%d/%d/%d/%d/%d/%d (got %d/%d/%d/%d/%d/%d/%d)",
+                        nex_stats[i].npc, nex_stats[i].hp, nex_stats[i].attack,
+                        nex_stats[i].strength, nex_stats[i].defence,
+                        nex_stats[i].magic, nex_stats[i].ranged,
+                        nex_stats[i].rate, def->hitpoints, def->attack,
+                        def->strength, def->defence, def->magic, def->ranged,
+                        def->attackrate);
+                }
+            }
+
+            /* Drive the real selector at its cadence boundaries. Smoke opens
+             * with Choke; pre-Zaros attack five is a special; an adjacent
+             * ordinary choice becomes exactly three melee swings; and Nex's
+             * final-phase engine cooldown remains the cache-authored 4 ticks. */
+            {
+                const struct SSVM_Script* cough = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_cough_tick]");
+                const struct SSVM_Script* magic_land = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_magic_land]");
+                const struct SSVM_Script* shadow_land = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_shadow_land]");
+                const struct SSVM_Script* shadow_smash = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_shadow_smash_land]");
+                const struct SSVM_Script* darkness = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_darkness_tick]");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+
+                SELFTEST_CHECK(boss >= 0, "Nex spawns for cadence boundaries");
+                if( boss >= 0 )
+                {
+                    srv->npcs[boss].spawn_pending = 0;
+                    mock230_scripts_run_proc_on_npc(
+                        srv, "[proc,nex_initialize_actor]", boss);
+                    player->x = srv->npcs[boss].x + 5;
+                    player->z = srv->npcs[boss].z;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_attack_turn]", boss) &&
+                            srv->npcs[boss].script_vars[2] == 1 &&
+                            selftest_player_queue_match(
+                                player, cough, 3, -1, 0) == 1 &&
+                            selftest_player_queue_match(
+                                player, magic_land, -1, -1, 0) == 0,
+                        "Nex attack one is Choke, not an ordinary auto");
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    srv->npcs[boss].script_vars[0] = 2;
+                    srv->npcs[boss].script_vars[2] = 3;
+                    srv->npcs[boss].script_vars[7] = 0;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_attack_turn]", boss) &&
+                            srv->npcs[boss].script_vars[2] == 4 &&
+                            selftest_player_queue_match(
+                                player, shadow_land, -1, -1, 0) == 1,
+                        "Nex attack four remains an ordinary Shadow auto");
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_attack_turn]", boss) &&
+                            srv->npcs[boss].script_vars[2] == 5 &&
+                            (srv->npcs[boss].script_vars[3] == 0 ||
+                             srv->npcs[boss].script_vars[3] == 1) &&
+                            selftest_player_queue_match(
+                                player, shadow_land, -1, -1, 0) == 0 &&
+                            (selftest_player_queue_match(
+                                 player, shadow_smash, -1, -1, 0) == 1 ||
+                             selftest_player_queue_match(
+                                 player, darkness, -1, -1, 0) == 1),
+                        "Nex attack five selects exactly one Shadow special");
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->x = srv->npcs[boss].x + 1;
+                    srv->npcs[boss].script_vars[0] = 3;
+                    srv->npcs[boss].script_vars[2] = 0;
+                    srv->npcs[boss].script_vars[7] = 0;
+                    for( int swing = 0; swing < 3; swing++ )
+                    {
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_on_npc(
+                                srv, "[proc,nex_attack_turn]", boss),
+                            "Nex melee-chain swing %d executes", swing + 1);
+                        SELFTEST_CHECK(
+                            srv->npcs[boss].script_vars[2] == swing + 1 &&
+                                srv->npcs[boss].script_vars[7] == 2 - swing,
+                            "Nex melee-chain swing %d leaves attacks/chain %d/%d "
+                            "(got %d/%d)",
+                            swing + 1, swing + 1, 2 - swing,
+                            srv->npcs[boss].script_vars[2],
+                            srv->npcs[boss].script_vars[7]);
+                    }
+                    SELFTEST_CHECK(
+                        mock230_content_npc(nex_id)->attackrate == 4,
+                        "Nex final cooldown is four ticks");
                     srv->npcs[boss].active = 0;
                 }
                 memset(player->queue, 0, sizeof(player->queue));
@@ -16519,6 +16690,317 @@ mock230_world_selftest(void)
                         srv->npcs[slot].active = 0;
                     }
                 }
+            }
+
+            /* The Ancient Prison launch checks terminate at the queue seam.
+             * Drive the real landing scripts too so Smoke/Shadow/Blood/Ice
+             * secondary effects, the ranger's prayer disable, and impact
+             * sounds/graphics cannot regress independently of launch assets. */
+            {
+                static struct Mock230Capture prison_land_capture;
+                const struct SSVM_Script* poison = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,poison_player]");
+                const struct SSVM_Script* freeze = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,npc_freeze_player]");
+                static const char* const mage_impacts[] = {
+                    "nex_smoke_attack_impact", "shadow_barrage_impact",
+                    "nex_blood_attack_impact", "nex_ice_attack_impact",
+                };
+                static const char* const mage_sounds[] = {
+                    "nex2021_smoke_magic_attack_impact", NULL,
+                    "nex2021_blood_magic_attack_impact",
+                    "nex2021_iceprison_impact",
+                };
+                int mage_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "nex_prison_mage");
+                int mage = mock230_world_npc_spawn(
+                    srv, mage_id, player->x - 3, player->z, player->level);
+
+                SELFTEST_CHECK(mage >= 0,
+                               "Nex prison mage spawns for landing effects");
+                if( mage >= 0 )
+                {
+                    int32_t land_args[5];
+                    int32_t source = selftest_npc_uid(srv, mage);
+
+                    srv->npcs[mage].spawn_pending = 0;
+                    for( int spell = 0; spell < 4; spell++ )
+                    {
+                        int npc_hp_before;
+
+                        memset(player->queue, 0, sizeof(player->queue));
+                        player->spotanim_id = -1;
+                        player->hitmark_count = 0;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->stat_level[MOCK230_STAT_ATTACK] = 99;
+                        player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
+                        srv->npcs[mage].hitpoints =
+                            srv->npcs[mage].base_hitpoints - 50;
+                        npc_hp_before = srv->npcs[mage].hitpoints;
+                        land_args[0] = source;
+                        land_args[1] = spell;
+                        land_args[2] = 20;
+                        land_args[3] = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM, mage_impacts[spell]);
+                        land_args[4] = 1;
+                        mock230_capture_begin(srv, &prison_land_capture);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,gwd_prison_mage_land]", mage,
+                                land_args, 5),
+                            "Nex prison mage spell %d landing executes", spell);
+                        mock230_capture_end(srv);
+                        SELFTEST_CHECK(
+                            player->hitpoints == 79 &&
+                                player->spotanim_id == land_args[3] &&
+                                player->hitmark_count == 1,
+                            "Nex prison mage spell %d lands 20 with exact impact",
+                            spell);
+                        if( mage_sounds[spell] )
+                            SELFTEST_CHECK(
+                                selftest_capture_synth_count(
+                                    &prison_land_capture, srv->wire,
+                                    mock230_content_symbol(
+                                        MOCK230_PACK_SYNTH,
+                                        mage_sounds[spell])) > 0,
+                                "Nex prison mage spell %d emits %s", spell,
+                                mage_sounds[spell]);
+                        if( spell == 0 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, poison, 1, 0, 16) == 1,
+                                "Nex prison Smoke queues poison severity 16");
+                        else if( spell == 1 )
+                            SELFTEST_CHECK(
+                                player->stat_boosted[MOCK230_STAT_ATTACK] == 84,
+                                "Nex prison Shadow drains 15 Attack (got %d)",
+                                player->stat_boosted[MOCK230_STAT_ATTACK]);
+                        else if( spell == 2 )
+                            SELFTEST_CHECK(
+                                srv->npcs[mage].hitpoints == npc_hp_before + 4,
+                                "Nex prison Blood heals its source for four");
+                        else
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, freeze, 1, 0, 6) == 1,
+                                "Nex prison Ice queues a six-tick freeze");
+                    }
+                    srv->npcs[mage].active = 0;
+                }
+
+                {
+                    int ranger_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, "nex_prison_ranger");
+                    int ranger = mock230_world_npc_spawn(
+                        srv, ranger_id, player->x - 3, player->z, player->level);
+
+                    SELFTEST_CHECK(ranger >= 0,
+                                   "Nex prison ranger spawns for bind landing");
+                    if( ranger >= 0 )
+                    {
+                        int32_t source = selftest_npc_uid(srv, ranger);
+
+                        srv->npcs[ranger].spawn_pending = 0;
+                        memset(player->queue, 0, sizeof(player->queue));
+                        player->hitmark_count = 0;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->stat_level[MOCK230_STAT_PRAYER] = 99;
+                        player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                        mock230_scripts_run_proc(
+                            srv, "[proc,prayer_deactivate_all]", NULL, 0);
+                        selftest_prayer_toggle(srv, "prayer_protectfrommagic");
+                        SELFTEST_CHECK(
+                            selftest_prayer_on(
+                                srv, "prayer_protectfrommagic"),
+                            "Protect from Magic is active before prison bind");
+                        mock230_capture_begin(srv, &prison_land_capture);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv,
+                                "[queue,gwd_prison_ranger_bind_land]",
+                                ranger, &source, 1),
+                            "Nex prison ranger bind landing executes");
+                        mock230_capture_end(srv);
+                        SELFTEST_CHECK(
+                            !selftest_prayer_on(
+                                srv, "prayer_protectfrommagic") &&
+                                selftest_player_queue_match(
+                                    player, freeze, 1, 0, 5) == 1 &&
+                                player->hitmark_count == 1 &&
+                                player->hitpoints >= 59 &&
+                                player->hitpoints <= 99 &&
+                                selftest_capture_synth_count(
+                                    &prison_land_capture, srv->wire,
+                                    mock230_content_symbol(
+                                        MOCK230_PACK_SYNTH,
+                                        "nex2021_shadow_ranged_impact")) > 0,
+                            "Nex prison bind disables prayer, freezes five, "
+                            "emits impact, and hits 0..40 (hp %d)",
+                            player->hitpoints);
+                        srv->npcs[ranger].active = 0;
+                    }
+                }
+
+                {
+                    int warrior_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, "nex_prison_warrior");
+                    int warrior = mock230_world_npc_spawn(
+                        srv, warrior_id, player->x - 3, player->z, player->level);
+
+                    SELFTEST_CHECK(warrior >= 0,
+                                   "Nex prison warrior spawns for Smoke landing");
+                    if( warrior >= 0 )
+                    {
+                        int32_t land_args[2] = {
+                            selftest_npc_uid(srv, warrior),
+                            mock230_coord_pack(
+                                player->level, player->x, player->z),
+                        };
+                        int smoke = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM,
+                            "nex_smoke_attack_impact");
+
+                        srv->npcs[warrior].spawn_pending = 0;
+                        player->spotanim_id = -1;
+                        player->hitmark_count = 0;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        mock230_capture_begin(srv, &prison_land_capture);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,gwd_prison_smoke_land]",
+                                warrior, land_args, 2),
+                            "Nex prison warrior Smoke landing executes");
+                        mock230_capture_end(srv);
+                        SELFTEST_CHECK(
+                            player->spotanim_id == smoke &&
+                                player->hitmark_count == 1 &&
+                                player->hitpoints >= 59 &&
+                                player->hitpoints <= 99 &&
+                                selftest_capture_synth_count(
+                                    &prison_land_capture, srv->wire,
+                                    mock230_content_symbol(
+                                        MOCK230_PACK_SYNTH,
+                                        "nex2021_smoke_magic_attack_impact")) > 0,
+                            "Nex prison Smoke emits exact impact/sound and "
+                            "hits a stationary target for 0..40 (hp %d)",
+                            player->hitpoints);
+                        srv->npcs[warrior].active = 0;
+                    }
+                }
+                memset(player->queue, 0, sizeof(player->queue));
+            }
+
+            /* Durable GWD progression must survive a real save/load while
+             * encounter-local ownership, cooldown and contribution state do
+             * not. This is the relog boundary, not a varp-only copy test. */
+            {
+                const char* path = mock230_save_path("gwd_selftest");
+                static const char* const perm_varp_names[] = {
+                    "gwd_hilt_reset_day", "gwd_ecumenical_charges",
+                    "gwd_frozen_door_state", "nex_personal_deaths",
+                    "nex_personal_best_ticks", "gwd_nex_death_items",
+                };
+                static const int perm_values[] = { 77, 2, 4, 9, 321, 2 };
+                static const char* const temp_varp_names[] = {
+                    "gwd_altar_ready", "gwd_private_faction",
+                    "nex_contribution_uid", "nex_contribution_damage",
+                    "nex_encounter_start", "nex_cough_until",
+                };
+                int perm_varps[sizeof(perm_values) / sizeof(perm_values[0])];
+                int temp_varps[sizeof(temp_varp_names) /
+                               sizeof(temp_varp_names[0])];
+                int kc_varbits[] = {
+                    mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, "godwars_counter_armadyl"),
+                    mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, "godwars_counter_bandos"),
+                    mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, "godwars_counter_saradomin"),
+                    mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, "godwars_counter_zamorak"),
+                    mock230_content_symbol(
+                        MOCK230_PACK_VARBIT, "godwars_counter_zaros"),
+                };
+                int kc_values[] = { 11, 22, 33, 44, 55 };
+                int resolved = 1;
+
+                for( size_t i = 0;
+                     i < sizeof(perm_values) / sizeof(perm_values[0]); i++ )
+                {
+                    perm_varps[i] = mock230_content_symbol(
+                        MOCK230_PACK_VARP, perm_varp_names[i]);
+                    resolved &= perm_varps[i] >= 0;
+                    if( perm_varps[i] >= 0 )
+                        player->varps[perm_varps[i]] = perm_values[i];
+                }
+                for( size_t i = 0;
+                     i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
+                {
+                    temp_varps[i] = mock230_content_symbol(
+                        MOCK230_PACK_VARP, temp_varp_names[i]);
+                    resolved &= temp_varps[i] >= 0;
+                    if( temp_varps[i] >= 0 )
+                        player->varps[temp_varps[i]] = 1000 + (int)i;
+                }
+                for( size_t i = 0;
+                     i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
+                {
+                    resolved &= kc_varbits[i] >= 0;
+                    if( kc_varbits[i] >= 0 )
+                        mock230_varbit_set(srv, kc_varbits[i], kc_values[i]);
+                }
+                SELFTEST_CHECK(resolved,
+                               "all GWD relog varps/varbits resolve");
+                remove(path);
+                SELFTEST_CHECK(
+                    resolved && mock230_save_player(player, path),
+                    "GWD durable state writes a real player save");
+                for( size_t i = 0;
+                     i < sizeof(perm_values) / sizeof(perm_values[0]); i++ )
+                    if( perm_varps[i] >= 0 )
+                        player->varps[perm_varps[i]] = 0;
+                for( size_t i = 0;
+                     i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
+                    if( temp_varps[i] >= 0 )
+                        player->varps[temp_varps[i]] = 0;
+                for( size_t i = 0;
+                     i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
+                    if( kc_varbits[i] >= 0 )
+                        mock230_varbit_set(srv, kc_varbits[i], 0);
+                SELFTEST_CHECK(mock230_load_player(player, path),
+                               "GWD durable state reloads from disk");
+                for( size_t i = 0;
+                     i < sizeof(perm_values) / sizeof(perm_values[0]); i++ )
+                    SELFTEST_CHECK(
+                        perm_varps[i] >= 0 &&
+                            player->varps[perm_varps[i]] == perm_values[i],
+                        "%s survives relog with value %d (got %d)",
+                        perm_varp_names[i], perm_values[i],
+                        perm_varps[i] >= 0
+                            ? player->varps[perm_varps[i]] : -1);
+                for( size_t i = 0;
+                     i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
+                    SELFTEST_CHECK(
+                        kc_varbits[i] >= 0 &&
+                            mock230_varbit_get(player, kc_varbits[i]) ==
+                                kc_values[i],
+                        "GWD KC counter %zu survives relog with %d (got %d)",
+                        i, kc_values[i],
+                        kc_varbits[i] >= 0
+                            ? mock230_varbit_get(player, kc_varbits[i]) : -1);
+                for( size_t i = 0;
+                     i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
+                    SELFTEST_CHECK(
+                        temp_varps[i] >= 0 &&
+                            player->varps[temp_varps[i]] == 0,
+                        "%s is not restored across relog (got %d)",
+                        temp_varp_names[i],
+                        temp_varps[i] >= 0
+                            ? player->varps[temp_varps[i]] : -1);
+                remove(path);
             }
 
             tiers[0] = mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_hard");
