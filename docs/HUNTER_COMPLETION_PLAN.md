@@ -39,6 +39,18 @@ Primary references:
   fox, tecu salamander, and Razor-backed kebbit are wired to their cache
   NPC/loc/item records. Razor tracking uses the verified nine-search/eight-end
   Piscatoris graph and the current ten-charge ring-of-pursuit reveal mechanic.
+- H4 maniacal monkeys complete: all 16 native Kruk's Dungeon boulders and 29
+  monkeys are active, with Monkey Madness II/Kruk-greegree gates, stunted
+  gorilla mounting, banana-baited deadfalls, level-scaled success, three-stage
+  tail regrowth, 1,000 XP, and the 1/5,000 intact-tail roll.
+- H4 antelope pitfalls complete: all five sunlight and four moonlight cache
+  pits, the Wiki's nine/four NPC spawns, guaranteed catches, Hunter's spear or
+  teasing-stick lures, native antelope animations, and full bones/fur/meat/
+  antler/splinter rewards extend the owned pitfall state machine.
+- H6 aerial fishing complete: all 20 Lake Molch pools, Alry's cormorant-glove
+  lifecycle and pearl shop, current king-worm/regular/fine-offcut bait rules,
+  exact visible-level catch and pearl formulas, all Fishing/Hunter/Cooking XP,
+  golden tench exchange, native bird-flight visuals, and inventory-full rules.
 - H6 bird houses complete: all nine tiers, crafting and direct placement, the
   full eligible seed set, four cache-verified per-player sites, 50-minute
   offline-safe timers, early dismantle, collection/reset, nest tables, and
@@ -49,9 +61,9 @@ Primary references:
   roll use the cache's native rocks, tunnels, and hidden NPCs.
 - Verification: `::hunterrun` covers registry, modern-row, and bird-house
   contracts; `::hunterrazor` and `::hunterherbi` cover their route graphs and
-  reward formulas. The isolated server-script build currently compiles 19,909
-  scripts. The normal
-  aggregate build is temporarily masked by unrelated dirty Construction work.
+  reward formulas. The normal aggregate build is temporarily masked by
+  unrelated dirty Construction work. The clean-overlay server-script build
+  compiles 20,002 scripts.
 
 Where Wiki summary tables disagree with a dedicated current page, record the
 conflict and use the dedicated creature/method page. This matters today for
@@ -362,7 +374,7 @@ Reference: [Deadfall](https://oldschool.runescape.wiki/w/Deadfall)
 | 37 | [Prickly kebbit](https://oldschool.runescape.wiki/w/Prickly_kebbit) | 204 | barley | wired |
 | 51 | [Sabre-toothed kebbit](https://oldschool.runescape.wiki/w/Sabre-toothed_kebbit) | 200 | raw meat | wired |
 | 57 | [Pyre fox](https://oldschool.runescape.wiki/w/Pyre_fox) | 222 | embertailed jerboa tail | missing; NPC `varlamore_hunterfox01` |
-| 60 | [Maniacal monkey](https://oldschool.runescape.wiki/w/Maniacal_monkey_(Hunter)) | 1,000 | banana, not logs | missing; NPC/state family `hunting_monkey*` |
+| 60 | [Maniacal monkey](https://oldschool.runescape.wiki/w/Maniacal_monkey_(Hunter)) | 1,000 | banana, not logs | implemented; native boulders/spawns, gorilla mount, quest/greegree gates, tail regrowth and rare intact tail |
 
 Deadfalls are fixed boulder sites and have a method cap of one, but still need
 owner-aware state. Add the pyre fox NPC/reward/rumour part and Savannah sites.
@@ -416,8 +428,8 @@ Reference: [Pitfall](https://oldschool.runescape.wiki/w/Pitfall)
 | 31 | [Spined larupia](https://oldschool.runescape.wiki/w/Spined_larupia) | 180 | wired |
 | 41 | [Horned graahk](https://oldschool.runescape.wiki/w/Horned_graahk) | 240 | wired |
 | 55 | [Sabre-toothed kyatt](https://oldschool.runescape.wiki/w/Sabre-toothed_kyatt) | 300 | wired |
-| 72 | [Sunlight antelope](https://oldschool.runescape.wiki/w/Sunlight_antelope) | 380 | missing; NPC `sunlight_antelope` |
-| 91 | [Moonlight antelope](https://oldschool.runescape.wiki/w/Moonlight_antelope) | 450 | missing; NPC `moonlight_antelope` |
+| 72 | [Sunlight antelope](https://oldschool.runescape.wiki/w/Sunlight_antelope) | 380 | implemented; five Savannah pits, nine spawns, guaranteed catch and full reward set |
+| 91 | [Moonlight antelope](https://oldschool.runescape.wiki/w/Moonlight_antelope) | 450 | implemented; four Hunter Guild cavern pits/spawns, guaranteed catch and full reward set |
 
 For each site, verify knife + log construction, tease with teasing stick or
 hunter's spear, NPC targeting/chase, player jump, prey jump/fail/catch,
@@ -484,16 +496,17 @@ Reference: [Aerial fishing](https://oldschool.runescape.wiki/w/Aerial_fishing)
 
 | Hunter | Fishing | catch | Hunter XP | status |
 |---:|---:|---|---:|---|
-| 35 | 43 | [Bluegill](https://oldschool.runescape.wiki/w/Bluegill) | 16.5 | missing |
-| 51 | 56 | [Common tench](https://oldschool.runescape.wiki/w/Common_tench) | 45 | missing |
-| 68 | 73 | [Mottled eel](https://oldschool.runescape.wiki/w/Mottled_eel) | 90 | missing |
-| 87 | 91 | [Greater siren](https://oldschool.runescape.wiki/w/Greater_siren) | 130 | missing |
+| 35 | 43 | [Bluegill](https://oldschool.runescape.wiki/w/Bluegill) | 16.5 | implemented |
+| 51 | 56 | [Common tench](https://oldschool.runescape.wiki/w/Common_tench) | 45 | implemented |
+| 68 | 73 | [Mottled eel](https://oldschool.runescape.wiki/w/Mottled_eel) | 90 | implemented |
+| 87 | 91 | [Greater siren](https://oldschool.runescape.wiki/w/Greater_siren) | 130 | implemented |
 
-This is a Hunter/Fishing shared slice. Bind `fishing_spot_aerial`, Alry the
-Angler, cormorant glove state, bird flight/projectile, fish offcuts/king worms,
-weighted catch choice, both skill XP awards, inventory-full behavior, Molch
-pearl rolls, and shop exchange. Put the catch data in one table consumed by
-both skills. Do not duplicate Fishing's action loop.
+Implemented in `skill_fishing/scripts/fishing_spots/aerial_fishing.rs2`, with
+the shared catch data in `skill_fishing/configs/fishing.constant`. It binds
+`fishing_spot_aerial`, Alry the Angler, cormorant glove state, native bird
+flight/projectile graphics, current regular/fine fish offcuts and king worms,
+the Wiki's visible-level catch and Molch-pearl formulas, both skill XP awards,
+inventory-full behavior, filleting, golden tench exchange, and pearl shop.
 
 ### 4.3 H6 — drift-net fishing
 
@@ -688,7 +701,7 @@ that treats camouflage as a Hunter accuracy bonus.
 | level | unlock | status | implementation boundary |
 |---:|---|---|---|
 | 1–66 | polar/wood/jungle/desert camo, larupia/graahk/kyatt gear, spotted/spottier capes, gloves of silence | partial | Fancy Dress fur exchange and Crafting recipes; weight/Thieving effects belong to equipment/Thieving |
-| 15 | [sandworm castings](https://oldschool.runescape.wiki/w/Sandworm_castings) | missing | bind `piscarilius_grub_castings`; spade + bucket, non-boostable gate, 10 XP on sandworms, sand fallback, 59%→70% scaled chance, 15 beach sites |
+| 15 | [sandworm castings](https://oldschool.runescape.wiki/w/Sandworm_castings) | implemented | `piscarilius_grub_castings`; spade + bucket, non-boostable gate, 10 XP on sandworms, sand fallback, 59%→70% scaled chance, and bucket harvesting |
 | 20 | [moss lizard trapping](https://oldschool.runescape.wiki/w/Moss_Lizard) | soft quest stub only | rope on `pmoon_lizard_rock`, rustle `_bush`, run `moss_lizard` into `_trap_set`/`_activated`; XP is 90% of Hunter level capped at 90; raw lizard always, tail during Perilous Moons |
 | 24/37 Crafting | [lucky rabbit foot](https://oldschool.runescape.wiki/w/Rabbits_foot) / strung rabbit foot | partial | audit rabbit-foot drop; ball-of-wool stringing; Woodcutting/bird-house nest modifier |
 | 27 | [giant eagle transport](https://oldschool.runescape.wiki/w/Eagle_(giant)) | missing/adjacent | Eagles' Peak quest state, eagle NPC/loc travel routes, rope state |
@@ -697,7 +710,7 @@ that treats camouflage as a Hunter accuracy bonus.
 | 50 | [horn of plenty](https://oldschool.runescape.wiki/w/Horn_of_plenty) | partial and incorrect | see below |
 | 54 | [gloves of silence](https://oldschool.runescape.wiki/w/Gloves_of_silence) | missing/adjacent | Fancy Dress exchange; Thieving failure modifier and degradation |
 | 71 Magic | [Hunter Kit spell](https://oldschool.runescape.wiki/w/Hunter_Kit_(spell)) | missing/adjacent | Lunar spell gate, Dream Mentor, inventory-space behavior, kit contents |
-| 99 | [Hunter cape](https://oldschool.runescape.wiki/w/Hunter_cape) | missing | +1 visible boost; shared five daily red/black chin teleports; unlimited guild teleport after Apatura unlock |
+| 99 | [Hunter cape](https://oldschool.runescape.wiki/w/Hunter_cape) | implemented | +1 visible boost; shared five daily red/black chin teleports; unlimited guild teleport after Apatura unlock |
 
 The current Perilous Moons script directly handles `pmoon_lizard_bush` and
 `pmoon_lizard_rock` as a soft tail grant. Remove or delegate that handler when

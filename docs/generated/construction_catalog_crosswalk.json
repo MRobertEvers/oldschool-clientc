@@ -52650,6 +52650,9 @@
     "hotspot_builddata_references": 551,
     "referenced_furniture": 512,
     "room_hotspot_references": 202,
+    "room_template_placements": 1013,
+    "runtime_furniture_rows": 525,
+    "runtime_hotspot_loc_rows": 220,
     "tables": {
       "furniture": 110,
       "poh_hotspot": 112,
@@ -52660,7 +52663,8 @@
     "wiki_furniture_direct_id_matches": 462,
     "wiki_furniture_matches": 525,
     "wiki_furniture_symbolic_reconciliations": 63,
-    "wiki_furniture_unresolved": 0
+    "wiki_furniture_unresolved": 0,
+    "wiki_snapshot_entries": 493
   },
   "wiki_contract": {
     "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
