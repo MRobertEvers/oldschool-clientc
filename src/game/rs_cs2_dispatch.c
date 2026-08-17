@@ -354,6 +354,12 @@ RS_CS2_PumpTransmits(
         assert(task);
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2StatTransmitUnhideDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
 
     /* Misc transmits (run energy, run weight). No trigger set to filter on —
      * the hooks carry none — so this re-runs every registered misc hook, which

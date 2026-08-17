@@ -328,14 +328,57 @@ test_each_flag_alone(void)
             "%s alone leaves the host quiet afterwards",
             c->name);
         CHECK(
-            queued_count(&fx) == (i == 0 ? 2 : 1),
+            queued_count(&fx) == (i == 0 ? 3 : 1),
             "%s alone queues only its dispatch%s, got %d",
             c->name,
-            i == 0 ? "es (inv + var on unhide)" : "",
+            i == 0 ? "es (inv + var + stat on unhide)" : "",
             queued_count(&fx));
 
         fixture_free(&fx);
     }
+}
+
+static void
+test_widgets_loaded_queues_stat_unhide(void)
+{
+    struct Fixture fx;
+    struct UITreeNodeSpec spec = { 0 };
+    struct ToriRS_IO* io;
+    int32_t listener;
+
+    printf("pump: reopening the XP tracker resumes a stat update received while hidden\n");
+    fixture_init(&fx);
+    host_quiesce(&fx.host);
+    fixture_drain_queue(&fx);
+
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (728 << 16) | 3;
+    listener = UITree_Push(fx.tree, -1, &spec);
+    CHECK(listener >= 0, "XP tracker listener component");
+    fx.tree->components[listener].behavior.hide = 1;
+    fx.host.stat_transmit_hook_count = 1;
+    fx.host.stat_transmit_hooks[0].component_id = spec.component_id;
+    fx.host.stat_transmit_hooks[0].script_id = 5451;
+
+    RS_CS2Host_NotifyStatChanged(&fx.host, 0);
+    RS_CS2_PumpTransmits(&fx.host, &fx.runner);
+    io = ToriRS_IO_New();
+    CHECK(
+        ToriRS_TaskQueue_Run(fx.runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
+        "the hidden stat dispatch drains without running its clientscript");
+    ToriRS_IO_Free(io);
+    CHECK(
+        fx.host.stat_transmit_hooks[0].pending_unhide == 1,
+        "the hidden skill update remains pending");
+
+    fx.tree->components[listener].behavior.hide = 0;
+    fx.host.widgets_loaded_dirty = 1;
+    RS_CS2_PumpTransmits(&fx.host, &fx.runner);
+
+    CHECK(
+        queued_named_count(&fx, "CS2StatTransmitUnhideDispatch") == 1,
+        "widgets-loaded queues the stat unhide dispatch");
+    fixture_free(&fx);
 }
 
 /* ==========================================================================
@@ -627,6 +670,7 @@ main(void)
     test_quiet_tick();
     test_each_flag_alone();
     test_stat_notify_reaches_a_dispatch();
+    test_widgets_loaded_queues_stat_unhide();
     test_flag_count_pinned();
     test_clear_hooks_preserves_compass_on_op();
     test_dynamic_drag_target_uses_parent_address();

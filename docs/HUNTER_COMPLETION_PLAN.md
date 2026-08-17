@@ -36,9 +36,21 @@ Primary references:
   Corrected classic XP values and impling surface/Puro splits.
 - H3/H4 underway: embertailed jerboa, black chinchompa, crystal/lucky
   implings with barehand catches, sunlight/moonlight moths and effects, pyre
-  fox, and tecu salamander are wired to their cache NPC/loc/item records.
-- Verification: `::hunterrun` covers registry and modern-row contracts. The
-  isolated server-script build currently compiles 19,688 scripts. The normal
+  fox, tecu salamander, and Razor-backed kebbit are wired to their cache
+  NPC/loc/item records. Razor tracking uses the verified nine-search/eight-end
+  Piscatoris graph and the current ten-charge ring-of-pursuit reveal mechanic.
+- H6 bird houses complete: all nine tiers, crafting and direct placement, the
+  full eligible seed set, four cache-verified per-player sites, 50-minute
+  offline-safe timers, early dismantle, collection/reset, nest tables, and
+  strung-rabbit-foot effect are implemented.
+- H8 Herbiboar complete: the five Fossil Island starts, nine route/end
+  variants, per-player trail transforms, intermediate fossil/numulite rolls,
+  level-scaled Hunter XP, Herblore harvest, magic-secateurs bonus, and Herbi
+  roll use the cache's native rocks, tunnels, and hidden NPCs.
+- Verification: `::hunterrun` covers registry, modern-row, and bird-house
+  contracts; `::hunterrazor` and `::hunterherbi` cover their route graphs and
+  reward formulas. The isolated server-script build currently compiles 19,909
+  scripts. The normal
   aggregate build is temporarily masked by unrelated dirty Construction work.
 
 Where Wiki summary tables disagree with a dedicated current page, record the
@@ -248,8 +260,8 @@ Reference: [Tracking](https://oldschool.runescape.wiki/w/Tracking)
 | 3 | [Common kebbit](https://oldschool.runescape.wiki/w/Common_kebbit) | 36 | partial | verify woodland burrow-to-bush graph and ring-of-pursuit shortcut |
 | 7 | [Feldip weasel](https://oldschool.runescape.wiki/w/Feldip_weasel) | 48 | partial | replace the current soft trail with an authored coordinate graph and final-catch loc |
 | 13 | [Desert devil](https://oldschool.runescape.wiki/w/Desert_devil) | 66 | partial | replace the current soft trail with the Uzer-area graph and final-catch loc |
-| 49 | [Razor-backed kebbit](https://oldschool.runescape.wiki/w/Razor-backed_kebbit) | 348 | missing | add Piscatoris tracking graph, noose catch, spikes, bones, and rumour hook |
-| 80 | [Herbiboar](https://oldschool.runescape.wiki/w/Herbiboar) | 1,950–2,461 | missing | add Fossil Island start rocks, 5–7 trail segments, 9 tunnel variants, final herb patch, Herblore 31 harvest table, pet/rare rolls, and rumour hook |
+| 49 | [Razor-backed kebbit](https://oldschool.runescape.wiki/w/Razor-backed_kebbit) | 348.5 | implemented | verified Piscatoris graph, noose catch, spikes/bones, full-trail ring-of-pursuit reveal, and self-test |
+| 80 | [Herbiboar](https://oldschool.runescape.wiki/w/Herbiboar) | 1,950–2,461 | implemented | five starts, nine route/end variants, intermediate fossils/numulite, Herblore harvest, magic-secateurs bonus, pet roll, and self-test |
 
 Implementation notes:
 

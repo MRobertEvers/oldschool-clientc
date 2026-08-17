@@ -146,4 +146,8 @@ CreateTask_CS2StatTransmitDispatchSet(
     int const* stat_ids,
     int stat_count);
 
+/** Resume stat hooks that received a matching update while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2StatTransmitUnhideDispatch(struct RS_CS2Host* host);
+
 #endif /* TASK_CS2_RUN_H */

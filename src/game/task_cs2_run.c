@@ -1791,9 +1791,9 @@ CreateTask_CS2VarTransmitDispatch(
  * for the wrong reason is not harmless, it is a spurious drop.
  *
  * Structurally identical to the var dispatch, including the two gates that look
- * like they could be dropped and cannot: a hidden component is skipped WITHOUT
- * advancing its serial (so it fires once when unhidden), and a reclaimed one has
- * its serial advanced (so it never fires at all).
+ * like they could be dropped and cannot: a hidden component records pending
+ * work for the next unhide pass, and a reclaimed one has its serial advanced
+ * (so it never fires at all).
  */
 
 struct Task_CS2StatTransmitDispatch
@@ -1805,6 +1805,7 @@ struct Task_CS2StatTransmitDispatch
     int stat_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
     int stat_count;
     int hook_index;
+    int unhide_only;
     /* How many hooks existed when this dispatch started — see the loop. */
     int hook_count;
 };
@@ -1897,7 +1898,8 @@ Task_CS2StatTransmitDispatch_Run(
          * nothing. "hidden" and "already-seen" are ordinary, "no-trigger-match"
          * on a hook that should have no filter at all is the shape of a bad
          * registration (see rs_cs2_copy_transmit_triggers). */
-        if( !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
+        if( self->unhide_only ? !hook->pending_unhide
+                              : !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
         {
             stat_dispatch_trace(self->host, hook, self->hook_index, "no-trigger-match");
             continue;
@@ -1907,17 +1909,25 @@ Task_CS2StatTransmitDispatch_Run(
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
         {
             hook->last_seen_serial = self->host->stat_change_serial;
+            hook->pending_unhide = 0;
             stat_dispatch_trace(self->host, hook, self->hook_index, "not-in-tree");
             continue;
         }
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
         {
+            if( !self->unhide_only )
+            {
+                hook->pending_unhide = 1;
+                hook->last_seen_serial = self->host->stat_change_serial;
+            }
             stat_dispatch_trace(self->host, hook, self->hook_index, "hidden");
             continue;
         }
-        if( hook->last_seen_serial >= self->host->stat_change_serial )
+        if( !self->unhide_only &&
+            hook->last_seen_serial >= self->host->stat_change_serial )
             continue;
         hook->last_seen_serial = self->host->stat_change_serial;
+        hook->pending_unhide = 0;
         stat_dispatch_trace(self->host, hook, self->hook_index, "run");
 
         {
@@ -1976,6 +1986,18 @@ CreateTask_CS2StatTransmitDispatchSet(
         self->stat_count = stat_count;
     }
     PT_INIT(&self->pt);
+    return &self->task;
+}
+
+struct ToriRS_Task*
+CreateTask_CS2StatTransmitUnhideDispatch(
+    struct RS_CS2Host* host)
+{
+    struct Task_CS2StatTransmitDispatch* self =
+        (struct Task_CS2StatTransmitDispatch*)CreateTask_CS2StatTransmitDispatchSet(
+            host, NULL, 0);
+    self->unhide_only = 1;
+    strcpy(self->task.name, "CS2StatTransmitUnhideDispatch");
     return &self->task;
 }
 

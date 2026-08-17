@@ -238,6 +238,13 @@ read_classic(
         int wire = read_slot_word(rsbuf);
         if( wire < 0 )
             return 0;
+        if( i == 0 && wire == APPEARANCE_WIRE_TRANSMOG )
+        {
+            if( !need(rsbuf, 2) )
+                return 0;
+            op_value(w, PKT_APPEARANCE_OP_TRANSMOG, g2(rsbuf));
+            break;
+        }
         op_slot(w, APPEARANCE_ENC_CLASSIC, APPEARANCE_LAYER_VISIBLE, i, wire);
     }
 

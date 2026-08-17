@@ -1870,6 +1870,9 @@ main(void)
                 peers[0].saw_synth_count = 0;
                 peers[1].saw_synth_count = 0;
                 mock230_combat_hit_npc(world, npc_slot, 0, npc->hitpoints);
+                check(npc->death_credit_players[alice->pid] != 0,
+                      "the killing player keeps loot credit even without a live "
+                      "combat-target latch");
                 for( int round = 0; round < 4; round++ )
                     pump(peers, 2, embed, 1, 64);
                 check(peers[0].saw_synth_count > 0 &&

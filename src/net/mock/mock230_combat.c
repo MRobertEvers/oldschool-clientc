@@ -922,6 +922,14 @@ mock230_combat_hit_npc(
          * carrier.
          */
         memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+        /* The active player delivered this hit and owns its loot even if their
+         * combat_target was already cleared or moved to another npc before a
+         * delayed projectile/poison splat landed. The scan below additionally
+         * retains everybody still fighting this npc. */
+        if( srv->active_player && srv->active_player->active &&
+            srv->active_player->pid >= 0 &&
+            srv->active_player->pid < MOCK230_PLAYER_MAX )
+            npc->death_credit_players[srv->active_player->pid] = 1;
         mock230_combat_stop_npc(srv, slot);
         /*
          * And the *other* half of a target: the mode.
@@ -1648,15 +1656,25 @@ npc_death_step(
          */
         npc->death_stage = MOCK230_DEATH_REAP;
         npc->death_tick = srv->tick;
+        npc->loot_credit_npc_type = npc->type;
+        npc->loot_credit_event_id = ++srv->loot_credit_seq;
         srv->loot_credit_armed = 1;
-        srv->loot_credit_npc_type = npc->type;
-        srv->loot_credit_event_id = ++srv->loot_credit_seq;
+        srv->loot_credit_npc_type = npc->loot_credit_npc_type;
+        srv->loot_credit_event_id = npc->loot_credit_event_id;
         memcpy(srv->loot_credit_players, npc->death_credit_players,
                sizeof(srv->loot_credit_players));
         mock230_world_npc_died(srv, slot);
         srv->loot_credit_armed = 0;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
-        memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+        /* A drop script may npc_delay before it reaches obj_add. Keep the
+         * attribution on the npc until its parked state finishes; the resume
+         * path re-arms the same event around each continuation. */
+        if( !npc->active_script )
+        {
+            memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+            npc->loot_credit_event_id = 0;
+            npc->loot_credit_npc_type = 0;
+        }
         if( !npc->active )
             return; /* the script did its own npc_del */
         if( srv->tick < npc->delayed_until || npc->active_script )

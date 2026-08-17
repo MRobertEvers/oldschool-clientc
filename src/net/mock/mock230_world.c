@@ -9019,6 +9019,7 @@ mock230_world_player_init(struct Mock230Player* player)
     player->walkanim_l = 821;
     player->walkanim_r = 822;
     player->runanim = 824;
+    player->transmog_npc = -1;
     player->face_entity = -1;
     /* LostCity targetX/Z sentinel: memset leaves 0, which is a real half-tile
      * face point (scene origin), so reorient would fire a spurious FACE_COORD. */

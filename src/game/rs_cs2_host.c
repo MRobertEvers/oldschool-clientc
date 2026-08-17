@@ -4403,8 +4403,10 @@ rs_cs2_acquire_stat_transmit_hook(
         if( hook->component_id == component_id )
         {
             uint32_t const last_seen = hook->last_seen_serial;
+            uint8_t const pending_unhide = create ? hook->pending_unhide : 0;
             memset(hook, 0, sizeof(*hook));
             hook->last_seen_serial = last_seen;
+            hook->pending_unhide = pending_unhide;
             return hook;
         }
     }

@@ -2136,6 +2136,8 @@ check-crystal-set-contract:
 test-construction-catalog:
 	@cd $(REPO_ROOT) && python3 tools/check_construction_catalog.py --self-test \
 		--content $(MOCK230_CONTENT_DIR)
+	@cd $(REPO_ROOT) && python3 tools/generate_construction_crosswalk.py --check \
+		--content $(MOCK230_CONTENT_DIR)
 
 test-mock230-poh: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_poh_test \

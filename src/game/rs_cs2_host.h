@@ -300,6 +300,8 @@ struct RS_CS2StatTransmitHook
     int trigger_count;
     /** stat_change_serial this hook last fired for (0 = never fired). */
     uint32_t last_seen_serial;
+    /** A matching skill changed while this hook was hidden. */
+    uint8_t pending_unhide;
 };
 
 struct RS_CS2Host

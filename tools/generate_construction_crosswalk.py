@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+"""Generate the versioned Construction cache/Wiki implementation crosswalk.
+
+The cache supplies menu objects, materials, requirements, room templates and
+unbuilt hotspot placements. A separately refreshed, checked-in OSRS Wiki
+snapshot supplies XP and built object IDs. The cache menu-object ID is the join
+key, so unresolved runtime facts remain explicit rather than name-guessed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+from urllib.parse import quote
+
+from check_construction_catalog import (
+    CONSTRUCTION_STAT_ID,
+    CatalogError,
+    read_blocks,
+    read_compack,
+    require_ints,
+    table_rows,
+    validate,
+)
+
+WIKI_SEARCH = "https://oldschool.runescape.wiki/w/Special:Search?search="
+STYLE_ORIGIN_X = 29 * 64
+STYLE_ORIGIN_Z = 110 * 64
+TEMPLATE_CATEGORIES = {207, 485}
+MAP_LOC_RE = re.compile(
+    r"^(?P<level>\d+) (?P<x>\d+) (?P<z>\d+): "
+    r"(?P<loc>\d+) (?P<shape>\d+)(?: (?P<angle>\d+))?$"
+)
+
+
+def wiki_search(text: str) -> str:
+    return WIKI_SEARCH + quote(text, safe="")
+
+
+def first_value(block, column: int, default=None):
+    values = block.column_values(column)
+    return values[0] if values else default
+
+
+def ints(block, column: int) -> list[int]:
+    return require_ints(block, column)
+
+
+def pairs(values: list[int]) -> list[list[int]]:
+    return [values[index : index + 2] for index in range(0, len(values), 2)]
+
+
+def room_template_placements(content: Path, room, loc_id_to_name, loc_by_name):
+    offset = ints(room, 5)
+    if len(offset) != 2:
+        return []
+    source_x = STYLE_ORIGIN_X + offset[0]
+    source_z = STYLE_ORIGIN_Z + offset[1]
+    map_path = content / "maps" / f"m{source_x // 64}_{source_z // 64}.jl2"
+    if not map_path.exists():
+        raise CatalogError(f"{room.name}: missing source map {map_path.name}")
+    origin_x = source_x % 64
+    origin_z = source_z % 64
+    placements = []
+    for line in map_path.read_text(encoding="utf-8").splitlines():
+        match = MAP_LOC_RE.match(line)
+        if not match or int(match.group("level")) != 0:
+            continue
+        x = int(match.group("x"))
+        z = int(match.group("z"))
+        if not (origin_x <= x < origin_x + 8 and origin_z <= z < origin_z + 8):
+            continue
+        loc_id = int(match.group("loc"))
+        symbol = loc_id_to_name.get(loc_id)
+        loc = loc_by_name.get(symbol)
+        if loc is None:
+            continue
+        category = int(loc.first("category") or -1)
+        if category not in TEMPLATE_CATEGORIES:
+            continue
+        placements.append(
+            {
+                "loc_id": loc_id,
+                "loc": symbol,
+                "name": loc.first("name") or "",
+                "category": category,
+                "local_x": x - origin_x,
+                "local_z": z - origin_z,
+                "shape": int(match.group("shape")),
+                "angle": int(match.group("angle") or 0),
+            }
+        )
+    return sorted(
+        placements,
+        key=lambda item: (item["local_x"], item["local_z"], item["loc_id"], item["angle"]),
+    )
+
+
+def load_wiki_snapshot(path: Path) -> tuple[dict[str, object], dict[int, list[dict[str, object]]]]:
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    entries = snapshot.get("entries")
+    if not isinstance(entries, list) or len(entries) < 400:
+        raise CatalogError(f"{path}: expected at least 400 Wiki furniture entries")
+    by_item_id: dict[int, list[dict[str, object]]] = defaultdict(list)
+    for entry in entries:
+        for item_id in entry.get("item_ids", []):
+            by_item_id[int(item_id)].append(entry)
+    return snapshot, by_item_id
+
+
+def load_reconciliations(path: Path) -> dict[str, dict[str, object]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("rows")
+    if not isinstance(rows, dict):
+        raise CatalogError(f"{path}: missing rows object")
+    return rows
+
+
+def wiki_title_index(snapshot: dict[str, object]) -> dict[str, list[dict[str, object]]]:
+    result: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for entry in snapshot["entries"]:
+        for title in {entry.get("source_title"), entry.get("page")} - {None}:
+            result[str(title).casefold()].append(entry)
+    return result
+
+
+def unique_wiki_entry(
+    index: dict[str, list[dict[str, object]]], title: str
+) -> dict[str, object]:
+    candidates = index.get(title.casefold(), [])
+    by_revision = {
+        (entry.get("page"), entry.get("revision_id")): entry for entry in candidates
+    }
+    if len(by_revision) != 1:
+        raise CatalogError(f"Wiki reconciliation page {title!r} resolved {len(by_revision)} ways")
+    return next(iter(by_revision.values()))
+
+
+def wiki_experience(
+    entry: dict[str, object], level: int | None, strategy: str | None = None
+) -> int | float:
+    if entry.get("experience") is not None and strategy is None:
+        return entry["experience"]
+    recipes = [recipe for recipe in entry.get("recipes", []) if recipe.get("experience") is not None]
+    matching = [recipe for recipe in recipes if recipe.get("level") == level]
+    if matching:
+        recipes = matching
+    values = {recipe["experience"] for recipe in recipes}
+    if strategy == "upgrade_recipe" and values:
+        return min(values)
+    if len(values) != 1:
+        raise CatalogError(
+            f"{entry.get('page')}: cannot select one Construction XP value at level {level}"
+        )
+    return next(iter(values))
+
+
+def reconciled_wiki_data(
+    row_symbol: str,
+    level: int | None,
+    reconciliation: dict[str, object],
+    index: dict[str, list[dict[str, object]]],
+    loc_id_to_name: dict[int, str],
+) -> tuple[dict[str, object], list[int], int | float, list[dict[str, object]]]:
+    entry = unique_wiki_entry(index, str(reconciliation["page"]))
+    loc_name_to_id = {name: loc_id for loc_id, name in loc_id_to_name.items()}
+    explicit_locs = reconciliation.get("built_loc_symbols")
+    variant = reconciliation.get("variant")
+    if explicit_locs is not None:
+        missing = [name for name in explicit_locs if name not in loc_name_to_id]
+        if missing:
+            raise CatalogError(f"{row_symbol}: unknown reconciled built loc symbols {missing}")
+        built_ids = [loc_name_to_id[name] for name in explicit_locs]
+    elif variant is None:
+        built_ids = [int(value) for value in entry.get("object_ids", [])]
+    else:
+        matching = [
+            item
+            for item in entry.get("object_variants", [])
+            if str(item.get("version", "")).casefold() == str(variant).casefold()
+        ]
+        if len(matching) != 1:
+            raise CatalogError(
+                f"{row_symbol}: Wiki variant {variant!r} resolved {len(matching)} ways"
+            )
+        built_ids = [int(value) for value in matching[0].get("object_ids", [])]
+    built_ids = [value for value in built_ids if value in loc_id_to_name]
+    if not built_ids:
+        raise CatalogError(f"{row_symbol}: reconciled Wiki page has no revision-239 built loc")
+
+    experience_sources = []
+    if reconciliation.get("experience_strategy") == "cosmetic_no_xp":
+        experience = 0
+        experience_sources.append(
+            {
+                "page": entry.get("page"),
+                "revision_id": entry.get("revision_id"),
+                "experience": 0,
+                "policy": "cosmetic transform consumes an unlock item and grants no build XP",
+            }
+        )
+    else:
+        experience_title = str(reconciliation.get("experience_page", reconciliation["page"]))
+        experience_entry = unique_wiki_entry(index, experience_title)
+        experience = wiki_experience(
+            experience_entry, level, reconciliation.get("experience_strategy")
+        )
+        experience_sources.append(
+            {
+                "page": experience_entry.get("page"),
+                "revision_id": experience_entry.get("revision_id"),
+                "experience": experience,
+            }
+        )
+    for title in reconciliation.get("experience_add_pages", []):
+        additional = unique_wiki_entry(index, str(title))
+        value = wiki_experience(additional, level)
+        experience += value
+        experience_sources.append(
+            {
+                "page": additional.get("page"),
+                "revision_id": additional.get("revision_id"),
+                "experience": value,
+            }
+        )
+    return entry, built_ids, experience, experience_sources
+
+
+def generate(
+    content: Path, wiki_snapshot_path: Path, reconciliations_path: Path
+) -> dict[str, object]:
+    summary = validate(content)
+    configs = content / "configs"
+    rows = read_blocks(configs / "all.dbrow")
+    row_id_to_name, row_name_to_id = read_compack(configs / "all.dbrow.compack")
+    obj_id_to_name, _ = read_compack(configs / "all.obj.compack")
+    loc_id_to_name, _ = read_compack(configs / "all.loc.compack")
+    loc_by_name = {block.name: block for block in read_blocks(configs / "all.loc")}
+    wiki_snapshot, wiki_by_item_id = load_wiki_snapshot(wiki_snapshot_path)
+    reconciliations = load_reconciliations(reconciliations_path)
+    wiki_by_title = wiki_title_index(wiki_snapshot)
+
+    furniture = table_rows(rows, "furniture")
+    rooms = table_rows(rows, "poh_room")
+    hotspots = table_rows(rows, "poh_hotspot")
+    furniture_to_hotspots: dict[int, list[str]] = defaultdict(list)
+    furniture_symbols = {row.name for row in furniture}
+    unknown_reconciliations = set(reconciliations) - furniture_symbols
+    if unknown_reconciliations:
+        raise CatalogError(
+            f"Wiki reconciliations name unknown furniture rows: {sorted(unknown_reconciliations)}"
+        )
+
+    hotspot_records = []
+    for hotspot in hotspots:
+        builddata = ints(hotspot, 0)
+        for furniture_id in builddata:
+            furniture_to_hotspots[furniture_id].append(hotspot.name)
+        hotspot_records.append(
+            {
+                "id": row_name_to_id[hotspot.name],
+                "symbol": hotspot.name,
+                "builddata": [
+                    {"id": item, "symbol": row_id_to_name[item]} for item in builddata
+                ],
+            }
+        )
+
+    furniture_records = []
+    wiki_matches = 0
+    wiki_direct_matches = 0
+    wiki_reconciled_matches = 0
+    for row in furniture:
+        row_id = row_name_to_id[row.name]
+        material_values = ints(row, 2)
+        requirement = ints(row, 3)
+        menu_obj = int(first_value(row, 0, -1))
+        display_name = first_value(row, 1, row.name)
+        wiki_candidates = []
+        for candidate in wiki_by_item_id.get(menu_obj, []):
+            built_ids = [
+                int(loc_id)
+                for loc_id in candidate.get("object_ids", [])
+                if int(loc_id) in loc_id_to_name
+            ]
+            if built_ids:
+                wiki_candidates.append((candidate, built_ids))
+        if len(wiki_candidates) > 1:
+            level = requirement[1] if len(requirement) >= 2 else None
+            wiki_candidates = [
+                item for item in wiki_candidates if item[0].get("level") == level
+            ]
+        if len(wiki_candidates) > 1:
+            equivalent = {}
+            for candidate, candidate_built_ids in wiki_candidates:
+                key = (
+                    candidate.get("page"),
+                    candidate.get("revision_id"),
+                    candidate.get("experience"),
+                    tuple(sorted(set(candidate_built_ids))),
+                )
+                equivalent[key] = (candidate, candidate_built_ids)
+            wiki_candidates = list(equivalent.values())
+        if len(wiki_candidates) > 1:
+            raise CatalogError(
+                f"{row.name}: Wiki item id {menu_obj} has ambiguous built-loc matches"
+            )
+        wiki_entry = wiki_candidates[0][0] if wiki_candidates else None
+        built_ids = wiki_candidates[0][1] if wiki_candidates else []
+        level = requirement[1] if len(requirement) >= 2 else None
+        experience = None
+        experience_sources = []
+        join = "cache menu_obj id = Wiki infobox itemid"
+        # Reviewed cache/Wiki drift entries deliberately override a newly
+        # discovered item-id join: they may select one scenery version or
+        # compose display + mounted-trophy XP from multiple cited pages.
+        if row.name in reconciliations:
+            wiki_entry, built_ids, experience, experience_sources = reconciled_wiki_data(
+                row.name,
+                level,
+                reconciliations[row.name],
+                wiki_by_title,
+                loc_id_to_name,
+            )
+            join = "reviewed symbolic reconciliation + Wiki page revision"
+            wiki_reconciled_matches += 1
+        elif wiki_entry is not None:
+            experience = wiki_experience(wiki_entry, level)
+            wiki_direct_matches += 1
+        if wiki_entry is not None:
+            wiki_matches += 1
+        furniture_records.append(
+            {
+                "id": row_id,
+                "symbol": row.name,
+                "name": display_name,
+                "menu_obj": {"id": menu_obj, "symbol": obj_id_to_name.get(menu_obj)},
+                "materials": [
+                    {
+                        "obj_id": obj_id,
+                        "obj": obj_id_to_name.get(obj_id),
+                        "quantity": quantity,
+                    }
+                    for obj_id, quantity in pairs(material_values)
+                ],
+                "requirements": [
+                    {"stat_id": stat_id, "level": level}
+                    for stat_id, level in pairs(requirement)
+                ],
+                "hidden_in_build_menu": int(first_value(row, 5, 0)),
+                "upgrade_source_relative": ints(row, 6),
+                "upgrade_source_absolute": ints(row, 7),
+                "hotspots": sorted(furniture_to_hotspots[row_id]),
+                "built_locs": [
+                    {"id": loc_id, "symbol": loc_id_to_name[loc_id]}
+                    for loc_id in sorted(set(built_ids))
+                ],
+                "experience": experience,
+                "wiki": wiki_entry.get("wiki") if wiki_entry else wiki_search(display_name),
+                "wiki_match": (
+                    {
+                        "join": join,
+                        "page": wiki_entry.get("page"),
+                        "revision_id": wiki_entry.get("revision_id"),
+                        "revision_timestamp": wiki_entry.get("revision_timestamp"),
+                        "experience_sources": experience_sources,
+                    }
+                    if wiki_entry
+                    else None
+                ),
+                "implementation_gap": (
+                    None
+                    if wiki_entry
+                    else "built loc/variant and XP are absent from the current Wiki snapshot"
+                ),
+            }
+        )
+
+    unresolved = [
+        item["symbol"]
+        for item in furniture_records
+        if not item["built_locs"] or item["experience"] is None
+    ]
+    if unresolved:
+        raise CatalogError(
+            f"furniture rows still lack deterministic built locs or XP: {unresolved}"
+        )
+
+    room_records = []
+    for room in rooms:
+        hotspot_ids = ints(room, 7)
+        requirement = ints(room, 4)
+        display_name = first_value(room, 1, room.name)
+        room_records.append(
+            {
+                "id": row_name_to_id[room.name],
+                "symbol": room.name,
+                "name": first_value(room, 0, ""),
+                "display_name": display_name,
+                "cost": int(first_value(room, 2, 0)),
+                "room_type": int(first_value(room, 3, -1)),
+                "requirements": [
+                    {"stat_id": stat_id, "level": level}
+                    for stat_id, level in pairs(requirement)
+                ],
+                "source_offset": ints(room, 5),
+                "door_locations": ints(room, 6),
+                "hotspots": [
+                    {"id": item, "symbol": row_id_to_name[item]} for item in hotspot_ids
+                ],
+                "floor_restriction": int(first_value(room, 8, 0)),
+                "has_roof": int(first_value(room, 9, 1)),
+                "room_obj_id": int(first_value(room, 10, -1)),
+                "button_component": int(first_value(room, 11, -1)),
+                "template_hotspot_placements": room_template_placements(
+                    content, room, loc_id_to_name, loc_by_name
+                ),
+                "wiki": wiki_search(display_name),
+            }
+        )
+
+    subsection_headers = {}
+    for subsection in table_rows(rows, "skill_guide_subsections"):
+        skill = ints(subsection, 0)
+        section_id = ints(subsection, 1)
+        header = subsection.column_values(2)
+        if skill and skill[0] == CONSTRUCTION_STAT_ID and section_id and header:
+            subsection_headers[section_id[0]] = header[0]
+
+    guide_records = []
+    for row in table_rows(rows, "skill_features"):
+        metadata = ints(row, 3)
+        if len(metadata) < 3 or metadata[0] != CONSTRUCTION_STAT_ID:
+            continue
+        text = first_value(row, 2, row.name)
+        guide_records.append(
+            {
+                "id": row_name_to_id[row.name],
+                "symbol": row.name,
+                "level": metadata[1],
+                "subsection_id": metadata[2],
+                "subsection": subsection_headers[metadata[2]],
+                "text": text,
+                "icon_obj_ids": ints(row, 0),
+                "other_requirements": row.column_values(5),
+                "members_only": [bool(item) for item in ints(row, 6)],
+                "wiki": wiki_search(text),
+            }
+        )
+
+    return {
+        "generated_from": "revision-239 cache exports",
+        "wiki_contract": {
+            "policy": "Wiki links are review targets; cache IDs remain implementation authority.",
+            "snapshot": str(wiki_snapshot_path),
+            "snapshot_source": wiki_snapshot.get("source"),
+            "snapshot_retrieved_at": wiki_snapshot.get("retrieved_at"),
+            "reconciliations": str(reconciliations_path),
+            "construction": "https://oldschool.runescape.wiki/w/Construction",
+            "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
+            "level_up_table": "https://oldschool.runescape.wiki/w/Construction/Level_up_table",
+            "player_owned_house": "https://oldschool.runescape.wiki/w/Player-owned_house",
+        },
+        "summary": {
+            **summary,
+            "wiki_furniture_matches": wiki_matches,
+            "wiki_furniture_direct_id_matches": wiki_direct_matches,
+            "wiki_furniture_symbolic_reconciliations": wiki_reconciled_matches,
+            "wiki_furniture_unresolved": len(furniture) - wiki_matches,
+        },
+        "furniture": sorted(furniture_records, key=lambda item: item["id"]),
+        "hotspots": sorted(hotspot_records, key=lambda item: item["id"]),
+        "rooms": sorted(room_records, key=lambda item: item["id"]),
+        "skill_guide": sorted(
+            guide_records,
+            key=lambda item: (item["subsection_id"], item["level"], item["id"]),
+        ),
+    }
+
+
+def render(content: Path, wiki_snapshot: Path, reconciliations: Path) -> str:
+    return (
+        json.dumps(
+            generate(content, wiki_snapshot, reconciliations),
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--content", type=Path, default=Path("OSRS-Content/osrs239-content"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("docs/generated/construction_catalog_crosswalk.json"),
+    )
+    parser.add_argument(
+        "--wiki-snapshot",
+        type=Path,
+        default=Path("tools/data/construction_wiki_items.json"),
+    )
+    parser.add_argument(
+        "--reconciliations",
+        type=Path,
+        default=Path("tools/data/construction_wiki_reconciliations.json"),
+    )
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    try:
+        generated = render(args.content, args.wiki_snapshot, args.reconciliations)
+        if args.check:
+            if args.output.read_text(encoding="utf-8") != generated:
+                print(f"construction crosswalk: FAIL: regenerate {args.output}", file=sys.stderr)
+                return 1
+        else:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(generated, encoding="utf-8")
+    except (CatalogError, KeyError, OSError, ValueError) as exc:
+        print(f"construction crosswalk: FAIL: {exc}", file=sys.stderr)
+        return 1
+    print(f"construction crosswalk: OK — {args.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

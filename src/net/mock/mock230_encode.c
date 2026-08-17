@@ -2723,7 +2723,15 @@ put_appearance_v5(
     rsab_p1(buf, 255); /* skullIcon: -1, none */
     rsab_p1(buf, headicon < 0 ? 255 : headicon);
 
-    put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
+    if( player->transmog_npc >= 0 )
+    {
+        rsab_p2(buf, APPEARANCE_WIRE_TRANSMOG);
+        rsab_p2(buf, player->transmog_npc);
+    }
+    else
+    {
+        put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
+    }
     put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);
 
     for( int i = 0; i < 5; i++ )
@@ -2817,7 +2825,15 @@ put_appearance(
             fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
         rsab_p1(buf, headicons);
     }
-    put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
+    if( player->transmog_npc >= 0 )
+    {
+        rsab_p2(buf, APPEARANCE_WIRE_TRANSMOG);
+        rsab_p2(buf, player->transmog_npc);
+    }
+    else
+    {
+        put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
+    }
     for( int i = 0; i < 5; i++ )
         rsab_p1(buf, 0); /* body colours */
 

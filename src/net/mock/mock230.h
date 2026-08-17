@@ -586,10 +586,11 @@ enum
      * silently stopped at 8 would leave rows `i`..`r` looking live and doing
      * nothing — `if_addresumebutton` drops the overflow rather than failing.
      *
-     * 20 is the eighteen rows plus room for the caller to arm a cancel/close
-     * beside them, at 4 bytes each.
+     * Construction's add-room panel is larger again: 27 visible room rows are
+     * separate static components. 32 covers that cache-shaped menu plus a few
+     * controls, at 4 bytes each.
      */
-    MOCK230_RESUME_BUTTON_MAX = 20,
+    MOCK230_RESUME_BUTTON_MAX = 32,
     /*
      * Highest sub-id `if_addresumebutton` arms on the component it registers.
      *
@@ -2383,6 +2384,9 @@ struct Mock230Npc
      * what makes each `obj_add` name its earner to clientscript 7192.
      */
     unsigned char death_credit_players[MOCK230_PLAYER_MAX];
+    /** Stable tracker identity for a death script that parks on npc_delay. */
+    int loot_credit_event_id;
+    int loot_credit_npc_type;
     /** Tick to respawn at the spawn tile; -1 when not waiting. */
     int respawn_tick;
     /** Resolved from the cache's sequence names at spawn; -1 = play nothing. */
@@ -2851,6 +2855,8 @@ struct Mock230Player
     int walkanim_l;
     int walkanim_r;
     int runanim;
+    /** NPC type used by p_transmogrify; -1 renders the normal player body. */
+    int transmog_npc;
     int face_entity;
     int face_x;
     int face_z;
@@ -3746,10 +3752,10 @@ struct Mock230Server
     /*
      * Kill-drop credit for the client's loot tracker.
      *
-     * While [ai_queue3] runs after a combat death, every SS_OP_OBJ_ADD fires
-     * clientscript 7192 (LOOTTRACKER_ADD_LOOT) at players who were fighting
-     * this npc. `loot_credit_armed` gates that — bare map/inventory OBJ_ADD
-     * must not attribute loot. Zero-init is idle.
+     * While [ai_queue3] runs after a combat death, every public or private
+     * ground-object add fires clientscript 7192 (LOOTTRACKER_ADD_LOOT) at the
+     * credited player(s). `loot_credit_armed` gates that — bare map/inventory
+     * object adds must not attribute loot. Zero-init is idle.
      */
     int loot_credit_armed;
     int loot_credit_npc_type;

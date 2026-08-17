@@ -1095,13 +1095,40 @@ mock230_scripts_resume_npc(
     int slot)
 {
     struct Mock230Npc* npc;
+    int resume_loot_drop;
 
     if( !srv->scripts_ok || slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active_script || srv->tick < npc->delayed_until )
         return;
+
+    /* npc_delay can split [ai_queue3] before its obj_add. Kill attribution is
+     * intentionally scoped to executing that death state: leaving the global
+     * flag armed for the delay would misattribute unrelated ground spawns. */
+    resume_loot_drop = npc->death_stage == MOCK230_DEATH_REAP &&
+                       npc->loot_credit_event_id > 0;
+    if( resume_loot_drop )
+    {
+        assert(!srv->loot_credit_armed);
+        srv->loot_credit_armed = 1;
+        srv->loot_credit_npc_type = npc->loot_credit_npc_type;
+        srv->loot_credit_event_id = npc->loot_credit_event_id;
+        memcpy(srv->loot_credit_players, npc->death_credit_players,
+               sizeof(srv->loot_credit_players));
+    }
     run_or_park(srv, npc->active_script);
+    if( resume_loot_drop )
+    {
+        srv->loot_credit_armed = 0;
+        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        if( !npc->active_script )
+        {
+            memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+            npc->loot_credit_event_id = 0;
+            npc->loot_credit_npc_type = 0;
+        }
+    }
 }
 
 void
@@ -3887,6 +3914,45 @@ npc_base_stat(
         return npc->def->magic;
     default:
         return 0;
+    }
+}
+
+/*
+ * Feed one combat drop into the official client loot tracker. Public drops are
+ * credited to every player captured on the dead npc; private drops are visible
+ * only to their owner, so notifying anybody else would invent loot they cannot
+ * pick up.
+ */
+static void
+mock230_loot_tracker_add_ground_obj(
+    struct Mock230Server* srv,
+    struct Mock230Player* private_owner,
+    int obj,
+    int count)
+{
+    enum
+    {
+        MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT = 7192
+    };
+    int args[4];
+
+    assert(srv);
+    if( !srv->loot_credit_armed )
+        return;
+
+    args[0] = srv->loot_credit_npc_type;
+    args[1] = srv->loot_credit_event_id;
+    args[2] = obj;
+    args[3] = count;
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        struct Mock230Player* player = &srv->players[i];
+        if( !srv->loot_credit_players[i] || !player->active )
+            continue;
+        if( private_owner && player != private_owner )
+            continue;
+        mock230_send_run_clientscript(
+            player, MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
     }
 }
 
@@ -8845,27 +8911,8 @@ mock230_script_command(
          * (LOOTTRACKER_ADD_LOOT) with (npcId, eventId, itemId, qty). Only while
          * combat death credit is armed — not every ground spawn.
          */
-        if( srv->loot_credit_armed )
-        {
-            enum
-            {
-                MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT = 7192
-            };
-            int args[4] = {
-                srv->loot_credit_npc_type,
-                srv->loot_credit_event_id,
-                (int)values[1],
-                (int)values[2],
-            };
-
-            for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
-            {
-                if( !srv->loot_credit_players[i] || !srv->players[i].active )
-                    continue;
-                mock230_send_run_clientscript(
-                    &srv->players[i], MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
-            }
-        }
+        mock230_loot_tracker_add_ground_obj(
+            srv, NULL, (int)values[1], (int)values[2]);
         return 1;
     }
 
@@ -8892,6 +8939,11 @@ mock230_script_command(
         mock230_world_obj_add_private(srv, values[1], values[2], coord_x(values[0]),
                                       coord_z(values[0]), coord_level(values[0]),
                                       values[3] > 0 ? values[3] : -1, values[4]);
+        /* Private drops used to stop here, bypassing the only notification the
+         * client loot tracker consumes. That made misses depend on which drop
+         * table opcode happened to roll the item. */
+        mock230_loot_tracker_add_ground_obj(
+            srv, srv->active_player, (int)values[1], (int)values[2]);
         return 1;
     }
 
@@ -10154,6 +10206,20 @@ mock230_script_command(
         if( player->headicons != (int)value )
         {
             player->headicons = (int)value;
+            player->masks |= MOCK230_PMASK_APPEARANCE;
+        }
+        return 1;
+    }
+
+    case SS_OP_P_TRANSMOGRIFY:
+    {
+        int32_t npc;
+
+        if( !SSVM_PopInt(state, &npc) )
+            return 1;
+        if( player->transmog_npc != (int)npc )
+        {
+            player->transmog_npc = (int)npc;
             player->masks |= MOCK230_PMASK_APPEARANCE;
         }
         return 1;
