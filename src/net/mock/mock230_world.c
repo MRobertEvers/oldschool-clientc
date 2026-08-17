@@ -15844,6 +15844,260 @@ mock230_world_selftest(void)
                 }
             }
 
+            /* Launch traces above prove what Nex puts in flight. Execute the
+             * real landing queues as a second boundary: exact damage, prayer
+             * drains, Ancient Magicks effects, Soul Split healing, and the
+             * periodic-special re-arms must all survive the queue ABI. */
+            {
+                const struct SSVM_Script* poison = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,poison_player]");
+                const struct SSVM_Script* freeze = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,npc_freeze_player]");
+                const struct SSVM_Script* cough = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_cough_tick]");
+                const struct SSVM_Script* darkness = SSVM_ProviderGetByName(
+                    srv->scripts, "[queue,nex_darkness_tick]");
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int soulsplit_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "nex_soulsplit");
+                int boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+
+                SELFTEST_CHECK(boss >= 0, "Nex spawns for landing-effect matrix");
+                if( boss >= 0 )
+                {
+                    static const char* const impacts[] = {
+                        NULL, "nex_smoke_attack_impact", NULL,
+                        "nex_blood_attack_impact", "nex_ice_attack_impact",
+                        "nex_finale_attack_impact",
+                    };
+                    int32_t land_args[5];
+                    int32_t source = selftest_npc_uid(srv, boss);
+
+                    srv->npcs[boss].spawn_pending = 0;
+                    player->x = srv->npcs[boss].x + 1;
+                    player->z = srv->npcs[boss].z;
+                    player->level = 0;
+                    player->godmode = 0;
+                    player->dying = 0;
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                    player->max_hitpoints = 99;
+
+                    for( int phase = 1; phase <= 5; phase++ )
+                    {
+                        int expected_prayer = 80;
+                        int expected_heal = 0;
+                        int hp_before;
+                        int npc_hp_before;
+
+                        if( phase == 2 )
+                            continue; /* Shadow has its own ranged landing. */
+                        mock230_scripts_run_proc(
+                            srv, "[proc,prayer_deactivate_all]", NULL, 0);
+                        memset(player->queue, 0, sizeof(player->queue));
+                        memset(player->engine_queue, 0,
+                               sizeof(player->engine_queue));
+                        player->spotanim_id = -1;
+                        player->hitmark_count = 0;
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->hitpoints = 99;
+                        player->stat_level[MOCK230_STAT_PRAYER] = 99;
+                        player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                        srv->npcs[boss].type = phase == 5 ? soulsplit_id : nex_id;
+                        srv->npcs[boss].hitpoints =
+                            srv->npcs[boss].base_hitpoints - 100;
+                        hp_before = player->hitpoints;
+                        npc_hp_before = srv->npcs[boss].hitpoints;
+                        land_args[0] = source;
+                        land_args[1] = phase;
+                        land_args[2] = 20;
+                        land_args[3] = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM, impacts[phase]);
+                        land_args[4] = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,nex_magic_land]", boss,
+                                land_args, 5),
+                            "Nex phase %d magic landing executes", phase);
+                        if( phase == 3 || phase == 4 )
+                            expected_prayer = 70;
+                        else if( phase == 5 )
+                            expected_prayer = 75;
+                        if( phase == 3 )
+                            expected_heal = 4;
+                        else if( phase == 5 )
+                            expected_heal = 2;
+                        SELFTEST_CHECK(
+                            player->hitpoints == hp_before - 20 &&
+                                player->spotanim_id == land_args[3] &&
+                                player->stat_boosted[MOCK230_STAT_PRAYER] ==
+                                    expected_prayer &&
+                                srv->npcs[boss].hitpoints ==
+                                    npc_hp_before + expected_heal,
+                            "Nex phase %d landing deals 20, uses impact, drains "
+                            "prayer to %d, and heals %d (hp %d, prayer %d, "
+                            "heal %d)",
+                            phase, expected_prayer, expected_heal,
+                            player->hitpoints,
+                            player->stat_boosted[MOCK230_STAT_PRAYER],
+                            srv->npcs[boss].hitpoints - npc_hp_before);
+                        if( phase == 1 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, poison, 1, 0, 16) == 1,
+                                "Nex Smoke landing queues poison severity 16");
+                        if( phase == 4 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, freeze, 1, 0, 15) == 1,
+                                "Nex Ice landing queues a 15-tick freeze");
+                    }
+
+                    mock230_scripts_run_proc(
+                        srv, "[proc,prayer_deactivate_all]", NULL, 0);
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                    land_args[0] = source;
+                    land_args[1] = 20;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,nex_shadow_land]", boss,
+                            land_args, 2) &&
+                            player->hitpoints == 79 &&
+                            player->stat_boosted[MOCK230_STAT_PRAYER] == 76,
+                        "Nex Shadow landing deals 20 and drains four prayer "
+                        "(hp %d, prayer %d)",
+                        player->hitpoints,
+                        player->stat_boosted[MOCK230_STAT_PRAYER]);
+
+                    for( int spell = 1; spell <= 4; spell++ )
+                    {
+                        int npc_hp_before;
+
+                        memset(player->queue, 0, sizeof(player->queue));
+                        player->spotanim_id = -1;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        srv->npcs[boss].type = nex_id;
+                        srv->npcs[boss].hitpoints =
+                            srv->npcs[boss].base_hitpoints - 100;
+                        npc_hp_before = srv->npcs[boss].hitpoints;
+                        land_args[0] = source;
+                        land_args[1] = spell;
+                        land_args[2] = 20;
+                        land_args[3] = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM,
+                            spell == 1 ? "nex_smoke_attack_impact" :
+                            spell == 2 ? "shadow_barrage_impact" :
+                            spell == 3 ? "nex_blood_attack_impact" :
+                                         "nex_ice_attack_impact");
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,nex_mage_land]", boss,
+                                land_args, 4) &&
+                                player->hitpoints == 79 &&
+                                player->spotanim_id == land_args[3],
+                            "Nex mage spell %d landing deals 20 with exact impact",
+                            spell);
+                        if( spell == 1 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, poison, 1, 0, 16) == 1,
+                                "Nex smoke mage queues poison severity 16");
+                        else if( spell == 3 )
+                            SELFTEST_CHECK(
+                                srv->npcs[boss].hitpoints == npc_hp_before + 4,
+                                "Nex blood mage heals its source for four");
+                        else if( spell == 4 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, freeze, 1, 0, 6) == 1,
+                                "Nex ice mage queues a six-tick freeze");
+                    }
+
+                    /* Empty gear ties all attack bonuses, which deliberately
+                     * selects Magic in nex_player_highest_attack_bonus. */
+                    for( int slot = 0; slot < MOCK230_WORN_SLOTS; slot++ )
+                        worn_set(player, slot, -1, 0);
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                    player->stat_boosted[MOCK230_STAT_MAGIC] = 99;
+                    player->varps[mock230_content_symbol(
+                        MOCK230_PACK_VARP, "nex_cough_until")] = srv->tick + 10;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[queue,nex_cough_tick]", boss) &&
+                            player->stat_boosted[MOCK230_STAT_PRAYER] == 78 &&
+                            player->stat_boosted[MOCK230_STAT_MAGIC] == 97 &&
+                            selftest_player_queue_match(
+                                player, cough, 3, -1, 0) == 1,
+                        "Nex cough tick drains two prayer/magic and re-arms "
+                        "after two ticks");
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->hitmark_count = 0;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    land_args[0] = mock230_coord_pack(
+                        player->level, player->x, player->z);
+                    land_args[1] = source;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,nex_shadow_smash_land]", boss,
+                            land_args, 2) && player->hitmark_count == 1 &&
+                            player->hitpoints >= 49 && player->hitpoints <= 99,
+                        "Nex Shadow Smash landing hits its warned 3x3 tile "
+                        "for 0..50 (hp %d)", player->hitpoints);
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->hitmark_count = 0;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    srv->npcs[boss].script_vars[0] = 2;
+                    land_args[0] = source;
+                    land_args[1] = srv->tick + 3;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,nex_darkness_tick]", boss,
+                            land_args, 2) && player->hitmark_count == 1 &&
+                            player->hitpoints >= 69 && player->hitpoints <= 99 &&
+                            selftest_player_queue_match(
+                                player, darkness, 2, 1, srv->tick + 3) == 1,
+                        "Nex darkness damages an adjacent player for 0..30 "
+                        "and re-arms next tick (hp %d)", player->hitpoints);
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->stat_boosted[MOCK230_STAT_PRAYER] = 80;
+                    srv->npcs[boss].hitpoints =
+                        srv->npcs[boss].base_hitpoints - 100;
+                    {
+                        int npc_hp_before = srv->npcs[boss].hitpoints;
+                        int hp_before = player->hitpoints;
+
+                        land_args[0] = source;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,nex_blood_sacrifice_land]", boss,
+                                land_args, 1) &&
+                                srv->npcs[boss].hitpoints - npc_hp_before ==
+                                    hp_before - player->hitpoints &&
+                                player->hitpoints >= 19 &&
+                                player->stat_boosted[MOCK230_STAT_PRAYER] == 54,
+                            "Nex sacrifice transfers exactly its 0..80 damage "
+                            "and drains one-third prayer (hp %d, heal %d, prayer %d)",
+                            player->hitpoints,
+                            srv->npcs[boss].hitpoints - npc_hp_before,
+                            player->stat_boosted[MOCK230_STAT_PRAYER]);
+                    }
+                    srv->npcs[boss].active = 0;
+                }
+                memset(player->queue, 0, sizeof(player->queue));
+            }
+
             /* Nex retargeting is a multiplayer rule, not a one-player formula.
              * First make the second player strictly nearest. Then tie distance
              * and swap a rune platebody between the two players: the selected
@@ -29649,6 +29903,22 @@ mock230_world_selftest(void)
                 static struct Mock230Capture charter_open;
                 struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
                 int saved_regicide = regicide >= 0 ? player->varps[regicide] : 0;
+                /* Where the player was BEFORE this section, not where this
+                 * section wants them. A charter is a cross-region teleport, and
+                 * the sections after this one — movement, Hans — are written
+                 * against Lumbridge; leaving the player on the Port Sarim jetty
+                 * moved the scene out from under them and failed three of their
+                 * assertions with nothing in the message to suggest a ship. */
+                int entry_x = player->x;
+                int entry_z = player->z;
+                /* Saved and RESTORED, not pinned-and-left like the canoe section
+                 * above. Ticking a voyage walks every npc in two scenes, which
+                 * consumes draws; leaving the stream advanced moved a later
+                 * wander-radius assertion off its spawn and failed it, with the
+                 * message pointing at npc 611 and nothing at a ship. A section
+                 * that puts the stream back where it found it cannot do that to
+                 * whatever is written after it. */
+                uint32_t saved_rng = srv->rng;
                 uint8_t payload[2];
                 int refused = 0;
                 /* Resolved out of the table rather than written down: Catherby
@@ -29784,9 +30054,10 @@ mock230_world_selftest(void)
                     player->varps[regicide] = saved_regicide;
                 mock230_world_clear_pending_action(srv);
                 mock230_world_interaction_clear(srv);
-                selftest_park_player(srv, jetty_x, jetty_z);
+                selftest_park_player(srv, entry_x, entry_z);
                 memcpy(player->inv, saved_inv, sizeof(saved_inv));
                 player->inv_dirty = 0xfffffffu;
+                srv->rng = saved_rng;
             }
             if( owned )
                 mock230_scripts_free(srv);

@@ -34,6 +34,17 @@ would fail in the game rather than in the compiler:
 
   7. Spawned traders are multinpc PARENTS, never resolved leaves.
 
+  8. The row order the picker decodes against is still the order the CLIENT
+     walks. `charter_map.rs2` turns a pin's sub-id into a row index and reads
+     that row out of dbtable 206 with `db_listall`/`db_findbyindex`; the client
+     builds the pins by walking the same table with `db_findall`. The cache
+     states that order itself, in `dbindex/dbindex_206.dbi`'s `[master]` block —
+     "every row id in the table, which DB_FINDALL returns". This asserts that
+     block still matches the order `configs/all.dbrow` presents the rows in,
+     which is the order this engine's `db_listall` produces. If they ever
+     diverge the player clicks Catherby and sails to Prifddinas, and nothing
+     else in the tree would notice.
+
 Doc-vs-code agreement is checked too: docs/transport/CHARTER_SHIPS.md carries
 the destination table and the fare matrix in prose, and a plan that has drifted
 from the data is worse than no plan.
@@ -57,6 +68,8 @@ FARE_DBTABLE = (FEATURE / "configs/charter_fare.dbtable").read_text()
 CONSTANT = (FEATURE / "configs/charter.constant").read_text()
 SPAWN = (FEATURE / "configs/charter.spawn").read_text()
 PORT_RS2 = (FEATURE / "scripts/charter_port.rs2").read_text()
+MAP_RS2 = (FEATURE / "scripts/charter_map.rs2").read_text()
+DBINDEX = BASE / "dbindex/dbindex_206.dbi"
 TRAVEL_RS2 = (FEATURE / "scripts/charter_travel.rs2").read_text()
 DOC = (ROOT / "docs/transport/CHARTER_SHIPS.md").read_text()
 
@@ -298,6 +311,58 @@ def main() -> int:
         if not parents <= bound:
             fail("%s is not bound on every multinpc parent: missing %r"
                  % (op, sorted(parents - bound)))
+
+    # --- 8. picker row order still matches the client's ------------------
+    if not DBINDEX.exists():
+        fail("%s is missing — the picker's row order cannot be checked" % DBINDEX)
+    else:
+        master = re.search(r"\[master\].*?index=0:0:([0-9,]+)", DBINDEX.read_text(), re.S)
+        if not master:
+            fail("dbindex_206.dbi has no [master] index block")
+        else:
+            want = [int(v) for v in master.group(1).split(",")]
+            row_ids = {}
+            for line in (BASE / "configs/all.dbrow.compack").read_bytes().decode(
+                    "utf-8", "replace").splitlines():
+                m = re.match(r"^(\d+)=(\S+)$", line.strip())
+                if m:
+                    row_ids[m.group(2)] = int(m.group(1))
+            got = []
+            for name, body in re.findall(
+                    r"\[(\w+)\]\n(.*?)(?=\n\[|\Z)", ALL_DBROW, re.S):
+                if re.search(r"^table=chartering_destinations$", body, re.M):
+                    got.append(row_ids.get(name))
+            if got != want:
+                fail("dbtable 206 row order: all.dbrow presents %r but the cache's "
+                     "own [master] index says the client walks %r — charter_map.rs2 "
+                     "decodes pin sub-ids against the first and the client builds "
+                     "them from the second" % (got[:6], want[:6]))
+            # The sub-id arithmetic the picker and the selftest both rely on.
+            for name, expect in (("catherby", 5), ("porttyras", 17)):
+                rid = row_ids.get("chartering_destination_" + name)
+                if rid in want:
+                    sub = want.index(rid) * 2 + 1
+                    if sub != expect:
+                        fail("%s's pin sub-id is %d, not the %d the selftest clicks"
+                             % (name, sub, expect))
+
+    for needle, label in (
+        ("db_listall(chartering_destinations)", "charter_map.rs2 walks the cache table"),
+        ("db_findbyindex", "charter_map.rs2 reads the row by index"),
+        ("if_openmain_side(sailing_menu, chartering_menu_side)",
+         "charter_map.rs2 opens both halves of the cache picker"),
+    ):
+        if needle not in MAP_RS2:
+            fail("%s — %r is gone" % (label, needle))
+    # Speech needs an active entity; an [if_button1] has none. See the comment on
+    # ~charter_locked_mes. This is the check that a future edit cannot quietly
+    # reintroduce the abort.
+    for path, text in (("charter_port.rs2", PORT_RS2), ("charter_travel.rs2", TRAVEL_RS2),
+                       ("charter_map.rs2", MAP_RS2)):
+        for line in text.split("\n"):
+            if line.strip().startswith("~chatnpc"):
+                fail("%s calls %s on a path an [if_button1] can reach — NPC_TYPE "
+                     "aborts there" % (path, line.strip().split("(")[0]))
 
     # --- doc agreement ---------------------------------------------------
     for sym, row in sorted(ports.items()):

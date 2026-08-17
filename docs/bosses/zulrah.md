@@ -1,5 +1,41 @@
 # Zulrah — full implementation plan
 
+> **Status, 17 August 2026: implemented.** Steps 1 and 3–11 of §15 have landed in
+> [`minigames/minigame_zulrah/`](../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_zulrah/)
+> (6 configs, 8 scripts), plus the funnel rung in
+> [rs2012_td_player_hit.rs2](../../OSRS-Content/osrs239-content/server/scripts/areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2),
+> the logout and death hooks in `player/logout.rs2` and `player/death.rs2`, and a
+> `::zulrahrun` selftest stanza in `mock230_world.c`.
+>
+> `::zulrahrun` reports **OK — 6 checks passed** and was proven able to fail
+> (corrupting rotation 4's Jad count from 8 to 10 makes two independent checks
+> catch it). `make -C src mock230-scripts` and `mock230 --selftest` show no
+> Zulrah failures and no Zulrah content-load errors.
+>
+> **Step 2 and step 7 — the measurement passes — have NOT been done.** Every
+> number they were supposed to produce is in the tree as a disclosed
+> approximation, tagged in `zulrah.constant` and listed in §13. The fight runs
+> end to end; it is not yet calibrated. What is knowingly absent:
+>
+> | Gap | Where |
+> |---|---|
+> | Boss positions are channel-centred guesses (M1) | `^zulrah_pos_*_l[xz]` |
+> | Cadence derived from "about three minutes", not measured (M2/M3) | `^zulrah_attack_ticks` etc. |
+> | Venom-cloud tiles land near the player, not per-phase footprints (M6) | `~zulrah_add_tile` |
+> | Cloud damage/lifetime, snakeling lifetime, tanzanite mix ratio (M5/M7/M8) | `zulrah.constant` |
+> | D2/D3 deviation gated off pending M9/M10 | `~zulrah_may_deviate` |
+> | No engine player-stun primitive; tail plays the animation + `%action_delay` | `~zulrah_stun` |
+> | CA 227 "Snake Rebound" needs a Vengeance damage-source tag | `~zulrah_check_achievements` |
+> | Boss-task Slayer assignment absent tree-wide (`slayer_task_zulrah` has `id = -1`) | `~zulrah_slayer_credit` |
+> | Elite clue drop: cache has only per-step `trail_clue_elite_*`, no clue system | `~zulrah_roll_tertiary` |
+> | Telescope spectating describes rather than shows | `zulandra.rs2` |
+> | A stray "Badger" (npc 2124) remains at the Zul-Andra dock from the upstream spawn dump | `areas/world/configs/m34_47.spawn` |
+>
+> One dialect trap found while testing, worth knowing before writing any `mes`:
+> **a non-ASCII character in a message string silently drops the whole message.**
+> An em dash in the selftest's summary line made a passing run look like a run
+> that never happened. All message strings here are ASCII; comments are not.
+
 This is the completion plan for Zulrah: the Zul-Andra access chain, the
 sacrificial boat, the instanced shrine, all three boss forms, both snakeling
 types, venom clouds, all four rotations phase by phase, the post-first-rotation

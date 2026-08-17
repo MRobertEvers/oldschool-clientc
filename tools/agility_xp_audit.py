@@ -74,6 +74,8 @@ COURSES = {
     # top-up (320.8, which takes its 341.2 to the published 662) = 1,202.4.
     "skill_agility/scripts/wyrm_course.rs2": (
         "Colossal_Wyrm_Agility_Course", 1202.4),
+    "skill_agility/scripts/prif_course.rs2": (
+        "Prifddinas_Agility_Course", 1285.2),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is

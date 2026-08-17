@@ -523,11 +523,13 @@ Use one authoritative attack counter:
 
 The distinct projectile proves which attack was selected, but no public client
 source exposes the server roll that selected it. Measure the exact
-prayer-disable chance, projectile/impact delay, tornado-attack cadence, normal
-stomp maximum and normal wrong-prayer maximum as specified in §13. Corrupted
-stomp is exactly 68 typeless; corrupted off-prayer maxima are in the table
-below. Put measured values in named constants with a source note. In particular,
-the current `1/5` prayer-disable and `1/6` tornado rolls are unsourced guesses.
+prayer-disable chance, remaining projectile/impact delays, tornado-attack
+cadence and normal armour-reduced wrong-prayer maxima as specified in §13.
+Crystalline Hunllef's unarmoured base/stomp ceiling is 50 by the cross-checked
+derivation in §13.3; corrupted stomp is exactly 68 typeless and corrupted
+off-prayer maxima are in the table below. Put measured values in named constants
+with a source note. In particular, the current `1/5` prayer-disable and `1/6`
+tornado rolls are unsourced guesses.
 
 ### 8.3 Player protection and damage
 
@@ -574,11 +576,42 @@ one extra in every band (2/3/4). HP controls the count of a tornado **attack**;
 crossing a threshold does not itself summon a wave. Each tornado:
 
 - spawns at a valid distinct arena tile with the cache graphic/NPC;
-- pathfinds toward the player every tick without changing the boss’s active
-  target or swallowing a queued hit;
+- takes exactly one walking step per game tick toward the player's last
+  resolved server tile, without changing the boss's active target or
+  swallowing a queued hit;
 - deals its mode/tier damage every tick on the same tile;
 - remains for exactly 20 ticks (12 seconds), then despawns;
 - cannot be attacked or interacted with and is cleared on every fight exit.
+
+Do **not** implement the tornado as a conventional combat NPC, an intercepting
+homing projectile or an A* pursuit of the player's queued destination. Two
+specialist demonstrations expose the actual chase semantics. CaptBartlett's
+[controlled player-path demonstration](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=20s)
+shows that tornadoes use the same direct walk-to-tile geometry as a player and
+[continually click the player's tile rather than predicting it](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=81s).
+Bad OSRS's tick-by-tick
+[Tornado Class](https://www.youtube.com/watch?v=XAq5fRFUOPk&t=55s)
+independently demonstrates that each tornado continues toward the tile occupied
+on the preceding resolution while the player runs away. Implement this order:
+
+1. snapshot the player's resolved tile for the chase;
+2. advance the player through the normal player-movement phase;
+3. for each tornado, recompute a one-step direct route to the snapshot: step
+   diagonally toward it when both coordinate deltas are non-zero, otherwise
+   step one tile on the differing cardinal axis;
+4. permit tornadoes to share a tile--they do not spread out or avoid one
+   another--and resolve contact independently after movement;
+5. damage only when a tornado and the player's resolved tile coincide on that
+   tick. Crossing in opposite directions and a tornado occupying the skipped
+   middle tile of a two-tile run are not contact.
+
+The last rule is shown directly in Molgoatkirby's
+[same-tile explanation and two-tile loop](https://www.youtube.com/watch?v=X936zH1VUO8&t=1780s)
+and is why a player can run through an adjacent tornado. Add golden coordinate
+traces for a stationary diagonal target, a moving cardinal target, a 90-degree
+turn, stacked tornadoes, an adjacent cross-through and a skipped-middle-tile
+run. A generic `npc_walk(player_coord)` is acceptable only if those traces pass;
+ordinary collision-aware NPC chase code is not the specification.
 
 The strongest public spawn-location evidence is the community
 [Gauntlet Safe Tiles observation](https://www.reddit.com/r/2007scape/comments/r1gvfp/gauntlet_safe_tiles/):
@@ -849,7 +882,8 @@ boss-fight duration alone.
 
 This audit searched Jagex news/dev statements, current and historical Wiki
 pages, the current RuneLite Plugin Hub, open-source Gauntlet plugins and
-simulators, Reddit posts and their linked images. Rank evidence as follows:
+simulators, Reddit and bot-development forums, and captioned/frame-inspected
+YouTube guides and uninterrupted kills. Rank evidence as follows:
 
 1. a Jagex statement or reproducible live-game/cache observation;
 2. a specific Wiki value, preferably backed by the Drop Log Project;
@@ -885,7 +919,21 @@ Useful pinned research sources:
 - Mod Curse confirmed the first attack is Ranged and that correct/off-prayer
   damage was rebalanced in a
   [2019 Jagex-mod reply](https://www.reddit.com/r/2007scape/comments/cjre20/hunllefs_damage_through_prayer_is_being_changed/evfr9ie/).
-  That statement gives behaviour, not the unpublished normal-mode maxima.
+  That statement gives behaviour, not a direct normal-mode damage table.
+- Three independent high-level movement demonstrations are especially useful:
+  CaptBartlett's
+  [controlled tornado-path experiment](https://www.youtube.com/watch?v=adGjfVmD5JQ&t=20s),
+  Bad OSRS's diagrammed
+  [Tornado Class](https://www.youtube.com/watch?v=XAq5fRFUOPk&t=55s), and
+  Molgoatkirby's
+  [same-tile collision explanation](https://www.youtube.com/watch?v=X936zH1VUO8&t=1780s).
+  These expose deterministic movement outcomes, although they cannot expose a
+  server-side random-number denominator.
+- A post-update
+  [150-run cardinal-room sample](https://www.reddit.com/r/2007scape/comments/1vh5a00/the_corrupted_gauntlet_demiboss_spawn_rates/)
+  includes a Wiki crowdsource check over 2,970 observed demi-boss spawns and
+  several independent full-perimeter laps. It is the strongest public evidence
+  found for the July 2026 demi-boss bias, but remains community observation.
 
 ### 13.2 Exact floor masks recovered
 
@@ -941,7 +989,7 @@ Implementation consequences:
 - compare every observed live mask against this set before promoting the atlas
   from high-confidence community evidence to locally reproduced evidence.
 
-### 13.3 Values no longer blocked
+### 13.3 Values recovered or materially narrowed
 
 | Question | Finding | Evidence / implementation decision |
 |---|---|---|
@@ -953,26 +1001,36 @@ Implementation consequences:
 | First attack/style counter | First attack Ranged; switch every fourth qualifying attack; prayer-disable/tornado count, stomp does not | Hunllef Wiki pages, Mod Curse's reply above and observable client attack counters. |
 | Corrupted hidden damage | Stomp max 68 typeless; off-prayer maxima 68/55/45/35 at tier sums 0/3/6/9 | [Corrupted Hunllef](https://oldschool.runescape.wiki/w/Corrupted_Hunllef). |
 | Floor loc states | Normal base/warn/damage 36149/36150/36151; corrupted 36046/36047/36048 | Recorder [IDs and observed transitions](https://github.com/lsmith090/gauntlet-recorder/blob/4647c8397508d76388772d72d4a94eee2260f6f6/src/main/java/com/gauntletrecorder/GauntletIds.java#L19-L34). |
+| Tornado chase and collision | **High confidence, implement now:** one direct walking step per tick toward the player's preceding resolved tile; no interception; tornadoes may stack; damage requires same-tile occupancy on the same tick, so cross-through and run-skipped tiles are safe | The three timestamped video experiments in §8.5 agree, and the Wiki independently fixes speed/lifetime/contact at one tile per tick, 20 ticks and same-tile damage. Replace generic combat-NPC pursuit with the explicit tick order and golden traces in §8.5. |
+| Current demi-boss species bias | **High-confidence observation, exact generator still inferred:** patch-day full laps repeatedly report ten perimeter demis in a fixed 4 bear / 3 dragon / 3 dark-beast population. In the four guaranteed cardinal rooms, a 150-run sample found 90 bears, 36 dark beasts and 24 dragons, and a Wiki crowdsource check found 1,438 bears, 750 dragons and 782 dark beasts--both close to a 2:1:1 bear/dragon/beast mix | [Dataset and Wiki-admin crowdsource comment](https://www.reddit.com/r/2007scape/comments/1vh5a00/the_corrupted_gauntlet_demiboss_spawn_rates/) plus Gnomonkey's patch guide stating that [extra bears were deliberately made more common](https://www.youtube.com/watch?v=CA6-2CqM_NQ&t=1323s). Model a shuffled four-cardinal multiset of 2/1/1 and two additional copies of each species only behind a parity flag until a full-room trace confirms that allocation; do not use uniform independent species rolls. |
+| Normal unarmoured base/stomp ceiling | **High-confidence derivation: 50.** Crystalline Hunllef has Strength 240 and +64 Strength bonus. The standard NPC effective level of 249 in the [published max-hit formula](https://oldschool.runescape.wiki/w/Strength_max_hit) gives `floor(0.5 + 249 × (64 + 64) / 640) = 50`. The same calculation gives 68 for Corrupted Hunllef (240, +112), exactly matching its published stomp/base maximum | The current normal value 40 is wrong. Use 50 for the unmitigated base roll and stomp, guarded by a regression that also derives corrupted 68. The normal armour-reduced off-prayer rows remain unresolved. Historical [Crystalline Hunllef revision 14321183](https://oldschool.runescape.wiki/w/Crystalline_Hunllef?oldid=14321183) also listed 50 before an unsourced edit changed it to `50+`. |
+| Initial Hunllef protection behaviour | **Exact behaviour, weights unproved:** Hunllef spawns protecting from a random one of Melee, Ranged or Magic | The Wiki's [Protection prayers table](https://oldschool.runescape.wiki/w/Protection_prayers) is explicit. Keep all three outcomes and immediate pre-entry visibility; retain uniform `random(3)` as a labelled distribution hypothesis rather than calling the whole mechanic unknown. |
+| Projectile distance effect | **Exact partial rule:** at one or two tiles, Hunllef's projectile lands one tick sooner than at ordinary ranged positioning | Molgoatkirby's [Redemption timing demonstration](https://www.youtube.com/watch?v=X936zH1VUO8&t=1628s). Implement the close-range one-tick branch only after a local projectile trace fixes the absolute base delay and boundary beyond two tiles. |
 
-### 13.4 Values still genuinely hidden
+### 13.4 Residual values not located after deep-source search
 
-No credible Jagex, Wiki, RuneLite, Reddit or simulator source found in this
-audit publishes the following exact server values. The current implementation
-choices must stay labelled as provisional:
+Do not describe this list simply as "unpublished". Several values that looked
+unpublished were recoverable from specialist videos, Wiki history, formulae or
+community crowdsource data. For the narrower residuals below, this audit found
+no reproducible exact value after checking official/Wiki history, Reddit and
+forum archives, captioned high-level YouTube guides, public bot discussions,
+RuneLite plugins and open-source simulators. That is a search result, not proof
+that no private measurement exists. Current choices must remain labelled and
+replaceable:
 
 | Hidden value | What public evidence establishes | Current choice / status |
 |---|---|---|
 | Resource and ordinary-monster generation weights | 0–5 resource nodes, legal tiers and the normal/corrupted guarantees | Uniform node count/type and fixed guarantee rooms are approximations. Exact joint distributions, room/archetype weights and monster-pack weights remain unknown. |
-| Additional perimeter demi-boss probability and species weights | All 24 perimeter rooms are eligible; four cardinal rooms are guaranteed; their species is random | Probability in each of the other 20 rooms and bear/dragon/dark-beast weights are unknown. |
-| Prayer-disable selection | Only occurs during Magic, has distinct projectile IDs 1713/1714 and counts in the four-attack cycle | `random(5) = 0` is unsupported. No source establishes independent Bernoulli selection, a denominator, forced spacing or the exact resolution tick. |
+| Current demi-boss construction | Ten-perimeter, 4/3/3 full-lap observations and approximately 2:1:1 cardinal species outcomes strongly constrain the result (§13.3) | The proposed `cardinals = shuffle(2 bears, 1 dragon, 1 beast)` plus `additional = 2 of each species` construction explains every public observation, but no source proves it. Exact six additional-room selection, room weighting, guarantee override order and whether the population is a fixed multiset rather than conditioned rolls still need complete traces. |
+| Prayer-disable selection | Only occurs during Magic, has distinct projectile IDs 1713/1714 and counts in the four-attack cycle. A long-running community observation says it cannot recur until three Magic attacks after the prior disable; two disables in one four-Magic cycle remain possible (attacks 1 and 4) | [The three-Magic-attack spacing report](https://www.reddit.com/r/ironscape/comments/pn03xg/psa_tip_for_corrupted_gauntlet/) is consistent with player reports but does not give the eligible-roll probability. Implement a three-Magic cooldown behind a measurement flag; `random(5) = 0`, Bernoulli independence, denominator and selection/resolution tick remain unsupported. |
 | Tornado-attack cadence | A summon replaces a qualifying attack and counts in the style cycle | `random(6) = 0` is unsupported. A high-level simulator explicitly says the true mechanism is unknown in its [10–14-attack approximation](https://github.com/ArtemisRS/hunllef/blob/c26b9047756e5ee7f45e2a63da6332007483374c/src/lib.rs#L186-L205). |
-| Tornado spawn tiles | Community observation: no more than one per corner/quadrant, never directly on the player, adjacent is possible | Fixed corner tiles are not parity. Exact candidate tiles, within-quadrant weights, collision rejection and fallback order remain unknown. |
+| Tornado spawn tiles | Community observation: no more than one per corner/quadrant, never directly on the player, adjacent is possible. This concerns **initial spawn only**; the exact chase algorithm is resolved in §8.5 | Fixed corner tiles are not parity. Exact candidate tiles, within-quadrant weights, collision rejection and fallback order remain unknown. Do not let this residual block the correct one-step, last-resolved-tile movement. |
 | Floor-mask selection | The 14 high/mid-HP and five low-HP masks establish the outcome set | Relative weights, repeat prevention and transition restrictions are unknown; uniform selection is a hypothesis. |
-| Floor warning/orange timing | Three speeds; per-tick loc states are observable. The recorder author observed warning leading damage by approximately 5–8 ticks | Exact per-band warning duration, orange duration and next-pattern gap remain unknown. Current 4/3/2 warning and 5/4/3 active values are not sourced. |
+| Floor warning/orange timing | Three speeds; per-tick loc states are observable. The recorder author observed warning leading damage by approximately 5–8 ticks. Frame inspection of an [uninterrupted no-armour kill](https://www.youtube.com/watch?v=qqtmSiz6oIg&t=9s) independently shows that the opening telegraph is about eight ticks, disproving the current four-tick phase-one value, but video blending is not a safe exact timer | Exact per-band or per-pattern warning distribution, orange duration and next-pattern gap remain unknown. Delete the current 4/3/2 warning and 5/4/3 active claims; collect ground-object IDs per tick rather than promoting rounded video timestamps. |
 | Floor damage roll | The Wiki states 10–20 per orange-tile tick but marks it “confirmation needed” | Inclusive support, weighting and whether concurrent hazards roll independently need hitsplat traces; uniform 10–20 is provisional. |
-| Normal stomp and off-prayer damage | Correct-prayer maxima are published; normal stomp is described only as very high | Current max 40 and tier maxima 40/32/26/20 are unsupported. Do not infer them by scaling corrupted values. |
-| Initial Hunllef protection | Protection is visible immediately and can be Melee/Ranged/Magic across encounters | The initial distribution and any dependence on mode/entry are unknown; uniform `random(3)` is only a hypothesis. |
-| Projectile impact timing | Projectile IDs and paths are client-visible | Exact server hit/prayer-wipe tick as a function of distance needs a trace; do not rely only on a guessed projectile-delay divisor. |
+| Normal armour-reduced off-prayer damage | Correct-prayer maxima are published and the unarmoured base/stomp ceiling is derivable as 50 (§13.3) | Tier-sum 3/6/9 off-prayer maxima and reduction formula remain unknown. Delete 40/32/26/20; do not scale corrupted rows without live hits. |
+| Initial Hunllef protection weights | Random Melee/Ranged/Magic selection is Wiki-confirmed (§13.3) | Equality, mode/entry-side dependence and RNG timing are not published. Uniform `random(3)` is the best simple hypothesis, not a blocker to implementing the confirmed three-outcome behaviour. |
+| Projectile impact timing | Projectile IDs and paths are client-visible; one-to-two-tile casts land exactly one tick faster (§13.3) | Absolute cast-to-hit delay and every distance band, including the prayer-wipe event tick, still need projectile `startCycle`/`endCycle` traces. Do not use only a guessed distance divisor. |
 | Boss/player/tornado placement fallback | Boss has a stable authored arena placement; tornadoes reject or alter some spawns | Exact entry tile, tornado obstruction rules and fallback choice need coordinate traces. |
 
 Search results also surfaced old guides claiming demi-bosses cannot appear in
@@ -993,19 +1051,26 @@ updates can be re-analysed. Required experiments:
 1. **Generation census:** in each run reveal all 47 non-start/boss rooms before
    gathering or killing. Record mode, room index, archetype/rotation, every
    resource and every NPC. Separate the four forced cardinal rooms and all
-   normal-mode guarantee overrides before estimating base distributions. Use
+   normal-mode guarantee overrides before estimating base distributions. For
+   post-22-July-2026 runs, first test whether every complete perimeter is
+   exactly 4 bears/3 dragons/3 dark beasts and whether the cardinal multiset is
+   always 2/1/1; only then estimate room selection or independent weights. Use
    at least 10,000 complete runs per mode and publish multinomial counts plus
    confidence intervals; a small convenience-route sample is selection-biased.
 2. **Prayer-disable roll:** classify projectile 1707/1708 as ordinary Magic
    and 1713/1714 as prayer-disable. Exclude stomps and tornado replacements.
    Record position in the four-attack cycle and attacks since each special.
-   Gather at least 10,000 eligible Magic attacks, test for forced spacing and
-   cycle-position dependence, then rationally reconstruct a denominator only
-   if those tests support an independent roll.
+   Gather at least 10,000 eligible Magic attacks, explicitly test the reported
+   three-Magic-attack exclusion window and cycle-position dependence, then
+   rationally reconstruct a denominator only if those tests support an
+   independent roll.
 3. **Tornado cadence/spawn:** for at least 10,000 waves, join the summon
    animation/attack counter to every `NPC_SPAWN`, player tile, boss footprint,
    HP and collision state. Test one-per-quadrant, exclusion of the player's
    tile, distinctness, candidate-tile support, weighting and fallback order.
+   Separately replay the §8.5 golden traces against per-tick coordinates. Chase
+   movement is already specified by reproducible video; do not wait for the
+   random spawn selector before replacing ordinary NPC pursuit.
 4. **Floor timing/masks:** on every boss-room tick, normalise the 36150/36151 or
    36047/36048 tiles to the 12×12 arena. Group by exact boss HP, measure every
    warning→orange→base transition and assert the grid is one of the 19 masks in
@@ -1013,10 +1078,12 @@ updates can be re-analysed. Required experiments:
    in both modes.
 5. **Damage/impact:** record worn tier sum, active protection, cast tick,
    projectile arrival, prayer delta and hitsplat. Deliberately sample normal
-   stomp/off-prayer hits across tier sums 0/3/6/9. A largest observed hit is a
-   lower bound, not proof of the ceiling; freeze a maximum only with exhaustive
-   roll evidence, a stable inferred support over a large sample and an explicit
-   confidence statement, or a first-party disclosure.
+   off-prayer hits across tier sums 3/6/9 and verify unarmoured stomp/base 50.
+   Stratify projectile duration by exact Chebyshev distance, especially 1–2
+   versus 3+ tiles. A largest observed hit is a lower bound, not proof of the
+   ceiling; freeze a maximum only with exhaustive roll evidence, a stable
+   inferred support over a large sample and an explicit confidence statement,
+   or a first-party disclosure.
 6. **Initial protection:** record the Hunllef NPC form on the first boss-room
    tick for a large set of fresh encounters, separately by mode and entry side.
    Test uniformity and dependence before replacing `random(3)`.

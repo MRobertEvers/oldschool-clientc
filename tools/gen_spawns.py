@@ -122,6 +122,12 @@ NPC_SPAWN_EXCLUSIONS = {
     # Priest in Peril's Temple Guardian has been instanced since 2017. The
     # quest zone creates one owner-private actor for each eligible player.
     ("priestperilguarddog", 3405, 9902, 0),
+    # Regicide creates the trail-blocking Tyras guard privately at the exact
+    # dense-forest crossing. These dump rows are occupants of the later tent
+    # cutscene map and must not become public quest-credit targets.
+    ("regicide_old_camp_guard", 2312, 4556, 0),
+    ("regicide_old_camp_guard", 2314, 4556, 0),
+    ("regicide_old_camp_guard", 2316, 4556, 0),
 }
 
 

@@ -1,9 +1,9 @@
 # Charter ships — Trader Stan's fleet
 
-> Written 2026-08-17. Status: **transport, fares and the shop are built and
-> verified; the cache map picker and the voyage animation are not.** The
-> implementation is `server/scripts/transport_charter/` — read its README first.
-> §12 is the as-built record and §13 is what is still open.
+> Written 2026-08-17. Status: **built and verified — transport, fares, the shop
+> and the cache's own map picker. Only the voyage animation is outstanding.**
+> The implementation is `server/scripts/transport_charter/` — read its README
+> first. §12 is the as-built record and §13 is what is still open.
 >
 > **Behaviour authority (wiki):**
 > [Charter ship](https://oldschool.runescape.wiki/w/Charter_ship) ·

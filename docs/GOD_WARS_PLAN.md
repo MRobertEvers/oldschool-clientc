@@ -237,8 +237,13 @@ by the existence of code. As of the audit date, the repository now has:
 - [x] Nex's attack matrix is executable in the focused VM: Smoke/Blood/Ice/
   Zaros magic autos, ordinary and Zaros melee, the Shadow ranged auto, and both
   deterministic branches of Smoke, Shadow, Blood, and Ice specials all run in
-  live player/NPC context; each branch with an NPC animation selects its exact
-  authored sequence. This uncovered and fixed the engine queue's stale
+  live player/NPC context. Each auto now proves its exact animation, synth,
+  projectile config, signed player target, 32-cycle launch plus distance-based
+  end cycle, and matching landing queue/impact. The eight pre-Zaros special
+  branches prove their authored sounds plus virus impact/cough queue, both dash
+  sounds, Shadow Smash warning loc/landing, darkness queue, siphon graphic/
+  reaver/release queue, Blood Sacrifice mark/delay, Ice Smash charge, and Ice
+  Prison warning graphic/five locs/delayed hit. This uncovered and fixed the engine queue's stale
   four-integer ceiling: Nex and the Ancient Prison mage legitimately carry five
   landing arguments, so the fixed-size queue now provides eight slots.
 - [x] Zaros-phase state tests drive attack counts 4/8/12 through the actual
@@ -254,9 +259,10 @@ by the existence of code. As of the audit date, the repository now has:
 - [x] Ancient Prison attack execution covers the warrior's five-tile Smoke
   special, the ranger's prayer-disabling bind, the Blood Reaver projectile,
   and deterministic Smoke/Shadow/Blood/Ice rolls for the spiritual mage. Every
-  route runs in the real VM, selects its exact authored attack sequence, and
-  successfully arms its projectile/landing queue; the public mage rotation
-  still chooses the four paths uniformly with `random(4)`.
+  route runs in the real VM and now asserts its exact authored animation,
+  launch synth, warning or targeted projectile, geometry/timing, impact config,
+  and landing queue; the public mage rotation still chooses the four paths
+  uniformly with `random(4)`.
 - [x] Runtime testing found and fixed two engine/compiler faults that made
   source-only review unreliable: floor-object commands now resolve a typed
   `namedobj` when an NPC shares its name (`shark` object 385 versus NPC 1830),
@@ -278,6 +284,11 @@ by the existence of code. As of the audit date, the repository now has:
   spotanim 1225) compiled as the sequence. Fixed command return arity now keeps
   parameter position exact, with a compiler regression fixture matching the
   `npc_coord, coord, uid, spotanim` projectile-helper signature.
+- [x] Extending the same trace to the Ancient Prison found the command-side
+  equivalent: `sound_synth(arrow_launch, ...)` resolved sequence 366 instead of
+  synth 2692 because both packs use the name. `SOUND_SYNTH` now types its first
+  argument as the synth namespace, with a compiler regression fixture using
+  the revision-239 collision.
 
 The remaining acceptance work is runtime-focused: Turmoil's unpublished drain
 amount/transfer timing and Ice Prison's unpublished
@@ -655,9 +666,11 @@ forced_move, secondary_effect, prayer_rule, player_or_npc_target`.
 - [x] Add a test-only trace for all 126 classic attack rows which observes the
   selected attack, animation, launch/impact assets, sound, target UID, and
   projectile/landing timing without making production combat noisy.
-- [ ] Extend that trace to every Nex auto/special and record damage/effect tick
-  plus final cooldown after advancing the delayed queues; retain deterministic
-  replay artifacts suitable for client/video comparison.
+- [x] Extend synchronous launch traces to every Nex auto, all eight pre-Zaros
+  special branches, and every Ancient Prison attack/spell path.
+- [ ] Advance every Nex delayed queue and record damage/effect tick plus final
+  cooldown; retain deterministic replay artifacts suitable for client/video
+  comparison.
 
 ## Implementation sequence
 
