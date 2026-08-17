@@ -495,11 +495,21 @@ the standalone portal/lever files, and Agility shortcuts are now covered
   56 minecart rows and a mix of boat/ship rows (some loc-keyed, some
   npc-keyed) already verify cleanly against this cache per §1's
   transportation table and are ready for that script the moment it exists.
-- **Fairy rings, spirit trees, charter ships, gnome gliders, quetzals, magic
-  carpets, hot air balloons, magic mushtrees, canoes.** Every one needs a
+- **Fairy rings, quetzals, magic mushtrees.** Every one needs a
   destination-picker interface this tree does not have yet. Their rows are
   real and would resolve against `maplink`-shaped data the moment that
   interface exists; until then they are out of scope rather than faked.
+- **Canoes, spirit trees, gnome gliders, magic carpets, hot air balloons.**
+  Landed since this section was written; see `docs/CANOES.md` and the
+  `[opnpc]`/`[oploc]` destination menus in `server/scripts/`.
+- **Charter ships.** Landed 2026-08-17 as `server/scripts/transport_charter/`,
+  and it did *not* need a new picker — the cache already carries the whole one
+  (interfaces 72 + 885, clientscripts 8940/8941/9104), which is the assumption
+  this list got wrong. Sixteen ports, the wiki's fare matrix, and Trader Stan's
+  Trading Post at each. `charter_ships.tsv` is used for the destination tiles
+  and quest gates only: it disagrees with the wiki on cost and the wiki wins.
+  Full record in `docs/transport/CHARTER_SHIPS.md`; the map picker and the
+  voyage animation are still open there.
 - **POH jewellery boxes and portals, Leagues seasonal transports, minigame
   grouping teleports.** No player-owned house, no Leagues mode, no grouping
   interface in this tree — out of scope, not deferred.

@@ -140,6 +140,17 @@ BODYGUARD = {
     "godwars_ancient_black_demon": ("magic", "16", "demon_attack", "godwars_black_demon_fireball_spot", "godwars_black_demon_fireball_proj", "none"),
 }
 
+# These two exact handlers cast spell-table god spells. Their authored NPC
+# overlays predate that handler and still carry generic projectile params which
+# the production path deliberately never reads; the dbrow supplies a delayed
+# target graphic instead.
+SPELL_ATTACKS = {
+    "godwars_spiritual_zamorak_mage":
+        ("magic", "19", "human_casting", "zamorak_flame"),
+    "godwars_ancient_saradomin_wizard":
+        ("magic", "20", "human_casting", "saradomin_lightning"),
+}
+
 
 def family_of(gameval: str) -> str:
     if gameval in AVIAN_MAX:
@@ -212,6 +223,11 @@ def attack_rows(gameval: str, params: dict[str, str], aligned_ambient: bool) -> 
         specs = [("primary", style, max_hit, seq, start, proj, impact,
                   params.get("attack_sound", "none"), "single", "none", "none",
                   f"Protect from {style.title()} blocks")]
+    elif gameval in SPELL_ATTACKS:
+        style, max_hit, seq, impact = SPELL_ATTACKS[gameval]
+        specs = [("primary", style, max_hit, seq, "none", "none", impact,
+                  "none", "single", "none", "god-spell target graphic",
+                  "Protect from Magic blocks")]
     else:
         family = family_of(gameval)
         style_num = params.get("damagetype", "2")

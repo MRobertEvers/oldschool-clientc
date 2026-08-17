@@ -33,6 +33,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1125,6 +1126,34 @@ param_symbol(
     return 1;
 }
 
+/** Legacy generated NPC overlays carry numeric synth ids; authored area
+ * overlays use checked names. Accept both without letting a misspelled name
+ * degrade through atoi() to the valid synth id 0. */
+static int
+param_synth(
+    int* out,
+    const char* param_name,
+    const char* value,
+    const char* where)
+{
+    char* end = NULL;
+    long id = strtol(value, &end, 10);
+
+    if( end && end != value && *end == '\0' )
+    {
+        if( id < -1 || id > INT_MAX )
+        {
+            CONTENT_ERROR("%s: param `%s` synth id is out of range: `%s`\n",
+                          where, param_name, value);
+            return 0;
+        }
+        *out = (int)id;
+        return 1;
+    }
+    return param_symbol(
+        out, MOCK230_PACK_SYNTH, param_name, value, where);
+}
+
 /*
  * Also file the param under its *id*, so `npc_param` can find it.
  *
@@ -1290,32 +1319,24 @@ apply_param(
             return 0;
         resolved = enum_id;
     }
-    /*
-     * The three combat sounds, and the one place in this function that takes a
-     * bare integer where its neighbours take a name.
-     *
-     * Not an inconsistency to tidy: `param_symbol` resolves through a pack
-     * namespace and there is no `synth` param *type* for cachepack to declare
-     * (`cp_common.c`'s `k_param_types` — the letter a sound would want, 'P', is
-     * already `param`). So a `.npc` block cannot spell a sound by name at all.
-     * `tools/gen_npc_combat.py` does the name resolution, where it can be
-     * checked against `pack/4_soundeffects.pack`, and keeps the name in
-     * `npc_combat/<npc>.combat` beside the id. The number that arrives here has
-     * already been through a name.
-     */
+    /* Generated overlays retain numeric cache ids while hand-authored content
+     * uses the synth pack's symbolic names. Both forms are intentional. */
     else if( strcmp(text, "attack_sound") == 0 )
     {
-        def->attack_sound = atoi(value);
+        if( !param_synth(&def->attack_sound, text, value, where) )
+            return 0;
         resolved = def->attack_sound;
     }
     else if( strcmp(text, "defend_sound") == 0 )
     {
-        def->defend_sound = atoi(value);
+        if( !param_synth(&def->defend_sound, text, value, where) )
+            return 0;
         resolved = def->defend_sound;
     }
     else if( strcmp(text, "death_sound") == 0 )
     {
-        def->death_sound = atoi(value);
+        if( !param_synth(&def->death_sound, text, value, where) )
+            return 0;
         resolved = def->death_sound;
     }
     else

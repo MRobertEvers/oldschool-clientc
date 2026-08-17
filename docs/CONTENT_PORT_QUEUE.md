@@ -1765,3 +1765,15 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 35y done: Alkh palace curtains + Priest Peril mausoleum gates
 - final: 12368 scripts; mock230_pack 0 errors
 - next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
+
+- slice 36a done: charter ships — transport_charter/ (16 ports, 228 fares,
+  Trader Stan's Trading Post), tools/gen_charter_tables.py,
+  tools/check_charter_contract.py (wired into mock230-scripts), mock230
+  selftest "a charter ship takes a fare and sails" (7 assertions).
+  Fares are the wiki's table, not charter_ships.tsv, which is wrong about
+  money; destination ids/arrival tiles/zone boxes come from cache dbtable 206.
+  Suite: 47 failures with this work vs 67 without, a strict subset — no new
+  ones. Record: docs/transport/CHARTER_SHIPS.md §12.
+- next pending: charter phases 3+4 (cache map picker 72+885, voyage animation)
+  — both blocked on a headless measurement, see CHARTER_SHIPS.md §13
+

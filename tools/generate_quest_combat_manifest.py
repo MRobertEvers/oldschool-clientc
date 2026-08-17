@@ -873,7 +873,80 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "A real-client bait ownership, four-roll timing, bow/ammo rejection, corpse timeout, inventory-full, cooking-failure, death and relog smoke is still pending.",
         ],
     },
+    "Elemental Workshop I": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_Workshop_I?oldid=15292271", "revision": 15292271, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_Workshop_I/Quick_guide?oldid=14836472", "revision": 14836472, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Transcript:Elemental_Workshop_I?oldid=15263279", "revision": 15263279, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_Workshop_II?oldid=15271178", "revision": 15271178, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_Workshop_II/Quick_guide?oldid=14955157", "revision": 14955157, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Transcript:Elemental_Workshop_II?oldid=15263361", "revision": 15263361, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Earth_elemental?oldid=15266539", "revision": 15266539, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_rock?oldid=15196447", "revision": 15196447, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_ore?oldid=15183923", "revision": 15183923, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_metal?oldid=15275847", "revision": 15275847, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Elemental_shield?oldid=15205412", "revision": 15205412, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Primed_bar?oldid=15183739", "revision": 15183739, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Mind_helmet?oldid=15183129", "revision": 15183129, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Mind_shield?oldid=15205410", "revision": 15205410, "retrieved": "2026-08-17"},
+        ],
+        "npc_gamevals": [
+            "elem1_qip_earth_elemental_rock_version_rock",
+            "elem1_qip_earth_elemental_rock_version",
+            "elemental_earth", "elemental_air", "elemental_water", "elemental_fire",
+        ],
+        "item_gamevals": [
+            "elemental_workshop_shield_book/elemental_workshop_shield_book_slashed",
+            "elemental_workshop_key", "elemental_workshop_lava_bowl/_full",
+            "needle/thread/leather", "pickaxe", "elem1_qip_rockremains",
+            "elemental_workshop_ore", "coal", "elemental_workshop_bar",
+            "hammer", "elemental_shield", "elemental_workshop_helm_book",
+            "elemental_workshop_2_key", "elemental_workshop_claw_book",
+            "elemental_workshop_lever_book", "elem_broken_finger",
+            "elem2_smallgear/medgear/biggear/spare_pipe", "elem_primed_bar",
+            "elem_mind_bar", "elem_mind_helm", "elemental_mind_shield",
+        ],
+        "loc_gamevals": [
+            "elemental_workshop_bookcase", "elemental_workshop_oddwall_l/r",
+            "elemental_workshop_spiralstairs/top", "elemental_workshop_valve_1/2",
+            "elemental_workshop_water_lever", "elemental_workshop_bellows_noanim",
+            "elemental_workshop_air_lever", "elemental_workshop_box_1..8",
+            "elemental_workshop_trough_1..5", "elemental_workshop_furnace_out/lit",
+            "elemental_workshop_workbench", "elem2_stairs_door_close/open",
+            "elem2_crane_track_up_empty", "elem2_press_junction_box",
+            "elemental_piping_blue_broken", "elem2_wind_pin_high/low/left",
+            "elem2_lever_3way", "elem2_earth_lever_1", "elem2_water_lever",
+            "elem2_corkscrew", "elem2_valve_1/2", "elem2_air_lever",
+            "elem_extractor_gun_no_bar/bar/bar_mind", "elem_extractor_hat",
+        ],
+        "trigger_handlers": [
+            "opnpc1:elem1_qip_earth_elemental_rock_version_rock",
+            "ai_queue3:elem1_qip_earth_elemental_rock_version",
+            "oploc1:elemental_workshop_valve/bellows/water+air levers/boxes",
+            "oplocu:elemental_workshop_trough/furnace/workbench",
+            "oploc1/oplocu:elemental_workshop_oddwall_l/r",
+            "oploc1/oplocu:EWII repair/priming/extractor apparatus",
+        ],
+        "loot_contract": "Mining an elemental rock requires current Mining 20 and a usable pickaxe and creates one owner-private level-35 Earth elemental with exact 35/20/35/35/10/30 stats and speed 6. Its eligible death has no roaming-elemental table: it creates owner-private one elemental rock and one elemental ore, both guaranteed. Roaming earth/air/water/fire elementals remain separate ordinary creatures. The ore is refined only through the repaired Workshop I machinery with four coal; elemental metal is consumed at the workbench for the quest shield or Workshop II claw/primed-bar route. Pre-owned elemental metal bypasses Workshop II's two optional ore fights. The extractor consumes 20 current Magic per primed mind bar; the beaten/slashed books select mind helmet/mind shield output.",
+        "test_ids": [
+            "quest-combat-contract:elemental-workshop-rock",
+            "quest-combat-contract:elemental-workshop-machinery",
+            "quest-combat-contract:elemental-workshop-ii-pipeline",
+        ],
+        "known_gaps": [
+            "The Workshop II junction-box drag interface is represented by one deterministic solved interaction because this server has no established drag-connect widget contract.",
+            "The Workshop II crane uses the exact state machine and fixed scenery with narration; moving crane/cart scenery and camera/audio presentation remain pending.",
+            "A real-client two-player ownership, replacement-item, wrong-order machinery, pre-owned-bar bypass, Magic-drain, death and relog smoke is still pending.",
+        ],
+    },
 }
+
+# The two inventory rows share one physical encounter and one continuous item/
+# machinery implementation. Preserve separate manifest units while binding both
+# to the same pinned evidence contract.
+AUDITED_OVERRIDES["Elemental Workshop II"] = dict(
+    AUDITED_OVERRIDES["Elemental Workshop I"]
+)
 
 ROW = re.compile(
     r"^\| \[(?P<name>[^]]+)]\((?P<url>https://oldschool\.runescape\.wiki/w/[^)]+)\)"

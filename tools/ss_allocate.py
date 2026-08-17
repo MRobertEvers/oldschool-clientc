@@ -82,7 +82,7 @@ MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-
 # conclusion drawn at the time was "content cannot own this rule", which is
 # exactly backwards — see docs/CONTENT_ARCHITECTURE.md §8.2(c).
 SERVER_NAMESPACES = (
-    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv',
+    'enum', 'struct', 'dbtable', 'dbrow', 'param', 'mesanim', 'inv', 'varn',
     # `varp` is here because the `ids` axis was retired, and it is the ONLY
     # namespace that axis ever contributed — measured against the tree, not
     # assumed. It is swept so content can declare the `%com_*` combat stat block

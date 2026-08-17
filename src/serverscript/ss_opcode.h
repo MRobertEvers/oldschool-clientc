@@ -492,10 +492,11 @@
 #define SS_OP_NPC_RESPAWN_REMAINING 11063
 #define SS_OP_MAP_INSTANCE_FLAG_GET 11064
 #define SS_OP_MAP_INSTANCE_FLAG_SET 11065
+#define SS_OP_LAST_STEP_COORD 11066
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11066
+#define SS_OPCODE_MAX 11067
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 470
+#define SS_OPCODE_COUNT 471
 
 #endif

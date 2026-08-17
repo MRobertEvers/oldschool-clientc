@@ -46,12 +46,10 @@ them with `make -C src check-gauntlet-contract`. The live-client matrix and the
 measurements below remain acceptance work, not completed verification.
 
 Sections 2 and 12 remain the original baseline audit and delivery plan rather
-than a description of the current tree. Section 13 remains deliberately open:
-the Wiki does not publish the exact floor masks, room/content probability
-tables, normal-mode secondary-drop denominators, prayer-disable probability,
-or several hidden damage/spawn choices. The implementation uses the documented
-behaviour plus labelled inferences for those values; exact parity requires a
-reproducible live-game trace as specified there.
+than a description of the current tree. The research audit in §13 resolves the
+floor masks, room connectivity and normal-mode drop-table question, and narrows
+the remaining gaps to server-side generation/combat rolls and timings. Any
+value that remains unresolved there is an approximation, not literal parity.
 
 ---
 
@@ -236,10 +234,17 @@ death arbitration has established that the player survived.
 
 ### 5.1 Layout contract
 
-Build a connected 7×7 room graph with the boss fixed at (3,3) and the starting
-room in one of the four adjacent positions. Choose compatible room archetypes
-and rotations from normal `m29_88` or corrupted `m30_88`; do not merely sample
-visual rooms with replacement and assume their doors form a valid graph.
+Build a **full orthogonal 7×7 grid**, with the boss fixed at (3,3) and the
+starting room in one of the four adjacent positions. Every horizontally or
+vertically adjacent pair is connected: corners have two neighbours, edge rooms
+three and interior rooms four. This is not a maze-generation problem and the
+implementation must not randomly delete interior edges. The current Plugin Hub
+[Gauntlet Map adjacency table](https://github.com/StickySerum/gauntlet-map/blob/25d36de0cd6a2cd319bd2721885325b81c6756f4/src/main/java/com/gauntletmap/GauntletMapPlugin.java#L478-L555)
+enumerates that complete topology; its
+[room constants](https://github.com/StickySerum/gauntlet-map/blob/25d36de0cd6a2cd319bd2721885325b81c6756f4/src/main/java/com/gauntletmap/GauntletMapConstants.java#L62-L63)
+identify all 24 perimeter rooms and the four guaranteed cardinal rooms.
+Choose compatible room archetypes and rotations from normal `m29_88` or
+corrupted `m30_88` without changing this connectivity.
 
 Generation constraints from [The Gauntlet](https://oldschool.runescape.wiki/w/The_Gauntlet#Resource_rooms)
 and its 22 July 2026 changes:
@@ -256,9 +261,16 @@ and its 22 July 2026 changes:
 - duplicate demi-boss species are legal and interact with component guarantees
   as described in §7.3.
 
-Put room resource/monster probabilities in data. The Wiki does not publish the
-full distribution, so capture it from an authoritative live/client source and
-check the measured corpus into `docs/` or `tools/data/` before declaring parity.
+The four guaranteed room indices in the client map's 1-based, south-west-first
+ordering are **4, 22, 28 and 46**; the perimeter candidate set is
+`1–8, 14–15, 21–22, 28–29, 35–36, 42–49`. Jagex independently confirms the
+four cardinal guarantees in the
+[22 July 2026 update](https://secure.runescape.com/m=news/summer-sweep-up-gear--pvm-changes?oldschool=1).
+
+Put room resource/monster probabilities in data. Neither the Wiki, Jagex's
+update nor client plugins publish the server's content weights. Capture them
+from a sufficiently large live corpus and check the corpus plus derivation into
+`docs/` or `tools/data/` before declaring distribution parity.
 
 ### 5.2 Nodes, doors and map
 
@@ -449,11 +461,18 @@ normal private ground/inventory behaviour and must survive a full inventory.
 | Strong: unicorn/scorpion/wolf | 80–100 shards | 7–14 shards 9/21; nothing 6/21; raw paddlefish 2–4 at 3/21; grym leaf 2/21; teleport crystal 1/21; frame 2/7 | guaranteed by the second strong kill if no applicable frame was received; second-frame common behaviour must be retained | 5 |
 | Demi-boss | 50–60 shards + weapon frame + perfected component | nothing 3/18; 10–21 shards 9/18; raw paddlefish 3–5 at 3/18; grym leaf 2/18; teleport crystal 1/18 | frame always | 10 |
 
-The corrupted NPC pages publish the exact denominators above; normal pages use
-“common/uncommon”, while the [strategy page](https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies#The_Corrupted_Gauntlet)
-states that both modes share mechanics and drop tables. Treat using the same
-denominators for normal mode as a documented inference and verify it against a
-live/drop-log source before closing the slice.
+The corrupted NPC pages publish the exact denominators above from very large
+Drop Log Project samples: for example,
+[Corrupted Rat](https://oldschool.runescape.wiki/w/Corrupted_Rat),
+[Corrupted Unicorn](https://oldschool.runescape.wiki/w/Corrupted_Unicorn) and
+[Corrupted Bear](https://oldschool.runescape.wiki/w/Corrupted_Bear). The normal
+NPC pages render only “common/uncommon”, but the
+[strategy page](https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies#The_Corrupted_Gauntlet)
+explicitly says the corrupted monsters have the same mechanics and drop tables
+as their crystalline counterparts and differ in combat stats. Therefore use
+the same exact secondary denominators in both modes. This is a Wiki-backed
+equivalence, not an independently sampled normal-mode table; retain that
+provenance in the data manifest.
 
 Demi-boss component rules:
 
@@ -501,10 +520,13 @@ Use one authoritative attack counter:
 7. Before every style switch play the cache animation and audio cue added to
    OSRS in 2020/2023; a chat message is not a substitute.
 
-Measure/cache-cross-check the exact prayer-disable chance, projectile delays,
-normal stomp maximum and normal wrong-prayer maximum because the Wiki does not
-publish all four as exact numbers. Corrupted stomp/off-prayer max is 68 with no
-armour. Put measured values in named constants with a source note.
+The distinct projectile proves which attack was selected, but no public client
+source exposes the server roll that selected it. Measure the exact
+prayer-disable chance, projectile/impact delay, tornado-attack cadence, normal
+stomp maximum and normal wrong-prayer maximum as specified in §13. Corrupted
+stomp is exactly 68 typeless; corrupted off-prayer maxima are in the table
+below. Put measured values in named constants with a source note. In particular,
+the current `1/5` prayer-disable and `1/6` tornado rolls are unsourced guesses.
 
 ### 8.3 Player protection and damage
 
@@ -518,10 +540,11 @@ three worn armour tiers**:
 | 6 | 8 | 7–13 | 10 | 10–20 | 45 |
 | 9 | 6 | 5–10 | 8 | 7–15 | 35 |
 
-This table follows the newer, boss-specific Corrupted Hunllef revision. The
-pinned main Gauntlet page instead says 14–25 for tier sum 3 and 8–15 for tier
-sum 9, versus 15–25 and 7–15 above. Resolve that Wiki-source conflict with a
-live test before freezing the damage data.
+The mode-specific
+[normal tornado](https://oldschool.runescape.wiki/w/Tornado_%28The_Gauntlet%29)
+and [corrupted tornado](https://oldschool.runescape.wiki/w/Tornado_%28Corrupted_Gauntlet%29)
+pages give the ranges in this table. They supersede the older pinned main-page
+values of 14–25 and 8–15 for corrupted tier sums 3 and 9.
 
 Do not halve those standard maxima again. Roll inclusively in the documented
 range. Wrong/no prayer uses its own table/formula, not `2 × correct damage`.
@@ -556,6 +579,15 @@ crossing a threshold does not itself summon a wave. Each tornado:
 - remains for exactly 20 ticks (12 seconds), then despawns;
 - cannot be attacked or interacted with and is cleared on every fight exit.
 
+The strongest public spawn-location evidence is the community
+[Gauntlet Safe Tiles observation](https://www.reddit.com/r/2007scape/comments/r1gvfp/gauntlet_safe_tiles/):
+at most one tornado per arena corner/quadrant and never on the player's tile,
+although an adjacent tile is possible. Its author explicitly labels this
+anecdotal. Use it as a hypothesis for the trace in §13, not as an exact spawn
+algorithm. A high-level open-source simulator likewise states that the true
+tornado mechanism is unknown in its
+[spawn approximation](https://github.com/ArtemisRS/hunllef/blob/c26b9047756e5ee7f45e2a63da6332007483374c/src/lib.rs#L186-L205).
+
 ### 8.6 Damaging floor
 
 Implement the floor as a per-fight state machine, not temporary locs emitted and
@@ -563,9 +595,11 @@ checked in the same procedure:
 
 `choose legal pattern → warning colour → damaging orange → clear/next pattern`.
 
-- There are three authored pattern sets and speeds selected by HP thirds.
-  Corrupted thresholds are 1000–667, 666–333 and ≤332; normal uses equivalent
-  thirds of 600.
+- There are three speed bands selected by HP thirds, but the recovered atlas
+  has two mask banks: 14 masks at or above one-third HP and five masks below
+  one-third. Corrupted speed thresholds are 1000–667, 666–333 and ≤332;
+  normal uses equivalent thirds of 600. The low-HP bank begins below one-third
+  (≤332 corrupted, ≤199 normal), not at exactly one-third.
 - During every damaging tick, each player on an orange tile takes 10–20 damage.
 - Later patterns become harder and warning-to-orange time becomes shorter.
 - The final set preserves the documented door-adjacent safe tiles shown on the
@@ -575,10 +609,9 @@ checked in the same procedure:
 - Visual loc state, collision query and damage state must change on the same
   tick and survive boss movement/pathing.
 
-The Wiki documents floor layouts primarily through images. Extract exact tile
-masks and timings from the cache/live client, check them into a small data file,
-and add a renderer/self-test that proves the four door-safe tiles are absent
-from every final-phase danger mask.
+Use the exact masks transcribed in §13.2 from the community atlas and add a
+renderer/self-test that round-trips those 12×12 strings. The masks are resolved;
+warning/orange durations still require the per-tick trace in §13.5.
 
 ---
 

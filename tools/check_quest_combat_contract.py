@@ -102,6 +102,15 @@ CHOMPY_CHEST = CONTENT / "quests/quest_chompybird/scripts/ogre_chest.rs2"
 CHOMPY_TOAD = CONTENT / "quests/quest_chompybird/scripts/swamp_toad.rs2"
 CHOMPY_CAVES = CONTENT / "quests/quest_chompybird/scripts/chompy_caves.rs2"
 OSF_RELAY = CONTENT / "quests/quest_onesmallfavour/scripts/onesmallfavour_relay.rs2"
+ELEM1_CORE = CONTENT / "quests/quest_elemental_workshop/scripts/quest_elemental_workshop.rs2"
+ELEM1_BOOK = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_workshop_shield_book.rs2"
+ELEM1_DROPS = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_drops.rs2"
+ELEM1_NPC = CONTENT / "quests/quest_elemental_workshop/configs/quest_elemental_workshop.npc"
+ELEM_GATHER = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_gather.rs2"
+ELEM2_HELM = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_helm.rs2"
+ELEM2_REPAIR = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_repair.rs2"
+ELEM2_PRIMING = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_priming.rs2"
+ELEM2_SHARED = CONTENT / "quests/quest_elementalworkshopii/scripts/elem2_shared.rs2"
 NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
 NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
@@ -206,6 +215,16 @@ def check_manifest() -> None:
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(chompy[0][key]),
                 f"Big Chompy Bird Hunting: empty evidence field {key}")
+    for quest_id, name in (
+        ("quest-elemental-workshop-i", "Elemental Workshop I"),
+        ("quest-elemental-workshop-ii", "Elemental Workshop II"),
+    ):
+        elemental = [row for row in rows if row["id"] == quest_id]
+        require(len(elemental) == 1, f"manifest: expected exactly one {name} row")
+        require(elemental[0]["implementation_status"] == "implementation-in-progress",
+                f"{name}: status drift")
+        for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+            require(bool(elemental[0][key]), f"{name}: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -1423,6 +1442,128 @@ def check_big_chompy() -> None:
                  "Big Chompy Bird Hunting actor state")
 
 
+def check_elemental_workshops() -> None:
+    npc = ELEM1_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[elem1_qip_earth_elemental_rock_version]", "hitpoints=35",
+            "attack=20", "strength=35", "defence=35", "magic=10",
+            "ranged=30", "param=attackrate,6",
+            "param=death_drop,elem1_qip_rockremains",
+        ),
+        "Elemental Workshop mined Earth elemental config",
+    )
+
+    gather = ELEM_GATHER.read_text()
+    require_text(
+        gather,
+        (
+            "[opnpc1,elem1_qip_earth_elemental_rock_version_rock]",
+            "stat(mining) < 20", "~pickaxe_checker;",
+            "npc_add(npc_coord, elem1_qip_earth_elemental_rock_version, 500);",
+            "npc_setowner;", "~npc_retaliate(0);",
+            "[oplocu,elemental_workshop_furnace_out]",
+            "[oplocu,elemental_workshop_furnace_lit]",
+            "~elem1_furnace(last_useitem);",
+        ),
+        "Elemental Workshop rock activation and shared furnace",
+    )
+    require(gather.count("npc_setowner;") == 1,
+            "Elemental Workshop: mined elemental must have one owner assignment")
+
+    drops = ELEM1_DROPS.read_text()
+    ore_drop = drops.split("[ai_queue3,elem1_qip_earth_elemental_rock_version]", 1)[1]
+    ore_drop = ore_drop.split("[ai_queue3,elemental_earth]", 1)[0]
+    require_text(
+        ore_drop,
+        (
+            "npc_findhero = ^false", "obj_add_private(npc_coord, elem1_qip_rockremains, 1",
+            "obj_add_private(npc_coord, elemental_workshop_ore, 1",
+        ),
+        "Elemental Workshop guaranteed private ore drop",
+    )
+    require("obj_add(" not in ore_drop,
+            "Elemental Workshop: mined elemental restored a public drop")
+
+    book = ELEM1_BOOK.read_text()
+    require_text(
+        book,
+        (
+            "inv_del(inv, elemental_workshop_shield_book, 1);",
+            "inv_add(inv, elemental_workshop_shield_book_slashed, 1);",
+            "inv_add(inv, elemental_workshop_key, 1);",
+            "[opheld1,elemental_workshop_shield_book_slashed]",
+        ),
+        "Elemental Workshop battered/slashed book",
+    )
+
+    core = ELEM1_CORE.read_text()
+    require_text(
+        core,
+        (
+            "[oploc1,elemental_workshop_bookcase]",
+            "[oploc1,elemental_workshop_valve_1_red]",
+            "coordx(loc_coord) > 2719", "%elemental_workshop_gate2 =",
+            "[oploc1,elemental_workshop_water_lever]",
+            "%elemental_workshop_gate1 = 1 & %elemental_workshop_gate2 = 1",
+            "[oploc1,elemental_workshop_bellows_noanim]",
+            "stat(crafting) < 20", "inv_del(inv, thread, 1);",
+            "inv_del(inv, leather, 1);", "[oploc1,elemental_workshop_air_lever]",
+            "[oploc1,elemental_workshop_box_1]",
+            "[oplocu,elemental_workshop_trough_1]",
+            "[oplocu,elemental_workshop_trough_5]",
+            "[proc,elem1_furnace](obj $used)", "inv_del(inv, coal, 4);",
+            "inv_add(inv, elemental_workshop_bar, 1);",
+            "[proc,elem1_make_shield]", "inv_add(inv, elemental_shield, 1);",
+            "%elemental_workshop_finished = 1;",
+            "stat_advance(crafting, 50000);", "stat_advance(smithing, 50000);",
+            "~quest_complete_rewards(quest_elementalworkshop1",
+        ),
+        "Elemental Workshop I machinery and reward",
+    )
+
+    helm = ELEM2_HELM.read_text()
+    require_text(
+        helm,
+        (
+            "[oploc1,elem_extractor_hat]", "stat(magic) < 20",
+            "stat_sub(magic, 20, 0);", "[oplocu,elemental_workshop_workbench]",
+            "~elem1_make_shield;", "inv_add(inv, elem_mind_helm, 1);",
+            "inv_add(inv, elemental_mind_shield, 1);", "~elem2_finish;",
+        ),
+        "Elemental Workshop II extractor and equipment selection",
+    )
+    require_text(
+        ELEM2_REPAIR.read_text(),
+        (
+            "[oploc1,elem2_maintenance_book_crate]", "[proc,elem2_make_claw]",
+            "[oploc1,elem2_press_junction_box]", "[oplocu,elemental_piping_blue_broken]",
+            "[oplocu,elem2_wind_pin_high]", "[oplocu,elem2_wind_pin_low]",
+            "[oplocu,elem2_wind_pin_left]",
+        ),
+        "Elemental Workshop II repairs",
+    )
+    require_text(
+        ELEM2_PRIMING.read_text(),
+        (
+            "[opnpcu,elem2_cart_npc_empty]", "[oploc1,elem2_lever_3way]",
+            "[oploc1,elem2_earth_lever_1]", "[oploc1,elem2_water_lever]",
+            "[oploc1,elem2_corkscrew]", "[oploc1,elem2_valve_1]",
+            "[oploc1,elem2_valve_2]", "[oploc1,elem2_air_lever]",
+            "inv_add(inv, elem_primed_bar, 1);",
+        ),
+        "Elemental Workshop II priming state machine",
+    )
+    require_text(
+        ELEM2_SHARED.read_text(),
+        ("stat_advance(smithing, ^elem2_reward_smithing_xp);",
+         "stat_advance(crafting, ^elem2_reward_crafting_xp);",
+         "~quest_complete_rewards(quest_elementalworkshop2", "elem_mind_helm"),
+        "Elemental Workshop II reward",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -1438,10 +1579,11 @@ def main() -> int:
         check_watchtower()
         check_legends_quest()
         check_big_chompy()
+        check_elemental_workshops()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest and Big Chompy Bird Hunting (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting and Elemental Workshops I/II (ok)")
     return 0
 
 

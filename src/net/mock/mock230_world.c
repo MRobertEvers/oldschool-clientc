@@ -12145,6 +12145,8 @@ selftest_gwd_player_attack_trace(
             found += queue->active && queue->script_id == impact_script->id &&
                      queue->argc >= 1 && queue->args[0] == impact;
         }
+        if( srv->active_player->spotanim_id == impact )
+            found++;
         SELFTEST_CHECK(
             found == 1,
             "%s/%s trace queues one landing graphic %s (%d), got %d",
@@ -13772,16 +13774,21 @@ mock230_world_selftest(void)
             int x, z, level;
             const char* anim_a;
             const char* anim_b;
+            const char* attack_a;
+            const char* attack_b;
         } classic_attack_cases[] = {
             { "godwars_bandos_avatar", "[label,gwd_graardor_attack]",
               44 * 64 + 52, 83 * 64 + 45, 2,
-              "godwars_bandos_attack", "godwars_bandos_ranged" },
+              "godwars_bandos_attack", "godwars_bandos_ranged",
+              "melee", "ranged_volley" },
             { "godwars_saradomin_avatar", "[label,gwd_zilyana_attack]",
               45 * 64 + 15, 82 * 64 + 15, 0,
-              "godwars_saradomin_attack", "godwars_saradomin_magic_attack" },
+              "godwars_saradomin_attack", "godwars_saradomin_magic_attack",
+              "melee", "magic" },
             { "godwars_zamorak_avatar", "[label,gwd_kril_attack]",
               45 * 64 + 45, 83 * 64 + 10, 2,
-              "godwars_zamorak_attack", "godwars_zamorak_magic_attack" },
+              "godwars_zamorak_attack", "godwars_zamorak_magic_attack",
+              "melee", "magic" },
         };
         static const struct
         {
@@ -14035,6 +14042,7 @@ mock230_world_selftest(void)
                     snprintf(hook, sizeof(hook), "[ai_opplayer2,%s]", symbol);
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                     player->hitpoints = 99;
+                    player->spotanim_id = -1;
                     mock230_zone_reset(srv);
                     mock230_capture_begin(srv, &attack_capture);
                     ran = mock230_scripts_run_proc_on_npc(srv, hook, slot);
@@ -14175,6 +14183,7 @@ mock230_world_selftest(void)
                          classic_bodyguards[i]);
                 player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                 player->hitpoints = 99;
+                player->spotanim_id = -1;
                 mock230_zone_reset(srv);
                 mock230_capture_begin(srv, &bodyguard_capture);
                 ran = mock230_scripts_run_proc_on_npc(srv, hook, slot);
@@ -14204,6 +14213,7 @@ mock230_world_selftest(void)
              * Repetition observes both branches of each two-style selector;
              * queues are cleared between samples because this lane is checking
              * selection/assets, not advancing delayed hits. */
+            static struct Mock230Capture boss_attack_capture;
             for( size_t i = 0;
                  i < sizeof(classic_attack_cases) / sizeof(classic_attack_cases[0]); i++ )
             {
@@ -14234,17 +14244,38 @@ mock230_world_selftest(void)
                 srv->npcs[slot].combat_target = player->pid;
                 for( int sample = 0; sample < 96 && seen != 3; sample++ )
                 {
+                    const char* selected = NULL;
+                    int ran;
+
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                     player->hitpoints = 99;
+                    player->spotanim_id = -1;
                     srv->npcs[slot].anim_id = -1;
+                    srv->npcs[slot].spotanim_id = -1;
+                    mock230_zone_reset(srv);
+                    mock230_capture_begin(srv, &boss_attack_capture);
+                    ran = mock230_scripts_run_proc_on_npc(
+                        srv, classic_attack_cases[i].label, slot);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(
-                        mock230_scripts_run_proc_on_npc(
-                            srv, classic_attack_cases[i].label, slot),
+                        ran,
                         "%s attack sample executes", classic_attack_cases[i].npc);
                     if( srv->npcs[slot].anim_id == anim_a )
+                    {
                         seen |= 1;
+                        selected = classic_attack_cases[i].attack_a;
+                    }
                     else if( srv->npcs[slot].anim_id == anim_b )
+                    {
                         seen |= 2;
+                        selected = classic_attack_cases[i].attack_b;
+                    }
+                    if( selected )
+                        selftest_gwd_player_attack_trace(
+                            srv,
+                            selftest_gwd_manifest_find(
+                                classic_attack_cases[i].npc, selected, 0),
+                            &srv->npcs[slot], &boss_attack_capture);
                     for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
                         player->queue[q].active = 0;
                     for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
@@ -31137,6 +31168,46 @@ mock230_world_selftest(void)
                     fprintf(stderr, "  %s\n", text);
             }
             SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+        }
+
+        /*
+         * Zulrah's rotation tables and damage cap (`::zulrahrun`,
+         * minigames/minigame_zulrah/scripts/zulrah_selftest.rs2).
+         *
+         * Default-on for the same reason ::tdtest is: it reads the phase
+         * table, spawns and deletes two npcs beside the player, and writes
+         * only its own `%zulrah_*` temporaries.
+         *
+         * The checks that matter are the ones a transcription slip would
+         * break — 47 phases present, phase 1 versus the bridge phase, the Jad
+         * seed and position per rotation, rotation 4's 13 phases and 8-attack
+         * Jad — plus the 50-damage cap and its self-gate.
+         *
+         * Asserted on the OK line rather than the absence of FAIL, for the
+         * same reason as the two stanzas around it.
+         */
+        {
+            static struct Mock230Capture zulrah_capture;
+            int zulrah_said_ok = 0;
+
+            mock230_capture_begin(srv, &zulrah_capture);
+            mock230_scripts_run_debugproc(srv, "zulrahrun");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&zulrah_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&zulrah_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &zulrah_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "zulrahrun OK") != NULL )
+                    zulrah_said_ok = 1;
+                else if( strstr(text, "zulrahrun") != NULL || strstr(text, "  ") == text )
+                    fprintf(stderr, "  %s\n", text);
+            }
+            SELFTEST_CHECK(zulrah_said_ok, "::zulrahrun should reach its OK line");
         }
 
         {

@@ -52,6 +52,14 @@ COURSES = {
         "Wilderness_Agility_Course", 571.4),
     "skill_agility/scripts/rooftop_pollnivneach.rs2": (
         "Pollnivneach_Rooftop_Course", 890.0),
+    "skill_agility/scripts/shayzien_course.rs2": (
+        "Shayzien_Agility_Course", 153.5),
+    # 485, not the page's 508: the advanced course shares its ladder, monkey
+    # bars and first tightrope with the basic one, and those 23 XP are paid by
+    # shayzien_course.rs2's own triggers. Counting them here too would pay a
+    # player twice for one climb.
+    "skill_agility/scripts/shayzien_advanced.rs2": (
+        "Shayzien_Agility_Course", 485.0),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is

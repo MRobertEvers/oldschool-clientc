@@ -1,7 +1,9 @@
 # Charter ships — Trader Stan's fleet
 
-> Written 2026-08-17. Status: **plan, not implemented.** No `transport_charter/`
-> directory exists yet.
+> Written 2026-08-17. Status: **transport, fares and the shop are built and
+> verified; the cache map picker and the voyage animation are not.** The
+> implementation is `server/scripts/transport_charter/` — read its README first.
+> §12 is the as-built record and §13 is what is still open.
 >
 > **Behaviour authority (wiki):**
 > [Charter ship](https://oldschool.runescape.wiki/w/Charter_ship) ·
@@ -666,7 +668,101 @@ jetty footprint; charter out and back.
 
 ---
 
-## 11. Deliberately not done
+## 12. As built (2026-08-17)
+
+Phases 1, 2, 5 and 6 of §8 are done. Phases 3 and 4 are not, and §13 says why.
+
+**What a player can do now.** Right-click any of the seven trader parents at any
+of the sixteen ports: **Trade** opens Trader Stan's Trading Post, **Charter**
+opens a regional chat menu, and after one voyage **Charter-to \<port\>** repeats
+it in one click. Picking a destination quotes the wiki's fare, takes it in
+coins, and lands the player on that port's own jetty tile. Locked ports are
+refused in the crew's voice with the fare untouched; bedsheets, ectoplasm
+bedsheets and Crandor are refused too, and Karamjan rum is lost to a dice game
+mid-voyage as it is on the Karamja ferry.
+
+**Files.** `OSRS-Content/osrs239-content/server/scripts/transport_charter/`
+(README, 7 configs, 6 scripts), `tools/gen_charter_tables.py`,
+`tools/check_charter_contract.py`, a `check-charter-contract` target wired into
+`mock230-scripts`, and a `mock230_world.c` selftest section. Two new selftest
+helpers, `selftest_count_obj` and `selftest_charter_choose` — the existing
+`selftest_click_through` always picks row 1, which drains a conversation but
+cannot navigate one four rows deep.
+
+**Verification, and what each layer actually proves.**
+
+| layer | result |
+|---|---|
+| `sscompile` | clean. Proven to be compiling these files, not skipping them: renaming `charter_fare:cost` to a typo failed at `charter_travel.rs2:22` and nowhere else |
+| `check_charter_contract.py` | ok, and mutation-proven — see the table below |
+| `mock230 --selftest` | section **"a charter ship takes a fare and sails"**, 7 assertions, all passing |
+| the rest of the suite | 47 failures with this work, 67 without it, and the 47 are a strict **subset** of the 67 — this change introduces none of them |
+
+The 47 are other features mid-flight (movement, QBD, zulrah, plunder, fightcave)
+and were failing before this branch touched anything. They are recorded here
+rather than tidied away because "the suite is green" would be false.
+
+**Mutation table.** A check that cannot fail proves nothing.
+
+| mutation | result |
+|---|---|
+| Catherby's `arrive` moved one tile | selftest: `FAIL the charter should land the player at Catherby's jetty (2792,3417), got 2792,3418` |
+| Catherby's `arrive` moved one tile | checker: `charter_port_catherby: arrive (2793,3417), cache port_coord (2792, 3417)` **and** the doc-agreement check fires too |
+| one fare changed in one direction | checker: `Catherby -> Port Sarim is 1000 but the reverse is 999` |
+| `^regicide_complete` swapped for `^regicide_started` | checker: `^charter_tyras gate does not test ^regicide_complete` |
+| a resolved leaf spawned instead of the parent | checker: `charter.spawn spawns 'sailing_transport_trader_stan_crew_man1_piscarilius', which is a resolved leaf` |
+
+**The bug the selftest caught that a clean compile did not.** The first run
+failed on every assertion, and the direct trigger probe named it exactly:
+`npc 1328 should have an [opnpc4]`. The cause turned out to be the harness, not
+the content — `mock230 --selftest` ignores `MOCK230_SCRIPTS` and loads
+`server/scripts/build` unconditionally, so it was running against a script pack
+that predated this feature. Worth knowing before anyone debugs content against
+that suite: **check `strings script.dat | grep -c <your feature>` before
+believing a selftest failure.**
+
+**Two traps found by building this, both now in the README:**
+
+- The compiler will not take a comparison anywhere but an `if` head.
+  `return(%regicide_quest >= ^regicide_complete)` is a syntax error, which is
+  why `~charter_port_unlocked` is an if-chain and not a `switch_int` of returns.
+- A jetty is level-1 geometry with `LINK_BELOW` over a `BLOCK`ed level-0 water
+  tile, so reading settings bit 0 alone calls every dock in the game solid. The
+  first version of the spawn-tile probe did exactly that and disagreed with the
+  eleven ports whose traders were already standing on those tiles.
+
+## 13. Still open
+
+**Phase 3, the cache picker, is blocked on a measurement — deliberately.** The
+server has no `db_findall`/`db_getrow` (only `db_find`/`db_findnext`), so the
+row order that clientscript 8940 walks has to be reproduced rather than queried.
+Reproducing it wrongly does not fail loudly: it sails the player to a different
+port than the pin they clicked, which is worse than the chat menu it would
+replace. §5.1 has the sub-id arithmetic; what is missing is a headless
+confirmation of which `db_findall` index each pin's sub-id actually carries.
+
+**Phase 4, the voyage animation, is blocked on the same kind of measurement** —
+§5.3. `ship_journey` (299) cannot draw fourteen of the sixteen ports, and
+whether `sailing_menu`'s model 50089 is the whole-Gielinor plate is unmeasured.
+The narrated hop stands until then, and the fare and the arrival are already
+real either way.
+
+Both need the live client under `SDL_VIDEODRIVER=dummy` with `TORIRS_BMP_SERIES`,
+which needs a tree that builds — `make -C src mock230-scripts` currently fails
+in other features (`check-quest-combat-manifest` stale, zulrah, canoe_station)
+before it reaches this one.
+
+**Not verified:** the ten new spawn tiles are checked for terrain walkability and
+for falling inside their port's `inzone` box, but **not** for loc occupancy — a
+crate already standing on the tile would only show in the built scene. That is
+the walk-to-each-port half of Phase 5 and it has not been done.
+
+**Not resolved:** the `port_coord` plane-nibble bias (§3.1). The generator
+asserts the bias is a uniform `1` across every port it emits and refuses to
+guess for any row where it is not, which makes the assumption loud rather than
+correct.
+
+## 14. Deliberately not done
 
 - The six Sailing ports (Pandemonium, Summer Shore, Red Rock, Barracuda HQ, Deepfin Point,
   Port Roberts) and Tempestus. They are switched off by the cache's own restriction system
