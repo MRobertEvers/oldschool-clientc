@@ -39,6 +39,30 @@ GRAND_ROOTS = CONTENT / "quests/quest_grandtree/scripts/grandtree_locs_roots.rs2
 GRAND_KING = CONTENT / "quests/quest_grandtree/scripts/king_narnode.rs2"
 GRAND_NPC = CONTENT / "quests/quest_grandtree/configs/quest_grandtree.npc"
 GRAND_VARP = CONTENT / "quests/quest_grandtree/configs/quest_grandtree.varp"
+UPASS = CONTENT / "quests/quest_upass/scripts/upass_encounters.rs2"
+UPASS_NPC = CONTENT / "quests/quest_upass/configs/quest_upass.npc"
+UPASS_CONSTANT = CONTENT / "quests/quest_upass/configs/quest_upass.constant"
+UPASS_JERRO = CONTENT / "quests/quest_upass/scripts/sir_jerro.rs2"
+UPASS_CARL = CONTENT / "quests/quest_upass/scripts/sir_carl.rs2"
+UPASS_HARRY = CONTENT / "quests/quest_upass/scripts/sir_harry.rs2"
+UPASS_DEMONS = CONTENT / "quests/quest_upass/scripts/upass_demon_drops.rs2"
+UPASS_KALRAG = CONTENT / "quests/quest_upass/scripts/kalrag.rs2"
+UPASS_DISCIPLE = CONTENT / "quests/quest_upass/scripts/iban_disciple.rs2"
+UPASS_CAGES = CONTENT / "quests/quest_upass/scripts/upass_cages.rs2"
+UPASS_TOMB = CONTENT / "quests/quest_upass/scripts/upass_tomb.rs2"
+UPASS_IBAN = CONTENT / "quests/quest_upass/scripts/lord_iban.rs2"
+UPASS_BLOODWELL = CONTENT / "quests/quest_upass/scripts/upass_bloodwell.rs2"
+UPASS_WELL = CONTENT / "quests/quest_upass/scripts/upass_well.rs2"
+UPASS_KOFTIK = CONTENT / "quests/quest_upass/scripts/koftik.rs2"
+UPASS_OBSTACLES = CONTENT / "quests/quest_upass/scripts/upass_obstacles.rs2"
+UPASS_WORLD_SPAWNS = (
+    CONTENT / "areas/world/configs/m37_151.spawn",
+    CONTENT / "areas/world/configs/m36_154.spawn",
+    CONTENT / "areas/world/configs/m33_71.spawn",
+    CONTENT / "areas/world/configs/m33_72.spawn",
+)
+NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
+NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
 SPELL_CONSTANTS = CONTENT / "skill_combat/configs/magic/spells.constant"
 PLAYER_MAGIC = CONTENT / "skill_combat/scripts/player/player_magic.rs2"
@@ -95,6 +119,12 @@ def check_manifest() -> None:
             "The Grand Tree: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(grand[0][key]), f"The Grand Tree: empty evidence field {key}")
+    upass = [row for row in rows if row["id"] == "quest-underground-pass"]
+    require(len(upass) == 1, "manifest: expected exactly one Underground Pass row")
+    require(upass[0]["implementation_status"] == "implementation-in-progress",
+            "Underground Pass: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(upass[0][key]), f"Underground Pass: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -595,6 +625,190 @@ def check_grand_tree() -> None:
             "elemental weakness param allocation drift")
 
 
+def check_underground_pass() -> None:
+    encounter = UPASS.read_text()
+    require_text(
+        encounter,
+        (
+            "[mapzone,1_33_71]", "[mapzone,0_36_154]", "[mapzone,1_33_72]",
+            "[proc,upass_spawn_paladins]", "0_37_151_56_57",
+            "0_37_151_54_54", "0_37_151_58_54",
+            "[proc,upass_paladin_supplies]", "inv_freespace(inv) < 7",
+            "inv_add(inv, meat_pie, 2);", "inv_add(inv, bread, 2);",
+            "inv_add(inv, stew, 1);", "inv_add(inv, 2dose1attack, 1);",
+            "inv_add(inv, 2doseprayerrestore, 1);",
+            "[proc,upass_paladin_drops_private]", "def_int $roll = random(128);",
+            "[proc,upass_spawn_demons]", "1_33_71_10_18",
+            "1_33_71_20_10", "1_33_71_22_21",
+            "npc_changetype(upass_doomion_safe", "npc_changetype(upass_holthion_safe",
+            "npc_changetype(upass_othainian_safe", "0_36_154_52_55",
+            "[proc,upass_spawn_temple_actors]", "1_33_72_21_39",
+            "[ai_timer,ibanmonk]", "[ai_timer,upass_paladin1]",
+        ),
+        "Underground Pass encounter controller",
+    )
+    require(encounter.count("npc_setowner;") >= 8,
+            "Underground Pass: every named encounter family must be owner-private")
+    require(encounter.count("obj_add_private(") == 15,
+            "Underground Pass: exact private paladin table drift")
+    require("obj_add(" not in encounter,
+            "Underground Pass: public encounter-controller ground item restored")
+
+    obstacle = UPASS_OBSTACLES.read_text()
+    require_text(obstacle, ("[mapzone,0_37_151]", "~upass_spawn_paladins;"),
+                 "Underground Pass paladin map entry")
+
+    static_actors = {
+        line.split()[0]
+        for path in UPASS_WORLD_SPAWNS
+        for line in path.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith(("//", "="))
+    }
+    for actor in (
+        "upass_paladin1", "upass_paladin2", "upass_paladin3", "kalrag",
+        "doomion", "holthion", "othainian", "ibanmonk", "iban",
+    ):
+        require(actor not in static_actors,
+                f"Underground Pass: public static spawn restored for {actor}")
+
+    npc = UPASS_NPC.read_text()
+    for actor, hp, attack, strength, defence, damage_type, attack_rate in (
+        ("upass_paladin1", 57, 54, 54, 54, 1, 5),
+        ("upass_paladin2", 57, 54, 54, 54, 1, 5),
+        ("upass_paladin3", 57, 54, 54, 54, 1, 5),
+        ("kalrag", 78, 78, 78, 78, 0, 4),
+        ("ibanmonk", 20, 8, 8, 12, 2, 4),
+        ("doomion", 87, 76, 78, 77, 1, 4),
+        ("holthion", 87, 76, 78, 77, 1, 4),
+        ("othainian", 87, 76, 78, 77, 1, 4),
+    ):
+        block = npc.split(f"[{actor}]", 1)[1].split("\n[", 1)[0]
+        require_text(
+            block,
+            (f"hitpoints={hp}", f"attack={attack}", f"strength={strength}",
+             f"defence={defence}", f"param=damagetype,{damage_type}",
+             f"param=attackrate,{attack_rate}", "param=death_drop,null"),
+            f"Underground Pass NPC {actor}",
+        )
+    for actor in ("upass_doomion_safe", "upass_holthion_safe", "upass_othainian_safe"):
+        block = npc.split(f"[{actor}]", 1)[1].split("\n[", 1)[0]
+        require("op2=" not in block and "huntmode=" not in block,
+                f"Underground Pass: {actor} regained aggression/Attack option")
+        require_text(block, ("hitpoints=87", "param=magicdefence,-10",
+                             "param=death_drop,null"),
+                     f"Underground Pass safe demon {actor}")
+    require_text(
+        NPC_ALLOC.read_text(),
+        ("27403=upass_doomion_safe", "27404=upass_holthion_safe",
+         "27405=upass_othainian_safe"),
+        "Underground Pass safe demon allocations",
+    )
+    require_text(
+        NPC_CLIENT.read_text(),
+        ("upass_doomion_safe", "upass_holthion_safe", "upass_othainian_safe"),
+        "Underground Pass safe demon client membership",
+    )
+
+    for script_path, actor, badge, respawn in (
+        (UPASS_JERRO, "upass_paladin1", "paladinbadge1", "upass_respawn_paladin1"),
+        (UPASS_CARL, "upass_paladin2", "paladinbadge2", "upass_respawn_paladin2"),
+        (UPASS_HARRY, "upass_paladin3", "paladinbadge3", "upass_respawn_paladin3"),
+    ):
+        script = script_path.read_text()
+        require_text(
+            script,
+            (f"[ai_queue3,{actor}]", "obj_add_private(npc_coord, bones, 1",
+             f"~obj_gettotal({badge}) = 0", f"obj_add_private(npc_coord, {badge}, 1",
+             "~upass_paladin_drops_private;", f"queue({respawn}, 100, 0);",
+             "~upass_paladin_supplies;"),
+            f"Underground Pass {actor}",
+        )
+        require("obj_add(" not in script, f"Underground Pass: {actor} public drop restored")
+
+    demons = UPASS_DEMONS.read_text()
+    require(demons.count("obj_add_private(npc_coord, vile_ashes, 1") == 3,
+            "Underground Pass: every named demon must drop private vile ashes")
+    require(demons.count("queue(upass_respawn_demons, 30, 0);") == 3,
+            "Underground Pass: named demon respawn contract drift")
+    for amulet in ("doomion_amulet", "holthion_amulet", "othainian_amulet"):
+        require_text(demons, (f"~obj_gettotal({amulet}) = 0",
+                              f"obj_add_private(npc_coord, {amulet}, 1"),
+                     f"Underground Pass {amulet}")
+    require("obj_add(" not in demons and " ashes," not in demons,
+            "Underground Pass: public/regular demon ashes restored")
+
+    kalrag = UPASS_KALRAG.read_text()
+    require_text(
+        kalrag,
+        ("[ai_queue3,kalrag]", "~obj_gettotal(ibandoll) = 0", "player_lock();",
+         "anim(human_stunned, 0);", "spotanim_pl(stunned, 124, 0);",
+         "%upass_venom_on_doll = 1;", "queue(upass_respawn_kalrag, 50, 0);"),
+        "Underground Pass Kalrag",
+    )
+    require("obj_add" not in kalrag, "Underground Pass: Kalrag must not drop loot")
+
+    disciple = UPASS_DISCIPLE.read_text()
+    require_text(
+        disciple,
+        ("obj_add_private(npc_coord, bones, 1", "obj_add_private(npc_coord, zamrobebottom, 1",
+         "obj_add_private(npc_coord, zamrobetop, 1",
+         "queue(upass_respawn_disciple, 250, npc_coord);"),
+        "Underground Pass Disciple",
+    )
+    require("brokenibanstaff" not in disciple and "obj_add(" not in disciple,
+            "Underground Pass: obsolete/public Disciple drop restored")
+
+    cages = UPASS_CAGES.read_text()
+    require_text(
+        cages,
+        ("inv_total(inv, ibandoll) > 0", "%upass_dove_on_doll = 1;",
+         "%upass_shadow_on_doll = 1;", "inv_add(inv, ibansdove, 1);",
+         "inv_add(inv, ibansshadow, 1);"),
+        "Underground Pass doll auto-application",
+    )
+    tomb = UPASS_TOMB.read_text()
+    require_text(tomb, ("%upass_ashes_on_doll = 1;", "inv_add(inv, ibanstaff, 1);",
+                        "^iban_staff_max_charges", "%upass = ^upass_defeated_iban;"),
+                 "Underground Pass Iban finale")
+    require("inv_add(inv, deathrune" not in tomb and "inv_add(inv, firerune" not in tomb,
+            "Underground Pass: removed Iban rune bundle restored")
+
+    iban = UPASS_IBAN.read_text()
+    require_text(
+        iban,
+        ("def_player_uid $owner = uid;", "^upass_iban_temple_lower",
+         "^upass_iban_temple_upper", "distance(coord, $bolt_coord) = 0",
+         "damage($owner, hitsplat_damage, ~random_range(5, 8));",
+         "p_teleport(^upass_iban_temple_entrance);"),
+        "Underground Pass Iban hazard",
+    )
+    require("huntall(" not in iban, "Underground Pass: Iban hazard may not target another player")
+    require_text(
+        UPASS_CONSTANT.read_text(),
+        ("^upass_iban_temple_lower", "^upass_iban_temple_upper",
+         "^upass_iban_temple_entrance"),
+        "Underground Pass Iban temple geometry",
+    )
+
+    bloodwell = UPASS_BLOODWELL.read_text()
+    for badge, bit, coord_name in (
+        ("paladinbadge1", "%upass_paladinbadge_1 = 1;", "0_37_151_56_57"),
+        ("paladinbadge2", "%upass_paladinbadge_2 = 1;", "0_37_151_54_54"),
+        ("paladinbadge3", "%upass_paladinbadge_3 = 1;", "0_37_151_58_54"),
+    ):
+        require_text(bloodwell, (f"case {badge} :", bit, coord_name, "npc_del;"),
+                     f"Underground Pass well {badge}")
+    well = UPASS_WELL.read_text()
+    require("damage(" not in well,
+            "Underground Pass: post-2019 orb-well damage restored")
+    require_text(
+        UPASS_KOFTIK.read_text(),
+        ("case ^upass_complete :", "~obj_gettotal(ibanstaff) = 0",
+         "~obj_gettotal(brokenibanstaff) = 0", "inv_add(inv, brokenibanstaff, 1);"),
+        "Underground Pass broken staff replacement",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -604,10 +818,11 @@ def main() -> int:
         check_fight_arena()
         check_hazeel_cult()
         check_grand_tree()
+        check_underground_pass()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult and The Grand Tree (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree and Underground Pass (ok)")
     return 0
 
 

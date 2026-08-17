@@ -57,6 +57,16 @@ OFF_SKILL = {
     "skill_agility/scripts/barbarian_course.rs2": ("strength", 41.3),
 }
 
+# Obstacles that appear ONCE in the script but are run more than once per lap,
+# because several placements share one trigger. Barbarian Outpost's three
+# crumbling walls are one `[oploc1,castlecrumbly1]` block: summing the literals
+# would count 13.7 once instead of three times and report the course 27.4 short.
+#
+#   file -> [(xp_tenths_of_the_shared_call, times_run_per_lap)]
+SHARED_TRIGGERS = {
+    "skill_agility/scripts/barbarian_course.rs2": [(137, 3)],
+}
+
 # Every way a course script grants Agility experience. `~agility_force_move`
 # and `~agility_climb_up` take it as their first argument; a course that grants
 # XP some third way must be added here or its total silently under-reports,
@@ -131,7 +141,18 @@ def main():
                 )
                 failures += 1
 
-        got = course_xp_tenths(text) / 10.0
+        tenths = course_xp_tenths(text)
+        for value, times in SHARED_TRIGGERS.get(rel, ()):
+            if ("stat_advance(agility, %d)" % value) not in text:
+                print(
+                    "agility_xp_audit: %s declares a shared trigger paying %d "
+                    "tenths that the script no longer contains" % (rel, value),
+                    file=sys.stderr,
+                )
+                failures += 1
+                continue
+            tenths += value * (times - 1)
+        got = tenths / 10.0
         if abs(got - want) > 0.001:
             print(
                 "agility_xp_audit: %s pays %.1f xp per lap, wiki says %.1f "

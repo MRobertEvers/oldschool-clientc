@@ -176,7 +176,8 @@ def check_content_contract() -> None:
         "[proc,gauntlet_recipe_weapon]", "[proc,gauntlet_recipe_armour]",
         "[proc,gauntlet_recipe_vial]", "[proc,gauntlet_recipe_teleport]",
         "[proc,gauntlet_recipe_fish]", "[proc,gauntlet_shard_recipe_has_space]",
-        "inv_total(inv, $shard) = $cost",
+        "inv_total(inv, $shard) = $cost", "[proc,gauntlet_sing_tick]",
+        "anim(eyeglo_singing_bowl_human, 0);", "p_delay(1);",
     ):
         require(CRAFT, needle, "native recipe dispatch")
     for needle in (
@@ -248,6 +249,7 @@ def check_content_contract() -> None:
         "inv_movetoslot(gauntlet_holding_worn, worn, $slot, $slot);",
         "midi_song(^gauntlet_music_track);", "midi_song(-1);",
         "%summoning_pet_active = 1", "%gauntlet_pet_active = 1", "npc_findowned = true",
+        "You are already in the starting room.",
     ):
         require(CORE, needle, "session/layout contract")
     for needle in (

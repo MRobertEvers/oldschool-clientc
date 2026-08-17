@@ -547,9 +547,10 @@ enum
      * cannot see coming. */
     MOCK230_QUEUE_MAX = 32,
     /** Arguments one queued script can carry. The reference's list is
-     *  unbounded; four covers every `queue*` in the tree and keeps the entry a
-     *  fixed size. Overflow is reported, never truncated silently. */
-    MOCK230_QUEUE_ARG_MAX = 4,
+     *  unbounded; five are used by the GWD barrage landing queues, and eight
+     *  leaves fixed-size headroom for the next content-owned effect. Overflow
+     *  is reported, never truncated silently. */
+    MOCK230_QUEUE_ARG_MAX = 8,
     /*
      * The engine queue is its own array because the reference's is its own list:
      * `unlinkQueuedScript`'s default branch walks `queue` and `weakQueue` and

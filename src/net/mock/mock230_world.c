@@ -13502,6 +13502,34 @@ mock230_world_selftest(void)
             { 4, 680, "nex_icemage", "[ai_queue3,nex_icemage]",
               45 * 64 + 32, 81 * 64 + 3 },
         };
+        static const struct
+        {
+            const char* proc;
+            int arg;
+            const char* anim;
+        } nex_attack_cases[] = {
+            { "[proc,nex_magic_auto]", 1, "nex_cast_attack" },
+            { "[proc,nex_magic_auto]", 3, "nex_cast_attack" },
+            { "[proc,nex_magic_auto]", 4, "nex_cast_attack" },
+            { "[proc,nex_magic_auto]", 5, "nex_cast_attack" },
+            { "[proc,nex_melee_auto]", 1, "nex_attack" },
+            { "[proc,nex_melee_auto]", 5, "nex_attack" },
+        };
+        static const struct
+        {
+            const char* proc;
+            int which;
+            const char* anim;
+        } nex_special_cases[] = {
+            { "[proc,nex_special_smoke]", 0, NULL },
+            { "[proc,nex_special_smoke]", 1, "nex_dash_attack" },
+            { "[proc,nex_special_shadow]", 0, NULL },
+            { "[proc,nex_special_shadow]", 1, NULL },
+            { "[proc,nex_special_blood]", 0, "nex_blood_siphon" },
+            { "[proc,nex_special_blood]", 1, NULL },
+            { "[proc,nex_special_ice]", 0, "nex_smash_attack" },
+            { "[proc,nex_special_ice]", 1, NULL },
+        };
         const char* script_dir = getenv("MOCK230_SCRIPTS");
         int loaded = script_dir && script_dir[0] ? mock230_scripts_load(srv, script_dir) : 0;
         int32_t out = -1;
@@ -13994,6 +14022,211 @@ mock230_world_selftest(void)
                             srv->npcs[boss].anim_id == turmoil,
                         "Glacies death enters Zaros with Soul Split and Turmoil assets");
                     srv->npcs[boss].active = 0;
+                }
+            }
+
+            /* Invoke Nex's ordinary styles and both deterministic branches of
+             * every pre-Zaros special directly. Random cadence selection is a
+             * separate concern; these calls prove each selected branch can run
+             * in a live player/NPC context and chooses its authored animation
+             * when the branch has one. */
+            {
+                int nex_id = mock230_content_symbol(MOCK230_PACK_NPC, "nex");
+                int boss;
+
+                player->x = 45 * 64 + 48;
+                player->z = 81 * 64 + 18;
+                player->level = 0;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->hitpoints = 99;
+                boss = mock230_world_npc_spawn(
+                    srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
+                SELFTEST_CHECK(boss >= 0, "Nex spawns for attack/special matrix");
+                if( boss >= 0 )
+                {
+                    srv->npcs[boss].spawn_pending = 0;
+                    mock230_scripts_run_proc_on_npc(
+                        srv, "[proc,nex_initialize_actor]", boss);
+                    for( size_t i = 0;
+                         i < sizeof(nex_attack_cases) / sizeof(nex_attack_cases[0]); i++ )
+                    {
+                        int anim = mock230_content_symbol(
+                            MOCK230_PACK_SEQ, nex_attack_cases[i].anim);
+
+                        srv->npcs[boss].x = 45 * 64 + 44;
+                        srv->npcs[boss].z = 81 * 64 + 18;
+                        srv->npcs[boss].anim_id = -1;
+                        player->x = strstr(nex_attack_cases[i].proc, "melee")
+                                        ? srv->npcs[boss].x + 1
+                                        : srv->npcs[boss].x + 4;
+                        player->z = srv->npcs[boss].z;
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->hitpoints = 99;
+                        args[0] = nex_attack_cases[i].arg;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, nex_attack_cases[i].proc, boss, args, 1),
+                            "%s phase %d executes", nex_attack_cases[i].proc,
+                            nex_attack_cases[i].arg);
+                        SELFTEST_CHECK(
+                            srv->npcs[boss].anim_id == anim,
+                            "%s phase %d selects %s (got %d, want %d)",
+                            nex_attack_cases[i].proc, nex_attack_cases[i].arg,
+                            nex_attack_cases[i].anim, srv->npcs[boss].anim_id, anim);
+                        for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                            player->queue[q].active = 0;
+                        for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                            player->engine_queue[q].active = 0;
+                    }
+
+                    srv->npcs[boss].anim_id = -1;
+                    player->x = srv->npcs[boss].x + 4;
+                    player->z = srv->npcs[boss].z;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, "[proc,nex_shadow_auto]", boss),
+                        "Nex Shadow ranged auto executes");
+                    SELFTEST_CHECK(
+                        srv->npcs[boss].anim_id == mock230_content_symbol(
+                            MOCK230_PACK_SEQ, "nex_alternate_cast_attack"),
+                        "Nex Shadow auto selects nex_alternate_cast_attack");
+                    for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                        player->queue[q].active = 0;
+                    for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                        player->engine_queue[q].active = 0;
+
+                    for( size_t i = 0;
+                         i < sizeof(nex_special_cases) / sizeof(nex_special_cases[0]); i++ )
+                    {
+                        int anim = nex_special_cases[i].anim
+                                       ? mock230_content_symbol(
+                                             MOCK230_PACK_SEQ, nex_special_cases[i].anim)
+                                       : -1;
+
+                        srv->npcs[boss].x = 45 * 64 + 44;
+                        srv->npcs[boss].z = 81 * 64 + 18;
+                        srv->npcs[boss].anim_id = -1;
+                        srv->npcs[boss].script_vars[0] = (int)i / 2 + 1;
+                        player->x = srv->npcs[boss].x + 1;
+                        player->z = srv->npcs[boss].z;
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->hitpoints = 99;
+                        args[0] = nex_special_cases[i].which;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, nex_special_cases[i].proc, boss, args, 1),
+                            "%s branch %d executes", nex_special_cases[i].proc,
+                            nex_special_cases[i].which);
+                        if( nex_special_cases[i].anim )
+                            SELFTEST_CHECK(
+                                srv->npcs[boss].anim_id == anim,
+                                "%s branch %d selects %s (got %d, want %d)",
+                                nex_special_cases[i].proc, nex_special_cases[i].which,
+                                nex_special_cases[i].anim,
+                                srv->npcs[boss].anim_id, anim);
+                        for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                            player->queue[q].active = 0;
+                        for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                            player->engine_queue[q].active = 0;
+                        memset(srv->npcs[boss].queue, 0,
+                               sizeof(srv->npcs[boss].queue));
+                    }
+                    srv->npcs[boss].active = 0;
+                }
+            }
+
+            /* Ancient Prison attack assets and the mage's four deterministic
+             * spell rotations. The mage landing is the second real five-arg
+             * queue user, so this also guards the widened queue ABI. */
+            {
+                static const struct
+                {
+                    const char* npc;
+                    const char* proc;
+                    const char* anim;
+                } prison_cases[] = {
+                    { "nex_prison_warrior", "[proc,gwd_prison_warrior_smoke]",
+                      "human_sword_slash" },
+                    { "nex_prison_ranger", "[proc,gwd_prison_ranger_bind]",
+                      "human_bow" },
+                    { "nex_prison_blood_reaver",
+                      "[ai_opplayer2,nex_prison_blood_reaver]",
+                      "blood_reaver_attack" },
+                };
+
+                player->x = 45 * 64 + 44;
+                player->z = 81 * 64 + 45;
+                player->level = 0;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->max_hitpoints = 99;
+                player->hitpoints = 99;
+                for( size_t i = 0;
+                     i < sizeof(prison_cases) / sizeof(prison_cases[0]); i++ )
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, prison_cases[i].npc);
+                    int anim = mock230_content_symbol(
+                        MOCK230_PACK_SEQ, prison_cases[i].anim);
+                    int slot = mock230_world_npc_spawn(
+                        srv, npc_id, player->x - 3, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "%s spawns for attack asset test",
+                                   prison_cases[i].npc);
+                    if( slot < 0 )
+                        continue;
+                    srv->npcs[slot].spawn_pending = 0;
+                    srv->npcs[slot].anim_id = -1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_on_npc(
+                            srv, prison_cases[i].proc, slot),
+                        "%s attack path executes", prison_cases[i].npc);
+                    SELFTEST_CHECK(
+                        srv->npcs[slot].anim_id == anim,
+                        "%s selects %s (got %d, want %d)", prison_cases[i].npc,
+                        prison_cases[i].anim, srv->npcs[slot].anim_id, anim);
+                    for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                        player->queue[q].active = 0;
+                    for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                        player->engine_queue[q].active = 0;
+                    srv->npcs[slot].active = 0;
+                }
+
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, "nex_prison_mage");
+                    int anim = mock230_content_symbol(
+                        MOCK230_PACK_SEQ, "human_staff_pummel");
+                    int slot = mock230_world_npc_spawn(
+                        srv, npc_id, player->x - 3, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0,
+                                   "Nex prison mage spawns for four-spell rotation");
+                    if( slot >= 0 )
+                    {
+                        srv->npcs[slot].spawn_pending = 0;
+                        for( int spell = 0; spell < 4; spell++ )
+                        {
+                            srv->npcs[slot].anim_id = -1;
+                            args[0] = spell;
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[proc,gwd_prison_mage_attack_roll]",
+                                    slot, args, 1),
+                                "Nex prison mage spell %d executes", spell);
+                            SELFTEST_CHECK(
+                                srv->npcs[slot].anim_id == anim,
+                                "Nex prison mage spell %d selects human_staff_pummel",
+                                spell);
+                            for( int q = 0; q < MOCK230_QUEUE_MAX; q++ )
+                                player->queue[q].active = 0;
+                            for( int q = 0; q < MOCK230_ENGINE_QUEUE_MAX; q++ )
+                                player->engine_queue[q].active = 0;
+                        }
+                        srv->npcs[slot].active = 0;
+                    }
                 }
             }
 

@@ -145,6 +145,13 @@ by the existence of code. As of the audit date, the repository now has:
   damage with the 50-plus-small-tail cap, each death queue advances exactly one
   phase and resets cadence state, and Glacies transitions to the Soul Split
   Zaros form with the Turmoil animation.
+- [x] Nex's attack matrix is executable in the focused VM: Smoke/Blood/Ice/
+  Zaros magic autos, ordinary and Zaros melee, the Shadow ranged auto, and both
+  deterministic branches of Smoke, Shadow, Blood, and Ice specials all run in
+  live player/NPC context; each branch with an NPC animation selects its exact
+  authored sequence. This uncovered and fixed the engine queue's stale
+  four-integer ceiling: Nex and the Ancient Prison mage legitimately carry five
+  landing arguments, so the fixed-size queue now provides eight slots.
 - [x] Runtime testing found and fixed two engine/compiler faults that made
   source-only review unreliable: floor-object commands now resolve a typed
   `namedobj` when an NPC shares its name (`shark` object 385 versus NPC 1830),

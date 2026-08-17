@@ -576,6 +576,13 @@ Three rules shape the data model, and each is a separate correctness trap:
    below end on a bridge node — `RANGED×5 → CLOUD×4`, middle, green — which is
    *not* the same as the fight-opening phase 1 (which has no attacks). Model
    them as two distinct nodes.
+   Rule 2 is self-checking. The Wiki calls every Jad phase the "second-to-last
+   phase", and that only holds once the bridge is excluded: rotation 1's Jad is
+   listed at #9 of 11, rotation 3's at #10 of 12, rotation 4's at #11 of 13 —
+   second-to-last in all three only if the last row belongs to the *next*
+   rotation. If an implementation treats the bridge as a terminal phase, every
+   Jad lands one phase too early.
+
 3. **Rotations 1 and 2 are indistinguishable until phase 4.** Their phases 1–3
    are byte-identical. The player identifies the rotation from phase 2, and
    disambiguates Crimson A from Crimson B at phase 4 (south = R1, west = R2).
@@ -686,9 +693,10 @@ the implementation generalises from rotations 1–3:
 
 - It is the only rotation with **13** phases.
 - Its Jad phase is **8** attacks, not 10.
-- It has only **one** crimson phase (phase 5); every other rotation has two or
-  three.
-- Its green phases mostly fire **4** ranged attacks, not 5.
+- Its green phases mostly fire **4** ranged attacks, not 5 — the only rotation
+  where the green attack count is not uniformly 5.
+- Crimson appears once (phase 5), as in rotation 3, against three times in
+  rotations 1 and 2.
 
 It also matches the Wiki's warning that "rotation 4 tends to cause more damage"
 — it fires 22 snakeling orbs against rotation 1's 11, and it front-loads them:

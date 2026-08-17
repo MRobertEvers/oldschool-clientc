@@ -325,14 +325,14 @@ struct Mock230Queued
     int active;
     int script_id;
     int delay;                              /* ticks remaining */
-    int32_t args[MOCK230_QUEUE_ARG_MAX];    /* 4 */
+    int32_t args[MOCK230_QUEUE_ARG_MAX];    /* 8 */
     int argc;
     int kind;
     int logout_action;                      /* LONG only */
 };
 ```
 
-Caps: `MOCK230_QUEUE_MAX` 32, `MOCK230_QUEUE_ARG_MAX` 4, `MOCK230_ENGINE_QUEUE_MAX` 8,
+Caps: `MOCK230_QUEUE_MAX` 32, `MOCK230_QUEUE_ARG_MAX` 8, `MOCK230_ENGINE_QUEUE_MAX` 8,
 `MOCK230_NPC_QUEUE_MAX` 8, `MOCK230_TIMER_MAX` 32, `MOCK230_WORLD_QUEUE_MAX` 16.
 
 `ENGINE` lives in a separate array on purpose, and the reason is load-bearing rather than

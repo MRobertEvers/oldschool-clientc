@@ -356,6 +356,14 @@ def main() -> None:
         "queue(npc_freeze_player, 0, 6)",
     ):
         require(PRISON, effect, "Zarosian spiritual mage effects")
+    require(
+        proc_body(PRISON, "gwd_prison_mage_attack"),
+        "~gwd_prison_mage_attack_roll(random(4));",
+        "Zarosian spiritual mage random-roll wrapper",
+    )
+    mage_roll = proc_body(PRISON, "gwd_prison_mage_attack_roll")
+    for spell in ("nex_smoke_attack_proj", "nex_shadow_attack_proj", "nex_blood_attack_proj", "nex_ice_attack_proj"):
+        require(mage_roll, spell, f"Zarosian spiritual mage {spell} path")
     for sound in (
         "nex2021_blood_reaver_attack",
         "nex2021_blood_reaver_defend",
