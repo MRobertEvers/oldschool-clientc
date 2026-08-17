@@ -135,8 +135,14 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_CS2_VM_POOL_HIT,
     TORIRS_PERF_CTR_CS2_VM_POOL_MISS,
     TORIRS_PERF_CTR_CS2_VM_INIT_NS,
-    TORIRS_PERF_CTR_CS2_FRAME_POOL_HIT,
-    TORIRS_PERF_CTR_CS2_FRAME_POOL_MISS,
+    /* Bytes zeroed by CS2VM2_PushCallScript — the whole point of sized frames
+     * is that this tracks what the scripts declare (2 x locals) instead of the
+     * 12,352 the fixed frame memset unconditionally. */
+    TORIRS_PERF_CTR_CS2_LOCALS_ZEROED,
+    /* Tripwire: a frame-local operand at or above the script's declared count.
+     * No script in cache.osrs239 does this; a non-zero reading means either a
+     * malformed cache or a broken trailer decode. */
+    TORIRS_PERF_CTR_CS2_LOCAL_OOB,
 
     /* CacheProvider */
     TORIRS_PERF_CTR_CACHE_MODEL_HIT,

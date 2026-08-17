@@ -38,8 +38,8 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     {
         host->component_id = request->u.if_set_on_op.component_id;
         host->script_id = request->u.if_set_on_op.script_id;
-        host->argc = request->u.if_set_on_op.int_arg_count;
-        memcpy(host->argv, request->u.if_set_on_op.int_args, sizeof(host->argv));
+        host->argc = request->u.if_set_on_op.args->int_arg_count;
+        memcpy(host->argv, request->u.if_set_on_op.args->int_args, sizeof(host->argv));
     }
     else if( request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETENTER ||
              request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE ||
@@ -51,8 +51,8 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     {
         host->component_id = request->u.cc_set_on_op.component_id;
         host->script_id = request->u.cc_set_on_op.script_id;
-        host->argc = request->u.cc_set_on_op.int_arg_count;
-        memcpy(host->argv, request->u.cc_set_on_op.int_args, sizeof(host->argv));
+        host->argc = request->u.cc_set_on_op.args->int_arg_count;
+        memcpy(host->argv, request->u.cc_set_on_op.args->int_args, sizeof(host->argv));
     }
     else if( request->kind == CS2VM_HOST_REQUEST_CC_GETOP ||
              request->kind == CS2VM_HOST_REQUEST_IF_GETOP )

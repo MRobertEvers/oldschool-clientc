@@ -971,9 +971,40 @@ test-cs2-resume-countdialog: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/resume_countdialog_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_resume_countdialog_test
 
+# Sized call frames (docs/CS2_OPTIMIZER_PLAN.md 11.1): locals are slices of two
+# per-thread stacks, so nesting, recursion, arg banks, array handles and
+# yield/replay are all slice arithmetic that can be wrong silently.
+.PHONY: test-cs2-frames
+test-cs2-frames: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_slices_test \
+		cs2vm2/test/frame_slices_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_frame_slices_test
 
+# Immutable VM strings (docs/CS2_OPTIMIZER_PLAN.md 11.4): UPPERCASE/LOWERCASE
+# must not write through their operand, which is what lets locals, constants and
+# the empty string be shared instead of copied.
+.PHONY: test-cs2-strings-immutable
+test-cs2-strings-immutable: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_string_immutable_test \
+		cs2vm2/test/string_immutable_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_string_immutable_test
 
+# Sorted switch tables (docs/CS2_OPTIMIZER_PLAN.md 12.4): the binary search must
+# answer exactly what the linear scan did, INT_MIN/INT_MAX included.
+.PHONY: test-cs2-switch
+test-cs2-switch: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_switch_lookup_test \
+		cs2vm2/test/switch_lookup_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_switch_lookup_test
 
+# VM micro-benchmark. Not pass/fail: prints ns per gosub, per arithmetic opcode,
+# per recursion level and per VM acquire. The client profile cannot resolve
+# these — a login screen runs a few hundred opcodes per frame.
+.PHONY: bench-cs2-vm
+bench-cs2-vm: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_vm_bench \
+		cs2vm2/test/vm_bench.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_vm_bench
 
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
 # names the unported operation blocking the most textures, which is the number to work

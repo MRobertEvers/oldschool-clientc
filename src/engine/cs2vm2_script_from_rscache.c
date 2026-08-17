@@ -45,6 +45,9 @@ cs2vm2_script_copy_switch_tables(
             dst->switch_tables[table].cases[i].target_pc = from->cases[i].target_pc;
         }
     }
+    /* Once, here, so the VM can binary-search instead of scanning — script 7300
+     * has 1,960 cases. */
+    CS2VM2_ScriptSortSwitches(dst);
     return true;
 }
 

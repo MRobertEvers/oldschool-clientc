@@ -527,6 +527,11 @@ enum CS2VM_HostRequestKind
     /* Hiscores stubs (7809/7811), one kind carrying the opcode. 7809 returns
      * a non-success status; 7811 returns an empty string. */
     CS2VM_HOST_REQUEST_HISCORES,
+
+    /* Not a request. One past the last kind, so tables indexed by kind
+     * (the TORIRS_CS2_HOSTSTATS histogram, cs2vm2_host_kind_names.gen.h)
+     * size themselves from the enum instead of a hand-copied number. */
+    CS2VM_HOST_REQUEST_KIND_COUNT,
 };
 
 /** Friends / ignore accessors + mutators (3600..3609, 3621..3623).
@@ -823,6 +828,28 @@ struct CS2VM_HostRequest_IF_SetOutline
  */
 #define CS2VM_SETON_INT_ARG_MAX 64
 
+/*
+ * The arguments a hook registration carries, held OUTSIDE the request union.
+ *
+ * These four fields are ~1,296 bytes. Inline in the union they made every
+ * CS2VM_HostRequest 1,336 bytes, so a varp read — the single most common host
+ * op — memset a kilobyte and a third to send four bytes. The payload itself is
+ * not the problem; sharing a union with 141 small members was.
+ *
+ * Lifetime: the buffer is owned by the opcode handler that built it and is
+ * valid for exactly the duration of the host_exec call. A host that keeps hook
+ * arguments past the call must copy them, which every hook registry already
+ * does (it copies into its own RS_CS2_HOST_TRANSMIT_* sized storage).
+ */
+struct CS2VM_HookArgs
+{
+    int int_args[CS2VM_SETON_INT_ARG_MAX];
+    int int_arg_count;
+    uint64_t str_arg_mask;
+    int str_arg_count;
+    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+};
+
 struct CS2VM_HostRequest_IF_SetOnVarTransmit
 {
     int component_id;
@@ -830,11 +857,9 @@ struct CS2VM_HostRequest_IF_SetOnVarTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+    /* Caller-owned, valid only for the duration of the host_exec call. Never
+     * NULL on a *_seton* request. */
+    struct CS2VM_HookArgs* args;
 };
 
 struct CS2VM_HostRequest_IF_SetOnInvTransmit
@@ -844,11 +869,9 @@ struct CS2VM_HostRequest_IF_SetOnInvTransmit
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+    /* Caller-owned, valid only for the duration of the host_exec call. Never
+     * NULL on a *_seton* request. */
+    struct CS2VM_HookArgs* args;
 };
 
 struct CS2VM_HostRequest_IF_SetOnOp
@@ -858,11 +881,9 @@ struct CS2VM_HostRequest_IF_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+    /* Caller-owned, valid only for the duration of the host_exec call. Never
+     * NULL on a *_seton* request. */
+    struct CS2VM_HookArgs* args;
 };
 
 struct CS2VM_HostRequest_CC_SetOnOp
@@ -875,11 +896,9 @@ struct CS2VM_HostRequest_CC_SetOnOp
     char* signature;
     int* trigger_ids;
     int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
+    /* Caller-owned, valid only for the duration of the host_exec call. Never
+     * NULL on a *_seton* request. */
+    struct CS2VM_HookArgs* args;
 };
 
 struct CS2VM_HostRequest_IF_ClearOps
@@ -1640,6 +1659,22 @@ struct CS2VM_HostRequest
 };
 
 struct CS2VM2_Thread;
+
+/*
+ * A host request is a header, not a kilobyte (docs/CS2_OPTIMIZER_PLAN.md 11.3).
+ * It was 1,336 bytes because the four *_seton* members carried their argument
+ * payload inline; they now point at caller-owned storage. What dominates the
+ * union today is CS2VM_HostRequest_WidgetSetOpKey at 52 bytes, which is real
+ * scalar payload rather than a buffer, so this is where it stops without
+ * inventing more indirection than the shrink is worth.
+ *
+ * The assert is here so the union cannot quietly grow back the next time
+ * someone gives a member a fixed-size buffer.
+ */
+_Static_assert(
+    sizeof(struct CS2VM_HostRequest) <= 64,
+    "CS2VM_HostRequest must stay a header: put fixed-size payloads behind a "
+    "pointer to caller-owned storage, as the *_seton* members do");
 
 typedef int (*CS2VM2_HostExec_Fn)(
     struct CS2VM2_Thread* thread,

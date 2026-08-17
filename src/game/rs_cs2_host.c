@@ -48,6 +48,38 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/*
+ * One-shot environment gate.
+ *
+ * getenv takes a lock and walks the whole environment block, and several of
+ * these sit directly on opcode paths — TORIRS_DUMP_SETSIZE was consulted once
+ * per CC_SETSIZE, which is once per widget of every container rebuild. The
+ * answer cannot change while the client runs, so it is resolved on first use
+ * and never again. `cache` starts at -1 meaning "not yet asked".
+ */
+static int
+rs_cs2_env_flag(
+    char const* name,
+    int* cache)
+{
+    assert(name);
+    assert(cache);
+
+    if( *cache < 0 )
+        *cache = getenv(name) != NULL;
+    return *cache;
+}
+
+static int g_env_cs2_mount_debug = -1;
+static int g_env_ops_debug = -1;
+static int g_env_wedge_fov_debug = -1;
+static int g_env_objicon_debug = -1;
+static int g_env_npc_head_debug = -1;
+static int g_env_loot_trace = -1;
+static int g_env_hassub_debug = -1;
+static int g_env_sethide_debug = -1;
+static int g_env_dump_setsize = -1;
+
 /* Resolved once: getenv locks and scans the whole environment, and this gate sits
  * on cc_create, which a container rebuild issues once per row. */
 static int
@@ -227,7 +259,7 @@ rs_cs2_yield_if_group_missing(
     if( rs_cs2_await_spent(thread, request->kind, group_id, -1) )
         return CS2VM_EXECNO_OK;
 
-    if( getenv("TORIRS_CS2_MOUNT_DEBUG") )
+    if( rs_cs2_env_flag("TORIRS_CS2_MOUNT_DEBUG", &g_env_cs2_mount_debug) )
         fprintf(
             stderr,
             "cs2-automount: group %d requested via component 0x%08x (req kind=%d)\n",
@@ -420,7 +452,7 @@ rs_cs2_apply_op(
     /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
      * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
      * missing verb there is invisible until the menu is opened. */
-    if( getenv("TORIRS_OPS_DEBUG") )
+    if( rs_cs2_env_flag("TORIRS_OPS_DEBUG", &g_env_ops_debug) )
         fprintf(
             stderr,
             "cs2 setop com=0x%08x (%d|%d) op%d=\"%s\"\n",
@@ -2510,7 +2542,7 @@ exec_viewport(
          * kept (Statics.method5659), each falling back to 256. */
         host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(request.args[0]);
         host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(request.args[1]);
-        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        if( rs_cs2_env_flag("TORIRS_WEDGE_FOV_DEBUG", &g_env_wedge_fov_debug) )
             fprintf(
                 stderr,
                 "wedge: VIEWPORT_SETFOV raw=%d,%d decoded near=%d far=%d\n",
@@ -2679,14 +2711,13 @@ rs_cs2_settings_apply_client_layout(
         return;
     if( !vm || vm->frame_sp <= 0 )
         return;
-    frame = vm->frames[vm->frame_sp - 1];
-    if( !frame || !frame->script ||
-        frame->script->script_id != host->script_settings_client_apply )
+    frame = &vm->frames[vm->frame_sp - 1];
+    if( !frame->script || frame->script->script_id != host->script_settings_client_apply )
         return;
 
     /* script_3967's parameters are (setting id, value, secondary value); the
      * dropdown path fills the second and passes -1 for the third. */
-    layout = frame->int_locals[1];
+    layout = CS2VM2_FrameIntLocal(vm, frame, 1);
     if( layout < 0 || layout > 2 )
         return;
 
@@ -3337,7 +3368,7 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( rs_cs2_env_flag("TORIRS_OBJICON_DEBUG", &g_env_objicon_debug) )
         fprintf(
             stderr,
             "GFXDBG: com=0x%08x gfx=%d\n",
@@ -3388,7 +3419,7 @@ exec_set_object(
     int scene_id = -1;
     int atlas_index = 0;
     (void)thread;
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( rs_cs2_env_flag("TORIRS_OBJICON_DEBUG", &g_env_objicon_debug) )
         fprintf(
             stderr,
             "OBJICON: enter com=0x%08x obj=%d count=%d bridge=%d prov=%d needs=%d\n",
@@ -3537,7 +3568,7 @@ exec_set_object(
         count,
         scene_id);
 #endif
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    if( rs_cs2_env_flag("TORIRS_OBJICON_DEBUG", &g_env_objicon_debug) )
     {
         int32_t dbg = UITree_FindByComponentId(tree, component_id);
         fprintf(
@@ -3880,7 +3911,7 @@ exec_widget_set_model_kind(
             if( scene_model >= 0 )
                 applied = UITree_ApplyModel(
                     rs_cs2_tree(host), request.component_id, scene_model);
-            if( getenv("TORIRS_NPC_HEAD_DEBUG") )
+            if( rs_cs2_env_flag("TORIRS_NPC_HEAD_DEBUG", &g_env_npc_head_debug) )
                 fprintf(
                     stderr,
                     "npc_head: npc=%d resolved=%d component=0x%08x scene=%d applied=%d\n",
@@ -4191,11 +4222,11 @@ rs_cs2_acquire_var_transmit_hook(
 #define RS_CS2_COPY_HOOK_STR_ARGS(hook, request)                                                   \
     do                                                                                             \
     {                                                                                              \
-        (hook)->str_arg_mask = (request)->str_arg_mask;                                            \
-        (hook)->str_arg_count = (request)->str_arg_count;                                          \
+        (hook)->str_arg_mask = (request)->args->str_arg_mask;                                            \
+        (hook)->str_arg_count = (request)->args->str_arg_count;                                          \
         if( (hook)->str_arg_count > CS2VM_SETON_STR_ARG_MAX )                                      \
             (hook)->str_arg_count = CS2VM_SETON_STR_ARG_MAX;                                       \
-        memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args));                   \
+        memcpy((hook)->str_args, (request)->args->str_args, sizeof((hook)->str_args));                   \
     } while( 0 )
 
 /*
@@ -4383,6 +4414,9 @@ exec_set_on_inv_transmit(
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
     assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
     hook = rs_cs2_acquire_inv_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
     {
@@ -4400,10 +4434,10 @@ exec_set_on_inv_transmit(
     }
     hook->component_id = request->component_id;
     hook->script_id = request->script_id;
-    hook->int_arg_count = request->int_arg_count;
+    hook->int_arg_count = request->args->int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
     RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
     hook->trigger_count = request->trigger_count;
     if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
@@ -4417,7 +4451,7 @@ exec_set_on_inv_transmit(
         "triggers=%d",
         request->component_id,
         request->script_id,
-        request->int_arg_count,
+        request->args->int_arg_count,
         request->trigger_count);
     {
         int ti;
@@ -4795,15 +4829,18 @@ exec_set_on_stat_transmit(
 
     assert(host);
     assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
     hook = rs_cs2_acquire_stat_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = request->component_id;
     hook->script_id = request->script_id;
-    hook->int_arg_count = request->int_arg_count;
+    hook->int_arg_count = request->args->int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
     RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
     rs_cs2_copy_transmit_triggers(
         hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
@@ -4817,15 +4854,20 @@ exec_set_on_var_transmit(
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
+    assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
+
     hook = rs_cs2_acquire_var_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = request->component_id;
     hook->script_id = request->script_id;
-    hook->int_arg_count = request->int_arg_count;
+    hook->int_arg_count = request->args->int_arg_count;
     if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-    memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+    memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
     RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
     rs_cs2_copy_transmit_triggers(
         hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
@@ -4847,8 +4889,10 @@ exec_set_on_cc_transmit(
 
     assert(host);
     assert(vm);
-    if( !request )
-        return CS2VM_EXECNO_OK;
+    assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
 
     /* Dot vs active register — resolved at op time in the VM (see
      * exec_set_on_cc_event). */
@@ -4876,10 +4920,10 @@ exec_set_on_cc_transmit(
         }
         hook->component_id = component_id;
         hook->script_id = request->script_id;
-        hook->int_arg_count = request->int_arg_count;
+        hook->int_arg_count = request->args->int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
         RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
         hook->trigger_count = request->trigger_count;
         if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
@@ -4898,10 +4942,10 @@ exec_set_on_cc_transmit(
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
         hook->script_id = request->script_id;
-        hook->int_arg_count = request->int_arg_count;
+        hook->int_arg_count = request->args->int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
         RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
         rs_cs2_copy_transmit_triggers(
             hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
@@ -4916,10 +4960,10 @@ exec_set_on_cc_transmit(
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
         hook->script_id = request->script_id;
-        hook->int_arg_count = request->int_arg_count;
+        hook->int_arg_count = request->args->int_arg_count;
         if( hook->int_arg_count > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
-        memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
+        memcpy(hook->int_args, request->args->int_args, sizeof(hook->int_args));
         RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
         rs_cs2_copy_transmit_triggers(
             hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
@@ -5109,6 +5153,9 @@ exec_set_on_if_event(
 
     assert(host);
     assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
 
     tree = rs_cs2_tree(host);
     if( !tree )
@@ -5129,23 +5176,23 @@ exec_set_on_if_event(
         rs_cs2_seton_kind_str(kind),
         request->component_id,
         request->script_id,
-        request->int_arg_count);
+        request->args->int_arg_count);
 #endif
 
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = request->str_args[i];
+            strp[i] = request->args->str_args[i];
         (void)UITree_ApplyRuntimeHook(
             tree,
             request->component_id,
             slot,
             request->script_id,
-            request->int_arg_count > 0 ? request->int_args : NULL,
-            request->int_arg_count,
-            request->str_arg_mask,
+            request->args->int_arg_count > 0 ? request->args->int_args : NULL,
+            request->args->int_arg_count,
+            request->args->str_arg_mask,
             strp,
-            request->str_arg_count);
+            request->args->str_arg_count);
     }
     return CS2VM_EXECNO_OK;
 }
@@ -5164,8 +5211,10 @@ exec_set_on_cc_event(
 
     assert(host);
     assert(vm);
-    if( !request )
-        return CS2VM_EXECNO_OK;
+    assert(request);
+    /* Caller-owned payload behind the request header; every *_seton*
+     * request carries one (see struct CS2VM_HookArgs). */
+    assert(request->args);
 
     tree = rs_cs2_tree(host);
     if( !tree )
@@ -5190,23 +5239,23 @@ exec_set_on_cc_event(
         rs_cs2_seton_kind_str(kind),
         component_id,
         request->script_id,
-        request->int_arg_count);
+        request->args->int_arg_count);
 #endif
 
     {
         char const* strp[CS2VM_SETON_STR_ARG_MAX];
         for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
-            strp[i] = request->str_args[i];
+            strp[i] = request->args->str_args[i];
         (void)UITree_ApplyRuntimeHook(
             tree,
             component_id,
             slot,
             request->script_id,
-            request->int_arg_count > 0 ? request->int_args : NULL,
-            request->int_arg_count,
-            request->str_arg_mask,
+            request->args->int_arg_count > 0 ? request->args->int_args : NULL,
+            request->args->int_arg_count,
+            request->args->str_arg_mask,
             strp,
-            request->str_arg_count);
+            request->args->str_arg_count);
     }
     return CS2VM_EXECNO_OK;
 }
@@ -5989,7 +6038,7 @@ exec_loot(
             cost = obj->cost;
         LootStore_AddKillLoot(
             loot, req->name ? req->name : "", obj_id, qty, cost, event_id);
-        if( getenv("TORIRS_LOOT_TRACE") )
+        if( rs_cs2_env_flag("TORIRS_LOOT_TRACE", &g_env_loot_trace) )
         {
             fprintf(
                 stderr,
@@ -6211,6 +6260,185 @@ exec_chat(
 /* =========================================================================
  * Main dispatcher
  * ========================================================================= */
+
+/* =========================================================================
+ * Direct read fast path (see RS_CS2Host_FastPath and struct CS2VM2_HostFastPath)
+ * ========================================================================= */
+
+/*
+ * These bypass RS_CS2Host_Exec entirely, so two things it does are worth
+ * accounting for:
+ *
+ *   - TORIRS_PERF_CTR_CS2_HOST_OPS. Counted here too, so "host ops per frame"
+ *     keeps meaning the same thing across this change.
+ *   - `thread->has_awaited = false` on a completed request. Not needed: the
+ *     memo only suppresses a second yield for the SAME kind+id, and only a
+ *     request-path op can set it. The op that awaited always clears it itself
+ *     when it finally completes, so a pure read passing by in between changes
+ *     nothing — and these readers have no thread to clear it on anyway.
+ */
+static int
+rs_cs2_fast_read_varp(
+    void* user,
+    int varp_id,
+    int* out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    assert(host);
+    assert(out);
+
+    if( !host->varps )
+        return 0;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    *out = VarPManager_GetVarp(host->varps, varp_id);
+    return 1;
+}
+
+static int
+rs_cs2_fast_read_varbit(
+    void* user,
+    int varbit_id,
+    int* out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    assert(host);
+    assert(out);
+
+    if( !host->varps )
+        return 0;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    *out = VarPManager_GetVarbit(host->varps, varbit_id);
+    return 1;
+}
+
+static int
+rs_cs2_fast_read_varc_int(
+    void* user,
+    int varc_id,
+    int* out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    assert(host);
+    assert(out);
+
+    if( !host->varcs )
+        return 0;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    *out = VarCManager_GetInt(host->varcs, varc_id);
+    return 1;
+}
+
+static int
+rs_cs2_fast_read_varc_string(
+    void* user,
+    int varc_id,
+    char const** out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    assert(host);
+    assert(out);
+
+    if( !host->varcs )
+        return 0;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    *out = VarCManager_GetString(host->varcs, varc_id);
+    return 1;
+}
+
+static int
+rs_cs2_fast_widget_metric(
+    void* user,
+    int component_id,
+    enum CS2VM2_WidgetMetric metric,
+    int* out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    struct UITree* tree;
+
+    assert(host);
+    assert(out);
+
+    if( !host->tree )
+        return 0;
+    tree = host->tree;
+
+    switch( metric )
+    {
+    case CS2VM2_WIDGET_METRIC_WIDTH:
+        *out = UITree_GetLayoutWidth(tree, component_id);
+        break;
+    case CS2VM2_WIDGET_METRIC_HEIGHT:
+        *out = UITree_GetLayoutHeight(tree, component_id);
+        /* The trace lives on this path too — it is how a drag that measured
+         * wrong is told apart from one that read the wrong component. */
+        if( torirs_trace_drag() )
+            fprintf(
+                stderr, "TORIRS_TRACE_DRAG if_getheight id=%d -> %d\n", component_id, *out);
+        break;
+    case CS2VM2_WIDGET_METRIC_LAYER:
+    {
+        /* A component's declared layer stops at its own interface — see the
+         * IF_GETLAYER case in the dispatch switch for why. */
+        int parent = rs_cs2_parent_component_id(tree, component_id);
+        if( parent >= 0 && ((parent >> 16) & 0xffff) != ((component_id >> 16) & 0xffff) )
+            parent = -1;
+        *out = parent >= 0 ? parent : -1;
+        break;
+    }
+    default:
+        return 0;
+    }
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    return 1;
+}
+
+static int
+rs_cs2_fast_client_clock(
+    void* user,
+    int* out)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    assert(host);
+    assert(out);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
+    *out = host->client_clock;
+    return 1;
+}
+
+static struct CS2VM2_Script*
+rs_cs2_fast_script_lookup(
+    void* user,
+    int script_id)
+{
+    struct RS_CS2Host* host = (struct RS_CS2Host*)user;
+    struct CacheProvider* provider;
+
+    assert(host);
+
+    provider = host->provider;
+    if( !provider )
+        return NULL;
+    /* NULL sends the gosub down the request path, which is where the load is
+     * started and the yield happens. */
+    return CacheProvider_ClientScriptGet(provider, script_id);
+}
+
+struct CS2VM2_HostFastPath const*
+RS_CS2Host_FastPath(void)
+{
+    static struct CS2VM2_HostFastPath const table = {
+        .read_varp = rs_cs2_fast_read_varp,
+        .read_varbit = rs_cs2_fast_read_varbit,
+        .read_varc_int = rs_cs2_fast_read_varc_int,
+        .read_varc_string = rs_cs2_fast_read_varc_string,
+        .widget_metric = rs_cs2_fast_widget_metric,
+        .client_clock = rs_cs2_fast_client_clock,
+        .script_lookup = rs_cs2_fast_script_lookup,
+    };
+    return &table;
+}
 
 static int
 rs_cs2_host_exec_dispatch(
@@ -6577,11 +6805,10 @@ rs_cs2_host_exec_dispatch(
          * Modern (both resizable). */
         if( vm && vm->frame_sp > 0 )
         {
-            struct CS2VM2_Frame* frame = vm->frames[vm->frame_sp - 1];
-            if( frame && frame->script &&
-                frame->script->script_id == host->script_settings_client_mode )
+            struct CS2VM2_Frame* frame = &vm->frames[vm->frame_sp - 1];
+            if( frame->script && frame->script->script_id == host->script_settings_client_mode )
             {
-                int layout = frame->int_locals[0];
+                int layout = CS2VM2_FrameIntLocal(vm, frame, 0);
                 if( layout >= 0 && layout <= 2 )
                 {
                     host->client_layout_mode = layout;
@@ -6765,7 +6992,7 @@ rs_cs2_host_exec_dispatch(
          * (IF_OPENSUB target). The InterfaceParent map records exactly that. */
         int cid = request->u.if_get_width.component_id;
         int has = tree && UITree_InterfaceParentFind(tree, cid) >= 0;
-        if( getenv("TORIRS_HASSUB_DEBUG") )
+        if( rs_cs2_env_flag("TORIRS_HASSUB_DEBUG", &g_env_hassub_debug) )
             fprintf(
                 stderr,
                 "hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
@@ -6829,7 +7056,7 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_hide.component_id,
                 request->u.if_set_hide.hidden ? 1 : 0);
 #endif
-            if( getenv("TORIRS_SETHIDE_DEBUG") )
+            if( rs_cs2_env_flag("TORIRS_SETHIDE_DEBUG", &g_env_sethide_debug) )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
                 if( g == 149 || g == 320 || g == 218 ||
@@ -6878,9 +7105,11 @@ rs_cs2_host_exec_dispatch(
              * that interface, in order. The BOUNDS dump only shows where the
              * layout ended up; when a panel resolves to a few pixels this is
              * the only way to see which call did it and what it asked for. */
-            if( getenv("TORIRS_DUMP_SETSIZE") )
+            if( rs_cs2_env_flag("TORIRS_DUMP_SETSIZE", &g_env_dump_setsize) )
             {
-                int want = (int)strtol(getenv("TORIRS_DUMP_SETSIZE"), NULL, 0);
+                static int want = -1;
+                if( want < 0 )
+                    want = (int)strtol(getenv("TORIRS_DUMP_SETSIZE"), NULL, 0);
                 int group = (request->u.cc_set_size.component_id >> 16) & 0xffff;
                 if( group == want )
                     fprintf(

@@ -1,6 +1,7 @@
 #include "cs2vm2_strpool.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,6 +89,40 @@ CS2VM2_StrPool_Reset(struct CS2VM2_StrPool* pool)
     pool->bytes_used = 0;
     pool->alloc_count = 0;
     pool->reset_count++;
+}
+
+void
+CS2VM2_StrPool_ResetKeepBlocks(struct CS2VM2_StrPool* pool)
+{
+    assert(pool);
+
+    for( struct CS2VM2_StrPoolBlock* block = pool->blocks; block; block = block->next )
+        block->used = 0;
+    pool->bytes_used = 0;
+    pool->alloc_count = 0;
+    pool->reset_count++;
+}
+
+void*
+CS2VM2_StrPool_AllocAligned(
+    struct CS2VM2_StrPool* pool,
+    size_t bytes,
+    size_t align)
+{
+    assert(pool);
+    assert(align > 0);
+    assert((align & (align - 1)) == 0);
+
+    /*
+     * Over-allocate by align-1 and round the returned pointer up, rather than
+     * aligning the block's bump cursor: the cursor is shared with the string
+     * allocations, and rounding it would silently change where they land.
+     * The slack is at most 7 bytes per array definition.
+     */
+    char* raw = CS2VM2_StrPool_Alloc(pool, bytes + align - 1u);
+    uintptr_t addr = (uintptr_t)raw;
+    uintptr_t aligned = (addr + (align - 1u)) & ~(uintptr_t)(align - 1u);
+    return (void*)aligned;
 }
 
 void
@@ -223,5 +258,21 @@ CS2VM2_StrPool_Fmt(
 char*
 CS2VM2_StrPool_Empty(struct CS2VM2_StrPool* pool)
 {
-    return CS2VM2_StrPool_Alloc(pool, 0);
+    assert(pool);
+    (void)pool;
+    /*
+     * One shared "", not a pool allocation per call.
+     *
+     * Distinct storage per call was needed only while UPPERCASE / LOWERCASE
+     * rewrote their operand in place; with every VM string immutable, an empty
+     * string has nothing to distinguish. This is also the most-pushed string in
+     * the VM — every unwritten string cell and every stubbed getter answers with
+     * it — so it was a steady drip of pool bumps for no content.
+     *
+     * Non-const on purpose: the VM moves char* everywhere. Nothing writes
+     * through a VM string; if something ever did, it would fault here rather
+     * than corrupt a shared buffer, which is the failure worth having.
+     */
+    static char empty[1] = { '\0' };
+    return empty;
 }

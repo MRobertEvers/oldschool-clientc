@@ -1582,6 +1582,23 @@ CacheProvider_ClientScriptAdd(
         provider->clientscript_cache, &script_id, HMAP_INSERT);
     assert(entry && "Client script must be inserted into hmap");
 
+    /*
+     * Adding a script twice would replace a pointer the VM may already be
+     * holding.
+     *
+     * The clientscript map is decode-once and session-lifetime — no LRU, no
+     * eviction, and CacheProvider_ClientScriptsCleanup has no callers — which is
+     * what makes the VM's gosub callee cache (CS2VM2_Script.callee_cache) safe:
+     * a resolved callee pointer stays valid for as long as the client runs. A
+     * second Add for the same id is the one thing that would break that, by
+     * overwriting the entry and leaving every cached pointer aimed at a script
+     * the provider no longer owns. The load task already checks Has() first, so
+     * this cannot fire without a new caller having got the order wrong.
+     */
+    assert(
+        entry->script == NULL &&
+        "clientscript already loaded: a second Add would dangle the VM's callee cache");
+
     entry->id = script_id;
     entry->script = script;
 }

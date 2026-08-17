@@ -66,9 +66,34 @@ CS2VM2_StrPool_Init(struct CS2VM2_StrPool* pool);
 void
 CS2VM2_StrPool_Reset(struct CS2VM2_StrPool* pool);
 
+/*
+ * Rewind every block to empty without giving any of them back.
+ *
+ * The difference from Reset is what happens to the blocks a run grew into:
+ * Reset keeps one and frees the rest, which is right for strings (a run that
+ * needed four blocks was unusual). It is wrong for a pool whose contents are
+ * the same size every run — the array cells of a list rebuild — where freeing
+ * the blocks means re-mallocing them on the next rebuild, forever.
+ */
+void
+CS2VM2_StrPool_ResetKeepBlocks(struct CS2VM2_StrPool* pool);
+
 /* Release every string and every block; leaves the pool usable (as if Init'd). */
 void
 CS2VM2_StrPool_Free(struct CS2VM2_StrPool* pool);
+
+/*
+ * `bytes` of uninitialised storage aligned to `align` (a power of two).
+ *
+ * The string entry points hand out char-aligned bytes, which is all a string
+ * needs; array cells are pointer-wide and must be aligned as such. No NUL is
+ * appended — this is not a string.
+ */
+void*
+CS2VM2_StrPool_AllocAligned(
+    struct CS2VM2_StrPool* pool,
+    size_t bytes,
+    size_t align);
 
 /*
  * A writable buffer for a string of `len` characters: len + 1 bytes with
@@ -108,8 +133,11 @@ CS2VM2_StrPool_VFmt(
     char const* fmt,
     va_list args);
 
-/* A fresh, writable "". Distinct storage per call on purpose: opcodes such as
- * UPPERCASE mutate their string in place, so no two stack slots may alias. */
+/* One shared "", the same pointer every time.
+ *
+ * It used to be a fresh allocation per call because UPPERCASE mutated its
+ * string in place; every VM string is immutable now, so there is nothing to
+ * keep apart and this is the most-pushed string in the VM. */
 char*
 CS2VM2_StrPool_Empty(struct CS2VM2_StrPool* pool);
 

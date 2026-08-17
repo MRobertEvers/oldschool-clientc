@@ -45,6 +45,18 @@ struct RecordingHost
     int calls;
     enum CS2VM_HostRequestKind kind;
     struct CS2VM_HostRequest_CC_ComponentParam param;
+    /*
+     * A COPY of param.str_value, taken during the call.
+     *
+     * A request's strings are borrowed for the duration of host_exec and no
+     * longer (see cs2vm2_strpool.h); param.str_value is only valid while the
+     * host is on the stack. Keeping the pointer and reading it after the run
+     * is what a real host must not do, so this test does not do it either.
+     * `had_str` records whether there was a string at all, which is the
+     * property the int-write case checks.
+     */
+    int had_str;
+    char str_value[128];
     /** What the fake host answers a getter with. */
     int answer;
 };
@@ -58,6 +70,10 @@ recording_host_exec(
     host->calls++;
     host->kind = request->kind;
     host->param = request->u.cc_component_param;
+    host->had_str = request->u.cc_component_param.str_value != NULL;
+    snprintf(
+        host->str_value, sizeof(host->str_value), "%s",
+        request->u.cc_component_param.str_value ? request->u.cc_component_param.str_value : "");
     if( request->kind == CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM )
         return CS2VM2_PushInt(thread, host->answer);
     return CS2VM_EXECNO_OK;
@@ -153,7 +169,7 @@ main(void)
         CHECK_INT(host.param.param_id, 2365, "setter param id (bottom of the three)");
         CHECK_INT(host.param.value, 600, "setter value (middle)");
         CHECK_INT(host.param.kind, 0, "setter kind arg (top)");
-        CHECK_INT(host.param.str_value == NULL, 1, "an int write carries no string");
+        CHECK_INT(host.had_str == 0, 1, "an int write carries no string");
         CHECK_INT(host.param.component_id, active, "setter targets the active component");
     }
 
@@ -179,7 +195,7 @@ main(void)
         CHECK_INT(host.param.param_id, 1017, "string write takes the param id");
         CHECK_INT(host.param.kind, 2, "string write carries kind 2");
         CHECK_INT(
-            host.param.str_value && strcmp(host.param.str_value, "Bank of Gielinor") == 0,
+            host.had_str && strcmp(host.str_value, "Bank of Gielinor") == 0,
             1,
             "string write carries the string");
         CHECK_INT(host.param.component_id, dot, "operand 1 targets the dot component");

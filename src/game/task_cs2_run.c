@@ -950,6 +950,9 @@ Task_CS2Run_Run(
         self->vm = CS2VM2_Acquire();
         assert(self->vm);
         CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
+        /* Direct readers for the handful of host ops that dominate the request
+         * stream; everything else still goes through RS_CS2Host_Exec. */
+        CS2VM2_BindHostFastPath(self->vm, RS_CS2Host_FastPath());
         thread = CS2VM2_ThreadMain(self->vm);
         CS2VM2_ThreadSetCanvas(
             thread,

@@ -51,7 +51,7 @@ flowchart LR
 |-------|---------|
 | `host_exec` | Single callback for all world/UI ops |
 | `user` | Opaque host userdata (`CS2VM_USER(thread)` reads this) |
-| `threads[4]` | Fixed pool of execution contexts |
+| `threads[1]` | Execution context. One per VM — only `threads[0]` was ever started, so the constant is 1; it stays an array to keep the thread/VM split. |
 | `thread_count` | Set to `CS2VM2_MAX_THREADS` by `CS2VM2_Init` |
 
 ### `CS2VM2_Thread` (execution context)
@@ -77,9 +77,15 @@ Each thread is a self-contained interpreter state (formerly all of `CS2VMX`):
 |-------|---------|
 | `script` | Decoded bytecode being executed |
 | `pc` | Program counter into `script->opcodes` |
-| `int_locals` / `str_locals` | Per-frame locals (`CS2VM_MAX_LOCALS` = 1024) |
+| `int_base` / `int_count` | This frame's slice of `thread->int_locals_stack` |
+| `str_base` / `str_count` | This frame's slice of `thread->str_locals_stack` |
 | `return_pc` / `return_frame` | Caller resume point after `RETURN` |
-| `return_ints` / `return_int_count` | Int values returned to caller |
+
+Locals are slices, not storage: `CS2VM2_PushCallScript` bumps the thread's two
+locals stacks by what the script's trailer declares (`local_int_count`,
+`local_string_count`), zeroes exactly that, and `RETURN` rewinds them. An
+operand at or above the frame's count is a malformed script — it reads 0 / drops
+the write and bumps `cs2_local_oob`.
 
 ### `CS2VM2_Script` (decoded bytecode)
 

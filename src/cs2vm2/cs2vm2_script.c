@@ -52,6 +52,42 @@ CS2VM2_ScriptAllocSwitchCases(
     return true;
 }
 
+static int
+cs2vm2_switch_case_cmp(
+    void const* a,
+    void const* b)
+{
+    struct CS2VM2_ScriptSwitchCase const* ca = (struct CS2VM2_ScriptSwitchCase const*)a;
+    struct CS2VM2_ScriptSwitchCase const* cb = (struct CS2VM2_ScriptSwitchCase const*)b;
+    /* Not (ca->key - cb->key): keys span the whole int range and the subtraction
+     * overflows, which sorts a table with both large-positive and
+     * large-negative keys into the wrong order. */
+    if( ca->key < cb->key )
+        return -1;
+    if( ca->key > cb->key )
+        return 1;
+    return 0;
+}
+
+void
+CS2VM2_ScriptSortSwitches(struct CS2VM2_Script* script)
+{
+    assert(script);
+
+    for( int i = 0; i < script->switch_table_count; i++ )
+    {
+        struct CS2VM2_ScriptSwitch* table = &script->switch_tables[i];
+        if( table->case_count > 1 )
+        {
+            assert(table->cases);
+            qsort(
+                table->cases, (size_t)table->case_count, sizeof(*table->cases),
+                cs2vm2_switch_case_cmp);
+        }
+        table->sorted = 1;
+    }
+}
+
 void
 CS2VM2_ScriptFree(struct CS2VM2_Script* script)
 {
@@ -64,6 +100,7 @@ CS2VM2_ScriptFree(struct CS2VM2_Script* script)
             free(script->switch_tables[i].cases);
         free(script->switch_tables);
     }
+    free(script->callee_cache);
     free(script->signature);
     free(script->opcodes);
     free(script->int_operands);
@@ -111,6 +148,9 @@ CS2VM2_ScriptCopy(
             dst->switch_tables[i].cases,
             src->switch_tables[i].cases,
             (size_t)src->switch_tables[i].case_count * sizeof(*dst->switch_tables[i].cases));
+        /* The cases came over in whatever order the source had them, so the
+         * source's answer to "is this searchable" is the copy's answer too. */
+        dst->switch_tables[i].sorted = src->switch_tables[i].sorted;
     }
 
     if( src->signature )
@@ -118,6 +158,11 @@ CS2VM2_ScriptCopy(
         dst->signature = strdup(src->signature);
         assert(dst->signature);
     }
+
+    /* The copy starts with no resolved callees: the cache is keyed by this
+     * script's own pcs and is rebuilt on demand, so sharing or copying it would
+     * only duplicate state that costs one host call to recover. */
+    dst->callee_cache = NULL;
 
     dst->opcodes = malloc((size_t)src->op_count * sizeof(*dst->opcodes));
     assert(dst->opcodes);

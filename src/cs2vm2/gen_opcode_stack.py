@@ -62,6 +62,74 @@ CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 # 8023/8024 landed (skill_guide.md §5).
 MAX_OPCODE = 8025
 
+
+# ---------------------------------------------------------------------------
+# Per-opcode flags (docs/CS2_OPTIMIZER_PLAN.md §12.5)
+# ---------------------------------------------------------------------------
+#
+# `NO_YIELD_OPCODES` is the opcodes the VM executes ENTIRELY BY ITSELF: no
+# `cs2vm2_host_exec`, therefore no CS2VM_EXECNO_YIELD, therefore no need for the
+# run loop to snapshot a yield checkpoint or reset the array undo log before
+# running one. Everything else is assumed to reach the host and to be able to
+# yield, which is the safe assumption: the cost of being wrong that way is the
+# six stores the checkpoint already made, while the cost of being wrong the
+# other way is a yield with nothing to roll back to.
+#
+# This is an explicit list rather than something inferred from cs2vm2.c on the
+# fly, for two reasons. Parsing 12,000 lines of C to build a call graph is
+# fragile in exactly the direction that hurts — a handler this script fails to
+# resolve reads as "calls nothing", i.e. safe — and the list is stable: these
+# are the arithmetic, string, stack, local and branch opcodes, which is also
+# most of what a script actually executes.
+#
+# It is checked at run time. `cs2vm2_run_script_body` asserts that an opcode
+# which skipped its checkpoint did not return YIELD, so a wrong entry here
+# aborts at the opcode that is wrong rather than corrupting a replay.
+NO_YIELD_OPCODES: set[str] = {
+    # stack / control flow
+    "PUSH_CONSTANT_INT", "PUSH_CONSTANT_STRING",
+    "BRANCH", "BRANCH_NOT", "BRANCH_EQUALS", "BRANCH_LESS_THAN",
+    "BRANCH_GREATER_THAN", "BRANCH_LESS_THAN_OR_EQUALS",
+    "BRANCH_GREATER_THAN_OR_EQUALS", "BRANCH_IF_ONE",
+    "SWITCH", "RETURN",
+    "POP_INT_DISCARD", "POP_STRING_DISCARD",
+    # frame locals (GOSUB_WITH_PARAMS is NOT here: it can yield on a load)
+    "PUSH_INT_LOCAL", "POP_INT_LOCAL", "PUSH_STRING_LOCAL", "POP_STRING_LOCAL",
+    "JOIN_STRING",
+    # array READ only — POP_ARRAY_INT writes a cell through the undo log, and
+    # DEFINE_ARRAY takes storage, so both keep the full per-op bookkeeping.
+    "PUSH_ARRAY_INT",
+    # arithmetic and bit ops
+    "ADD", "SUB", "MULTIPLY", "DIV", "RANDOM", "RANDOMINC", "INTERPOLATE",
+    "ADDPERCENT", "SETBIT", "CLEARBIT", "TESTBIT", "MOD", "POW", "INVPOW",
+    "AND", "OR", "MIN", "MAX", "SCALE", "BITCOUNT", "TOGGLEBIT",
+    "SETBIT_RANGE", "CLEARBIT_RANGE", "GETBIT_RANGE", "ABS",
+    # string ops (they allocate from the run pool, which no yield unwinds)
+    "APPEND_NUM", "APPEND", "APPEND_SIGNNUM", "LOWERCASE", "UPPERCASE",
+    "TOSTRING", "COMPARE", "ESCAPE", "APPEND_CHAR",
+    "CHAR_ISPRINTABLE", "CHAR_ISALPHANUMERIC", "CHAR_ISALPHA", "CHAR_ISNUMERIC",
+    "STRING_LENGTH", "SUBSTRING", "REMOVETAGS",
+    "STRING_INDEXOF_CHAR", "STRING_INDEXOF_STRING",
+}
+
+# Of those, the ones with no observable effect at all — they read the operand
+# stacks (and, for the local ops, the current frame) and push a result, and that
+# is the whole of it. This is what Part A's cs2_effects.c consumes to decide
+# whether an expression can be folded, reordered or dropped; it is emitted to
+# cs2vm2_op_effects.gen.h, which has no dependency on the VM's headers.
+#
+# The exclusions are deliberate: the local ops write frame state, the branches
+# and SWITCH write the pc, RANDOM/RANDOMINC are not referentially transparent,
+# and PUSH_ARRAY_INT reads a mutable array.
+NOT_PURE_OPCODES: set[str] = {
+    "PUSH_INT_LOCAL", "POP_INT_LOCAL", "PUSH_STRING_LOCAL", "POP_STRING_LOCAL",
+    "PUSH_ARRAY_INT", "POP_INT_DISCARD", "POP_STRING_DISCARD",
+    "BRANCH", "BRANCH_NOT", "BRANCH_EQUALS", "BRANCH_LESS_THAN",
+    "BRANCH_GREATER_THAN", "BRANCH_LESS_THAN_OR_EQUALS",
+    "BRANCH_GREATER_THAN_OR_EQUALS", "BRANCH_IF_ONE", "SWITCH", "RETURN",
+    "RANDOM", "RANDOMINC",
+}
+
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
     48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
@@ -877,12 +945,37 @@ def main() -> None:
         inherited.add(op)
     bridged = len(inherited)
 
+    # ---- per-opcode flags (see NO_YIELD_OPCODES) ---------------------------
+    by_name = {name: op for op, name in names.items()}
+    unknown_names = sorted(
+        (NO_YIELD_OPCODES | NOT_PURE_OPCODES) - set(by_name))
+    if unknown_names:
+        print(
+            "gen_opcode_stack: NO_YIELD_OPCODES / NOT_PURE_OPCODES name opcodes that\n"
+            "cs2_opcode_meta.c does not define; a typo here would silently give the\n"
+            f"flag to nothing: {unknown_names}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    no_yield = {by_name[n] for n in NO_YIELD_OPCODES}
+    pure = {by_name[n] for n in NO_YIELD_OPCODES if n not in NOT_PURE_OPCODES}
+
     lines = [
         "/* Generated by src/cs2vm2/gen_opcode_stack.py — do not edit by hand. */",
         "#ifndef CS2VM2_OPCODE_STACK_GEN_H",
         "#define CS2VM2_OPCODE_STACK_GEN_H",
         "",
         f"#define CS2VM2_OPCODE_STACK_MAX {MAX_OPCODE}",
+        "",
+        "/* Opcode flags. CAN_YIELD is the load-bearing one: the run loop skips",
+        " * the per-op yield checkpoint and the undo-log reset when it is clear,",
+        " * and asserts that such an opcode did not in fact yield. IS_HOST and",
+        " * PURE are descriptive; PURE is also emitted on its own to",
+        " * cs2vm2_op_effects.gen.h for the optimizer. */",
+        "#define CS2VM2_OP_FLAG_CAN_YIELD 0x1u",
+        "#define CS2VM2_OP_FLAG_IS_HOST 0x2u",
+        "#define CS2VM2_OP_FLAG_PURE 0x4u",
         "",
         "struct CS2VM2OpcodeStack {",
         "    unsigned char int_in;",
@@ -902,6 +995,8 @@ def main() -> None:
         "     *      results are zeros/\"\" -- a plausible wrong answer, so the",
         "     *      runtime prints one line the first time it reaches each. */",
         "    unsigned char known;",
+        "    /* CS2VM2_OP_FLAG_*; see above. */",
+        "    unsigned char flags;",
         "};",
         "",
         "static struct CS2VM2OpcodeStack const g_cs2vm2_opcode_stack[CS2VM2_OPCODE_STACK_MAX] = {",
@@ -909,13 +1004,50 @@ def main() -> None:
     for op in range(MAX_OPCODE):
         ii, si, io, so = entries.get(op, (0, 0, 0, 0))
         kn = 2 if op in inherited else (1 if op in known else 0)
-        lines.append(f"    [{op}] = {{ {ii}, {si}, {io}, {so}, {kn} }},")
+        fl = []
+        if op not in no_yield:
+            fl.append("CS2VM2_OP_FLAG_CAN_YIELD")
+            fl.append("CS2VM2_OP_FLAG_IS_HOST")
+        if op in pure:
+            fl.append("CS2VM2_OP_FLAG_PURE")
+        flags = " | ".join(fl) if fl else "0"
+        lines.append(f"    [{op}] = {{ {ii}, {si}, {io}, {so}, {kn}, {flags} }},")
     lines.extend(["};", "", "#endif", ""])
     OUT.write_text("\n".join(lines))
+
+    # ---- the optimizer's copy of PURE --------------------------------------
+    eff = [
+        "/* Generated by src/cs2vm2/gen_opcode_stack.py — do not edit by hand. */",
+        "/*",
+        " * Which CS2 opcodes have no observable effect.",
+        " *",
+        " * The same fact the VM's own table carries as CS2VM2_OP_FLAG_PURE, emitted",
+        " * separately so the optimizer can consume it without pulling in the VM's",
+        " * headers. One source, so \"is this opcode safe to fold, reorder or drop\"",
+        " * cannot be answered two different ways by the two halves of the pipeline.",
+        " *",
+        " * PURE means: the opcode reads its operands off the stacks and pushes a",
+        " * result, and does nothing else — no host call, no frame or array write,",
+        " * no branch, and the same inputs always give the same output (which is why",
+        " * RANDOM is not pure). Everything not listed here is assumed impure.",
+        " */",
+        "#ifndef CS2VM2_OP_EFFECTS_GEN_H",
+        "#define CS2VM2_OP_EFFECTS_GEN_H",
+        "",
+        f"#define CS2VM2_OP_EFFECTS_TABLE_SIZE {MAX_OPCODE}",
+        "",
+        "/* 1 = pure. Index with the opcode; bounds-check against the size above. */",
+        "static unsigned char const g_cs2vm2_op_pure[CS2VM2_OP_EFFECTS_TABLE_SIZE] = {",
+    ]
+    for op in sorted(pure):
+        eff.append(f"    [{op}] = 1, /* {names.get(op, '?')} */")
+    eff.extend(["};", "", "#endif", ""])
+    (HERE / "cs2vm2_op_effects.gen.h").write_text("\n".join(eff))
     print(
         f"wrote {OUT} ({len(entries)} opcodes with metadata, "
         f"{len(known)} known; {bridged} inherited from cs2_command.gen.h "
-        f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts)"
+        f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts; "
+        f"{len(no_yield)} cannot yield, {len(pure)} pure)"
     )
 
 

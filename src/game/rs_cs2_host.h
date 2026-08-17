@@ -977,4 +977,18 @@ RS_CS2Host_Exec(
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest* request);
 
+/**
+ * Direct readers for the host state scripts read constantly, bound beside
+ * RS_CS2Host_Exec with CS2VM2_BindHostFastPath.
+ *
+ * Same answers as the matching request kinds, without the request or the
+ * dispatch switch. Everything here is a pure read that cannot yield; anything
+ * that can load, mutate the tree, or mark it dirty stays on the request path.
+ * The returned vtable is static and shared — it holds no state of its own,
+ * because the state is reached through the `user` pointer, which is the
+ * RS_CS2Host that CS2VM2_BindHost was given.
+ */
+struct CS2VM2_HostFastPath const*
+RS_CS2Host_FastPath(void);
+
 #endif /* RS_CS2_HOST_H */
