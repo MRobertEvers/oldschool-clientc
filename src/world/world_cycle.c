@@ -1123,7 +1123,7 @@ world_dyn_register_npcs(struct World* world, bool alwaysontop, int local_level)
          ni = World_EntityPoolNext(pool, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
-        if( !npc || npc->element_id < 0 )
+        if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             continue;
         if( npc->alwaysontop != alwaysontop )
             continue;

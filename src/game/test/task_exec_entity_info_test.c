@@ -7,12 +7,14 @@
  */
 #include "app.h"
 #include "asyncio.h"
+#include "engine/cache_provider.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
 #include "test_harness.h"
 #include "world.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int g_failures;
@@ -265,6 +267,66 @@ test_player_info_count_zero_despawns_others(void)
     World_Free(app.world);
 }
 
+/* One shared server wrapper must resolve against each client's own varps. This
+ * is the multiplayer invariant quest NPCs rely on: advancing Alice's quest may
+ * reveal/change the NPC for Alice without changing what Bob sees. */
+static void
+test_multinpc_resolution_is_per_player(void)
+{
+    printf("TEST: multiNpc resolution is per player\n");
+
+    struct CacheProvider provider;
+    struct App alice;
+    struct App bob;
+    struct VarPType varp_type = { 0 };
+    struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
+    struct ToriRS_Npctype* first = calloc(1, sizeof(*first));
+    struct ToriRS_Npctype* fallback = calloc(1, sizeof(*fallback));
+
+    memset(&provider, 0, sizeof(provider));
+    memset(&alice, 0, sizeof(alice));
+    memset(&bob, 0, sizeof(bob));
+    CacheProvider_InitEngineCaches(&provider);
+    VarPManager_Init(&alice.varps);
+    VarPManager_Init(&bob.varps);
+    TEST_ASSERT(VarPManager_SetVarpTypes(&alice.varps, &varp_type, 1), "Alice varps initialized");
+    TEST_ASSERT(VarPManager_SetVarpTypes(&bob.varps, &varp_type, 1), "Bob varps initialized");
+    alice.provider = &provider;
+    bob.provider = &provider;
+
+    shell->transform_varbit = -1;
+    shell->transform_varp = 0;
+    shell->transform_count = 3;
+    shell->transforms = malloc(3 * sizeof(*shell->transforms));
+    shell->transforms[0] = -1;  /* quest stage 0: absent */
+    shell->transforms[1] = 101; /* quest stage 1: first form */
+    shell->transforms[2] = 102; /* out-of-range fallback */
+    CacheProvider_NpctypeAdd(&provider, 100, shell);
+    CacheProvider_NpctypeAdd(&provider, 101, first);
+    CacheProvider_NpctypeAdd(&provider, 102, fallback);
+
+    alice.varps.var[0] = 1;
+    bob.varps.var[0] = 9;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 100) == 101,
+        "Alice sees the form selected by her quest stage");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 100) == 102,
+        "Bob independently sees his fallback form");
+
+    alice.varps.var[0] = 0;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 100) == -1,
+        "Alice's positional -1 hides only her NPC");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 100) == 102,
+        "Alice's quest change does not alter Bob's NPC");
+
+    VarPManager_Free(&alice.varps);
+    VarPManager_Free(&bob.varps);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 int
 main(void)
 {
@@ -273,6 +335,7 @@ main(void)
     test_npc_info_unresolvable_entry_keeps_list_positions();
     test_player_info_count_zero_despawns_others();
     test_player_info_unresolvable_entry_keeps_list_positions();
+    test_multinpc_resolution_is_per_player();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

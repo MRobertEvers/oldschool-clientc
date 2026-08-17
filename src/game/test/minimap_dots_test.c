@@ -132,6 +132,18 @@ test_minimap_flag_gates_npc_dot(void)
         count_dots(dots, count, fx.dots_scene, 1) == 1,
         "the npc that clears NpcType.minimap draws no dot");
 
+    {
+        struct World_EntityPool* pool = &fx.app.world->entities.npc;
+        int first = World_EntityPoolHead(pool);
+        struct WorldEntity_NPC* npc =
+            World_EntityPoolGet(pool, World_EntityPoolNext(pool, first));
+        npc->multinpc_hidden = true;
+    }
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(
+        count_dots(dots, count, fx.dots_scene, 1) == 0,
+        "a positional -1 multiNpc child leaves no minimap dot");
+
     fixture_free(&fx);
 }
 

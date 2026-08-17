@@ -1644,7 +1644,7 @@ App_MinimapBuildDots(
             /* NpcType.minimap (config opcode 93), copied onto the entity when
              * its type resolves: an npc that clears it draws no dot at all
              * (reference minimapDraw's `npc.type.minimap` gate). */
-            if( !npc || !npc->minimap_visible ||
+            if( !npc || npc->multinpc_hidden || !npc->minimap_visible ||
                 npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
@@ -2422,7 +2422,7 @@ app_build_entity_overlays(
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
         struct ToriRS_Npctype* npctype;
-        if( !npc || npc->element_id < 0 )
+        if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             continue;
         /* Only the npc branch can carry an overhead-height override; the
          * reference reads it off the NpcComposition, which players have no
@@ -2461,7 +2461,7 @@ app_build_entity_overlays(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-            if( !npc || npc->element_id < 0 )
+            if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
                 continue;
             app_overlay_build_chat(
                 app, npc->element_id, &npc->chat, &npc->draw_position, chat_font);
@@ -3398,10 +3398,13 @@ Task_AppNpcTransform_Run(
         if( npc && npc->element_id == self->element_id &&
             npc->base_npc_id == self->base_npc_id )
         {
-            int effective =
-                self->resolved_npc_id >= 0 ? self->resolved_npc_id : self->base_npc_id;
+            int hidden = self->resolved_npc_id < 0;
+            int effective = hidden ? self->base_npc_id : self->resolved_npc_id;
             if( npc->npc_id != effective )
                 App_WorldApplyNpcType(app, world_idx, npc->element_id, effective);
+            npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+            if( npc )
+                npc->multinpc_hidden = hidden != 0;
         }
     }
     PT_END(&self->pt);
@@ -11623,7 +11626,10 @@ Task_AppSpawn_Run(
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
             if( npc )
+            {
                 npc->base_npc_id = self->npc_id;
+                npc->multinpc_hidden = self->model_id < 0;
+            }
         }
     }
     else if( self->kind == APP_SPAWN_OBJ )
@@ -17775,7 +17781,14 @@ app_world_sync_entity_spotanims(struct App* app)
          ni = World_EntityPoolNext(pool, ni) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
-        if( npc && npc->element_id >= 0 )
+        if( npc && npc->multinpc_hidden && npc->element_id >= 0 )
+        {
+            struct AppEntitySpotanim* entry =
+                app_entity_spotanim_find(app, npc->element_id, 0);
+            if( entry )
+                app_entity_spotanim_detach(app, entry, false);
+        }
+        else if( npc && npc->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
                 app, &npc->spotanim, npc->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_NPC, npc->server_slot));

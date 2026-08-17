@@ -27,43 +27,52 @@ Primary references:
 - [Hunter training](https://oldschool.runescape.wiki/w/Hunter_training)
 - [Hunters' Rumours](https://oldschool.runescape.wiki/w/Hunters%27_Rumours)
 
-### Implementation progress (2026-08-16)
+### Implementation progress (2026-08-16, final audit)
 
-- H1 complete: six-slot player-owned registry; plural bird, box, net, rabbit,
-  magic-box, and pitfall traps; one-deadfall cap; Wilderness bonus slot;
-  independent expiry, recovery, bait, smoke, and ownership checks.
-- H2 underway: shared catch-reward hook and current-Wiki correction pass.
-  Corrected classic XP values and impling surface/Puro splits.
-- H3/H4 underway: embertailed jerboa, black chinchompa, crystal/lucky
-  implings with barehand catches, sunlight/moonlight moths and effects, pyre
-  fox, tecu salamander, and Razor-backed kebbit are wired to their cache
-  NPC/loc/item records. Razor tracking uses the verified nine-search/eight-end
-  Piscatoris graph and the current ten-charge ring-of-pursuit reveal mechanic.
-- H4 maniacal monkeys complete: all 16 native Kruk's Dungeon boulders and 29
-  monkeys are active, with Monkey Madness II/Kruk-greegree gates, stunted
-  gorilla mounting, banana-baited deadfalls, level-scaled success, three-stage
-  tail regrowth, 1,000 XP, and the 1/5,000 intact-tail roll.
-- H4 antelope pitfalls complete: all five sunlight and four moonlight cache
-  pits, the Wiki's nine/four NPC spawns, guaranteed catches, Hunter's spear or
-  teasing-stick lures, native antelope animations, and full bones/fur/meat/
-  antler/splinter rewards extend the owned pitfall state machine.
-- H6 aerial fishing complete: all 20 Lake Molch pools, Alry's cormorant-glove
-  lifecycle and pearl shop, current king-worm/regular/fine-offcut bait rules,
-  exact visible-level catch and pearl formulas, all Fishing/Hunter/Cooking XP,
-  golden tench exchange, native bird-flight visuals, and inventory-full rules.
-- H6 bird houses complete: all nine tiers, crafting and direct placement, the
-  full eligible seed set, four cache-verified per-player sites, 50-minute
-  offline-safe timers, early dismantle, collection/reset, nest tables, and
-  strung-rabbit-foot effect are implemented.
-- H8 Herbiboar complete: the five Fossil Island starts, nine route/end
-  variants, per-player trail transforms, intermediate fossil/numulite rolls,
-  level-scaled Hunter XP, Herblore harvest, magic-secateurs bonus, and Herbi
-  roll use the cache's native rocks, tunnels, and hidden NPCs.
-- Verification: `::hunterrun` covers registry, modern-row, and bird-house
-  contracts; `::hunterrazor` and `::hunterherbi` cover their route graphs and
-  reward formulas. The normal aggregate build is temporarily masked by
-  unrelated dirty Construction work. The clean-overlay server-script build
-  compiles 20,002 scripts.
+The detailed tables below preserve the original implementation plan and Wiki
+fact inventory. Their old `wired`/`partial`/`missing` labels describe the
+starting point; this section is the authoritative current status.
+
+| slice | current result |
+|---|---|
+| Owned traps and shared rewards | Complete: six player-owned slots, mixed-method cap, Wilderness allowance, one-deadfall cap, expiry/recovery, bait/smoke, outfit, horn, rumours, and pouch routing. |
+| Classic methods | Complete gameplay loops for bird snares, box/net/magic/rabbit traps, deadfalls, pitfalls, falconry, butterflies/moths, implings, and all five kebbit-tracking families. Uzer/Feldip now validate a player-specific clue and endpoint instead of accepting every final loc. |
+| Modern creatures | Complete: jerboa, black chinchompa, pyre fox, tecu salamander, sunlight/moonlight moths and antelopes, Razor-backed kebbit, Herbiboar, maniacal monkey, Letvek, and Stymphike. The 26 Letvek spawns use the current Wiki coordinates. |
+| Passive/hybrid methods | Complete gameplay loops for all nine bird houses, aerial fishing, drift-net fishing, all three crab tiers, sandworm castings, and moss lizards. Drift nets include passive Fishing-only catches and fossil/clue-fallback pre-rolls. |
+| Hunter Guild | Complete Guild NPC placement, all six retained Rumour assignments/task blocking, Gilman reset, pity/parts, sacks, milestones/lore, outfit, huntsman's kit, meat/fur pouches, whistles, 14-stop quetzal transport, shops, fur clothing, gloves of silence, crossbows/bolts, Hunter Kit, cape, and horn of plenty. |
+| Adjacent transport/raid hooks | Giant-eagle routes already belong to Eagles' Peak. All seven Chambers bat NPCs now have exact level/XP/reward catch handlers; their normal placement remains owned by the broader unfinished Chambers room generator. |
+
+Current explicit blockers, which must not be papered over with guessed IDs:
+
+1. **Wyrmscraig goat hunting:** this cache has only generic/desert goat items;
+   it lacks the Wyrmscraig goat, Geoff, Mr McGroot, goat-pit locs, spikes, fur,
+   hoof, and horn records. Goat Rumours therefore remain disabled.
+2. **Lucky impling loot:** catching and storing lucky implings works, but this
+   repository has no Treasure Trails state or reward tables. Opening preserves
+   the jar and reports that dependency instead of silently consuming it or
+   awarding an invented table. Crystal implings have their full current
+   eighteen-entry main table and the representable elven-signet tertiary; the
+   unusable elite-clue tertiary is suppressed for the same reason.
+3. **Adjacent world systems:** full Chambers room generation and Fossil Island
+   underwater oxygen/weight rules remain with their owning systems. Hunter's
+   NPC/loc interactions are ready to bind when those systems land.
+
+Verification at this checkpoint:
+
+- isolated clean-overlay RuneScript compile: **20,480 scripts**;
+- spawn/config loader: clean after adding the required `==== NPC ====` headers
+  to Letvek and Hunter Guild spawn files;
+- `::hunterrun` now checks trap registry contracts, modern creature rows,
+  crystal loot cardinality/ranges, current butterfly rules, bird houses,
+  antelope pits, sandworms, and tracking endpoints;
+- broad `mock230 --selftest` reaches completion with the same two unrelated,
+  pre-existing movement failures (Hans walking and stopped-player chase).
+
+Remaining delivery plan is dependency-driven: import a post-2026-07-29 cache
+and implement H10b from the already-recorded Wiki rules; land Treasure Trails
+and route lucky/crystal/clue-bottle rolls into its single-roll API; then bind
+the Chambers bat handlers from the raid room generator and run the client
+interaction matrix in section 11.
 
 Where Wiki summary tables disagree with a dedicated current page, record the
 conflict and use the dedicated creature/method page. This matters today for

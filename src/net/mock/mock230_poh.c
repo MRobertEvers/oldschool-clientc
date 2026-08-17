@@ -59,6 +59,10 @@ mock230_poh_get(
         return poh->money_bag;
     case MOCK230_POH_FIELD_FAMILY_CREST:
         return poh->family_crest;
+    case MOCK230_POH_FIELD_HEAD_TROPHIES:
+        return poh->head_trophies;
+    case MOCK230_POH_FIELD_FISH_TROPHIES:
+        return poh->fish_trophies;
     default:
         return 0;
     }
@@ -136,6 +140,16 @@ mock230_poh_set(
         if( value < -1 || value > 15 )
             return 0;
         poh->family_crest = value;
+        return 1;
+    case MOCK230_POH_FIELD_HEAD_TROPHIES:
+        if( value < 0 || value > 0x1ff )
+            return 0;
+        poh->head_trophies = value;
+        return 1;
+    case MOCK230_POH_FIELD_FISH_TROPHIES:
+        if( value < 0 || value > 0xf )
+            return 0;
+        poh->fish_trophies = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -396,6 +410,8 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->grid_size > 7 || poh->servant_type < 0 || poh->servant_type > 15 ||
         poh->servant_paid < 0 || poh->servant_last_task < -1 || poh->money_bag < 0 ||
         poh->family_crest < -1 || poh->family_crest > 15 ||
+        poh->head_trophies < 0 || poh->head_trophies > 0x1ff ||
+        poh->fish_trophies < 0 || poh->fish_trophies > 0xf ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )

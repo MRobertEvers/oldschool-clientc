@@ -18,6 +18,10 @@ struct WorldEntity_NPC
      *  lets a later varp update remorph an NPC without another NPC_INFO add. */
     int base_npc_id;
     int npc_id;
+    /** The local multiNpc table selected -1. The entity remains registered so
+     *  subsequent NPC_INFO masks and varp-driven reappearance still work, but
+     *  every player-facing renderer/menu path treats it as absent. */
+    bool multinpc_hidden;
     int size;
     /** NpcType.alwaysontop (opcode 99). Draw-order tier: alwaysontop NPCs
      *  register with the painter before other players and normal NPCs, so

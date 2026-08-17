@@ -46,6 +46,15 @@ main(void)
           "a family crest round-trips");
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_FAMILY_CREST, 16),
           "unknown family crests are rejected");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_HEAD_TROPHIES, 0x105) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_HEAD_TROPHIES) == 0x105,
+          "the account head-trophy ledger round-trips");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_FISH_TROPHIES, 0x9) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_FISH_TROPHIES) == 0x9,
+          "the account fish-trophy ledger round-trips");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_HEAD_TROPHIES, 0x200) &&
+              !mock230_poh_set(&poh, MOCK230_POH_FIELD_FISH_TROPHIES, 0x10),
+          "unknown trophy bits are rejected");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);

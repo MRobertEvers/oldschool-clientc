@@ -13,7 +13,7 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 2,
+    MOCK230_POH_SCHEMA_VERSION = 3,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
@@ -35,6 +35,8 @@ enum Mock230PohField
     MOCK230_POH_FIELD_SERVANT_LAST_TASK = 11,
     MOCK230_POH_FIELD_MONEY_BAG = 12,
     MOCK230_POH_FIELD_FAMILY_CREST = 13,
+    MOCK230_POH_FIELD_HEAD_TROPHIES = 14,
+    MOCK230_POH_FIELD_FISH_TROPHIES = 15,
 };
 
 enum Mock230PohRoomField
@@ -89,6 +91,8 @@ struct Mock230PohState
     int servant_last_task;
     int money_bag;
     int family_crest;
+    int head_trophies;
+    int fish_trophies;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

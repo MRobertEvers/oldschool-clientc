@@ -164,6 +164,9 @@ add_npc_rows(
         .quaternary_id = picked->tile_z,
     };
 
+    if( npc->multinpc_hidden )
+        return;
+
     /* Colour the level by its distance from the local player's combat level
      * (reference addNpcOptions:9695 — `name + combatColourCode(localPlayer,
      * vislevel) + ' (level-N)'`). The suffix is gated on a local player being

@@ -1044,6 +1044,7 @@ struct Task_ExecNpcInfo
      * is the child selected from this App's local varps after async loading. */
     int pending_npc_base_type;
     int pending_npc_type;
+    int pending_npc_hidden;
     int pending_seq;
     int pending_delay;
 
@@ -1104,6 +1105,7 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
         if( npc )
         {
             npc->base_npc_id = self->pending_npc_base_type;
+            npc->multinpc_hidden = self->pending_npc_hidden != 0;
             npc->server_slot = self->cur_slot;
             element_id = npc->element_id;
             RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
@@ -1583,6 +1585,7 @@ Task_ExecNpcInfo_Run(
                 /* A hidden transform still needs a live entity for later
                  * masks and varp-driven reappearance. Mount the model-less
                  * wrapper as that marker until its selected child changes. */
+                self->pending_npc_hidden = self->pending_npc_type < 0;
                 if( self->pending_npc_type < 0 )
                     self->pending_npc_type = self->pending_npc_base_type;
                 /*
@@ -1618,7 +1621,10 @@ Task_ExecNpcInfo_Run(
                         struct WorldEntity_NPC* npc =
                             World_EntityPoolGet(&app->world->entities.npc, world_idx);
                         if( npc )
+                        {
                             npc->base_npc_id = self->pending_npc_base_type;
+                            npc->multinpc_hidden = self->pending_npc_hidden != 0;
+                        }
                         App_WorldApplyNpcType(
                             app, world_idx, element_id, self->pending_npc_type);
                         BD_ADD(g_bd_retype, bd_t);

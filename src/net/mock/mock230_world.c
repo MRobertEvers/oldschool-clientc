@@ -21126,7 +21126,11 @@ mock230_world_selftest(void)
                 mock230_poh_set(&player->poh, MOCK230_POH_FIELD_STYLE, 2) &&
                 mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, 1) &&
                 mock230_poh_set(&player->poh,
-                                MOCK230_POH_FIELD_FAMILY_CREST, 12),
+                                MOCK230_POH_FIELD_FAMILY_CREST, 12) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_HEAD_TROPHIES, 0x105) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_FISH_TROPHIES, 0x9),
             "POH fixture settings should be accepted");
         SELFTEST_CHECK(
             mock230_poh_room_add(&player->poh, garden, 4, 3, 1, 0, 15) == 0 &&
@@ -21145,8 +21149,10 @@ mock230_world_selftest(void)
                        "reloaded POH record should validate");
         SELFTEST_CHECK(player->poh.owns_house && player->poh.location == 1 &&
                            player->poh.style == 2 && player->poh.locked &&
-                           player->poh.family_crest == 12,
-                       "POH ownership, location, style, lock, and family crest "
+                           player->poh.family_crest == 12 &&
+                           player->poh.head_trophies == 0x105 &&
+                           player->poh.fish_trophies == 0x9,
+                       "POH ownership, location, style, lock, crest, and trophies "
                        "should round-trip");
         SELFTEST_CHECK(player->poh.room_count == 2 &&
                            mock230_poh_room_get(
@@ -25921,6 +25927,9 @@ mock230_world_selftest(void)
                            "::~maxmelee equips the Torva helm");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == scythe_of_vitur,
                            "::~maxmelee equips the scythe of vitur");
+            SELFTEST_CHECK(mock230_item_get_var(&who->worn[MOCK230_WEAR_WEAPON],
+                                                scythe_of_vitur) == 20000,
+                           "::~maxmelee charges the scythe of vitur to its maximum");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
                            "::~maxmelee clears the shield slot for its two-handed weapon");
             SELFTEST_CHECK(who->stat_level[MOCK230_STAT_STRENGTH] == 99,
@@ -25943,7 +25952,7 @@ mock230_world_selftest(void)
                            "::~maxmage equips the ancestral hat");
             /* The shadow drains a charge per cast and reverts to its uncharged
              * form at 0, so an equip with no charges written would turn into a
-             * useless staff on the first cast. Unlike the scythe's varp this is
+             * useless staff on the first cast. Like the scythe, this is
              * item_var storage on the worn slot itself. */
             SELFTEST_CHECK(mock230_item_get_var(&who->worn[MOCK230_WEAR_WEAPON],
                                                 tumekens_shadow) == 20000,
@@ -30373,7 +30382,21 @@ mock230_world_selftest(void)
             int lumbridge = 0;
             int varrock = 0;
             int overlap = 0;
+            int sedridor = mock230_content_symbol(MOCK230_PACK_NPC, "head_wizard");
+            int sedridor_spawns = 0;
             static uint8_t seen[1 << 16];
+
+            for( int i = 0; i < spawn_count; i++ )
+            {
+                if( spawns[i].npc_id == sedridor && spawns[i].x == 3104 &&
+                    spawns[i].z == 9571 && spawns[i].level == 0 )
+                    sedridor_spawns++;
+            }
+            SELFTEST_CHECK(sedridor >= 0,
+                           "the head_wizard multinpc shell must exist in the npc pack");
+            SELFTEST_CHECK(sedridor_spawns == 1,
+                           "Sedridor must have one Wizards' Tower basement spawn, got %d",
+                           sedridor_spawns);
 
             memset(seen, 0, sizeof(seen));
             for( int slot = 0; slot < srv->npc_slot_max; slot++ )

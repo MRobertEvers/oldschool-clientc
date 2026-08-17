@@ -1065,6 +1065,7 @@ test_npc_retype_keeps_animation(void)
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
 
     sleeping.readyanim = 777;
+    TEST_ASSERT(npc->base_npc_id == 1234, "spawn retains the server/base NPC type");
 
     World_NpcSetPrimaryAnimation(world, ni, 16742, 0);
     TEST_ASSERT(npc->animation.primary.anim_id == 16742, "the one-shot is armed");
@@ -1074,6 +1075,9 @@ test_npc_retype_keeps_animation(void)
 
     World_NpcSetType(world, ni, 4321, 5, &sleeping);
     TEST_ASSERT(npc->npc_id == 4321 && npc->size == 5, "the retype still lands");
+    TEST_ASSERT(
+        npc->base_npc_id == 1234,
+        "a client-side child retype does not discard the server multiNpc wrapper");
     TEST_ASSERT(npc->idle_animations.readyanim == 777, "and swaps the idle set");
     TEST_ASSERT(npc->animation.primary.anim_id == 16742,
                 "the running one-shot survives the retype");

@@ -144,8 +144,8 @@ test_if3_item_uses_only_scripted_ops(void)
     child.height = 32;
     child.u.cc_obj.obj_id = 1;
     child.u.cc_obj.obj_count = 1;
-    snprintf(UITree_MenuOptionsMut(&child)->ops[0], sizeof(UITree_MenuOptionsMut(&child)->ops[0]), "Script op");
-    snprintf(UITree_MenuOptionsMut(&child)->ops[9], sizeof(UITree_MenuOptionsMut(&child)->ops[9]), "Terminal op");
+    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Script op");
+    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Terminal op");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
@@ -197,7 +197,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     parent.component_id = events.component_id;
     parent.width = 64;
     parent.height = 64;
-    snprintf(UITree_MenuOptionsMut(&parent)->target_verb, sizeof(UITree_MenuOptionsMut(&parent)->target_verb), "Use");
+    snprintf(
+        parent.menu_options.target_verb, sizeof(parent.menu_options.target_verb), "Use");
     parent_index = UITree_Push(tree, -1, &parent);
     TEST_ASSERT(parent_index >= 0, "rev239 item parent pushed");
     if( parent_index >= 0 )
@@ -211,8 +212,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     child.height = 32;
     child.u.cc_obj.obj_id = obj->id;
     child.u.cc_obj.obj_count = 1;
-    snprintf(UITree_MenuOptionsMut(&child)->ops[0], sizeof(UITree_MenuOptionsMut(&child)->ops[0]), "Wear");
-    snprintf(UITree_MenuOptionsMut(&child)->ops[9], sizeof(UITree_MenuOptionsMut(&child)->ops[9]), "Examine");
+    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Wear");
+    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Examine");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "rev239 item child pushed");
@@ -336,6 +337,12 @@ test_local_player_pick_expands_stacked_npcs(void)
     snprintf(b->name, sizeof(b->name), "GoblinB");
     snprintf(b->actions[0].name, sizeof(b->actions[0].name), "Talk-to");
 
+    int n2 = World_NpcSpawn(world, 103, 502, 0, 25, 25, 1, idle);
+    struct WorldEntity_NPC* hidden = World_EntityPoolGet(&world->entities.npc, n2);
+    hidden->multinpc_hidden = true;
+    snprintf(hidden->name, sizeof(hidden->name), "QuestGhost");
+    snprintf(hidden->actions[0].name, sizeof(hidden->actions[0].name), "Talk-to");
+
     struct World_PickSet picks;
     World_PickSetReset(&picks);
     World_PickSetAdd(&picks, 100, WORLD_PICK_PLAYER, 25, 25, 0);
@@ -359,6 +366,7 @@ test_local_player_pick_expands_stacked_npcs(void)
 
     TEST_ASSERT(menu_has_substr(&menu, "GoblinA"), "stacked GoblinA options present");
     TEST_ASSERT(menu_has_substr(&menu, "GoblinB"), "stacked GoblinB options present");
+    TEST_ASSERT(!menu_has_substr(&menu, "QuestGhost"), "hidden multiNpc has no menu rows");
     TEST_ASSERT(menu_npc_row_count(&menu) >= 2, "at least one row per stacked NPC");
     TEST_ASSERT(menu_player_row_count(&menu) == 0, "local player emits no OPPLAYER rows");
     TEST_ASSERT(!menu_has_substr(&menu, "Follow"), "Follow not shown for local");
