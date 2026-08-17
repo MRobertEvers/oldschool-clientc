@@ -24,6 +24,25 @@ ARENA_NPC = CONTENT / "quests/quest_arena/configs/quest_arena.npc"
 ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
 ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
 ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
+HAZEEL_ALOMONE = CONTENT / "quests/quest_hazeelcult/scripts/alomone.rs2"
+HAZEEL_LOCS = CONTENT / "quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2"
+HAZEEL_CLIVET = CONTENT / "quests/quest_hazeelcult/scripts/clivet.rs2"
+HAZEEL_CERIL = CONTENT / "quests/quest_hazeelcult/scripts/ceril_carnillean.rs2"
+HAZEEL_CLAUS = CONTENT / "quests/quest_hazeelcult/scripts/claus_the_chef.rs2"
+HAZEEL_NPC = CONTENT / "quests/quest_hazeelcult/configs/quest_hazeelcult.npc"
+SOTN = CONTENT / "quests/quest_secretsofthenorth/scripts/secretsofthenorth.rs2"
+GRAND_DEMON = CONTENT / "quests/quest_grandtree/scripts/grandtree_black_demon.rs2"
+GRAND_GLOUGH = CONTENT / "quests/quest_grandtree/scripts/glough.rs2"
+GRAND_FOREMAN = CONTENT / "quests/quest_grandtree/scripts/foreman.rs2"
+GRAND_PILLARS = CONTENT / "quests/quest_grandtree/scripts/grandtree_locs_chest.rs2"
+GRAND_ROOTS = CONTENT / "quests/quest_grandtree/scripts/grandtree_locs_roots.rs2"
+GRAND_KING = CONTENT / "quests/quest_grandtree/scripts/king_narnode.rs2"
+GRAND_NPC = CONTENT / "quests/quest_grandtree/configs/quest_grandtree.npc"
+GRAND_VARP = CONTENT / "quests/quest_grandtree/configs/quest_grandtree.varp"
+COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
+SPELL_CONSTANTS = CONTENT / "skill_combat/configs/magic/spells.constant"
+PLAYER_MAGIC = CONTENT / "skill_combat/scripts/player/player_magic.rs2"
+PARAM_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/param.alloc"
 SPAWN_GENERATOR = ROOT / "tools/gen_spawns.py"
 MOCK_HEADER = ROOT / "src/net/mock/mock230.h"
 MOCK_WORLD = ROOT / "src/net/mock/mock230_world.c"
@@ -64,6 +83,18 @@ def check_manifest() -> None:
             "Fight Arena: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(arena[0][key]), f"Fight Arena: empty evidence field {key}")
+    hazeel = [row for row in rows if row["id"] == "quest-hazeel-cult"]
+    require(len(hazeel) == 1, "manifest: expected exactly one Hazeel Cult row")
+    require(hazeel[0]["implementation_status"] == "implementation-in-progress",
+            "Hazeel Cult: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(hazeel[0][key]), f"Hazeel Cult: empty evidence field {key}")
+    grand = [row for row in rows if row["id"] == "quest-the-grand-tree"]
+    require(len(grand) == 1, "manifest: expected exactly one The Grand Tree row")
+    require(grand[0]["implementation_status"] == "implementation-in-progress",
+            "The Grand Tree: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(grand[0][key]), f"The Grand Tree: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -332,6 +363,238 @@ def check_fight_arena() -> None:
     )
 
 
+def check_hazeel_cult() -> None:
+    alomone = HAZEEL_ALOMONE.read_text()
+    require_text(
+        alomone,
+        (
+            "[zone,0_40_151_48_0]",
+            "[zone,0_40_151_48_8]",
+            "[proc,hazeelcult_spawn_alomone]",
+            "npc_add(0_40_151_48_7, alomone_hazeel_cultist_2op, 32000);",
+            "npc_add(0_40_151_48_7, alomone_hazeel_cultist_1op, 32000);",
+            "[proc,hazeelcult_alomone_talk]",
+            "[ai_queue3,alomone_hazeel_cultist_2op]",
+            "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
+            "%hazeelcultquest = ^hazeelcult_finished_side_task;",
+            "npc_add(0_40_151_47_5, hazeel, 100);",
+        ),
+        "Hazeel Cult Alomone",
+    )
+    require(alomone.count("npc_setowner;") == 3,
+            "Hazeel Cult: both Alomone route variants and ritual Hazeel must be owner-private")
+    require("obj_add(npc_coord, carnillean_armour" not in alomone,
+            "Hazeel Cult: pre-2023 Alomone armour drop restored")
+
+    npc = HAZEEL_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[alomone_hazeel_cultist_2op]",
+            "hitpoints=25",
+            "attack=10",
+            "strength=10",
+            "defence=4",
+            "param=attackrate,4",
+            "param=damagetype,2",
+            "param=death_drop,null",
+        ),
+        "Hazeel Cult Alomone NPC",
+    )
+
+    locs = HAZEEL_LOCS.read_text()
+    require_text(
+        locs,
+        (
+            "[oploc1,hazeelsewerraft]",
+            "~hazeelcult_spawn_alomone;",
+            "[oploc1,hazeel_chest_closed]",
+            "Get away from that chest!",
+            "~obj_gettotal(carnillean_armour) > 0",
+            "inv_freespace(inv) < 1",
+            "inv_add(inv, carnillean_armour, 1);",
+            "[oploc1,carnilleanopenchest]",
+            "inv_add(inv, hazeel_scroll, 1);",
+        ),
+        "Hazeel Cult route locs",
+    )
+    require_text(
+        HAZEEL_CLAUS.read_text(),
+        ("[oplocu,carnilleanrange]", "inv_del(inv, poison, 1);"),
+        "Hazeel Cult poison range",
+    )
+
+    clivet = HAZEEL_CLIVET.read_text()
+    require_text(
+        clivet,
+        (
+            "[zone,0_40_151_0_16]",
+            "[proc,hazeelcult_spawn_clivet]",
+            "npc_add(0_40_151_6_19, clivet_hazeel_cultist_vis, 32000);",
+            "npc_setowner;",
+            "[proc,hazeelcult_clivet_talk]",
+        ),
+        "Hazeel Cult Clivet lifecycle",
+    )
+    require_text(
+        HAZEEL_CERIL.read_text(),
+        (
+            "[proc,hazeelcult_spawn_mansion_actors]",
+            "npc_add(0_40_51_6_6, sir_ceril_carnillean, 32000);",
+            "npc_add(0_40_51_10_8, guard_carnillean, 32000);",
+            "npc_add(0_40_51_8_7, butler_jones_hazeel_cultist, 32000);",
+        ),
+        "Hazeel Cult mansion actor lifecycle",
+    )
+    require_text(
+        SOTN.read_text(),
+        ("~hazeelcult_alomone_talk;", "~hazeelcult_clivet_talk;"),
+        "Hazeel Cult / Secrets of the North variant delegation",
+    )
+
+
+def check_grand_tree() -> None:
+    glough = GRAND_GLOUGH.read_text()
+    require_text(
+        glough,
+        (
+            "[label,grandtree_glough_cutscene]",
+            "npc_add(movecoord(coord, 3, 0, 0), grandtree_glough, 500);",
+            "npc_setowner;",
+            "def_coord $demon_spawn = 0_38_154_47_11;",
+            "npc_add($demon_spawn, grandtree_blackdemon, 1000);",
+            "if (npc_find($demon_spawn, grandtree_blackdemon, 20, 0) = false)",
+        ),
+        "The Grand Tree Glough/demon spawn",
+    )
+    require(glough.count("npc_setowner;") >= 2,
+            "The Grand Tree: Glough and Black demon must both be owner-private")
+
+    demon = GRAND_DEMON.read_text()
+    require_text(
+        demon,
+        (
+            "[ai_queue3,grandtree_blackdemon]",
+            "if (p_finduid(uid) = true)",
+            "[label,grandtree_defeat_black_demon]",
+            "%grandtree = ^grandtree_defeated_black_demon;",
+        ),
+        "The Grand Tree Black demon death",
+    )
+    require("[ai_timer,grandtree_blackdemon]" not in demon,
+            "The Grand Tree: distance/hero timer may not shorten the exact 1,000-tick lifetime")
+    require("@black_demon_drop_table" not in demon,
+            "The Grand Tree: generic Black demon loot restored")
+
+    npc = GRAND_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[grandtree_blackdemon]",
+            "hitpoints=157",
+            "attack=145",
+            "strength=148",
+            "defence=152",
+            "param=attackrate,4",
+            "param=damagetype,1",
+            "param=elemental_weakness,^element_water",
+            "param=elemental_weakness_percent,40",
+            "[grandtree_foreman]",
+            "hitpoints=20",
+            "attack=20",
+            "strength=20",
+            "defence=20",
+            "respawnrate=5",
+        ),
+        "The Grand Tree NPC overlays",
+    )
+    require(npc.count("param=death_drop,null") == 2,
+            "The Grand Tree: both custom death handlers must suppress automatic drops")
+
+    foreman = GRAND_FOREMAN.read_text()
+    require_text(
+        foreman,
+        (
+            "[opnpc1,grandtree_foreman]",
+            "Sadly his wife is no longer with us!",
+            "He loves worm holes.",
+            "Anita.",
+            "[ai_queue3,grandtree_foreman]",
+            "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
+            "obj_add(npc_coord, grandtree_order, 1, ^lootdrop_duration);",
+        ),
+        "The Grand Tree Foreman routes",
+    )
+
+    pillars = GRAND_PILLARS.read_text()
+    require_text(
+        pillars,
+        (
+            "case grandtree_pillart : $expected = grandtree_twigt; $bit = 1;",
+            "case grandtree_pillaru : $expected = grandtree_twigu; $bit = 2;",
+            "case grandtree_pillarz : $expected = grandtree_twigz; $bit = 4;",
+            "case grandtree_pillaro : $expected = grandtree_twigo; $bit = 8;",
+            "%grandtree_tuzo_mask = or(%grandtree_tuzo_mask, $bit);",
+            "if (%grandtree_tuzo_mask = 15)",
+            "%grandtree = ^grandtree_unlocked_trapdoor;",
+        ),
+        "The Grand Tree TUZO gate",
+    )
+    require_text(GRAND_VARP.read_text(), ("[grandtree_tuzo_mask]", "scope=temp"),
+                 "The Grand Tree TUZO state")
+
+    require_text(
+        GRAND_ROOTS.read_text(),
+        (
+            "%daconia_rock_root",
+            "~obj_gettotal(grandtree_daconiarock) = 0",
+            "inv_freespace(inv) = 0",
+            "inv_add(inv, grandtree_daconiarock, 1);",
+        ),
+        "The Grand Tree Daconia root",
+    )
+    require_text(
+        GRAND_KING.read_text(),
+        (
+            "%daconia_rock_root = ~random_range(1, 15);",
+            "stat_advance(agility, 79000);",
+            "stat_advance(attack, 184000);",
+            "stat_advance(magic, 21500);",
+            "~quest_complete_rewards(quest_grandtree",
+        ),
+        "The Grand Tree finale",
+    )
+
+    require_text(
+        COMBAT_PARAM.read_text(),
+        ("[elemental_weakness]", "[elemental_weakness_percent]"),
+        "elemental weakness params",
+    )
+    require_text(
+        SPELL_CONSTANTS.read_text(),
+        ("^element_air = 1", "^element_water = 2", "^element_earth = 3", "^element_fire = 4"),
+        "elemental weakness constants",
+    )
+    magic = PLAYER_MAGIC.read_text()
+    require_text(
+        magic,
+        (
+            "[proc,magic_spell_base_maxhit]",
+            "[proc,elemental_spell_element]",
+            "^water_strike, ^water_bolt, ^water_blast, ^water_wave, ^water_surge",
+            "[proc,npc_elemental_weakness]",
+            "[proc,pvm_spell_hit_roll]",
+            "$attack_roll = add($attack_roll, divide(multiply($attack_roll, $weakness), 100));",
+            "def_int $base_maxhit = ~magic_spell_base_maxhit($spell_data);",
+            "$maxhit = add($maxhit, divide(multiply($base_maxhit, $weakness), 100));",
+        ),
+        "elemental weakness combat mechanics",
+    )
+    require("2738=elemental_weakness" in PARAM_ALLOC.read_text() and
+            "2739=elemental_weakness_percent" in PARAM_ALLOC.read_text(),
+            "elemental weakness param allocation drift")
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -339,10 +602,12 @@ def main() -> int:
         check_owned_npc_runtime()
         check_witches_experiment()
         check_fight_arena()
+        check_hazeel_cult()
+        check_grand_tree()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment and Fight Arena (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult and The Grand Tree (ok)")
     return 0
 
 

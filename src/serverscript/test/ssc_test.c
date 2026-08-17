@@ -257,6 +257,10 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * these from .pack files; the compiler cannot tell the difference. */
     SSC_SymbolsAdd(&fixture->symbols, "hans", 3105, SSC_SYM_NPC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "coins", 995, SSC_SYM_OBJ, NULL);
+    /* Rev 239's exact OBJ/NPC collision behind the drop-command argument
+     * regression: cooked shark is obj 385 and an aquarium shark is npc 1830. */
+    SSC_SymbolsAdd(&fixture->symbols, "shark", 385, SSC_SYM_OBJ, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "shark", 1830, SSC_SYM_NPC, NULL);
     /* Same name in two namespaces, as the real cache has it (grim_pendant is
      * obj 11197 and loc 24780). OBJ sorts first, so an unqualified subject
      * lookup takes the obj — see test_subject_namespace. */
@@ -1151,6 +1155,70 @@ test_spotanim_argument_hint(void)
     fixture_close(&fixture);
 }
 
+/* Floor-object commands declare argument 1 as an obj. That type must win when
+ * a cache gives an NPC the same bare name, otherwise valid drop source compiles
+ * and executes with the NPC id. */
+static void
+test_obj_command_argument_hint(void)
+{
+    struct Fixture fixture;
+    static const struct
+    {
+        const char* script_name;
+        int opcode;
+        int argc;
+    } k_cases[] = {
+        { "[proc,s0]", SS_OP_OBJ_ADD, 4 },
+        { "[proc,s1]", SS_OP_OBJ_ADDALL, 4 },
+        { "[proc,s2]", SS_OP_OBJ_ADD_PRIVATE, 5 },
+        { "[proc,s3]", SS_OP_OBJ_FIND, 2 },
+    };
+
+    printf("bare obj names in floor-object command arguments\n");
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "obj_add(0_50_50, shark, 2, 200);\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "obj_addall(0_50_50, shark, 2, 200);\n"
+                         "\n"
+                         "[proc,s2]\n"
+                         "obj_add_private(0_50_50, shark, 2, 200, 100);\n"
+                         "\n"
+                         "[proc,s3]()(boolean)\n"
+                         "return(obj_find(0_50_50, shark));\n",
+                         "obj command argument hint") )
+        return;
+
+    for( size_t i = 0; i < sizeof(k_cases) / sizeof(k_cases[0]); i++ )
+    {
+        const struct SSVM_Script* script =
+            SSVM_ProviderGetByName(&fixture.provider, k_cases[i].script_name);
+        int found = 0;
+
+        CHECK(script != NULL, "the obj command test script exists");
+        if( !script )
+            continue;
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            int obj_push = op - k_cases[i].argc + 1;
+
+            if( script->opcodes[op] != k_cases[i].opcode )
+                continue;
+            found = 1;
+            CHECK(obj_push >= 0 &&
+                      script->opcodes[obj_push] == SS_OP_PUSH_CONSTANT_INT,
+                  "the floor-object argument is a constant push");
+            if( obj_push >= 0 &&
+                script->opcodes[obj_push] == SS_OP_PUSH_CONSTANT_INT )
+                CHECK_EQ(script->int_operands[obj_push], 385,
+                         "floor-object command resolves shark as obj, not npc");
+        }
+        CHECK(found, "the expected floor-object opcode was emitted");
+    }
+    fixture_close(&fixture);
+}
+
 /*
  * A `~proc` argument resolves as the parameter it fills.
  *
@@ -1757,6 +1825,7 @@ main(void)
     test_subject_namespace();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
+    test_obj_command_argument_hint();
     test_proc_param_kind_hint();
     test_param_type_shadowing();
     test_script_name_argument();

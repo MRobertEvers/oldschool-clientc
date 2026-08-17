@@ -317,7 +317,10 @@ def main() -> None:
     require(NEX_DROPS, "huntall($death, 2, 0);", "Wrath 5x5 warning")
     require(NEX_DROPS, "if (distance(coord, $death) > 2)", "Wrath 5x5 landing")
     require(NEX_DROPS, "randominc(50)", "Wrath maximum")
-    unique = proc_body(NEX_DROPS, "nex_drop_unique_private")
+    unique = proc_body(NEX_DROPS, "nex_drop_unique_private_roll")
+    require(proc_body(NEX_DROPS, "nex_drop_unique_private"),
+            "~nex_drop_unique_private_roll($where, random(12));",
+            "Nex unique random-roll wrapper")
     cases = re.findall(r"case ([0-9, ]+) : obj_add_private\([^,]+, ([a-zA-Z0-9_]+)", unique)
     weights = {item: len([n for n in labels.split(",") if n.strip()]) for labels, item in cases}
     assert sorted(weights.values()) == [1, 2, 2, 2, 2, 3], weights

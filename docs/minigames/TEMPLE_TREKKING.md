@@ -1,6 +1,9 @@
 # Temple Trekking / Burgh de Rott Ramble
 
-> Written 2026-08-17. Nothing is implemented yet — this is the build plan.
+> Written 2026-08-17; **implemented the same day** — see §12 for what shipped
+> and §13 for what is still unverified. The plan below is kept as written
+> because the measurements in it are the spec; §12 records where building it
+> proved the plan wrong.
 >
 > **Behaviour authority (wiki):**
 > [Temple Trekking](https://oldschool.runescape.wiki/w/Temple_Trekking) ·
@@ -591,3 +594,130 @@ Names must be globally unique — the compiler rejects duplicates, and
 7. **Paterdomus signpost.** `burgh_trek_sign_multi` is map-spawned at Burgh;
    the Paterdomus-side start object was not found in `maps/*.jl2`. Find it or
    confirm the Ramble starts from dialogue alone.
+
+---
+
+## 12. As built (2026-08-17)
+
+Content lives in
+`OSRS-Content/osrs239-content/server/scripts/minigames/minigame_templetrek/`.
+The whole tree compiles with it in place, and `::trekrun` asserts its
+deterministic contracts from inside `mock230 --selftest`.
+
+```
+configs/templetrek.constant    ids, coords, tuning, the measured room table
+configs/templetrek.varp        3 cache carriers + 20 session/perm varps
+scripts/templetrek_shared.rs2      gates, follower + route tables, points, teardown
+scripts/templetrek_rooms.rs2       room table, whole-square instancing
+scripts/templetrek_session.rs2     the machine: start, legs, exits, finish/fail/abandon
+scripts/templetrek_follower.rs2    spawn, follow, feed, pack, death (12 bound types)
+scripts/templetrek_start.rs2       signpost, 12 world shells, route map (iface 329)
+scripts/templetrek_rewards.rs2     token claim, 8 bands, 21 tomes (iface 274)
+scripts/templetrek_debug.rs2       login hook + 6 debugprocs
+scripts/templetrek_selftest.rs2    ::trekrun
+scripts/events/ttrek_combat.rs2    7 combat events
+scripts/events/ttrek_puzzles.rs2   bridge, river, campsite
+scripts/events/ttrek_specials.rs2  Head & Tentacles, Abidor Crank
+scripts/events/ttrek_dispatch.rs2  begin / tick / despawn fan-out
+```
+
+Shared files touched: `player/login.rs2`, `player/logout.rs2`,
+`player/death.rs2` (one hook each), `quests/quest_sinsofthefather/scripts/
+sinsofthefather.rs2` (trigger split, §12.4), and `src/net/mock/mock230_world.c`
+(the `::trekrun` selftest stanza).
+
+### 12.1 Blocker (a) — inv routing: **dissolved, then re-answered**
+
+The plan asked whether cache inv 509 could be bound server-side or needed a
+`pack/inv.server`. Neither: `inv_transmit(<inv>, <interface>:<component>)`
+binds *any* inv to *any* component at runtime (`shop.rs2`,
+`summoning_bob.rs2`), so the container and the interface are independent.
+
+The first build therefore used a **server-allocated** inv — and `::trekrun`
+caught that as a defect. `inv_size` reads the cache type table
+(`mock230_bank_inv_size`, `mock230_scripts.c:9564`) deliberately, so a
+server-allocated inv answers **0** and the pack silently had no size at all.
+
+Final answer: use the cache's `ttrek_follower_inv` **undeclared**, exactly as
+`gauntlet_holding` (cache inv 628) is used. A cache inv needs no `.inv` file;
+declaring the name would bind it in both layers, which every reader refuses.
+
+**And the cache disagrees with the wiki**: `configs/all.inv` sizes
+`ttrek_follower_inv` at **40**, not 15. Both are kept —
+`^ttrek_follower_pack_slots = 40` is the measured container and
+`^ttrek_follower_pack_size = 15` is the wiki's carry cap, enforced by
+`~templetrek_pack_free` rather than by `inv_freespace`, which would answer 40.
+
+### 12.2 Blocker (c) — the 13-bit point mirror: **real, and handled**
+
+`%templetrek_npc_point_value` is 13 bits (max 8,191) and a route-3 trek can
+pass it on Head & Tentacles alone (4,000) plus kills. `%templetrek_points` is
+the authority and does not clamp; `~templetrek_add_points` writes the varbit
+clamped. `::trekrun`'s `~trekrun_point_clamp` pins both halves — without the
+split, a full trek would have paid out as a junk one.
+
+### 12.3 Follower stats: the plan's table was **wrong to exist**
+
+The plan assumed a tier table of Attack/Defence/Hitpoints. `npc_basestat` is a
+**getter** — there is no setter. The cache authored six distinct follower
+records per direction precisely so they differ, so stats now come from the
+record and the tier decides only monster count (which is what the wiki
+actually states). The tier HP constants survive only as a floor for a record
+reporting zero.
+
+### 12.4 Blocker (d) — the Sins of the Father collision
+
+`templetrek_zombie` and `templetrek_bridge_broken` were name-bound inside a
+**combined** trigger header in `sinsofthefather.rs2`. They are now split into
+their own blocks that call `~templetrek_bridge_zombie_hook` /
+`~templetrek_bridge_loc_hook` first and fall through to a shared
+`[label,sf_trek_scenery]`. Splitting them out was not cosmetic: in a combined
+body there is no way to tell which id fired, so one block would have handed out
+the zombie's axe for clicking the bridge.
+
+### 12.5 Room geometry — the reading that made it tractable
+
+Rooms are **terrain**; events are **spawned into them**. That is why five of
+the eight squares carry a byte-identical marker layout — they are variants, not
+distinct events. Each square holds three sub-rooms, and the markers read as:
+enter at the `fail_path` tile (south), walk north to `success_path`, with
+`evade_path` off to one side midway. Entry and the fail exit are the same tile,
+which is what "stepping back the way you came" means. `::trekrun` pins the
+consequence: every exit must be north of its entry.
+
+### 12.6 Not built, on purpose
+
+**Bog.** Removed from OSRS 2024-09-04. `templetrek_bog_grass` and
+`templetrek_leaflessbush` stay in the cache as dead data and there is no
+`^ttrek_event_bog`.
+
+**Campsite** *is* built, and is a deliberate divergence: it is unreachable on
+live OSRS due to a Jagex bug, but the cache ships all five adventurer families,
+their 35 locs and the four turned forms.
+
+---
+
+## 13. Still unverified
+
+Compiling and `::trekrun` cover the tables, not the world. These need a client:
+
+1. **Entry tiles are inferred, not measured.** The marker *positions* are
+   measured; that each is walkable, and that the player lands on land rather
+   than in swamp, is not. `::trekroom <0..14>` exists to walk-test them one at
+   a time.
+2. **Puzzle-room anchors** (bridge on plane 1, river vine trees, the rowboat)
+   are loc positions, not tested entry/exit tiles.
+3. **Clientscripts 8070 / 7046** (the reward list and the route-map load) have
+   never been run under `cs2vm2`. Interface 274 and 329 are opened by the
+   content but their contents are built client-side.
+4. **Pure essence bands** still conflict between the two wiki pages
+   (§7). The reward-token page's numbers are in the code.
+5. **Shade / starved-adventurer identity.** Which of `templetrek_shade_1/2/3`
+   is Riyl / Asyn / Fiyr, and which `ramble_starved_type_N` is Marv / Hank /
+   Wilf / Sarah / Rachel, is still positional guesswork.
+6. **`_var` tokens.** `templetrek_blue_token_var` and friends are wired to the
+   same reward interface as the plain tokens; what actually distinguishes them
+   is unknown.
+7. **Follower slot vs familiars.** `~templetrek_start` refuses to begin with a
+   familiar out, rather than widening the engine's single follower slot. That
+   is a decision, not a measurement — the wiki does not say.

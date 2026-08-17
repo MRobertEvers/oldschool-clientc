@@ -3,7 +3,7 @@
   "catalogue": {
     "wiki_url": "https://oldschool.runescape.wiki/w/Quests/Requirements_by_quest?oldid=15281241",
     "wiki_revision": 15281241,
-    "roster_sha256": "b35f9e543e54632bb4394e06971aaaa38e02a839cb6688506ae75c70fdd23883",
+    "roster_sha256": "1d491e0ecfbac72402d41cb22b911131a08fa7a7e92b02cc00674a14a9c41ec2",
     "quest_count": 133,
     "miniquest_count": 12
   },
@@ -481,7 +481,7 @@
       "kind": "quest",
       "name": "Fight Arena",
       "wiki_url": "https://oldschool.runescape.wiki/w/Fight_Arena",
-      "encounter_summary": "Khazard scorpion (44), Khazard ogre (63), Bouncer (137), optional General Khazard (142)",
+      "encounter_summary": "Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142)",
       "plan_line": 92,
       "cache_scope": "osrs239",
       "implementation_status": "implementation-in-progress",
@@ -598,33 +598,278 @@
       "encounter_summary": "Alomone (13), Ceril route only",
       "plan_line": 93,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hazeel_Cult?oldid=15285220",
+          "revision": 15285220,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hazeel_Cult/Quick_guide?oldid=15289620",
+          "revision": 15289620,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Hazeel_Cult?oldid=15263255",
+          "revision": 15263255,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Alomone?oldid=15199483",
+          "revision": 15199483,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Carnillean_armour?oldid=15182934",
+          "revision": 15182934,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hazeel_scroll?oldid=15187022",
+          "revision": 15187022,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Chest_key_(Hazeel_Cult)?oldid=15186925",
+          "revision": 15186925,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hazeel%27s_mark?oldid=15216785",
+          "revision": 15216785,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Poison_(item)?oldid=15186539",
+          "revision": 15186539,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sewer_valve?oldid=14449688",
+          "revision": 14449688,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Raft_(Hazeel_Cult)?oldid=15019276",
+          "revision": 15019276,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "sir_ceril_carnillean",
+        "guard_carnillean",
+        "butler_jones_hazeel_cultist",
+        "clivet_hazeel_cultist_vis",
+        "alomone_hazeel_cultist_1op",
+        "alomone_hazeel_cultist_2op",
+        "hazeel_cultist",
+        "hazeel"
+      ],
+      "item_gamevals": [
+        "poison",
+        "mark_of_hazeel",
+        "carnillean_armour",
+        "carnilleanchestkey",
+        "hazeel_scroll",
+        "bones",
+        "coins"
+      ],
+      "loc_gamevals": [
+        "hazeelcultcave",
+        "hazeelcultstairs",
+        "hazeelsewerraft",
+        "sewervalve1",
+        "sewervalve2",
+        "sewervalve3",
+        "sewervalve4",
+        "sewervalve5",
+        "hazeel_chest_closed",
+        "carnilleanrange",
+        "hazeelcbshut",
+        "hazeelcbopen",
+        "carnilleanbookcase_knock",
+        "carnilleanshutchest",
+        "carnilleanopenchest",
+        "carnilleancrate",
+        "hazeelcoffin"
+      ],
+      "trigger_handlers": [
+        "zone:0_40_151_48_0",
+        "zone:0_40_151_48_8",
+        "opnpc1:alomone_hazeel_cultist_2op",
+        "ai_queue3:alomone_hazeel_cultist_2op",
+        "oploc1:hazeel_chest_closed",
+        "oploc1:hazeelsewerraft",
+        "oploc1:sewervalve1..5",
+        "oplocu:carnilleanrange",
+        "oploc1:hazeelcbopen",
+        "oploc1:carnilleanopenchest"
+      ],
+      "loot_contract": "Ceril route only: owner-private Alomone has the current exact level-13 stats and always drops one bones; Carnillean armour is searched from the nearby chest only after his death and remains drop-trickable until hand-in. The Hazeel route uses a non-attackable Alomone, poison, Hazeel's mark, chest key and Hazeel scroll, and can never receive kill credit or armour. Both endings grant 1,500 Thieving XP and 2,000 coins; Ceril's fake ending additionally grants 5 coins.",
+      "test_ids": [
+        "quest-combat-contract:hazeel-cult",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The resurrection and Butler-arrest scenes retain the ported dialogue/teleports; complete camera, movement, animation and audio choreography remains pending.",
+        "A real-client two-route, drop-trick, concurrent-player, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-the-grand-tree",
       "kind": "quest",
       "name": "The Grand Tree",
       "wiki_url": "https://oldschool.runescape.wiki/w/The_Grand_Tree",
-      "encounter_summary": "Black demon (172)",
+      "encounter_summary": "Foreman (23), optional kill-or-dialogue route; Black demon (172)",
       "plan_line": 94,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Grand_Tree?oldid=15225321",
+          "revision": 15225321,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Grand_Tree/Quick_guide?oldid=15142936",
+          "revision": 15142936,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Grand_Tree?oldid=15303564",
+          "revision": 15303564,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Foreman?oldid=15199793",
+          "revision": 15199793,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Black_demon_(The_Grand_Tree)?oldid=15200279",
+          "revision": 15200279,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Elemental_weakness?oldid=14966425",
+          "revision": 14966425,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Bark_sample?oldid=15185187",
+          "revision": 15185187,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Translation_book?oldid=15282283",
+          "revision": 15282283,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hazelmere%27s_scroll?oldid=15185554",
+          "revision": 15185554,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Lumber_order?oldid=15185555",
+          "revision": 15185555,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Glough%27s_key?oldid=15185557",
+          "revision": 15185557,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Glough%27s_journal?oldid=15282348",
+          "revision": 15282348,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Invasion_plans?oldid=15185556",
+          "revision": 15185556,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Twig?oldid=15199781",
+          "revision": 15199781,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Daconia_rock?oldid=15184741",
+          "revision": 15184741,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "grandtree_narnode",
+        "grandtree_hazelmere",
+        "grandtree_glough",
+        "grandtree_charlie",
+        "grandtree_foreman",
+        "grandtree_shipyardguard",
+        "shipyardworker1",
+        "shipyardworker2",
+        "grandtree_anita",
+        "grandtree_femi",
+        "gnomekingsguard",
+        "grandtree_blackdemon"
+      ],
+      "item_gamevals": [
+        "grandtree_barksample",
+        "grandtree_translationbook",
+        "grandtree_scroll",
+        "grandtree_journal",
+        "grandtree_order",
+        "grandtree_gloughskey",
+        "grandtree_invasionplans",
+        "grandtree_twigt",
+        "grandtree_twigu",
+        "grandtree_twigz",
+        "grandtree_twigo",
+        "grandtree_daconiarock",
+        "bones",
+        "coins"
+      ],
+      "loc_gamevals": [
+        "grandtree_fencegate_l",
+        "grandtree_fencegate_r",
+        "grandtree_cupboardclosed",
+        "grandtree_cupboardopen",
+        "grandtree_chestclosed",
+        "grandtree_climbtree",
+        "grandtree_pillart",
+        "grandtree_pillaru",
+        "grandtree_pillarz",
+        "grandtree_pillaro",
+        "grandtree_trapdoorclosed",
+        "largeroot_gnome",
+        "largeroot2_gnome",
+        "grandtree_rootdoor"
+      ],
+      "trigger_handlers": [
+        "opnpc1:grandtree_foreman",
+        "ai_queue3:grandtree_foreman",
+        "oploc1:grandtree_fencegate_l/grandtree_fencegate_r",
+        "oploc2:grandtree_cupboardopen",
+        "oplocu:grandtree_chestclosed",
+        "oplocu:grandtree_pillart..grandtree_pillaro",
+        "oploc1:grandtree_trapdoorclosed",
+        "ai_queue3:grandtree_blackdemon",
+        "oploc1:largeroot_gnome/largeroot2_gnome",
+        "opnpc1:grandtree_narnode"
+      ],
+      "loot_contract": "The optional level-23 Foreman always drops one bones and, only for an eligible player lacking it, the lumber order; the three-answer dialogue route grants the same order without combat. The owner-private level-172 quest Black demon has no ordinary, ashes or bones drop. Its death only advances the owner to Narnode's post-fight dialogue; one randomly selected persistent root supplies a recoverable Daconia rock. Final hand-in grants 18,400 Attack XP, 7,900 Agility XP, 2,150 Magic XP, five quest points and the documented travel/mine unlocks.",
+      "test_ids": [
+        "quest-combat-contract:grand-tree",
+        "quest-combat-contract:elemental-weakness",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The complete route and encounter choreography retain ported dialogue, movement and teleports, but omitted camera and audio details are not yet restored.",
+        "A real-client Foreman/dialogue, TUZO, concurrent-player, exact ten-minute timeout, death, cannon, water-spell and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-underground-pass",

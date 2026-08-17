@@ -574,7 +574,31 @@ tracked separately below rather than silently dropped.
 """
 
 
-def write_queue(rows, buckets, path):
+def gap_status(row, claimed):
+    """Why this row is still in the gap — the tool's own answer, not "pending".
+
+    Every row here used to read `pending`, which is the same word for "nobody
+    has looked" and "somebody looked and this is the right answer". Those are
+    different facts and the second one is most of the list: a door gated on a
+    key, a quest that drives its own scenery, a shape with no direction to swing
+    in. Printing the reason stops each of them being re-litigated once per pass,
+    and leaves `pending` meaning what it says.
+    """
+    owner = claimed_by(claimed, row["name"])
+    if owner:
+        return f"owned by `{owner.rsplit('/', 1)[0]}`"
+    reason = selfstage_reason(row)
+    if reason is None:
+        return "pending — eligible to self-stage"
+    if reason.startswith("placed on a non-wall shape"):
+        # The one class that is genuinely blocked rather than deferred: a door
+        # that IS the scenery on its tile has nowhere to swing to, and changing
+        # it in place needs a second record this cache does not have.
+        return "blocked — " + reason + ", nothing to change into"
+    return "deferred — " + reason
+
+
+def write_queue(rows, buckets, tree, path):
     gap = sorted(buckets["gap"], key=lambda r: -r["placed"])
     swing_gap = [r for r in gap if r["ops"].get("op1") in ("Open", "Close", "Push", "Pull", "Unlock", "Pick-lock", "Picklock")]
     enter_gap = [r for r in gap if r["ops"].get("op1") in ("Enter", "Pass-through", "Go-through")]
@@ -594,12 +618,14 @@ def write_queue(rows, buckets, path):
     lines.append(f"| gap: other op | {len(other_gap)} |")
     lines.append("")
 
+    claimed = load_content_claims(
+        tree, os.path.join(tree, "server", "scripts", "doors", "configs", "doors_selfstage.loc"))
     lines.append("## Swing-door gap — in scope\n")
     lines.append("| id | loc | display | placements | ops | status |")
     lines.append("|---|---|---|---|---|---|")
     for r in swing_gap:
         opstr = ", ".join(f"{k}={v}" for k, v in sorted(r["ops"].items()))
-        lines.append(f"| {r['id']} | `{r['name']}` | {r['disp']} | {r['placed']} | {opstr} | pending |")
+        lines.append(f"| {r['id']} | `{r['name']}` | {r['disp']} | {r['placed']} | {opstr} | {gap_status(r, claimed)} |")
     lines.append("")
 
     lines.append("## Enter/Pass-through doorways — out of scope, tracked only\n")
@@ -852,7 +878,7 @@ def main():
     elif args.write_selfstage:
         cmd_write_selfstage(rows, buckets, args.tree, args.write_selfstage)
     elif args.write_queue:
-        write_queue(rows, buckets, args.write_queue)
+        write_queue(rows, buckets, args.tree, args.write_queue)
     else:
         cmd_summary(rows, buckets)
 

@@ -1016,6 +1016,18 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     compiler->last_dbcolumn_types = NULL;
                     compiler->arg_kind_hint =
                         arg_index < type_args ? SSC_SYM_TYPE : base_hint;
+                    /* These commands declare their second argument as an obj
+                     * (`namedobj` for the add forms). A bare name still needs
+                     * that declared namespace here: `shark` is both obj 385
+                     * and npc 1830 in rev 239, and the generic resolver picks
+                     * the npc. That made every `obj_add(..., shark, ...)`
+                     * quietly put a waterskin-shaped id on the floor. */
+                    if( arg_index == 1 && op_name &&
+                        (strcmp(op_name, "OBJ_ADD") == 0 ||
+                         strcmp(op_name, "OBJ_ADDALL") == 0 ||
+                         strcmp(op_name, "OBJ_ADD_PRIVATE") == 0 ||
+                         strcmp(op_name, "OBJ_FIND") == 0) )
+                        compiler->arg_kind_hint = SSC_SYM_OBJ;
                     compiler->arg_is_script_name = arg_index < script_args;
                     compiler->arg_script_trigger =
                         arg_index < script_args ? script_trigger : NULL;

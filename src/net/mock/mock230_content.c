@@ -956,6 +956,17 @@ mock230_content_npc(int npc_id)
     return NULL;
 }
 
+static struct Mock230NpcDef*
+npc_def_find_mutable(int npc_id)
+{
+    for( int i = 0; i < g_npc_def_count; i++ )
+    {
+        if( g_npc_defs[i].npc_id == npc_id )
+            return &g_npc_defs[i];
+    }
+    return NULL;
+}
+
 const struct Mock230NpcDef*
 mock230_content_npc_default(void)
 {
@@ -1647,11 +1658,26 @@ load_npc_config(const char* path)
                               header);
                 continue;
             }
-            g_npc_defs = grow(g_npc_defs, &g_npc_def_capacity, g_npc_def_count,
-                              sizeof(*g_npc_defs));
-            def = &g_npc_defs[g_npc_def_count++];
-            npc_def_seed_from_cache(def, npc_id);
-            def->symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
+            /* A server NPC is intentionally described by several overlays:
+             * cache-derived combat stats, cache-rig animations, and an area's
+             * authored mechanics/sounds. Directory order puts area overlays
+             * first. Appending another def for every repeated header meant
+             * mock230_content_npc() returned that first, mostly-default copy
+             * forever and silently ignored the generated stats and anims.
+             *
+             * Seed once, then apply every later block to the same record. This
+             * is the same overlay model `.obj` and the server pack already
+             * promise, and leaves later text able to override an earlier field
+             * deliberately. */
+            def = npc_def_find_mutable(npc_id);
+            if( !def )
+            {
+                g_npc_defs = grow(g_npc_defs, &g_npc_def_capacity, g_npc_def_count,
+                                  sizeof(*g_npc_defs));
+                def = &g_npc_defs[g_npc_def_count++];
+                npc_def_seed_from_cache(def, npc_id);
+                def->symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
+            }
             continue;
         }
 

@@ -1060,6 +1060,9 @@ validate_doors(
      */
     int door_closed = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed");
     int door_opened = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_opened");
+    int door_selfstage = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_selfstage");
+    int selfstage = 0;
+    int selfstage_bad = 0;
 
     if( door_closed <= 0 || door_opened <= 0 )
     {
@@ -1114,7 +1117,55 @@ validate_doors(
     {
         const struct Mock230LocDef* def = mock230_content_loc(loc_id);
 
-        if( !def || (def->category != door_closed && def->category != door_opened) )
+        if( !def )
+            continue;
+        /*
+         * A self-staging door is checked on different facts, because it is a
+         * different claim: not "these two records are two halves of one door"
+         * but "this ONE record can be both halves". It has no partner to name
+         * (`doors/scripts/doors_selfstage.rs2` re-adds the same loc id with its
+         * op renamed, using LOC_ADD_CHANGE_V2's per-placement menu), so the
+         * pairing test above has nothing to test — and running it anyway would
+         * report all two hundred of them as opening into nothing.
+         *
+         * What IS worth checking is the one fact the swing depends on: the
+         * cache gives it an Open op. `doors_selfstage.loc` is generated from
+         * `tools/door_audit.py`, which reads the same cache and applies the same
+         * rule, so this is the second reader agreeing — the point of a
+         * validator, and the thing that goes red if the generator is ever run
+         * against a different revision than the server boots.
+         */
+        if( door_selfstage > 0 && def->category == door_selfstage )
+        {
+            selfstage++;
+            if( !configs[loc_id] )
+            {
+                report_warning("loc %d (%s) is marked door_selfstage but is not in the cache",
+                               loc_id, def->symbol ? def->symbol : "?");
+                selfstage_bad++;
+            }
+            else if( !loc_has_open_op(configs[loc_id], "Open") )
+            {
+                report_warning("loc %d (%s) is marked door_selfstage but has no Open action, "
+                               "so nothing can start the swing",
+                               loc_id, def->symbol ? def->symbol : "?");
+                selfstage_bad++;
+            }
+            else if( def->next_loc_stage >= 0 )
+            {
+                /* Both mechanisms on one record. `doors.rs2` would swap it for
+                 * its partner and `doors_selfstage.rs2` would swing it in
+                 * place; which one runs is decided by the category, so the
+                 * param is either dead or the category is wrong, and neither is
+                 * visible from the game. */
+                report_warning("loc %d (%s) is door_selfstage and also names next_loc_stage "
+                               "%d — it cannot be both paired and self-staging",
+                               loc_id, def->symbol ? def->symbol : "?", def->next_loc_stage);
+                selfstage_bad++;
+            }
+            continue;
+        }
+        if( def->category != door_closed && def->category != door_opened )
             continue;
         pairs++;
 
@@ -1147,6 +1198,8 @@ validate_doors(
         }
     }
     fprintf(stderr, "        %d door locs, %d questionable\n", pairs, dropped);
+    fprintf(stderr, "        %d self-staging door locs, %d questionable\n", selfstage,
+            selfstage_bad);
 
     for( int i = 0; i <= highest; i++ )
     {

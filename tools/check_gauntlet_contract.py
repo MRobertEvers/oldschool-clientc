@@ -26,6 +26,7 @@ LOBBY = (GAUNTLET / "scripts/gauntlet_lobby.rs2").read_text()
 MAP_STATE = (GAUNTLET / "scripts/gauntlet_map_state.rs2").read_text()
 NPC_CONFIG = (GAUNTLET / "configs/gauntlet_monsters.npc").read_text()
 INV_CONFIG = (GAUNTLET / "configs/gauntlet.inv").read_text()
+RECIPE_INTERFACE = (BASE / "interfaces/gauntlet_recipes.if").read_text()
 
 DIRECTIONS = {"N": (0, 1), "E": (1, 0), "S": (0, -1), "W": (-1, 0)}
 OPPOSITE = {"N": "S", "E": "W", "S": "N", "W": "E"}
@@ -168,6 +169,16 @@ def check_content_contract() -> None:
         require(PLAN, url, "Gauntlet plan authority")
     for needle in DATA["recipe_contract_fragments"]:
         require(CRAFT, needle, "recipe contract")
+    assert RECIPE_INTERFACE.count("op1=Sing crystal") == 22
+    for entry in range(1, 23):
+        require(CRAFT, f"[if_button,gauntlet_recipes:entry{entry}]", f"native recipe entry {entry}")
+    for needle in (
+        "[proc,gauntlet_recipe_weapon]", "[proc,gauntlet_recipe_armour]",
+        "[proc,gauntlet_recipe_vial]", "[proc,gauntlet_recipe_teleport]",
+        "[proc,gauntlet_recipe_fish]", "[proc,gauntlet_shard_recipe_has_space]",
+        "inv_total(inv, $shard) = $cost",
+    ):
+        require(CRAFT, needle, "native recipe dispatch")
     for npc in DATA["npc_roster"]:
         require(GATHER, f"[ai_queue3,{npc}]", f"{npc} death handler")
         require(GATHER, npc, f"{npc} spawn")
@@ -197,6 +208,9 @@ def check_content_contract() -> None:
         "^gauntlet_pet_rate", "^gauntlet_hm_pet_rate",
     ):
         require(prepare, denominator, "tertiary denominator")
+    require(prepare, "if ($hm = 1) { $clue_rate = 19; } else { $clue_rate = 23; }", "Elite clue-rate reward")
+    require(prepare, "inv_total(collection_transmit, gauntletpet)", "durable pet ownership")
+    require(prepare, "inv_total(worn, gauntlet_crystalline_cape)", "worn cape ownership")
     require(INV_CONFIG, "[gauntlet_pending_reward]\nsize=12", "immutable pending rewards")
 
     ids = {int(value) for value in re.findall(r"~ca_task_complete\((\d+)\)", PROGRESS)}
@@ -206,8 +220,11 @@ def check_content_contract() -> None:
         "~gauntlet_layout_pick($dx, $dz)", "map_instance_build($handle);",
         "inv_movetoslot(worn, gauntlet_holding_worn, $slot, $slot);",
         "inv_movetoslot(gauntlet_holding_worn, worn, $slot, $slot);",
+        "midi_song(^gauntlet_music_track);", "midi_song(-1);",
     ):
         require(CORE, needle, "session/layout contract")
+    constants = (GAUNTLET / "configs" / "gauntlet.constant").read_text()
+    require(constants, "^gauntlet_music_track = 650", "cache music dbrow contract")
     for needle in (
         "[proc,gauntlet_layout_east]", "[proc,gauntlet_layout_north]",
         "[proc,gauntlet_layout_pick]", "modulo(%gauntlet_layout_seed, 2)",

@@ -13201,6 +13201,668 @@ mock230_world_selftest(void)
     mock230_world_init(srv, 426, 408);
     mock230_world_player_init(player);
 
+    /*
+     * A focused God Wars lane can run against an isolated script pack even
+     * while unrelated content elsewhere in the monolithic tree is being
+     * ported. This executes the real procedures in the VM; it is deliberately
+     * not another source-text contract. Example:
+     *
+     *   MOCK230_SELFTEST_GWD_ONLY=1 MOCK230_SCRIPTS=/tmp/gwd/out \
+     *       ./src/build_opt/mock230 --selftest
+     */
+    if( getenv("MOCK230_SELFTEST_GWD_ONLY") )
+    {
+        struct GwdDropCase
+        {
+            const char* proc;
+            int roll;
+            int extra;
+            const char* obj;
+        };
+        /* One representative roll from every ordinary-table row. The source
+         * contract pins every upper boundary; executing every row here proves
+         * those branches also reach the VM's real floor-object primitive. A
+         * NULL obj is a shared rare-table row, where the nested table chooses
+         * the item but must still produce a drop. */
+        static const struct GwdDropCase drop_cases[] = {
+            { "[proc,gwd_drop_graardor_main]", 0, -1, "rune_longsword" },
+            { "[proc,gwd_drop_graardor_main]", 8, -1, "rune_2h_sword" },
+            { "[proc,gwd_drop_graardor_main]", 16, -1, "rune_platebody" },
+            { "[proc,gwd_drop_graardor_main]", 24, -1, "rune_pickaxe" },
+            { "[proc,gwd_drop_graardor_main]", 30, -1, "cert_unidentified_snapdragon" },
+            { "[proc,gwd_drop_graardor_main]", 38, -1, "snapdragon_seed" },
+            { "[proc,gwd_drop_graardor_main]", 46, -1, "4dose2restore" },
+            { "[proc,gwd_drop_graardor_main]", 54, -1, "cert_adamantite_ore" },
+            { "[proc,gwd_drop_graardor_main]", 62, -1, "cert_coal" },
+            { "[proc,gwd_drop_graardor_main]", 70, -1, "cert_magic_logs" },
+            { "[proc,gwd_drop_graardor_main]", 78, -1, "naturerune" },
+            { "[proc,gwd_drop_graardor_main]", 86, -1, NULL },
+            { "[proc,gwd_drop_graardor_main]", 96, -1, "coins" },
+
+            { "[proc,gwd_drop_kree_main]", 0, -1, "black_dragonhide_body" },
+            { "[proc,gwd_drop_kree_main]", 8, -1, "xbows_crossbow_runite" },
+            { "[proc,gwd_drop_kree_main]", 16, -1, "mindrune" },
+            { "[proc,gwd_drop_kree_main]", 24, -1, "rune_arrow" },
+            { "[proc,gwd_drop_kree_main]", 32, -1, "xbows_crossbow_bolts_runite" },
+            { "[proc,gwd_drop_kree_main]", 40, -1,
+              "xbows_crossbow_bolts_runite_tipped_dragonstone_enchanted" },
+            { "[proc,gwd_drop_kree_main]", 48, -1, "3doserangerspotion" },
+            { "[proc,gwd_drop_kree_main]", 56, -1, "cert_unidentified_dwarf_weed" },
+            { "[proc,gwd_drop_kree_main]", 64, -1, "dwarf_weed_seed" },
+            { "[proc,gwd_drop_kree_main]", 72, -1, "crystal_key" },
+            { "[proc,gwd_drop_kree_main]", 73, -1, "yew_seed" },
+            { "[proc,gwd_drop_kree_main]", 74, -1, NULL },
+            { "[proc,gwd_drop_kree_main]", 84, -1, "coins" },
+
+            { "[proc,gwd_drop_zilyana_main]", 0, -1, "adamant_platebody" },
+            { "[proc,gwd_drop_zilyana_main]", 8, -1, "rune_dart" },
+            { "[proc,gwd_drop_zilyana_main]", 16, -1, "rune_kiteshield" },
+            { "[proc,gwd_drop_zilyana_main]", 24, -1, "rune_plateskirt" },
+            { "[proc,gwd_drop_zilyana_main]", 32, -1, "4doseprayerrestore" },
+            { "[proc,gwd_drop_zilyana_main]", 40, -1, "3dosepotionofsaradomin" },
+            { "[proc,gwd_drop_zilyana_main]", 46, -1, "3dose2defense" },
+            { "[proc,gwd_drop_zilyana_main]", 54, -1, "cert_uncut_diamond" },
+            { "[proc,gwd_drop_zilyana_main]", 62, -1, "lawrune" },
+            { "[proc,gwd_drop_zilyana_main]", 70, -1, "cert_unidentified_ranarr" },
+            { "[proc,gwd_drop_zilyana_main]", 78, -1, "ranarr_seed" },
+            { "[proc,gwd_drop_zilyana_main]", 86, -1, "magic_tree_seed" },
+            { "[proc,gwd_drop_zilyana_main]", 87, -1, NULL },
+            { "[proc,gwd_drop_zilyana_main]", 97, -1, "coins" },
+
+            { "[proc,gwd_drop_kril_main]", 0, -1, "adamant_arrow_p++" },
+            { "[proc,gwd_drop_kril_main]", 8, -1, "rune_scimitar" },
+            { "[proc,gwd_drop_kril_main]", 16, -1, "adamant_platebody" },
+            { "[proc,gwd_drop_kril_main]", 24, -1, "rune_platelegs" },
+            { "[proc,gwd_drop_kril_main]", 31, -1, "dragon_dagger_p++" },
+            { "[proc,gwd_drop_kril_main]", 33, -1, "3dose2attack" },
+            { "[proc,gwd_drop_kril_main]", 41, -1, "3dose2restore" },
+            { "[proc,gwd_drop_kril_main]", 49, -1, "cert_unidentified_lantadyme" },
+            { "[proc,gwd_drop_kril_main]", 57, -1, "lantadyme_seed" },
+            { "[proc,gwd_drop_kril_main]", 65, -1, "deathrune" },
+            { "[proc,gwd_drop_kril_main]", 73, -1, "bloodrune" },
+            { "[proc,gwd_drop_kril_main]", 81, -1, NULL },
+            { "[proc,gwd_drop_kril_main]", 91, -1, "coins" },
+
+            { "[proc,gwd_bodyguard_bandos_main]", 0, -1, "steel_arrow" },
+            { "[proc,gwd_bodyguard_bandos_main]", 7, -1, "steel_dart" },
+            { "[proc,gwd_bodyguard_bandos_main]", 15, -1, "naturerune" },
+            { "[proc,gwd_bodyguard_bandos_main]", 23, -1, "cosmicrune" },
+            { "[proc,gwd_bodyguard_bandos_main]", 31, -1, "shark" },
+            { "[proc,gwd_bodyguard_bandos_main]", 39, -1, "potato_chilli+carne" },
+            { "[proc,gwd_bodyguard_bandos_main]", 47, -1, "coins" },
+            { "[proc,gwd_bodyguard_bandos_main]", 113, -1, "cert_limpwurt_root" },
+            { "[proc,gwd_bodyguard_bandos_main]", 121, -1, "3dosecombat" },
+            { "[proc,gwd_bodyguard_bandos_main]", 123, -1, "3dose2strength" },
+
+            { "[proc,gwd_bodyguard_armadyl_main]", 0, 5, "steel_arrow" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 7, 5, "steel_dart" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 15, 5, "smokerune" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 23, 5, "mantaray" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 31, 5, "potato_mushroom+onion" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 39, 5, "coins" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 109, 5, "cert_crushed_bird_nest" },
+            { "[proc,gwd_bodyguard_armadyl_main]", 117, 5, "cert_unidentified_kwuarm" },
+
+            { "[proc,gwd_bodyguard_saradomin_main]", 0, -1, "steel_arrow" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 8, -1, "steel_dart" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 16, -1, "lawrune" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 24, -1, "monkfish" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 32, -1, "summer_pie" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 40, -1, "coins" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 102, -1, "cert_unidentified_ranarr" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 110, -1, "cert_snape_grass" },
+            { "[proc,gwd_bodyguard_saradomin_main]", 117, -1, "cert_unicorn_horn" },
+
+            { "[proc,gwd_bodyguard_zamorak_main]", 0, -1, "steel_arrow" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 7, -1, "steel_dart" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 15, -1, "deathrune" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 23, -1, "bloodrune" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 31, -1, "coins" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 97, -1, "shark" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 105, -1, "potato_tuna+sweetcorn" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 113, -1, "cert_wine_of_zamorak" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 121, -1, "3dose2attack" },
+            { "[proc,gwd_bodyguard_zamorak_main]", 123, -1, "3dose2strength" },
+
+            { "[proc,gwd_prison_warrior_main]", 0, -1, "airrune" },
+            { "[proc,gwd_prison_warrior_main]", 2, -1, "chaosrune" },
+            { "[proc,gwd_prison_warrior_main]", 5, -1, "mindrune" },
+            { "[proc,gwd_prison_warrior_main]", 12, -1, "mudrune" },
+            { "[proc,gwd_prison_warrior_main]", 19, -1, "naturerune" },
+            { "[proc,gwd_prison_warrior_main]", 23, -1, NULL },
+            { "[proc,gwd_prison_warrior_main]", 33, -1, "coins" },
+            { "[proc,gwd_prison_warrior_main]", 35, -1, "coins" },
+            { "[proc,gwd_prison_warrior_main]", 44, -1, "coins" },
+            { "[proc,gwd_prison_warrior_main]", 50, -1, "2doseprayerrestore" },
+            { "[proc,gwd_prison_warrior_main]", 59, -1, "1dose2attack" },
+            { "[proc,gwd_prison_warrior_main]", 70, -1, "1dose2defense" },
+            { "[proc,gwd_prison_warrior_main]", 72, -1, "1dose2strength" },
+            { "[proc,gwd_prison_warrior_main]", 74, -1, "adamant_chainbody" },
+            { "[proc,gwd_prison_warrior_main]", 81, -1, "cert_adamantite_bar" },
+            { "[proc,gwd_prison_warrior_main]", 89, -1, "cert_coal" },
+            { "[proc,gwd_prison_warrior_main]", 97, -1, "lobster" },
+            { "[proc,gwd_prison_warrior_main]", 98, -1, "mithril_longsword" },
+            { "[proc,gwd_prison_warrior_main]", 110, -1, "nihil_shard" },
+            { "[proc,gwd_prison_warrior_main]", 111, -1, "cactus_potato" },
+            { "[proc,gwd_prison_warrior_main]", 118, -1, "cert_blankrune_high" },
+
+            { "[proc,gwd_prison_ranger_main]", 0, -1, "xbows_crossbow_bolts_adamantite" },
+            { "[proc,gwd_prison_ranger_main]", 7, -1, "chaosrune" },
+            { "[proc,gwd_prison_ranger_main]", 10, -1, "naturerune" },
+            { "[proc,gwd_prison_ranger_main]", 14, -1, "rune_arrow" },
+            { "[proc,gwd_prison_ranger_main]", 16, -1, "rune_arrow" },
+            { "[proc,gwd_prison_ranger_main]", 18, -1, NULL },
+            { "[proc,gwd_prison_ranger_main]", 28, -1, "coins" },
+            { "[proc,gwd_prison_ranger_main]", 30, -1, "coins" },
+            { "[proc,gwd_prison_ranger_main]", 39, -1, "coins" },
+            { "[proc,gwd_prison_ranger_main]", 45, -1, "2doseprayerrestore" },
+            { "[proc,gwd_prison_ranger_main]", 54, -1, "2doserangerspotion" },
+            { "[proc,gwd_prison_ranger_main]", 65, -1, "1dose2defense" },
+            { "[proc,gwd_prison_ranger_main]", 67, -1, "cert_adamantite_bar" },
+            { "[proc,gwd_prison_ranger_main]", 75, -1, "cert_blue_dragon_scale" },
+            { "[proc,gwd_prison_ranger_main]", 82, -1, "cert_coal" },
+            { "[proc,gwd_prison_ranger_main]", 90, -1, "dragonhide_body" },
+            { "[proc,gwd_prison_ranger_main]", 97, -1, "mithril_longsword" },
+            { "[proc,gwd_prison_ranger_main]", 112, -1, "nihil_shard" },
+            { "[proc,gwd_prison_ranger_main]", 113, -1, "cert_blankrune_high" },
+            { "[proc,gwd_prison_ranger_main]", 121, -1, "uncut_diamond" },
+            { "[proc,gwd_prison_ranger_main]", 125, -1, "shark" },
+
+            { "[proc,gwd_prison_mage_main]", 0, -1, "airrune" },
+            { "[proc,gwd_prison_mage_main]", 7, -1, "astralrune" },
+            { "[proc,gwd_prison_mage_main]", 22, -1, "bloodrune" },
+            { "[proc,gwd_prison_mage_main]", 24, -1, "lavarune" },
+            { "[proc,gwd_prison_mage_main]", 33, -1, "deathrune" },
+            { "[proc,gwd_prison_mage_main]", 37, -1, "mudrune" },
+            { "[proc,gwd_prison_mage_main]", 44, -1, "smokerune" },
+            { "[proc,gwd_prison_mage_main]", 46, -1, "soulrune" },
+            { "[proc,gwd_prison_mage_main]", 49, -1, NULL },
+            { "[proc,gwd_prison_mage_main]", 59, -1, "coins" },
+            { "[proc,gwd_prison_mage_main]", 65, -1, "coins" },
+            { "[proc,gwd_prison_mage_main]", 67, -1, "3dose2defense" },
+            { "[proc,gwd_prison_mage_main]", 69, -1, "3dose2restore" },
+            { "[proc,gwd_prison_mage_main]", 78, -1, "2doseancientbrew" },
+            { "[proc,gwd_prison_mage_main]", 89, -1, "3doseancientbrew" },
+            { "[proc,gwd_prison_mage_main]", 93, -1, "cert_adamantite_bar" },
+            { "[proc,gwd_prison_mage_main]", 101, -1, "blood_essence_inactive" },
+            { "[proc,gwd_prison_mage_main]", 102, -1, "cert_coal" },
+            { "[proc,gwd_prison_mage_main]", 110, -1, "nihil_shard" },
+            { "[proc,gwd_prison_mage_main]", 111, -1, "cert_blankrune_high" },
+
+            { "[proc,gwd_prison_reaver_main]", 0, -1, "airrune" },
+            { "[proc,gwd_prison_reaver_main]", 2, -1, "airrune" },
+            { "[proc,gwd_prison_reaver_main]", 9, -1, "astralrune" },
+            { "[proc,gwd_prison_reaver_main]", 24, -1, "bloodrune" },
+            { "[proc,gwd_prison_reaver_main]", 26, -1, "chaosrune" },
+            { "[proc,gwd_prison_reaver_main]", 29, -1, "mindrune" },
+            { "[proc,gwd_prison_reaver_main]", 33, -1, "mudrune" },
+            { "[proc,gwd_prison_reaver_main]", 40, -1, "naturerune" },
+            { "[proc,gwd_prison_reaver_main]", 44, -1, NULL },
+            { "[proc,gwd_prison_reaver_main]", 54, -1, "coins" },
+            { "[proc,gwd_prison_reaver_main]", 56, -1, "coins" },
+            { "[proc,gwd_prison_reaver_main]", 65, -1, "coins" },
+            { "[proc,gwd_prison_reaver_main]", 71, -1, "1dose1magic" },
+            { "[proc,gwd_prison_reaver_main]", 82, -1, "1dose2defense" },
+            { "[proc,gwd_prison_reaver_main]", 84, -1, "2doseprayerrestore" },
+            { "[proc,gwd_prison_reaver_main]", 93, -1, "cert_adamantite_bar" },
+            { "[proc,gwd_prison_reaver_main]", 101, -1, "blood_essence_inactive" },
+            { "[proc,gwd_prison_reaver_main]", 102, -1, "cert_coal" },
+            { "[proc,gwd_prison_reaver_main]", 110, -1, "nihil_shard" },
+            { "[proc,gwd_prison_reaver_main]", 111, -1, "cactus_potato" },
+            { "[proc,gwd_prison_reaver_main]", 118, -1, "cert_blankrune_high" },
+        };
+        static const char* const nex_common_objs[] = {
+            "airrune", "firerune", "bloodrune", "deathrune", "waterrune",
+            "soulrune", "dragon_bolts_unfeathered",
+            "xbows_crossbow_bolts_runite_tipped_onyx_enchanted", "mcannonball",
+            "cert_air_orb", "cert_coal", "cert_runite_ore", "cert_uncut_ruby",
+            "cert_uncut_diamond", "cert_wine_of_zamorak", "shark",
+            "4dosepotionofsaradomin", "coins", "ecumenical_key_shard",
+        };
+        static const int nex_count_min[] = {
+            123, 1, 84, 85, 193, 86, 12, 11, 42, 6, 23, 2, 3, 3, 4, 10, 1, 8539, 6,
+        };
+        static const int nex_count_max[] = {
+            10000, 10000, 876, 986, 10000, 592, 283, 29, 2252, 100, 2354, 30,
+            80, 64, 64, 10, 10, 26748, 39,
+        };
+        static const struct
+        {
+            int roll;
+            const char* obj;
+        } nex_unique_cases[] = {
+            { 0, "godwars_godsword_hilt_ancient" },
+            { 1, "nihil_horn" },
+            { 3, "broken_torva_helm" },
+            { 5, "broken_torva_chest" },
+            { 7, "broken_torva_legs" },
+            { 9, "zaryte_vambraces" },
+        };
+        static const struct
+        {
+            const char* npc;
+            int hp, attack, strength, defence, magic, ranged, rate;
+            const char* attack_anim;
+            const char* defend_anim;
+            const char* death_anim;
+        } classic_boss_defs[] = {
+            { "godwars_bandos_avatar", 255, 280, 350, 250, 80, 350, 6,
+              "godwars_bandos_attack", "godwars_bandos_defend",
+              "godwars_bandos_death" },
+            { "godwars_armadyl_avatar", 255, 300, 200, 260, 200, 380, 3,
+              "godwars_armadyl_avatar_wind_attack", "godwars_armadyl_avatar_defend",
+              "godwars_armadyl_avatar_death" },
+            { "godwars_saradomin_avatar", 255, 280, 196, 300, 300, 250, 2,
+              "godwars_saradomin_attack", "godwars_armadyl_defend",
+              "godwars_armadyl_death" },
+            { "godwars_zamorak_avatar", 255, 340, 300, 270, 200, 1, 6,
+              "godwars_zamorak_attack", "godwars_zamorak_defend",
+              "godwars_zamorak_death" },
+        };
+        static const char* const classic_bodyguards[] = {
+            "godwars_sergeant_goblin1", "godwars_sergeant_goblin2",
+            "godwars_sergeant_goblin3", "godwars_armadyl_bodyguard_skree",
+            "godwars_armadyl_bodyguard_geerin", "godwars_armadyl_bodyguard_kilisa",
+            "godwars_saradomin_unicorn", "godwars_saradomin_lion",
+            "godwars_saradomin_centaur", "godwars_ancient_greater_demon",
+            "godwars_ancient_lesser_demon", "godwars_ancient_black_demon",
+        };
+        const char* script_dir = getenv("MOCK230_SCRIPTS");
+        int loaded = script_dir && script_dir[0] ? mock230_scripts_load(srv, script_dir) : 0;
+        int32_t out = -1;
+        int32_t args[4];
+        int tiers[4];
+        static const int expected_kc[] = { 35, 30, 25, 15 };
+        static const int expected_fee[] = { 150000, 125000, 100000, 75000 };
+
+        fprintf(stderr, "mock230 selftest: God Wars focused runtime\n");
+        SELFTEST_CHECK(loaded > 0,
+                       "the focused God Wars lane loads MOCK230_SCRIPTS=%s",
+                       script_dir ? script_dir : "<unset>");
+        if( loaded > 0 )
+        {
+            for( size_t i = 0;
+                 i < sizeof(classic_boss_defs) / sizeof(classic_boss_defs[0]); i++ )
+            {
+                int npc_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, classic_boss_defs[i].npc);
+                const struct Mock230NpcDef* def =
+                    npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+                int attack_anim = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, classic_boss_defs[i].attack_anim);
+                int defend_anim = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, classic_boss_defs[i].defend_anim);
+                int death_anim = mock230_content_symbol(
+                    MOCK230_PACK_SEQ, classic_boss_defs[i].death_anim);
+
+                SELFTEST_CHECK(def != NULL, "%s has one merged runtime NPC record",
+                               classic_boss_defs[i].npc);
+                if( !def )
+                    continue;
+                SELFTEST_CHECK(
+                    def->hitpoints == classic_boss_defs[i].hp &&
+                        def->attack == classic_boss_defs[i].attack &&
+                        def->strength == classic_boss_defs[i].strength &&
+                        def->defence == classic_boss_defs[i].defence &&
+                        def->magic == classic_boss_defs[i].magic &&
+                        def->ranged == classic_boss_defs[i].ranged &&
+                        def->attackrate == classic_boss_defs[i].rate,
+                    "%s runtime stats are hp/att/str/def/mage/range/rate "
+                    "%d/%d/%d/%d/%d/%d/%d, got %d/%d/%d/%d/%d/%d/%d",
+                    classic_boss_defs[i].npc, classic_boss_defs[i].hp,
+                    classic_boss_defs[i].attack, classic_boss_defs[i].strength,
+                    classic_boss_defs[i].defence, classic_boss_defs[i].magic,
+                    classic_boss_defs[i].ranged, classic_boss_defs[i].rate,
+                    def->hitpoints, def->attack, def->strength, def->defence,
+                    def->magic, def->ranged, def->attackrate);
+                SELFTEST_CHECK(
+                    def->attack_anim == attack_anim &&
+                        def->defend_anim == defend_anim && def->death_anim == death_anim,
+                    "%s runtime attack/defend/death animations resolve exactly",
+                    classic_boss_defs[i].npc);
+                SELFTEST_CHECK(def->defend_sound >= 0 && def->death_sound >= 0,
+                               "%s keeps its authored defend/death sounds",
+                               classic_boss_defs[i].npc);
+            }
+            for( size_t i = 0;
+                 i < sizeof(classic_bodyguards) / sizeof(classic_bodyguards[0]); i++ )
+            {
+                int npc_id = mock230_content_symbol(MOCK230_PACK_NPC,
+                                                    classic_bodyguards[i]);
+                const struct Mock230NpcDef* def =
+                    npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+
+                SELFTEST_CHECK(
+                    def && def->hitpoints > mock230_content_npc_default()->hitpoints &&
+                        def->attack_anim >= 0 && def->defend_anim >= 0 &&
+                        def->death_anim >= 0 && def->attack_sound >= 0,
+                    "%s merges non-default stats, three animations, and attack sound",
+                    classic_bodyguards[i]);
+            }
+
+            tiers[0] = mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_hard");
+            tiers[1] = mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_elite");
+            tiers[2] = mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_master");
+            tiers[3] =
+                mock230_content_symbol(MOCK230_PACK_VARBIT, "ca_tier_status_grandmaster");
+            SELFTEST_CHECK(tiers[0] >= 0 && tiers[1] >= 0 && tiers[2] >= 0 && tiers[3] >= 0,
+                           "all four GWD Combat Achievement tier varbits resolve");
+            for( int i = 0; i < 4; i++ )
+                if( tiers[i] >= 0 )
+                    mock230_varbit_set(srv, tiers[i], 0);
+
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,gwd_kc_required]", NULL, 0, &out) &&
+                    out == 40,
+                "base GWD chamber cost is 40 KC, got %d", out);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,gwd_private_fee]", NULL, 0, &out) &&
+                    out == 150000,
+                "Hard-tier private room base fee is 150,000, got %d", out);
+            for( int i = 0; i < 4; i++ )
+            {
+                if( tiers[i] < 0 )
+                    continue;
+                for( int j = 0; j < 4; j++ )
+                    if( tiers[j] >= 0 )
+                        mock230_varbit_set(srv, tiers[j], 0);
+                mock230_varbit_set(srv, tiers[i], 2);
+                SELFTEST_CHECK(
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_kc_required]", NULL, 0, &out) &&
+                        out == expected_kc[i],
+                    "GWD CA tier %d lowers KC to %d, got %d", i, expected_kc[i], out);
+                SELFTEST_CHECK(
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_private_fee]", NULL, 0, &out) &&
+                        out == expected_fee[i],
+                    "GWD CA tier %d sets private fee %d, got %d", i, expected_fee[i], out);
+            }
+
+            args[0] = 100;
+            args[1] = 25;
+            args[2] = 100;
+            args[3] = 0;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,nex_scaled_quantity]", args, 4, &out) &&
+                    out == 25,
+                "Nex 25%% contribution receives 25/100 pool units, got %d", out);
+            args[0] = 100;
+            args[1] = 50;
+            args[2] = 100;
+            args[3] = 1;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,nex_scaled_quantity]", args, 4, &out) &&
+                    out == 55,
+                "Nex MVP receives the floored 10%% bonus, got %d", out);
+            args[0] = 85;
+            args[1] = 40;
+            args[2] = 100;
+            args[3] = 0;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,nex_scaled_quantity]", args, 4, &out) &&
+                    out == 34,
+                "Nex contribution division floors after multiplication, got %d", out);
+
+            player->stat_level[MOCK230_STAT_PRAYER] = 99;
+            player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+            player->worn[MOCK230_WEAR_SHIELD].obj_id = -1;
+            player->worn[MOCK230_WEAR_SHIELD].count = 0;
+            args[0] = 7;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,gwd_prayer_drain_amount]", args, 1, &out) && out == 7,
+                "an unmitigated seven-point GWD prayer drain stays seven, got %d", out);
+            args[0] = 100;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,gwd_prayer_drain_amount]", args, 1, &out) && out == 99,
+                "a GWD prayer drain caps at current Prayer, got %d", out);
+            player->worn[MOCK230_WEAR_SHIELD].obj_id =
+                mock230_content_symbol(MOCK230_PACK_OBJ, "spectral");
+            player->worn[MOCK230_WEAR_SHIELD].count = 1;
+            args[0] = 6;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,gwd_prayer_drain_amount]", args, 1, &out) && out == 3,
+                "the spectral shield halves an even GWD prayer drain, got %d", out);
+            args[0] = 7;
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(
+                    srv, "[proc,gwd_prayer_drain_amount]", args, 1, &out) &&
+                    (out == 3 || out == 4),
+                "the spectral shield stochastically halves an odd drain, got %d", out);
+            player->worn[MOCK230_WEAR_SHIELD].obj_id = -1;
+            player->worn[MOCK230_WEAR_SHIELD].count = 0;
+
+            for( int code = 0; code < 19; code++ )
+            {
+                int32_t code_arg = code;
+
+                for( int sample = 0; sample < 16; sample++ )
+                {
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,nex_common_count_a]", &code_arg, 1, &out) &&
+                            out >= nex_count_min[code] && out <= nex_count_max[code],
+                        "Nex common category %d count A stays in [%d,%d], got %d",
+                        code, nex_count_min[code], nex_count_max[code], out);
+                }
+                SELFTEST_CHECK(
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,nex_common_count_b]", &code_arg, 1, &out) &&
+                        ((code == 15 && out == 3) ||
+                         (code == 16 && out >= 1 && out <= 5) ||
+                         (code != 15 && code != 16 && out == 0)),
+                    "Nex common category %d count B is valid, got %d", code, out);
+            }
+
+            {
+                int old_x = player->x;
+                int old_z = player->z;
+                int handle;
+                int base_x = 0;
+                int base_z = 0;
+
+                args[0] = mock230_coord_pack(0, old_x, old_z);
+                SELFTEST_CHECK(
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_loot_duration]", args, 1, &out) &&
+                        out == 200,
+                    "public GWD loot lasts the normal 200 ticks, got %d", out);
+
+                handle = mock230_mapinstance_alloc(mock230_world_cache_dir(), 8, 8);
+                SELFTEST_CHECK(handle != 0, "the GWD runtime test reserves an instance");
+                if( handle != 0 )
+                {
+                    mock230_mapinstance_base(handle, &base_x, &base_z);
+                    player->x = base_x + 32;
+                    player->z = base_z + 18;
+                    player->level = 0;
+                    args[0] = mock230_coord_pack(0, base_x + 32, base_z + 18);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_loot_duration]", args, 1, &out) &&
+                            out == 30000,
+                        "private GWD loot lasts 30,000 ticks, got %d", out);
+
+                    /* Nex public rectangle 45,81 locals (30,0)..(63,39),
+                     * translated into the newly reserved square. */
+                    args[0] = mock230_coord_pack(0, 45 * 64 + 30, 81 * 64);
+                    args[1] = mock230_coord_pack(0, 45 * 64 + 63, 81 * 64 + 39);
+                    args[2] = mock230_coord_pack(0, base_x + 32, base_z + 18);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_in_bounds_coord]", args, 3, &out) &&
+                            out == 1,
+                        "an instanced Nex chamber tile is inside translated bounds, got %d",
+                        out);
+                    args[2] = mock230_coord_pack(0, base_x + 29, base_z + 18);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_in_bounds_coord]", args, 3, &out) &&
+                            out == 0,
+                        "a tile west of the instanced Nex chamber is outside, got %d", out);
+
+                    for( size_t i = 0; i < sizeof(drop_cases) / sizeof(drop_cases[0]); i++ )
+                    {
+                        const struct GwdDropCase* test = &drop_cases[i];
+                        int expected_id = test->obj
+                                              ? mock230_content_symbol(MOCK230_PACK_OBJ,
+                                                                       test->obj)
+                                              : -1;
+                        int found = -1;
+                        int actual_id = -1;
+                        int32_t drop_args[3];
+                        int drop_argc = test->extra >= 0 ? 3 : 2;
+
+                        selftest_clear_ground(srv);
+                        drop_args[0] = mock230_coord_pack(
+                            player->level, player->x, player->z);
+                        drop_args[1] = test->roll;
+                        drop_args[2] = test->extra;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, test->proc, drop_args, drop_argc),
+                            "%s roll %d executes", test->proc, test->roll);
+                        for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                        {
+                            const struct Mock230GroundObj* obj = &srv->ground[slot];
+                            if( obj->active && !obj->is_spawn &&
+                                obj->x == player->x && obj->z == player->z &&
+                                obj->level == player->level )
+                            {
+                                actual_id = obj->obj_id;
+                                break;
+                            }
+                        }
+                        if( test->obj )
+                        {
+                            SELFTEST_CHECK(expected_id >= 0,
+                                           "%s resolves for %s roll %d",
+                                           test->obj, test->proc, test->roll);
+                            if( expected_id >= 0 )
+                                found = mock230_world_ground_find(
+                                    srv, player->x, player->z, player->level,
+                                    expected_id);
+                            SELFTEST_CHECK(found >= 0,
+                                           "%s roll %d drops %s (expected id %d, first id %d)",
+                                           test->proc, test->roll, test->obj,
+                                           expected_id, actual_id);
+                        }
+                        else
+                        {
+                            found = actual_id >= 0 ? 0 : -1;
+                            SELFTEST_CHECK(found >= 0,
+                                           "%s roll %d reaches a nested rare drop",
+                                           test->proc, test->roll);
+                        }
+                    }
+                    selftest_clear_ground(srv);
+
+                    for( int code = 0; code < 19; code++ )
+                    {
+                        int32_t common_args[7];
+                        int expected_id = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, nex_common_objs[code]);
+                        int slot;
+
+                        selftest_clear_ground(srv);
+                        common_args[0] = mock230_coord_pack(
+                            player->level, player->x, player->z);
+                        common_args[1] = code;
+                        common_args[2] = 10;
+                        common_args[3] = (code == 15 || code == 16) ? 3 : 0;
+                        common_args[4] = 100;
+                        common_args[5] = 100;
+                        common_args[6] = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,nex_award_common]", common_args, 7),
+                            "Nex common category %d executes", code);
+                        SELFTEST_CHECK(expected_id >= 0,
+                                       "Nex common object %s resolves",
+                                       nex_common_objs[code]);
+                        slot = expected_id >= 0
+                                   ? mock230_world_ground_find(
+                                         srv, player->x, player->z, player->level,
+                                         expected_id)
+                                   : -1;
+                        SELFTEST_CHECK(slot >= 0,
+                                       "Nex common category %d drops %s",
+                                       code, nex_common_objs[code]);
+                        if( slot >= 0 )
+                        {
+                            SELFTEST_CHECK(srv->ground[slot].count == 10,
+                                           "Nex common category %d scales to 10, got %d",
+                                           code, srv->ground[slot].count);
+                            SELFTEST_CHECK(
+                                srv->ground[slot].receiver_pid == player->pid &&
+                                    srv->ground[slot].public_tick == srv->tick + 100,
+                                "Nex common category %d is private to the contributor",
+                                code);
+                        }
+                        if( code == 15 || code == 16 )
+                        {
+                            const char* paired = code == 15 ? "4doseprayerrestore"
+                                                            : "4dose2restore";
+                            int paired_id = mock230_content_symbol(MOCK230_PACK_OBJ, paired);
+                            int paired_slot = paired_id >= 0
+                                                  ? mock230_world_ground_find(
+                                                        srv, player->x, player->z,
+                                                        player->level, paired_id)
+                                                  : -1;
+                            SELFTEST_CHECK(
+                                paired_slot >= 0 && srv->ground[paired_slot].count == 3,
+                                "Nex common category %d includes paired %s x3",
+                                code, paired);
+                        }
+                    }
+
+                    for( size_t i = 0;
+                         i < sizeof(nex_unique_cases) / sizeof(nex_unique_cases[0]); i++ )
+                    {
+                        int32_t unique_args[2];
+                        int expected_id = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, nex_unique_cases[i].obj);
+                        int slot;
+
+                        selftest_clear_ground(srv);
+                        unique_args[0] = mock230_coord_pack(
+                            player->level, player->x, player->z);
+                        unique_args[1] = nex_unique_cases[i].roll;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,nex_drop_unique_private_roll]",
+                                unique_args, 2),
+                            "Nex unique roll %d executes", nex_unique_cases[i].roll);
+                        slot = expected_id >= 0
+                                   ? mock230_world_ground_find(
+                                         srv, player->x, player->z, player->level,
+                                         expected_id)
+                                   : -1;
+                        SELFTEST_CHECK(
+                            slot >= 0 && srv->ground[slot].receiver_pid == player->pid,
+                            "Nex unique roll %d privately drops %s",
+                            nex_unique_cases[i].roll, nex_unique_cases[i].obj);
+                    }
+                    selftest_clear_ground(srv);
+
+                    player->x = old_x;
+                    player->z = old_z;
+                    mock230_world_mapinstance_free(srv, handle);
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+        fprintf(stderr, "mock230 God Wars focused selftest: %d failure(s)\n",
+                g_selftest_failures);
+        return g_selftest_failures;
+    }
+
     fprintf(stderr, "mock230 selftest: ids resolve out of the content tree\n");
     {
         /*
@@ -24241,9 +24903,18 @@ mock230_world_selftest(void)
                        "ladders.loc should file a Climb-up ladder under climb_up_ladder, got %d",
                        ladder > 0 ? mock230_loc_category(ladder) : -1);
         /* The group, not the record: one binding reaches all of them, which is
-         * the entire reason this is a category and not a name list. */
-        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 232,
-                       "and 232 loc records share it, got %d",
+         * the entire reason this is a category and not a name list.
+         *
+         * 231, and it was 232 until 2026-08-17. The importer gained a
+         * `DISPLAY_VETO` (ladders_stairs/README.md, "The symbol is not the cache,
+         * and 49 records prove it"): a record whose SYMBOL carries "ladder" but
+         * whose cache `name=` says Stairs is a staircase, and a staircase does
+         * not play the climb animation. `slp_church_crypt_south_ladder_exit` is
+         * one of the five that left, and it left on purpose — this number moved
+         * because the content got more correct, not less. Update it with the
+         * content; do not chase it back up. */
+        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 231,
+                       "and 231 loc records share it, got %d",
                        climb_up > 0 ? mock230_loc_category_members(climb_up) : -1);
 
         slot = ladder > 0 ? mock230_scene_find_loc(3229, 3224, 0, ladder) : -1;
@@ -37606,6 +38277,63 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::hunterrun should report no failures");
             SELFTEST_CHECK(said_ok, "::hunterrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::agilityrun\n");
+    {
+        /*
+         * Agility's deterministic contracts: the obstacle success curve (Mod
+         * Ash's level-1..99 interpolation, checked against the Canifis gap's
+         * published pair), the shared lap tracker's skip/repeat/course-change
+         * rules, and the per-course mark of grace rates and spawn tables.
+         *
+         * The per-obstacle XP totals are deliberately NOT here — they live in
+         * the triggers rather than a table a script can read, and
+         * tools/agility_xp_audit.py checks those against the published lap
+         * totals as part of the script build.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture agilityrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &agilityrun_capture);
+            mock230_scripts_run_debugproc(srv, "agilityrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&agilityrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&agilityrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &agilityrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "agilityrun OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "agilityrun FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::agilityrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::agilityrun should reach its OK line");
             mock230_scripts_free(srv);
         }
     }

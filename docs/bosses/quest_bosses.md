@@ -89,9 +89,9 @@ finale test.
 | [Temple of Ikov](https://oldschool.runescape.wiki/w/Temple_of_Ikov) | Fire Warrior of Lesarkus (84); Guardians of Armadyl (43) when siding with Lucien; Lucien (14) when siding with Armadyl |
 | [Holy Grail](https://oldschool.runescape.wiki/w/Holy_Grail) | Black Knight Titan (120) |
 | [Tree Gnome Village](https://oldschool.runescape.wiki/w/Tree_Gnome_Village) | Khazard warlord (112) |
-| [Fight Arena](https://oldschool.runescape.wiki/w/Fight_Arena) | Khazard scorpion (44), Khazard ogre (63), Bouncer (137), optional General Khazard (142) |
+| [Fight Arena](https://oldschool.runescape.wiki/w/Fight_Arena) | Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142) |
 | [Hazeel Cult](https://oldschool.runescape.wiki/w/Hazeel_Cult) | Alomone (13), Ceril route only |
-| [The Grand Tree](https://oldschool.runescape.wiki/w/The_Grand_Tree) | Black demon (172) |
+| [The Grand Tree](https://oldschool.runescape.wiki/w/The_Grand_Tree) | Foreman (23), optional kill-or-dialogue route; Black demon (172) |
 | [Underground Pass](https://oldschool.runescape.wiki/w/Underground_Pass) | Doomion, Othainian, Holthion (91); three paladins (62); Kalrag (89); Disciple of Iban (13) |
 | [Observatory Quest](https://oldschool.runescape.wiki/w/Observatory_Quest) | Goblin guard (42), optional/avoidable |
 | [The Tourist Trap](https://oldschool.runescape.wiki/w/The_Tourist_Trap) | Mercenary Captain (47) |
@@ -355,8 +355,25 @@ Quick guide, Transcript, and NPC/item pages.
   and exact XP/coin rewards are implemented. Remaining: full camera/guard/door
   choreography, the arena-specific multicannon placement refusal, and
   real-client disguise/concurrency/escape/death/relog smoke.
-- [ ] **[Hazeel Cult](https://oldschool.runescape.wiki/w/Hazeel_Cult/Quick_guide) — Alomone branch.** Spawn and credit Alomone only on Ceril's route, make the Hazeel armour/chest key/poison/carnillean armour branch items and sewer valves route-correct, and prevent a kill or item from satisfying the opposing Hazeel route.
-- [ ] **[The Grand Tree](https://oldschool.runescape.wiki/w/The_Grand_Tree/Quick_guide) — [Black demon](https://oldschool.runescape.wiki/w/Black_demon_(The_Grand_Tree)).** Gate the owned underground fight through Glough's key/chest/shipyard/translation sequence, use the quest black-demon version and arena geometry, and advance only on the owner's kill. There is no ordinary loot; the King completes the quest and unlocks travel.
+- [ ] **[Hazeel Cult](https://oldschool.runescape.wiki/w/Hazeel_Cult/Quick_guide?oldid=15289620) — [Alomone](https://oldschool.runescape.wiki/w/Alomone?oldid=15199483) branch.** Spawn and credit Alomone only on Ceril's route, make [Hazeel's mark](https://oldschool.runescape.wiki/w/Hazeel%27s_mark?oldid=15216785), [poison](https://oldschool.runescape.wiki/w/Poison_(item)?oldid=15186539), [Carnillean armour](https://oldschool.runescape.wiki/w/Carnillean_armour?oldid=15182934), [chest key](https://oldschool.runescape.wiki/w/Chest_key_(Hazeel_Cult)?oldid=15186925), and [Hazeel scroll](https://oldschool.runescape.wiki/w/Hazeel_scroll?oldid=15187022) branch items and all five [sewer valves](https://oldschool.runescape.wiki/w/Sewer_valve?oldid=14449688)/[raft](https://oldschool.runescape.wiki/w/Raft_(Hazeel_Cult)?oldid=15019276) interactions route-correct, and prevent a kill or item from satisfying the opposing Hazeel route. Current OSRS gives Alomone exactly one bones and puts the armour in the nearby chest after his death; do not restore the pre-2023 armour drop.
+  **Implementation status — in progress (2026-08-17):** the complete two-route
+  port now has owner-private mansion actors, Clivet, combat/non-combat Alomone
+  variants and ritual Hazeel; correct valve/raft routing; exact Alomone stats;
+  bones-only death loot; death-gated, full-inventory-safe and drop-trickable
+  chest armour; isolated poison/mark/key/scroll branches; and exact ending
+  rewards. Remaining: full resurrection/arrest camera, actor-movement,
+  animation and audio choreography, plus real-client two-route/drop-trick/
+  concurrency/death/relog smoke. Sources: [quest](https://oldschool.runescape.wiki/w/Hazeel_Cult?oldid=15285220), [quick guide](https://oldschool.runescape.wiki/w/Hazeel_Cult/Quick_guide?oldid=15289620), and [transcript](https://oldschool.runescape.wiki/w/Transcript:Hazeel_Cult?oldid=15263255).
+- [ ] **[The Grand Tree](https://oldschool.runescape.wiki/w/The_Grand_Tree/Quick_guide?oldid=15142936) — [Foreman](https://oldschool.runescape.wiki/w/Foreman?oldid=15199793) and [Black demon](https://oldschool.runescape.wiki/w/Black_demon_(The_Grand_Tree)?oldid=15200279).** Preserve the Foreman's equal kill-or-dialogue routes to the lumber order (combat also drops one bones), then gate the underground fight through the bark sample/[translation book](https://oldschool.runescape.wiki/w/Translation_book?oldid=15282283)/Hazelmere scroll, Glough journal, shipyard password, [lumber order](https://oldschool.runescape.wiki/w/Lumber_order?oldid=15185555), [Glough's key](https://oldschool.runescape.wiki/w/Glough%27s_key?oldid=15185557), chest/[invasion plans](https://oldschool.runescape.wiki/w/Invasion_plans?oldid=15185556), and exact TUZO pillar sequence. Use the owner-private quest demon and arena geometry, its exact 10-minute despawn/re-entry behavior, 40% water elemental weakness, and owner-only kill credit. The demon has no ordinary loot; post-fight Narnode dialogue selects one persistent random root for the recoverable [Daconia rock](https://oldschool.runescape.wiki/w/Daconia_rock?oldid=15184741), whose hand-in grants the exact rewards and travel unlocks.
+  **Implementation status — in progress (2026-08-17):** the complete ported
+  route now includes exact-stat Foreman dialogue/combat and drops, all listed
+  quest items and loss/replacement gates, letter-specific TUZO placement,
+  owner-private Glough/demon actors, exact 1,000-tick despawn and re-entry,
+  reusable elemental-weakness accuracy/damage mechanics (including Surge),
+  no demon loot, random-root Daconia recovery, and exact XP/unlock completion.
+  Remaining: restore the full camera/audio detail omitted by the original port
+  and run real-client Foreman/dialogue, TUZO, concurrent-player, 10-minute
+  timeout, death, cannon, water-spell and relog smoke. Sources: [quest](https://oldschool.runescape.wiki/w/The_Grand_Tree?oldid=15225321), [quick guide](https://oldschool.runescape.wiki/w/The_Grand_Tree/Quick_guide?oldid=15142936), and [transcript](https://oldschool.runescape.wiki/w/Transcript:The_Grand_Tree?oldid=15303564).
 - [ ] **[Underground Pass](https://oldschool.runescape.wiki/w/Underground_Pass/Quick_guide) — demon/paladin/Kalrag/Iban route.** Implement paladin badge/food interactions and kills, the three named demons and their amulets, well/door consumption, Kalrag's authored kill gate, Disciple drops/robes where applicable, Klank's gauntlets/barrel/rope/plank/orb interactions, and [Iban's staff](https://oldschool.runescape.wiki/w/Iban%27s_staff) acquisition and well destruction. Preserve agility failures, stat drain, poisonous spiders, item loss/reclaim, and no unintended generic boss loot.
 - [ ] **[Observatory Quest](https://oldschool.runescape.wiki/w/Observatory_Quest/Quick_guide) — goblin guard.** Make the guard avoidable through collision/positioning, allow its observatory key to be obtained through the authored interaction, and keep plank/bronze bar/molten glass/lens mould/lens repairs independent of killing it.
 - [ ] **[The Tourist Trap](https://oldschool.runescape.wiki/w/The_Tourist_Trap/Quick_guide) — Mercenary Captain.** Enforce the authored unarmed/unarmoured duel and dialogue provocation, grant access/key progress without ordinary loot, and implement slave-clothes disguise, cell door, barrel, winch, mine-cart, plans, prototype dart, and Ana-in-barrel interactions atomically.

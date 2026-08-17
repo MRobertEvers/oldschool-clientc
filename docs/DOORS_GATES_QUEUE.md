@@ -71,51 +71,51 @@ tracked separately below rather than silently dropped.
 
 | id | loc | display | placements | ops | status |
 |---|---|---|---|---|---|
-| 7255 | `roguesden_obstacle_blocking_door_enter` | Grill | 45 | op1=Open | pending |
-| 1980 | `treewall1_lvl1door` |  | 12 | op1=Open | pending |
-| 1981 | `treewall1_lvl2door` |  | 6 | op1=Open | pending |
-| 6588 | `icthalarins_door_arch` |  | 6 | op1=Open | pending |
-| 6589 | `icthalarins_door_arch_mirror` |  | 6 | op1=Open | pending |
-| 5184 | `fenk_door_arch` |  | 5 | op1=Open | pending |
-| 5185 | `fenk_door_arch_mirror` |  | 5 | op1=Open | pending |
-| 2417 | `kr_opendoubledoor_l` | Large door | 2 | op1=Close | pending |
-| 4465 | `castlewars_saradomin_sidedoor` | Door | 2 | op1=Unlock | pending |
-| 11151 | `enakh_b+w_arm` | Door | 2 | op1=Open | pending |
-| 11152 | `enakh_b+w_leg` | Door | 2 | op1=Open | pending |
-| 2109 | `slayertower_door_arch` |  | 1 | op1=Open | pending |
-| 2110 | `slayertower_door_arch_mirror` |  | 1 | op1=Open | pending |
-| 3765 | `troll_celldoor_eadgar` | Cell Door | 1 | op1=Unlock | pending |
-| 3767 | `troll_celldoor_godric` | Cell Door | 1 | op1=Unlock | pending |
-| 3780 | `troll_stronghold_prison_door_closed` | Prison Door | 1 | op1=Unlock | pending |
-| 5501 | `favour_prisondoor` | Door | 1 | op1=Open, op5=Pick-lock | pending |
-| 6553 | `dt_ancient_temple_door_open` | Doorway | 1 | op1=Open | pending |
-| 6555 | `dt_ancient_temple_door_open_mirror` | Doorway | 1 | op1=Open | pending |
-| 6920 | `cave_goblin_city_doorl` | Door | 1 | op1=Open | pending |
-| 7232 | `roguesden_puzzle_door_rotation` | Door | 1 | op1=Open | pending |
-| 8958 | `dagannoth_pressure_door` | Door | 1 | op1=Open | pending |
-| 8959 | `dagannoth_pressure_door2` | Door | 1 | op1=Open | pending |
-| 8960 | `dagannoth_pressure_door3` | Door | 1 | op1=Open | pending |
-| 9038 | `tbwcu_bamboo_door_l` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
-| 9039 | `tbwcu_bamboo_door_r` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | pending |
-| 11057 | `enakh_door_k_sigil` | Door | 1 | op1=Open | pending |
-| 11064 | `enakh_door_left_arm` | Door | 1 | op1=Open | pending |
-| 14974 | `mm_door_unopenable` | Bamboo Door | 1 | op1=Open | pending |
-| 14983 | `macro_maze_walllow_safe4` | Gate | 1 | op1=Open | pending |
-| 18359 | `slug2_dungeon_door_close` | Wall | 1 | op1=Push | pending |
-| 19843 | `eaglepeak_gate` |  | 1 | op1=Open | pending |
-| 20341 | `contact_barricade` | Gate | 1 | op1=Open | pending |
-| 21068 | `peng_base_blast_door` | Door | 1 | op1=Open | pending |
-| 21400 | `frisd_town_wall_door_locked` | Large door | 1 | op1=Open | pending |
-| 22119 | `brain_mon_entrance_door_multi` |  | 1 | op1=Open | pending |
-| 22945 | `dorgesh_bonedoor_entrance` | Bone door | 1 | op1=Open | pending |
-| 25526 | `qip_obs_door_left` | Door | 1 | op1=Open | pending |
-| 25527 | `qip_obs_door_right` | Door | 1 | op1=Open | pending |
-| 34840 | `hosdun_grubby_door_locked` | Grubby Door | 1 | op1=Pick-lock | pending |
-| 41537 | `camdozaal_vault_door` | Vault Door | 1 | op1=Open | pending |
-| 42933 | `nex_outer_prison_door` | Door | 1 | op1=Open | pending |
-| 42934 | `nex_inner_prison_door` | Door | 1 | op1=Open | pending |
-| 43278 | `lotg_crypt_exit` | Gate | 1 | op1=Open | pending |
-| 53902 | `luc2_mov_door_rune_back` | Old battered door | 1 | op1=Open | pending |
+| 7255 | `roguesden_obstacle_blocking_door_enter` | Grill | 45 | op1=Open | deferred — name says obstacle |
+| 1980 | `treewall1_lvl1door` |  | 12 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 1981 | `treewall1_lvl2door` |  | 6 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 6588 | `icthalarins_door_arch` |  | 6 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 6589 | `icthalarins_door_arch_mirror` |  | 6 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 5184 | `fenk_door_arch` |  | 5 | op1=Open | blocked — placed on a non-wall shape [22], nothing to change into |
+| 5185 | `fenk_door_arch_mirror` |  | 5 | op1=Open | blocked — placed on a non-wall shape [22], nothing to change into |
+| 2417 | `kr_opendoubledoor_l` | Large door | 2 | op1=Close | deferred — op1 is not Open |
+| 4465 | `castlewars_saradomin_sidedoor` | Door | 2 | op1=Unlock | deferred — op1 is not Open |
+| 11151 | `enakh_b+w_arm` | Door | 2 | op1=Open | owned by `server/scripts/general_use/scripts` |
+| 11152 | `enakh_b+w_leg` | Door | 2 | op1=Open | owned by `server/scripts/general_use/scripts` |
+| 2109 | `slayertower_door_arch` |  | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 2110 | `slayertower_door_arch_mirror` |  | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 3765 | `troll_celldoor_eadgar` | Cell Door | 1 | op1=Unlock | deferred — op1 is not Open |
+| 3767 | `troll_celldoor_godric` | Cell Door | 1 | op1=Unlock | deferred — op1 is not Open |
+| 3780 | `troll_stronghold_prison_door_closed` | Prison Door | 1 | op1=Unlock | deferred — op1 is not Open |
+| 5501 | `favour_prisondoor` | Door | 1 | op1=Open, op5=Pick-lock | deferred — carries a gated op (Pick-lock) |
+| 6553 | `dt_ancient_temple_door_open` | Doorway | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 6555 | `dt_ancient_temple_door_open_mirror` | Doorway | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 6920 | `cave_goblin_city_doorl` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 7232 | `roguesden_puzzle_door_rotation` | Door | 1 | op1=Open | deferred — name says puzzle |
+| 8958 | `dagannoth_pressure_door` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 8959 | `dagannoth_pressure_door2` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 8960 | `dagannoth_pressure_door3` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 9038 | `tbwcu_bamboo_door_l` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | deferred — carries a gated op (Quick-Pay(100)) |
+| 9039 | `tbwcu_bamboo_door_r` | Hardwood Grove Doors | 1 | op1=Open, op2=Quick-Pay(100) | deferred — carries a gated op (Quick-Pay(100)) |
+| 11057 | `enakh_door_k_sigil` | Door | 1 | op1=Open | owned by `server/scripts/quests/quest_enakhraslament/configs` |
+| 11064 | `enakh_door_left_arm` | Door | 1 | op1=Open | owned by `server/scripts/quests/quest_enakhraslament/configs` |
+| 14974 | `mm_door_unopenable` | Bamboo Door | 1 | op1=Open | deferred — name says unopenable |
+| 14983 | `macro_maze_walllow_safe4` | Gate | 1 | op1=Open | deferred — name says maze |
+| 18359 | `slug2_dungeon_door_close` | Wall | 1 | op1=Push | deferred — op1 is not Open |
+| 19843 | `eaglepeak_gate` |  | 1 | op1=Open | owned by `server/scripts/quests/quest_eaglepeak/scripts` |
+| 20341 | `contact_barricade` | Gate | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 21068 | `peng_base_blast_door` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 21400 | `frisd_town_wall_door_locked` | Large door | 1 | op1=Open | deferred — name says locked |
+| 22119 | `brain_mon_entrance_door_multi` |  | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 22945 | `dorgesh_bonedoor_entrance` | Bone door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 25526 | `qip_obs_door_left` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 25527 | `qip_obs_door_right` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 34840 | `hosdun_grubby_door_locked` | Grubby Door | 1 | op1=Pick-lock | deferred — op1 is not Open |
+| 41537 | `camdozaal_vault_door` | Vault Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 42933 | `nex_outer_prison_door` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 42934 | `nex_inner_prison_door` | Door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 43278 | `lotg_crypt_exit` | Gate | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
+| 53902 | `luc2_mov_door_rune_back` | Old battered door | 1 | op1=Open | blocked — placed on a non-wall shape [10], nothing to change into |
 
 ## Enter/Pass-through doorways — out of scope, tracked only
 
