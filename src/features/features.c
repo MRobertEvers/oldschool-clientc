@@ -39,6 +39,8 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
     .effects_monophonic = 1,
+    /* Agility feeds the restore only; drain is weight alone. */
+    .run_energy_model = TORIRS_RUN_ENERGY_CLASSIC,
     /* No resizable mode, so no such setting. */
     .varbit_interface_resizing = 0,
 };
@@ -93,6 +95,18 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .player_head_light_ambient = 0,
     /* The modern client mixes effects; only the 2004 one is monophonic. */
     .effects_monophonic = 0,
+    /*
+     * The 8 Jan 2025 rework, which post-dates rev 230 itself.
+     *
+     * Stated deliberately, and it is the one slot in this table that is a
+     * statement about the *content* rather than the gamepack: every Agility
+     * number this tree is built against comes from the current wiki (see
+     * docs/AGILITY_COMPLETION_PLAN.md), and the graceful / stamina / ring of
+     * endurance multipliers all modify this pair. A rev-230-exact boot that
+     * wants the pre-rework arithmetic asks for it with
+     * MOCK230_RUN_ENERGY=classic rather than by editing this line.
+     */
+    .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
     /* `settings_interface_resizing` (gameval name, archive 14). Absent from
      * rev 230's varbit table, where the seed is a no-op. */
     .varbit_interface_resizing = 17772,
@@ -132,6 +146,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 128,
     .effects_monophonic = 0,
+    /* Same modern server generation as osrs. */
+    .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
     .varbit_interface_resizing = 17772,
 };
 
@@ -192,6 +208,42 @@ ToriRS_Features_NearestModelByName(char const* name)
             return k_nearest_models[i].model;
     }
     return -1;
+}
+
+/* Same rule as the nearest models: the enum's names live beside it, so a new
+ * model cannot be added without a way to state it. */
+static struct
+{
+    char const* name;
+    int model;
+} const k_run_energy_models[] = {
+    { "classic", TORIRS_RUN_ENERGY_CLASSIC },
+    { "osrs2025", TORIRS_RUN_ENERGY_OSRS_2025 },
+};
+
+int
+ToriRS_Features_RunEnergyModelByName(char const* name)
+{
+    assert(name);
+    if( !name[0] )
+        return -1;
+    for( size_t i = 0; i < sizeof(k_run_energy_models) / sizeof(k_run_energy_models[0]); i++ )
+    {
+        if( strcmp(name, k_run_energy_models[i].name) == 0 )
+            return k_run_energy_models[i].model;
+    }
+    return -1;
+}
+
+char const*
+ToriRS_Features_RunEnergyModelName(int model)
+{
+    for( size_t i = 0; i < sizeof(k_run_energy_models) / sizeof(k_run_energy_models[0]); i++ )
+    {
+        if( k_run_energy_models[i].model == model )
+            return k_run_energy_models[i].name;
+    }
+    return "?";
 }
 
 int

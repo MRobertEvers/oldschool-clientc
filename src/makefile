@@ -483,6 +483,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock239_inbound.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_split.c \
+	net/mock/mock230_runenergy.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
@@ -2881,6 +2882,16 @@ test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/to
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
+
+# The two run-energy models the era table selects between, and the era/name
+# wiring that selects them. Two source files and no fixtures: the formulas were
+# split out of the world tick precisely so they could be checked without a
+# server, a player or a cache.
+.PHONY: test-run-energy
+test-run-energy: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/run_energy_test \
+		net/mock/test/run_energy_test.c net/mock/mock230_runenergy.c features/features.c
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/run_energy_test
 
 # The collision map the server routes on, against real map squares: wall bits
 # paired on both tiles of every edge, closed doors blocking their own edge, no

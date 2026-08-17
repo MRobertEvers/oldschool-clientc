@@ -22,6 +22,7 @@
 #include "mock230_equipment.h"
 #include "mock230_friends.h"
 #include "mock230_ids.h"
+#include "mock230_runenergy.h"
 #include "mock230_save.h"
 #include "mock230_session.h"
 #include "mock230_scene.h"
@@ -1954,15 +1955,33 @@ player_weight_grams(const struct Mock230Player* player)
 }
 
 /*
- * One tick of energy, in OldSchool's own arithmetic (xrsps
- * MovementService.updateRunEnergy, which is the same formula):
+ * One tick of energy. WHICH arithmetic is an era decision, and it lives in the
+ * feature table: `run_energy_model`, enum ToriRS_RunEnergyModel, implemented in
+ * mock230_runenergy.c and overridable per boot with MOCK230_RUN_ENERGY.
  *
- *   drain per running TICK = 67 + 67 * min(64, weight_kg) / 64
- *   regen per idle/walking tick = agility / 6 + 8
+ *              drain per running tick               restore per idle tick
+ *   classic    67 + 67*kg/64  (kg 0..64)            agility/6 + 8
+ *   osrs2025   (60 + 67*kg/64) * (1 - agility/300)  agility/10 + 15
  *
- * so an unencumbered player gets a hair over 149 running ticks from full and a
- * fully-laden one about half that, and standing still refills at roughly one
- * percent every eight ticks at level 1.
+ * Under classic an unencumbered player gets a hair over 149 running ticks from
+ * full and a fully-laden one about half that; under osrs2025 the same player at
+ * level 99 gets around 250, which is the whole point of the 2025 rework and the
+ * reason Agility is worth training outside its own courses.
+ *
+ * ⚠️ THE REFERENCES DISAGREE about the classic pair, and it is LostCity's that
+ * is implemented. Recorded because it decided the shape of the classic line:
+ *
+ *   LostCity   67 + 67*kg/64  (kg 0..64)         agility/6 + 8      <- classic
+ *   OpenRune   64 + min(g,6400)/10000            computes a value, then discards
+ *              (RunEnergy.kt:41-42)              it and adds a flat 500 (:51-55)
+ *
+ * LostCity's drain is strongly weight-dependent (67..134, a 2x span); OpenRune's
+ * is not (64..64.64), which makes carried weight almost free. The 67 + 67*w/64
+ * form is the widely-attested 2004 one, so it is the one kept. OpenRune's
+ * restore is not usable as an authority at all — `recovery` is computed and
+ * never read, so its effective rate is a flat 500/tick regardless of Agility.
+ *
+ * Everything else here is shared by both models, because none of it changed.
  *
  * Energy is spent ONCE PER TICK, not per step. The reference charges the loss
  * in the `else` of `stepsTaken < 2` (Player.ts:705-713), so covering two tiles
@@ -1977,25 +1996,6 @@ player_weight_grams(const struct Mock230Player* player)
  * Reaching zero clears the toggle rather than merely refusing to run, which is
  * what makes the orb go dark instead of the player silently walking with a lit
  * orb.
- *
- * ⚠️ THE TWO REFERENCES DISAGREE HERE, and this is LostCity's. Recorded because
- * this is a rev-230 server and LostCity is 2004-era behaviour:
- *
- *              drain per running tick            restore per idle tick
- *   LostCity   67 + 67*kg/64  (kg 0..64)         agility/6 + 8      <- implemented
- *   OpenRune   64 + min(g,6400)/10000            computes a value, then discards
- *              (RunEnergy.kt:41-42)              it and adds a flat 500 (:51-55)
- *
- * LostCity's drain is strongly weight-dependent (67..134, a 2x span); OpenRune's
- * is not (64..64.64), which makes carried weight almost free. The 67 + 67*w/64
- * form is the widely-attested OldSchool one, so it is the one kept. OpenRune's
- * restore is not usable as an authority at all — `recovery` is computed and
- * never read, so its effective rate is a flat 500/tick regardless of Agility.
- *
- * The restore rate is the half worth revisiting for a modern server: OldSchool
- * changed how Agility feeds it after 2004, and neither reference here shows the
- * modern curve. Do not "fix" the drain to OpenRune's without checking a third
- * source — that direction makes weight nearly meaningless.
  */
 static void
 run_energy_tick(
@@ -2003,6 +2003,10 @@ run_energy_tick(
     int run_steps)
 {
     struct Mock230Player* player = srv->active_player;
+    int model = mock230_scene_features()->run_energy_model;
+    /* Base level, not boosted: an agility potion neither speeds recovery nor
+     * slows the burn. Reference: Player.ts:707 uses `baseLevels[AGILITY]`. */
+    int agility = player->stat_level[MOCK230_STAT_AGILITY];
 
     /* A delayed player neither burns nor recovers. Reference: Player.ts:703,
      * `if (this.delayed) return;`. */
@@ -2011,14 +2015,9 @@ run_energy_tick(
 
     if( run_steps >= 2 )
     {
-        int weight_kg = player_weight_grams(player) / 1000;
-        int drain;
-
-        if( weight_kg < 0 )
-            weight_kg = 0;
-        if( weight_kg > 64 )
-            weight_kg = 64;
-        drain = 67 + (67 * weight_kg) / 64;
+        /* Clamped inside the model; a weight-reducing set can total negative. */
+        int drain =
+            mock230_run_energy_drain(model, player_weight_grams(player) / 1000, agility);
 
         /*
          * Stamina potion: wiki says drain is cut 70% while `%stamina_active`
@@ -2054,12 +2053,7 @@ run_energy_tick(
 
     if( player->run_energy < MOCK230_RUN_ENERGY_MAX )
     {
-        /* Base level, not boosted: an agility potion does not speed recovery.
-         * Reference: Player.ts:707 uses `baseLevels[AGILITY]`. */
-        int agility = player->stat_level[MOCK230_STAT_AGILITY];
-        if( agility < 1 )
-            agility = 1;
-        player->run_energy += agility / 6 + 8;
+        player->run_energy += mock230_run_energy_restore(model, agility);
         if( player->run_energy > MOCK230_RUN_ENERGY_MAX )
             player->run_energy = MOCK230_RUN_ENERGY_MAX;
     }
@@ -2406,6 +2400,25 @@ mock230_world_mapinstance_free(
             entry->z < z + height )
             entry->active = 0;
     }
+    /*
+     * A released square has no owner that can collect its floor objects, and
+     * the pool can immediately hand those coordinates to another encounter.
+     * Keep this in the world-level release rather than the script opcode so
+     * the disconnect fallback and every future caller get the same teardown.
+     * Map spawns are not cloned into instance-pool coordinates, but clearing
+     * their respawn latch as well makes an accidental one unable to reappear
+     * in the next tenant's room.
+     */
+    for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+    {
+        struct Mock230GroundObj* obj = &srv->ground[i];
+
+        if( !obj->active || obj->x < x || obj->x >= x + width || obj->z < z ||
+            obj->z >= z + height )
+            continue;
+        mock230_world_ground_take(srv, i);
+        obj->respawn_tick = -1;
+    }
     return mock230_mapinstance_free(handle);
 }
 
@@ -2495,6 +2508,83 @@ maybe_rebuild(struct Mock230Server* srv)
      * kept entity by the base-tile delta when it rebuilds
      * (App_WorldRebuildShift), so their slots stay valid. Dropping and re-adding
      * them would instead re-spawn into slots the client still holds. */
+}
+
+/*
+ * A player-scoped map view which does not move the player.
+ *
+ * REBUILD_NORMAL normally derives its centre from the world's one shared scene
+ * origin. Scrying is different: only the viewer loads a remote normal-world
+ * scene, while their entity, collision, zone triggers and every other player
+ * remain in the POH instance. The arbitrary-centre rebuild therefore goes
+ * straight to this client and the authoritative world is left untouched.
+ *
+ * Scene-local output is withheld in phase_client_out for the lifetime of the
+ * view. The deadline is an engine fail-safe, not gameplay policy: content still
+ * calls REMOTE_VIEW_END at its chosen end, while a cancelled script or missed
+ * modal close cannot strand the client in the remote scene forever.
+ */
+void
+mock230_world_remote_view_start(
+    struct Mock230Player* player,
+    int x,
+    int z,
+    int level,
+    int ticks)
+{
+    struct Mock230Server* srv;
+
+    if( !player || !player->active )
+        return;
+    srv = player->world;
+    if( !srv )
+        return;
+
+    if( player->remote_view_active )
+        mock230_world_remote_view_end(player);
+
+    player->remote_view_active = 1;
+    player->remote_view_until = srv->tick + (ticks > 0 ? ticks : 1);
+    player->remote_view_saved_action_locked = player->action_locked;
+    player->action_locked = 1;
+    mock230_world_interaction_clear_at(player);
+    player->waypoint_index = -1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+
+    mock230_send_rebuild_normal_at(player, x >> 3, z >> 3);
+    if( srv->verbose )
+        fprintf(stderr,
+                "mock230: remote view start at %d,%d,%d until tick %d (player remains %d,%d,%d)\n",
+                x, z, level, player->remote_view_until, player->x, player->z,
+                player->level);
+}
+
+void
+mock230_world_remote_view_end(struct Mock230Player* player)
+{
+    struct Mock230Server* srv;
+
+    if( !player || !player->remote_view_active )
+        return;
+    srv = player->world;
+
+    player->remote_view_active = 0;
+    player->remote_view_until = 0;
+    player->action_locked = player->remote_view_saved_action_locked;
+    player->remote_view_saved_action_locked = 0;
+
+    /* The next client-out phase restores the player's real normal/instance
+     * scene and places the local actor absolutely inside it. Resetting the
+     * zone window makes every dynamic POH loc replay after that rebuild. */
+    player->rebuild_pending = 1;
+    player->place_dirty = 1;
+    mock230_zone_player_reset(player);
+    mock230_send_cam_reset(player);
+
+    if( srv && srv->verbose )
+        fprintf(stderr, "mock230: remote view end; restoring player scene at %d,%d,%d\n",
+                player->x, player->z, player->level);
 }
 
 /* ------------------------------------------------------------------ */
@@ -7075,6 +7165,7 @@ mock230_note_modal_mount(
     if( !srv->active_player )
         return;
     player = srv->active_player;
+
     /* Compare against the live top's slots (bound by if_opentop), not the
      * stretch-only ids table — after a Display remount those diverge. */
     if( uid == mock230_player_mainmodal(player) )
@@ -7132,6 +7223,12 @@ mock230_world_close_modal_ex(
     if( !srv->active_player )
         return;
     player = srv->active_player;
+
+    /* Escape is also the user's early-exit control for a remote map view.
+     * Restore before unmounting so the next client-out phase cannot emit
+     * scene-local state against the temporary WorldView. */
+    if( player->remote_view_active )
+        mock230_world_remote_view_end(player);
 
     /*
      * The weak queue dies with the modal, and that is the only thing that
@@ -11012,6 +11109,21 @@ phase_client_out(struct Mock230Player* player)
 
     mock230_world_set_active(srv, player);
 
+    /* A remote view has a different scene origin from every authoritative
+     * entity and zone packet below. Sending even one would address the wrong
+     * tile (and PLAYER_INFO would try to place the local actor outside the
+     * temporary scene), so the view gets only a tick boundary until content or
+     * the fail-safe ends it. */
+    if( player->remote_view_active )
+    {
+        if( srv->tick < player->remote_view_until )
+        {
+            mock230_send_tick_end(player);
+            return;
+        }
+        mock230_world_remote_view_end(player);
+    }
+
     /* "// - map update", the first thing `World.processClientsOut` does for a
      * player and the first thing done here. It only enqueues, so it is ahead of
      * every encoder below rather than entangled with them. */
@@ -13334,9 +13446,24 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_music_for_region((music_x << 8) | music_z) != NULL,
                            "region 9043 should carry a music track");
 
-            player->x = old_x;
-            player->z = old_z;
-            mock230_mapinstance_free(handle);
+            {
+                int coins = mock230_content_symbol(MOCK230_PACK_OBJ, "coins");
+                int inside = mock230_world_obj_add(
+                    srv, coins, 1, base_x + 32, base_z + 32, 0, 100);
+                int outside = mock230_world_obj_add(srv, coins, 1, old_x, old_z, 0, 100);
+
+                SELFTEST_CHECK(inside >= 0 && outside >= 0,
+                               "the instance cleanup test should place both floor objects");
+                player->x = old_x;
+                player->z = old_z;
+                mock230_world_mapinstance_free(srv, handle);
+                SELFTEST_CHECK(inside < 0 || !srv->ground[inside].active,
+                               "releasing an instance should purge its floor objects");
+                SELFTEST_CHECK(outside < 0 || srv->ground[outside].active,
+                               "releasing an instance must preserve ordinary-world objects");
+                if( outside >= 0 )
+                    mock230_world_ground_take(srv, outside);
+            }
         }
 
         /* Mor Ul Rek (TzHaar City) was silent in its own interior -- 3 of its
@@ -23622,6 +23749,139 @@ mock230_world_selftest(void)
     }
 
     /*
+     * A door with NO second cache record, swinging anyway.
+     *
+     * `farming_shed_poordoor` is the Lumbridge Swamp priest's hut — Father
+     * Urhney's front door, on the south wall of the shack at 3147,3172. It has
+     * `op1=Open` and there is no opened counterpart anywhere in the cache under
+     * any naming convention (`tools/door_audit.py`), so `doors.loc` could never
+     * pair it and `doors.rs2` could never reach it. Until now it teleported the
+     * player through the doorway.
+     *
+     * What makes it swing is not a new record: it is LOC_ADD_CHANGE_V2's
+     * per-PLACEMENT menu. The swung placement is the SAME loc id, one quarter
+     * turn on and one tile over, carrying an op mask that hides op1 and a label
+     * that puts "Close" on op2 (`doors/scripts/doors_selfstage.rs2`). So the
+     * assertions below are unusual in one specific way, and it is the point:
+     * the loc id does not change, and the *menu* is what says which state the
+     * door is in.
+     *
+     * Three things are checked and each fails differently:
+     *
+     *   the geometry     — same as any door, and the cheapest thing to break
+     *   the menu         — `mock230_scene_loc_placement_op` must answer for the
+     *                      PLACEMENT, not the type. Reading the type gives the
+     *                      cache's "Open" on op1 and NULL on op2, which is the
+     *                      OPLOC validator dropping every click on an open door
+     *                      as a lagging client. Silent: the door just stops
+     *                      closing.
+     *   closing          — the placement's menu must go back to the loctype's,
+     *                      or a shut door offers "Close".
+     */
+    fprintf(stderr, "mock230 selftest: a door with no opened record still swings\n");
+    {
+        const int hut_door = mock230_content_symbol(MOCK230_PACK_LOC, "farming_shed_poordoor");
+        const int selfstage = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_selfstage");
+        /* Read off m49_49.jl2: `0 11 36: 15056 0 1` — wall_straight, angle 1
+         * (^loc_north). `~door_open(north, wall_straight)` is (0, +1), so the
+         * swung tile is one north and the angle advances to 2. */
+        const int shut_x = 3147;
+        const int shut_z = 3172;
+        const int open_x = 3147;
+        const int open_z = 3173;
+        const int shape = 0;
+
+        SELFTEST_CHECK(hut_door > 0 && selfstage > 0,
+                       "pack should name farming_shed_poordoor and door_selfstage: %d/%d",
+                       hut_door, selfstage);
+        SELFTEST_CHECK(hut_door > 0 && mock230_loc_category(hut_door) == selfstage,
+                       "doors_selfstage.loc should file the hut door under door_selfstage, got %d",
+                       hut_door > 0 ? mock230_loc_category(hut_door) : -1);
+
+        selftest_park_player(srv, shut_x, shut_z - 1);
+        if( hut_door > 0 )
+        {
+            uint8_t payload[6];
+            int slot = mock230_scene_find_loc_exact(shut_x, shut_z, 0, shape);
+            struct Mock230SceneLoc* shut = mock230_scene_loc(slot);
+
+            SELFTEST_CHECK(shut && shut->loc_id == hut_door && shut->angle == 1,
+                           "the map should have the hut door at %d,%d angle 1, got %d at %d",
+                           shut_x, shut_z, shut ? shut->loc_id : -1, shut ? shut->angle : -1);
+            /* Closed, so its menu is its loctype's and nothing else. */
+            SELFTEST_CHECK(slot >= 0 &&
+                               mock230_scene_loc_placement_op(slot, hut_door, 1) != NULL,
+                           "a shut door offers op1 (the cache's Open)");
+            SELFTEST_CHECK(slot >= 0 &&
+                               mock230_scene_loc_placement_op(slot, hut_door, 2) == NULL,
+                           "and offers nothing on op2");
+
+            payload[0] = (uint8_t)(shut_x >> 8);
+            payload[1] = (uint8_t)shut_x;
+            payload[2] = (uint8_t)(shut_z >> 8);
+            payload[3] = (uint8_t)shut_z;
+            payload[4] = (uint8_t)(hut_door >> 8);
+            payload[5] = (uint8_t)hut_door;
+            mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the Open click should settle");
+            {
+                struct Mock230SceneLoc* was =
+                    mock230_scene_loc(mock230_scene_find_loc_exact(shut_x, shut_z, 0, shape));
+                int open_slot = mock230_scene_find_loc_exact(open_x, open_z, 0, shape);
+                struct Mock230SceneLoc* swung = mock230_scene_loc(open_slot);
+                const char* op2;
+
+                SELFTEST_CHECK(!was || !was->active, "opening takes the door off its own tile");
+                SELFTEST_CHECK(swung && swung->active && swung->loc_id == hut_door &&
+                                   swung->angle == 2,
+                               "and hangs the SAME loc id one tile north at angle 2, "
+                               "got %d at angle %d",
+                               swung ? swung->loc_id : -1, swung ? swung->angle : -1);
+                SELFTEST_CHECK(open_slot < 0 ||
+                                   mock230_scene_loc_placement_op(open_slot, hut_door, 1) == NULL,
+                               "the swung placement hides op1, so it cannot still say Open");
+                op2 = open_slot >= 0 ? mock230_scene_loc_placement_op(open_slot, hut_door, 2)
+                                     : NULL;
+                SELFTEST_CHECK(op2 && strcmp(op2, "Close") == 0,
+                               "and says Close on op2, got %s", op2 ? op2 : "(nothing)");
+
+                /* Close it from the swung tile, on op2 — the op the placement
+                 * invented. A validator that read the loctype would have
+                 * dropped this packet before any script saw it. */
+                payload[0] = (uint8_t)(open_x >> 8);
+                payload[1] = (uint8_t)open_x;
+                payload[2] = (uint8_t)(open_z >> 8);
+                payload[3] = (uint8_t)open_z;
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC2, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the Close click should settle");
+            }
+            {
+                int home_slot = mock230_scene_find_loc_exact(shut_x, shut_z, 0, shape);
+                struct Mock230SceneLoc* home = mock230_scene_loc(home_slot);
+                struct Mock230SceneLoc* gone =
+                    mock230_scene_loc(mock230_scene_find_loc_exact(open_x, open_z, 0, shape));
+
+                SELFTEST_CHECK(home && home->active && home->loc_id == hut_door &&
+                                   home->angle == 1,
+                               "closing puts it back where the map has it, got %d at angle %d",
+                               home ? home->loc_id : -1, home ? home->angle : -1);
+                SELFTEST_CHECK(!gone || !gone->active, "and clears the swung tile");
+                /* Back to the loctype's own menu. The `loc_add` that closes it
+                 * carries no override, so this is the cache's Open again — a
+                 * shut door that still said "Close" would be the close path
+                 * re-adding the open placement's menu. */
+                SELFTEST_CHECK(home_slot >= 0 &&
+                                   mock230_scene_loc_placement_op(home_slot, hut_door, 2) == NULL,
+                               "a shut door does not offer Close");
+                SELFTEST_CHECK(home_slot >= 0 &&
+                                   mock230_scene_loc_placement_op(home_slot, hut_door, 1) != NULL,
+                               "and offers Open again");
+            }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
      * And the other family: a long fence gate, whose two leaves swing to the
      * SAME side (`general_use/scripts/gates.rs2`, `gate_main_*`/`gate_outer_*`)
      * rather than apart. `death_fencegate_l`/`r` on the Burthorpe side of Death
@@ -26573,12 +26833,35 @@ mock230_world_selftest(void)
         {
             int spent = energy_before - player->run_energy;
             int weight_kg = weight / 1000 > 64 ? 64 : weight / 1000;
-            /* Once per tick, NOT once per tile. Covering two tiles is the base
+            int model = mock230_scene_features()->run_energy_model;
+            /*
+             * The rate is the ACTIVE era's, so this cannot be a literal: the
+             * boot resolves `run_energy_model` and MOCK230_RUN_ENERGY may have
+             * overridden it. What is checked here is the wiring — that the tick
+             * charges this player's own weight and Agility level through the
+             * selected model, once. The arithmetic of each model against its
+             * reference's published numbers is `make test-run-energy`, which
+             * states them as literals precisely so this line does not have to.
+             *
+             * Once per tick, NOT once per tile. Covering two tiles is the base
              * cost, so there is no `2 *` here — the reference charges the loss
              * in the else-branch of `stepsTaken < 2` (Player.ts:705-713). This
-             * assertion previously encoded the doubled form. */
-            int expect = 67 + (67 * weight_kg) / 64;
-            SELFTEST_CHECK(spent == expect, "a running tick costs %d, got %d", expect, spent);
+             * assertion previously encoded the doubled form.
+             */
+            int expect = mock230_run_energy_drain(
+                model, weight_kg, player->stat_level[MOCK230_STAT_AGILITY]);
+            SELFTEST_CHECK(spent == expect,
+                           "a running tick costs %d under model %s, got %d",
+                           expect,
+                           ToriRS_Features_RunEnergyModelName(model),
+                           spent);
+            /* A weight that never reaches the formula, or an Agility term that
+             * silently drops out, both read as "the flag does nothing". Both
+             * models are strictly weight-dependent, so the loaded rate must
+             * beat the bare one. */
+            SELFTEST_CHECK(mock230_run_energy_drain(model, weight_kg, 1) >
+                               mock230_run_energy_drain(model, 0, 1),
+                           "carrying the starting kit costs more than carrying nothing");
 
             /*
              * And the stamina cut, on the same tick and the same weight: the

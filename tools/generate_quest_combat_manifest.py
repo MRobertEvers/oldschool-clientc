@@ -107,12 +107,81 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "opnpc1:delrith_weakened",
         ],
         "loot_contract": "No ordinary or bones drop; successful banishment grants quest completion only.",
-        "test_ids": ["quest-combat-contract:delrith"],
+        "test_ids": [
+            "quest-combat-contract:delrith",
+            "mock230-selftest:npc-owner-visibility",
+        ],
         "known_gaps": [
             "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
-            "True per-player actor visibility awaits the shared encounter-ownership runtime.",
+            "A real-client concurrent-player, death, and relog smoke is still pending.",
         ],
-    }
+    },
+    "Witch's House": {
+        "source_audits": [
+            {
+                "url": "https://oldschool.runescape.wiki/w/Witch%27s_House?oldid=15168391",
+                "revision": 15168391,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Witch%27s_House/Quick_guide?oldid=15291737",
+                "revision": 15291737,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Witch%27s_experiment?oldid=15206938",
+                "revision": 15206938,
+                "retrieved": "2026-08-17",
+            },
+            {
+                "url": "https://oldschool.runescape.wiki/w/Transcript:Witch%27s_House?oldid=15263233",
+                "revision": 15263233,
+                "retrieved": "2026-08-17",
+            },
+        ],
+        "npc_gamevals": [
+            "nora_t_hagg",
+            "shapeshifterglob",
+            "shapeshifterspider",
+            "shapeshifterbear",
+            "shapeshifterwolf",
+            "witchrat",
+        ],
+        "item_gamevals": [
+            "witches_doorkey",
+            "witches_shedkey",
+            "magnet",
+            "cheese",
+            "leather_gloves",
+            "ball",
+        ],
+        "loc_gamevals": [
+            "witchpot",
+            "witchhousedoor",
+            "magnetcbshut",
+            "magnetcbopen",
+            "witchmousehole",
+            "witchbackdoor",
+            "witchsheddoor",
+            "witchfountain",
+        ],
+        "trigger_handlers": [
+            "oplocu:witchsheddoor",
+            "opobj3:ball",
+            "ai_queue3:shapeshifterglob",
+            "ai_queue3:shapeshifterspider",
+            "ai_queue3:shapeshifterbear",
+            "ai_queue3:shapeshifterwolf",
+            "ai_timer:nora_t_hagg",
+        ],
+        "loot_contract": "All four forms have explicit null death drops; the ball is a gated post-fight ground objective, not combat loot.",
+        "test_ids": ["quest-combat-contract:witches-experiment"],
+        "known_gaps": [
+            "The shed's live 'someone is inside' admission refusal is not implemented.",
+            "The shed-specific Dwarf multicannon restriction awaits the shared cannon placement gate.",
+            "A real-client concurrent-player, flee, death, and relog smoke is still pending.",
+        ],
+    },
 }
 
 ROW = re.compile(
@@ -154,7 +223,7 @@ def inventory() -> list[dict[str, object]]:
         encounter = normalize_markdown(match.group("encounters"))
         blocked = name in POST_REVISION_239
         status = "blocked-cache-version" if blocked else "audit-pending"
-        if name == "Demon Slayer":
+        if name in AUDITED_OVERRIDES:
             status = "implementation-in-progress"
         row: dict[str, object] = {
             "id": f"{section}-{slug(name)}",

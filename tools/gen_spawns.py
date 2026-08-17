@@ -109,6 +109,18 @@ NPC_NAME_ALIASES = {
     ("head_wizard", normalise("Sedridor")): {normalise("Archmage Sedridor")},
 }
 
+# These three records are scenery/cage occupants in the external map dump, not
+# live world combatants.  Fight Arena creates an owner-private copy for the
+# player whose round is active; retaining the dump rows would expose an
+# attackable public duplicate and permit cross-player quest credit.
+#
+# Source audit: https://oldschool.runescape.wiki/w/Fight_Arena?oldid=15240956
+NPC_SPAWN_EXCLUSIONS = {
+    ("arena_scorpion", 2608, 3159, 0),
+    ("arena_bouncer", 2608, 3162, 0),
+    ("arena_ogre", 2608, 3165, 0),
+}
+
 
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
@@ -211,6 +223,9 @@ def main():
             absent_square["m%d_%d" % square] += 1
             continue
         key = ("npc", name, row["x"], row["y"], level)
+        if (name, row["x"], row["y"], level) in NPC_SPAWN_EXCLUSIONS:
+            reject["npc: scripted owner-private encounter actor"] += 1
+            continue
         if key in seen:
             reject["npc: duplicate"] += 1
             continue

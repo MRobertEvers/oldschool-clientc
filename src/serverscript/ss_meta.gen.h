@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11058] = {
+static const char* const g_ss_opcode_names[11060] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -469,6 +469,8 @@ static const char* const g_ss_opcode_names[11058] = {
     [11055] = "POH_ROOM_SET",
     [11056] = "POH_ROOM_REMOVE",
     [11057] = "LOC_ADD_OP",
+    [11058] = "REMOTE_VIEW_START",
+    [11059] = "REMOTE_VIEW_END",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -478,7 +480,7 @@ static const char* const g_ss_opcode_names[11058] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11058] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11060] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -941,6 +943,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11058] = {
     [11055] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_ROOM_SET */
     [11056] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_ROOM_REMOVE */
     [11057] = { 6, 1, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* LOC_ADD_OP */
+    [11058] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* REMOTE_VIEW_START */
+    [11059] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* REMOTE_VIEW_END */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

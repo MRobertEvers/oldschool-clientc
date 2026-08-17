@@ -67,6 +67,34 @@ mock230_ops_player(
     switch( opcode )
     {
     /*
+     * A temporary scene for cutaways such as Construction's scrying pool.
+     * The coord and lifetime are content policy; the world layer owns the
+     * protocol barrier, input lock and restoration of the real scene.
+     */
+    case SS_OP_REMOTE_VIEW_START:
+    {
+        int32_t coord;
+        int32_t ticks;
+
+        if( !SSVM_PopInt(state, &ticks) || !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( ticks < 1 || ticks > 200 )
+        {
+            SSVM_Abort(state, "remote_view_start: duration %d is not 1..200 ticks",
+                       (int)ticks);
+            return 1;
+        }
+        mock230_world_remote_view_start(srv->active_player, mock230_coord_x(coord),
+                                        mock230_coord_z(coord), mock230_coord_level(coord),
+                                        (int)ticks);
+        return 1;
+    }
+
+    case SS_OP_REMOTE_VIEW_END:
+        mock230_world_remote_view_end(srv->active_player);
+        return 1;
+
+    /*
      * `[command,p_oploc](int $op)` — engine.rs2:179, `PlayerOps.ts:389`.
      *
      * The VM's pointer table has already refused this without an active player

@@ -585,6 +585,27 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # of what content has to say, and it says it without a sentinel.
     "LOC_ADD_OP": (11057, 6, 1, 0, 0),
 
+    # ---- player-scoped remote map view (11058..11059) --------------------
+    #
+    # remote_view_start(coord $at, int $ticks) / remote_view_end()
+    #
+    # Temporarily rebuild one player's client around a normal-world coord
+    # without moving the authoritative player. This is the protocol mechanism
+    # used by Construction's scrying pool: content owns the destination,
+    # camera, overlay and duration; the engine owns keeping scene-local packets
+    # away from the temporary WorldView and rebuilding the player's real
+    # (possibly instanced) scene afterwards.
+    #
+    # There is no LostCity reference command because its rev-254 content tree
+    # predates player-owned-house scrying. A normal teleport is not equivalent:
+    # it would run zone/map triggers, expose the player at the destination and
+    # remove them from their house. The separate start/end pair makes the
+    # temporary-view lifetime explicit and lets modal-close cleanup end it
+    # early; `$ticks` is also a fail-safe if a suspended content script is
+    # cancelled before calling the inverse.
+    "REMOTE_VIEW_START": (11058, 2, 0, 0, 0),
+    "REMOTE_VIEW_END": (11059, 0, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -883,6 +904,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # command names its own coord and needs no active anything. Listed rather
     # than omitted so the assert in the writer stays a whitelist.
     "LOC_ADD_OP": (0, 0),
+    "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
+    "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

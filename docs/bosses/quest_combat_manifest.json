@@ -86,11 +86,12 @@
       ],
       "loot_contract": "No ordinary or bones drop; successful banishment grants quest completion only.",
       "test_ids": [
-        "quest-combat-contract:delrith"
+        "quest-combat-contract:delrith",
+        "mock230-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
-        "True per-player actor visibility awaits the shared encounter-ownership runtime."
+        "A real-client concurrent-player, death, and relog smoke is still pending."
       ]
     },
     {
@@ -281,15 +282,73 @@
       "encounter_summary": "Witch's experiment forms (19, 30, 42, 53)",
       "plan_line": 84,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Witch%27s_House?oldid=15168391",
+          "revision": 15168391,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Witch%27s_House/Quick_guide?oldid=15291737",
+          "revision": 15291737,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Witch%27s_experiment?oldid=15206938",
+          "revision": 15206938,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Witch%27s_House?oldid=15263233",
+          "revision": 15263233,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "nora_t_hagg",
+        "shapeshifterglob",
+        "shapeshifterspider",
+        "shapeshifterbear",
+        "shapeshifterwolf",
+        "witchrat"
+      ],
+      "item_gamevals": [
+        "witches_doorkey",
+        "witches_shedkey",
+        "magnet",
+        "cheese",
+        "leather_gloves",
+        "ball"
+      ],
+      "loc_gamevals": [
+        "witchpot",
+        "witchhousedoor",
+        "magnetcbshut",
+        "magnetcbopen",
+        "witchmousehole",
+        "witchbackdoor",
+        "witchsheddoor",
+        "witchfountain"
+      ],
+      "trigger_handlers": [
+        "oplocu:witchsheddoor",
+        "opobj3:ball",
+        "ai_queue3:shapeshifterglob",
+        "ai_queue3:shapeshifterspider",
+        "ai_queue3:shapeshifterbear",
+        "ai_queue3:shapeshifterwolf",
+        "ai_timer:nora_t_hagg"
+      ],
+      "loot_contract": "All four forms have explicit null death drops; the ball is a gated post-fight ground objective, not combat loot.",
+      "test_ids": [
+        "quest-combat-contract:witches-experiment"
+      ],
+      "known_gaps": [
+        "The shed's live 'someone is inside' admission refusal is not implemented.",
+        "The shed-specific Dwarf multicannon restriction awaits the shared cannon placement gate.",
+        "A real-client concurrent-player, flee, death, and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-merlin-s-crystal",

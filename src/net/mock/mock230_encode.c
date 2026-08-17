@@ -743,13 +743,17 @@ mock230_send_reconnect_ok(struct Mock230Player* player)
 /* Scene                                                               */
 /* ------------------------------------------------------------------ */
 
-void
-mock230_send_rebuild_normal(struct Mock230Player* player)
+static void
+send_rebuild_normal_at(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z,
+    int include_login_init)
 {
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
-    int base_x = mock230_scene_origin(srv->zone_x);
-    int base_z = mock230_scene_origin(srv->zone_z);
+    int base_x = mock230_scene_origin(zone_x);
+    int base_z = mock230_scene_origin(zone_z);
     int sq_x0 = base_x >> 6, sq_x1 = (base_x + MOCK230_SCENE_TILES - 1) >> 6;
     int sq_z0 = base_z >> 6, sq_z1 = (base_z + MOCK230_SCENE_TILES - 1) >> 6;
     int count = (sq_x1 - sq_x0 + 1) * (sq_z1 - sq_z0 + 1);
@@ -772,7 +776,7 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
      * the block: the client would re-seed a table it is already tracking
      * against, and every player in it would jump.
      */
-    if( wire_is_v5(player) && !player->player_tracked[player->pid] )
+    if( include_login_init && wire_is_v5(player) && !player->player_tracked[player->pid] )
     {
         int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
                                   ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
@@ -799,13 +803,13 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
              * in the clear from revision 237 — so the writer is handed the
              * square count and ignores it, rather than this branch quietly
              * omitting a field. */
-            pl->rebuild_normal(&buf, 0, srv->zone_x, srv->zone_z, NULL, count);
+            pl->rebuild_normal(&buf, 0, zone_x, zone_z, NULL, count);
         }
         else
         {
             rsab_p2(&buf, 0);
-            rsab_p2_alt2(&buf, srv->zone_x);
-            rsab_p2(&buf, srv->zone_z);
+            rsab_p2_alt2(&buf, zone_x);
+            rsab_p2(&buf, zone_z);
             rsab_p2(&buf, count);
             for( int i = 0; i < count * 4; i++ )
                 rsab_p4(&buf, 0);
@@ -817,11 +821,37 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
         fprintf(
             stderr,
             "mock230: rebuild zone=%d,%d origin=%d,%d squares=%d\n",
-            srv->zone_x,
-            srv->zone_z,
+            zone_x,
+            zone_z,
             base_x,
             base_z,
             count);
+}
+
+void
+mock230_send_rebuild_normal(struct Mock230Player* player)
+{
+    struct Mock230Server* srv = player->world;
+
+    send_rebuild_normal_at(player, srv->zone_x, srv->zone_z, 1);
+}
+
+/*
+ * A normal-world scene centred somewhere other than the authoritative player.
+ *
+ * Construction's scrying pool is the caller. It must load the destination's
+ * terrain for one client without moving the player, changing the world's
+ * shared scene/collision origin, or re-seeding the already-live player-info
+ * table. The remote-view lifetime and restoration are owned by
+ * mock230_world_remote_view_*; this encoder is deliberately only the packet.
+ */
+void
+mock230_send_rebuild_normal_at(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z)
+{
+    send_rebuild_normal_at(player, zone_x, zone_z, 0);
 }
 
 /*

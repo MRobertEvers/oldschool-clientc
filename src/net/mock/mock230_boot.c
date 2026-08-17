@@ -163,16 +163,33 @@ mock230_boot_load(const struct Mock230BootConfig* config)
         if( env && env[0] )
             features.under_target_routes_out = env[0] != '0';
     }
+    /*
+     * Run energy. Server-only — the client is sent a percentage and computes
+     * nothing — so there is no client half to keep in step, unlike the
+     * ground-click knobs above. It exists so the pre- and post-2025 Agility
+     * arithmetic can be measured back to back on the same account.
+     */
+    {
+        char const* env = getenv("MOCK230_RUN_ENERGY");
+        int model = env && env[0] ? ToriRS_Features_RunEnergyModelByName(env) : -1;
+        if( env && env[0] && model < 0 )
+            fprintf(stderr,
+                    "mock230: MOCK230_RUN_ENERGY must be classic|osrs2025, got '%s'\n",
+                    env);
+        else if( model >= 0 )
+            features.run_energy_model = model;
+    }
     mock230_scene_set_features(&features);
     fprintf(stderr,
             "mock230: features era=%s approach=%s op_nearest=%d ground_nearest=%s "
-            "unbounded=%d under_routes_out=%d\n",
+            "unbounded=%d under_routes_out=%d run_energy=%s\n",
             features.name,
             features.approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
             features.op_click_nearest_range,
             ToriRS_Features_NearestModelName(features.ground_click_nearest_model),
             features.ground_click_nearest_unbounded,
-            features.under_target_routes_out);
+            features.under_target_routes_out,
+            ToriRS_Features_RunEnergyModelName(features.run_energy_model));
 
     /* 1. The cache's own tables. The content tree overlays these, so they have
      *    to exist before it is read. */

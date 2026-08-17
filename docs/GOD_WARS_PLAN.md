@@ -86,14 +86,30 @@ by the existence of code. As of the audit date, the repository now has:
 - [x] Bandos's gong accepts the normal and Imcando hammers, every metal
   warhammer, Dragon warhammer variants, and both Elder mauls; each selects its
   held-model-correct `godwars_hammer_gong_*` sequence with embedded gong sound.
+- [x] [Private boss rooms](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#Private_instances)
+  are unlocked by Hard Combat Achievements, charge 150,000/125,000/100,000/
+  75,000 coins by highest completed tier, consume the same reduced KC or
+  one-use ecumenical key as public entry, and clone the faction's revision-239
+  map square. Each room owns an exact boss/bodyguard quartet, instance-relative
+  attack bounds, delayed respawns, three-hour ground drops, and one cleanup
+  path shared by altar exit, arbitrary teleport, logout, and death. Death puts
+  the gravestone outside before releasing the reservation.
+- [x] Nex's cache-defined `Pass (private)` barrier creates a personal
+  revision-239 arena for the current fixed 100,000-coin fee, consumes Ancient
+  essence or one ecumenical key, spawns Nex and all four phase mages at their
+  exact translated tiles, translates every centre/corner/boundary mechanic,
+  restores the complete roster for the next kill, and shares the same
+  departure/death lifecycle and three-hour floor-object policy.
 
 The remaining acceptance work is runtime-focused: nearest-player/defence
 tie-breaking is scripted but still needs multiplayer trace validation;
 Turmoil's unpublished drain amount/transfer timing and Ice Prison's unpublished
-fixed defence roll need primary-source evidence; private-room and high-player-count
-teardown require a room-instance owner; and the statistical,
-tick-trace, relog/restart, and multiplayer soak matrix at the end of this plan
-must still be executed. These are intentionally left unchecked below.
+fixed defence roll need primary-source evidence; private-room and
+high-player-count teardown now have an owner but still require runtime soak
+validation; the engine does not yet expose Friends Chat membership/instance
+ownership needed for friends to join a host's private Nex room; and the
+statistical, tick-trace, relog/restart, and multiplayer matrix at the end of
+this plan must still be executed. These are intentionally left unchecked below.
 
 ## Audit-start repository baseline and known gaps
 
@@ -495,8 +511,9 @@ targets, false KC, duplicate loot, or stalled combat.
 ### Phase 2 — Entrance, wings, KC, rooms, and altars
 
 Implement and test every item in the dungeon-systems checklist through the four
-original public rooms. Keep private rooms disabled until their ownership and
-teardown tests pass.
+original public rooms. Enable private rooms only with explicit ownership,
+actor/floor-object cleanup, departure monitoring, and tested altar/logout/death
+teardown.
 
 Exit gate: a fresh account can enter, traverse every wing, earn/consume/reset
 KC, use each altar/exit, die/logout safely, and cannot bypass a requirement.
@@ -591,11 +608,15 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
 - [The Frozen Door](https://oldschool.runescape.wiki/w/The_Frozen_Door)
 - [Ancient Prison](https://oldschool.runescape.wiki/w/Ancient_Prison)
 - [Nex](https://oldschool.runescape.wiki/w/Nex) and [Nex strategies](https://oldschool.runescape.wiki/w/Nex/Strategies)
+- [Instance rules, including Nex's current 100,000-coin room, outside death
+  storage, logout eviction, and friend joining](https://oldschool.runescape.wiki/w/Instance)
 - [God equipment and aggression protection](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#God_equipment)
 - [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
   and the [old fire-pit recipe](https://oldschool.runescape.wiki/w/Old_fire_pit)
 - [Ghommal's hilt teleport tiers](https://oldschool.runescape.wiki/w/Ghommal%27s_hilt)
 - [Saradomin's light and Zamorakian darkness](https://oldschool.runescape.wiki/w/Saradomin%27s_light)
+- [God Wars Dungeon private instances, Combat Achievement unlock, fees, and
+  three-hour drops](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#Private_instances)
 - [Godsword shard 1](https://oldschool.runescape.wiki/w/Godsword_shard_1), [shard 2](https://oldschool.runescape.wiki/w/Godsword_shard_2), and [shard 3](https://oldschool.runescape.wiki/w/Godsword_shard_3)
 - Original boss/bodyguard and ambient family pages linked directly in the roster
   tables above; those links, not this summary, define the complete drop rows.

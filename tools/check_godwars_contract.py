@@ -177,6 +177,22 @@ def main() -> None:
         require(PRIVATE, f"[proc,{terminal}]", f"private terminal {terminal}")
     require(CHAMBER, "map_instance_coord($handle", "instance-relative chamber bounds")
     require(CONSTANT, "^gwd_private_loot_duration = 30000", "three-hour private loot")
+    require(FROZEN, "[oploc2,nex_fight_barrier_outer_priv]", "private Nex barrier option")
+    require(FROZEN, "~gwd_nex_private_enter;", "private Nex entry dispatch")
+    nex_private = proc_body(PRIVATE, "gwd_nex_private_enter")
+    require(nex_private, "def_int $fee = 100000;", "private Nex fixed fee")
+    require(nex_private, "~gwd_consume_chamber_access(5);", "private Nex essence/key use")
+    for actor in ("nex_spawning", "nex_smokemage", "nex_shadowmage", "nex_bloodmage", "nex_icemage"):
+        require(PRIVATE, f"$type = {actor}", f"private Nex spawn {actor}")
+    require(PRIVATE, "queue(gwd_nex_private_reset", "private Nex respawn")
+    require(NEX, "[proc,nex_room_coord]", "instance-relative Nex coordinates")
+    for coordinate in ("centre", "fumus", "umbra", "cruor", "glacies"):
+        direct = re.compile(rf"(?<!nex_room_coord\()\^nex_{coordinate}\b")
+        assert not direct.search(NEX), f"Nex {coordinate} bypasses instance translation"
+    for line in NEX_DROPS.splitlines():
+        if re.search(r"\bobj_add(?:_private)?\(", line):
+            require(line, "~gwd_loot_duration(", "Nex instance-aware loot duration")
+    require(PRISON, "~gwd_in_bounds(^gwd_nex_chamber_sw", "private Nex death bank")
     # Frozen surface and its permanent, player-owned fire. Pin both the
     # ten-tick environmental effect and the exact Wiki construction recipe.
     require(ENTRANCE, "[mapzone,0_45_58]", "GWD surface chill entry")

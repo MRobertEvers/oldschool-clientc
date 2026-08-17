@@ -3127,6 +3127,16 @@ struct Mock230Player
      *  ephemeral zone event cannot expire while the client is still replacing
      *  its WorldView. */
     int rebuild_scene_pending;
+    /**
+     * A temporary, player-scoped normal-world scene shown without moving the
+     * authoritative player (Construction scrying). While active, scene-local
+     * entity and zone output is withheld because it belongs to the player's
+     * real scene. `remote_view_until` is an absolute world tick and guarantees
+     * restoration even if the content script that opened the view is aborted.
+     */
+    int remote_view_active;
+    int remote_view_until;
+    int remote_view_saved_action_locked;
     /** Set by the login burst, drained by phase 7, so [login] runs inside the
      *  tick rather than ahead of it — per player, so a second login does not
      *  re-run the first player's. */
@@ -4196,8 +4206,8 @@ mock230_world_mapinstance_built(
     struct Mock230Server* srv,
     int handle);
 
-/** Release a pooled instance and all world-owned location state in its
- *  destination rectangle. Content still owns actor teardown. */
+/** Release a pooled instance and all world-owned location and floor-object
+ *  state in its destination rectangle. Content still owns actor teardown. */
 int
 mock230_world_mapinstance_free(
     struct Mock230Server* srv,
@@ -5817,6 +5827,13 @@ mock230_send_reconnect_ok(struct Mock230Player* player);
 
 void
 mock230_send_rebuild_normal(struct Mock230Player* player);
+/** Player-scoped normal-world view at an arbitrary centre. Does not move the
+ *  player, mutate the shared scene origin, or emit the login GPI init block. */
+void
+mock230_send_rebuild_normal_at(
+    struct Mock230Player* player,
+    int zone_x,
+    int zone_z);
 /** REBUILD_REGION: the instanced scene, built from the map-instance descriptor
  *  window rather than from the squares under it. */
 void
@@ -5824,6 +5841,18 @@ mock230_send_rebuild_region(struct Mock230Player* player);
 /** Whichever of the two the player's current tile calls for. Prefer this. */
 void
 mock230_send_rebuild(struct Mock230Player* player);
+
+/** Temporarily show one player a normal-world scene without moving them. */
+void
+mock230_world_remote_view_start(
+    struct Mock230Player* player,
+    int x,
+    int z,
+    int level,
+    int ticks);
+/** Restore the player's authoritative normal or instanced scene. Idempotent. */
+void
+mock230_world_remote_view_end(struct Mock230Player* player);
 void
 mock230_send_if_opentop(
     struct Mock230Player* player,

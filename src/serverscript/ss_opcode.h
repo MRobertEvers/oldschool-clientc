@@ -484,10 +484,12 @@
 #define SS_OP_POH_ROOM_SET 11055
 #define SS_OP_POH_ROOM_REMOVE 11056
 #define SS_OP_LOC_ADD_OP 11057
+#define SS_OP_REMOTE_VIEW_START 11058
+#define SS_OP_REMOTE_VIEW_END 11059
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11058
+#define SS_OPCODE_MAX 11060
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 462
+#define SS_OPCODE_COUNT 464
 
 #endif

@@ -109,6 +109,44 @@ enum
     TORIRS_PAINTER_DRAW_DISTANCE_MAX = 90,
 };
 
+/**
+ * How a running tick spends energy and an idle one gets it back — the one
+ * place Agility level is arithmetic rather than a level gate.
+ *
+ * Both models charge ONCE PER TICK, not per step, and both stop at a 64 kg
+ * ceiling; they disagree about what the level does. Implemented in
+ * net/mock/mock230_runenergy.c, which is the only place either appears.
+ */
+enum ToriRS_RunEnergyModel
+{
+    /**
+     * LostCity / 2004 (`Player.ts:705-713`, and xrsps agrees on neither half):
+     *
+     *     drain   = 67 + 67 * clamp(weight_kg, 0, 64) / 64
+     *     restore = agility / 6 + 8
+     *
+     * Agility appears in the restore only, so a level-99 player burns energy
+     * exactly as fast as a level-1 one and merely refills faster. Zero, per
+     * the table's zero-is-classic rule.
+     */
+    TORIRS_RUN_ENERGY_CLASSIC = 0,
+    /**
+     * OldSchool after the 8 January 2025 run-energy rework
+     * (https://oldschool.runescape.wiki/w/Run_energy):
+     *
+     *     drain   = floor((60 + 67 * clamp(weight_kg, 0, 64) / 64)
+     *                     * (1 - agility / 300))
+     *     restore = floor(agility / 10) + 15
+     *
+     * Agility is now in BOTH halves: at 99 the drain is a third lower and the
+     * restore roughly twice the level-1 rate. This is the model every current
+     * wiki number describes, and the one the graceful set (restore x1.3),
+     * stamina potions (drain x0.3) and a charged ring of endurance (drain
+     * x0.85) modify.
+     */
+    TORIRS_RUN_ENERGY_OSRS_2025 = 1,
+};
+
 struct ToriRS_FeatureTable
 {
     enum ToriRS_FeatureEra era;
@@ -339,6 +377,24 @@ struct ToriRS_FeatureTable
      */
     int effects_monophonic;
 
+    /* --- movement / run energy ------------------------------------------- */
+
+    /**
+     * enum ToriRS_RunEnergyModel. 0 = the 2004 pair, which is what this tree
+     * shipped with.
+     *
+     * Server-only by construction: the client is told a percentage
+     * (UPDATE_RUNENERGY) and never computes one, so unlike the ground-click
+     * fields there is no client half to keep in step. It lives here rather
+     * than as a `cache_revision >=` test in the world tick because it is an
+     * era fact, and because the two models have to be runnable back to back
+     * against the same account — a measurement of "how far can I run" that
+     * cannot be compared to the other model proves nothing.
+     *
+     * Overridable per boot with MOCK230_RUN_ENERGY=classic|osrs2025.
+     */
+    int run_energy_model;
+
     /* --- interface settings ---------------------------------------------- */
 
     /**
@@ -396,6 +452,18 @@ ToriRS_Features_ByName(char const* name);
  */
 int
 ToriRS_Features_NearestModelByName(char const* name);
+
+/**
+ * Resolve an enum ToriRS_RunEnergyModel by name, for the mock server's env
+ * override: "classic", "osrs2025". Returns -1 when the name is not one of
+ * those, so a typo is reported rather than silently read as the zero model.
+ */
+int
+ToriRS_Features_RunEnergyModelByName(char const* name);
+
+/** The name that maps back to a run-energy model, for logging. "?" if none. */
+char const*
+ToriRS_Features_RunEnergyModelName(int model);
 
 /** Resolve the feature table's 0 sentinel to Client-TS's 25-tile radius. */
 int

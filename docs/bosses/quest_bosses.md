@@ -320,8 +320,9 @@ Quick guide, Transcript, and NPC/item pages.
   doubled damage, exact-UID weakened/Banish flow, wrong-chant heal, quest credit,
   explicit no-drop config, source ledger and structural regression contract are
   implemented, including the persistent per-player incantation permutation and
-  Aris reminder. Full ritual choreography, shared actor ownership, and runtime
-  concurrency/relog tests remain open; the
+  Aris reminder and generation-safe owner-private actor visibility/cleanup.
+  Full ritual choreography and real-client concurrency/death/relog tests remain
+  open; the
   manifest deliberately does not mark this encounter verified.
 - [ ] **[Shield of Arrav](https://oldschool.runescape.wiki/w/Shield_of_Arrav/Quick_guide) — gang-route kills.** Bind Weaponsmaster/Jonny to the selected gang route, make the weapons-store/cupboard and Phoenix crossbow interactions reachable, and drop/grant the required shield half only through the correct gang sequence. Preserve partner exchange and make the non-selected fight neither required nor a source of duplicate halves.
 - [ ] **[The Restless Ghost](https://oldschool.runescape.wiki/w/The_Restless_Ghost/Quick_guide) — skull skeleton.** Searching the coffin/grave path spawns the avoidable skeleton without making its death a quest gate; the [ghost's skull](https://oldschool.runescape.wiki/w/Ghost%27s_skull) is obtained/replaced from the altar independently and returned to the coffin atomically.
@@ -333,6 +334,12 @@ Quick guide, Transcript, and NPC/item pages.
 - [ ] **[Druidic Ritual](https://oldschool.runescape.wiki/w/Druidic_Ritual/Quick_guide) — suit of armour.** Animate the cauldron-room suit only when searched, let the player avoid it, and keep raw rat/bear/beef/chicken enchanting and hand-in independent of its death; no quest loot comes from the armour.
 - [ ] **[Lost City](https://oldschool.runescape.wiki/w/Lost_City/Quick_guide) — [Dramen tree spirit](https://oldschool.runescape.wiki/w/Tree_spirit_(Lost_City)).** Enforce Entrana's equipment ban on entry, allow the dungeon branch/log/knife route to make weapons and obtain a bronze axe from zombies, spawn/own the spirit on the first dramen-tree chop, block the tree while alive, and allow [dramen branch](https://oldschool.runescape.wiki/w/Dramen_branch) chopping only after victory. Implement branch-to-[dramen staff](https://oldschool.runescape.wiki/w/Dramen_staff), loss/replacement, and no ordinary spirit loot.
 - [ ] **[Witch's House](https://oldschool.runescape.wiki/w/Witch%27s_House/Quick_guide) — [Witch's experiment](https://oldschool.runescape.wiki/w/Witch%27s_experiment).** Implement cheese/mouse, magnet/fountain, leather-glove gate, diary clue, front-door and shed keys, witch line-of-sight/ejection, ball search, then one owned NPC transforming rat→spider→bear→wolf while preserving HP/credit correctly. The ball is the post-fight objective; forms have no ordinary loot and leaving/resetting must not strand the encounter.
+  **Implementation status — in progress (2026-08-17):** the existing complete
+  quest route now uses one owner-private, exact-UID actor across four full-HP
+  forms, resets early exits/re-entry, tracks the player shed lock, suppresses
+  all four death drops, and credits the ball only after the wolf. Remaining:
+  the live "someone is inside" shed admission rule, shed-specific multicannon
+  restriction, and real-client concurrency/flee/death/relog smoke.
 - [ ] **[Merlin's Crystal](https://oldschool.runescape.wiki/w/Merlin%27s_Crystal/Quick_guide) — Sir Mordred.** Gate the castle encounter through the correct route, stop the fight at the authored non-lethal outcome, and keep optional giant-bat bones, black candle, Excalibur, chaos-altar ritual, and crystal shatter as separate item interactions. Neither Mordred nor the bat directly completes the quest.
 - [ ] **[Heroes' Quest](https://oldschool.runescape.wiki/w/Heroes%27_Quest/Quick_guide) — Ice Queen/firebird/Grip.** Make the [ice gloves](https://oldschool.runescape.wiki/w/Ice_gloves) a reusable guaranteed Ice Queen drop with possession/bank/reclaim logic; make the Entrana firebird drop the [fire feather](https://oldschool.runescape.wiki/w/Fire_feather) only when struck while wearing the gloves. Preserve gang-specific Grip combat and [candlestick](https://oldschool.runescape.wiki/w/Candlestick) progression, optional jailer/dusty-key routing, and partner item exchange without cross-route duplication.
 - [ ] **[Scorpion Catcher](https://oldschool.runescape.wiki/w/Scorpion_Catcher/Quick_guide) — optional jailer.** Keep the dusty-key kill/shop alternatives equivalent, implement all three quest scorpions and every partial/full [scorpion cage](https://oldschool.runescape.wiki/w/Scorpion_cage) state, and never advance quest state merely for killing the jailer.
