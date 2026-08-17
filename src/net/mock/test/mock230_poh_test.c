@@ -27,7 +27,8 @@ main(void)
     check(mock230_poh_validate(&poh), "the empty default record is valid");
     check(poh.schema_version == MOCK230_POH_SCHEMA_VERSION,
           "new records use the current schema");
-    check(poh.grid_size == 3 && poh.servant_last_task == -1,
+    check(poh.grid_size == 3 && poh.servant_last_task == -1 &&
+              poh.family_crest == -1,
           "new records receive non-zero defaults");
 
     check(mock230_poh_set(&poh, MOCK230_POH_FIELD_OWNS_HOUSE, 1),
@@ -40,6 +41,11 @@ main(void)
           "oversized layouts are rejected");
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_LOCKED, 2),
           "boolean fields reject non-booleans");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_FAMILY_CREST, 12) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_FAMILY_CREST) == 12,
+          "a family crest round-trips");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_FAMILY_CREST, 16),
+          "unknown family crests are rejected");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);

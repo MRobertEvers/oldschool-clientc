@@ -21124,7 +21124,9 @@ mock230_world_selftest(void)
                 &player->poh, MOCK230_POH_FIELD_OWNS_HOUSE, 1) &&
                 mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCATION, 1) &&
                 mock230_poh_set(&player->poh, MOCK230_POH_FIELD_STYLE, 2) &&
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, 1),
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, 1) &&
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_FAMILY_CREST, 12),
             "POH fixture settings should be accepted");
         SELFTEST_CHECK(
             mock230_poh_room_add(&player->poh, garden, 4, 3, 1, 0, 15) == 0 &&
@@ -21142,8 +21144,10 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(mock230_poh_validate(&player->poh),
                        "reloaded POH record should validate");
         SELFTEST_CHECK(player->poh.owns_house && player->poh.location == 1 &&
-                           player->poh.style == 2 && player->poh.locked,
-                       "POH ownership, location, style, and lock should round-trip");
+                           player->poh.style == 2 && player->poh.locked &&
+                           player->poh.family_crest == 12,
+                       "POH ownership, location, style, lock, and family crest "
+                       "should round-trip");
         SELFTEST_CHECK(player->poh.room_count == 2 &&
                            mock230_poh_room_get(
                                &player->poh, 1, MOCK230_POH_ROOM_DBROW) == parlour &&

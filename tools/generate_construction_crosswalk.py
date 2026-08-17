@@ -120,6 +120,45 @@ def load_reconciliations(path: Path) -> dict[str, dict[str, object]]:
     return rows
 
 
+def load_auxiliary_locs(
+    path: Path, furniture_symbols: set[str], loc_by_name: dict[str, object]
+) -> tuple[dict[str, list[dict[str, str]]], dict[str, object]]:
+    """Load reviewed multi-loc scene pairs absent from furniture infoboxes.
+
+    The Wiki's constructed-item row identifies the primary furniture object,
+    while a few room templates also replace a separate decorative loc (the
+    Workshop stool is the first such case). Keep those pairs symbolic and
+    validate both sides against the revision-239 cache.
+    """
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw_rows = payload.get("rows")
+    if not isinstance(raw_rows, dict):
+        raise CatalogError(f"{path}: missing rows object")
+    unknown = set(raw_rows) - furniture_symbols
+    if unknown:
+        raise CatalogError(f"{path}: unknown furniture rows {sorted(unknown)}")
+    result: dict[str, list[dict[str, str]]] = {}
+    for furniture, pairs_value in raw_rows.items():
+        if not isinstance(pairs_value, list) or not pairs_value:
+            raise CatalogError(f"{path}: {furniture} needs auxiliary loc pairs")
+        pairs_result = []
+        for pair in pairs_value:
+            if not isinstance(pair, list) or len(pair) != 2:
+                raise CatalogError(f"{path}: {furniture} has malformed auxiliary pair")
+            empty, built = map(str, pair)
+            if empty not in loc_by_name or built not in loc_by_name:
+                raise CatalogError(
+                    f"{path}: {furniture} references unknown loc pair {empty}, {built}"
+                )
+            if int(loc_by_name[empty].first("category") or -1) != 207:
+                raise CatalogError(f"{path}: {empty} is not a furniture hotspot loc")
+            if int(loc_by_name[built].first("category") or -1) != 206:
+                raise CatalogError(f"{path}: {built} is not built POH furniture")
+            pairs_result.append({"empty_loc": empty, "built_loc": built})
+        result[furniture] = pairs_result
+    return result, payload.get("wiki_source", {})
+
+
 def wiki_title_index(snapshot: dict[str, object]) -> dict[str, list[dict[str, object]]]:
     result: dict[str, list[dict[str, object]]] = defaultdict(list)
     for entry in snapshot["entries"]:
@@ -231,7 +270,10 @@ def reconciled_wiki_data(
 
 
 def generate(
-    content: Path, wiki_snapshot_path: Path, reconciliations_path: Path
+    content: Path,
+    wiki_snapshot_path: Path,
+    reconciliations_path: Path,
+    auxiliary_locs_path: Path,
 ) -> dict[str, object]:
     summary = validate(content)
     configs = content / "configs"
@@ -249,6 +291,9 @@ def generate(
     hotspots = table_rows(rows, "poh_hotspot")
     furniture_to_hotspots: dict[int, list[str]] = defaultdict(list)
     furniture_symbols = {row.name for row in furniture}
+    auxiliary_locs, auxiliary_wiki_source = load_auxiliary_locs(
+        auxiliary_locs_path, furniture_symbols, loc_by_name
+    )
     unknown_reconciliations = set(reconciliations) - furniture_symbols
     if unknown_reconciliations:
         raise CatalogError(
@@ -359,6 +404,7 @@ def generate(
                     {"id": loc_id, "symbol": loc_id_to_name[loc_id]}
                     for loc_id in sorted(set(built_ids))
                 ],
+                "auxiliary_locs": auxiliary_locs.get(row.name, []),
                 "experience": experience,
                 "wiki": wiki_entry.get("wiki") if wiki_entry else wiki_search(display_name),
                 "wiki_match": (
@@ -466,6 +512,8 @@ def generate(
             "snapshot_source": wiki_snapshot.get("source"),
             "snapshot_retrieved_at": wiki_snapshot.get("retrieved_at"),
             "reconciliations": str(reconciliations_path),
+            "auxiliary_locs": str(auxiliary_locs_path),
+            "auxiliary_locs_wiki_source": auxiliary_wiki_source,
             "construction": "https://oldschool.runescape.wiki/w/Construction",
             "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
             "level_up_table": "https://oldschool.runescape.wiki/w/Construction/Level_up_table",
@@ -483,6 +531,7 @@ def generate(
                 {placement["loc"] for placement in template_placements}
             ),
             "room_template_placements": len(template_placements),
+            "runtime_auxiliary_loc_pairs": sum(map(len, auxiliary_locs.values())),
         },
         "furniture": sorted(furniture_records, key=lambda item: item["id"]),
         "hotspots": sorted(hotspot_records, key=lambda item: item["id"]),
@@ -494,10 +543,12 @@ def generate(
     }
 
 
-def render(content: Path, wiki_snapshot: Path, reconciliations: Path) -> str:
+def render(
+    content: Path, wiki_snapshot: Path, reconciliations: Path, auxiliary_locs: Path
+) -> str:
     return (
         json.dumps(
-            generate(content, wiki_snapshot, reconciliations),
+            generate(content, wiki_snapshot, reconciliations, auxiliary_locs),
             indent=2,
             ensure_ascii=False,
             sort_keys=True,
@@ -550,6 +601,11 @@ def render_runtime_rows(crosswalk: dict[str, object]) -> str:
         )
         for built_loc in furniture["built_locs"]:
             lines.append(f"data=built_loc,{built_loc['symbol']}")
+        for auxiliary in furniture["auxiliary_locs"]:
+            lines.append(
+                "data=auxiliary_loc,"
+                f"{auxiliary['empty_loc']},{auxiliary['built_loc']}"
+            )
         lines.append("")
 
     placements_by_loc: dict[str, list[tuple[str, int, int, int, int, int]]] = defaultdict(list)
@@ -606,6 +662,11 @@ def main() -> int:
         default=Path("tools/data/construction_wiki_reconciliations.json"),
     )
     parser.add_argument(
+        "--auxiliary-locs",
+        type=Path,
+        default=Path("tools/data/construction_runtime_auxiliary_locs.json"),
+    )
+    parser.add_argument(
         "--runtime-output",
         type=Path,
         default=Path(
@@ -616,7 +677,12 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     try:
-        crosswalk = generate(args.content, args.wiki_snapshot, args.reconciliations)
+        crosswalk = generate(
+            args.content,
+            args.wiki_snapshot,
+            args.reconciliations,
+            args.auxiliary_locs,
+        )
         generated = json.dumps(
             crosswalk, indent=2, ensure_ascii=False, sort_keys=True
         ) + "\n"

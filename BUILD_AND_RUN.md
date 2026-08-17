@@ -542,14 +542,24 @@ arg=Jane Doe
 ### run-live.sh — the normal way to run
 
 ```sh
-./run-live.sh <manifest.ini> [user] [pass] [client args...]
-./run-live.sh web <manifest.ini> [user] [pass] [client args...]
+./run-live.sh [--skip-checks] <manifest.ini> [user] [pass] [client args...]
+./run-live.sh [--skip-checks] web <manifest.ini> [user] [pass] [client args...]
 ```
 
 ```sh
 ./run-live.sh manifest_osrs239.ini testc test          # live, embedded server
 ./run-live.sh manifest_rs254.ini asdf a --offline      # offline
 ./run-live.sh web manifest_osrs239.ini asdf a --offline
+```
+
+For fast client-code iteration, `--skip-checks` skips the cache-overlay and
+server-script freshness checks and uses both artifacts exactly as they stand.
+The incremental client build still runs, so C changes are included. The tradeoff
+is explicit: content or server-script edits will not appear until a normal run.
+`TORIRS_SKIP_CHECKS=1` provides the same behavior for scripts and aliases.
+
+```sh
+./run-live.sh --skip-checks manifest_osrs239.ini testc test
 ```
 
 What it does for you, and why each part exists:
@@ -560,11 +570,11 @@ What it does for you, and why each part exists:
   server writes the same wire the client speaks. Web runs deliberately build a
   plain module, force TCP/WebSocket transport, and start a native `mock230`
   child with the manifest's cache, content, and script-pack settings.
-- **It rebuilds the server script pack for every local live server run.** The
-  pack is a separate build from the binary, and the server loads whatever
-  `script.dat` was last compiled — not what the tree says today. Building the
-  binary and not the pack is how a session ends up running weeks-old content
-  with nothing reporting the mismatch.
+- **It checks the server script pack for every local live server run and
+  rebuilds it when stale.** The pack is a separate build from the binary, and
+  the server loads whatever `script.dat` was last compiled — not what the tree
+  says today. Building the binary and not the pack is how a session ends up
+  running weeks-old content with nothing reporting the mismatch.
 - For `lc254` against a live LostCity server it fetches the nine cache CRCs from
   `http://<host>/crc` unless `TORIRS_JAG_CRC` is already set.
 

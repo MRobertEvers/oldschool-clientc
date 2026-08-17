@@ -1,6 +1,7 @@
 {
   "furniture": [
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6752,
@@ -50,6 +51,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6753,
@@ -99,6 +101,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6754,
@@ -148,6 +151,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6755,
@@ -192,6 +196,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6756,
@@ -236,6 +241,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6757,
@@ -280,6 +286,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6758,
@@ -324,6 +331,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6759,
@@ -376,6 +384,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6762,
@@ -429,6 +438,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6765,
@@ -487,6 +497,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 54114,
@@ -551,6 +562,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56076,
@@ -610,6 +622,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6768,
@@ -659,6 +672,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6769,
@@ -703,6 +717,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6770,
@@ -747,6 +762,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6780,
@@ -791,6 +807,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6782,
@@ -847,6 +864,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6784,
@@ -903,6 +921,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6774,
@@ -965,6 +984,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6775,
@@ -1022,6 +1042,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6776,
@@ -1079,6 +1100,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56079,
@@ -1139,6 +1161,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13528,
@@ -1188,6 +1211,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13529,
@@ -1241,6 +1265,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13531,
@@ -1294,6 +1319,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13533,
@@ -1346,6 +1372,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13536,
@@ -1398,6 +1425,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13539,
@@ -1450,6 +1478,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13542,
@@ -1502,6 +1531,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13545,
@@ -1555,6 +1585,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13546,
@@ -1613,6 +1644,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13547,
@@ -1671,6 +1703,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13548,
@@ -1724,6 +1757,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13549,
@@ -1777,6 +1811,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13550,
@@ -1830,6 +1865,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13551,
@@ -1888,6 +1924,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13568,
@@ -1941,6 +1978,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13569,
@@ -1999,6 +2037,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13570,
@@ -2052,6 +2091,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13571,
@@ -2105,6 +2145,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13572,
@@ -2163,6 +2204,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13573,
@@ -2221,6 +2263,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13574,
@@ -2265,6 +2308,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13575,
@@ -2314,6 +2358,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13576,
@@ -2368,6 +2413,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13565,
@@ -2417,6 +2463,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13566,
@@ -2461,6 +2508,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13567,
@@ -2510,6 +2558,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13559,
@@ -2558,6 +2607,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13561,
@@ -2606,6 +2656,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13563,
@@ -2654,6 +2705,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26458,
@@ -2712,6 +2764,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13577,
@@ -2761,6 +2814,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13578,
@@ -2805,6 +2859,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13579,
@@ -2849,6 +2904,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 37621,
@@ -2924,6 +2980,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13293,
@@ -2973,6 +3030,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13294,
@@ -3017,6 +3075,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13295,
@@ -3061,6 +3120,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13296,
@@ -3105,6 +3165,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13297,
@@ -3154,6 +3215,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13298,
@@ -3198,6 +3260,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13299,
@@ -3257,6 +3320,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13300,
@@ -3306,6 +3370,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13301,
@@ -3350,6 +3415,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13302,
@@ -3394,6 +3460,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13303,
@@ -3446,6 +3513,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13304,
@@ -3499,6 +3567,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13305,
@@ -3548,6 +3617,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13306,
@@ -3602,6 +3672,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13798,
@@ -3707,6 +3778,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13814,
@@ -3812,6 +3884,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13782,
@@ -3922,6 +3995,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13307,
@@ -3971,6 +4045,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13308,
@@ -4020,6 +4095,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13309,
@@ -4074,6 +4150,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13148,
@@ -4128,6 +4205,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13149,
@@ -4177,6 +4255,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13150,
@@ -4226,6 +4305,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13151,
@@ -4275,6 +4355,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13152,
@@ -4324,6 +4405,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13153,
@@ -4373,6 +4455,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13154,
@@ -4427,6 +4510,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13155,
@@ -4476,6 +4560,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13156,
@@ -4520,6 +4605,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18784,
@@ -4568,6 +4654,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13158,
@@ -4612,6 +4699,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18788,
@@ -4660,6 +4748,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13160,
@@ -4704,6 +4793,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18794,
@@ -4757,6 +4847,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13162,
@@ -4811,6 +4902,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13163,
@@ -4860,6 +4952,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13164,
@@ -4909,6 +5002,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13165,
@@ -4958,6 +5052,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13166,
@@ -5007,6 +5102,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13167,
@@ -5056,6 +5152,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13168,
@@ -5110,6 +5207,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13169,
@@ -5159,6 +5257,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13170,
@@ -5208,6 +5307,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13171,
@@ -5262,6 +5362,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 28859,
@@ -5316,6 +5417,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13390,
@@ -5372,6 +5474,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13379,
@@ -5425,6 +5528,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13404,
@@ -5474,6 +5578,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13384,
@@ -5522,6 +5627,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13386,
@@ -5575,6 +5681,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13388,
@@ -5634,6 +5741,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13392,
@@ -5678,6 +5786,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13393,
@@ -5722,6 +5831,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13394,
@@ -5766,6 +5876,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13395,
@@ -5825,6 +5936,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13396,
@@ -5884,6 +5996,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13397,
@@ -5943,6 +6056,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13398,
@@ -5991,6 +6105,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13400,
@@ -6040,6 +6155,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13402,
@@ -6093,6 +6209,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13129,
@@ -6154,6 +6271,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13133,
@@ -6215,6 +6333,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13137,
@@ -6276,6 +6395,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13147,
@@ -6320,6 +6440,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13142,
@@ -6377,6 +6498,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13381,
@@ -6427,6 +6549,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13382,
@@ -6471,6 +6594,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13383,
@@ -6520,6 +6644,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29336,
@@ -6576,6 +6701,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29337,
@@ -6627,6 +6753,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 9355,
@@ -6679,6 +6806,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13497,
@@ -6732,6 +6860,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13497,
@@ -6783,6 +6912,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13497,
@@ -6834,6 +6964,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13499,
@@ -6883,6 +7014,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13499,
@@ -6930,6 +7062,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13499,
@@ -6977,6 +7110,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13503,
@@ -7026,6 +7160,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13501,
@@ -7079,6 +7214,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13501,
@@ -7130,6 +7266,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13501,
@@ -7181,6 +7318,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13505,
@@ -7230,6 +7368,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56110,
@@ -7280,6 +7419,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56111,
@@ -7330,6 +7470,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56111,
@@ -7380,6 +7521,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56112,
@@ -7435,6 +7577,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56112,
@@ -7485,6 +7628,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56113,
@@ -7540,6 +7684,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56114,
@@ -7592,6 +7737,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56115,
@@ -7644,6 +7790,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56116,
@@ -7699,6 +7846,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56117,
@@ -7751,6 +7899,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56118,
@@ -7803,6 +7952,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56119,
@@ -7858,6 +8008,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56120,
@@ -7910,6 +8061,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56121,
@@ -7962,6 +8114,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56122,
@@ -8017,6 +8170,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56123,
@@ -8069,6 +8223,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56124,
@@ -8124,6 +8279,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56125,
@@ -8176,6 +8332,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56126,
@@ -8236,6 +8393,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56127,
@@ -8296,6 +8454,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56128,
@@ -8356,6 +8515,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56129,
@@ -8416,6 +8576,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56130,
@@ -8466,6 +8627,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56131,
@@ -8516,6 +8678,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56131,
@@ -8566,6 +8729,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56132,
@@ -8616,6 +8780,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56132,
@@ -8666,6 +8831,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56133,
@@ -8721,6 +8887,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56134,
@@ -8773,6 +8940,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56135,
@@ -8825,6 +8993,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56136,
@@ -8880,6 +9049,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56137,
@@ -8932,6 +9102,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56138,
@@ -8987,6 +9158,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56139,
@@ -9047,6 +9219,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 56140,
@@ -9099,6 +9272,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13491,
@@ -9162,6 +9336,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13492,
@@ -9225,6 +9400,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13493,
@@ -9288,6 +9464,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13494,
@@ -9347,6 +9524,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13495,
@@ -9406,6 +9584,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13496,
@@ -9465,6 +9644,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13507,
@@ -9538,6 +9718,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13508,
@@ -9611,6 +9792,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13509,
@@ -9684,6 +9866,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13510,
@@ -9733,6 +9916,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13511,
@@ -9782,6 +9966,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13512,
@@ -9831,6 +10016,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13513,
@@ -9880,6 +10066,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13517,
@@ -9929,6 +10116,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13514,
@@ -9978,6 +10166,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13518,
@@ -10027,6 +10216,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13516,
@@ -10076,6 +10266,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13515,
@@ -10125,6 +10316,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13522,
@@ -10174,6 +10366,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13523,
@@ -10223,6 +10416,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13524,
@@ -10272,6 +10466,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31986,
@@ -10321,6 +10516,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13519,
@@ -10370,6 +10566,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13521,
@@ -10419,6 +10616,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13520,
@@ -10468,6 +10666,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13525,
@@ -10517,6 +10716,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13526,
@@ -10566,6 +10766,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13527,
@@ -10615,6 +10816,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13172,
@@ -10659,6 +10861,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13173,
@@ -10703,6 +10906,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13174,
@@ -10747,6 +10951,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13175,
@@ -10796,6 +11001,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13176,
@@ -10845,6 +11051,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13177,
@@ -10894,6 +11101,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13178,
@@ -10943,6 +11151,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 40871,
@@ -10998,6 +11207,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13179,
@@ -11054,6 +11264,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13182,
@@ -11110,6 +11321,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13185,
@@ -11171,6 +11383,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13188,
@@ -11232,6 +11445,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13191,
@@ -11298,6 +11512,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13194,
@@ -11359,6 +11574,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13197,
@@ -11425,6 +11641,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13202,
@@ -11473,6 +11690,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13200,
@@ -11526,6 +11744,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13204,
@@ -11579,6 +11798,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13206,
@@ -11632,6 +11852,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13208,
@@ -11685,6 +11906,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13210,
@@ -11738,6 +11960,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13212,
@@ -11799,6 +12022,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13217,
@@ -11876,6 +12100,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13218,
@@ -12204,6 +12429,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13219,
@@ -12532,6 +12758,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13271,
@@ -12592,6 +12819,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13272,
@@ -12652,6 +12880,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13273,
@@ -12712,6 +12941,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13214,
@@ -12766,6 +12996,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13215,
@@ -12815,6 +13046,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13216,
@@ -12864,6 +13096,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_1",
+          "empty_loc": "poh_workshop_1_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6791,
@@ -12913,6 +13151,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_1_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6792,
@@ -12957,6 +13201,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_1_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6793,
@@ -13006,6 +13256,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_1_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6794,
@@ -13057,6 +13313,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_1_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6795,
@@ -13108,6 +13370,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_2_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6796,
@@ -13154,6 +13422,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_2_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6797,
@@ -13200,6 +13474,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_2_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6798,
@@ -13246,6 +13526,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_stool_2",
+          "empty_loc": "poh_workshop_2_stool"
+        }
+      ],
       "built_locs": [
         {
           "id": 6799,
@@ -13292,6 +13578,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6786,
@@ -13338,6 +13625,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6787,
@@ -13384,6 +13672,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6788,
@@ -13430,6 +13719,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6789,
@@ -13476,6 +13766,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6790,
@@ -13522,6 +13813,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6800,
@@ -13566,6 +13858,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6801,
@@ -13615,6 +13908,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6802,
@@ -13664,6 +13958,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6803,
@@ -13708,6 +14003,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6804,
@@ -13752,6 +14048,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6805,
@@ -13801,6 +14098,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13642,
@@ -13845,6 +14143,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13643,
@@ -13889,6 +14188,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13644,
@@ -13933,6 +14233,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13645,
@@ -13977,6 +14278,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13646,
@@ -14021,6 +14323,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13647,
@@ -14070,6 +14373,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13648,
@@ -14119,6 +14423,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 37349,
@@ -14173,6 +14478,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13649,
@@ -14217,6 +14523,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13650,
@@ -14261,6 +14568,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13651,
@@ -14310,6 +14618,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13652,
@@ -14359,6 +14668,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13653,
@@ -14413,6 +14723,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13654,
@@ -14462,6 +14773,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13655,
@@ -14511,6 +14823,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13659,
@@ -14560,6 +14873,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13660,
@@ -14614,6 +14928,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13661,
@@ -14668,6 +14983,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13662,
@@ -14712,6 +15028,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13663,
@@ -14756,6 +15073,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13664,
@@ -14800,6 +15118,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41434,
@@ -14855,6 +15174,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13656,
@@ -14904,6 +15224,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13657,
@@ -14953,6 +15274,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13658,
@@ -15002,6 +15324,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13636,
@@ -15046,6 +15369,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13637,
@@ -15090,6 +15414,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13638,
@@ -15138,6 +15463,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13638,
@@ -15188,6 +15514,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13640,
@@ -15232,6 +15559,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13641,
@@ -15276,6 +15604,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13639,
@@ -15324,6 +15653,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13639,
@@ -15378,6 +15708,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33408,
@@ -15424,6 +15755,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33409,
@@ -15475,6 +15807,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33410,
@@ -15530,6 +15863,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33410,
@@ -15580,6 +15914,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33411,
@@ -15659,6 +15994,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33416,
@@ -15725,6 +16061,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13665,
@@ -15774,6 +16111,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13666,
@@ -15823,6 +16161,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13667,
@@ -15872,6 +16211,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13668,
@@ -15926,6 +16266,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13669,
@@ -15985,6 +16326,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13670,
@@ -16029,6 +16371,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13671,
@@ -16081,6 +16424,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13684,
@@ -16149,6 +16493,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13681,
@@ -16198,6 +16543,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6521,
@@ -16251,6 +16597,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13682,
@@ -16300,6 +16647,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13683,
@@ -16349,6 +16697,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13734,
@@ -16454,6 +16803,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13766,
@@ -16559,6 +16909,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13750,
@@ -16664,6 +17015,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13750,
@@ -16768,6 +17120,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13674,
@@ -16812,6 +17165,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13672,
@@ -16856,6 +17210,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13673,
@@ -16900,6 +17255,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13675,
@@ -16948,6 +17304,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13676,
@@ -16996,6 +17353,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13677,
@@ -17044,6 +17402,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13334,
@@ -17101,6 +17460,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13331,
@@ -17158,6 +17518,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13337,
@@ -17207,6 +17568,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13373,
@@ -17251,6 +17613,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13313,
@@ -17308,6 +17671,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13316,
@@ -17365,6 +17729,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13319,
@@ -17417,6 +17782,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13322,
@@ -17469,6 +17835,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13325,
@@ -17526,6 +17893,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13366,
@@ -17570,6 +17938,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13367,
@@ -17614,6 +17983,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13368,
@@ -17658,6 +18028,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13372,
@@ -17702,6 +18073,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13370,
@@ -17746,6 +18118,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13369,
@@ -17790,6 +18163,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 2715,
@@ -17834,6 +18208,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13342,
@@ -17883,6 +18258,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13341,
@@ -17932,6 +18308,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13343,
@@ -17986,6 +18363,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13328,
@@ -18030,6 +18408,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13329,
@@ -18074,6 +18453,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13330,
@@ -18118,6 +18498,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13312,
@@ -18162,6 +18543,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13311,
@@ -18206,6 +18588,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13310,
@@ -18255,6 +18638,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13356,
@@ -18299,6 +18683,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13357,
@@ -18343,6 +18728,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13358,
@@ -18387,6 +18773,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13359,
@@ -18431,6 +18818,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13360,
@@ -18475,6 +18863,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13344,
@@ -18523,6 +18912,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13346,
@@ -18576,6 +18966,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13348,
@@ -18624,6 +19015,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13283,
@@ -18677,6 +19069,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13285,
@@ -18736,6 +19129,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13287,
@@ -18795,6 +19189,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13388,
@@ -18848,6 +19243,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13291,
@@ -18896,6 +19292,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13378,
@@ -18940,6 +19337,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13374,
@@ -18984,6 +19382,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13376,
@@ -19028,6 +19427,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13377,
@@ -19072,6 +19472,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13375,
@@ -19116,6 +19517,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31984,
@@ -19160,6 +19562,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4525,
@@ -19209,6 +19612,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4526,
@@ -19253,6 +19657,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4527,
@@ -19297,6 +19702,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4528,
@@ -19346,6 +19752,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4529,
@@ -19391,6 +19798,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4529,
@@ -19437,6 +19845,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4531,
@@ -19485,6 +19894,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4532,
@@ -19537,6 +19947,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4533,
@@ -19585,6 +19996,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4534,
@@ -19633,6 +20045,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4535,
@@ -19681,6 +20094,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4536,
@@ -19729,6 +20143,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4537,
@@ -19777,6 +20192,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5128,
@@ -19821,6 +20237,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5129,
@@ -19865,6 +20282,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5130,
@@ -19909,6 +20327,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5131,
@@ -19953,6 +20372,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5132,
@@ -19997,6 +20417,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5133,
@@ -20041,6 +20462,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5134,
@@ -20085,6 +20507,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5135,
@@ -20129,6 +20552,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5136,
@@ -20173,6 +20597,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5137,
@@ -20217,6 +20642,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5138,
@@ -20261,6 +20687,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5139,
@@ -20305,6 +20732,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29146,
@@ -20364,6 +20792,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6748,
@@ -20413,6 +20842,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6749,
@@ -20457,6 +20887,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6750,
@@ -20501,6 +20932,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6751,
@@ -20545,6 +20977,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5152,
@@ -20589,6 +21022,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5153,
@@ -20633,6 +21067,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5154,
@@ -20677,6 +21112,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5155,
@@ -20726,6 +21162,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5631,
@@ -20775,6 +21212,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5632,
@@ -20824,6 +21262,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5907,
@@ -20869,6 +21308,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6727,
@@ -20921,6 +21361,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6730,
@@ -20973,6 +21414,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6733,
@@ -21025,6 +21467,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6736,
@@ -21077,6 +21520,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6739,
@@ -21129,6 +21573,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6742,
@@ -21181,6 +21626,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6745,
@@ -21233,6 +21679,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5146,
@@ -21282,6 +21729,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5147,
@@ -21331,6 +21779,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5148,
@@ -21380,6 +21829,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5140,
@@ -21429,6 +21879,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5141,
@@ -21478,6 +21929,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 5142,
@@ -21527,6 +21979,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18766,
@@ -21573,6 +22026,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18767,
@@ -21619,6 +22073,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18768,
@@ -21665,6 +22120,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18769,
@@ -21716,6 +22172,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18770,
@@ -21762,6 +22219,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18771,
@@ -21808,6 +22266,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13157,
@@ -21854,6 +22313,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18786,
@@ -21904,6 +22364,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13159,
@@ -21950,6 +22411,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18790,
@@ -22000,6 +22462,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18792,
@@ -22050,6 +22513,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13161,
@@ -22101,6 +22565,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18796,
@@ -22151,6 +22616,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18798,
@@ -22199,6 +22665,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18800,
@@ -22247,6 +22714,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18802,
@@ -22295,6 +22763,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18804,
@@ -22345,6 +22814,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18806,
@@ -22395,6 +22865,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18808,
@@ -22445,6 +22916,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18772,
@@ -22495,6 +22967,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18774,
@@ -22545,6 +23018,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18776,
@@ -22595,6 +23069,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18778,
@@ -22645,6 +23120,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18780,
@@ -22695,6 +23171,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 18782,
@@ -22745,6 +23222,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26297,
@@ -22791,6 +23269,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26298,
@@ -22837,6 +23316,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26299,
@@ -22883,6 +23363,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26830,
@@ -22934,6 +23415,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26831,
@@ -22985,6 +23467,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26832,
@@ -23041,6 +23524,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26858,
@@ -23090,6 +23574,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26859,
@@ -23144,6 +23629,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26860,
@@ -23198,6 +23684,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_combatring_mat",
+          "empty_loc": "poh_menagerie_combatring_mat_hotspot"
+        }
+      ],
       "built_locs": [
         {
           "id": 26862,
@@ -23252,6 +23744,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_combatring_mat",
+          "empty_loc": "poh_menagerie_combatring_mat_hotspot"
+        }
+      ],
       "built_locs": [
         {
           "id": 26863,
@@ -23306,6 +23804,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_combatring_mat",
+          "empty_loc": "poh_menagerie_combatring_mat_hotspot"
+        }
+      ],
       "built_locs": [
         {
           "id": 26864,
@@ -23360,6 +23864,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26868,
@@ -23414,6 +23919,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26870,
@@ -23463,6 +23969,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26871,
@@ -23512,6 +24019,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 26872,
@@ -23566,6 +24074,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_habitat_feature_1",
+          "empty_loc": "poh_menagerie_habitat_feature"
+        }
+      ],
       "built_locs": [
         {
           "id": 26840,
@@ -23623,6 +24137,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_habitat_feature_2",
+          "empty_loc": "poh_menagerie_habitat_feature"
+        }
+      ],
       "built_locs": [
         {
           "id": 26841,
@@ -23680,6 +24200,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_habitat_feature_3",
+          "empty_loc": "poh_menagerie_habitat_feature"
+        }
+      ],
       "built_locs": [
         {
           "id": 26842,
@@ -23737,6 +24263,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_habitat_feature_4",
+          "empty_loc": "poh_menagerie_habitat_feature"
+        }
+      ],
       "built_locs": [
         {
           "id": 26843,
@@ -23799,6 +24331,12 @@
       }
     },
     {
+      "auxiliary_locs": [
+        {
+          "built_loc": "poh_menagerie_habitat_feature_5",
+          "empty_loc": "poh_menagerie_habitat_feature"
+        }
+      ],
       "built_locs": [
         {
           "id": 26844,
@@ -23856,6 +24394,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29227,
@@ -23912,6 +24451,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29228,
@@ -23961,6 +24501,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 27097,
@@ -24027,6 +24568,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31554,
@@ -24076,6 +24618,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 27097,
@@ -24130,6 +24673,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 44936,
@@ -24183,6 +24727,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29230,
@@ -24263,6 +24808,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29237,
@@ -24326,6 +24872,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29238,
@@ -24376,6 +24923,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29239,
@@ -24426,6 +24974,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29240,
@@ -24481,6 +25030,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29241,
@@ -24545,6 +25095,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29247,
@@ -24599,6 +25150,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29253,
@@ -24658,6 +25210,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29261,
@@ -24717,6 +25270,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29262,
@@ -24766,6 +25320,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29267,
@@ -24820,6 +25375,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29111,
@@ -24876,6 +25432,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29272,
@@ -24924,6 +25481,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29274,
@@ -24972,6 +25530,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29276,
@@ -25035,6 +25594,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29147,
@@ -25094,6 +25654,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29148,
@@ -25153,6 +25714,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29149,
@@ -25217,6 +25779,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31858,
@@ -25295,6 +25858,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31858,
@@ -25371,6 +25935,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 31858,
@@ -25442,6 +26007,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29151,
@@ -25496,6 +26062,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29152,
@@ -25550,6 +26117,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29153,
@@ -25604,6 +26172,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 37492,
@@ -25699,6 +26268,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 37501,
@@ -25831,6 +26401,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 37520,
@@ -25995,6 +26566,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29157,
@@ -26049,6 +26621,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29164,
@@ -26103,6 +26676,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29165,
@@ -26157,6 +26731,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29166,
@@ -26206,6 +26781,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29226,
@@ -26255,6 +26831,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41035,
@@ -26737,6 +27314,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41050,
@@ -27224,6 +27802,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6762,
@@ -27276,6 +27855,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 6765,
@@ -27333,6 +27913,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41132,
@@ -27470,6 +28051,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41155,
@@ -27518,6 +28100,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41157,
@@ -27571,6 +28154,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29457,
@@ -27639,6 +28223,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 29458,
@@ -27712,6 +28297,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41165,
@@ -27816,6 +28402,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41172,
@@ -27925,6 +28512,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41179,
@@ -27969,6 +28557,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41180,
@@ -28018,6 +28607,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41181,
@@ -28067,6 +28657,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 41182,
@@ -28116,6 +28707,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 40383,
@@ -28177,6 +28769,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 47481,
@@ -28238,6 +28831,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 49939,
@@ -28299,6 +28893,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 33264,
@@ -28356,6 +28951,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 57012,
@@ -28407,6 +29003,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 57013,
@@ -28468,6 +29065,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 57733,
@@ -28523,6 +29121,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 57734,
@@ -28576,6 +29175,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58666,
@@ -28636,6 +29236,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58667,
@@ -28688,6 +29289,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58668,
@@ -28748,6 +29350,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58669,
@@ -28800,6 +29403,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58670,
@@ -28860,6 +29464,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58671,
@@ -28912,6 +29517,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58672,
@@ -28972,6 +29578,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58673,
@@ -29032,6 +29639,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 58674,
@@ -29092,6 +29700,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 4525,
@@ -29146,6 +29755,7 @@
       }
     },
     {
+      "auxiliary_locs": [],
       "built_locs": [
         {
           "id": 13671,
@@ -52651,6 +53261,7 @@
     "referenced_furniture": 512,
     "room_hotspot_references": 202,
     "room_template_placements": 1013,
+    "runtime_auxiliary_loc_pairs": 17,
     "runtime_furniture_rows": 525,
     "runtime_hotspot_loc_rows": 220,
     "tables": {
@@ -52667,6 +53278,22 @@
     "wiki_snapshot_entries": 493
   },
   "wiki_contract": {
+    "auxiliary_locs": "tools/data/construction_runtime_auxiliary_locs.json",
+    "auxiliary_locs_wiki_source": {
+      "pages": [
+        {
+          "page": "Stool (workshop)",
+          "rule": "A workshop workbench or crafting table has a separate stool; the stool is regular wood or oak according to the table tier.",
+          "url": "https://oldschool.runescape.wiki/w/Stool_(workshop)"
+        },
+        {
+          "page": "Menagerie",
+          "rule": "A pet arena includes its mat, and an outdoor habitat includes the matching terrain feature in addition to its ground tiles.",
+          "url": "https://oldschool.runescape.wiki/w/Menagerie"
+        }
+      ],
+      "reviewed_at": "2026-08-16"
+    },
     "constructed_items": "https://oldschool.runescape.wiki/w/Constructed_items",
     "construction": "https://oldschool.runescape.wiki/w/Construction",
     "level_up_table": "https://oldschool.runescape.wiki/w/Construction/Level_up_table",

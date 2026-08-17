@@ -178,11 +178,13 @@ write_poh(
             "servant_type = %d\n"
             "servant_paid = %d\n"
             "servant_last_task = %d\n"
-            "money_bag = %d\n",
+            "money_bag = %d\n"
+            "family_crest = %d\n",
             poh->schema_version, poh->owns_house, poh->location, poh->style,
             poh->locked, poh->door_mode, poh->teleport_inside,
             poh->default_build_mode, poh->grid_size, poh->servant_type,
-            poh->servant_paid, poh->servant_last_task, poh->money_bag);
+            poh->servant_paid, poh->servant_last_task, poh->money_bag,
+            poh->family_crest);
 
     fprintf(file,
             "\n[poh_rooms]\n"
@@ -655,6 +657,9 @@ mock230_load_player(
                     &player->poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, atoi(value));
             else if( strcmp(key, "money_bag") == 0 )
                 mock230_poh_set(&player->poh, MOCK230_POH_FIELD_MONEY_BAG, atoi(value));
+            else if( strcmp(key, "family_crest") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_FAMILY_CREST, atoi(value));
             break;
 
         case SAVE_POH_ROOMS:

@@ -1,8 +1,8 @@
 #!/bin/sh
 # Run torirs from a boot manifest, natively or in a browser.
 #
-#   ./run-live.sh       <manifest.ini> [user] [pass] [client args...]
-#   ./run-live.sh web   <manifest.ini> [user] [pass] [client args...]
+#   ./run-live.sh [--skip-checks]       <manifest.ini> [user] [pass] [client args...]
+#   ./run-live.sh [--skip-checks] web   <manifest.ini> [user] [pass] [client args...]
 #
 # The manifest (manifest_rs254.ini, manifest_osrs230.ini, manifest_xrsps.ini, …)
 # specifies cache, rev, transport, host/port and RSA keys. user/pass default to
@@ -34,6 +34,12 @@
 # TORIRS_PREPARE_ONLY=1 does both of those and stops, without building or
 # launching a client -- how run-runelite.sh borrows this file's bake policy
 # rather than copying it.
+#
+# --skip-checks (or TORIRS_SKIP_CHECKS=1) skips both content preparation
+# steps and runs the cache and script pack exactly as they stand. This is the
+# fast client-code iteration path: the incremental client build still runs, so
+# edited C is never silently ignored. Do not use it after changing content or
+# server scripts unless running those stale artifacts is intentional.
 #
 # Native osrs230 / osrs239 live runs use the in-process server: they build with
 # EMBED_SERVER=1 and set TORIRS_TRANSPORT=embed. Web live runs deliberately do
@@ -67,13 +73,19 @@ if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
     export MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
 fi
 
-USAGE='usage: run-live.sh [web] <manifest.ini> [user] [pass] [client args...]'
+USAGE='usage: run-live.sh [--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]'
 
 MODE=native
-if [ "${1:-}" = "web" ]; then
-    MODE=web
-    shift
-fi
+SKIP_CHECKS="${TORIRS_SKIP_CHECKS:-0}"
+# Launcher options are leading arguments so they can never be confused with a
+# client option. Accept `web` and --skip-checks in either order.
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        web) MODE=web; shift ;;
+        --skip-checks) SKIP_CHECKS=1; shift ;;
+        *) break ;;
+    esac
+done
 
 MANIFEST="${1:?$USAGE}"
 shift
@@ -527,6 +539,19 @@ build_cache_overlay() {
     esac
 }
 
+# Cache and scripts are one consistency boundary: skipping only one leaves a
+# run that looks prepared while its two server-side inputs describe different
+# content revisions. Keep the fast path explicit and centralized at every
+# native, web, and prepare-only call site.
+prepare_live_content() {
+    if [ "$SKIP_CHECKS" = 1 ]; then
+        echo "run-live.sh: --skip-checks -- using the cache and server script pack as they stand (they may be stale)" >&2
+        return 0
+    fi
+    build_cache_overlay
+    build_scripts
+}
+
 # TORIRS_PREPARE_ONLY=1 runs the manifest-driven preparation above -- the lane
 # cache bake and the server script pack -- and stops, without building or
 # launching a client. run-runelite.sh uses it: a RuneLite run needs the same
@@ -534,8 +559,7 @@ build_cache_overlay() {
 # implementation of those two predicates is exactly the drift the comments above
 # spend so long guarding against. Nothing else in this file runs in that mode.
 if [ "${TORIRS_PREPARE_ONLY:-0}" = 1 ]; then
-    build_cache_overlay
-    build_scripts
+    prepare_live_content
     exit 0
 fi
 
@@ -635,8 +659,7 @@ fi
 if [ "$MODE" = native ]; then
     if [ "$USE_EMBED" = 1 ]; then
         echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
-        build_cache_overlay
-        build_scripts
+        prepare_live_content
         if [ "$SANITIZE" != 0 ]; then
             echo "run-live.sh: TORIRS_SANITIZE=$SANITIZE — building $CLIENT_BIN with ASan+UBSan" >&2
             # Unquoted on purpose: SAN_MAKE_ARGS is a list of make assignments.
@@ -679,8 +702,7 @@ WEB_TARGET=web
 # never link EMBED_SERVER into the web module: the native mock below owns that
 # world and can open the host cache/content filesystem.
 if [ "$USE_MOCK230" = 1 ] && [ "${TORIRS_NO_MOCK:-0}" != 1 ]; then
-    build_cache_overlay
-    build_scripts
+    prepare_live_content
 fi
 # Command-line assignment is deliberate: even an inherited EMBED_SERVER=1
 # must not turn a `run-live.sh web` build into an embedded-world module.

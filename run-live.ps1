@@ -62,6 +62,7 @@
 
     Knobs (all also honoured by run-live.sh unless noted):
       TORIRS_NO_BUILD=1        run the existing exe/lane, skip every build
+      TORIRS_SKIP_CHECKS=1     use cache and server script pack as they stand
       TORIRS_NO_CACHE_BAKE=1   keep the composed cache as it stands
       TORIRS_FORCE_CACHE_BAKE=1  rebake the composed cache without asking
       TORIRS_FORCE_SCRIPT_BUILD=1  recompile the server script pack without asking
@@ -78,20 +79,22 @@
       TORIRS_NET_CHEAT, TORIRS_MAX_FRAMES, TORIRS_EXIT_BMP, ...)
 
 .PARAMETER RawArgs
-    `[web] <manifest.ini> [user] [pass] [client args...]`, exactly as
-    run-live.sh takes $@. The literal first value `web` switches this script
-    into web mode. Next comes the manifest path (required), then an optional
-    user, then an optional pass -- each omitted one falls back to the
-    manifest's own user=/pass=, then asdf/a. Everything left over is handed to
-    the client verbatim (--soft3d, --opengl3, --offline, --connect host:port,
-    ...). Do NOT separate client args with a bare `--`, which PowerShell
-    rejects as an ambiguous parameter name before this script is ever
-    entered.
+    `[--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]`,
+    exactly as run-live.sh takes $@. The literal first value `web` switches
+    this script into web mode. `--skip-checks` skips cache-overlay and
+    server-script preparation while retaining the incremental client build.
+    Next comes the manifest path (required), then an optional user, then an
+    optional pass -- each omitted one falls back to the manifest's own
+    user=/pass=, then asdf/a. Everything left over is handed to the client
+    verbatim (--soft3d, --opengl3, --offline, --connect host:port, ...). Do NOT
+    separate client args with a bare `--`, which PowerShell rejects as an
+    ambiguous parameter name before this script is ever entered.
 
 .EXAMPLE
     .\run-live.ps1 manifest_osrs239_rs2012.ini
     .\run-live.ps1 manifest_osrs239_rs2012.ini --opengl3
     .\run-live.ps1 manifest_osrs230.ini qbdrepro test --soft3d
+    .\run-live.ps1 --skip-checks manifest_osrs230.ini qbdrepro test
     .\run-live.ps1 web manifest_osrs239_rs2012.ini
     .\run-live.ps1 web manifest_osrs230.ini qbdrepro test --offline
 #>
@@ -107,7 +110,7 @@ $repo = $PSScriptRoot
 $exe = Join-Path $repo 'src\torirs_win64.exe'
 $make = Join-Path $repo 'make.ps1'
 
-$Usage = 'usage: run-live.ps1 [web] <manifest.ini> [user] [pass] [client args...]'
+$Usage = 'usage: run-live.ps1 [--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]'
 
 # One raw argument list, shifted by hand -- the direct equivalent of
 # run-live.sh's `MANIFEST="${1:?}"; shift`. See the -Description note above
@@ -125,9 +128,19 @@ function Take-Arg {
 }
 
 $mode = 'native'
-if ($argQueue.Count -gt 0 -and $argQueue[0] -eq 'web') {
-    $mode = 'web'
-    [void](Take-Arg)
+$skipChecks = ($env:TORIRS_SKIP_CHECKS -eq '1')
+# Launcher options are leading arguments so they can never be confused with a
+# client option. Accept `web` and --skip-checks in either order.
+while ($argQueue.Count -gt 0) {
+    if ($argQueue[0] -eq 'web') {
+        $mode = 'web'
+        [void](Take-Arg)
+    } elseif ($argQueue[0] -eq '--skip-checks') {
+        $skipChecks = $true
+        [void](Take-Arg)
+    } else {
+        break
+    }
 }
 
 $Manifest = Take-Arg
@@ -697,6 +710,17 @@ function Build-Scripts {
     Invoke-Make -Targets @($target)
 }
 
+# Cache and scripts are one consistency boundary. Keep the fast path together
+# at each native and web call site so a launch cannot prepare only one half.
+function Prepare-LiveContent {
+    if ($skipChecks) {
+        Write-Host 'run-live.ps1: --skip-checks -- using the cache and server script pack as they stand (they may be stale)' -ForegroundColor Yellow
+        return
+    }
+    Build-CacheOverlay
+    Build-Scripts
+}
+
 # ------------------------------------------------------------------- web lane
 #
 # Windows PowerShell 5.1 has no [IO.Path]::GetRelativePath (.NET Core-only), so
@@ -814,8 +838,7 @@ if ($mode -eq 'native') {
             Assert-ContentTree
             Write-Host "run-live.ps1: content tree ($contentChoice): $env:MOCK230_CONTENT_DIR" -ForegroundColor Cyan
             Write-Host "run-live.ps1: $rev -- building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$env:MOCK230_REV)" -ForegroundColor Cyan
-            Build-CacheOverlay
-            Build-Scripts
+            Prepare-LiveContent
             Invoke-Make -Targets @('win64') -Parallel -EmbedServer
         } elseif (-not (Test-Path -LiteralPath $exe)) {
             Write-Host "run-live.ps1: building $exe..." -ForegroundColor Cyan
@@ -861,8 +884,7 @@ if ($env:TORIRS_NO_BUILD -ne '1') {
     # EMBED_SERVER=1 cannot turn this into an embedded-world module.
     if ($useMockEffective) {
         Assert-ContentTree
-        Build-CacheOverlay
-        Build-Scripts
+        Prepare-LiveContent
     }
     Invoke-Make -Targets @('EMBED_SERVER=0', $webTarget)
 

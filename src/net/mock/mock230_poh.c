@@ -15,6 +15,7 @@ mock230_poh_init(struct Mock230PohState* poh)
     poh->schema_version = MOCK230_POH_SCHEMA_VERSION;
     poh->grid_size = 3;
     poh->servant_last_task = -1;
+    poh->family_crest = -1;
 }
 
 void
@@ -56,6 +57,8 @@ mock230_poh_get(
         return poh->servant_last_task;
     case MOCK230_POH_FIELD_MONEY_BAG:
         return poh->money_bag;
+    case MOCK230_POH_FIELD_FAMILY_CREST:
+        return poh->family_crest;
     default:
         return 0;
     }
@@ -128,6 +131,11 @@ mock230_poh_set(
         if( value < 0 )
             return 0;
         poh->money_bag = value;
+        return 1;
+    case MOCK230_POH_FIELD_FAMILY_CREST:
+        if( value < -1 || value > 15 )
+            return 0;
+        poh->family_crest = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -387,6 +395,7 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         !boolean_value(poh->default_build_mode) || poh->grid_size < 3 ||
         poh->grid_size > 7 || poh->servant_type < 0 || poh->servant_type > 15 ||
         poh->servant_paid < 0 || poh->servant_last_task < -1 || poh->money_bag < 0 ||
+        poh->family_crest < -1 || poh->family_crest > 15 ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )

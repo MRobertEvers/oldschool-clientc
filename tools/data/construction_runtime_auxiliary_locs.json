@@ -1,0 +1,37 @@
+{
+  "policy": "Reviewed symbolic auxiliary scene locs only. Cache symbols remain authoritative; numeric object IDs must not be copied here.",
+  "wiki_source": {
+    "reviewed_at": "2026-08-16",
+    "pages": [
+      {
+        "page": "Stool (workshop)",
+        "url": "https://oldschool.runescape.wiki/w/Stool_(workshop)",
+        "rule": "A workshop workbench or crafting table has a separate stool; the stool is regular wood or oak according to the table tier."
+      },
+      {
+        "page": "Menagerie",
+        "url": "https://oldschool.runescape.wiki/w/Menagerie",
+        "rule": "A pet arena includes its mat, and an outdoor habitat includes the matching terrain feature in addition to its ground tiles."
+      }
+    ]
+  },
+  "rows": {
+    "poh_workbench_1": [["poh_workshop_1_stool", "poh_stool_1"]],
+    "poh_workbench_2": [["poh_workshop_1_stool", "poh_stool_2"]],
+    "poh_workbench_3": [["poh_workshop_1_stool", "poh_stool_2"]],
+    "poh_workbench_4": [["poh_workshop_1_stool", "poh_stool_2"]],
+    "poh_workbench_5": [["poh_workshop_1_stool", "poh_stool_2"]],
+    "poh_crafting_table_1": [["poh_workshop_2_stool", "poh_stool_2"]],
+    "poh_crafting_table_2": [["poh_workshop_2_stool", "poh_stool_2"]],
+    "poh_crafting_table_3": [["poh_workshop_2_stool", "poh_stool_2"]],
+    "poh_crafting_table_4": [["poh_workshop_2_stool", "poh_stool_2"]],
+    "poh_menagerie_combatring_1": [["poh_menagerie_combatring_mat_hotspot", "poh_menagerie_combatring_mat"]],
+    "poh_menagerie_combatring_2": [["poh_menagerie_combatring_mat_hotspot", "poh_menagerie_combatring_mat"]],
+    "poh_menagerie_combatring_3": [["poh_menagerie_combatring_mat_hotspot", "poh_menagerie_combatring_mat"]],
+    "poh_menagerie_habitat_1": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_1"]],
+    "poh_menagerie_habitat_2": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_2"]],
+    "poh_menagerie_habitat_3": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_3"]],
+    "poh_menagerie_habitat_4": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_4"]],
+    "poh_menagerie_habitat_5": [["poh_menagerie_habitat_feature", "poh_menagerie_habitat_feature_5"]]
+  }
+}
