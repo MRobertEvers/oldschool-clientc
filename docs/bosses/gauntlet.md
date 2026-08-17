@@ -29,8 +29,29 @@ marks a measurement task instead of inventing a number.
 
 This document supersedes the completion claims in [`docs/GAUNTLET.md`](../GAUNTLET.md).
 That file is useful historical context for the first vertical slice and outside
-crystal equipment, but the audit below shows that the minigame is not yet at
-parity.
+crystal equipment; the baseline audit below records the gaps that this plan was
+written to close.
+
+### Implementation status — 17 August 2026
+
+The Wiki-specified code surfaces in slices 1–6, plus the automated contract
+work in slice 7, have now been landed in the Gauntlet content package. The
+shipped surface includes transactional entry and teardown, a 7×7 connected
+instance with discovery UI, gathering and all native recipes, ordinary
+monsters and drops, both Hunllef encounters, immutable pending rewards,
+records, collection-log hooks, all 21 Combat Achievements, the Gauntlet cape
+and the Youngllef follower. The contract manifest and checker live in
+`tools/data/gauntlet_contract.json` and `tools/check_gauntlet_contract.py`; run
+them with `make -C src check-gauntlet-contract`. The live-client matrix and the
+measurements below remain acceptance work, not completed verification.
+
+Sections 2 and 12 remain the original baseline audit and delivery plan rather
+than a description of the current tree. Section 13 remains deliberately open:
+the Wiki does not publish the exact floor masks, room/content probability
+tables, normal-mode secondary-drop denominators, prayer-disable probability,
+or several hidden damage/spawn choices. The implementation uses the documented
+behaviour plus labelled inferences for those values; exact parity requires a
+reproducible live-game trace as specified there.
 
 ---
 

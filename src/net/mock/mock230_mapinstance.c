@@ -60,6 +60,8 @@ enum
 struct Mock230MapInstance
 {
     int active;
+    /** Script-visible uid of the player who allocated this reservation. */
+    int owner_uid;
     /** Absolute south-west tile. */
     int base_x, base_z;
     int zone_w, zone_h;
@@ -391,6 +393,47 @@ mock230_mapinstance_alloc(
         }
     }
     return 0;
+}
+
+int
+mock230_mapinstance_set_owner(
+    int handle,
+    int player_uid)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || player_uid < 0 )
+        return 0;
+    inst->owner_uid = player_uid;
+    return 1;
+}
+
+int
+mock230_mapinstance_owner(int handle)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    return inst ? inst->owner_uid : 0;
+}
+
+int
+mock230_mapinstance_clear_owner(int player_uid)
+{
+    int cleared = 0;
+
+    if( player_uid <= 0 )
+        return 0;
+    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    {
+        struct Mock230MapInstance* inst = &g_instances[i];
+
+        if( inst->active && inst->owner_uid == player_uid )
+        {
+            inst->owner_uid = 0;
+            cleared++;
+        }
+    }
+    return cleared;
 }
 
 int

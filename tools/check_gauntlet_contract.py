@@ -27,6 +27,9 @@ MAP_STATE = (GAUNTLET / "scripts/gauntlet_map_state.rs2").read_text()
 NPC_CONFIG = (GAUNTLET / "configs/gauntlet_monsters.npc").read_text()
 INV_CONFIG = (GAUNTLET / "configs/gauntlet.inv").read_text()
 RECIPE_INTERFACE = (BASE / "interfaces/gauntlet_recipes.if").read_text()
+MAGIC = (BASE / "server/scripts/skill_magic/scripts/magic.rs2").read_text()
+TELEPORT = (BASE / "server/scripts/skill_magic/scripts/spells/teleport.rs2").read_text()
+HOME_TELEPORT = (BASE / "server/scripts/skill_magic/scripts/spells/home_teleport.rs2").read_text()
 
 DIRECTIONS = {"N": (0, 1), "E": (1, 0), "S": (0, -1), "W": (-1, 0)}
 OPPOSITE = {"N": "S", "E": "W", "S": "N", "W": "E"}
@@ -232,8 +235,10 @@ def check_content_contract() -> None:
     require(prepare, "inv_total(collection_transmit, gauntletpet)", "durable pet ownership")
     require(prepare, "%pet_insurance_gauntlet = 0", "insured pet ownership")
     require(prepare, "%pet_menagerie_gauntlet = 0", "menagerie pet ownership")
-    require(prepare, "inv_total(worn, gauntlet_crystalline_cape)", "worn cape ownership")
-    require(prepare, "inv_total(collection_transmit, gauntlet_crystalline_cape)", "durable cape ownership")
+    cape_owned = proc_body(REWARDS, "gauntlet_owns_cape")
+    require(cape_owned, "inv_total(worn, gauntlet_crystalline_cape)", "worn cape ownership")
+    require(cape_owned, "%gauntlet_cape_rack = 1", "cape-rack ownership")
+    require(prepare, "~gauntlet_owns_cape = false", "cape-rack ownership")
     require(INV_CONFIG, "[gauntlet_pending_reward]\nsize=12", "immutable pending rewards")
     deliver = proc_body(REWARDS, "gauntlet_deliver_reward")
     require(deliver, "oc_tradeable($item) = true", "untradeable reward retention")
@@ -249,7 +254,7 @@ def check_content_contract() -> None:
         "inv_movetoslot(gauntlet_holding_worn, worn, $slot, $slot);",
         "midi_song(^gauntlet_music_track);", "midi_song(-1);",
         "%summoning_pet_active = 1", "%gauntlet_pet_active = 1", "npc_findowned = true",
-        "You are already in the starting room.",
+        "You are already in the starting room.", "~gauntlet_award_completion_cape;",
     ):
         require(CORE, needle, "session/layout contract")
     for needle in (
@@ -257,6 +262,7 @@ def check_content_contract() -> None:
         "[opheld5,gauntletpet]", "[opnpc4,gauntlet_pet]",
         "[opnpc3,gauntlet_pet]", "[opnpc1,gauntlet_pet]",
         "%total_completed_gauntlet_hm > 0", "%pet_insurance_gauntlet = 1",
+        "[oplocu,poh_cos_room_cape_rack_oak]", "[oploc1,poh_cos_room_cape_rack_magic_stone]",
     ):
         require(PROGRESS, needle, "Youngllef follower lifecycle")
     constants = (GAUNTLET / "configs" / "gauntlet.constant").read_text()
@@ -274,14 +280,17 @@ def check_content_contract() -> None:
         require(HUNLLEF, needle, "Hunllef state machine")
     for needle in (
         "[oploc1,gauntlet_scoreboard]", "[oploc1,gauntlet_deposit_box]",
-        "if_openmain(gauntlet_recipes)",
+        "if_openmain(gauntlet_recipes)", "%gauntlet_bryn_intro = 1",
     ):
         require(LOBBY, needle, "lobby interaction")
+    require(CORE, "npc_findexact(^gauntlet_bryn_coord, gauntlet_instructor)", "Bryn introduction gate")
     for needle in (
         "[if_button,gauntlet_overlay:timer]", "if_opensub(toplevel_osrs_stretch:mainmodal, gauntlet_map, 0)",
         "~gauntlet_mark_room(%gauntlet_start)",
     ):
         require(MAP_STATE + CORE, needle, "map/UI contract")
+    for text in (MAGIC, TELEPORT, HOME_TELEPORT):
+        require(text, "%player_in_gauntlet = 1", "Gauntlet teleport block")
 
 
 def main() -> None:

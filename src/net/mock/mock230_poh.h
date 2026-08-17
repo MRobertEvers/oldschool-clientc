@@ -13,7 +13,7 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 4,
+    MOCK230_POH_SCHEMA_VERSION = 5,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
@@ -45,6 +45,10 @@ enum Mock230PohField
     MOCK230_POH_FIELD_SPICE_ORANGE = 17,
     MOCK230_POH_FIELD_SPICE_BROWN = 18,
     MOCK230_POH_FIELD_SPICE_YELLOW = 19,
+    MOCK230_POH_FIELD_TIP_COINS = 20,
+    MOCK230_POH_FIELD_TIP_PLATINUM = 21,
+    MOCK230_POH_FIELD_TIP_NOTIFY = 22,
+    MOCK230_POH_FIELD_TIP_AUTO_BANK = 23,
 };
 
 enum Mock230PohRoomField
@@ -105,6 +109,10 @@ struct Mock230PohState
     int spice_orange;
     int spice_brown;
     int spice_yellow;
+    int tip_coins;
+    int tip_platinum;
+    int tip_notify;
+    int tip_auto_bank;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

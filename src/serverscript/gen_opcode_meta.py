@@ -561,6 +561,24 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "POH_ROOM_SET": (11055, 3, 0, 1, 0),
     "POH_ROOM_REMOVE": (11056, 1, 0, 1, 0),
 
+    # map_instance_owner(int $handle)(player_uid)
+    #
+    # The live player who allocated the reservation. A handle/coordinate says
+    # where an instance is but not whose persistent state backs it; POH guest
+    # interactions (tips first, then friend entry and host controls) need that
+    # identity without making the generic instance registry Construction-aware.
+    "MAP_INSTANCE_OWNER": (11062, 1, 0, 1, 0),
+
+    # npc_respawn_remaining(coord, npc, range)(int)
+    #
+    # Remaining ticks on the nearest matching dead NPC's absolute respawn
+    # clock, or -1 when there is no such actor. Ordinary npc_find deliberately
+    # excludes dead actors; encounter dependants still need this one piece of
+    # lifecycle state to synchronize with their controller (2009scape's God
+    # Wars minions copy boss.getRespawnTick()). Geometry and the clock are
+    # engine mechanism; which encounter shares them remains content policy.
+    "NPC_RESPAWN_REMAINING": (11063, 3, 0, 1, 0),
+
     # loc_add_op(coord, loc, int angle, locshape shape, int duration,
     #            int opslot, string optext)
     #
@@ -611,6 +629,12 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # calculations; exposing a read is needed for content rules keyed to the
     # 200,000,000 XP cap (notably Wintertodt's Phoenix modifier).
     "STAT_XP": (11060, 1, 0, 1, 0),
+
+    # hitmark(uid, hitsplat, amount) — show a player hitsplat without changing
+    # Hitpoints or invoking combat/death. Alternate resources such as
+    # Wintertodt Warmth still need the ordinary player update mask, but must
+    # not fake the effect by adding and subtracting real Hitpoints.
+    "HITMARK": (11061, 3, 0, 0, 0),
 
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
@@ -906,6 +930,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
     "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_OWNER": (0, 0),
     # None, and that matches LOC_ADD (3000), whose require mask is 0x000: the
     # command names its own coord and needs no active anything. Listed rather
     # than omitted so the assert in the writer stays a whitelist.

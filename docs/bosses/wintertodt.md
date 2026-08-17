@@ -1,4 +1,4 @@
-# Wintertodt — full implementation plan
+# Wintertodt — full implementation plan and delivery record
 
 Implementation plan for bringing the Wintertodt encounter, its camp, rewards,
 NPCs, interfaces, persistence, and adjacent interactions to current OSRS
@@ -9,8 +9,8 @@ Hitpoints damage and successful rounds add searches to the Reward Cart rather
 than issuing new supply-crate items. That is the correct target for this tree:
 the revision-239 cache already contains `wint_warmth`, `wint_reward_pool`,
 interface 396's Warmth bar, Brew'ma, the off-hand bruma torch, and all six
-Reward Cart states. The existing server scripts predate those assets and are
-only a partial prototype. [W1] [W4] [W29]
+Reward Cart states. The server scripts that existed when this plan was written
+predated those assets and were only a partial prototype. [W1] [W4] [W29]
 
 Two source kinds are kept separate:
 
@@ -20,6 +20,60 @@ Two source kinds are kept separate:
 Where the Wiki does not publish a value, this plan says so and requires a
 capture or another authoritative observation instead of silently inventing a
 number.
+
+---
+
+## 0. Implementation result — 17 August 2026
+
+All Wintertodt-owned phases in this plan are implemented. The encounter now
+uses one shared Snow-NPC controller and includes the rest/active lifecycle,
+four shared lanes, all five attacks, Warmth, doors and cleanup, the HUD,
+settlement, persistent Reward Cart, modern and legacy loot, exchanges, camp
+NPCs/scenery, reward-item operations, and progression hooks.
+
+The implementation is divided deliberately rather than kept in one event
+script:
+
+- `wintertodt_controller.rs2` owns shared phase, energy, lane state, attacks,
+  participant settlement, diary and Combat Achievement hooks;
+- `wintertodt_actions.rs2` owns roots, kindling, braziers, potions and
+  pyromancers, while `wintertodt_warmth.rs2` owns the Warmth formulas,
+  restoration, food/regen adapters, escape effects and cosmetic hitsplats;
+- `wintertodt_doors.rs2`, `wintertodt_rewards.rs2`,
+  `wintertodt_items.rs2`, `wintertodt_pet.rs2`, `wintertodt_npc.rs2` and
+  `wintertodt_camp.rs2` own their corresponding boundaries;
+- `wintertodt.constant`, `wintertodt.varp`, `wintertodt.spawn` and the
+  exhaustive `wintertodt_warm_items.enum` hold the tunable/cache contracts;
+- shared login/logout/death, food, Hitpoints regeneration, Heal Other, bank,
+  alchemy, collection-log, diary, achievement and music scripts call the
+  Wintertodt hooks instead of duplicating encounter logic.
+
+Two small engine additions support rules that content could not express
+correctly: `stat_xp(stat)` reads raw tenths-of-XP for the 200-million-XP
+Phoenix modifier, and `hitmark(uid, hitsplat, amount)` displays a Warmth hit
+without mutating Hitpoints or invoking combat death.
+
+Verification delivered with the implementation:
+
+- `::wintrun` deterministically pins settlement boundaries, the complete
+  damage-formula matrix, reward interpolation and representative positive and
+  negative warm-clothing cases; the mock selftest invokes it when the current
+  full script pack is available;
+- `tools/wintertodt_reward_audit.py` parses every material row, coefficient,
+  quantity, category weight and unique denominator from the implementation,
+  then samples 100,000 searches each at levels 1, 50 and 99;
+- a focused 642-script dependency build passes, as do `test-ss-meta`,
+  `test-ss-vm`, the mock engine build and opcode-coverage generation; the
+  engine selftest also proves a cosmetic hitmark leaves real Hitpoints
+  unchanged.
+
+The deliberately external boundaries remain the ones defined by this plan:
+the camp poll booth needs a repository-wide polling system (none exists in the
+current script tree), and the observations in §12 remain named capture work
+with documented, centralized defaults. The repository-wide script/selftest
+gate is presently prevented from being a clean Wintertodt signal by unrelated
+in-progress content and missing map fixtures; this does not affect the focused
+Wintertodt compile or reward audit.
 
 ---
 

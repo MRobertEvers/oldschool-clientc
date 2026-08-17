@@ -185,14 +185,19 @@ write_poh(
             "spice_red = %d\n"
             "spice_orange = %d\n"
             "spice_brown = %d\n"
-            "spice_yellow = %d\n",
+            "spice_yellow = %d\n"
+            "tip_coins = %d\n"
+            "tip_platinum = %d\n"
+            "tip_notify = %d\n"
+            "tip_auto_bank = %d\n",
             poh->schema_version, poh->owns_house, poh->location, poh->style,
             poh->locked, poh->door_mode, poh->teleport_inside,
             poh->default_build_mode, poh->grid_size, poh->servant_type,
             poh->servant_paid, poh->servant_last_task, poh->money_bag,
             poh->family_crest, poh->head_trophies, poh->fish_trophies,
             poh->spice_red, poh->spice_orange, poh->spice_brown,
-            poh->spice_yellow);
+            poh->spice_yellow, poh->tip_coins, poh->tip_platinum,
+            poh->tip_notify, poh->tip_auto_bank);
 
     fprintf(file,
             "\n[poh_rooms]\n"
@@ -686,6 +691,18 @@ mock230_load_player(
             else if( strcmp(key, "spice_yellow") == 0 )
                 mock230_poh_set(
                     &player->poh, MOCK230_POH_FIELD_SPICE_YELLOW, atoi(value));
+            else if( strcmp(key, "tip_coins") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TIP_COINS, atoi(value));
+            else if( strcmp(key, "tip_platinum") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TIP_PLATINUM, atoi(value));
+            else if( strcmp(key, "tip_notify") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TIP_NOTIFY, atoi(value));
+            else if( strcmp(key, "tip_auto_bank") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TIP_AUTO_BANK, atoi(value));
             break;
 
         case SAVE_POH_ROOMS:

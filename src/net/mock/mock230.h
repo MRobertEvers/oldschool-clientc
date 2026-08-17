@@ -4505,6 +4505,12 @@ mock230_combat_hit_player(
     struct Mock230Server* srv,
     int type,
     int amount);
+/** Display a player hitsplat without mutating Hitpoints or causing death. */
+void
+mock230_combat_hitmark_player(
+    struct Mock230Server* srv,
+    int type,
+    int amount);
 void
 mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot);
 

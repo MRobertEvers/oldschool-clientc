@@ -28,7 +28,8 @@ main(void)
     check(poh.schema_version == MOCK230_POH_SCHEMA_VERSION,
           "new records use the current schema");
     check(poh.grid_size == 3 && poh.servant_last_task == -1 &&
-              poh.family_crest == -1,
+              poh.family_crest == -1 && poh.tip_notify == 1 &&
+              poh.tip_auto_bank == 0,
           "new records receive non-zero defaults");
 
     check(mock230_poh_set(&poh, MOCK230_POH_FIELD_OWNS_HOUSE, 1),
@@ -75,6 +76,17 @@ main(void)
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_MONEY_BAG,
                            MOCK230_POH_MONEY_BAG_MAX + 1),
           "the servant money bag rejects values above its Wiki cap");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_COINS, 7500000) &&
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_PLATINUM, 1234) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_TIP_COINS) == 7500000 &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_TIP_PLATINUM) == 1234,
+          "the two shared tip-jar balances round-trip independently");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_NOTIFY, 0) &&
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_AUTO_BANK, 1),
+          "tip notification and logout-bank settings are durable");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_COINS, -1) &&
+              !mock230_poh_set(&poh, MOCK230_POH_FIELD_TIP_NOTIFY, 2),
+          "tip balances reject negatives and settings reject non-booleans");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);

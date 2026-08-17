@@ -1042,6 +1042,26 @@ mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
 }
 
 void
+mock230_combat_hitmark_player(
+    struct Mock230Server* srv,
+    int type,
+    int amount)
+{
+    struct Mock230Player* player = srv->active_player;
+
+    assert(player);
+    if( amount < 0 )
+        amount = 0;
+    mock230_hitmark_add(player->hitmarks, &player->hitmark_count, amount,
+                        amount > 0 ? type : hitsplat_block());
+    player->damage = player->hitmarks[0].damage;
+    player->damage_type = player->hitmarks[0].type;
+    player->masks |= MOCK230_PMASK_DAMAGE;
+    if( player->hitmark_count >= 2 )
+        player->masks |= MOCK230_PMASK_DAMAGE2;
+}
+
+void
 mock230_combat_hit_player(
     struct Mock230Server* srv,
     int type,

@@ -290,6 +290,29 @@ The `N·(N+1)` formula and the flat 4,000 are stated separately by [W1]; the fac
 that they sum to the published 8,032 at N = 63 is the arithmetic check that both
 were read correctly, and is why neither is guessed.
 
+**The 11,520 is not a reward — it is a consequence, and checking that is what
+proves three other things at once.** Slayer xp in this tree is
+`npc_basestat(hitpoints)` (`skill_slayer/scripts/slayer_kill.rs2`). Counting
+what the wave table stands up over waves 1-62 gives 33 Ket-Zek, 34 Yt-MejKot,
+36 Tok-Xil, 40 Tz-Kek and 48 Tz-Kih, plus the two level-22 halves each Tz-Kek
+splits into:
+
+| | Count | HP | Total |
+|---|---|---|---|
+| Ket-Zek | 33 | 160 | 5,280 |
+| Yt-MejKot | 34 | 80 | 2,720 |
+| Tok-Xil | 36 | 40 | 1,440 |
+| Tz-Kek (45) | 40 | 20 | 800 |
+| Tz-Kek (22), from splits | 80 | 10 | 800 |
+| Tz-Kih | 48 | 10 | 480 |
+| | | | **11,520** |
+
+Exactly the wiki's figure [W1], with **nothing awarded for the waves at all**.
+Getting there requires the wave table, the split, and the hitpoints-as-xp rule
+all to be right simultaneously, so the agreement is a check on all three rather
+than a reason to add a fourth number. Jad is the one genuine override: 250
+hitpoints against a published 25,250.
+
 **Session rules** [W1] [W2]:
 
 - **Safe death** — no items are lost, "including those stored inside an Item
@@ -372,24 +395,56 @@ Caves → Inferno asset lineage), `docs/map_instances.md` (the instancing surfac
 | `configs/fightcave.npc` | 129 | Authored records for Jad and Yt-HurKot only |
 | `configs/fightcave.varp` | 20 | Four session varps, all `scope=temp` |
 
-**Correct and finished:** the 63-wave table (§5.1), the off-colour pairing on
+plus `scripts/fightcave_ai.rs2` and `scripts/fightcave_selftest.rs2`, added by
+this pass.
+
+**Was already correct:** the 63-wave table (§5.1), the off-colour pairing on
 waves 14/30/62 (§2.3), the Tz-Kek split, the five named spawn points and the
 15-entry cycle as *data*, and the whole of TzTok-Jad and Yt-HurKot.
 
-**Missing**, in the order §10 addresses it:
+**Landed by this pass**, phases 1-5 of §10:
 
-1. **No instance.** Shared region 9551; two players share one arena.
-2. **No death, logout or pause path.** Nothing in `player/death.rs2` or
-   `player/logout.rs2` names the Fight Caves, so dying leaves `%fightcave_active = 1`
-   and the wave's npcs standing on the shared map.
-3. **The five wave monsters have no behaviour.** They carry cache stats and
-   generated animation params and nothing else, so every one falls through to
-   `[ai_opplayer2,_]`'s default melee swing — a Tok-Xil walks over and punches.
-   None of the five mechanics in §2.2 exists.
-4. **Spawn indexing is wrong and the rotation is always 11** (§5.2).
-5. **Tokkul is `wave × 128`** where the game pays `N·(N+1)` (§6).
-6. No pet, no fire cape exchange, no slayer credit, no diary bonus, no combat
-   achievements.
+1. **Per-player instance.** Region 9551 is copied whole into a private
+   reservation on entry; every arena tile is a local offset through
+   `~fightcave_coord`. Despawn is by instance membership, and every exit path
+   frees. Two players no longer share one Jad.
+2. **Death, logout, pause and resume.** `~fightcave_on_death` /
+   `~fightcave_finish_death` / `[queue,fightcave_death_cleanup]` wired into
+   `player/death.rs2`; `~fightcave_on_logout` above the instance backstop in
+   `player/logout.rs2`; `~fightcave_login` in `player/login.rs2`. The cave is a
+   **safe activity** — `~player_death_lose_items` is skipped entirely for it,
+   keyed on the same handle the death coordinate uses.
+3. **All five wave monsters.** `fightcave_ai.rs2`: Tz-Kih's prayer drain (outside
+   the damage branch), Tz-Kek's melee-only 1-point reflect, Tok-Xil's 15-tile
+   spines, Yt-MejKot's heal-instead-of-swing, Ket-Zek's 15-tile fireball. All
+   state their swing in `[ai_opplayer2]` rather than redirecting through
+   `[ai_applayer2]`, which is the two-ticks-a-swing fault docs/bosses/jad.md
+   §5.2 item 6 measured and moved both Jads off.
+4. **Rotations.** The per-wave base of §5.2, an offset drawn from `date_minutes`
+   on entry, and Jad's tile falling out of the arithmetic with no latch.
+5. **Rewards.** `N·(N+1)` + 4,000, doubled on the elite Karamja diary; the
+   TzRek-Jad pet at 1/200 (1/100 on task); the fire cape exchange; Jad's 25,250
+   slayer override.
+
+**Two defects found while doing it**, neither of them in the list the plan
+started from:
+
+- **Every wave monster had 10 hitpoints.** `npc_def_seed_from_cache`
+  (`mock230_content.c`) seeds a server record from `g_npc_default` plus the
+  cache's *params*; it does not read `stat1`..`stat6`. With no `.npc` block
+  anywhere and no row in `combat_stats.generated.npc`, all eleven wave monsters
+  carried the default — a 160-hitpoint Ket-Zek died to one scimitar hit. Nothing
+  said so, because 10 is a plausible number. `configs/fightcave.npc` now states
+  the six stats for all eleven, and `::fightcavetest` reads them back off a
+  spawned npc rather than trusting the file.
+- **Leaving at wave 63 paid the fire cape.** `~fightcave_leave` derived winning
+  from `$wave >= 63`, so walking up to Jad and clicking Leave awarded the cape
+  and 8,032 Tokkul. Winning is now passed in, and only Jad's death passes 1.
+
+**Still open:** combat achievements (§10 phase 6 — the subsystem does not exist),
+and a TzHaar slayer task to hang the 25,250 override and the 1/100 pet rate on
+(both are written and gated on `~slayer_npc_matches_task`, which cannot match
+until a task row exists).
 
 ---
 
@@ -523,43 +578,73 @@ make -C src mock230-servpack
 make -C src test-mock230          # builds, then runs mock230 --selftest
 ```
 
-The Fight Caves already has a selftest stanza at
-`src/net/mock/mock230_world.c:36950-37131` — it pins Jad's authored record
-(attack speed 8, attack range 15, 250 hitpoints), that exactly four healers spawn
-at half health, that a heal is the flat +5 and not the Inferno's roll, and that a
-Jad healed to full summons a second set. Each phase extends it:
+**Two fixtures, and the split between them is deliberate.**
 
-- **Phase 1** — `::fightcave 1` allocates a handle; every spawned npc answers
-  `map_instance_find(npc_coord) == handle`; leaving frees it and
-  `mapinstance_block_available` reports the square free again; two sessions run
-  in sequence do not see each other's npcs.
-- **Phase 2** — dying mid-wave clears `%fightcave_active`, deletes every arena
-  npc, frees the handle, and leaves the player on `^fightcave_exit` with a full
-  inventory. A pause request at wave N logs out and resumes at N.
-- **Phase 3** — per monster: it swings on its record's `attackrate` with no AP
-  redirect in front of it (the Jad stanza's swing-interval assertion is the
-  template); a Tok-Xil and a Ket-Zek **at 10 tiles** attack rather than walking
-  in; a melee hit on a level-45 Tz-Kek costs the attacker exactly 1 and the same
-  hit on a `_2spawn` costs 0; a Tz-Kih hit reduces prayer on a **0-damage** roll;
-  a Yt-MejKot adjacent to the player and below half gains up to 10 and does
-  **not** also swing that tick.
-- **Phase 4** — the fifteen `start` values of §5.2 reproduce the wiki's wave 1–4
-  columns for all fifteen rotations, which is a pure table check and the
-  strongest available; and wave 63 lands on wave 3's tile without a special case.
-- **Phase 5** — `~fightcave_tokkul_for_wave(63) + 4000 == 8032`; the elite-diary
-  flag doubles it.
+`::fightcavetest` (`scripts/fightcave_selftest.rs2`) owns everything that is
+arithmetic over content's own tables — the fifteen rotation offsets against the
+wiki's published wave 1–4 columns, Jad's tile falling out of `62 ≡ 2 (mod 15)`,
+the `N·(N+1)` formula summing to 8,032, and every monster's hitpoints and attack
+range read back **off a spawned npc** rather than off the file. A C copy of any
+of those tables would be a second authority to keep in step, so it is written in
+the language the tables are written in, and it can be run from a client. The
+headless suite invokes it and reads the verdict out of `%fightcave_test_fails`,
+which the fixture sets to `-1` on entry so an abort reads as failure rather than
+as a pass it never reached.
+
+The C stanza in `src/net/mock/mock230_world.c` keeps what needs the engine: it
+already pinned Jad's authored record (attack speed 8, attack range 15, 250
+hitpoints), that exactly four healers spawn at half health, that a heal is the
+flat +5 and not the Inferno's roll, and that a Jad healed to full summons a
+second set. All of those still pass with the cave instanced — which is itself
+the check that `::fightcave 63` allocates a reservation, spawns Jad inside it,
+and puts the four healers on instance-local corners.
+
+### What is covered now
+
+`::fightcavetest` runs three groups:
+
+- **The fifteen rotations.** Every published row's wave 1, wave 2 (both
+  monsters) and wave 3 points, plus Jad's tile as wave 3's; that the fifteen
+  offsets are 0–14 once each (a bitmask, so two rotations cannot share one and
+  leave a third unused); and that rotations 7 and 8 — identical through wave 3 —
+  actually differ at wave 4, or the table could be satisfied by one of them twice.
+- **The reward.** 0, 1, 5 and 62 waves as well as the headline 8,032, because
+  the formula this replaced (`wave × 128`) gives 8,064 at wave 63 and is wrong
+  everywhere else — a check only at the top would have passed it.
+- **The records.** Hitpoints for all eight npcs and attack range for the three
+  that state one, read off a spawned npc. This is the group that catches a
+  `.npc` block which fails to parse, loses a file-order race, or names a key the
+  loader does not know — all of which are silent, and all of which leave a
+  monster on the 10-hitpoint default.
+
+### Still worth adding
+
+- **Instance** — every spawned npc answers `map_instance_find(npc_coord) ==
+  handle`; leaving frees it and `mapinstance_block_available` reports the square
+  free again; two sessions in sequence do not see each other's npcs.
+- **Death and pause** — dying mid-wave clears `%fightcave_active`, deletes every
+  arena npc, frees the handle, and leaves the player on `^fightcave_exit` **with
+  a full inventory**. A pause request at wave N logs out and resumes at N.
+- **The monsters, in a fight** — each swings on its record's `attackrate` with
+  no AP redirect in front of it (the Jad stanza's swing-interval assertion is
+  the template); a Tok-Xil and a Ket-Zek **at 10 tiles** attack rather than
+  walking in; a melee hit on a level-45 Tz-Kek costs the attacker exactly 1 and
+  the same hit on a `_2spawn` costs 0; a Tz-Kih hit reduces prayer on a
+  **0-damage** roll; a Yt-MejKot adjacent to the player and below half gains up
+  to 10 and does **not** also swing that tick.
 
 **Prove each assertion can fail** by mutating the implementation and re-running,
-per `docs/LOSTCITY_PORT_TRIAGE.md` §10.3. Phase 3 needs this most: an assertion
+per `docs/LOSTCITY_PORT_TRIAGE.md` §10.3. The fight assertions need it most: one
 that a monster "attacks at range" passes trivially if the default melee handler
 happens to reach, so the subject must stand past melee range and the check must
-be seen to fail with the redirect removed.
+be seen to fail with the record's `attackrange` removed.
 
 Live:
 
 ```sh
 make -C src EMBED_SERVER=1 torirs
 ./run-live.sh manifest_osrs239.ini
+::fightcavetest    # the three arithmetic/record groups, with per-check lines
 ::fightcave 3      # rotation base and the Jad tile
 ::fightcave 31     # Ket-Zek magic at range
 ::fightcave 62     # the off-coloured pair, then Jad on the second one's tile

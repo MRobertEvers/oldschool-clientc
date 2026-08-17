@@ -4131,7 +4131,7 @@ mock230_script_command(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        mock230_send_message(srv->active_player, text);
+        mock230_send_message(player, text);
         return 1;
     }
 
@@ -6324,7 +6324,10 @@ mock230_script_command(
     {
         int32_t values[3];
         struct Mock230Npc* npc = active_npc(state);
+        int base;
+        int current;
         int healed;
+        int step;
         int i;
 
         /* Call is npc_statheal(stat, constant, percent) — pop into values[0..2]. */
@@ -6338,19 +6341,41 @@ mock230_script_command(
             SSVM_Abort(state, "npc_statheal with no active npc");
             return 1;
         }
-        /*
-         * Hitpoints is the only npc stat that moves (see NPC_STAT above). Heal
-         * that; other stats are content-block constants with nothing to write.
-         * Formula matches NpcOps.ts NPC_STATHEAL.
-         */
-        if( values[0] != MOCK230_STAT_HITPOINTS )
+        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        {
+            SSVM_Abort(state, "npc_statheal %d is not a skill", values[0]);
             return 1;
-        healed = npc->hitpoints + (int)(values[1] + (npc->base_hitpoints * values[2]) / 100);
-        if( healed > npc->base_hitpoints )
-            healed = npc->base_hitpoints;
+        }
+        /*
+         * Formula matches NpcOps.ts NPC_STATHEAL: add the constant plus a
+         * percentage of the authored base, then clamp at that base. Hitpoints
+         * keep their own current/base pair; the other levels are represented
+         * by `stat_drain`, so healing reduces that drain. This second path is
+         * required by encounter resets such as God Wars, which restore all
+         * five combat levels after the room empties.
+         */
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+        {
+            base = npc->base_hitpoints;
+            current = npc->hitpoints;
+        }
+        else
+        {
+            base = npc_base_stat(npc, values[0]);
+            current = base - npc->stat_drain[values[0]];
+            if( current < 0 )
+                current = 0;
+        }
+        step = values[1] + (base * values[2]) / 100;
+        healed = current + step;
+        if( healed > base )
+            healed = base;
         if( healed < 0 )
             healed = 0;
-        npc->hitpoints = healed;
+        if( values[0] == MOCK230_STAT_HITPOINTS )
+            npc->hitpoints = healed;
+        else
+            npc->stat_drain[values[0]] = base - healed;
         return 1;
     }
 
@@ -7957,6 +7982,31 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_HITMARK:
+    {
+        int32_t values[3];
+        struct Mock230Player* target_player;
+        struct Mock230Player* saved_player;
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        target_player = player_by_uid(srv, values[0]);
+        if( !target_player )
+        {
+            SSVM_Abort(state, "hitmark: player uid %d is not a live player",
+                       (int)values[0]);
+            return 1;
+        }
+        saved_player = srv->active_player;
+        mock230_world_set_active(srv, target_player);
+        mock230_combat_hitmark_player(srv, values[1], values[2]);
+        mock230_world_set_active(srv, saved_player);
+        return 1;
+    }
+
     /*
      * healenergy(amount) — run energy, in the hundredths-of-a-percent unit the
      * whole energy system is written in, so the reference's `healenergy(10000)`
@@ -8608,11 +8658,24 @@ mock230_script_command(
     {
         int32_t zone_w;
         int32_t zone_h;
+        int handle;
 
         if( !SSVM_PopInt(state, &zone_h) || !SSVM_PopInt(state, &zone_w) )
             return 1;
-        SSVM_PushInt(state,
-                     mock230_mapinstance_alloc(mock230_world_cache_dir(), zone_w, zone_h));
+        handle = mock230_mapinstance_alloc(mock230_world_cache_dir(), zone_w, zone_h);
+        if( handle && srv->active_player )
+            mock230_mapinstance_set_owner(handle, srv->active_player->pid + 1);
+        SSVM_PushInt(state, handle);
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_OWNER:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_owner(handle));
         return 1;
     }
 
@@ -8739,6 +8802,54 @@ mock230_script_command(
             npc->respawn_tick = srv->tick;
         else
             npc->respawn_tick = srv->tick + delay;
+        return 1;
+    }
+
+    case SS_OP_NPC_RESPAWN_REMAINING:
+    {
+        int32_t values[3];
+        int best_slot = -1;
+        int best_distance = 0;
+        int origin_x;
+        int origin_z;
+        int origin_level;
+
+        /* npc_respawn_remaining(coord, npc, range) */
+        for( int i = 2; i >= 0; i-- )
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        origin_x = coord_x(values[0]);
+        origin_z = coord_z(values[0]);
+        origin_level = coord_level(values[0]);
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            const struct Mock230Npc* candidate = &srv->npcs[slot];
+            int dx;
+            int dz;
+            int distance;
+
+            /* This query exists for the state npc_find cannot represent: a
+             * dead world actor waiting on an absolute respawn clock. */
+            if( candidate->active || !candidate->def ||
+                candidate->type != values[1] ||
+                candidate->respawn_tick <= srv->tick ||
+                candidate->spawn_level != origin_level )
+                continue;
+            dx = abs(candidate->spawn_x - origin_x);
+            dz = abs(candidate->spawn_z - origin_z);
+            distance = dx > dz ? dx : dz;
+            if( distance > values[2] )
+                continue;
+            if( best_slot < 0 || distance < best_distance )
+            {
+                best_slot = slot;
+                best_distance = distance;
+            }
+        }
+        SSVM_PushInt(
+            state, best_slot < 0
+                       ? -1
+                       : srv->npcs[best_slot].respawn_tick - srv->tick);
         return 1;
     }
 

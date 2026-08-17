@@ -112,20 +112,49 @@ by the existence of code. As of the audit date, the repository now has:
   travel, or impact graphics. Runtime NPC metadata accepts those projectile and
   poison parameters, and ranged max-hit includes cache ammunition strength.
 - [x] `MOCK230_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
-  the isolated 22,175-script build (the current tree excluding only that
-  unrelated Fight Caves file) it reconstructs the four classic map-square
+  the isolated 22,187-script build (the current tree excluding unrelated
+  in-flight Fight Caves and Zulrah compiler failures) it reconstructs the four classic map-square
   roster and proves all **69** unique NPCs retain authored combat, cadence, and
   attack/defend/death sequences. It separately proves the four bosses retain
   their exact stats and authored sounds; executes both attack-selection
   branches for Graardor, Kree'arra, Zilyana, and K'ril (including Kree'arra's
   target-aware claw/wind split); verifies all 12 bodyguards' non-default
-  stats/assets; executes the exact player-attack hook for each of the other 53
-  ambient NPCs and observes its authored attack sequence; checks every Combat
+  stats/assets and executes each bodyguard's exact attack hook; executes the
+  exact player-attack hook for each of the other 53 ambient NPCs and observes
+  its authored attack sequence; checks every Combat
   Achievement KC/fee reduction; isolates public/private coordinates and loot
   lifetimes; and executes spectral prayer-drain mitigation. That exhaustive
   attack pass corrected the Saradomin wizard and Zamorak spiritual mage
   metadata from staff-pummel to the `human_casting` sequence actually used by
   their god-spell dbrows.
+- [x] The bodyguard execution pass corrected seven flattened runtime animation
+  records to their distinct scripted attacks: Steelwill's sonic cast,
+  Grimspike's axe throw, Skree's cannon cast, Geerin's spear throw, Kilisa's
+  sword swing, Growler's magic cast, and Zakl'n's ranged attack. The regenerated
+  server band now agrees for every GWD record; its two remaining stale archives
+  are unrelated NPC membership errors.
+- [x] Five-player classic-room fixtures execute Graardor's ranged AOE and
+  Kree'arra's magic AOE with four players inside each chamber and a fifth still
+  within hunt range but one tile beyond the chamber boundary. Both attacks arm
+  landing queues for all four legal participants and exclude the outsider.
+- [x] Two-player classic-room fixtures repeatedly execute Zilyana's and K'ril's
+  real attack selectors until their magic branches fire, then prove the
+  projectile/landing queues belong only to the boss's current target and never
+  to the second eligible player. Together with the five-player fixtures, this
+  distinguishes the generals' two room-wide attacks from both single-target
+  magic attacks in live VM state.
+- [x] Four quartet lifecycle fixtures execute all **12** bodyguard timer
+  bindings against their own engaged general and verify they target the credited
+  player. A minion processed while its boss is alive retains its ordinary
+  respawn clock; after that boss is removed it copies the boss's absolute
+  respawn deadline, matching
+  [`GodWarsMinionNPC.finalizeDeath`](https://gitlab.com/2009scape/2009scape/-/blob/master/Server/src/main/content/region/asgarnia/trollheim/handlers/gwd/GodWarsMinionNPC.java).
+  A second fixture kills one minion before and one after each general through
+  combat damage, `[ai_queue3]`, death animation/corpse, drop, and reap stages,
+  proving the engine preserves both clocks for all four factions. Moving the
+  player outside each chamber drives the real attack/timer reset paths and
+  restores HP plus Attack, Strength, Defence, Magic, and Ranged for all four
+  generals and all 12 bodyguards.
 - [x] The runtime lane also dispatches all **51** aligned ambient NPC-vs-NPC
   attack triggers with real primary/secondary NPC contexts, observes their
   authored attack sequences, and verifies their damage queues complete. This
@@ -136,8 +165,13 @@ by the existence of code. As of the audit date, the repository now has:
   four Ancient Prison combatants. It also executes every one of Nex's 19
   regular categories (including both paired supply rows), all six unique-table
   outcomes, quantity bounds, contribution flooring/MVP scaling, and private
-  ownership. These are deterministic row-reachability tests, not a substitute
-  for the still-required probability and multiplayer tests below.
+  ownership. The four classic boss tables and all four bodyguard tables now
+  consume one shared production `random(127)` selector; 12,700 real-VM samples
+  must remain below a 250 chi-square guard at 126 degrees of freedom. Nex's
+  actual 31-slot selector is sampled 6,200 times and must remain below 60 at 18
+  degrees of freedom, proving every published common category retains its
+  authored 2-slot or 1-slot weight. Independent unique and tertiary end-to-end
+  frequency tests remain required below.
 - [x] The same real-VM lane exercises every Nex phase floor twice: a hit which
   crosses the threshold and a hit received at the exact threshold. It proves
   damage is capped at 2,720/2,040/1,360/680 HP, a concurrent follow-up cannot
@@ -152,16 +186,37 @@ by the existence of code. As of the audit date, the repository now has:
   authored sequence. This uncovered and fixed the engine queue's stale
   four-integer ceiling: Nex and the Ancient Prison mage legitimately carry five
   landing arguments, so the fixed-size queue now provides eight slots.
+- [x] Zaros-phase state tests drive attack counts 4/8/12 through the actual
+  overhead updater and observe Deflect Melee, no overhead, then Soul Split.
+  The hit-preparation funnel reflects half of a melee hit while Deflect is
+  active and passes a magic hit through unchanged.
+- [x] A real two-player Nex fixture proves shared targeting chooses the nearest
+  participant, then resolves an equal-distance Shadow-phase tie by the lower
+  ranged defence. Swapping a rune platebody between the two players reverses
+  the selected target, proving the result is not player-pool iteration order.
+  A separate five-player layout places participants at five distances and
+  proves only the nearest receives Nex's landing queue.
+- [x] Ancient Prison attack execution covers the warrior's five-tile Smoke
+  special, the ranger's prayer-disabling bind, the Blood Reaver projectile,
+  and deterministic Smoke/Shadow/Blood/Ice rolls for the spiritual mage. Every
+  route runs in the real VM, selects its exact authored attack sequence, and
+  successfully arms its projectile/landing queue; the public mage rotation
+  still chooses the four paths uniformly with `random(4)`.
 - [x] Runtime testing found and fixed two engine/compiler faults that made
   source-only review unreliable: floor-object commands now resolve a typed
   `namedobj` when an NPC shares its name (`shark` object 385 versus NPC 1830),
   and repeated NPC config blocks now merge generated stat/rig baselines before
-  authored area overlays. The current server-band comparison has no GWD
-  mismatch; its two remaining stale records are unrelated NPCs.
+  authored area overlays. Quartet reset testing also corrected `npc_statheal`,
+  which previously ignored every NPC stat except Hitpoints and healed level-1
+  stats from the raw negative drain instead of their observable zero floor.
+  Public respawn synchronization now queries the nearest dead boss's remaining
+  absolute clock rather than applying the old fixed 50-tick approximation; the
+  fixed delay remains only for owner-bound private replacement queues. The
+  current server-band comparison has no GWD mismatch; its two remaining stale
+  records are unrelated NPCs.
 
-The remaining acceptance work is runtime-focused: nearest-player/defence
-tie-breaking is scripted but still needs multiplayer trace validation;
-Turmoil's unpublished drain amount/transfer timing and Ice Prison's unpublished
+The remaining acceptance work is runtime-focused: Turmoil's unpublished drain
+amount/transfer timing and Ice Prison's unpublished
 fixed defence roll need primary-source evidence; private-room and
 high-player-count teardown now have an owner but still require runtime soak
 validation; the engine does not yet expose Friends Chat membership/instance

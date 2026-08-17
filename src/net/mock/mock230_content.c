@@ -2229,6 +2229,25 @@ type_is_string(const char* name)
     return strcmp(name, "string") == 0;
 }
 
+/*
+ * And the third question the two above do not answer: whether the side is a
+ * COORDINATE.
+ *
+ * `coord` names no pack, so `pack_kind_for_type` correctly reports "literal" —
+ * but the literal is `0_51_48_41_35`, and the literal path was `atoi`, which
+ * reads that as 0 and reports success. Every coord an `.enum` stated therefore
+ * arrived at `enum()` as coord 0, silently: no unresolved symbol, no parse
+ * error, just the south-west corner of the world for every row. That is four
+ * enums in this tree (`agility_marks_*`, `trawler_hulls*`, `cocoon_coords`,
+ * `magic_carpet_path`) and it reads as content pointing somewhere absurd
+ * rather than as a loader that cannot spell a coordinate.
+ */
+static int
+type_is_coord(const char* name)
+{
+    return strcmp(name, "coord") == 0;
+}
+
 /** Expand a leading `^constant`, or return the text unchanged. NULL when the
  *  constant does not resolve. */
 static const char*
@@ -2245,6 +2264,7 @@ enum_text(const char* text)
 static int
 enum_operand(
     enum Mock230PackKind kind,
+    int is_coord,
     const char* text,
     int* out_ok)
 {
@@ -2259,6 +2279,26 @@ enum_operand(
             return -1;
         }
         text = expanded;
+    }
+    if( is_coord )
+    {
+        int level;
+        int x;
+        int z;
+
+        /* `default=null` is the reference's own spelling for "this enum has no
+         * fallback tile" (LostCity's kalphite_cocoon.enum ships it), and -1 is
+         * what a null coord is on the ServerScript stack. Only the default is
+         * ever written that way — a `val=` row naming null would be a row with
+         * no tile, which is a typo rather than an idiom. */
+        if( strcmp(text, "null") == 0 )
+            return -1;
+        if( !parse_coord_literal(text, &level, &x, &z) )
+        {
+            *out_ok = 0;
+            return -1;
+        }
+        return (int)mock230_coord_pack(level, x, z);
     }
     if( kind == MOCK230_PACK_COUNT )
         return atoi(text);
@@ -2278,6 +2318,12 @@ load_enum_config(const char* path)
     char raw[1024];
     struct Mock230EnumDef* def = NULL;
     int line_number = 0;
+    /* Locals, not fields on the def: `inputtype`/`outputtype` are declared
+     * above the `val=` rows they describe and are read only while this one
+     * pass is parsing them, so the coord-ness of a side never has to outlive
+     * the file. Reset on every `[section]` for the same reason. */
+    int input_is_coord = 0;
+    int output_is_coord = 0;
 
     if( !file )
         return;
@@ -2305,6 +2351,8 @@ load_enum_config(const char* path)
              * its content expects rather than a zero that means "found". */
             def->default_int = 0;
             def->default_text = "null";
+            input_is_coord = 0;
+            output_is_coord = 0;
             continue;
         }
 
@@ -2320,11 +2368,13 @@ load_enum_config(const char* path)
         {
             def->input_kind = pack_kind_for_type(value);
             def->input_is_string = type_is_string(value);
+            input_is_coord = type_is_coord(value);
         }
         else if( strcmp(line, "outputtype") == 0 )
         {
             def->output_kind = pack_kind_for_type(value);
             def->output_is_string = type_is_string(value);
+            output_is_coord = type_is_coord(value);
         }
         else if( strcmp(line, "default") == 0 )
         {
@@ -2337,6 +2387,14 @@ load_enum_config(const char* path)
             }
             if( def->output_is_string )
                 def->default_text = strdup(expanded);
+            else if( output_is_coord )
+            {
+                int ok = 0;
+
+                def->default_int = enum_operand(def->output_kind, 1, expanded, &ok);
+                if( !ok )
+                    CONTENT_ERROR("%s:%d: `%s` is not a coord\n", path, line_number, value);
+            }
             else
                 def->default_int = atoi(expanded);
         }
@@ -2355,7 +2413,7 @@ load_enum_config(const char* path)
                 continue;
             }
             *comma = '\0';
-            key = enum_operand(def->input_kind, value, &key_ok);
+            key = enum_operand(def->input_kind, input_is_coord, value, &key_ok);
             /*
              * A string-valued enum keeps the text. It cannot go through
              * enum_operand, which resolves or atoi()s — and atoi() of
@@ -2375,7 +2433,8 @@ load_enum_config(const char* path)
             }
             else
             {
-                mapped = enum_operand(def->output_kind, comma + 1, &value_ok);
+                mapped =
+                    enum_operand(def->output_kind, output_is_coord, comma + 1, &value_ok);
             }
             if( !key_ok )
                 CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);

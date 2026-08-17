@@ -61,6 +61,21 @@ UPASS_WORLD_SPAWNS = (
     CONTENT / "areas/world/configs/m33_71.spawn",
     CONTENT / "areas/world/configs/m33_72.spawn",
 )
+OBS_GUARD = CONTENT / "quests/quest_itgronigen/scripts/goblin_guard.rs2"
+OBS_NPC = CONTENT / "quests/quest_itgronigen/configs/quest_itgronigen.npc"
+OBS_DUNGEON = CONTENT / "quests/quest_itgronigen/scripts/observatory_dungeon.rs2"
+OBS_PROFESSOR = CONTENT / "quests/quest_itgronigen/scripts/observatory_professor.rs2"
+OBS_GLASS = CONTENT / "skill_crafting/scripts/glass/glass.rs2"
+OBS_GENERIC_GOBLIN = CONTENT / "drop_tables/scripts/goblin.rs2"
+OBS_WORLD_SPAWN = CONTENT / "areas/world/configs/m36_146.spawn"
+TOURIST_CAPTAIN = CONTENT / "quests/quest_desertrescue/scripts/mercenary_captain.rs2"
+TOURIST_GATE = CONTENT / "quests/quest_desertrescue/scripts/mining_camp_gate.rs2"
+TOURIST_NPC = CONTENT / "quests/quest_desertrescue/configs/desertrescue.npc"
+TOURIST_VARP = CONTENT / "quests/quest_desertrescue/configs/desertrescue.varp"
+TOURIST_GENERIC_DROP = CONTENT / "drop_tables/scripts/wiki_mercenary_captain.rs2"
+WATCH_GORAD = CONTENT / "quests/quest_itwatchtower/scripts/gorad.rs2"
+WATCH_GREW = CONTENT / "quests/quest_itwatchtower/scripts/grew.rs2"
+WATCH_NPC = CONTENT / "quests/quest_itwatchtower/configs/quest_itwatchtower.npc"
 NPC_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/npc.alloc"
 NPC_CLIENT = ROOT / "OSRS-Content/osrs239-content/pack/npc.client"
 COMBAT_PARAM = CONTENT / "skill_combat/configs/combat.param"
@@ -125,6 +140,30 @@ def check_manifest() -> None:
             "Underground Pass: status drift")
     for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
         require(bool(upass[0][key]), f"Underground Pass: empty evidence field {key}")
+    observatory = [row for row in rows if row["id"] == "quest-observatory-quest"]
+    require(len(observatory) == 1,
+            "manifest: expected exactly one Observatory Quest row")
+    require(observatory[0]["implementation_status"] == "implementation-in-progress",
+            "Observatory Quest: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(observatory[0][key]),
+                f"Observatory Quest: empty evidence field {key}")
+    tourist = [row for row in rows if row["id"] == "quest-the-tourist-trap"]
+    require(len(tourist) == 1,
+            "manifest: expected exactly one The Tourist Trap row")
+    require(tourist[0]["implementation_status"] == "implementation-in-progress",
+            "The Tourist Trap: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(tourist[0][key]),
+                f"The Tourist Trap: empty evidence field {key}")
+    watchtower = [row for row in rows if row["id"] == "quest-watchtower"]
+    require(len(watchtower) == 1,
+            "manifest: expected exactly one Watchtower row")
+    require(watchtower[0]["implementation_status"] == "implementation-in-progress",
+            "Watchtower: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals", "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(watchtower[0][key]),
+                f"Watchtower: empty evidence field {key}")
 
 
 def check_delrith() -> None:
@@ -809,6 +848,266 @@ def check_underground_pass() -> None:
     )
 
 
+def check_observatory_quest() -> None:
+    npc = OBS_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[goblin_guard]", "hitpoints=43", "attack=32", "strength=37",
+            "defence=37", "magic=1", "ranged=1", "respawnrate=250",
+            "param=attackrate,4", "param=damagetype,0", "param=stabattack,8",
+            "param=slashattack,5", "param=strengthbonus,5",
+            "param=huntrange,0", "param=death_drop,null",
+        ),
+        "Observatory Quest guard NPC",
+    )
+
+    guard = OBS_GUARD.read_text()
+    require_text(
+        guard,
+        (
+            "[opnpc1,qip_obs_goblin_guard]",
+            "npc_changetype(goblin_guard, 250);",
+            "npc_say(\"Oi, how dare you wake me up!\");",
+            "[opnpc2,goblin_guard]", "[ai_queue3,goblin_guard]",
+            "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
+            "def_int $drop = random(128);", "if ($drop < 3)",
+            "else if ($drop < 90)", "%rag_quest = ^rag_collecting",
+            "testbit(%rag_submit, ^rag_bit_goblin) = ^false", "random(4)",
+            "obj_add(npc_coord, rag_goblin_bone, 1, ^lootdrop_duration);",
+            "random(35)", "arceuus_corpse_goblin", "random(64)",
+            "trail_clue_beginner", "$easy_rate = 121;",
+            "trail_clue_easy_simple001", "random(5000)",
+            "champions_challenge_goblin",
+        ),
+        "Observatory Quest guard combat/drop table",
+    )
+    require("keep_key" not in guard,
+            "Observatory Quest: guard must never drop the kitchen key")
+    require("[ai_queue3,goblin_guard]" not in OBS_GENERIC_GOBLIN.read_text(),
+            "Observatory Quest: generic goblin drop binding restored")
+
+    dungeon = OBS_DUNGEON.read_text()
+    require_text(
+        dungeon,
+        (
+            "[oploc1,qip_obs_dungeon_chest_closed]",
+            "[oploc1,qip_obs_dungeon_chest_closed2]",
+            "[oploc1,qip_obs_dungeon_chest_closed3]",
+            "~observatory_search_key_chest(0);",
+            "~observatory_search_key_chest(1);",
+            "~observatory_search_key_chest(2);",
+            "%observatory_chestchoice ! $which",
+            "~obj_gettotal(keep_key) > 0",
+            "inv_add(inv, keep_key, 1);",
+            "[oploc1,qip_obs_keep_chest_open]",
+            "[proc,observatory_spider_chest_seen]()(boolean)",
+            "npc_add(map_findsquare(coord, 1, 1, ^map_findsquare_lineofwalk), poisonspider, 1000);",
+            "[oploc1,opendungeonchest]", "inv_add(inv, 1doseantipoison, 1);",
+            "[oploc1,keepgate_closed]", "[oploc1,keepgate_closed_left]",
+            "%observatory_gatelock = 0 & inv_total(inv, keep_key) = 0",
+            "npc_find(loc_coord, qip_obs_goblin_guard, 8, 0)",
+            "~door_selfstage_open;",
+            "[oploc1,qip_obs_dungeon_stove_top_multi]",
+            "%observatory_mould_pres = 1",
+            "inv_add(inv, lens_mould, 1);",
+            "[opheld5,keep_key]", "[opheld5,lens_mould]", "[opheld5,lens]",
+            "%observatory_mould_pres = 0;",
+        ),
+        "Observatory Quest dungeon route",
+    )
+    for coord in (
+        "0_36_146_31_30", "0_36_146_22_16", "0_36_146_8_56",
+        "0_36_146_6_30", "0_36_146_44_39", "0_36_146_29_61",
+        "0_36_146_52_36",
+    ):
+        require(dungeon.count(coord) == 2,
+                f"Observatory Quest: spider chest mapping drift at {coord}")
+    for seen in range(1, 8):
+        require_text(dungeon, (f"%observatory_chest{seen}_seen = 1",),
+                     f"Observatory Quest spider chest {seen}")
+    require("npc_findhero" not in dungeon and "ai_queue3,goblin_guard" not in dungeon,
+            "Observatory Quest: gate route was coupled to killing the guard")
+
+    professor = OBS_PROFESSOR.read_text()
+    require_text(
+        professor,
+        (
+            "%observatory_chestchoice = random(3);",
+            "%observatory_gatelock = 0;", "%observatory_chest1_seen = 0;",
+            "%observatory_chest7_seen = 0;", "%observatory_mould_pres = 0;",
+        ),
+        "Observatory Quest player-random initialization",
+    )
+    glass = OBS_GLASS.read_text()
+    require_text(
+        glass,
+        (
+            "[opheldu,lens_mould]", "[proc,observatory_cast_lens]",
+            "%itgronigen ! ^itgronigen_given_mould", "stat(crafting) < 10",
+            "inv_del(inv, molten_glass, 1);", "inv_del(inv, lens_mould, 1);",
+            "inv_add(inv, lens, 1);",
+        ),
+        "Observatory Quest lens recipe",
+    )
+
+    world_actors = {
+        line.split()[0]
+        for line in OBS_WORLD_SPAWN.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith(("//", "="))
+    }
+    require("qip_obs_goblin_guard" in world_actors,
+            "Observatory Quest: sleeping guard map spawn missing")
+    require("goblin_guard" not in world_actors,
+            "Observatory Quest: awake guard must be a temporary retype")
+
+
+def check_tourist_trap() -> None:
+    captain = TOURIST_CAPTAIN.read_text()
+    require_text(
+        captain,
+        (
+            "[opnpc1,desertminingcaptain]",
+            "%desertrescue = ^desertrescue_approached_captain;",
+            "It's a funny captain who can't fight his own battles!",
+            "[label,desertrescue_captain_begin_duel]",
+            "%desertrescue_captain_duel = 1;",
+            "~npc_retaliate(0);",
+            "[opnpc2,desertminingcaptain]",
+            "[apnpc2,desertminingcaptain]",
+            "[label,desertrescue_captain_attack_warning]",
+            "[label,desertrescue_captain_arrest]",
+            "damage(uid, hitsplat_damage, 1);",
+            "[opnpc3,desertminingcaptain]",
+            "[ai_queue3,desertminingcaptain]",
+            "if (npc_findhero = ^false)",
+            "obj_add_private(npc_coord, bones, 1",
+            "%desertrescue = ^desertrescue_killed_capt;",
+            "inv_total(bank, metal_key) > 0",
+            "inv_add(inv, metal_key, 1);",
+            "obj_add_private(npc_coord, metal_key, 1",
+        ),
+        "The Tourist Trap captain",
+    )
+    require(captain.count("damage(uid, hitsplat_damage, 1);") == 4,
+            "The Tourist Trap: direct-attack arrest must apply four guard hits")
+    require("inv_total(worn" not in captain,
+            "The Tourist Trap: equipment restriction restored to the duel")
+    require("gosub(npc_death)" not in captain,
+            "The Tourist Trap: obsolete double NPC-death dispatch restored")
+
+    npc = TOURIST_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[desertminingcaptain]", "hitpoints=80", "attack=32",
+            "strength=29", "defence=32", "respawnrate=25",
+            "param=attackrate,4", "param=damagetype,1",
+            "param=slashattack,9", "param=strengthbonus,14",
+            "param=stabdefence,17", "param=slashdefence,15",
+            "param=crushdefence,19", "param=magicdefence,-3",
+            "param=rangedefence,19", "param=death_drop,null",
+        ),
+        "The Tourist Trap captain NPC",
+    )
+    require_text(
+        TOURIST_VARP.read_text(),
+        ("[desertrescue_captain_duel]", "scope=temp"),
+        "The Tourist Trap duel state",
+    )
+    require("[ai_queue3,desertminingcaptain]" not in TOURIST_GENERIC_DROP.read_text(),
+            "The Tourist Trap: duplicate generic captain death hook restored")
+
+    gate = TOURIST_GATE.read_text()
+    require_text(
+        gate,
+        (
+            "[oploc2,miningcampgateclosedl]",
+            "[oploc2,miningcampgateclosedr]",
+            "[oploc1,miningcampgateclosedl]",
+            "[oploc1,miningcampgateclosedr]",
+            "[oplocu,miningcampgateclosedl]",
+            "[oplocu,miningcampgateclosedr]",
+            "[proc,desertrescue_player_wearing_armour]()(boolean)",
+            "[proc,desertrescue_obj_is_armour](obj $obj)(boolean)",
+            "[proc,desertrescue_forbidden_camp_equipment]()(boolean)",
+            "oc_category($weapon) ! weapon_pickaxe",
+            "[proc,desertrescue_open_camp_gate](int $side)",
+            "inv_total(inv, metal_key) < 1",
+            "%desertrescue = ^desertrescue_entered_camp;",
+            "~door_selfstage_open;",
+            "[timer,desertrescue_mercenary_check]",
+            "[label,desertrescue_camp_jail]",
+        ),
+        "The Tourist Trap camp gate",
+    )
+
+
+def check_watchtower() -> None:
+    npc = WATCH_NPC.read_text()
+    require_text(
+        npc,
+        (
+            "[gorad]", "hitpoints=80", "attack=54", "strength=54",
+            "defence=54", "magic=1", "ranged=1", "respawnrate=30",
+            "param=attackrate,4", "param=damagetype,2",
+            "param=crushattack,8", "param=strengthbonus,6",
+            "param=stabdefence,15", "param=slashdefence,27",
+            "param=crushdefence,21", "param=magicdefence,0",
+            "param=rangedefence,0", "param=death_drop,null",
+        ),
+        "Watchtower Gorad NPC",
+    )
+
+    gorad = WATCH_GORAD.read_text()
+    require_text(
+        gorad,
+        (
+            "[opnpc1,gorad]",
+            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "~npc_retaliate(0);",
+            "[ai_queue3,gorad]", "if (npc_findhero = ^false)",
+            "obj_add_private(npc_coord, big_bones, 1",
+            "if (random(128) < 19)", "~watchtower_gorad_uncommon_seed;",
+            "if (random(30) = 0)", "arceuus_corpse_ogre",
+            "if (random(400) = 0)", "dorgesh_construction_bone",
+            "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
+            "queue(defeat_gorad, 0, 0);", "[queue,defeat_gorad]",
+            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) ! 1",
+            "~obj_gettotal(ogretooth) > 0", "inv_freespace(inv) = 0",
+            "inv_add(inv, ogretooth, 1);",
+            "[proc,watchtower_gorad_uncommon_seed]()(namedobj, int)",
+            "def_int $seed = random(1048);", "if ($seed < 137)",
+            "else if ($seed < 1045)", "return(torstol_seed, 1);",
+        ),
+        "Watchtower Gorad encounter",
+    )
+    require(gorad.count("return(") == 25,
+            "Watchtower: exact uncommon-seed table must retain all 25 outcomes")
+    require("obj_add(npc_coord" not in gorad,
+            "Watchtower: Gorad drops must remain owner-private")
+    require("obj_add_private(npc_coord, ogretooth" not in gorad,
+            "Watchtower: quest tooth must remain a direct inventory reward")
+    require("%itwatchtower < ^itwatchtower_given_relic" not in gorad,
+            "Watchtower: broad legacy tooth eligibility restored")
+    require("rag_ogre_bone" not in gorad,
+            "Watchtower: ogre ribs must wait for Rag and Bone Man II state")
+
+    grew = WATCH_GREW.read_text()
+    require_text(
+        grew,
+        (
+            "[opnpc1,grew]", "[label,grew_spoken]", "[opnpcu,grew]",
+            "getbit_range(%itwatchtower_bits, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew) = 1",
+            "inv_total(inv, ogretooth) > 0",
+            "setbit_range_toint(%itwatchtower_bits, 2, ^itwatchtower_spoken_grew, ^itwatchtower_helped_grew)",
+            "inv_del(inv, ogretooth, 1);", "inv_add(inv, relicpart2, 1);",
+            "inv_add(inv, powering_crystal1, 1);",
+        ),
+        "Watchtower Grew tooth exchange",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -819,10 +1118,13 @@ def main() -> int:
         check_hazeel_cult()
         check_grand_tree()
         check_underground_pass()
+        check_observatory_quest()
+        check_tourist_trap()
+        check_watchtower()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree and Underground Pass (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap and Watchtower (ok)")
     return 0
 
 

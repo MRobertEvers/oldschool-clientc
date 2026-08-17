@@ -48,6 +48,58 @@ This document supersedes rows **#92–#99** of
 [SKILLS_CONTENT_PORT_QUEUE.md](SKILLS_CONTENT_PORT_QUEUE.md), which record the
 same gaps at one line each.
 
+### Implementation progress (2026-08-17)
+
+| slice | state |
+|---|---|
+| A1 lap tracker + success curve | **done** — `agility_lap.rs2`; the curve is the engine's own 256-outcome interpolation, and the Canifis gap's published pair (176/300) reproduces every figure that page states |
+| A2 marks of grace | **done** — `agility_marks.rs2` + `agility_marks.enum`; per-lap roll, per-course rates, 3-minute cooldown, over-level penalty with the documented Canifis exemption, one mark, owner-only, 10 minutes, 82 published spawn tiles across the 8 rooftops |
+| A3 XP reconciliation | **done** — Al Kharid, Varrock, Falador, Ardougne and Gnome corrected; all now match their published lap totals, guarded by `tools/agility_xp_audit.py` in the script build |
+| A5 run energy | **done** for the formulas (era feature flag, §1.6); the graceful/ring modifiers remain |
+| A8 Barbarian Outpost | **done** — `barbarian_course.rs2`, 153.3 Agility + 41.3 Strength, three failable obstacles stopping at exactly 93 |
+| A9 Wilderness course | **done** for the course — `wilderness_course.rs2`, 571.4 per lap, level-52 gate over the door category, lap ticket. The 150k dispenser, its loot and the lap counter are not implemented |
+| A12 Yanille dungeon | **done** — the dungeon was already ported except its monkey bars (57, 20 XP), which are now in `areas/area_yanille/scripts/agility_dungeon.rs2`; that file's ledge roll moved onto the shared curve |
+| A18 Grace's shop | **partial** — `grace.rs2` exchanges marks for all six graceful pieces and amylase packs at the published prices. The recolours are deferred: each is gated behind its own Kourend quest and there is no recolour state to hang them on |
+| A6 Pollnivneach rooftop | **done** — `rooftop_pollnivneach.rs2`, the ninth rooftop, 890 XP a lap. No corpus has this course, so every landing tile is derived from the cache's own collision map and checked standable by the new `make -C src walkable-probe`; the hard-Desert-diary variant and the market stall's failure curve are deferred for want of published data |
+| A24 pet + cape | **done** — `agility_pet.rs2` (per-course base chances, `1/(B − level×25)`, rolled on every completed lap beside the mark) and `skillcape_agility.rs2` (the once-a-day energy restore plus a one-minute stamina effect, on `date_runeday`) |
+| everything else | not started |
+
+**A new tool came out of A6.** `walkable_probe` (`make -C src walkable-probe`)
+builds the server's own collision map from real map squares and reports whether
+a tile is standable, printing the neighbourhood as a picture. Authoring a course
+means naming a landing tile per obstacle, and no reference publishes those for
+the courses still missing — but the cache holds the geometry, so a landing can
+be *derived* and checked rather than guessed. It earned itself immediately:
+Pollnivneach's first draft had five landings inside walls (the coord literal's
+local halves are `x%64` / `z%64` and were computed off the wrong base), and the
+probe caught all five. This is the tool that unblocks Shayzien, Ape Atoll,
+Werewolf, Penguin, Dorgesh-Kaan, Prifddinas and Colossal Wyrm.
+
+Verification at this checkpoint: `::agilityrun` (a new debugproc, wired into
+`mock230 --selftest`) passes ~50 deterministic checks; `tools/agility_xp_audit.py`
+reports 11 courses matching their published lap totals. Both were proved able
+to fail by mutating the implementation — the lap tracker made to tolerate
+skips (3 checks red), the interpolation's rounding term removed (1 red, and
+only after a case that can see it was added), a course's XP moved by 1 (audit
+red), and the pet's level term flipped from a subtraction to an addition (3
+red).
+
+One correctness fix to A1 came out of writing the pet: `~agility_success`
+rolls against the **boosted** level, not the base one. The Agility Pyramid
+page states obstacles are guaranteed from 75 and players carry a summer pie
+(+5) there at 70, which only makes sense if the boost moves the roll; the
+engine's own `stat_random` reads the boosted level too. Level *requirements*
+still read `stat_base` at their call sites, which is what keeps Ape Atoll's
+unboostable 48 unboostable.
+
+The shared content tree is being edited by other sessions concurrently, so the
+full `make -C src mock230-scripts` intermittently fails in unrelated features
+(construction, quests, gauntlet, wintertodt). Agility is verified against an
+isolated HEAD+skill_agility overlay when that happens; four unrelated
+compile-blocking edits were repaired in passing (a comparison used as an
+expression in `gauntlet_craft.rs2` and three in `poh_portal_nexus.rs2`, and
+`coordlevel` for `coordy` in `wintertodt_camp.rs2`).
+
 ## Reference corpora, and where each one runs out
 
 | corpus | covers | does not cover |
@@ -114,9 +166,9 @@ stated lap total (XP values in tree are tenths):
 | [Ardougne](https://oldschool.runescape.wiki/w/Ardougne_Rooftop_Course) | 793.0 | 889 | ❌ −96 |
 | [Gnome Stronghold](https://oldschool.runescape.wiki/w/Gnome_Stronghold_Agility_Course) | 86.5 | 110.5 | ❌ −24 (LostCity 2004 values, never reconciled) |
 
-Four rooftops and the Gnome course pay the wrong XP. Falador is also missing
-obstacles outright — the Wiki lists thirteen, the script has eleven XP-paying
-steps.
+Four rooftops and the Gnome course pay the wrong XP. (All five are now fixed —
+see the progress table above. Falador turned out to have all thirteen
+obstacles; it was the values that were wrong, not the coverage.)
 
 ---
 
@@ -130,10 +182,14 @@ rooftop instead folds the lap bonus into the last obstacle's `stat_advance`
 and never checks that the player did the preceding ones — Draynor's crate pays
 79 XP to anyone who clicks it, from any approach, forever.
 
-OSRS awards the completion bonus only for a full in-order lap, and this is
-also what gates marks of grace and the pet roll. Every course therefore needs
-the Gnome course's progress model generalised (§6.1) before its bonus is
-trustworthy.
+**Corrected while implementing this:** only the *classic* courses publish a
+completion bonus conditional on the full lap (Ape Atoll's 300 "awarded only if
+all obstacles completed in sequence", the Wilderness rocks' 498.9, Gnome's 50,
+Barbarian's 46.3). The rooftop pages publish no such separate bonus — their
+final obstacle's listed XP is simply large — so a rooftop's tracker exists to
+decide when a lap *ended*, which is what the mark of grace roll is keyed on,
+not to gate part of that XP. Splitting a published per-obstacle value into
+obstacle+bonus would be an invention.
 
 ### 1.2 No obstacle can be failed
 
@@ -819,13 +875,14 @@ what the new courses need. Newly required: multi-segment exactmoves for
 monkeybars and ziplines, and NPC-driven obstacles (the Penguin crusher and the
 Pyramid rolling block are NPCs, not locs).
 
-### 8.3 Per-player ground objects
+### 8.3 Per-player ground objects — already present
 
 Marks of grace, the Werewolf stick and the Wilderness tickets are all
-owner-visible ground spawns with their own lifetimes. Verify what
-`obj_add(coord, …, ^lootdrop_duration)` currently does about ownership before
-A2; if the tree has no owner-scoped ground obj, that is the one genuine engine
-prerequisite in this plan.
+owner-visible ground spawns with their own lifetimes, and the engine already
+serves that: `obj_add_private(coord, obj, count, duration, private_ticks)`
+places an obj only the active player can see and take. A2 uses it with the
+private window equal to the full ten-minute lifetime, since a mark never
+becomes public.
 
 ### 8.4 Timers and interfaces
 
@@ -874,8 +931,10 @@ implementation, not the constant — see
 
 ## 10. Open questions and blockers
 
-1. **Owner-scoped ground objects** (§8.3) — must be settled before A2. Every
-   mark of grace, stick and ticket depends on it.
+1. ~~**Owner-scoped ground objects** (§8.3)~~ — **resolved**: the engine already
+   has `obj_add_private(coord, obj, count, duration, private_ticks)`
+   (`mock230_scripts.c`), so a mark of grace is placed owner-only for its whole
+   ten minutes.
 2. **Quest gates.** `quests/` already contains Cold War, Monkey Madness I,
    Death to the Dorgeshuun, Creature of Fenkenstrain, Sins of the Father,
    Song of the Elves, Children of the Sun, Garden of Tranquillity, Legends'

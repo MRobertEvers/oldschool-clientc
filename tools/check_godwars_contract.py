@@ -173,17 +173,34 @@ def main() -> None:
         "godwars_saradomin_avatar": ("saradomin_sword", "saradomin_light", "random(4)", "random(2)"),
         "godwars_zamorak_avatar": ("steam_battlestaff", "zamorak_spear", "random(4)", "random(2)"),
     }
+    primary_selector = "~gwd_primary_roll_127"
+    require(
+        proc_body(DROPS, "gwd_primary_roll_127"),
+        "random(127)",
+        "shared classic 127-slot selector",
+    )
     for subject, needles in boss_unique_contracts.items():
         body = script_body(DROPS, "ai_queue3", subject)
-        require(body, "random(127)", f"{subject} 127-slot table")
+        require(body, primary_selector, f"{subject} 127-slot table")
         for needle in needles:
             require(body, needle, f"{subject} unique table")
     for name in (
         "gwd_bodyguard_bandos", "gwd_bodyguard_armadyl",
         "gwd_bodyguard_saradomin", "gwd_bodyguard_zamorak",
     ):
-        require(proc_body(DROPS, name), "random(127)", f"{name} 127-slot table")
+        require(proc_body(DROPS, name), primary_selector, f"{name} 127-slot table")
     require(proc_body(DROPS, "gwd_bodyguard_shard"), "random(12)", "bodyguard shard divisor")
+    boss_tertiary = proc_body(DROPS, "gwd_boss_tertiary_code")
+    require(boss_tertiary, "random(250)", "classic boss elite clue rate")
+    require(boss_tertiary, "random(5000)", "classic boss pet rate")
+    boss_award = proc_body(DROPS, "gwd_drop_boss_tertiary_roll")
+    require(boss_award, "modulo($code, 2) = 1", "independent elite clue bit")
+    require(boss_award, "$code >= 2", "independent pet bit")
+    require(
+        proc_body(DROPS, "gwd_bodyguard_tertiary_code"),
+        "random(128)",
+        "classic bodyguard hard clue rate",
+    )
 
     # CA tier rewards lower all five barriers. Existing essence has priority
     # over a one-use ecumenical key; the obsolete three-charge varp is unused.

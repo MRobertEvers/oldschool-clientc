@@ -48,6 +48,10 @@ COURSES = {
         "Ardougne_Rooftop_Course", 889.0),
     "skill_agility/scripts/barbarian_course.rs2": (
         "Barbarian_Outpost_Agility_Course", 153.3),
+    "skill_agility/scripts/wilderness_course.rs2": (
+        "Wilderness_Agility_Course", 571.4),
+    "skill_agility/scripts/rooftop_pollnivneach.rs2": (
+        "Pollnivneach_Rooftop_Course", 890.0),
 }
 
 # Courses that also pay a second skill on lap completion. Barbarian Outpost is
@@ -87,6 +91,9 @@ KNOWN_FREE_HELPERS = {
     "agility_lap_complete",
     "agility_lap_reset",
     "agility_mark_roll",
+    "agility_pet_roll",
+    "agility_pet_base",
+    "agility_pet_denominator",
     "agility_success",
     "agility_success_chance",
     "agility_success_stop_level",

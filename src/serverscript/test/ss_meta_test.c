@@ -65,6 +65,13 @@ test_opcode_names(void)
              "compiler command lookup sees private ground drops");
     CHECK_EQ(SSVM_OpcodeFromName("remote_view_start"), SS_OP_REMOTE_VIEW_START,
              "compiler command lookup sees remote scene views");
+    CHECK_EQ(SSVM_OpcodeFromName("stat_xp"), SS_OP_STAT_XP,
+             "compiler command lookup sees raw experience reads");
+    CHECK_EQ(SSVM_OpcodeFromName("hitmark"), SS_OP_HITMARK,
+             "compiler command lookup sees cosmetic hitmarks");
+    CHECK_EQ(SSVM_OpcodeFromName("npc_respawn_remaining"),
+             SS_OP_NPC_RESPAWN_REMAINING,
+             "compiler command lookup sees dead-NPC respawn clocks");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -151,6 +158,9 @@ test_command_arities(void)
     CHECK(m->int_in == 1 && m->int_out == 1, "npc_var_get(slot) -> int");
     m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
     CHECK(m->int_in == 2 && m->int_out == 0, "npc_var_set(slot, value)");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_RESPAWN_REMAINING);
+    CHECK(m->int_in == 3 && m->int_out == 1,
+          "npc_respawn_remaining(coord, npc, range) -> int");
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_LOCK);
     CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "player_lock() has no stack arguments");
@@ -166,6 +176,12 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
     CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "remote_view_end()");
+    m = SSVM_OpcodeMeta(SS_OP_STAT_XP);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "stat_xp(stat) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_HITMARK);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "hitmark(uid, hitsplat, amount)");
 }
 
 static void

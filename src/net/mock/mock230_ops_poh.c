@@ -19,9 +19,12 @@ mock230_ops_poh(
     int dot)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = srv->active_player;
+    struct Mock230Player* player =
+        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
 
     (void)dot;
+    if( !player )
+        player = srv->active_player;
     switch( opcode )
     {
     case SS_OP_POH_STATE_RESET:

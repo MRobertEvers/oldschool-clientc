@@ -16,6 +16,7 @@ mock230_poh_init(struct Mock230PohState* poh)
     poh->grid_size = 3;
     poh->servant_last_task = -1;
     poh->family_crest = -1;
+    poh->tip_notify = 1;
 }
 
 void
@@ -71,6 +72,14 @@ mock230_poh_get(
         return poh->spice_brown;
     case MOCK230_POH_FIELD_SPICE_YELLOW:
         return poh->spice_yellow;
+    case MOCK230_POH_FIELD_TIP_COINS:
+        return poh->tip_coins;
+    case MOCK230_POH_FIELD_TIP_PLATINUM:
+        return poh->tip_platinum;
+    case MOCK230_POH_FIELD_TIP_NOTIFY:
+        return poh->tip_notify;
+    case MOCK230_POH_FIELD_TIP_AUTO_BANK:
+        return poh->tip_auto_bank;
     default:
         return 0;
     }
@@ -178,6 +187,26 @@ mock230_poh_set(
         if( value < 0 )
             return 0;
         poh->spice_yellow = value;
+        return 1;
+    case MOCK230_POH_FIELD_TIP_COINS:
+        if( value < 0 )
+            return 0;
+        poh->tip_coins = value;
+        return 1;
+    case MOCK230_POH_FIELD_TIP_PLATINUM:
+        if( value < 0 )
+            return 0;
+        poh->tip_platinum = value;
+        return 1;
+    case MOCK230_POH_FIELD_TIP_NOTIFY:
+        if( !boolean_value(value) )
+            return 0;
+        poh->tip_notify = value;
+        return 1;
+    case MOCK230_POH_FIELD_TIP_AUTO_BANK:
+        if( !boolean_value(value) )
+            return 0;
+        poh->tip_auto_bank = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -483,6 +512,9 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->fish_trophies < 0 || poh->fish_trophies > 0xf ||
         poh->spice_red < 0 || poh->spice_orange < 0 ||
         poh->spice_brown < 0 || poh->spice_yellow < 0 ||
+        poh->tip_coins < 0 || poh->tip_platinum < 0 ||
+        !boolean_value(poh->tip_notify) ||
+        !boolean_value(poh->tip_auto_bank) ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )

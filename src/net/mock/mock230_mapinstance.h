@@ -133,6 +133,24 @@ mock230_mapinstance_alloc(
     int zone_h);
 
 /**
+ * Associate a live player uid with the reservation. The allocator stays
+ * content-neutral; its RuneScript host call records the player who requested
+ * the instance so later cross-player POH interactions can resolve the host.
+ */
+int
+mock230_mapinstance_set_owner(
+    int handle,
+    int player_uid);
+
+/** The recorded player uid, or 0 for a dead/unowned reservation. */
+int
+mock230_mapinstance_owner(int handle);
+
+/** Clear every live reservation owned by this uid; returns the number cleared. */
+int
+mock230_mapinstance_clear_owner(int player_uid);
+
+/**
  * Point one zone of the instance at one zone of the cache.
  *
  * `level`/`zone_x`/`zone_z` are instance-relative and 0-based; `src_x`/`src_z`
