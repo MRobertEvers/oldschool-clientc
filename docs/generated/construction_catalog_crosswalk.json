@@ -6969,6 +6969,10 @@
         {
           "id": 13499,
           "symbol": "poh_stairs_4"
+        },
+        {
+          "id": 13500,
+          "symbol": "poh_stairstop_4"
         }
       ],
       "experience": 980,
@@ -7006,8 +7010,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Teak_staircase",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 980,
+            "page": "Teak staircase",
+            "revision_id": 14913770
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Teak staircase",
         "revision_id": 14913770,
         "revision_timestamp": "2025-06-01T20:16:15Z"
@@ -7019,6 +7029,10 @@
         {
           "id": 13499,
           "symbol": "poh_stairs_4"
+        },
+        {
+          "id": 13500,
+          "symbol": "poh_stairstop_4"
         }
       ],
       "experience": 980,
@@ -7054,8 +7068,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Teak_staircase",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 980,
+            "page": "Teak staircase",
+            "revision_id": 14913770
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Teak staircase",
         "revision_id": 14913770,
         "revision_timestamp": "2025-06-01T20:16:15Z"
@@ -7067,6 +7087,10 @@
         {
           "id": 13499,
           "symbol": "poh_stairs_4"
+        },
+        {
+          "id": 13500,
+          "symbol": "poh_stairstop_4"
         }
       ],
       "experience": 980,
@@ -7102,8 +7126,14 @@
       "upgrade_source_relative": [],
       "wiki": "https://oldschool.runescape.wiki/w/Teak_staircase",
       "wiki_match": {
-        "experience_sources": [],
-        "join": "cache menu_obj id = Wiki infobox itemid",
+        "experience_sources": [
+          {
+            "experience": 980,
+            "page": "Teak staircase",
+            "revision_id": 14913770
+          }
+        ],
+        "join": "reviewed symbolic reconciliation + Wiki page revision",
         "page": "Teak staircase",
         "revision_id": 14913770,
         "revision_timestamp": "2025-06-01T20:16:15Z"
@@ -53271,9 +53301,9 @@
       "skill_features": 213
     },
     "unreferenced_furniture": 13,
-    "wiki_furniture_direct_id_matches": 462,
+    "wiki_furniture_direct_id_matches": 459,
     "wiki_furniture_matches": 525,
-    "wiki_furniture_symbolic_reconciliations": 63,
+    "wiki_furniture_symbolic_reconciliations": 66,
     "wiki_furniture_unresolved": 0,
     "wiki_snapshot_entries": 493
   },

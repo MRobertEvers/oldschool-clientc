@@ -279,9 +279,13 @@ test_multinpc_resolution_is_per_player(void)
     struct App alice;
     struct App bob;
     struct VarPType varp_type = { 0 };
+    struct VarBitType varbit_type = { .basevar = 0, .startbit = 14, .endbit = 14 };
     struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
     struct ToriRS_Npctype* first = calloc(1, sizeof(*first));
     struct ToriRS_Npctype* fallback = calloc(1, sizeof(*fallback));
+    struct ToriRS_Npctype* varbit_shell = calloc(1, sizeof(*varbit_shell));
+    struct ToriRS_Npctype* varbit_zero = calloc(1, sizeof(*varbit_zero));
+    struct ToriRS_Npctype* varbit_one = calloc(1, sizeof(*varbit_one));
 
     memset(&provider, 0, sizeof(provider));
     memset(&alice, 0, sizeof(alice));
@@ -291,6 +295,12 @@ test_multinpc_resolution_is_per_player(void)
     VarPManager_Init(&bob.varps);
     TEST_ASSERT(VarPManager_SetVarpTypes(&alice.varps, &varp_type, 1), "Alice varps initialized");
     TEST_ASSERT(VarPManager_SetVarpTypes(&bob.varps, &varp_type, 1), "Bob varps initialized");
+    TEST_ASSERT(
+        VarPManager_SetVarbitTypes(&alice.varps, &varbit_type, 1),
+        "Alice varbits initialized");
+    TEST_ASSERT(
+        VarPManager_SetVarbitTypes(&bob.varps, &varbit_type, 1),
+        "Bob varbits initialized");
     alice.provider = &provider;
     bob.provider = &provider;
 
@@ -304,6 +314,19 @@ test_multinpc_resolution_is_per_player(void)
     CacheProvider_NpctypeAdd(&provider, 100, shell);
     CacheProvider_NpctypeAdd(&provider, 101, first);
     CacheProvider_NpctypeAdd(&provider, 102, fallback);
+
+    /* Aggie's real shape: a one-bit varbit packed at bit 14 selects her
+     * one-op or two-op child independently for each player. This covers the
+     * varbit half of the same invariant instead of proving only varp shells. */
+    varbit_shell->transform_varbit = 0;
+    varbit_shell->transform_varp = -1;
+    varbit_shell->transform_count = 2;
+    varbit_shell->transforms = malloc(2 * sizeof(*varbit_shell->transforms));
+    varbit_shell->transforms[0] = 111;
+    varbit_shell->transforms[1] = 112;
+    CacheProvider_NpctypeAdd(&provider, 110, varbit_shell);
+    CacheProvider_NpctypeAdd(&provider, 111, varbit_zero);
+    CacheProvider_NpctypeAdd(&provider, 112, varbit_one);
 
     alice.varps.var[0] = 1;
     bob.varps.var[0] = 9;
@@ -321,6 +344,15 @@ test_multinpc_resolution_is_per_player(void)
     TEST_ASSERT(
         App_NpctypeResolveMultiId(&bob, 100) == 102,
         "Alice's quest change does not alter Bob's NPC");
+
+    alice.varps.var[0] = 0;
+    bob.varps.var[0] = 1 << 14;
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&alice, 110) == 111,
+        "Alice sees Aggie's default varbit child");
+    TEST_ASSERT(
+        App_NpctypeResolveMultiId(&bob, 110) == 112,
+        "Bob independently sees Aggie's set-bit child");
 
     VarPManager_Free(&alice.varps);
     VarPManager_Free(&bob.varps);

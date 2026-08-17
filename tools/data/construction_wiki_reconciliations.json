@@ -2,6 +2,9 @@
   "policy": "Symbolic cache-to-Wiki reconciliation only. Numeric XP and object IDs must be fetched from the cited Wiki page revision, never copied here.",
   "rows": {
     "poh_rug_deadman": {"page": "Deadman rug"},
+    "poh_stairs_teak": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
+    "poh_stairs_teak_up": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
+    "poh_stairs_teak_down": {"page": "Teak staircase", "built_loc_symbols": ["poh_stairs_4", "poh_stairstop_4"]},
     "poh_curtains_league5": {"page": "Raging echoes curtains (Construction)", "variant": "Regular"},
     "poh_kitchen_rack_1": {"page": "Spice rack"},
     "poh_prize_chest_3": {"page": "Mahogany prize chest"},

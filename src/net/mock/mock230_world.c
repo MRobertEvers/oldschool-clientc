@@ -30388,7 +30388,7 @@ mock230_world_selftest(void)
 
             for( int i = 0; i < spawn_count; i++ )
             {
-                if( spawns[i].npc_id == sedridor && spawns[i].x == 3104 &&
+                if( spawns[i].npc_id == sedridor && spawns[i].x == 3103 &&
                     spawns[i].z == 9571 && spawns[i].level == 0 )
                     sedridor_spawns++;
             }

@@ -1,0 +1,1039 @@
+# Multi-NPC audit
+
+This is the one-at-a-time checklist for every multi-NPC shell in the live static world roster. The server sends the shell; each client must load it, resolve its varp/varbit against that player's state, retain hidden shells, and remorph them when that player's state changes.
+
+- Spawned multi-NPC shells: **1013**
+- Visible at the default value: **517**
+- Hidden by default with content references: **316**
+- Hidden by default without a content reference: **180**
+- Individually checked: **6 / 1013**
+
+A checked row means that shell's spawn, transform selection, per-player isolation, hidden behavior, and live remorph path have been individually validated. It does not mean every quest using that NPC is complete.
+
+## Visible at the default value
+
+These must appear immediately after their wrapper config loads.
+
+- [x] `head_wizard` — Archmage Sedridor; varp `%runemysteries`; default `head_wizard_1op` (visible); 1 spawn: (3103, 9571, 0); 56 content refs. Import alias fixed; canonical Sedridor spawn restored.
+- [x] `aggie` — Aggie; varbit `%gobdip_met_aggie`; default `aggie_1op` (visible); 1 spawn: (3086, 3259, 0); 0 content refs. Varbit per-player selection verified; One Small Favour leaf-only trigger merged into the canonical shell interaction.
+- [x] `agilityarena_tickettrader` — Pirate Jackie the Fruit; varbit `%karamja_elite_reward`; default `agilityarena_tickettrader_2ops` (visible); 1 spawn: (2811, 3192, 0); 0 content refs. Default and elite-reward children, fallback, spawn, and base-bound Talk/Trade handlers verified; diary reward ownership remains a separate content gap.
+- [x] `agrith_reen_alkharid` — Father Reen; varbit `%agrith_quest`; default `agrith_reen` (visible); 1 spawn: (3271, 3159, 0); 86 content refs. Spawn and 7-bit quest switch verified: visible at stages 0/10/20, hidden after the quest moves him to Uzer; canonical base handler owns every transition.
+- [x] `akd_ice_block` — <col=00ffff>Ice chunks</col>; varbit `%akd`; default `akd_ice_block_big_noop` (visible); 1 spawn: (1541, 3886, 0); 161 content refs. Spawn and stages verified: passive at 0–59, interactable while melting/searching at 60–63, passive afterward; child-only interaction merged into the canonical shell handler.
+- [x] `akd_lydia_fullore_castle` — Commander Fullore; varbit `%akd`; default `akd_lydia_fullore_vis` (visible); 1 spawn: (1612, 3669, 0); 161 content refs. Spawn and quest-stage visibility verified across the opening, post-Yama report, castle investigation, and finale; canonical castle shell added to the shared Fullore interaction.
+- [ ] `akd_martin_holt_kingstown` — Martin Holt, Protest Leader; varbit `%akd`; default `akd_martin_holt_vis_protest` (visible); 1 spawn: (1664, 3670, 0); 161 content refs.
+- [ ] `alice_the_camel_multinpc` — Alice the Camel, Camel; varbit `%desert_alkharid_alis_visible`; default `camel` (visible); 1 spawn: (3285, 3201, 0); 0 content refs.
+- [ ] `arcquest_mori` — Mori; varbit `%arcquest`; default `arcquest_mori_visible` (visible); 1 spawn: (1698, 3742, 0); 83 content refs.
+- [ ] `ardounge_wizard` — Wizard Cromperty; varbit `%ardougne_medium_reward`; default `cromperty_pre_diary` (visible); 1 spawn: (2683, 3326, 0); 0 content refs.
+- [ ] `asteros_arceuus` — Asteros Arceuus; varbit `%akd`; default `asteros_arceuus_vis` (visible); 1 spawn: (1579, 3818, 1); 161 content refs.
+- [ ] `aubury` — Aubury; varp `%runemysteries`; default `aubury_2op` (visible); 1 spawn: (3253, 3402, 0); 56 content refs.
+- [ ] `avan` — Avan, Man; varp `%crestquest`; default `avan_fitzharmon_man` (visible); 1 spawn: (3295, 3284, 0); 54 content refs.
+- [ ] `barbguard1` — Barbarian guard; varp `%barcrawl`; default `barbguard1_precrawl` (visible); 2 spawns: (2544, 3567, 0), (2544, 3571, 0); 5 content refs.
+- [ ] `bim_burntof_pub` — Burntof; varbit `%bim_burntof`; default `bim_burntof` (visible); 1 spawn: (2956, 3367, 0); 15 content refs.
+- [ ] `bim_checkal_barb` — Checkal; varbit `%bim_checkal`; default `bim_checkal` (visible); 1 spawn: (3087, 3415, 0); 15 content refs.
+- [ ] `bim_marley_edge` — Marley; varbit `%bim_marley`; default `bim_marley` (visible); 1 spawn: (3088, 3471, 0); 17 content refs.
+- [ ] `bim_willow_outside` — Willow; varbit `%bim`; default `bim_willow` (visible); 1 spawn: (3003, 3435, 0); 47 content refs.
+- [ ] `bond_james_bond` — James; varbit `%bond_npc_hide`; default `bond_james_visible` (visible); 1 spawn: (3170, 3461, 0); 0 content refs.
+- [ ] `br_host` — Lisa; varbit `%br_tutorial`; default `br_host_tutorial` (visible); 1 spawn: (3141, 3636, 0); 0 content refs.
+- [ ] `brain_island_tranquility` — Brother Tranquility; varp `%brain_quest_var`; default `brain_brother_tranquility_zombie` (visible); 1 spawn: (3787, 2824, 0); 73 content refs.
+- [ ] `brain_multi_monk_1` — Monk, Zombie monk; varbit `%brain_multi_monk`; default `brain_zombie_monk_1` (visible); 1 spawn: (3787, 2827, 0); 1 content refs.
+- [ ] `brain_multi_monk_2` — Monk, Zombie monk; varbit `%brain_multi_monk`; default `brain_zombie_monk_2` (visible); 1 spawn: (3786, 2827, 1); 1 content refs.
+- [ ] `brain_multi_monk_3` — Monk, Zombie monk; varbit `%brain_multi_monk`; default `brain_zombie_monk_3` (visible); 1 spawn: (3788, 2826, 1); 1 content refs.
+- [ ] `brain_multi_monk_4` — Monk, Zombie monk; varbit `%brain_multi_monk`; default `brain_zombie_monk_4` (visible); 1 spawn: (3788, 2825, 2); 1 content refs.
+- [ ] `brain_multi_monk_5` — Monk; varbit `%brain_multi_monk`; default `brain_monk_1` (visible); 1 spawn: (3784, 9227, 0); 1 content refs.
+- [ ] `brain_multi_monk_6` — Monk; varbit `%brain_multi_monk`; default `brain_monk_2` (visible); 1 spawn: (3786, 9226, 0); 1 content refs.
+- [ ] `brain_multi_monk_7` — Monk; varbit `%brain_multi_monk`; default `brain_monk_3` (visible); 1 spawn: (3783, 9223, 0); 1 content refs.
+- [ ] `brain_multi_monk_8` — Monk; varbit `%brain_multi_monk`; default `brain_monk_4` (visible); 1 spawn: (3787, 9222, 0); 1 content refs.
+- [ ] `brain_multi_tranquility` — Brother Tranquility; varbit `%brain_multi_monk`; default `brain_brother_tranquility_brainless` (visible); 1 spawn: (3786, 9224, 0); 1 content refs.
+- [ ] `brain_tranquility` — Brother Tranquility; varp `%brain_quest_var`; default `brain_brother_tranquility_zombie` (visible); 1 spawn: (3681, 2963, 0); 73 content refs.
+- [ ] `burgh_potential_bank_teller_multinpc` — Cornelius; varbit `%burgh_bank_teller`; default `burgh_potential_bank_teller` (visible); 1 spawn: (3496, 3212, 0); 1 content refs.
+- [ ] `burgh_vilager_rat_1` — Vasile; varbit `%myq6`; default `burgh_vilager_rat_1_vis` (visible); 1 spawn: (3485, 3237, 0); 2 content refs.
+- [ ] `cabin_boy_herbert_ship` — Cabin Boy Herbert; varbit `%akd`; default `cabin_boy_herbert_ship_vis` (visible); 1 spawn: (1824, 3695, 1); 161 content refs.
+- [ ] `cabin_boy_jenkins` — Cabin Boy Jenkins; varp `%dragonquest`; default `dragonslayer_jenkins_there` (visible); 3 spawns: (2063, 5556, 1), (2064, 5516, 1), (3046, 3207, 1); 67 content refs.
+- [ ] `caleb_fitzharmon` — Caleb; varp `%crestquest`; default `caleb_fitzharmon_1op` (visible); 1 spawn: (2819, 3451, 0); 54 content refs.
+- [ ] `camdozaal_ramarno_entrance_multi` — Ramarno; varbit `%camdozaal_ramarno_intro`; default `camzodaal_ramarno_entrance` (visible); 1 spawn: (2951, 5779, 0); 0 content refs.
+- [ ] `capt_siad` — Captain Siad; varbit `%sailing_crew_captain_siad_visibility`; default `capt_siad_vis` (visible); 1 spawn: (3291, 3032, 1); 0 content refs.
+- [ ] `captain_barnaby` — Captain Barnaby; varbit `%myarm_barnabyswap`; default `captain_barnaby_ardougne_model` (visible); 1 spawn: (2679, 3275, 0); 4 content refs.
+- [ ] `captain_tobias` — Captain Tobias; varbit `%sailing_intro`; default `captain_tobias_1op` (visible); 1 spawn: (3028, 3216, 0); 100 content refs.
+- [ ] `carla` — Carla; varbit `%sote`; default `carla_vis` (visible); 1 spawn: (2495, 3312, 0); 183 content refs.
+- [ ] `castlewars_judge` — Lanthus; varbit `%deadman_mode`; default `castlewars_judge_model` (visible); 1 spawn: (2441, 3089, 0); 0 content refs.
+- [ ] `catwalk_goblin` — Grubfoot; varbit `%gobdip_grubfoot_vis`; default `catwalk_goblin_brown` (visible); 1 spawn: (2955, 3510, 0); 0 content refs.
+- [ ] `cave_slave1` — Slave; varp `%upass`; default `cave_slave1_vis` (visible); 1 spawn: (2392, 9653, 0); 84 content refs.
+- [ ] `cave_slave2` — Slave; varp `%upass`; default `cave_slave2_vis` (visible); 2 spawns: (2392, 9659, 0), (2394, 9658, 0); 84 content refs.
+- [ ] `cave_slave3` — Slave; varp `%upass`; default `cave_slave3_vis` (visible); 1 spawn: (2389, 9658, 0); 84 content refs.
+- [ ] `cave_slave4` — Slave; varp `%upass`; default `cave_slave4_vis` (visible); 1 spawn: (2387, 9653, 0); 84 content refs.
+- [ ] `cave_slave5` — Slave; varp `%upass`; default `cave_slave5_vis` (visible); 2 spawns: (2384, 9659, 0), (2385, 9657, 0); 84 content refs.
+- [ ] `cave_slave6` — Slave; varp `%upass`; default `cave_slave6_vis` (visible); 2 spawns: (2381, 9654, 0), (2382, 9653, 0); 84 content refs.
+- [ ] `cave_slave7` — Slave; varp `%upass`; default `cave_slave7_vis` (visible); 1 spawn: (2380, 9659, 0); 84 content refs.
+- [ ] `caveguide1` — Koftik; varbit `%upass_koftik_outside`; default `caveguide_vis` (visible); 1 spawn: (2436, 3315, 0); 0 content refs.
+- [ ] `caveguide2` — Koftik; varbit `%upass_koftik_bridge`; default `caveguide_vis` (visible); 1 spawn: (2449, 9716, 0); 0 content refs.
+- [ ] `caveguide3` — Koftik; varbit `%upass_koftik_grid`; default `caveguide_vis` (visible); 1 spawn: (2479, 9679, 0); 0 content refs.
+- [ ] `caveguide4` — Koftik; varbit `%upass_koftik_maze`; default `caveguide_vis` (visible); 1 spawn: (2423, 9609, 0); 0 content refs.
+- [ ] `caveguide5` — Koftik; varbit `%upass_koftik_temple`; default `caveguide_vis` (visible); 1 spawn: (2170, 4727, 1); 0 content refs.
+- [ ] `caveguide6` — Koftik; varbit `%upass_koftik_end`; default `caveguide_vis` (visible); 1 spawn: (2443, 9607, 0); 0 content refs.
+- [ ] `cavewitch` — Kardia; varp `%upass`; default `cavewitch_vis` (visible); 1 spawn: (2155, 4566, 1); 84 content refs.
+- [ ] `cavewitchcat` — Witch's cat; varbit `%upass_gavecat`; default `cavewitchcat_vis` (visible); 1 spawn: (2131, 4602, 1); 6 content refs.
+- [ ] `con_contractor` — Amy; varbit `%con_contract_discussed`; default `con_contractor_1op` (visible); 1 spawn: (2990, 3365, 0); 0 content refs.
+- [ ] `con_contractor_ardougne` — Ellie; varbit `%con_contract_discussed`; default `con_contractor_ardougne_1op` (visible); 1 spawn: (2635, 3294, 0); 0 content refs.
+- [ ] `con_contractor_hosidius` — Angelo; varbit `%con_contract_discussed`; default `con_contractor_hosidius_1op` (visible); 1 spawn: (1782, 3624, 0); 0 content refs.
+- [ ] `con_contractor_varrock` — Marlo; varbit `%con_contract_discussed`; default `con_contractor_varrock_1op` (visible); 1 spawn: (3241, 3471, 0); 0 content refs.
+- [ ] `contact_banker_deadman` — Banker, Financial Wizard; varbit `%deadman_mode`; default `contact_banker_male` (visible); 1 spawn: (2801, 5171, 0); 0 content refs.
+- [ ] `contact_maisa_multi` — Maisa; varbit `%contact_maisa_invis`; default `contact_maisa` (visible); 1 spawn: (3218, 9246, 0); 0 content refs.
+- [ ] `contact_osman_multi` — Osman; varbit `%bcs`; default `osman` (visible); 1 spawn: (3286, 3180, 0); 111 content refs.
+- [ ] `corsair_captain_crossroads` — Captain Tock; varbit `%corscurs_progress`; default `corsair_captain_1op` (visible); 1 spawn: (3030, 3273, 0); 62 content refs.
+- [ ] `corsair_ferry_covedocks` — Cabin Boy Colin, Captain Tock; varbit `%corscurs_progress`; default `desert_treasure_invisible_npc` (visible); 1 spawn: (2574, 2835, 1); 62 content refs.
+- [ ] `corsair_ferry_rimmington` — Cabin Boy Colin, Captain Tock; varbit `%corscurs_progress`; default `desert_treasure_invisible_npc` (visible); 1 spawn: (2910, 3226, 0); 62 content refs.
+- [ ] `corscurs_banker_multi` — Yusuf; varbit `%corscurs_progress`; default `corscurs_banker_1op` (visible); 1 spawn: (2569, 2866, 0); 62 content refs.
+- [ ] `corscurs_cabinboy_sick` — Cabin Boy Colin; varbit `%corscurs_progress`; default `corscurs_cabinboy` (visible); 1 spawn: (2558, 2858, 1); 62 content refs.
+- [ ] `corscurs_cook_sick` — Gnocci the Cook; varbit `%corscurs_progress`; default `corscurs_cook` (visible); 1 spawn: (2544, 2862, 1); 62 content refs.
+- [ ] `corscurs_navigator_sick` — Ithoi the Navigator; varbit `%corscurs_progress`; default `corscurs_navigator` (visible); 1 spawn: (2529, 2839, 1); 62 content refs.
+- [ ] `corscurs_thief_sick` — Arsen the Thief; varbit `%corscurs_progress`; default `corscurs_thief` (visible); 1 spawn: (2553, 2858, 1); 62 content refs.
+- [ ] `councillor_halgrive` — Councillor Halgrive; varbit `%sote`; default `councillor_halgrive_vis` (visible); 1 spawn: (2617, 3299, 0); 183 content refs.
+- [ ] `councillor_unkar` — Councillor Unkar; varbit `%akd`; default `councillor_unkar_vis` (visible); 1 spawn: (1482, 3746, 0); 161 content refs.
+- [ ] `customs_officer` — Customs officer; varbit `%sailing_intro`; default `customs_officer_1op` (visible); 1 spawn: (2953, 3147, 0); 100 content refs.
+- [ ] `cws_doomsayer` — Doomsayer; varbit `%deadman_mode`; default `doomsayer_normal` (visible); 1 spawn: (3232, 3223, 0); 0 content refs.
+- [ ] `darkm_auctioneer` — Auctioneer; varbit `%myq6`; default `darkm_auctioneer_vis` (visible); 1 spawn: (3590, 3343, 0); 2 content refs.
+- [ ] `darkm_buyer_1` — Spectator; varbit `%myq6`; default `darkm_buyer_1_vis` (visible); 1 spawn: (3592, 3345, 0); 2 content refs.
+- [ ] `darkm_buyer_2` — Spectator; varbit `%myq6`; default `darkm_buyer_2_vis` (visible); 1 spawn: (3594, 3345, 0); 2 content refs.
+- [ ] `darkm_buyer_3` — Spectator; varbit `%myq6`; default `darkm_buyer_3_vis` (visible); 1 spawn: (3595, 3342, 0); 2 content refs.
+- [ ] `darkm_buyer_4` — Spectator; varbit `%myq6`; default `darkm_buyer_4_vis` (visible); 1 spawn: (3595, 3344, 0); 2 content refs.
+- [ ] `darkm_buyer_5` — Spectator; varbit `%myq6`; default `darkm_buyer_5_vis` (visible); 1 spawn: (3593, 3343, 0); 2 content refs.
+- [ ] `darkm_buyer_6` — Spectator; varbit `%myq6`; default `darkm_buyer_6_vis` (visible); 1 spawn: (3592, 3344, 0); 2 content refs.
+- [ ] `darkm_prisoner_01` — Slave; varbit `%myq6`; default `darkm_prisoner_01_vis` (visible); 1 spawn: (3590, 3345, 0); 2 content refs.
+- [ ] `darkm_prisoner_02` — Slave; varbit `%myq6`; default `darkm_prisoner_02_vis` (visible); 1 spawn: (3590, 3344, 0); 2 content refs.
+- [ ] `darkm_werewolf_3` — Werewolf; varbit `%garlic_cocktail_shop_unlocked`; default `darkm_werewolf_3_1op` (visible); 1 spawn: (3603, 3321, 0); 0 content refs.
+- [ ] `deadman_banker_ahoy_north` — Financial Wizard, Ghost banker; varbit `%deadman_mode`; default `ahoy_ghost_banker` (visible); 1 spawn: (3690, 3464, 0); 0 content refs.
+- [ ] `deadman_banker_blue_north` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1_new` (visible); 1 spawn: (3251, 3418, 0); 0 content refs.
+- [ ] `deadman_banker_blue_south` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1_new` (visible); 1 spawn: (3209, 3222, 2); 0 content refs.
+- [ ] `deadman_banker_blue_west` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1_new` (visible); 1 spawn: (3187, 3436, 0); 0 content refs.
+- [ ] `deadman_banker_gnome_east` — Financial Wizard, Gnome banker; varbit `%deadman_mode`; default `gnomebanker` (visible); 2 spawns: (2440, 3488, 1), (2443, 3424, 1); 0 content refs.
+- [ ] `deadman_banker_gnome_north` — Financial Wizard, Gnome banker; varbit `%deadman_mode`; default `gnomebanker` (visible); 1 spawn: (2450, 3480, 1); 0 content refs.
+- [ ] `deadman_banker_grey_north` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1` (visible); 4 spawns: (1611, 3679, 2), (2615, 3330, 0), (2949, 3366, 0), …; 0 content refs.
+- [ ] `deadman_banker_grey_south` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1` (visible); 2 spawns: (2728, 3495, 0), (2810, 3443, 0); 0 content refs.
+- [ ] `deadman_banker_grey_west` — Banker, Financial Wizard; varbit `%deadman_mode`; default `banker1` (visible); 3 spawns: (2615, 3094, 0), (2657, 3283, 0), (3163, 3490, 0); 0 content refs.
+- [ ] `deadman_banker_pest_north` — Financial Wizard, Squire; varbit `%deadman_mode`; default `pest_squire_bank_man` (visible); 1 spawn: (2666, 2651, 0); 0 content refs.
+- [ ] `deadman_banker_wildy` — Financial Wizard, Mercenary; varbit `%deadman_mode`; default `wildy_banker_protector` (visible); 1 spawn: (3135, 3627, 0); 0 content refs.
+- [ ] `deadman_nigel` — Nigel; varbit `%deadman_mode`; default `deadman_nigel_regular` (visible); 1 spawn: (3243, 3201, 0); 0 content refs.
+- [ ] `death_growncat_black` — Bob; varbit `%bob_invisible`; default `death_growncat_black_vis` (visible); 1 spawn: (2924, 3565, 0); 0 content refs.
+- [ ] `devious_monk_hooded` — Monk; varbit `%devious_monk`; default `devious_monk_hooded_visable` (visible); 1 spawn: (3406, 3492, 0); 4 content refs.
+- [ ] `disciple_of_yama_entrance` — Disciple of Yama; varbit `%chasm_voice_progress`; default `disciple_of_yama_entrance_1op` (visible); 1 spawn: (1439, 3667, 0); 0 content refs.
+- [ ] `dmine_daeyalt_converter` — Noranna Tytanin; varbit `%dmine_daeyalt_converter_intro`; default `dmine_daeyalt_converter_1op` (visible); 1 spawn: (3692, 9764, 2); 0 content refs.
+- [ ] `dmine_miner_1` — Slave; varbit `%myq6`; default `dmine_miner_1_vis` (visible); 1 spawn: (3697, 9752, 2); 2 content refs.
+- [ ] `dmine_miner_2` — Slave; varbit `%myq6`; default `dmine_miner_2_vis` (visible); 1 spawn: (3682, 9772, 2); 2 content refs.
+- [ ] `dmine_miner_3` — Slave; varbit `%myq6`; default `dmine_miner_3_vis` (visible); 1 spawn: (3666, 9745, 2); 2 content refs.
+- [ ] `dmine_miner_4` — Slave; varbit `%myq6`; default `dmine_miner_4_vis` (visible); 1 spawn: (3667, 9773, 2); 2 content refs.
+- [ ] `dmine_miner_5` — Slave; varbit `%myq6`; default `dmine_miner_5_vis` (visible); 1 spawn: (3684, 9749, 2); 2 content refs.
+- [ ] `dmine_miner_6` — Slave; varbit `%myq6`; default `dmine_miner_6_vis` (visible); 1 spawn: (3666, 9761, 2); 2 content refs.
+- [ ] `doomion` — Doomion; varp `%upass`; default `doomion_vis` (visible); 1 spawn: (2134, 4565, 1); 84 content refs.
+- [ ] `dr_harlow` — Dr Harlow; varbit `%myq6`; default `dr_harlow_vis` (visible); 1 spawn: (3222, 3397, 0); 2 content refs.
+- [ ] `ds2_dragon_head_east` — <col=00ffff>Dragon head</col>; varbit `%ds2_dragon_head_east`; default `ds2_dragon_head_unlit` (visible); 1 spawn: (1558, 4881, 0); 3 content refs.
+- [ ] `ds2_dragon_head_north` — <col=00ffff>Dragon head</col>; varbit `%ds2_dragon_head_north`; default `ds2_dragon_head_unlit` (visible); 1 spawn: (1554, 4885, 0); 3 content refs.
+- [ ] `ds2_dragon_head_west` — <col=00ffff>Dragon head</col>; varbit `%ds2_dragon_head_west`; default `ds2_dragon_head_unlit` (visible); 1 spawn: (1550, 4881, 0); 3 content refs.
+- [ ] `dwarf_city_boatman_mines` — Dwarven Boatman; varbit `%giantdwarf_quest`; default `dwarf_city_boatman_mines_prequest` (visible); 1 spawn: (2842, 10129, 0); 143 content refs.
+- [ ] `dwarf_city_director_red_axe_multi` — Red Axe Director; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_director_red_axe` (visible); 1 spawn: (2872, 10189, 1); 0 content refs.
+- [ ] `dwarf_city_drunken_dwarf_multi` — Drunken Dwarf; varbit `%keldagrim_kebab_status`; default `dwarf_city_drunken_dwarf` (visible); 1 spawn: (2912, 10222, 0); 0 content refs.
+- [ ] `dwarf_city_evil_cat_multi` — Red Axe Cat; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_evil_cat` (visible); 1 spawn: (2870, 10190, 1); 0 content refs.
+- [ ] `dwarf_city_gnome_emissary_multi` — Gnome emissary; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_gnome_emissary` (visible); 1 spawn: (2872, 10190, 1); 0 content refs.
+- [ ] `dwarf_city_gnome_female_emissary_multi` — Gnome traveller; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_gnome_female_emissary` (visible); 1 spawn: (2836, 10192, 1); 0 content refs.
+- [ ] `dwarf_city_gnome_male_emissary_multi` — Gnome traveller; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_gnome_male_emissary` (visible); 1 spawn: (2835, 10193, 1); 0 content refs.
+- [ ] `dwarf_city_red_trader1_multi` — Trader; varbit `%giantdwarf_red_traders_gone`; default `dwarf_city_red_trader1` (visible); 1 spawn: (2878, 10196, 1); 0 content refs.
+- [ ] `dwarf_city_red_trader2_multi` — Trader; varbit `%giantdwarf_red_traders_gone`; default `dwarf_city_red_trader2` (visible); 1 spawn: (2877, 10195, 1); 0 content refs.
+- [ ] `dwarf_city_secretary_red_axe_multi` — Red Axe Secretary; varbit `%giantdwarf_red_axe_gone`; default `dwarf_city_secretary_red_axe` (visible); 1 spawn: (2869, 10189, 1); 0 content refs.
+- [ ] `dwarf_city_shop_sculpture_model_multi` — Riki the sculptor's model; varbit `%giantdwarf_model_state`; default `dwarf_city_shop_sculpture_model` (visible); 1 spawn: (2904, 10207, 0); 7 content refs.
+- [ ] `dwarfrock_multi_dondakan` — Dondakan the Dwarf; varbit `%dwarfrock_quest`; default `dwarfrock_dondakan` (visible); 1 spawn: (2824, 10168, 0); 58 content refs.
+- [ ] `eaglepeak_nickolaus_campsite` — Nickolaus; varbit `%eaglepeak_quest`; default `eaglepeak_nickolaus_normal` (visible); 1 spawn: (2318, 3503, 0); 84 content refs.
+- [ ] `edmond_top` — Edmond; varbit `%plaguecity_can_see_edmond_up_top`; default `edmond` (visible); 1 spawn: (2568, 3334, 0); 0 content refs.
+- [ ] `elena_prison` — Elena; varbit `%sote`; default `sote_elena_prison` (visible); 1 spawn: (2574, 9714, 0); 183 content refs.
+- [ ] `elenap` — Elena; varp `%elenaquest`; default `elenap_vis` (visible); 1 spawn: (2541, 9672, 0); 112 content refs.
+- [ ] `elid_ranging_target_multinpc` — Target; varbit `%elid_rangingchannel`; default `elid_ranging_target` (visible); 1 spawn: (3379, 9556, 0); 3 content refs.
+- [ ] `elkoy` — Elkoy; varp `%treequest`; default `elkoy_1op` (visible); 1 spawn: (2504, 3191, 0); 128 content refs.
+- [ ] `elkoy_village` — Elkoy; varp `%treequest`; default `elkoy_1op` (visible); 1 spawn: (2514, 3159, 0); 128 content refs.
+- [ ] `enakh_boneguard_multinpc` — Boneguard, Pile of bones; varbit `%enakh_quest`; default `enakh_boneguard` (visible); 1 spawn: (3104, 9307, 2); 52 content refs.
+- [ ] `enakh_dummy_fountain_multinpc` — Crust of ice; varbit `%enakh_ice_room`; default `enakh_dummy_fountain` (visible); 1 spawn: (3091, 9307, 1); 5 content refs.
+- [ ] `enakh_dummy_furnace_multinpc` — Furnace grate; varbit `%enakh_smoke_room`; default `enakh_dummy_furnace` (visible); 1 spawn: (3115, 9323, 1); 5 content refs.
+- [ ] `enakh_enakhra_multinpc` — Enakhra; varbit `%enakh_enakhra_form`; default `enakh_enakhra_hooded` (visible); 1 spawn: (3104, 9286, 1); 0 content refs.
+- [ ] `enakh_lazim_statue_east_multinpc` — Lazim; varbit `%enakh_where_is_lazim`; default `enakh_lazim` (visible); 1 spawn: (3191, 2926, 0); 6 content refs.
+- [ ] `ernest_multichicken` — Chicken; varp `%haunted`; default `ernest_the_chicken` (visible); 1 spawn: (3110, 3366, 2); 22 content refs.
+- [ ] `fairy2_repair` — Fairy Fixit; varbit `%fairy2_rewardgiven`; default `fairy2_repair_1op` (visible); 1 spawn: (2410, 4434, 0); 0 content refs.
+- [ ] `fairy_multi` — Fairy; varbit `%fairy2_queencure_quest`; default `fairy_child` (visible); 38 spawns: (2373, 4447, 0), (2375, 4448, 0), (2376, 4445, 0), …; 0 content refs.
+- [ ] `fairy_nuff_multi` — Fairy Nuff; varbit `%fairy2_nuffvisible`; default `fairy_nuff2` (visible); 1 spawn: (2388, 4470, 0); 0 content refs.
+- [ ] `fairy_queen_multi` — Fairy Queen; varbit `%fairy_queen_check`; default `fairy_queen` (visible); 1 spawn: (2445, 4427, 0); 0 content refs.
+- [ ] `farming_guild_master` — Guildmaster Jane; varbit `%farmguild_contract_discussed`; default `farming_guild_master_1op` (visible); 1 spawn: (1248, 3727, 0); 0 content refs.
+- [ ] `fenk_creature` — Fenkenstrain's Monster; varp `%fenk_quest`; default `fenk_creature_model` (visible); 1 spawn: (3547, 3555, 2); 8 content refs.
+- [ ] `fenk_fenkenstrain` — Dr Fenkenstrain; varp `%fenk_quest`; default `fenk_fenkenstrain_model` (visible); 1 spawn: (3551, 3550, 0); 8 content refs.
+- [ ] `fenk_gardener_multi_2` — Gardener Ghost; varbit `%fenk_gardener_directions`; default `fenk_gardener` (visible); 1 spawn: (3551, 3561, 0); 0 content refs.
+- [ ] `feud_arabian_guard2_multi` — Bandit; varbit `%feud_npc_multi`; default `feud_arabian_guard2_1` (visible); 4 spawns: (3354, 2994, 0), (3357, 3001, 0), (3360, 2999, 0), …; 0 content refs.
+- [ ] `feud_arabian_guard_multi` — Bandit; varbit `%feud_npc_multi`; default `feud_arabian_guard1_1` (visible); 5 spawns: (3354, 2987, 0), (3354, 3000, 0), (3361, 3003, 0), …; 0 content refs.
+- [ ] `feud_egyptian_doorman_multi` — Menaphite Thug; varbit `%feud_npc_multi`; default `feud_egyptian_doorman_1` (visible); 10 spawns: (3333, 2952, 0), (3338, 2946, 0), (3338, 2950, 0), …; 0 content refs.
+- [ ] `feud_mayor` — Ali the Mayor, Hakeem the Mayor; varbit `%feud_mayor_multivar`; default `feud_mayor_geom` (visible); 1 spawn: (3360, 2970, 0); 1 content refs.
+- [ ] `feud_villager_multi_1` — Villager; varbit `%feud_npc_multi`; default `feud_villager_1_1` (visible); 4 spawns: (3355, 2949, 0), (3356, 2984, 2), (3358, 2969, 0), …; 0 content refs.
+- [ ] `feud_villager_multi_2` — Villager; varbit `%feud_npc_multi`; default `feud_villager_2_1` (visible); 5 spawns: (3342, 2954, 0), (3355, 2957, 0), (3361, 2969, 0), …; 0 content refs.
+- [ ] `feud_villager_multi_3` — Villager; varbit `%feud_npc_multi`; default `feud_villager_3_1` (visible); 5 spawns: (3349, 2954, 0), (3359, 2975, 0), (3361, 2967, 0), …; 0 content refs.
+- [ ] `fossil_zygomite_cap` — Ancient Fungi; varp `%option_attackpriority_npc`; default `fossil_zygomite_cap_withop` (visible); 27 spawns: (3673, 3858, 0), (3674, 3878, 0), (3677, 3850, 0), …; 3 content refs.
+- [ ] `fossilquest_barge_guard_port` — Barge guard; varbit `%fossilquest_progress`; default `fossilquest_barge_guard_port_prequest` (visible); 1 spawn: (3362, 3446, 0); 73 content refs.
+- [ ] `fossilquest_david` — David; varbit `%fossilquest_progress`; default `fossilquest_david_vis` (visible); 1 spawn: (3363, 3452, 1); 73 content refs.
+- [ ] `fossilquest_john` — John; varbit `%fossilquest_progress`; default `fossilquest_john_vis` (visible); 1 spawn: (3364, 3453, 1); 73 content refs.
+- [ ] `fossilquest_jr_navigator` — Junior Navigator; varbit `%fossilquest_progress`; default `fossilquest_jr_navigator_quest` (visible); 3 spawns: (1820, 4762, 1), (3363, 3453, 1), (3723, 3785, 1); 73 content refs.
+- [ ] `fossilquest_lead_navigator` — Lead Navigator; varbit `%fossilquest_progress`; default `fossilquest_lead_navigator_quest` (visible); 2 spawns: (3363, 3454, 1), (3723, 3784, 1); 73 content refs.
+- [ ] `fourdiamonds_elder` — Eblis; varbit `%deserttreasure`; default `fd_elder_village` (visible); 1 spawn: (3185, 2983, 0); 71 content refs.
+- [ ] `fourdiamonds_troll_child` — Troll child; varbit `%fd_icewarrior_subquest`; default `fourdiamonds_troll_child_crying` (visible); 1 spawn: (2836, 3740, 0); 4 content refs.
+- [ ] `fris_r_burgher` — Mawnis Burowgar; varbit `%fris_king`; default `fris_r_burgher_crown` (visible); 1 spawn: (2335, 3799, 0); 2 content refs.
+- [ ] `frisd_banker` — Magnus Gram; varbit `%deadman_mode`; default `frisd_banker_normal` (visible); 1 spawn: (2416, 3799, 0); 0 content refs.
+- [ ] `ga_mary` — Mary; varbit `%ga_mary_dialogue`; default `ga_mary_1op` (visible); 1 spawn: (1238, 3679, 0); 0 content refs.
+- [ ] `gertrude` — Gertrude; varp `%fluffs`; default `gertrude_quest` (visible); 1 spawn: (3151, 3410, 0); 39 content refs.
+- [ ] `gnome_brimstail` — Brimstail; varp `%runemysteries`; default `gnome_brimstail_1op` (visible); 1 spawn: (2409, 9817, 0); 56 content refs.
+- [ ] `gnormadium_avlafrim` — Gnormadium Avlafrim; varbit `%pilot_multinpc_var`; default `gnormadium_avlafrim_talk` (visible); 1 spawn: (2544, 2973, 0); 0 content refs.
+- [ ] `godwars_paladin_multi` — Knight; varbit `%godwars_palladin2`; default `godwars_dying_paladin` (visible); 1 spawn: (2912, 3750, 0); 0 content refs.
+- [ ] `golem_golem` — Broken clay golem, Clay golem, Damaged clay golem; varbit `%golem_clay`; default `golem_broken_golem` (visible); 1 spawn: (3488, 3090, 0); 4 content refs.
+- [ ] `grandtree_anita` — Anita; varbit `%mm2_progress`; default `gt_anita` (visible); 1 spawn: (2390, 3514, 1); 156 content refs.
+- [ ] `grandtree_glough` — Glough; varp `%mm_main`; default `grandtree_glough_visible` (visible); 1 spawn: (2478, 3463, 1); 63 content refs.
+- [ ] `grandtree_narnode` — King Narnode Shareen; varbit `%mm2_progress`; default `grandtree_narnode_1op` (visible); 2 spawns: (2464, 9897, 0), (2466, 3497, 0); 156 content refs.
+- [ ] `grim_grimgnash` — Grimgnash; varbit `%grim_griffin_asleep`; default `grim_grimgnash_awake` (visible); 1 spawn: (2861, 3510, 0); 5 content refs.
+- [ ] `grim_rupert` — Rupert the Beard; varbit `%grim_dwarf_vis`; default `grim_rupert_invisible` (visible); 1 spawn: (2970, 3473, 0); 6 content refs.
+- [ ] `grim_rupert_intower` — Rupert the Beard; varbit `%grim_dwarf_vis_tower`; default `grim_rupert_invisible_intower` (visible); 1 spawn: (2968, 3468, 2); 0 content refs.
+- [ ] `guild_wizard` — Wizard Distentor; varp `%runemysteries`; default `guild_wizard_1op` (visible); 1 spawn: (2594, 3089, 0); 56 content refs.
+- [ ] `hallowed_lobby_npc` — Mysterious Stranger; varbit `%hallowed_tutorial`; default `hallowed_lobby_npc_1op` (visible); 1 spawn: (2400, 5986, 0); 0 content refs.
+- [ ] `handsand_bert` — Bert; varbit `%handsand_quest`; default `handsand_bert_1op` (visible); 2 spawns: (2550, 3100, 0), (2934, 4700, 0); 85 content refs.
+- [ ] `handsand_sandy` — Sandy; varbit `%handsand_sandy_multi`; default `handsand_sandy0` (visible); 1 spawn: (2788, 3176, 0); 3 content refs.
+- [ ] `haskell_rellekka` — Haskell; varbit `%vikingexile`; default `haskell_no_travel` (visible); 1 spawn: (2621, 3690, 0); 84 content refs.
+- [ ] `headmourner` — Head Mourner; varbit `%sote`; default `headmourner_vis` (visible); 1 spawn: (2542, 3286, 0); 183 content refs.
+- [ ] `holgartland` — Holgart; varp `%seaslugquest`; default `holgartlandnotravel` (visible); 1 spawn: (2720, 3306, 0); 63 content refs.
+- [ ] `holthion` — Holthion; varp `%upass`; default `holthion_vis` (visible); 1 spawn: (2132, 4554, 1); 84 content refs.
+- [ ] `hosdun_aimeri` — Brother Aimeri; varbit `%hosdun_aimeri_status`; default `hosdun_aimeri_injured` (visible); 1 spawn: (1840, 9926, 0); 10 content refs.
+- [ ] `hosdun_olbertus` — Olbertus; varbit `%hosdun_olbertus_status`; default `hosdun_olbertus_corrupted` (visible); 1 spawn: (1796, 9953, 0); 0 content refs.
+- [ ] `hosidius_pandur` — Pandur Hosidius; varbit `%akd`; default `hosidius_pandur_vis` (visible); 1 spawn: (1806, 3550, 0); 161 content refs.
+- [ ] `hosidiusquest_lady` — Elena Hosidius; varbit `%akd`; default `hosidiusquest_lady_vis` (visible); 1 spawn: (1779, 3567, 2); 161 content refs.
+- [ ] `hosidiusquest_lord` — Lord Kandur Hosidius; varbit `%akd`; default `hosidiusquest_lord_vis` (visible); 1 spawn: (1782, 3571, 0); 161 content refs.
+- [ ] `hundred_dwarf_dad_multi` — An old Dwarf, Rohak; varbit `%hundred_dwarf_multi_dad`; default `hundred_dwarf_dad` (visible); 1 spawn: (2865, 9876, 0); 0 content refs.
+- [ ] `iban` — Iban; varp `%upass`; default `iban_vis` (visible); 1 spawn: (2133, 4647, 1); 84 content refs.
+- [ ] `ibanmonk` — Disciple of Iban; varp `%upass`; default `ibanmonk_vis` (visible); 13 spawns: (2149, 4646, 1), (2150, 4648, 1), (2153, 4646, 1), …; 84 content refs.
+- [ ] `ics_little_cat` — Neite; varbit `%ds2`; default `ics_little_cat_visible` (visible); 1 spawn: (3298, 2757, 0); 197 content refs.
+- [ ] `ics_little_hipriest_town` — High Priest; varbit `%ics_little_var`; default `ics_little_hipriest_vis` (visible); 1 spawn: (3281, 2772, 0); 103 content refs.
+- [ ] `ics_little_linen1` — Raetul; varbit `%ics_little_var`; default `ics_little_linen1_1op` (visible); 1 spawn: (3311, 2787, 0); 103 content refs.
+- [ ] `ics_little_locust` — Locust; varbit `%contact`; default `ics_little_locust_vis` (visible); 19 spawns: (3309, 2806, 0), (3312, 2806, 0), (3314, 2752, 0), …; 61 content refs.
+- [ ] `ics_little_multi_wanderer` — Wanderer; varbit `%ics_little_var`; default `ics_little_redheadlady` (visible); 1 spawn: (3315, 2849, 0); 103 content refs.
+- [ ] `ics_little_plague_frog` — Plague frog; varbit `%contact`; default `ics_little_plague_frog_vis` (visible); 18 spawns: (3272, 2802, 0), (3273, 2802, 0), (3273, 2805, 0), …; 61 content refs.
+- [ ] `ilfeen_prif` — Ilfeen; varbit `%ilfeen_prif`; default `roving_ilfeen_1op` (visible); 1 spawn: (3237, 6072, 0); 0 content refs.
+- [ ] `inferno_master` — TzHaar-Ket-Keh; varp `%total_zuk_kills`; default `inferno_master_1op` (visible); 1 spawn: (2494, 5113, 0); 0 content refs.
+- [ ] `ironman_tutor_2` — Ironman tutor; varbit `%league_account`; default `ironman_tutor_2_visible` (visible); 1 spawn: (3128, 3084, 0); 0 content refs.
+- [ ] `jad_challenge_master` — TzHaar-Ket-Rak; varbit `%jad_challenge_master_met`; default `jad_challenge_master_1op` (visible); 1 spawn: (2545, 5110, 0); 0 content refs.
+- [ ] `jardric_camp` — Jardric; varbit `%ds2`; default `jardric` (visible); 1 spawn: (3720, 3812, 0); 197 content refs.
+- [ ] `jethick` — Jethick; varbit `%sote`; default `jethick_vis` (visible); 1 spawn: (2540, 3305, 0); 183 content refs.
+- [ ] `johnathon_fitzharmon` — Johnathon; varp `%crestquest`; default `johnathon_fitzharmon_1op` (visible); 1 spawn: (3279, 3503, 1); 54 content refs.
+- [ ] `jonny_the_beard` — Jonny the Beard; varp `%phoenixgang`; default `jonny_the_beard_1op` (visible); 1 spawn: (3223, 3395, 0); 58 content refs.
+- [ ] `juliet_multi_visible` — Juliet; varbit `%romjul_juliet_visible`; default `juliet` (visible); 1 spawn: (3158, 3425, 1); 0 content refs.
+- [ ] `kalrag` — Kalrag; varbit `%upass_venom_on_doll`; default `kalrag_vis` (visible); 1 spawn: (2356, 9911, 0); 11 content refs.
+- [ ] `karam_dungeon_backdoor` — Banisoch; varbit `%karam_dungeon_backdoor`; default `karam_dungeon_backdoor_unpaid` (visible); 1 spawn: (2757, 3061, 0); 0 content refs.
+- [ ] `kennith` — Kennith; varp `%seaslugquest`; default `kennith_platform` (visible); 1 spawn: (2766, 3288, 1); 63 content refs.
+- [ ] `khazard_warlord` — Khazard warlord; varbit `%khazard_warlord_fighting`; default `khazard_warlord_chat` (visible); 1 spawn: (2457, 3302, 0); 0 content refs.
+- [ ] `kilron` — Kilron; varbit `%sote`; default `kilron_vis` (visible); 1 spawn: (2556, 3266, 0); 183 content refs.
+- [ ] `kinglathas` — King Lathas, King Thoros; varbit `%sote`; default `kinglathas_vis` (visible); 1 spawn: (2578, 3293, 1); 183 content refs.
+- [ ] `kourend_protester` — Protester; varbit `%akd`; default `kourend_protester_vis` (visible); 1 spawn: (1668, 3673, 0); 161 content refs.
+- [ ] `kourend_protester_2` — Protester; varbit `%akd`; default `kourend_protester_2_vis` (visible); 1 spawn: (1667, 3676, 0); 161 content refs.
+- [ ] `kourend_protester_3` — Protester; varbit `%akd`; default `kourend_protester_3_vis` (visible); 1 spawn: (1667, 3669, 0); 161 content refs.
+- [ ] `kourend_protester_4` — Protester; varbit `%akd`; default `kourend_protester_4_vis` (visible); 1 spawn: (1665, 3674, 0); 161 content refs.
+- [ ] `kr_anna_sinclair_multi` — Anna; varbit `%kr_quest`; default `anna_sinclair` (visible); 1 spawn: (2734, 3575, 0); 90 content refs.
+- [ ] `kr_bob_sinclair_multi` — Bob; varbit `%kr_quest`; default `bob_sinclair` (visible); 1 spawn: (2748, 3559, 0); 90 content refs.
+- [ ] `kr_carol_sinclair_multi` — Carol; varbit `%kr_quest`; default `carol_sinclair` (visible); 1 spawn: (2734, 3581, 1); 90 content refs.
+- [ ] `kr_david_sinclair_multi` — David; varbit `%kr_quest`; default `david_sinclair` (visible); 1 spawn: (2739, 3581, 0); 90 content refs.
+- [ ] `kr_elizabeth_sinclair_multi` — Elizabeth; varbit `%kr_quest`; default `elizabeth_sinclair` (visible); 1 spawn: (2746, 3581, 1); 90 content refs.
+- [ ] `kr_frank_sinclair_multi` — Frank; varbit `%kr_quest`; default `frank_sinclair` (visible); 1 spawn: (2742, 3577, 0); 90 content refs.
+- [ ] `kr_murderguard_house_multi` — Guard; varbit `%kr_quest`; default `murderguard` (visible); 2 spawns: (2739, 3577, 0), (2739, 3579, 1); 90 content refs.
+- [ ] `league_tutor` — Leagues Tutor; varbit `%league_account`; default `league_tutor_normal` (visible); 1 spawn: (3225, 3213, 0); 0 content refs.
+- [ ] `lord_iorwerth` — Lord Iorwerth; varbit `%sote`; default `lord_iorwerth_vis` (visible); 2 spawns: (2205, 3252, 0), (3229, 6004, 0); 183 content refs.
+- [ ] `lord_myrmel` — Lord Mischa Myrmel; varbit `%myq6`; default `lord_myrmel_vis` (visible); 1 spawn: (3598, 3318, 0); 2 content refs.
+- [ ] `lost_property_merchant_standard` — Perdu; varbit `%this_is_a_pvp_or_bh_world`; default `lost_property_merchant_model` (visible); 4 spawns: (2808, 3454, 0), (2953, 3390, 1), (3080, 3513, 1), …; 0 content refs.
+- [ ] `lost_tribe_mistag` — Mistag; varbit `%lost_tribe_quest`; default `lost_tribe_mistag_1op` (visible); 1 spawn: (3319, 9615, 0); 75 content refs.
+- [ ] `lost_tribe_sigmund` — Sigmund; varbit `%lost_tribe_quest`; default `lost_tribe_sigmund_there` (visible); 1 spawn: (3209, 3219, 1); 75 content refs.
+- [ ] `lovakengj_assistant` — Jorra; varbit `%akd_lovakengj_helped`; default `lovakengj_assistant_vis` (visible); 1 spawn: (1487, 3748, 0); 6 content refs.
+- [ ] `lovakengj_thirus` — Thirus; varbit `%kourend_medium_reward`; default `lovakengj_thirus_pre_diary` (visible); 1 spawn: (1517, 3834, 0); 0 content refs.
+- [ ] `lunar_fremennik_pirate` — Lokar Searunner; varbit `%lunar_quest_main`; default `lunar_fremennik_pirate_1op` (visible); 1 spawn: (2620, 3693, 0); 106 content refs.
+- [ ] `lunar_pirate_cabin_boy` — Cabin boy; varbit `%lunar_quest_main`; default `lunar_pirate_cabin_boy_base_config` (visible); 2 spawns: (2138, 3891, 3), (2223, 3788, 3); 106 content refs.
+- [ ] `lunar_pirate_captain` — Captain Bentley; varbit `%lunar_quest_main`; default `lunar_pirate_captain_1op` (visible); 2 spawns: (2138, 3899, 2), (2222, 3796, 2); 106 content refs.
+- [ ] `lunar_pirate_navigator_multi` — 'Birds-Eye' Jack; varbit `%dream_prog`; default `lunar_pirate_navigator` (visible); 2 spawns: (2138, 3891, 1), (2222, 3788, 1); 42 content refs.
+- [ ] `makinghistory_droalak_multi` — Droalak; varbit `%makinghistory_droalak_pres`; default `makinghistory_droalak` (visible); 1 spawn: (3657, 3469, 0); 3 content refs.
+- [ ] `makinghistory_melina_multi` — Melina; varbit `%makinghistory_melina_pres`; default `makinghistory_melina` (visible); 1 spawn: (3674, 3484, 0); 3 content refs.
+- [ ] `mdaughter_multi_bear` — The Kendal; varbit `%mdaughter_bear_multi_state`; default `mdaughter_bearman` (visible); 1 spawn: (2786, 10081, 0); 1 content refs.
+- [ ] `minnow_fisherman_multi` — Kylie Minnow; varbit `%minnow_access`; default `minnow_fisherman_locked` (visible); 2 spawns: (2599, 3425, 0), (2614, 3446, 0); 0 content refs.
+- [ ] `misc_advisor_ghrim` — Advisor Ghrim; varp `%misc_quest`; default `misc_advisor_ghrim_1op` (visible); 1 spawn: (2499, 3857, 1); 56 content refs.
+- [ ] `mistmyst_abigale` — Abigale; varbit `%mistmyst_progress`; default `mistmyst_abigale_lum_vis` (visible); 1 spawn: (3237, 3155, 0); 96 content refs.
+- [ ] `mistmyst_hewey` — Hewey; varbit `%mistmyst_progress`; default `mistmyst_hewey_lum_vis` (visible); 1 spawn: (3237, 3153, 0); 96 content refs.
+- [ ] `mistmyst_killer_background` — Shady figure; varbit `%mistmyst_progress`; default `mistmyst_killer_background_vis` (visible); 1 spawn: (1644, 4819, 0); 96 content refs.
+- [ ] `mistmyst_lacey` — Lacey; varbit `%mistmyst_progress`; default `mistmyst_lacey_vis` (visible); 1 spawn: (1629, 4850, 0); 96 content refs.
+- [ ] `mistmyst_mandy` — Mandy; varbit `%mistmyst_progress`; default `mistmyst_mandy_vis` (visible); 1 spawn: (1626, 4840, 0); 96 content refs.
+- [ ] `mistmyst_mirror` — <col=00ffff>Mirror</col>; varbit `%mistmyst_progress`; default `mistmyst_mirror_fixed` (visible); 1 spawn: (1622, 4828, 0); 96 content refs.
+- [ ] `mistmyst_sid` — Sid; varbit `%mistmyst_progress`; default `mistmyst_sid_vis` (visible); 1 spawn: (1615, 4832, 0); 96 content refs.
+- [ ] `mistmyst_tayten` — Tayten; varbit `%mistmyst_progress`; default `mistmyst_tayten_vis` (visible); 1 spawn: (1639, 4838, 0); 96 content refs.
+- [ ] `mm2_keef_multi` — Keef; varbit `%mm2_keef_challenge`; default `mm2_chieftan_keef_noncombat` (visible); 1 spawn: (2543, 3031, 0); 0 content refs.
+- [ ] `mm2_kob_multi` — Kob; varbit `%mm2_kob_challenge`; default `mm2_general_kob_noncombat` (visible); 1 spawn: (2830, 10061, 2); 0 content refs.
+- [ ] `mm_bunkdo` — Bunkdo; varbit `%mm2_progress`; default `mm_bunkdo_aa` (visible); 1 spawn: (2775, 2798, 0); 156 content refs.
+- [ ] `mm_bunkwicket` — Bunkwicket; varbit `%mm2_progress`; default `mm_bunkwicket_aa` (visible); 1 spawn: (2803, 9148, 0); 156 content refs.
+- [ ] `mm_carado` — Carado; varbit `%mm2_progress`; default `mm_carado_aa` (visible); 1 spawn: (2775, 2801, 0); 156 content refs.
+- [ ] `mm_daero` — Daero; varbit `%mm_daero`; default `mm_daero_1op` (visible); 3 spawns: (2392, 9890, 0), (2484, 3486, 1), (2648, 4514, 0); 32 content refs.
+- [ ] `mm_garkor` — Garkor; varbit `%mm2_progress`; default `mm_garkor_aa` (visible); 1 spawn: (2805, 2762, 0); 156 content refs.
+- [ ] `mm_karam` — Karam; varbit `%mm2_progress`; default `mm_karam_aa1` (visible); 2 spawns: (2758, 2789, 0), (2767, 2776, 0); 156 content refs.
+- [ ] `mm_karam_talker` — Karam; varbit `%mm2_progress`; default `mm_karam_aa2` (visible); 1 spawn: (2781, 2799, 0); 156 content refs.
+- [ ] `mm_kruk_multi` — Kruk; varbit `%mm2_progress`; default `mm_kruk` (visible); 1 spawn: (2726, 2765, 0); 156 content refs.
+- [ ] `mm_lumdo` — Lumdo; varbit `%mm_lumdo`; default `mm_lumdo_1op` (visible); 2 spawns: (2803, 2707, 0), (2891, 2724, 0); 9 content refs.
+- [ ] `mm_lumo` — Lumo; varbit `%mm2_progress`; default `mm_lumo_aa` (visible); 1 spawn: (2775, 2796, 0); 156 content refs.
+- [ ] `mm_waydar` — Waydar; varbit `%mm_waydar`; default `mm_waydar_1op` (visible); 3 spawns: (2392, 9895, 0), (2648, 4519, 0), (2897, 2727, 0); 4 content refs.
+- [ ] `mm_waymottin` — Waymottin; varbit `%mm2_progress`; default `mm_waymottin_aa` (visible); 1 spawn: (2805, 9147, 0); 156 content refs.
+- [ ] `mm_zooknock` — Zooknock; varbit `%mm2_progress`; default `mm_zooknock_aa` (visible); 1 spawn: (2804, 9145, 0); 156 content refs.
+- [ ] `molch_temple_shaman` — Kaht B'alam; varbit `%akd`; default `molch_temple_shaman_vis` (visible); 1 spawn: (1330, 10084, 0); 161 content refs.
+- [ ] `morgan` — Morgan; varbit `%morgan_postquest_dialogue`; default `morgan_pre` (visible); 1 spawn: (3098, 3268, 0); 0 content refs.
+- [ ] `mosol_rei_multi` — Mosol Rei; varp `%zombiequeen`; default `mosol_rei` (visible); 1 spawn: (2883, 2951, 0); 28 content refs.
+- [ ] `mourner1` — Mourner; varbit `%sote`; default `mourner1_vis` (visible); 4 spawns: (2513, 3294, 0), (2518, 3320, 0), (2530, 3274, 0), …; 183 content refs.
+- [ ] `mourner2` — Mourner; varbit `%sote`; default `mourner2_vis` (visible); 3 spawns: (2524, 3292, 0), (2536, 3294, 0), (2538, 3321, 0); 183 content refs.
+- [ ] `mourner3` — Mourner; varbit `%sote`; default `mourner3_vis` (visible); 6 spawns: (2501, 3315, 0), (2513, 3325, 0), (2526, 3279, 0), …; 183 content refs.
+- [ ] `mourner_armed` — Mourner; varbit `%sote`; default `mourner_armed_vis` (visible); 3 spawns: (2518, 3309, 0), (2526, 3303, 0), (2543, 3309, 0); 183 content refs.
+- [ ] `mourner_armed_guard` — Mourner; varbit `%sote`; default `mourner_armed_guard_vis` (visible); 1 spawn: (2552, 3320, 0); 183 content refs.
+- [ ] `mourner_elena_guard` — Mourner; varbit `%sote`; default `mourner_elena_guard_vis` (visible); 2 spawns: (2534, 3273, 0), (2539, 3273, 0); 183 content refs.
+- [ ] `mourner_hideout_gnome_guard` — Mourner; varbit `%sote`; default `mourner_hideout_gnome_guard_vis` (visible); 1 spawn: (2036, 4633, 0); 183 content refs.
+- [ ] `mourner_hideout_guard` — Mourner; varbit `%sote`; default `mourner_hideout_guard_vis` (visible); 4 spawns: (2037, 4636, 0), (2038, 4644, 0), (2041, 4638, 0), …; 183 content refs.
+- [ ] `mourner_hideout_head_mourner` — Essyllt; varbit `%sote`; default `mourner_hideout_head_mourner_vis` (visible); 1 spawn: (2044, 4628, 0); 183 content refs.
+- [ ] `mourner_hideout_slave_guard` — Mourner; varbit `%sote`; default `mourner_hideout_slave_guard_vis` (visible); 2 spawns: (2022, 4616, 0), (2024, 4620, 0); 183 content refs.
+- [ ] `mourner_slave_no_tools` — Slave; varbit `%sote`; default `mourner_slave_no_tools_vis` (visible); 1 spawn: (2023, 4612, 0); 183 content refs.
+- [ ] `mourner_slave_pickaxe` — Slave; varbit `%sote`; default `mourner_slave_pickaxe_vis` (visible); 2 spawns: (2000, 4611, 0), (2026, 4613, 0); 183 content refs.
+- [ ] `mourner_slave_spade` — Slave; varbit `%sote`; default `mourner_slave_spade_vis` (visible); 1 spawn: (2008, 4613, 0); 183 content refs.
+- [ ] `mournerstew1` — Mourner; varbit `%sote`; default `mournerstew1_vis` (visible); 3 spawns: (2545, 3326, 0), (2551, 3322, 0), (2555, 3324, 0); 183 content refs.
+- [ ] `mournerstew2` — Mourner; varbit `%sote`; default `mournerstew2_vis` (visible); 1 spawn: (2551, 3327, 1); 183 content refs.
+- [ ] `mournerstew3` — Mourner; varbit `%sote`; default `mournerstew3_vis` (visible); 3 spawns: (2548, 3324, 0), (2550, 3326, 0), (2553, 3325, 0); 183 content refs.
+- [ ] `mournertwa` — Mourner; varbit `%sote`; default `mournertwa_vis` (visible); 1 spawn: (2582, 3329, 0); 183 content refs.
+- [ ] `mournertwb` — Mourner; varbit `%sote`; default `mournertwb_vis` (visible); 1 spawn: (2560, 3288, 0); 183 content refs.
+- [ ] `mournerwatchtower` — Mourner; varbit `%sote`; default `mournerwatchtower_vis` (visible); 3 spawns: (2559, 3304, 0), (2561, 3303, 0), (2561, 3305, 0); 183 content refs.
+- [ ] `mourning_arianwyn` — Arianwyn, Ysgawyn; varbit `%sote`; default `mourning_arianwyn_vis` (visible); 1 spawn: (2353, 3172, 0); 183 content refs.
+- [ ] `mourning_overpass_mourner` — Mourner; varbit `%mourning_mourner_vis`; default `mourning_overpass_mourner_vis` (visible); 1 spawn: (2299, 3328, 0); 0 content refs.
+- [ ] `mourning_town_elf_2` — Ysgawyn; varbit `%sote`; default `sote_ysgawyn_vis` (visible); 1 spawn: (2337, 3166, 1); 183 content refs.
+- [ ] `mourning_town_elf_5` — Kelyn; varbit `%sote_ithell`; default `mourning_town_elf_5_vis` (visible); 1 spawn: (2344, 3172, 1); 0 content refs.
+- [ ] `multi_skippy` — Skippy; varbit `%skippy_state`; default `skippy` (visible); 1 spawn: (2983, 3196, 0); 0 content refs.
+- [ ] `multi_vanstrom_stranger_entity` — Stranger, Vanstrom Klause; varbit `%thsfm_vanstrom_hide`; default `route_vanstrom_klause_sitting` (visible); 1 spawn: (3503, 3477, 0); 0 content refs.
+- [ ] `my2arm_ambassador_multi` — Wolfbone; varbit `%my2arm_status`; default `desert_treasure_invisible_npc` (visible); 1 spawn: (2841, 10061, 1); 118 content refs.
+- [ ] `my2arm_entry_quest` — Boulder; varbit `%my2arm_status`; default `my2arm_sentry_boulder` (visible); 1 spawn: (2865, 3946, 0); 118 content refs.
+- [ ] `my2arm_sentry_butterfly_background` — Butterfly; varbit `%my2arm_status`; default `my2arm_sentry_butterfly` (visible); 1 spawn: (2859, 3934, 0); 118 content refs.
+- [ ] `my2arm_sentry_oddstone_background` — Odd Stone; varbit `%my2arm_status`; default `my2arm_sentry_oddstone` (visible); 1 spawn: (2869, 3927, 0); 118 content refs.
+- [ ] `my2arm_sentry_squirrel_background` — Squirrel; varbit `%my2arm_status`; default `my2arm_sentry_squirrel` (visible); 1 spawn: (2858, 3936, 0); 118 content refs.
+- [ ] `myarm` — My Arm; varbit `%my2arm_status`; default `myarm_fixed` (visible); 1 spawn: (2830, 3697, 0); 118 content refs.
+- [ ] `myq3_citizen_male_old_1` — Meiyerditch citizen; varbit `%myq6`; default `myq3_citizen_male_old_1_vis` (visible); 2 spawns: (3595, 3212, 0), (3637, 3275, 0); 2 content refs.
+- [ ] `myq3_citizen_male_old_2` — Meiyerditch citizen; varbit `%myq6`; default `myq3_citizen_male_old_2_vis` (visible); 1 spawn: (3612, 3211, 0); 2 content refs.
+- [ ] `myq4_garth` — Garth; varbit `%myq6`; default `myq4_garth_vis` (visible); 1 spawn: (3669, 3215, 0); 2 content refs.
+- [ ] `myq4_harpert` — Harpert; varbit `%myq6`; default `myq4_harpert_vis` (visible); 1 spawn: (3644, 3211, 0); 2 content refs.
+- [ ] `myq4_magic_mercenary` — Mercenary; varbit `%myq4`; default `myq4_magic_mercenary_visible` (visible); 1 spawn: (3674, 3209, 0); 95 content refs.
+- [ ] `myq4_melee_mercenary` — Mercenary; varbit `%myq4`; default `myq4_melee_mercenary_visible` (visible); 1 spawn: (3672, 3208, 0); 95 content refs.
+- [ ] `myq4_ranged_mercenary` — Mercenary; varbit `%myq4`; default `myq4_ranged_mercenary_visible` (visible); 1 spawn: (3673, 3207, 0); 95 content refs.
+- [ ] `myq5_polmafi_burgh_hideout` — Polmafi Ferdygris; varbit `%myq5`; default `myq5_polmafi_child` (visible); 1 spawn: (3494, 9626, 0); 167 content refs.
+- [ ] `myq5_prison_guard` — Vyrewatch; varbit `%myq6`; default `myq5_prison_guard_vis` (visible); 1 spawn: (3617, 3380, 0); 2 content refs.
+- [ ] `myq5_prisoner` — Prisoner; varbit `%myq6`; default `myq5_prisoner_vis` (visible); 1 spawn: (3620, 3379, 0); 2 content refs.
+- [ ] `myq5_radigad_burgh_hideout` — Radigad Ponfit; varbit `%myq5`; default `myq5_radigad_child` (visible); 1 spawn: (3497, 9626, 0); 167 content refs.
+- [ ] `myq5_veliaf_burgh_hideout` — Veliaf Hurtz; varbit `%myq5_veliaf_location`; default `myq5_veliaf_child` (visible); 1 spawn: (3494, 9628, 0); 0 content refs.
+- [ ] `myreque_pt3_female_citizen1` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen1_vis` (visible); 2 spawns: (3599, 3285, 0), (3606, 3209, 0); 2 content refs.
+- [ ] `myreque_pt3_female_citizen10` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen10_vis` (visible); 3 spawns: (3621, 3201, 0), (3634, 3269, 0), (3638, 3319, 0); 2 content refs.
+- [ ] `myreque_pt3_female_citizen2` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen2_vis` (visible); 4 spawns: (3601, 3284, 0), (3627, 3204, 0), (3630, 3308, 0), …; 2 content refs.
+- [ ] `myreque_pt3_female_citizen3` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen3_vis` (visible); 6 spawns: (3603, 3285, 0), (3607, 3213, 1), (3608, 3189, 0), …; 2 content refs.
+- [ ] `myreque_pt3_female_citizen4` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen4_vis` (visible); 4 spawns: (3605, 3284, 0), (3617, 3215, 0), (3624, 3271, 0), …; 2 content refs.
+- [ ] `myreque_pt3_female_citizen5` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen5_vis` (visible); 4 spawns: (3596, 3184, 0), (3607, 3285, 0), (3619, 3207, 0), …; 2 content refs.
+- [ ] `myreque_pt3_female_citizen6` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen6_vis` (visible); 2 spawns: (3602, 3275, 0), (3623, 3212, 0); 2 content refs.
+- [ ] `myreque_pt3_female_citizen7` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen7_vis` (visible); 3 spawns: (3611, 3285, 0), (3613, 3222, 0), (3624, 3196, 0); 2 content refs.
+- [ ] `myreque_pt3_female_citizen8` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen8_vis` (visible); 3 spawns: (3596, 3265, 0), (3621, 3319, 0), (3623, 3189, 0); 2 content refs.
+- [ ] `myreque_pt3_female_citizen9` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_citizen9_vis` (visible); 5 spawns: (3604, 3264, 0), (3627, 3231, 0), (3635, 3271, 0), …; 2 content refs.
+- [ ] `myreque_pt3_female_huddled1` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_huddled1_vis` (visible); 3 spawns: (3592, 3227, 0), (3593, 3200, 0), (3641, 3278, 0); 2 content refs.
+- [ ] `myreque_pt3_female_huddled2` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_female_huddled2_vis` (visible); 4 spawns: (3595, 3264, 0), (3620, 3214, 0), (3620, 3321, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen1` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen1_vis` (visible); 2 spawns: (3615, 3283, 0), (3632, 3286, 0); 2 content refs.
+- [ ] `myreque_pt3_male_citizen2` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen2_vis` (visible); 2 spawns: (3610, 3272, 0), (3631, 3300, 0); 2 content refs.
+- [ ] `myreque_pt3_male_citizen3` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen3_vis` (visible); 4 spawns: (3615, 3207, 0), (3615, 3222, 1), (3628, 3283, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen4` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen4_vis` (visible); 4 spawns: (3605, 3218, 0), (3616, 3273, 0), (3621, 3284, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen5` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen5_vis` (visible); 4 spawns: (3604, 3222, 0), (3623, 3283, 0), (3624, 3205, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen6` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen6_vis` (visible); 4 spawns: (3600, 3280, 0), (3617, 3230, 1), (3624, 3281, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen7` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen7_vis` (visible); 6 spawns: (3599, 3190, 0), (3605, 3268, 0), (3609, 3207, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_citizen8` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_citizen8_vis` (visible); 4 spawns: (3603, 3195, 0), (3603, 3215, 0), (3608, 3201, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_huddled1` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_huddled1_vis` (visible); 3 spawns: (3592, 3222, 0), (3621, 3325, 0), (3631, 3235, 1); 2 content refs.
+- [ ] `myreque_pt3_male_huddled2` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_huddled2_vis` (visible); 4 spawns: (3619, 3230, 0), (3620, 3220, 0), (3622, 3325, 0), …; 2 content refs.
+- [ ] `myreque_pt3_male_looking_out1` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_looking_out1_vis` (visible); 2 spawns: (3593, 3187, 0), (3610, 3217, 0); 2 content refs.
+- [ ] `myreque_pt3_male_looking_out2` — Meiyerditch citizen; varbit `%myq6`; default `myreque_pt3_male_looking_out2_vis` (visible); 1 spawn: (3598, 3207, 0); 2 content refs.
+- [ ] `myreque_pt3_miner1` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner1_vis` (visible); 1 spawn: (2392, 4626, 2); 2 content refs.
+- [ ] `myreque_pt3_miner2` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner2_vis` (visible); 1 spawn: (2395, 4631, 2); 2 content refs.
+- [ ] `myreque_pt3_miner3` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner3_vis` (visible); 1 spawn: (2389, 4634, 2); 2 content refs.
+- [ ] `myreque_pt3_miner4` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner4_vis` (visible); 1 spawn: (2397, 4634, 2); 2 content refs.
+- [ ] `myreque_pt3_miner5` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner5_vis` (visible); 1 spawn: (2383, 4636, 2); 2 content refs.
+- [ ] `myreque_pt3_miner6` — Meiyerditch miner; varbit `%myq6`; default `myreque_pt3_miner6_vis` (visible); 1 spawn: (2378, 4624, 2); 2 content refs.
+- [ ] `nasty_tree` — Tree, Undead tree; varbit `%anma_main`; default `nasty_tree_unchoppable` (visible); 14 spawns: (3103, 3347, 0), (3107, 3337, 0), (3107, 3342, 0), …; 104 content refs.
+- [ ] `nightmare_challenge_sister` — Sister Senga; varbit `%nightmare_challenge_first_entry`; default `nightmare_challenge_sister_1op` (visible); 1 spawn: (3811, 9777, 1); 0 content refs.
+- [ ] `observatory_professor_multi` — Observatory professor; varp `%itgronigen`; default `observatory_professor` (visible); 1 spawn: (2439, 3186, 0); 32 content refs.
+- [ ] `omart` — Omart; varbit `%sote`; default `omart_vis` (visible); 1 spawn: (2559, 3266, 0); 183 content refs.
+- [ ] `othainian` — Othainian; varp `%upass`; default `othainian_vis` (visible); 1 spawn: (2122, 4562, 1); 84 content refs.
+- [ ] `peng_generic_surface_multi` — Penguin; varbit `%peng_multi_hide`; default `peng_generic_surface` (visible); 5 spawns: (2651, 4006, 1), (2656, 4000, 1), (2663, 4005, 1), …; 12 content refs.
+- [ ] `peng_multi_kgp_booth` — KGP Agent; varbit `%peng_multi_kgp`; default `peng_kgp` (visible); 1 spawn: (2655, 10408, 0); 10 content refs.
+- [ ] `phileas_rimor` — Phileas Rimor; varbit `%shayzienquest`; default `phileas_rimor_visible` (visible); 1 spawn: (1543, 3571, 0); 71 content refs.
+- [ ] `pilot_al_kharid` — Captain Dalbur; varbit `%pilot_previous_destination`; default `pilot_al_kharid_grandtree` (visible); 1 spawn: (3284, 3212, 0); 0 content refs.
+- [ ] `pilot_grand_tree` — Captain Errdo; varbit `%pilot_previous_destination`; default `pilot_grand_tree_base` (visible); 2 spawns: (2464, 3501, 3), (2918, 3057, 0); 0 content refs.
+- [ ] `pilot_karamja` — Captain Klemfoodle; varbit `%pilot_previous_destination`; default `pilot_karamja_grandtree` (visible); 1 spawn: (2970, 2973, 0); 0 content refs.
+- [ ] `pilot_white_wolf` — Captain Bleemadge; varbit `%pilot_previous_destination`; default `pilot_white_wolf_grandtree` (visible); 1 spawn: (2847, 3499, 0); 0 content refs.
+- [ ] `piscarilius_captain_khaled_multi` — Captain Khaled; varbit `%piscarilius_burglary_completed`; default `piscarilius_captain_khaled_default` (visible); 1 spawn: (1847, 3753, 0); 0 content refs.
+- [ ] `piscquest_official` — Tomas Lawry; varbit `%piscquest`; default `piscquest_official_visible` (visible); 1 spawn: (1796, 3782, 0); 74 content refs.
+- [ ] `piscquest_queen` — Lady Shauna Piscarilius, The Queen of Thieves; varbit `%piscquest_queen_vis`; default `piscquest_queen_prequest` (visible); 1 spawn: (1764, 10158, 0); 3 content refs.
+- [ ] `plaguesheep_1` — Red Sheep; varbit `%mourning_sheep_red`; default `herder_plaguesheep_1` (visible); 3 spawns: (2609, 3344, 0), (2610, 3343, 0), (2610, 3345, 0); 6 content refs.
+- [ ] `plaguesheep_2` — Green Sheep; varbit `%mourning_sheep_green`; default `herder_plaguesheep_2` (visible); 3 spawns: (2621, 3367, 0), (2622, 3366, 0), (2623, 3367, 0); 6 content refs.
+- [ ] `plaguesheep_3` — Blue Sheep; varbit `%mourning_sheep_blue`; default `herder_plaguesheep_3` (visible); 3 spawns: (2560, 3389, 0), (2561, 3388, 0), (2561, 3390, 0); 6 content refs.
+- [ ] `plaguesheep_4` — Yellow Sheep; varbit `%mourning_sheep_yellow`; default `herder_plaguesheep_4` (visible); 3 spawns: (2610, 3391, 0), (2611, 3390, 0), (2612, 3391, 0); 6 content refs.
+- [ ] `poh_servant_multi_cook_woman` — Cook; varbit `%poh_servant_type`; default `poh_servant_cook_woman` (visible); 1 spawn: (2669, 3331, 0); 0 content refs.
+- [ ] `poh_servant_multi_demon` — Demon butler; varbit `%poh_servant_type`; default `poh_servant_demon` (visible); 1 spawn: (2664, 3329, 0); 0 content refs.
+- [ ] `poh_servant_multi_dogsbody` — Rick; varbit `%poh_servant_type`; default `poh_servant_dogsbody` (visible); 1 spawn: (2663, 3334, 0); 0 content refs.
+- [ ] `poh_servant_multi_maitre_d_man` — Butler; varbit `%poh_servant_type`; default `poh_servant_maitre_d_man` (visible); 1 spawn: (2671, 3330, 0); 0 content refs.
+- [ ] `poh_servant_multi_waiter_woman` — Maid; varbit `%poh_servant_type`; default `poh_servant_waiter_woman` (visible); 1 spawn: (2666, 3330, 0); 0 content refs.
+- [ ] `porcine_sheepdog_multi` — Rosie, Sheepdog; varbit `%porcine_rosie`; default `porcine_sheepdog_anon` (visible); 1 spawn: (3035, 3296, 0); 0 content refs.
+- [ ] `priestperilevilmonk1` — Monk of Zamorak; varbit `%myq6`; default `priestperilevilmonk1_vis` (visible); 4 spawns: (3410, 3484, 0), (3410, 3493, 0), (3412, 3489, 1), …; 2 content refs.
+- [ ] `priestperilevilmonk2` — Monk of Zamorak; varbit `%myq6`; default `priestperilevilmonk2_vis` (visible); 3 spawns: (3411, 3485, 1), (3415, 3489, 0), (3415, 3489, 1); 2 content refs.
+- [ ] `priestperilevilmonk3` — Monk of Zamorak; varbit `%priestperilevilmonk_dead`; default `priestperilevilmonk3_vis` (visible); 3 spawns: (3411, 3489, 0), (3415, 3485, 0), (3416, 3491, 1); 0 content refs.
+- [ ] `priestperilguarddog` — Temple Guardian; varp `%priestperil`; default `priestperil_guardian_model` (visible); 1 spawn: (3405, 9902, 0); 89 content refs.
+- [ ] `prif_acorn_trader` — Pennant; varbit `%prif_acorn_trade`; default `prif_acorn_trader_not_spoken` (visible); 1 spawn: (3292, 6120, 0); 0 content refs.
+- [ ] `prif_city_guard_multi` — Guard; varbit `%sote`; default `prif_city_guard_evil` (visible); 4 spawns: (2238, 3268, 0), (2299, 3329, 0), (3262, 6020, 0), …; 183 content refs.
+- [ ] `prif_singer1_multi` — Reese; varbit `%prif_learnt_crystal_singing`; default `prif_singer1` (visible); 1 spawn: (3295, 6043, 0); 1 content refs.
+- [ ] `prif_singer2_multi` — Conwenna; varbit `%prif_learnt_crystal_singing`; default `prif_singer2` (visible); 1 spawn: (3238, 6066, 0); 1 content refs.
+- [ ] `protester_ghostspeak_multi` — Gravingas; varbit `%wearing_ghost_speak_amulet`; default `ahoy_ghost_protestor` (visible); 1 spawn: (3660, 3499, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_01` — Ogre shaman; varbit `%watchtower_shaman_1`; default `qip_watchtower_ogre_shaman_01_normal` (visible); 1 spawn: (2592, 9436, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_02` — Ogre shaman; varbit `%watchtower_shaman_2`; default `qip_watchtower_ogre_shaman_02_normal` (visible); 1 spawn: (2582, 9437, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_03` — Ogre shaman; varbit `%watchtower_shaman_3`; default `qip_watchtower_ogre_shaman_03_normal` (visible); 1 spawn: (2577, 9451, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_04` — Ogre shaman; varbit `%watchtower_shaman_4`; default `qip_watchtower_ogre_shaman_04_normal` (visible); 1 spawn: (2599, 9461, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_05` — Ogre shaman; varbit `%watchtower_shaman_5`; default `qip_watchtower_ogre_shaman_05_normal` (visible); 1 spawn: (2607, 9451, 0); 0 content refs.
+- [ ] `qip_watchtower_ogre_shaman_06` — Ogre shaman; varbit `%watchtower_shaman_6`; default `qip_watchtower_ogre_shaman_06_normal` (visible); 1 spawn: (2606, 9438, 0); 0 content refs.
+- [ ] `radimus_erkle_hut` — Radimus Erkle; varp `%legendsquest`; default `radimus_erkle` (visible); 1 spawn: (2724, 3368, 0); 167 content refs.
+- [ ] `raidquest_library_historian` — Istoria; varbit `%akd`; default `raidquest_library_historian_2op` (visible); 1 spawn: (1552, 10224, 0); 161 content refs.
+- [ ] `raids_mountainguide_temple_multi` — Mountain Guide; varbit `%raids_guide_travel_unlock`; default `raids_mountainguide_1op` (visible); 1 spawn: (1276, 3559, 0); 0 content refs.
+- [ ] `raids_temple_duffy` — Historian Duffy; varbit `%shayzienquest`; default `raids_temple_duffy_visible` (visible); 1 spawn: (1277, 3562, 0); 71 content refs.
+- [ ] `raids_temple_gnosi` — Gnosi; varbit `%shayzienquest`; default `raids_temple_gnosi_visible` (visible); 1 spawn: (1276, 3561, 0); 71 content refs.
+- [ ] `raids_temple_historian` — Natural Historian; varbit `%shayzienquest`; default `raids_temple_historian_visible` (visible); 1 spawn: (1277, 3564, 0); 71 content refs.
+- [ ] `rantz` — Rantz; varp `%chompybird`; default `rantz_pre_quest` (visible); 1 spawn: (2630, 2981, 0); 48 content refs.
+- [ ] `rcu_zammy_mage1` — Mage of Zamorak; varp `%abyssal_miniquest`; default `rcu_zammy_mage1a` (visible); 1 spawn: (3106, 3558, 0); 28 content refs.
+- [ ] `recruiter` — Recruiter; varp `%regicide_quest`; default `recruiter_vis` (visible); 1 spawn: (2542, 3306, 0); 78 content refs.
+- [ ] `regicide_old_camp_tracker` — Elf Tracker; varp `%regicide_quest`; default `regicide_old_camp_tracker_vis` (visible); 1 spawn: (2257, 3149, 0); 78 content refs.
+- [ ] `regicide_tyras_lazy_guard` — Tyras guard; varbit `%regicide_given_rabbit`; default `regicide_tyras_lazy_guard_vis` (visible); 1 spawn: (2181, 3184, 0); 8 content refs.
+- [ ] `reldo` — Reldo; varbit `%twocats_reldo`; default `reldo_normal` (visible); 1 spawn: (3209, 3495, 0); 1 content refs.
+- [ ] `route_curpile_fyod` — Curpile Fyod; varbit `%route_hideout_npcs`; default `route_curpile_fyod_child` (visible); 1 spawn: (3508, 3440, 0); 0 content refs.
+- [ ] `route_harold_evans` — Harold Evans; varp `%routequest`; default `route_harold_evans_vis` (visible); 1 spawn: (3504, 9833, 0); 32 content refs.
+- [ ] `route_ivan_strom_parent` — Ivan Strom; varbit `%route_hideout_npcs`; default `route_ivan_strom` (visible); 1 spawn: (3513, 9843, 0); 0 content refs.
+- [ ] `route_polmafi_ferdygris_parent` — Polmafi Ferdygris; varbit `%route_hideout_npcs`; default `route_polmafi_ferdygris` (visible); 1 spawn: (3514, 9838, 0); 0 content refs.
+- [ ] `route_radigad_ponfit_parent` — Radigad Ponfit; varbit `%route_hideout_npcs`; default `route_radigad_ponfit` (visible); 1 spawn: (3509, 9831, 0); 0 content refs.
+- [ ] `route_sani_piliu` — Sani Piliu; varp `%routequest`; default `route_sani_piliu_vis` (visible); 1 spawn: (3510, 9836, 0); 32 content refs.
+- [ ] `route_veliaf_hurtz_parent` — Veliaf Hurtz; varbit `%route_hideout_npcs`; default `route_veliaf_hurtz` (visible); 1 spawn: (3506, 9838, 0); 0 content refs.
+- [ ] `roving_bowyer` — Elven Scout, Islwyn; varbit `%roving_bowyer`; default `roving_islwyn_1op` (visible); 1 spawn: (2291, 3147, 0); 0 content refs.
+- [ ] `roving_female_woodelf` — Eluned; varbit `%roving_female_woodelf`; default `roving_female_woodelf_1op` (visible); 1 spawn: (2289, 3145, 0); 0 content refs.
+- [ ] `roving_update_female_woodelf` — Elven Scout, Ilfeen; varbit `%roving_update_female_woodelf`; default `roving_ilfeen_1op` (visible); 2 spawns: (2260, 3213, 0), (3284, 5965, 0); 0 content refs.
+- [ ] `sailing_transport_trader_stan` — Trader Stan; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_base` (visible); 1 spawn: (3039, 3192, 0); 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_man1` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_man1_base` (visible); 2 spawns: (2144, 3122, 0), (2760, 3239, 0); 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_man2` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_man2_base` (visible); 4 spawns: (2673, 3144, 0), (3001, 3033, 0), (3671, 2930, 0), …; 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_man3` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_man3_base` (visible); 5 spawns: (2157, 3330, 0), (2589, 2851, 0), (2796, 3415, 0), …; 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_woman1` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_woman1_base` (visible); 3 spawns: (2145, 3122, 0), (2675, 3144, 0), (3001, 3034, 0); 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_woman2` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_woman2_base` (visible); 3 spawns: (2954, 3156, 0), (3672, 2930, 0), (3701, 3502, 0); 0 content refs.
+- [ ] `sailing_transport_trader_stan_crew_woman3` — Trader Crewmember; varbit `%chartering_previous_destination`; default `sailing_transport_trader_stan_crew_woman3_base` (visible); 5 spawns: (2157, 3329, 0), (2587, 2851, 0), (2759, 3239, 0), …; 0 content refs.
+- [ ] `sanguinesti_old_man_ral` — Old Man Ral; varbit `%myq6`; default `sanguinesti_old_man_ral_1op` (visible); 1 spawn: (3602, 3209, 0); 2 content refs.
+- [ ] `sanguinesti_vertida_sefalatis` — Vertida Sefalatis; varbit `%myq4`; default `myq4_vertida_visible` (visible); 1 spawn: (3630, 9643, 0); 95 content refs.
+- [ ] `seaman_lorris` — Seaman Lorris; varbit `%sailing_intro`; default `seaman_lorris_1op` (visible); 1 spawn: (3028, 3221, 0); 100 content refs.
+- [ ] `seaman_thresnor` — Seaman Thresnor; varbit `%sailing_intro`; default `seaman_thresnor_1op` (visible); 1 spawn: (3026, 3217, 0); 100 content refs.
+- [ ] `shayzien_armour_1_challenge` — Soldier (tier 1); varbit `%shayzien_armour_challenge`; default `shayzien_armour_1_noncombat` (visible); 1 spawn: (1540, 3624, 0); 0 content refs.
+- [ ] `shayzien_armour_2_challenge` — Soldier (tier 2); varbit `%shayzien_armour_challenge`; default `shayzien_armour_2_noncombat` (visible); 1 spawn: (1545, 3619, 0); 0 content refs.
+- [ ] `shayzien_armour_3_challenge` — Soldier (tier 3); varbit `%shayzien_armour_challenge`; default `shayzien_armour_3_noncombat` (visible); 1 spawn: (1544, 3626, 0); 0 content refs.
+- [ ] `shayzien_armour_4_challenge` — Soldier (tier 4); varbit `%shayzien_armour_challenge`; default `shayzien_armour_4_noncombat` (visible); 1 spawn: (1541, 3619, 0); 0 content refs.
+- [ ] `shayzien_armour_5_challenge` — Soldier (tier 5); varbit `%shayzien_armour_challenge`; default `shayzien_armour_5_noncombat` (visible); 1 spawn: (1547, 3623, 0); 0 content refs.
+- [ ] `shiro_shayzien` — Lord Shiro Shayzien; varbit `%akd`; default `shiro_shayzien_vis` (visible); 1 spawn: (1486, 3635, 1); 161 content refs.
+- [ ] `shura` — Shura; varbit `%nightmare_first_entry`; default `shura_1op` (visible); 1 spawn: (3806, 9746, 1); 0 content refs.
+- [ ] `sinister_stranger` — Sinister Stranger; varbit `%fishingcompo_stranger`; default `sinister_stranger0` (visible); 1 spawn: (2637, 3440, 0); 0 content refs.
+- [ ] `slayer_master_6` — Nieve, Steve; varbit `%mm2_slayer_master`; default `slayer_master_nieve` (visible); 1 spawn: (2432, 3423, 0); 0 content refs.
+- [ ] `slayer_master_9` — Spria; varbit `%porcine`; default `porcine_spria` (visible); 1 spawn: (3091, 3266, 0); 59 content refs.
+- [ ] `slayer_mutated_zygomite_adolescent_cap` — Fungi; varp `%option_attackpriority_npc`; default `slayer_mutated_zygomite_adolescent_cap_withop` (visible); 5 spawns: (2412, 4470, 0), (2414, 4467, 0), (2415, 4475, 0), …; 3 content refs.
+- [ ] `slayer_mutated_zygomite_adult_cap` — Fungi; varp `%option_attackpriority_npc`; default `slayer_mutated_zygomite_adult_cap_withop` (visible); 5 spawns: (2412, 4370, 0), (2416, 4376, 0), (2419, 4374, 0), …; 3 content refs.
+- [ ] `slepe_bartender` — Carl, Roy; varbit `%myq5`; default `slepe_bartender_carl` (visible); 1 spawn: (3750, 3296, 0); 167 content refs.
+- [ ] `slepe_child_female_1` — Child; varbit `%myq5`; default `slepe_child_female_1_vis` (visible); 1 spawn: (3707, 3313, 0); 167 content refs.
+- [ ] `slepe_child_female_2` — Child; varbit `%myq5`; default `slepe_child_female_2_vis` (visible); 1 spawn: (3709, 3309, 0); 167 content refs.
+- [ ] `slepe_child_female_3` — Child; varbit `%myq5`; default `slepe_child_female_3_vis` (visible); 1 spawn: (3706, 3312, 0); 167 content refs.
+- [ ] `slepe_child_female_4` — Child; varbit `%myq5`; default `slepe_child_female_4_vis` (visible); 1 spawn: (3710, 3313, 0); 167 content refs.
+- [ ] `slepe_child_male_2` — Child; varbit `%myq5`; default `slepe_child_male_2_vis` (visible); 1 spawn: (3706, 3309, 0); 167 content refs.
+- [ ] `slepe_child_male_3` — Child; varbit `%myq5`; default `slepe_child_male_3_vis` (visible); 1 spawn: (3712, 3312, 0); 167 content refs.
+- [ ] `slepe_child_male_4` — Child; varbit `%myq5`; default `slepe_child_male_4_vis` (visible); 1 spawn: (3710, 3310, 0); 167 content refs.
+- [ ] `slepe_crombwick` — Lord Crombwick; varbit `%myq5`; default `slepe_crombwick_vis` (visible); 1 spawn: (3719, 3359, 1); 167 content refs.
+- [ ] `slepe_damien` — Damien Leucurte; varbit `%myq5`; default `slepe_damien_vis` (visible); 1 spawn: (3718, 3358, 1); 167 content refs.
+- [ ] `slepe_jester` — Hameln the Jester; varbit `%myq4`; default `slepe_jester_child` (visible); 1 spawn: (3754, 9711, 1); 95 content refs.
+- [ ] `slepe_kroy` — Kroy; varbit `%myq5`; default `slepe_kroy_vis` (visible); 1 spawn: (3727, 9759, 1); 167 content refs.
+- [ ] `slepe_monk` — Painted One; varbit `%myq5`; default `slepe_monk_vis` (visible); 1 spawn: (3709, 3315, 0); 167 content refs.
+- [ ] `slepe_poor_man1` — Kurt; varbit `%myq5`; default `slepe_poor_man1_vis` (visible); 1 spawn: (3709, 3312, 0); 167 content refs.
+- [ ] `slepe_poor_man2` — Don; varbit `%myq5`; default `slepe_poor_man2_vis` (visible); 1 spawn: (3705, 3314, 0); 167 content refs.
+- [ ] `slepe_poor_woman1` — Debra; varbit `%myq5`; default `slepe_poor_woman1_vis` (visible); 1 spawn: (3708, 3311, 0); 167 content refs.
+- [ ] `slepe_poor_woman2` — Tanya; varbit `%myq5`; default `slepe_poor_woman2_vis` (visible); 1 spawn: (3709, 3313, 0); 167 content refs.
+- [ ] `slepe_thief` — Hanchen the Hound; varbit `%myq4`; default `slepe_thief_child` (visible); 1 spawn: (3759, 9708, 1); 95 content refs.
+- [ ] `slice_dwarf_alvijar` — Ambassador Alvijar; varbit `%slice_quest`; default `slice_dwarf_alvijar_there` (visible); 1 spawn: (2730, 5366, 1); 77 content refs.
+- [ ] `slug2_hobb` — Mayor Hobb; varbit `%slug2_main`; default `slug2_hobb_stage2` (visible); 1 spawn: (2711, 3292, 0); 88 content refs.
+- [ ] `slug2_holgart_jeb` — Holgart, Jeb; varbit `%slug2_npc_track1`; default `holgartplatform` (visible); 1 spawn: (2782, 3276, 0); 5 content refs.
+- [ ] `slug2_jeb` — Jeb; varbit `%slug2_main`; default `slug2_jeb_stage1` (visible); 1 spawn: (2719, 3304, 0); 88 content refs.
+- [ ] `slug2_maledict` — Brother Maledict; varbit `%slug2_main`; default `slug2_maledict_stage1` (visible); 1 spawn: (2722, 3283, 0); 88 content refs.
+- [ ] `slug2_oniall` — <col=00ffff>Chair</col>, Col. O'Niall; varbit `%slug2_main`; default `slug2_oniall_stage1` (visible); 1 spawn: (2740, 3310, 0); 88 content refs.
+- [ ] `slug2_villager1_stage1_multi` — Witchaven villager; varbit `%slug2_main`; default `slug2_villager1_stage1` (visible); 2 spawns: (2715, 3278, 0), (2721, 3292, 0); 88 content refs.
+- [ ] `slug2_villager2_stage1_multi` — Witchaven villager; varbit `%slug2_main`; default `slug2_villager2_stage1` (visible); 2 spawns: (2716, 3289, 0), (2733, 3284, 0); 88 content refs.
+- [ ] `slug2_villager3_stage1_multi` — Witchaven villager; varbit `%slug2_main`; default `slug2_villager3_stage1` (visible); 2 spawns: (2728, 3274, 0), (2737, 3300, 0); 88 content refs.
+- [ ] `snakeboss_priest` — Priestess Zul-Gwenwynig; varbit `%snakeboss_info`; default `snakeboss_priest_1op` (visible); 1 spawn: (2212, 3057, 0); 1 content refs.
+- [ ] `sos_barb` — Litara; varbit `%deadman_finalarea_hidenpcs`; default `sos_barb_visible` (visible); 1 spawn: (3081, 3421, 0); 0 content refs.
+- [ ] `sote_ilfeen_upass` — Ilfeen; varbit `%ilfeen_prif`; default `roving_ilfeen_1op` (visible); 1 spawn: (2439, 6099, 0); 0 content refs.
+- [ ] `sote_lady_ithell_village` — Kelyn, Lady Kelyn Ithell; varbit `%sote_ithell`; default `sote_lady_ithell_normal` (visible); 1 spawn: (2784, 6116, 0); 0 content refs.
+- [ ] `sote_lord_crwys_forest` — <col=00ffff>Tree</col>, Lord Piquan Crwys; varbit `%sote_crwys`; default `sote_lord_crwys_vis_tree_noop` (visible); 1 spawn: (2176, 3211, 0); 0 content refs.
+- [ ] `soul_wars_nomad` — Nomad; varbit `%soul_wars_finished_tutorial`; default `soul_wars_nomad_1op` (visible); 2 spawns: (2020, 5929, 0), (2212, 2857, 0); 0 content refs.
+- [ ] `soulbane_launa_multi` — Launa; varbit `%soulbane_launa_pres`; default `soulbane_launa` (visible); 1 spawn: (3309, 3453, 0); 0 content refs.
+- [ ] `souless` — Soulless; varp `%upass`; default `souless_vis` (visible); 58 spawns: (2154, 4686, 1), (2154, 4695, 1), (2155, 4708, 1), …; 84 content refs.
+- [ ] `soulman` — Half-soulless; varp `%upass`; default `soulman_vis` (visible); 16 spawns: (2120, 4708, 1), (2121, 4714, 1), (2122, 4695, 1), …; 84 content refs.
+- [ ] `star_trader` — Dusuri; varbit `%star_trader_met`; default `star_trader_1op` (visible); 1 spawn: (3022, 3342, 0); 0 content refs.
+- [ ] `surok_surok` — Surok Magis; varbit `%surok_vis`; default `surok_surok_type1` (visible); 1 spawn: (3208, 3496, 0); 0 content refs.
+- [ ] `swan_boat_boatwoman` — Kathy Corkat; varbit `%swansong`; default `swan_boatwoman_1` (visible); 1 spawn: (2368, 3486, 0); 71 content refs.
+- [ ] `swan_boat_colonist` — Devin Mendelberg; varbit `%swansong`; default `swan_colonist_1` (visible); 1 spawn: (2370, 3484, 0); 71 content refs.
+- [ ] `swan_multioutside` — Herman Caranos, Wise Old Man; varbit `%swansong`; default `swan_herman` (visible); 1 spawn: (2345, 3651, 0); 71 content refs.
+- [ ] `tbwt_tamayu_multinpc_jungle` — Tamayu; varp `%tbwt_main`; default `tbwt_tamayu` (visible); 1 spawn: (2844, 3042, 0); 36 content refs.
+- [ ] `tbwt_tiadeche_multinpc_shore` — Tiadeche; varp `%tbwt_main`; default `tbwt_tiadeche` (visible); 1 spawn: (2912, 3118, 0); 36 content refs.
+- [ ] `tbwt_tinsay_multinpc_island` — Tinsay; varp `%tbwt_main`; default `tbwt_tinsay` (visible); 1 spawn: (2764, 2976, 0); 36 content refs.
+- [ ] `telecrystal_wizard` — Rick; varbit `%rick_has_opened_shop`; default `telecrystal_wizard_no_shop` (visible); 1 spawn: (3108, 3164, 1); 0 content refs.
+- [ ] `thessalia` — Thessalia; varbit `%league_account`; default `thessalia_normal` (visible); 1 spawn: (3204, 3417, 0); 0 content refs.
+- [ ] `tob_citizen_1` — Meiyerditch citizen; varbit `%myq6`; default `tob_citizen_1_vis` (visible); 1 spawn: (3676, 3230, 0); 2 content refs.
+- [ ] `tob_citizen_2` — Meiyerditch citizen; varbit `%myq6`; default `tob_citizen_2_vis` (visible); 1 spawn: (3652, 3226, 0); 2 content refs.
+- [ ] `tob_citizen_3` — Meiyerditch citizen; varbit `%myq6`; default `tob_citizen_3_vis` (visible); 1 spawn: (3665, 3222, 0); 2 content refs.
+- [ ] `tob_citizen_4` — Meiyerditch citizen; varbit `%myq6`; default `tob_citizen_4_vis` (visible); 1 spawn: (3649, 3215, 0); 2 content refs.
+- [ ] `tob_female_orator` — Vyre Orator; varbit `%myq6`; default `tob_female_orator_vis` (visible); 1 spawn: (3662, 3213, 0); 2 content refs.
+- [ ] `tob_male_orator` — Vyre Orator; varbit `%myq6`; default `tob_male_orator_vis` (visible); 1 spawn: (3662, 3224, 0); 2 content refs.
+- [ ] `tob_stranger` — Mysterious Stranger; varbit `%tobquest_stranger_vis`; default `tob_stranger_1op` (visible); 1 spawn: (3673, 3223, 0); 0 content refs.
+- [ ] `tol_npc_efergy01_multi` — Effigy; varbit `%tol_prog`; default `tol_npc_efergy01` (visible); 1 spawn: (2639, 3219, 0); 53 content refs.
+- [ ] `tol_npc_mage01_multi` — 'Transmute' The Alchemist; varbit `%tol_prog`; default `tol_npc_mage01` (visible); 1 spawn: (2638, 3220, 0); 53 content refs.
+- [ ] `tol_npc_mage02_multi` — 'Currency' The Alchemist; varbit `%tol_prog`; default `tol_npc_mage02` (visible); 1 spawn: (2640, 3220, 0); 53 content refs.
+- [ ] `torfinn_rellekka` — Torfinn; varbit `%ds2_frem`; default `torfinn_no_travel` (visible); 1 spawn: (2640, 3697, 0); 4 content refs.
+- [ ] `torfinn_ungael` — Torfinn; varbit `%ds2_frem`; default `torfinn_travel_ungael` (visible); 1 spawn: (2278, 4034, 0); 4 content refs.
+- [ ] `tourtrap_qip_ana_multi` — Ana; varbit `%tourtrap_qip_ana_state`; default `ana` (visible); 1 spawn: (3302, 9466, 0); 0 content refs.
+- [ ] `tourtrap_qip_irena_multi_sad` — Irena; varbit `%tourtrap_qip_irena_state`; default `irena` (visible); 1 spawn: (3303, 3113, 0); 0 content refs.
+- [ ] `tourtrap_qip_mineslave_clothes_multi` — Escaping slave, Male slave; varbit `%tourtrap_qip_mineslave`; default `mining_slave_male` (visible); 1 spawn: (3303, 3025, 0); 0 content refs.
+- [ ] `trail_watson` — Watson; varbit `%trail_watson_spoken`; default `trail_watson_pre_talk` (visible); 1 spawn: (1645, 3573, 0); 0 content refs.
+- [ ] `trobin_arceuus_focus` — Lord Trobin Arceuus; varbit `%arcquest`; default `trobin_arceuus_focus_visible` (visible); 1 spawn: (1577, 3819, 1); 83 content refs.
+- [ ] `troll_block_1` — Ice block, Troll father; varbit `%fd_icewarrior_dadfree`; default `fd_trollblock1` (visible); 1 spawn: (2825, 3807, 2); 4 content refs.
+- [ ] `troll_block_2` — Ice block, Troll mother; varbit `%fd_icewarrior_mumfree`; default `fd_trollblock2` (visible); 1 spawn: (2825, 3811, 2); 4 content refs.
+- [ ] `twocats_unferth` — Unferth; varbit `%twocats_chores_tidyhuman`; default `twocats_unferth_bald` (visible); 1 spawn: (2918, 3558, 0); 2 content refs.
+- [ ] `unicorn_upass` — Unicorn; varp `%upass`; default `unicorn_upass_vis` (visible); 1 spawn: (2397, 9603, 0); 84 content refs.
+- [ ] `upass_paladin1` — Sir Jerro; varbit `%upass_paladinbadge_1`; default `upass_paladin1_vis` (visible); 1 spawn: (2424, 9721, 0); 3 content refs.
+- [ ] `upass_paladin2` — Sir Carl; varbit `%upass_paladinbadge_2`; default `upass_paladin2_vis` (visible); 1 spawn: (2422, 9718, 0); 2 content refs.
+- [ ] `upass_paladin3` — Sir Harry; varbit `%upass_paladinbadge_3`; default `upass_paladin3_vis` (visible); 1 spawn: (2426, 9718, 0); 2 content refs.
+- [ ] `upassmage` — Dark Mage; varp `%upass`; default `upassmage_1op` (visible); 1 spawn: (2457, 3309, 0); 84 content refs.
+- [ ] `varlamore_sun_knight_parent` — Knight of Varlamore; varbit `%varlamore_sun_knight`; default `varlamore_sun_knight` (visible); 1 spawn: (1605, 3673, 1); 0 content refs.
+- [ ] `vc_partyrat_multi1` — Rat; varbit `%vc_raton_off1`; default `vc_party_rat` (visible); 1 spawn: (2832, 5098, 1); 2 content refs.
+- [ ] `vc_partyrat_multi2` — Rat; varbit `%vc_raton_off2`; default `vc_party_rat` (visible); 1 spawn: (2861, 5093, 1); 2 content refs.
+- [ ] `vc_partyrat_multi3` — Rat; varbit `%vc_raton_off3`; default `vc_party_rat` (visible); 1 spawn: (2858, 5087, 1); 2 content refs.
+- [ ] `vc_partyrat_multi4` — Rat; varbit `%vc_raton_off4`; default `vc_party_rat` (visible); 1 spawn: (2863, 5101, 0); 2 content refs.
+- [ ] `vc_partyrat_multi5` — Rat; varbit `%vc_raton_off5`; default `vc_party_rat` (visible); 1 spawn: (2857, 5091, 0); 2 content refs.
+- [ ] `vc_partyrat_multi6` — Rat; varbit `%vc_raton_off6`; default `vc_party_rat` (visible); 1 spawn: (2863, 5086, 0); 2 content refs.
+- [ ] `verzik_initial` — Verzik Vitur; varp `%total_completed_theatreofblood`; default `verzik_initial_base` (visible); 1 spawn: (3166, 4323, 0); 0 content refs.
+- [ ] `viking_askelapen` — Askeladden; varbit `%askelladen_hasop`; default `viking_askelladen_norockop` (visible); 1 spawn: (2658, 3660, 0); 0 content refs.
+- [ ] `viking_askelapen_dagganoth_mountain` — Askeladden; varbit `%askelladen_hasop`; default `askeladden_child` (visible); 1 spawn: (2539, 3739, 0); 0 content refs.
+- [ ] `viking_brundt` — Brundt the Chieftain; varbit `%vikingexile`; default `viking_brundt_child` (visible); 1 spawn: (2659, 3669, 0); 84 content refs.
+- [ ] `viking_dagganoth_cave_ferryman_rellekka` — Jarvald; varbit `%dag_island_quick_travel`; default `viking_dagganoth_cave_ferryman_1op` (visible); 1 spawn: (2621, 3683, 0); 0 content refs.
+- [ ] `voice_of_yama` — Voice of Yama; varbit `%chasm_voice_progress`; default `voice_of_yama_1op` (visible); 1 spawn: (1439, 10079, 1); 0 content refs.
+- [ ] `vulcana_lovakengj` — Lady Vulcana Lovakengj; varbit `%akd`; default `vulcana_lovakengj_vis` (visible); 1 spawn: (1483, 3748, 0); 161 content refs.
+- [ ] `weaponsmaster` — Weaponsmaster; varbit `%soa_weaponmaster_dead`; default `weaponsmaster_vis` (visible); 1 spawn: (3246, 3384, 1); 0 content refs.
+- [ ] `wint_cluehunter` — Ed; varbit `%sote`; default `wint_cluehunter_visible` (visible); 1 spawn: (1575, 3951, 0); 183 content refs.
+- [ ] `wint_master_smith` — Undor; varbit `%lovaquest`; default `wint_master_smith_normal` (visible); 1 spawn: (1625, 3943, 0); 45 content refs.
+- [ ] `wizard_mizgog` — Wizard Mizgog; varp `%imp`; default `wizard_mizgog_quest` (visible); 1 spawn: (3103, 3163, 2); 10 content refs.
+- [ ] `wom_multi` — Wise Old Man; varbit `%swansong`; default `wise_old_man` (visible); 1 spawn: (3088, 3255, 0); 71 content refs.
+- [ ] `wyvern_cave_guardian` — Pieve, Steve; varbit `%mm2_slayer_master`; default `wyvern_cave_steve` (visible); 1 spawn: (3058, 9558, 0); 0 content refs.
+- [ ] `zeah_head_councillor` — Councillor Andrews; varbit `%akd`; default `zeah_head_councillor_vis` (visible); 1 spawn: (1620, 3673, 1); 161 content refs.
+
+## Hidden by default, content-wired
+
+These must appear or change when their per-player quest/game var changes.
+
+- [ ] `agrith_badden_uzer` — Father Badden; varbit `%agrith_badden_uzer`; default hidden; 1 spawn: (3483, 3090, 0); 8 content refs.
+- [ ] `agrith_dave_at_portal` — Evil Dave; varbit `%agrith_quest`; default hidden; 1 spawn: (2721, 4910, 0); 86 content refs.
+- [ ] `agrith_dave_in_passage` — Evil Dave; varbit `%agrith_convinced_dave`; default hidden; 1 spawn: (2723, 4897, 0); 4 content refs.
+- [ ] `agrith_reen_uzer` — Father Reen; varbit `%agrith_reen_uzer`; default hidden; 1 spawn: (3483, 3093, 0); 4 content refs.
+- [ ] `agrith_sandstorm` — Sand storm; varbit `%agrith_quest`; default hidden; 4 spawns: (3472, 3086, 0), (3475, 3100, 0), (3482, 3084, 0), …; 86 content refs.
+- [ ] `ahoy_akharanu_multi` — Ak-Haranu; varbit `%ahoy_questvar`; default hidden; 1 spawn: (3689, 3495, 0); 52 content refs.
+- [ ] `akd_asteros_arceuus` — Asteros Arceuus; varbit `%akd`; default hidden; 1 spawn: (1616, 3668, 1); 161 content refs.
+- [ ] `akd_councillor_andrews_jailed` — David Andrews; varbit `%akd`; default hidden; 1 spawn: (1434, 9949, 0); 161 content refs.
+- [ ] `akd_councillor_orson_rose_basement` — Councillor Orson; varbit `%akd`; default hidden; 1 spawn: (1184, 10266, 0); 161 content refs.
+- [ ] `akd_councillor_unkar` — Councillor Unkar; varbit `%akd`; default hidden; 1 spawn: (1617, 3677, 1); 161 content refs.
+- [ ] `akd_councillor_unkar_jailed` — Kubec Unkar; varbit `%akd`; default hidden; 1 spawn: (1434, 9940, 0); 161 content refs.
+- [ ] `akd_elena_hosidius` — Elena Hosidius; varbit `%akd`; default hidden; 1 spawn: (1621, 3671, 1); 161 content refs.
+- [ ] `akd_jorra` — Jorra; varbit `%akd_lovakengj_helped`; default hidden; 1 spawn: (1496, 3557, 0); 6 content refs.
+- [ ] `akd_kandur_hosidius` — Lord Kandur Hosidius; varbit `%akd`; default hidden; 1 spawn: (1568, 9955, 0); 161 content refs.
+- [ ] `akd_king` — King Artur Hosidius; varbit `%akd`; default hidden; 1 spawn: (1621, 3673, 1); 161 content refs.
+- [ ] `akd_lydia_fullore_castle_outside` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1606, 3656, 0); 161 content refs.
+- [ ] `akd_lydia_fullore_kingstown` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1677, 3674, 0); 161 content refs.
+- [ ] `akd_lydia_fullore_lookout` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1591, 3528, 0); 161 content refs.
+- [ ] `akd_lydia_fullore_piscarilius` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1823, 3689, 0); 161 content refs.
+- [ ] `akd_lydia_fullore_rose_basement` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1187, 10264, 0); 161 content refs.
+- [ ] `akd_lydia_fullore_rose_outside` — Commander Fullore; varbit `%akd`; default hidden; 1 spawn: (1273, 3760, 0); 161 content refs.
+- [ ] `akd_martin_holt_castle` — Martin Holt; varbit `%akd`; default hidden; 1 spawn: (1619, 3678, 1); 161 content refs.
+- [ ] `akd_martin_holt_hosidius` — Martin Holt; varbit `%akd`; default hidden; 1 spawn: (1673, 3580, 0); 161 content refs.
+- [ ] `akd_martin_holt_jailed` — Martin Holt; varbit `%akd`; default hidden; 1 spawn: (1434, 9946, 0); 161 content refs.
+- [ ] `akd_martin_holt_piscarilius` — Martin Holt; varbit `%akd`; default hidden; 1 spawn: (1775, 3681, 0); 161 content refs.
+- [ ] `akd_martin_holt_settlement_ruins` — Martin Holt; varbit `%akd`; default hidden; 1 spawn: (1545, 3895, 0); 161 content refs.
+- [ ] `akd_pandur_hosidius` — Lord Pandur Hosidius; varbit `%akd`; default hidden; 1 spawn: (1782, 3572, 0); 161 content refs.
+- [ ] `akd_phileas_rimor` — Phileas Rimor; varbit `%akd_hosidius_helped`; default hidden; 1 spawn: (1577, 9833, 0); 6 content refs.
+- [ ] `akd_protest_guard` — Guard; varbit `%akd`; default hidden; 1 spawn: (1659, 3672, 0); 161 content refs.
+- [ ] `akd_protest_guard_2` — Guard; varbit `%akd`; default hidden; 1 spawn: (1661, 3676, 0); 161 content refs.
+- [ ] `akd_protest_guard_3` — Guard; varbit `%akd`; default hidden; 1 spawn: (1673, 3676, 0); 161 content refs.
+- [ ] `akd_protest_guard_4` — Guard; varbit `%akd`; default hidden; 1 spawn: (1674, 3671, 0); 161 content refs.
+- [ ] `akd_shauna_piscarilius` — Lady Shauna Piscarilius; varbit `%akd`; default hidden; 1 spawn: (1589, 3530, 3); 161 content refs.
+- [ ] `akd_shiro_shayzien` — Lord Shiro Shayzien; varbit `%akd`; default hidden; 1 spawn: (1590, 3528, 1); 161 content refs.
+- [ ] `akd_tomas_lawry_kingstown` — Tomas Lawry; varbit `%tomas_lawry_location`; default hidden; 1 spawn: (1676, 3683, 0); 1 content refs.
+- [ ] `akd_trobin_arceuus` — Lord Trobin Arceuus; varbit `%akd`; default hidden; 1 spawn: (1579, 3528, 0); 161 content refs.
+- [ ] `akd_vulcana_lovakengj` — Lady Vulcana Lovakengj; varbit `%akd`; default hidden; 1 spawn: (1593, 3532, 2); 161 content refs.
+- [ ] `anma_assistant_multi` — Ava; varp `%haunted`; default hidden; 1 spawn: (3093, 3357, 0); 22 content refs.
+- [ ] `anma_witch_multi` — Witch; varp `%haunted`; default hidden; 1 spawn: (3099, 3370, 0); 22 content refs.
+- [ ] `arcquest_mori_postquest` — Mori; varbit `%arcquest`; default hidden; 1 spawn: (1706, 3799, 2); 83 content refs.
+- [ ] `azzanadra` — Azzanadra; varbit `%deserttreasure`; default hidden; 1 spawn: (3233, 9317, 0); 71 content refs.
+- [ ] `bim_burntof_postquest` — Burntof; varbit `%bim`; default hidden; 1 spawn: (3450, 2903, 0); 47 content refs.
+- [ ] `bim_burntof_temple_outside` — Burntof; varbit `%bim_burntof`; default hidden; 1 spawn: (2995, 3491, 0); 15 content refs.
+- [ ] `bim_checkal_postquest` — Checkal; varbit `%bim`; default hidden; 1 spawn: (3449, 2901, 0); 47 content refs.
+- [ ] `bim_checkal_temple_outside` — Checkal; varbit `%bim_checkal`; default hidden; 1 spawn: (2993, 3494, 0); 15 content refs.
+- [ ] `bim_marley_postquest` — Marley; varbit `%bim`; default hidden; 1 spawn: (3449, 2905, 0); 47 content refs.
+- [ ] `bim_marley_temple_outside` — Marley; varbit `%bim_marley`; default hidden; 1 spawn: (2994, 3497, 0); 17 content refs.
+- [ ] `bim_willow_outside_entrace` — Willow; varbit `%bim`; default hidden; 1 spawn: (2996, 3495, 0); 47 content refs.
+- [ ] `bim_willow_postquest` — Willow; varbit `%bim`; default hidden; 1 spawn: (3446, 2903, 0); 47 content refs.
+- [ ] `brain_island_fenkenstrain` — Dr Fenkenstrain; varp `%brain_quest_var`; default hidden; 1 spawn: (3784, 9225, 0); 73 content refs.
+- [ ] `burgh_actual_bank_teller_multinpc` — Cornelius; varbit `%burgh_bank_teller`; default hidden; 1 spawn: (3493, 3211, 0); 1 content refs.
+- [ ] `burgh_gadderanks_multinpc` — Gadderanks; varbit `%blood_tithe_visible`; default hidden; 1 spawn: (3514, 3241, 0); 1 content refs.
+- [ ] `burgh_juve1_multinpc` — Vampyre Juvinate; varbit `%blood_tithe_visible`; default hidden; 1 spawn: (3513, 3241, 0); 1 content refs.
+- [ ] `burgh_juve2_multinpc` — Vampyre Juvinate; varbit `%blood_tithe_visible`; default hidden; 1 spawn: (3513, 3242, 0); 1 content refs.
+- [ ] `burgh_villager_tithe_multinpc` — Veliaf Hurtz, Wiskit; varbit `%blood_tithe_visible`; default hidden; 1 spawn: (3515, 3242, 0); 1 content refs.
+- [ ] `cabin_boy_herbert_pisc` — Cabin Boy Herbert; varbit `%akd`; default hidden; 1 spawn: (1826, 3691, 0); 161 content refs.
+- [ ] `contact_guard_female_01_multi` — Sophanem Guard; varbit `%contact_people_vis`; default hidden; 1 spawn: (3307, 2779, 0); 3 content refs.
+- [ ] `contact_guard_female_02_multi` — Sophanem Guard; varbit `%contact_people_vis`; default hidden; 2 spawns: (3290, 2760, 0), (3308, 2765, 0); 3 content refs.
+- [ ] `contact_guard_male_01_multi` — Sophanem Guard; varbit `%contact_people_vis`; default hidden; 1 spawn: (3307, 2769, 0); 3 content refs.
+- [ ] `contact_guard_male_02_multi` — Sophanem Guard; varbit `%contact_people_vis`; default hidden; 2 spawns: (3285, 2785, 0), (3304, 2798, 0); 3 content refs.
+- [ ] `contact_market_baker_multi` — Nathifa; varbit `%contact_people_vis`; default hidden; 1 spawn: (3305, 2770, 0); 3 content refs.
+- [ ] `contact_market_craft_multi` — Jamila; varbit `%contact_people_vis`; default hidden; 1 spawn: (3311, 2779, 0); 3 content refs.
+- [ ] `contact_market_dagger_multi` — Urbi; varbit `%contact_people_vis`; default hidden; 1 spawn: (3296, 2805, 0); 3 content refs.
+- [ ] `contact_osman_desert_multi` — Osman; varbit `%contact`; default hidden; 1 spawn: (3289, 2818, 0); 61 content refs.
+- [ ] `contact_stone_mason_multi` — Stonemason; varbit `%contact_people_vis`; default hidden; 1 spawn: (3314, 2756, 0); 3 content refs.
+- [ ] `corsair_captain_throne` — Captain Tock; varbit `%corscurs_progress`; default hidden; 1 spawn: (2586, 2867, 0); 62 content refs.
+- [ ] `corscurs_cook_postquest` — Gnocci the Cook; varbit `%corscurs_progress`; default hidden; 1 spawn: (2548, 2863, 0); 62 content refs.
+- [ ] `corscurs_thief_postquest` — Arsen the Thief; varbit `%corscurs_progress`; default hidden; 1 spawn: (2559, 2856, 0); 62 content refs.
+- [ ] `dallas_jones_crandor_lab` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (2866, 9675, 0); 197 content refs.
+- [ ] `dallas_jones_crandor_lair` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (2857, 9645, 0); 197 content refs.
+- [ ] `dallas_jones_dungeon` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (3551, 10421, 0); 197 content refs.
+- [ ] `dallas_jones_fossil_boat` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (3662, 3848, 0); 197 content refs.
+- [ ] `dallas_jones_fossil_island` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (3761, 3869, 0); 197 content refs.
+- [ ] `dallas_jones_lithkren` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (3583, 3974, 0); 197 content refs.
+- [ ] `dallas_jones_musa` — Dallas Jones; varbit `%ds2`; default hidden; 1 spawn: (2920, 3143, 0); 197 content refs.
+- [ ] `death_growncat_black_astral` — Bob; varbit `%ds2`; default hidden; 1 spawn: (2150, 3867, 0); 197 content refs.
+- [ ] `death_growncat_black_lithkren` — Bob; varbit `%ds2`; default hidden; 2 spawns: (3549, 10420, 0), (3549, 10479, 0); 197 content refs.
+- [ ] `death_growncat_black_lunar` — Bob; varbit `%ds2`; default hidden; 1 spawn: (2073, 3913, 0); 197 content refs.
+- [ ] `death_growncat_black_sophanem` — Bob; varbit `%ds2`; default hidden; 1 spawn: (3299, 2786, 0); 197 content refs.
+- [ ] `death_growncat_black_varrock` — Bob; varbit `%ds2`; default hidden; 1 spawn: (3224, 3477, 0); 197 content refs.
+- [ ] `devious_monk_dead` — <col=00ffff>Dead Monk</col>; varbit `%devious_monk`; default hidden; 1 spawn: (3405, 3492, 0); 4 content refs.
+- [ ] `dragonslayer_ned_on_crandor` — Captain Ned; varp `%dragonquest`; default hidden; 1 spawn: (2849, 3235, 1); 67 content refs.
+- [ ] `dragonslayer_ned_on_ship` — Captain Ned; varp `%dragonquest`; default hidden; 1 spawn: (3048, 3207, 1); 67 content refs.
+- [ ] `dream_birds_eye_jack_multi` — 'Bird's-Eye' Jack; varbit `%dream_prog`; default hidden; 1 spawn: (2099, 3921, 0); 42 content refs.
+- [ ] `dttd_delivery_dwarf` — Dwarf; varbit `%dttd_main`; default hidden; 1 spawn: (3224, 3286, 0); 84 content refs.
+- [ ] `dttd_maze_guide` — Dartog; varbit `%dttd_main`; default hidden; 1 spawn: (3245, 9647, 0); 84 content refs.
+- [ ] `dttd_mill_man_invisible` — H.A.M. Member; varbit `%dttd_main`; default hidden; 1 spawn: (3230, 3285, 0); 84 content refs.
+- [ ] `dttd_zanik_cellar` — Zanik; varbit `%dttd_zanik_in_cellar`; default hidden; 1 spawn: (3210, 9623, 0); 6 content refs.
+- [ ] `dwarfrock_multi_gold_boatman` — Dwarven Boatman; varbit `%dwarfrock_quest`; default hidden; 1 spawn: (2873, 10166, 0); 58 content refs.
+- [ ] `eaglepeak_eagle_desert` — Desert eagle; varbit `%eaglepeak_quest`; default hidden; 2 spawns: (3422, 9568, 0), (3428, 9565, 0); 84 content refs.
+- [ ] `eaglepeak_eagle_jungle` — Jungle eagle; varbit `%eaglepeak_quest`; default hidden; 2 spawns: (2516, 9322, 0), (2523, 9317, 0); 84 content refs.
+- [ ] `eaglepeak_eagle_polar` — Polar eagle; varbit `%eaglepeak_quest`; default hidden; 2 spawns: (2727, 10217, 0), (2730, 10203, 0); 84 content refs.
+- [ ] `eaglepeak_ferret_zoo` — Ferret; varbit `%eaglepeak_quest`; default hidden; 1 spawn: (2607, 3260, 0); 84 content refs.
+- [ ] `eaglepeak_nickolaus` — Nickolaus; varbit `%eaglepeak_quest`; default hidden; 1 spawn: (2006, 4959, 3); 84 content refs.
+- [ ] `elena2` — Elena; varbit `%plaguecity_elena_at_home`; default hidden; 1 spawn: (2592, 3336, 0); 2 content refs.
+- [ ] `elena_basement` — Elena; varbit `%sote`; default hidden; 1 spawn: (2545, 9746, 0); 183 content refs.
+- [ ] `elena_lletya` — Elena; varbit `%sote`; default hidden; 2 spawns: (2326, 3149, 0), (2774, 6093, 0); 183 content refs.
+- [ ] `elena_lletya_hq` — Elena; varbit `%sote`; default hidden; 1 spawn: (2349, 3173, 0); 183 content refs.
+- [ ] `elvarg` — Elvarg; varp `%dragonquest`; default hidden; 1 spawn: (2852, 9637, 0); 67 content refs.
+- [ ] `enakh_lazim_altar_multinpc` — Lazim; varbit `%enakh_where_is_lazim`; default hidden; 1 spawn: (3108, 9320, 2); 6 content refs.
+- [ ] `enakh_lazim_fallen_statue_east_multinpc` — Lazim; varbit `%enakh_where_is_lazim`; default hidden; 1 spawn: (3127, 9325, 0); 6 content refs.
+- [ ] `enakh_lazim_pedestal_multinpc` — Lazim; varbit `%enakh_where_is_lazim`; default hidden; 1 spawn: (3102, 9311, 1); 6 content refs.
+- [ ] `fenk_creature_released` — Lord Rologarth; varp `%fenk_quest`; default hidden; 1 spawn: (3552, 3550, 0); 8 content refs.
+- [ ] `fenk_fenkenstrain_in_tower` — Dr Fenkenstrain; varp `%fenk_quest`; default hidden; 1 spawn: (3549, 3555, 2); 8 content refs.
+- [ ] `feud_bandit_boss` — Bandit Leader; varbit `%feud_bandit_boss_vis`; default hidden; 1 spawn: (3353, 3002, 0); 2 content refs.
+- [ ] `feud_black_jack_seller_multi` — Blackjack seller; varbit `%feud_var`; default hidden; 1 spawn: (3351, 2971, 0); 116 content refs.
+- [ ] `feud_menap_boss` — Menaphite Leader; varbit `%feud_boss_vis`; default hidden; 1 spawn: (3334, 2956, 0); 2 content refs.
+- [ ] `fever_port_ship_teach` — Bill Teach; varp `%fever_quest`; default hidden; 1 spawn: (3713, 3497, 1); 58 content refs.
+- [ ] `fossil_herbiboar_1` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3696, 3796, 0); 3 content refs.
+- [ ] `fossil_herbiboar_2` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3704, 3808, 0); 3 content refs.
+- [ ] `fossil_herbiboar_3` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3705, 3827, 0); 3 content refs.
+- [ ] `fossil_herbiboar_4` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3710, 3883, 0); 3 content refs.
+- [ ] `fossil_herbiboar_5` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3697, 3876, 0); 3 content refs.
+- [ ] `fossil_herbiboar_6` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3717, 3840, 0); 3 content refs.
+- [ ] `fossil_herbiboar_7` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3753, 3851, 0); 3 content refs.
+- [ ] `fossil_herbiboar_8` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3683, 3870, 0); 3 content refs.
+- [ ] `fossil_herbiboar_9` — Herbiboar; varbit `%fossil_herbiboar_visible`; default hidden; 1 spawn: (3681, 3865, 0); 3 content refs.
+- [ ] `fourdiamonds_elder2` — Eblis; varbit `%deserttreasure`; default hidden; 1 spawn: (3213, 2956, 0); 71 content refs.
+- [ ] `handsand_sandy_looking` — Sandy; varbit `%handsand_sandy_multi`; default hidden; 1 spawn: (2787, 3176, 0); 3 content refs.
+- [ ] `herder_plaguesheep_1_enclosure` — Red Sheep; varbit `%sheepherder_sheep_a`; default hidden; 1 spawn: (2597, 3362, 0); 1 content refs.
+- [ ] `herder_plaguesheep_2_enclosure` — Green Sheep; varbit `%sheepherder_sheep_b`; default hidden; 1 spawn: (2598, 3361, 0); 1 content refs.
+- [ ] `herder_plaguesheep_3_enclosure` — Blue Sheep; varbit `%sheepherder_sheep_c`; default hidden; 1 spawn: (2597, 3360, 0); 1 content refs.
+- [ ] `herder_plaguesheep_4_enclosure` — Yellow Sheep; varbit `%sheepherder_sheep_d`; default hidden; 1 spawn: (2596, 3359, 0); 1 content refs.
+- [ ] `hosidiusquest_son_home` — Artur Hosidius; varbit `%hosidiusquest_artur_vis`; default hidden; 1 spawn: (1776, 3577, 0); 3 content refs.
+- [ ] `jardric_boat` — Jardric; varbit `%ds2`; default hidden; 1 spawn: (3661, 3849, 0); 197 content refs.
+- [ ] `jardric_dungeon` — Jardric; varbit `%ds2`; default hidden; 1 spawn: (3551, 10480, 0); 197 content refs.
+- [ ] `jardric_varrock` — Jardric; varbit `%ds2`; default hidden; 1 spawn: (3221, 3476, 0); 197 content refs.
+- [ ] `kennith_land` — Kennith; varp `%seaslugquest`; default hidden; 1 spawn: (2710, 3283, 0); 63 content refs.
+- [ ] `kent_land` — Kent; varp `%seaslugquest`; default hidden; 1 spawn: (2710, 3281, 1); 63 content refs.
+- [ ] `knight_of_ardougne_west` — Knight of Ardougne; varbit `%sote`; default hidden; 12 spawns: (2036, 4641, 0), (2039, 4636, 0), (2466, 3318, 0), …; 183 content refs.
+- [ ] `knight_of_ardougne_west_noop` — Knight of Ardougne; varbit `%sote`; default hidden; 1 spawn: (2560, 3304, 0); 183 content refs.
+- [ ] `kourend_protester_10` — Protester; varbit `%akd`; default hidden; 1 spawn: (1666, 3673, 0); 161 content refs.
+- [ ] `kourend_protester_11` — Protester; varbit `%akd`; default hidden; 1 spawn: (1670, 3672, 0); 161 content refs.
+- [ ] `kourend_protester_12` — Protester; varbit `%akd`; default hidden; 1 spawn: (1668, 3675, 0); 161 content refs.
+- [ ] `kourend_protester_5` — Protester; varbit `%akd`; default hidden; 1 spawn: (1666, 3667, 0); 161 content refs.
+- [ ] `kourend_protester_6` — Protester; varbit `%akd`; default hidden; 1 spawn: (1663, 3673, 0); 161 content refs.
+- [ ] `kourend_protester_7` — Protester; varbit `%akd`; default hidden; 1 spawn: (1666, 3678, 0); 161 content refs.
+- [ ] `kourend_protester_8` — Protester; varbit `%akd`; default hidden; 1 spawn: (1666, 3671, 0); 161 content refs.
+- [ ] `kourend_protester_9` — Protester; varbit `%akd`; default hidden; 1 spawn: (1670, 3674, 0); 161 content refs.
+- [ ] `kr_multi_king_arthur` — Arthur, King Arthur; varbit `%kr_quest`; default hidden; 1 spawn: (1867, 4233, 0); 90 content refs.
+- [ ] `kr_multi_merlin_jail` — Merlin; varbit `%kr_quest`; default hidden; 1 spawn: (1906, 4281, 0); 90 content refs.
+- [ ] `kr_multi_murderer` — Anna; varbit `%kr_quest`; default hidden; 1 spawn: (2737, 3466, 0); 90 content refs.
+- [ ] `lost_tribe_guide` — Kazgar; varbit `%lost_tribe_quest`; default hidden; 1 spawn: (3231, 9610, 0); 75 content refs.
+- [ ] `lost_tribe_sigmund_ham` — Sigmund; varbit `%lost_tribe_quest`; default hidden; 1 spawn: (3169, 9627, 0); 75 content refs.
+- [ ] `magic_carpet_multi_monkey1` — Monkey; varbit `%ics_little_var`; default hidden; 2 spawns: (3243, 2812, 0), (3287, 2814, 0); 103 content refs.
+- [ ] `magic_carpet_multi_monkey2` — Monkey; varbit `%golem_a`; default hidden; 1 spawn: (3467, 3109, 0); 40 content refs.
+- [ ] `magic_carpet_seller5` — Rug Merchant; varbit `%golem_a`; default hidden; 1 spawn: (3467, 3110, 0); 40 content refs.
+- [ ] `magic_carpet_seller6` — Rug Merchant; varbit `%ics_little_var`; default hidden; 1 spawn: (3287, 2813, 0); 103 content refs.
+- [ ] `magic_carpet_seller7` — Rug Merchant; varbit `%ics_little_var`; default hidden; 1 spawn: (3243, 2813, 0); 103 content refs.
+- [ ] `mistmyst_mandy_post` — Mandy; varbit `%mistmyst_progress`; default hidden; 1 spawn: (1636, 4817, 0); 96 content refs.
+- [ ] `mm2_bunkdo_postquest` — Bunkdo; varbit `%mm2_progress`; default hidden; 1 spawn: (2436, 3465, 1); 156 content refs.
+- [ ] `mm2_bunkwicket_postquest` — Bunkwicket; varbit `%mm2_progress`; default hidden; 1 spawn: (2484, 3489, 1); 156 content refs.
+- [ ] `mm2_carado_postboss_multi` — Carado; varbit `%mm2_progress`; default hidden; 1 spawn: (2026, 5609, 0); 156 content refs.
+- [ ] `mm2_carado_postquest` — Carado; varbit `%mm2_progress`; default hidden; 1 spawn: (2388, 3514, 1); 156 content refs.
+- [ ] `mm2_garkor_breach_multi` — Garkor; varbit `%mm2_progress`; default hidden; 1 spawn: (2434, 3519, 0); 156 content refs.
+- [ ] `mm2_garkor_postquest` — Garkor; varbit `%mm2_progress`; default hidden; 1 spawn: (2479, 3463, 1); 156 content refs.
+- [ ] `mm2_karam_postquest` — Karam; varbit `%mm2_progress`; default hidden; 1 spawn: (2712, 2792, 0); 156 content refs.
+- [ ] `mm2_lumo_breach_multi` — Lumo; varbit `%mm2_progress`; default hidden; 1 spawn: (2436, 3519, 0); 156 content refs.
+- [ ] `mm2_lumo_postquest` — Lumo; varbit `%mm2_progress`; default hidden; 1 spawn: (2437, 3519, 0); 156 content refs.
+- [ ] `mm2_monkey_banker` — Jumaane; varbit `%mm2_progress`; default hidden; 1 spawn: (2781, 2782, 0); 156 content refs.
+- [ ] `mm2_monkey_boat_guard_multi` — Monkey guard; varbit `%mm2_progress`; default hidden; 1 spawn: (2693, 2784, 0); 156 content refs.
+- [ ] `mm2_waymottin_postquest` — Waymottin; varbit `%mm2_progress`; default hidden; 1 spawn: (2484, 3490, 1); 156 content refs.
+- [ ] `mm2_zooknock_postboss_multi` — Zooknock; varbit `%mm2_progress`; default hidden; 1 spawn: (2026, 5610, 0); 156 content refs.
+- [ ] `mm2_zooknock_postquest` — Zooknock; varbit `%mm2_progress`; default hidden; 1 spawn: (2383, 3509, 1); 156 content refs.
+- [ ] `mm_duke_postquest` — Duke; varbit `%mm2_progress`; default hidden; 1 spawn: (2726, 2766, 0); 156 content refs.
+- [ ] `mourner_hideout_gnome` — Gnome; varbit `%mourning_gnome`; default hidden; 1 spawn: (2036, 4630, 0); 20 content refs.
+- [ ] `my2arm_dontknowwhat_throneroom` — Don't Know What; varbit `%my2arm_status`; default hidden; 1 spawn: (2868, 3934, 0); 118 content refs.
+- [ ] `my2arm_entry_postquest` — Don't Know What; varbit `%my2arm_status`; default hidden; 1 spawn: (2864, 3945, 0); 118 content refs.
+- [ ] `my2arm_leprechaun` — Tool Leprechaun; varbit `%my2arm_status`; default hidden; 1 spawn: (2848, 3930, 0); 118 content refs.
+- [ ] `my2arm_mother_multi_enthroned` — Mother; varbit `%my2arm_status`; default hidden; 1 spawn: (2871, 3931, 0); 118 content refs.
+- [ ] `my2arm_mother_multi_standing` — Mother; varbit `%my2arm_status`; default hidden; 1 spawn: (2871, 3934, 0); 118 content refs.
+- [ ] `my2arm_mushroom_outside` — Odd Mushroom; varbit `%my2arm_status`; default hidden; 1 spawn: (2879, 3946, 0); 118 content refs.
+- [ ] `my2arm_mushroom_throneroom` — Odd Mushroom; varbit `%my2arm_status`; default hidden; 1 spawn: (2875, 3935, 0); 118 content refs.
+- [ ] `my2arm_sentry_boulder_background` — Boulder; varbit `%my2arm_status`; default hidden; 1 spawn: (2846, 3934, 0); 118 content refs.
+- [ ] `my2arm_sentry_butterfly_fakespectator` — Butterfly; varbit `%my2arm_status`; default hidden; 1 spawn: (2871, 3943, 0); 118 content refs.
+- [ ] `my2arm_sentry_oddstone_fakespectator` — Odd Stone; varbit `%my2arm_status`; default hidden; 1 spawn: (2872, 3944, 0); 118 content refs.
+- [ ] `my2arm_sentry_squirrel_fakespectator` — Squirrel; varbit `%my2arm_status`; default hidden; 1 spawn: (2870, 3945, 0); 118 content refs.
+- [ ] `my2arm_snowflake_outside` — Snowflake; varbit `%my2arm_status`; default hidden; 1 spawn: (2878, 3948, 0); 118 content refs.
+- [ ] `my2arm_snowflake_postquest` — Snowflake; varbit `%my2arm_status`; default hidden; 1 spawn: (2872, 3934, 0); 118 content refs.
+- [ ] `my2arm_wom_endquest` — Wise Old Man; varbit `%my2arm_status`; default hidden; 1 spawn: (2873, 3936, 0); 118 content refs.
+- [ ] `myarm_barnaby` — Captain Barnaby; varbit `%myarm_barnabyswap`; default hidden; 1 spawn: (2683, 3275, 0); 4 content refs.
+- [ ] `myarm_multi_ardougne` — My Arm; varbit `%myarm`; default hidden; 1 spawn: (2684, 3274, 0); 88 content refs.
+- [ ] `myarm_multi_brimhaven` — My Arm; varbit `%myarm`; default hidden; 1 spawn: (2772, 3223, 0); 88 content refs.
+- [ ] `myarm_multi_cliffbottom` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2851, 3968, 0); 118 content refs.
+- [ ] `myarm_multi_kitchen` — My Arm; varbit `%myarm`; default hidden; 1 spawn: (2855, 10052, 1); 88 content refs.
+- [ ] `myarm_multi_larry` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2706, 3732, 0); 118 content refs.
+- [ ] `myarm_multi_outside` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2877, 3947, 0); 118 content refs.
+- [ ] `myarm_multi_postquest` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2874, 3934, 0); 118 content refs.
+- [ ] `myarm_multi_teacher` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2830, 3698, 0); 118 content refs.
+- [ ] `myarm_multi_throneroom` — My Arm; varbit `%my2arm_status`; default hidden; 1 spawn: (2872, 3936, 0); 118 content refs.
+- [ ] `myarm_multi_village` — My Arm; varbit `%myarm`; default hidden; 1 spawn: (2782, 3121, 0); 88 content refs.
+- [ ] `myarm_pupil_multi` — Drunken Dwarf's Leg; varbit `%my2arm_status`; default hidden; 1 spawn: (2831, 3697, 0); 118 content refs.
+- [ ] `myarm_troll_deaddwarf_multi` — Drunken Dwarf's Leg; varbit `%myarm_dwarfjoke`; default hidden; 1 spawn: (2841, 3691, 0); 1 content refs.
+- [ ] `myq3_multi_sarius_castle` — Sarius Guile; varbit `%myq3_sarius_visible`; default hidden; 1 spawn: (3575, 3331, 0); 2 content refs.
+- [ ] `myq4_andiess` — Andiess Juip; varbit `%myq4`; default hidden; 1 spawn: (3638, 9636, 0); 95 content refs.
+- [ ] `myq4_flaygian` — Flaygian Screwte; varbit `%myq4`; default hidden; 1 spawn: (3623, 9643, 0); 95 content refs.
+- [ ] `myq4_kael` — Kael Forshaw; varbit `%myq4`; default hidden; 1 spawn: (3624, 9630, 0); 95 content refs.
+- [ ] `myq4_kael_theatre` — Kael Forshaw; varbit `%myq4`; default hidden; 1 spawn: (3658, 3221, 0); 95 content refs.
+- [ ] `myq4_mekritus` — Mekritus A'hara; varbit `%myq4`; default hidden; 1 spawn: (3634, 9623, 0); 95 content refs.
+- [ ] `myq4_safalaan_basement` — Safalaan Hallow; varbit `%myq4`; default hidden; 1 spawn: (3594, 9674, 0); 95 content refs.
+- [ ] `myq5_ivan_boathouse` — Ivan Strom; varbit `%myq5`; default hidden; 1 spawn: (3530, 3169, 0); 167 content refs.
+- [ ] `myq5_ivan_burgh_de_rott` — Ivan Strom; varbit `%myq5`; default hidden; 1 spawn: (3486, 3241, 0); 167 content refs.
+- [ ] `myq5_ivan_graveyard` — Ivan Strom; varbit `%myq5`; default hidden; 1 spawn: (3696, 3181, 0); 167 content refs.
+- [ ] `myq5_ivan_paterdomus` — Ivan Strom; varbit `%myq5`; default hidden; 1 spawn: (3444, 3485, 0); 167 content refs.
+- [ ] `myq5_ivan_woods` — Ivan Strom; varbit `%myq5`; default hidden; 1 spawn: (3548, 3516, 0); 167 content refs.
+- [ ] `myq5_kael_graveyard` — Kael Forshaw; varbit `%myq5`; default hidden; 1 spawn: (3686, 3186, 0); 167 content refs.
+- [ ] `myq5_maria` — Maria Gadderanks; varbit `%myq5`; default hidden; 1 spawn: (3618, 3377, 0); 167 content refs.
+- [ ] `myq5_polmafi_graveyard` — Polmafi Ferdygris; varbit `%myq5`; default hidden; 1 spawn: (3705, 3182, 0); 167 content refs.
+- [ ] `myq5_polmafi_hideout` — Polmafi Ferdygris; varbit `%myq5`; default hidden; 1 spawn: (3601, 9612, 0); 167 content refs.
+- [ ] `myq5_radigad_graveyard` — Radigad Ponfit; varbit `%myq5`; default hidden; 1 spawn: (3690, 3189, 0); 167 content refs.
+- [ ] `myq5_radigad_hideout` — Radigad Ponfit; varbit `%myq5`; default hidden; 1 spawn: (3598, 9616, 0); 167 content refs.
+- [ ] `myq5_ron` — Ron Gadderanks; varbit `%myq5`; default hidden; 1 spawn: (3620, 3376, 0); 167 content refs.
+- [ ] `myq5_safalaan_graveyard` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3684, 3182, 0); 167 content refs.
+- [ ] `myq5_safalaan_graveyard_meeting` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3707, 3186, 0); 167 content refs.
+- [ ] `myq5_safalaan_graveyard_walk` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3719, 3215, 0); 167 content refs.
+- [ ] `myq5_safalaan_lab` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3633, 9690, 0); 167 content refs.
+- [ ] `myq5_safalaan_lab_inner` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3611, 9737, 0); 167 content refs.
+- [ ] `myq5_safalaan_mausoleum` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3706, 3188, 0); 167 content refs.
+- [ ] `myq5_safalaan_mausoleum_inner` — Safalaan Hallow; varbit `%myq5`; default hidden; 1 spawn: (3704, 3192, 0); 167 content refs.
+- [ ] `myq5_slepe_jester` — Hameln the Jester; varbit `%myq4`; default hidden; 1 spawn: (3736, 3316, 0); 95 content refs.
+- [ ] `myq5_slepe_thief` — Hanchen the Hound; varbit `%myq4`; default hidden; 1 spawn: (3736, 3314, 0); 95 content refs.
+- [ ] `myq5_vanescula_graveyard` — Vanescula Drakan; varbit `%myq5`; default hidden; 1 spawn: (3708, 3187, 0); 167 content refs.
+- [ ] `myq5_vanescula_mausoleum` — Vanescula Drakan; varbit `%myq5`; default hidden; 1 spawn: (3705, 3189, 0); 167 content refs.
+- [ ] `myq5_veliaf_boathouse` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3529, 3168, 0); 167 content refs.
+- [ ] `myq5_veliaf_graveyard` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3685, 3181, 0); 167 content refs.
+- [ ] `myq5_veliaf_graveyard_inner` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3689, 3182, 0); 167 content refs.
+- [ ] `myq5_veliaf_graveyard_meeting` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3707, 3188, 0); 167 content refs.
+- [ ] `myq5_veliaf_hideout` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3600, 9614, 0); 167 content refs.
+- [ ] `myq5_veliaf_slepe_manor` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3720, 3359, 1); 167 content refs.
+- [ ] `myq5_veliaf_woods` — Veliaf Hurtz; varbit `%myq5`; default hidden; 1 spawn: (3549, 3517, 0); 167 content refs.
+- [ ] `myq5_vertida_graveyard` — Vertida Sefalatis; varbit `%myq5`; default hidden; 1 spawn: (3697, 3186, 0); 167 content refs.
+- [ ] `myreque_pt3_multi_safalaan_basecamp` — Safalaan Hallow; varbit `%myq3_safalaan_visible`; default hidden; 1 spawn: (3627, 9646, 0); 2 content refs.
+- [ ] `myreque_pt3_multi_safalaan_castle` — Safalaan Hallow; varbit `%myq3_safalaan_visible`; default hidden; 1 spawn: (3584, 3331, 0); 2 content refs.
+- [ ] `niete_burthorpe` — Neite; varbit `%ds2`; default hidden; 1 spawn: (2930, 3557, 0); 197 content refs.
+- [ ] `observatory_professor_multi2` — Observatory professor; varp `%itgronigen`; default hidden; 1 spawn: (2437, 3160, 1); 32 content refs.
+- [ ] `paladin_west` — Paladin; varbit `%sote`; default hidden; 10 spawns: (2043, 4632, 0), (2044, 4644, 0), (2473, 3290, 0), …; 183 content refs.
+- [ ] `peng_multi_kgp` — KGP Agent; varbit `%peng_multi_kgp`; default hidden; 1 spawn: (2640, 4009, 1); 10 content refs.
+- [ ] `peng_multi_larry_lumb` — Larry; varbit `%peng_multi_larry`; default hidden; 1 spawn: (3212, 3263, 0); 1 content refs.
+- [ ] `peng_noodle_multi` — Noodle; varbit `%peng_multi_kgp`; default hidden; 1 spawn: (2645, 4004, 1); 10 content refs.
+- [ ] `piscquest_official_castle` — Tomas Lawry; varbit `%tomas_lawry_location`; default hidden; 1 spawn: (1614, 3689, 2); 1 content refs.
+- [ ] `piscquest_target` — Conrad King; varbit `%piscquest`; default hidden; 1 spawn: (1847, 3734, 0); 74 content refs.
+- [ ] `pmod_town_crier_kingstown` — Town Crier; varbit `%akd`; default hidden; 1 spawn: (1664, 3669, 0); 161 content refs.
+- [ ] `priestperiltrappedmonk` — Drezel; varp `%priestperil`; default hidden; 1 spawn: (3417, 3489, 2); 89 content refs.
+- [ ] `priestperiltrappedmonk2` — Drezel; varp `%priestperil`; default hidden; 1 spawn: (3440, 9895, 0); 89 content refs.
+- [ ] `radimus_erkle_guild` — Radimus Erkle; varp `%legendsquest`; default hidden; 1 spawn: (2724, 3378, 0); 167 content refs.
+- [ ] `rcu_zammy_mage1_edge` — Mage of Zamorak; varp `%abyssal_miniquest`; default hidden; 1 spawn: (3260, 3383, 0); 28 content refs.
+- [ ] `slepe_child_female_1_inside` — Child; varbit `%myq5`; default hidden; 1 spawn: (3703, 3302, 0); 167 content refs.
+- [ ] `slepe_child_female_2_inside` — Child; varbit `%myq5`; default hidden; 1 spawn: (3697, 3313, 0); 167 content refs.
+- [ ] `slepe_child_female_3_post` — Child; varbit `%myq5`; default hidden; 1 spawn: (3711, 3329, 0); 167 content refs.
+- [ ] `slepe_child_female_4_post` — Child; varbit `%myq5`; default hidden; 1 spawn: (3709, 3328, 0); 167 content refs.
+- [ ] `slepe_child_male_2_inside` — Child; varbit `%myq5`; default hidden; 1 spawn: (3709, 3299, 0); 167 content refs.
+- [ ] `slepe_child_male_3_inside` — Child; varbit `%myq5`; default hidden; 1 spawn: (3693, 3311, 0); 167 content refs.
+- [ ] `slepe_child_male_4_post` — Child; varbit `%myq5`; default hidden; 1 spawn: (3710, 3327, 0); 167 content refs.
+- [ ] `slepe_poor_man1_inside` — Kurt; varbit `%myq5`; default hidden; 1 spawn: (3693, 3309, 0); 167 content refs.
+- [ ] `slepe_poor_man2_inside` — Don; varbit `%myq5`; default hidden; 1 spawn: (3705, 3303, 0); 167 content refs.
+- [ ] `slepe_poor_woman1_inside` — Debra; varbit `%myq5`; default hidden; 1 spawn: (3695, 3314, 0); 167 content refs.
+- [ ] `slepe_poor_woman2_inside` — Tanya; varbit `%myq5`; default hidden; 1 spawn: (3707, 3298, 0); 167 content refs.
+- [ ] `slice_dwarf_alvijar_postquest` — Ambassador Alvijar; varbit `%slice_quest`; default hidden; 1 spawn: (2737, 5351, 1); 77 content refs.
+- [ ] `slice_goblin_archaeologist_post_quest` — Tegdak; varbit `%slice_quest`; default hidden; 1 spawn: (2744, 5344, 0); 77 content refs.
+- [ ] `slice_sergeant_mossfists_cave` — Sergeant Mossfists; varbit `%slice_quest`; default hidden; 1 spawn: (3168, 9572, 0); 77 content refs.
+- [ ] `slice_sergeant_mossfists_swamp` — Sergeant Mossfists; varbit `%slice_quest`; default hidden; 1 spawn: (3169, 3170, 0); 77 content refs.
+- [ ] `slice_sergeant_slimetoes_cave` — Sergeant Slimetoes; varbit `%slice_quest`; default hidden; 1 spawn: (3170, 9572, 0); 77 content refs.
+- [ ] `slice_sergeant_slimetoes_swamp` — Sergeant Slimetoes; varbit `%slice_quest`; default hidden; 1 spawn: (3171, 3170, 0); 77 content refs.
+- [ ] `slice_zanik_archaeology` — Zanik; varbit `%slice_zanik_at_dig`; default hidden; 1 spawn: (2512, 5563, 0); 5 content refs.
+- [ ] `slug2_invisi_lobster` — Giant lobster; varbit `%slug2_npc_track1`; default hidden; 6 spawns: (2768, 3286, 0), (2768, 3289, 1), (2777, 3278, 0), …; 5 content refs.
+- [ ] `slug2_villager1_stage2_multi` — Witchaven villager; varbit `%slug2_main`; default hidden; 2 spawns: (2716, 3278, 0), (2722, 3292, 0); 88 content refs.
+- [ ] `slug2_villager2_stage2_multi` — Witchaven villager; varbit `%slug2_main`; default hidden; 3 spawns: (2706, 3285, 0), (2717, 3289, 0), (2734, 3284, 0); 88 content refs.
+- [ ] `slug2_villager3_stage2_multi` — Witchaven villager; varbit `%slug2_main`; default hidden; 1 spawn: (2729, 3274, 0); 88 content refs.
+- [ ] `sote_arianwyn_waterfall` — Arianwyn; varbit `%sote`; default hidden; 2 spawns: (2565, 9905, 0), (2603, 9904, 0); 183 content refs.
+- [ ] `sote_arianwyn_waterfall_baxtorian` — Arianwyn; varbit `%sote`; default hidden; 1 spawn: (2607, 9914, 0); 183 content refs.
+- [ ] `sote_baxtorian` — Baxtorian; varbit `%sote`; default hidden; 1 spawn: (2352, 3170, 0); 183 content refs.
+- [ ] `sote_baxtorian_gates` — Baxtorian; varbit `%sote`; default hidden; 1 spawn: (2240, 3265, 0); 183 content refs.
+- [ ] `sote_baxtorian_ruined_lletya` — Baxtorian; varbit `%sote`; default hidden; 1 spawn: (2801, 6116, 0); 183 content refs.
+- [ ] `sote_baxtorian_waterfall` — Baxtorian; varbit `%sote`; default hidden; 1 spawn: (2605, 9915, 0); 183 content refs.
+- [ ] `sote_carla` — Carla; varbit `%sote`; default hidden; 1 spawn: (2537, 9745, 0); 183 content refs.
+- [ ] `sote_elena_upass` — Elena; varbit `%sote`; default hidden; 1 spawn: (2454, 6091, 0); 183 content refs.
+- [ ] `sote_eluned_lletya` — Eluned; varbit `%sote`; default hidden; 2 spawns: (2326, 3161, 0), (2774, 6105, 0); 183 content refs.
+- [ ] `sote_halgrive` — Councillor Halgrive; varbit `%sote`; default hidden; 1 spawn: (2546, 9745, 0); 183 content refs.
+- [ ] `sote_iestin_forest` — Iestin; varbit `%sote`; default hidden; 2 spawns: (2256, 3167, 0), (2704, 6111, 0); 183 content refs.
+- [ ] `sote_iestin_ruined_lletya` — Iestin; varbit `%sote`; default hidden; 1 spawn: (2799, 6118, 0); 183 content refs.
+- [ ] `sote_ilfeen` — Ilfeen; varbit `%sote`; default hidden; 1 spawn: (2352, 3174, 0); 183 content refs.
+- [ ] `sote_ilfeen_lletya` — Ilfeen; varbit `%sote`; default hidden; 2 spawns: (2354, 3155, 0), (2802, 6099, 0); 183 content refs.
+- [ ] `sote_islwyn` — Islwyn; varbit `%sote`; default hidden; 1 spawn: (2351, 3170, 0); 183 content refs.
+- [ ] `sote_islwyn_lletya` — Islwyn; varbit `%sote`; default hidden; 2 spawns: (2323, 3160, 0), (2771, 6104, 0); 183 content refs.
+- [ ] `sote_islwyn_upass_pre` — Islwyn; varbit `%sote`; default hidden; 1 spawn: (2312, 9814, 0); 183 content refs.
+- [ ] `sote_jethick` — Jethick; varbit `%sote`; default hidden; 1 spawn: (2542, 9744, 0); 183 content refs.
+- [ ] `sote_kilron` — Kilron; varbit `%sote`; default hidden; 1 spawn: (2539, 9741, 0); 183 content refs.
+- [ ] `sote_lady_hefin_upass_pre` — Lady Carys Hefin; varbit `%sote`; default hidden; 1 spawn: (2328, 9796, 0); 183 content refs.
+- [ ] `sote_lady_trahaearn_upass_pre` — Lady Tangwen Trahaearn; varbit `%sote`; default hidden; 1 spawn: (2312, 9801, 0); 183 content refs.
+- [ ] `sote_lletya_gravestone` — Rebel Scout; varbit `%sote`; default hidden; 1 spawn: (2303, 3197, 0); 183 content refs.
+- [ ] `sote_lord_amlodd_upass_pre` — Lord Ieuan Amlodd; varbit `%sote`; default hidden; 1 spawn: (2308, 9804, 0); 183 content refs.
+- [ ] `sote_lord_crwys_upass_pre` — Lord Piquan Crwys; varbit `%sote`; default hidden; 1 spawn: (2321, 9798, 0); 183 content refs.
+- [ ] `sote_omart` — Omart; varbit `%sote`; default hidden; 1 spawn: (2540, 9741, 0); 183 content refs.
+- [ ] `sote_upass_gravestone` — Rebel Scout; varbit `%sote`; default hidden; 2 spawns: (2116, 4732, 1), (2153, 4546, 1); 183 content refs.
+- [ ] `sote_ysgawyn` — Ysgawyn; varbit `%sote`; default hidden; 1 spawn: (2351, 3174, 0); 183 content refs.
+- [ ] `sote_ysgawyn_forest` — Ysgawyn; varbit `%sote`; default hidden; 2 spawns: (2256, 3168, 0), (2704, 6112, 0); 183 content refs.
+- [ ] `soulbane_tolna_multi` — Tolna; varbit `%soulbane_tolna_pres`; default hidden; 1 spawn: (3308, 3452, 0); 3 content refs.
+- [ ] `swan_wom_office` — Wise Old Man; varbit `%swansong`; default hidden; 1 spawn: (2353, 3683, 0); 71 content refs.
+- [ ] `tbwt_tamayu_multinpc_house` — Tamayu; varp `%tbwt_main`; default hidden; 1 spawn: (2800, 3057, 0); 36 content refs.
+- [ ] `tbwt_tiadeche_multinpc_house` — Tiadeche; varp `%tbwt_main`; default hidden; 1 spawn: (2781, 3057, 0); 36 content refs.
+- [ ] `tbwt_tinsay_multinpc_house` — Tinsay; varp `%tbwt_main`; default hidden; 1 spawn: (2790, 3054, 0); 36 content refs.
+- [ ] `tol_homonculus_multi` — Homunculus; varbit `%tol_prog`; default hidden; 1 spawn: (2648, 3217, 3); 53 content refs.
+- [ ] `tol_homonculus_multi2` — Homunculus; varbit `%tol_homonc_pres`; default hidden; 1 spawn: (2640, 3221, 0); 2 content refs.
+- [ ] `trobin_arceuus` — Lord Trobin Arceuus; varbit `%trobin_arceuus_tower_vis`; default hidden; 1 spawn: (1577, 3820, 1); 1 content refs.
+- [ ] `troll_frozen_1` — Troll father; varbit `%fd_icewarrior_subquest`; default hidden; 1 spawn: (2835, 3740, 0); 4 content refs.
+- [ ] `troll_frozen_2` — Troll mother; varbit `%fd_icewarrior_subquest`; default hidden; 1 spawn: (2837, 3740, 0); 4 content refs.
+- [ ] `veos` — Veos; varbit `%veos_pisc_vis`; default hidden; 1 spawn: (1825, 3691, 0); 1 content refs.
+- [ ] `veos_lumbridge` — Veos; varbit `%veos_lumbridge_vis`; default hidden; 1 spawn: (3228, 3242, 0); 3 content refs.
+- [ ] `veos_sarim` — Veos; varbit `%veos_sarim_vis`; default hidden; 1 spawn: (3054, 3245, 0); 3 content refs.
+- [ ] `vikingexile_brundt_island_multi` — Brundt the Chieftain; varbit `%vikingexile`; default hidden; 1 spawn: (2466, 4010, 0); 84 content refs.
+- [ ] `vikingexile_brundt_multi` — Brundt the Chieftain; varbit `%vikingexile`; default hidden; 1 spawn: (2705, 3634, 0); 84 content refs.
+- [ ] `zep_assist_gno_replacement` — Assistant Lori; varbit `%mm2_progress`; default hidden; 1 spawn: (2480, 3457, 0); 156 content refs.
+- [ ] `zep_multi_assistant_cast` — Assistant Marrow; varbit `%zep_multi_cast`; default hidden; 1 spawn: (2460, 3108, 0); 3 content refs.
+- [ ] `zep_multi_assistant_craft` — Assistant Brock; varbit `%zep_multi_craft`; default hidden; 1 spawn: (2925, 3303, 0); 3 content refs.
+- [ ] `zep_multi_assistant_varr` — Assistant Serf; varbit `%zep_multi_varr`; default hidden; 1 spawn: (3298, 3483, 0); 3 content refs.
+- [ ] `zep_multi_piccard` — Assistant Stan, Auguste; varbit `%zep_multi_piccard`; default hidden; 1 spawn: (2938, 3422, 0); 4 content refs.
+
+## Hidden by default, no content reference
+
+These require individual ownership review; some are dynamic activity NPCs, while others are genuine missing quest-state wiring.
+
+- [ ] `100_jubbly_multi_boat_feldip` — Ogre boat; varbit `%100_ogre_jubbly_boat_visible`; default hidden; 1 spawn: (2655, 2964, 0); 0 content refs.
+- [ ] `100_jubbly_multi_boat_karamja` — Ogre boat; varbit `%100_ogre_jubbly_boat_visible`; default hidden; 1 spawn: (2753, 3081, 0); 0 content refs.
+- [ ] `100_rantz_multi_npc` — Rantz; varbit `%100_ogre_rantz_visible`; default hidden; 1 spawn: (2651, 2962, 0); 0 content refs.
+- [ ] `akd_councillor_orson_lookout` — Councillor Orson; varbit `%akd_orson_lookout`; default hidden; 1 spawn: (1562, 9952, 0); 0 content refs.
+- [ ] `ali_the_farmer_multinpc` — Ali the Farmer; varbit `%desert_alkharid_alis_visible`; default hidden; 1 spawn: (3306, 3197, 0); 0 content refs.
+- [ ] `ali_the_guard_multinpc` — Ali the Guard; varbit `%desert_alkharid_alis_visible`; default hidden; 1 spawn: (3297, 3193, 0); 0 content refs.
+- [ ] `ali_the_smith_multinpc` — Ali the Smith; varbit `%desert_alkharid_alis_visible`; default hidden; 1 spawn: (3299, 3190, 0); 0 content refs.
+- [ ] `ali_the_tailor_multinpc` — Ali the Tailor; varbit `%desert_alkharid_alis_visible`; default hidden; 1 spawn: (3303, 3204, 0); 0 content refs.
+- [ ] `ap_guide_parent` — Adventurer Jon; varbit `%adventurepath_player_participating`; default hidden; 1 spawn: (3232, 3235, 0); 0 content refs.
+- [ ] `camdozaal_ghost_1` — Ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2922, 5821, 0); 0 content refs.
+- [ ] `camdozaal_ghost_2` — Ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2990, 5803, 0); 0 content refs.
+- [ ] `camdozaal_ghost_3` — Ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3017, 5779, 0); 0 content refs.
+- [ ] `camdozaal_ramarno_multi` — Ramarno; varbit `%camdozaal_ramarno_intro`; default hidden; 1 spawn: (2959, 5809, 0); 0 content refs.
+- [ ] `deadman_banker_neitiznot` — Financial Seer; varbit `%deadman_mode`; default hidden; 1 spawn: (2339, 3807, 0); 0 content refs.
+- [ ] `deadman_guard_ardougne` — Guard; varbit `%deadman_guarded_mode`; default hidden; 14 spawns: (2579, 3298, 0), (2581, 3323, 0), (2588, 3341, 0), …; 0 content refs.
+- [ ] `deadman_guard_catherby` — Guard; varbit `%deadman_guarded_mode`; default hidden; 1 spawn: (2807, 3440, 0); 0 content refs.
+- [ ] `deadman_guard_falador` — Guard; varbit `%deadman_guarded_mode`; default hidden; 5 spawns: (3010, 3379, 0), (3023, 3339, 0), (3025, 3360, 0), …; 0 content refs.
+- [ ] `deadman_guard_gnome` — Gnome guard; varbit `%deadman_guarded_mode`; default hidden; 16 spawns: (2369, 3428, 0), (2378, 3416, 0), (2393, 3427, 0), …; 0 content refs.
+- [ ] `deadman_guard_ja` — Guard; varbit `%deadman_guarded_mode`; default hidden; 7 spawns: (2332, 3801, 0), (2343, 3810, 0), (2357, 3799, 0), …; 0 content refs.
+- [ ] `deadman_guard_lumbridge` — Guard; varbit `%deadman_guarded_mode`; default hidden; 9 spawns: (3206, 3218, 1), (3206, 3219, 2), (3208, 3234, 0), …; 0 content refs.
+- [ ] `deadman_guard_portphas` — Ghost guard; varbit `%deadman_guarded_mode`; default hidden; 6 spawns: (3660, 3503, 0), (3664, 3488, 0), (3667, 3469, 0), …; 0 content refs.
+- [ ] `deadman_guard_prif` — Prifddinas guard; varbit `%deadman_guarded_mode`; default hidden; 7 spawns: (3259, 6078, 2), (3259, 6087, 2), (3260, 6088, 0), …; 0 content refs.
+- [ ] `deadman_guard_rellekka` — Guard; varbit `%deadman_guarded_mode`; default hidden; 7 spawns: (2640, 3656, 0), (2643, 3679, 0), (2663, 3656, 0), …; 0 content refs.
+- [ ] `deadman_guard_seers` — Guard; varbit `%deadman_guarded_mode`; default hidden; 2 spawns: (2723, 3492, 0), (2728, 3492, 0); 0 content refs.
+- [ ] `deadman_guard_sophanem` — Guard; varbit `%deadman_guarded_mode`; default hidden; 6 spawns: (3284, 2806, 0), (3289, 2784, 0), (3295, 2758, 0), …; 0 content refs.
+- [ ] `deadman_guard_varrock` — Guard; varbit `%deadman_guarded_mode`; default hidden; 24 spawns: (3145, 3508, 0), (3148, 3477, 0), (3176, 3508, 0), …; 0 content refs.
+- [ ] `deadman_guard_voidknight` — Guard; varbit `%deadman_guarded_mode`; default hidden; 3 spawns: (2652, 2655, 0), (2658, 2658, 0), (2662, 2654, 0); 0 content refs.
+- [ ] `deadman_guard_yanille` — Guard; varbit `%deadman_guarded_mode`; default hidden; 6 spawns: (2540, 3092, 0), (2558, 3090, 0), (2575, 3090, 0), …; 0 content refs.
+- [ ] `deadman_insurancebroker` — Gelin; varbit `%deadman_mode`; default hidden; 1 spawn: (3248, 3201, 0); 0 content refs.
+- [ ] `dorgesh_dark_wizard` — Movario; varbit `%wgs_movario_vis`; default hidden; 1 spawn: (2706, 5240, 3); 0 content refs.
+- [ ] `dorgesh_khazard_bodyguard` — Darve; varbit `%wgs_movario_vis`; default hidden; 1 spawn: (2707, 5239, 3); 0 content refs.
+- [ ] `dorgesh_zanik` — Zanik; varbit `%dorgesh_zanik_in_city`; default hidden; 1 spawn: (2744, 5353, 1); 0 content refs.
+- [ ] `dream_cyrisus_outsidebraziermulti` — Cyrisus; varbit `%dream_cyris_multi`; default hidden; 1 spawn: (2074, 3911, 0); 0 content refs.
+- [ ] `dream_cyrisus_outsidemulti` — Cyrisus; varbit `%dream_cyris_multi`; default hidden; 1 spawn: (2149, 3867, 0); 0 content refs.
+- [ ] `dwarf_city_berserker_cutscene_multi` — Black Guard Berserker; varbit `%giantdwarf_cutscene_guard_visible`; default hidden; 2 spawns: (2890, 10224, 0), (2890, 10226, 0); 0 content refs.
+- [ ] `edmond_bottom` — Edmond; varbit `%plaguecity_can_see_edmond_up_top`; default hidden; 1 spawn: (2517, 9755, 0); 0 content refs.
+- [ ] `enakh_akthanakos_multinpc` — Akthanakos; varbit `%enakh_akthanakos_form`; default hidden; 1 spawn: (3105, 9297, 1); 0 content refs.
+- [ ] `fairy_godfather_multi` — Fairy Godfather; varbit `%fairy_godfather_check`; default hidden; 1 spawn: (2446, 4427, 0); 0 content refs.
+- [ ] `fairy_godfatherarmy_multi1` — Ork; varbit `%fairy2_queencure_quest`; default hidden; 3 spawns: (2396, 4455, 0), (2436, 4455, 0), (2438, 4453, 0); 0 content refs.
+- [ ] `fairy_godfatherarmy_multi2` — Ork; varbit `%fairy2_queencure_quest`; default hidden; 3 spawns: (2398, 4453, 0), (2452, 4466, 0), (2456, 4467, 0); 0 content refs.
+- [ ] `fairy_henchman1_multi` — Slim Louie; varbit `%fairy_godfather_check`; default hidden; 1 spawn: (2448, 4428, 0); 0 content refs.
+- [ ] `fairy_henchman2_multi` — Fat Rocco; varbit `%fairy_godfather_check`; default hidden; 1 spawn: (2445, 4430, 0); 0 content refs.
+- [ ] `fairy_mindslayer_guard_multi` — Gatekeeper; varbit `%fairy_farmers_quest`; default hidden; 1 spawn: (2401, 4378, 0); 0 content refs.
+- [ ] `fairy_nuff_multi2` — Fairy Nuff; varbit `%fairy2_queencure_quest`; default hidden; 1 spawn: (2355, 4456, 0); 0 content refs.
+- [ ] `fairy_queen_multi2` — Fairy Queen; varbit `%fairy2_queencure_quest`; default hidden; 1 spawn: (2352, 4457, 0); 0 content refs.
+- [ ] `fairyliquid_multi` — Fairy Very Wise; varbit `%fairy2_queencure_quest`; default hidden; 1 spawn: (2353, 4446, 0); 0 content refs.
+- [ ] `fairyliquid_multi2` — Fairy Very Wise; varbit `%fairy2_queencure_quest`; default hidden; 1 spawn: (2349, 4435, 0); 0 content refs.
+- [ ] `fairyqueen_multi3` — Fairy Queen; varbit `%fairy2_queencure_quest`; default hidden; 1 spawn: (2348, 4433, 0); 0 content refs.
+- [ ] `fairyresistance_multi` — Fairy; varbit `%fairy2_queencure_quest`; default hidden; 3 spawns: (2333, 4450, 0), (2345, 4432, 0), (2347, 4444, 0); 0 content refs.
+- [ ] `fairyresistance_multi2` — Fairy; varbit `%fairy2_queencure_quest`; default hidden; 2 spawns: (2340, 4453, 0), (2357, 4451, 0); 0 content refs.
+- [ ] `fairyresistance_multi3` — Fairy; varbit `%fairy2_queencure_quest`; default hidden; 2 spawns: (2346, 4450, 0), (2354, 4439, 0); 0 content refs.
+- [ ] `fairyresistance_multi4` — Fairy; varbit `%fairy2_queencure_quest`; default hidden; 2 spawns: (2333, 4457, 0), (2357, 4437, 0); 0 content refs.
+- [ ] `fairyresistance_multi5` — Fairy; varbit `%fairy2_queencure_quest`; default hidden; 2 spawns: (2334, 4452, 0), (2343, 4442, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_1` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3686, 3883, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_2` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3692, 3883, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_3` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3686, 3884, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_4` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3686, 3882, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_5` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3692, 3884, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_6` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3692, 3882, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_7` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3688, 3880, 0); 0 content refs.
+- [ ] `fossil_pool_bobber_8` — Bobbing fossil; varbit `%fossil_pool_bob`; default hidden; 1 spawn: (3690, 3880, 0); 0 content refs.
+- [ ] `fossil_puffer_fish_1` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3727, 10252, 1), (3732, 10244, 1), (3738, 10254, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_2` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3727, 10251, 1), (3731, 10244, 1), (3739, 10254, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_3` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3728, 10251, 1), (3731, 10245, 1), (3738, 10253, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_4` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3728, 10252, 1), (3732, 10245, 1), (3739, 10253, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_5` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3728, 10253, 1), (3733, 10245, 1), (3738, 10252, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_6` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3727, 10253, 1), (3733, 10244, 1), (3739, 10252, 1), …; 0 content refs.
+- [ ] `fossil_puffer_fish_7` — Puffer Fish; varbit `%fossil_puffer_seefish`; default hidden; 11 spawns: (3727, 10254, 1), (3732, 10246, 1), (3739, 10255, 1), …; 0 content refs.
+- [ ] `gub_musa_multi_child_1` — Jack; varbit `%gublinch_state`; default hidden; 1 spawn: (2904, 3178, 0); 0 content refs.
+- [ ] `gub_musa_multi_child_2` — Jill; varbit `%gublinch_state`; default hidden; 1 spawn: (2907, 3174, 0); 0 content refs.
+- [ ] `gub_musa_multi_child_3` — Jeff; varbit `%gublinch_state`; default hidden; 1 spawn: (2906, 3172, 0); 0 content refs.
+- [ ] `hallowed_ghost_lobby_archpriest` — Archpriest of the Unicorn; varbit `%hallowed_ghost_archpriest_visible`; default hidden; 1 spawn: (2400, 5983, 0); 0 content refs.
+- [ ] `hallowed_ghost_lobby_lion` — Knight of the Lion; varbit `%hallowed_ghost_lionknight_visible`; default hidden; 1 spawn: (2402, 5981, 0); 0 content refs.
+- [ ] `hallowed_ghost_lobby_owl` — Knight of the Owl; varbit `%hallowed_ghost_owlknight_visible`; default hidden; 1 spawn: (2398, 5981, 0); 0 content refs.
+- [ ] `hallowed_ghost_lobby_unicorn` — Knight of the Unicorn; varbit `%hallowed_ghost_unicornknight_visible`; default hidden; 1 spawn: (2402, 5985, 0); 0 content refs.
+- [ ] `hallowed_ghost_lobby_wolf` — Knight of the Wolf; varbit `%hallowed_ghost_wolfknight_visible`; default hidden; 1 spawn: (2398, 5985, 0); 0 content refs.
+- [ ] `hosdun_faeded_beast` — Shaeded Beast; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (1797, 9951, 0); 0 content refs.
+- [ ] `hosdun_varlamore_knight` — Knight of Varlamore; varbit `%varlamore_sun_knight`; default hidden; 1 spawn: (1796, 9949, 0); 0 content refs.
+- [ ] `hundred_dwarf_drunk_multi` — Rohak; varbit `%hundred_dwarf_multi_dad`; default hidden; 1 spawn: (2865, 9877, 0); 0 content refs.
+- [ ] `ics_little_multi_wanderer1` — Wanderer; varbit `%ics_wanderermulti`; default hidden; 1 spawn: (3304, 9196, 0); 0 content refs.
+- [ ] `ics_little_multi_wanderer2` — Wanderer; varbit `%ics_wanderermulti`; default hidden; 1 spawn: (3304, 9195, 0); 0 content refs.
+- [ ] `ics_little_spectre` — Klenter; varbit `%ics_specvis`; default hidden; 1 spawn: (3289, 2783, 0); 0 content refs.
+- [ ] `ii_common_impling_precursor` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 21 spawns: (1705, 3483, 0), (2279, 3188, 0), (2354, 3608, 0), …; 0 content refs.
+- [ ] `ii_crop_circle_npc` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 1 spawn: (2591, 4319, 0); 0 content refs.
+- [ ] `ii_impling_adder` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 1 spawn: (2593, 4319, 0); 0 content refs.
+- [ ] `ii_maze_blocking_timer` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 1 spawn: (2590, 4319, 0); 0 content refs.
+- [ ] `ii_maze_gate_timer` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 1 spawn: (2590, 4320, 0); 0 content refs.
+- [ ] `ii_rare_impling_precursor_maze` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 2 spawns: (2576, 4336, 0), (2610, 4301, 0); 0 content refs.
+- [ ] `ii_uncommon_impling_precursor` — Man; varbit `%hunting_hidetrapnpcs`; default hidden; 12 spawns: (2569, 4342, 0), (2570, 4297, 0), (2572, 4321, 0), …; 0 content refs.
+- [ ] `lost_property_merchant_combatty` — Perdu; varbit `%this_is_a_pvp_or_bh_world`; default hidden; 4 spawns: (2755, 3481, 0), (2976, 3347, 0), (3090, 3494, 0), …; 0 content refs.
+- [ ] `macro_pheasant_fourtail` — Pheasant; varp `%macro_transmit`; default hidden; 3 spawns: (2599, 4772, 0), (2603, 4774, 0), (2610, 4774, 0); 0 content refs.
+- [ ] `macro_pheasant_onetail` — Pheasant; varp `%macro_transmit`; default hidden; 3 spawns: (2597, 4779, 0), (2598, 4774, 0), (2605, 4777, 0); 0 content refs.
+- [ ] `macro_pheasant_threetail` — Pheasant; varp `%macro_transmit`; default hidden; 3 spawns: (2600, 4777, 0), (2603, 4769, 0), (2607, 4775, 0); 0 content refs.
+- [ ] `macro_pheasant_twotail` — Pheasant; varp `%macro_transmit`; default hidden; 3 spawns: (2598, 4777, 0), (2606, 4778, 0), (2608, 4772, 0); 0 content refs.
+- [ ] `mm2_le_smith_pos1_multi` — Assistant Le Smith; varbit `%mm2_le_smith_pos`; default hidden; 1 spawn: (2750, 2797, 2); 0 content refs.
+- [ ] `mm2_le_smith_pos2_multi` — Assistant Le Smith; varbit `%mm2_le_smith_pos`; default hidden; 1 spawn: (2721, 2766, 2); 0 content refs.
+- [ ] `mm2_le_smith_pos3_multi` — Assistant Le Smith; varbit `%mm2_le_smith_pos`; default hidden; 1 spawn: (2768, 2798, 2); 0 content refs.
+- [ ] `mm2_le_smith_pos4_multi` — Assistant Le Smith; varbit `%mm2_le_smith_pos`; default hidden; 1 spawn: (2755, 2770, 2); 0 content refs.
+- [ ] `mm2_nieve_waiting` — Nieve; varbit `%mm2_nieve_at_tree`; default hidden; 1 spawn: (2465, 3490, 0); 0 content refs.
+- [ ] `mourning_deathalter_dwarf` — Thorgel; varbit `%mourning_dwarf_vis`; default hidden; 1 spawn: (1860, 4641, 0); 0 content refs.
+- [ ] `myq4_kael_new_hideout` — Kael Forshaw; varbit `%myq5_kael_hideout`; default hidden; 1 spawn: (3594, 9613, 0); 0 content refs.
+- [ ] `myq4_safalaan_new_hideout` — Safalaan Hallow; varbit `%myq5_safalaan_hideout`; default hidden; 1 spawn: (3600, 9615, 0); 0 content refs.
+- [ ] `myq4_vertida_new_hideout` — Vertida Sefalatis; varbit `%myq5_vertida_hideout`; default hidden; 1 spawn: (3599, 9611, 0); 0 content refs.
+- [ ] `myq5_ivan_hideout` — Ivan Strom; varbit `%ivan_strom_location`; default hidden; 1 spawn: (3598, 9613, 0); 0 content refs.
+- [ ] `myq5_veliaf_paterdomus` — Veliaf Hurtz; varbit `%veliaf_paterdomus_vis`; default hidden; 1 spawn: (3439, 9897, 0); 0 content refs.
+- [ ] `myq5_veliaf_slepe` — Veliaf Hurtz; varbit `%myq5_veliaf_location`; default hidden; 1 spawn: (3729, 3318, 0); 0 content refs.
+- [ ] `pilot_apeatoll` — Captain Shoracks; varbit `%pilot_multinpc_var`; default hidden; 1 spawn: (2711, 2802, 0); 0 content refs.
+- [ ] `piscquest_councillor` — Sophia Hughes; varbit `%sophia_hughes_vis`; default hidden; 1 spawn: (1619, 3677, 2); 0 content refs.
+- [ ] `prif_ghost` — Ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2168, 3430, 0); 0 content refs.
+- [ ] `prisonpete_balloon1` — Balloon Animal; varbit `%prisonpete_multinpcs`; default hidden; 5 spawns: (2078, 4462, 0), (2082, 4466, 0), (2087, 4470, 0), …; 0 content refs.
+- [ ] `prisonpete_balloon2` — Balloon Animal; varbit `%prisonpete_multinpcs`; default hidden; 5 spawns: (2078, 4466, 0), (2080, 4470, 0), (2085, 4463, 0), …; 0 content refs.
+- [ ] `prisonpete_balloon3` — Balloon Animal; varbit `%prisonpete_multinpcs`; default hidden; 5 spawns: (2080, 4467, 0), (2084, 4465, 0), (2084, 4470, 0), …; 0 content refs.
+- [ ] `prisonpete_balloon4` — Balloon Animal; varbit `%prisonpete_multinpcs`; default hidden; 6 spawns: (2080, 4464, 0), (2082, 4472, 0), (2083, 4462, 0), …; 0 content refs.
+- [ ] `protester_standardspeak_multi` — Gravingas; varbit `%wearing_ghost_speak_amulet`; default hidden; 1 spawn: (3660, 3499, 0); 0 content refs.
+- [ ] `raids_mountainguide_wall_multi` — Mountain Guide; varbit `%raids_guide_travel_unlock`; default hidden; 1 spawn: (1401, 3538, 0); 0 content refs.
+- [ ] `ramble_multi_easy_fighter` — Adventurer (easy); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3433, 3486, 0); 0 content refs.
+- [ ] `ramble_multi_easy_mage` — Mage (easy); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3434, 3486, 0); 0 content refs.
+- [ ] `ramble_multi_hard_fighter` — Woman-at-arms (hard); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3437, 3487, 0); 0 content refs.
+- [ ] `ramble_multi_hard_ranger` — Forester (hard); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3438, 3487, 0); 0 content refs.
+- [ ] `ramble_multi_med_mage` — Apprentice (medium); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3434, 3483, 0); 0 content refs.
+- [ ] `ramble_multi_med_ranger` — Ranger (medium); varbit `%ramble_npcs_visible`; default hidden; 1 spawn: (3435, 3483, 0); 0 content refs.
+- [ ] `roving_female_woodelf_temp` — Eluned; varbit `%mourning_can_see_eluned`; default hidden; 1 spawn: (2353, 3171, 0); 0 content refs.
+- [ ] `secret_ghost1` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2555, 3444, 0); 0 content refs.
+- [ ] `secret_ghost10` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3068, 3858, 0); 0 content refs.
+- [ ] `secret_ghost11` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2850, 3348, 0); 0 content refs.
+- [ ] `secret_ghost12` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3044, 3204, 0); 0 content refs.
+- [ ] `secret_ghost13` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2396, 3481, 0); 0 content refs.
+- [ ] `secret_ghost14` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3294, 3934, 1); 0 content refs.
+- [ ] `secret_ghost15` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3448, 3550, 1); 0 content refs.
+- [ ] `secret_ghost16` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3119, 9996, 0); 0 content refs.
+- [ ] `secret_ghost2` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3022, 3946, 0); 0 content refs.
+- [ ] `secret_ghost3` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3034, 3701, 0); 0 content refs.
+- [ ] `secret_ghost4` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3162, 2982, 0); 0 content refs.
+- [ ] `secret_ghost5` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3112, 3158, 0); 0 content refs.
+- [ ] `secret_ghost6` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3052, 3496, 1); 0 content refs.
+- [ ] `secret_ghost7` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3053, 3378, 1); 0 content refs.
+- [ ] `secret_ghost8` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2950, 3820, 0); 0 content refs.
+- [ ] `secret_ghost9` — Mysterious ghost; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3157, 3667, 0); 0 content refs.
+- [ ] `shadow_maj_multi_khazard` — General Khazard; varbit `%shadow_maj_visibility`; default hidden; 1 spawn: (2723, 3622, 0); 0 content refs.
+- [ ] `shadow_maj_multi_scout1` — Scout; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2835, 3053, 0); 0 content refs.
+- [ ] `shadow_maj_multi_scout2` — Scout; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (2457, 3357, 0); 0 content refs.
+- [ ] `shadow_maj_multi_scout3` — Scout; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3072, 3336, 0); 0 content refs.
+- [ ] `shadow_maj_multi_scout4` — Scout; varbit `%shadow_realm_visibility`; default hidden; 1 spawn: (3301, 3100, 0); 0 content refs.
+- [ ] `sote_lady_hefin` — Lady Carys Hefin; varbit `%sote_hefin_vis`; default hidden; 1 spawn: (2353, 3173, 0); 0 content refs.
+- [ ] `sote_lady_hefin_island` — Elf Hermit, Lady Carys Hefin; varbit `%sote_hefin`; default hidden; 1 spawn: (2276, 3093, 0); 0 content refs.
+- [ ] `sote_lady_hefin_wander` — Lady Carys Hefin; varbit `%sote_hefin_vis`; default hidden; 1 spawn: (2354, 3174, 1); 0 content refs.
+- [ ] `sote_lady_ithell_upass_pre` — Lady Kelyn Ithell; varbit `%sote_ithell_vis`; default hidden; 1 spawn: (2318, 9808, 0); 0 content refs.
+- [ ] `sote_lady_meilyr_upass_pre` — Lady Ffion Meilyr; varbit `%sote_meilyr_vis`; default hidden; 1 spawn: (2328, 9803, 0); 0 content refs.
+- [ ] `sote_lady_trahaearn` — Lady Tangwen Trahaearn; varbit `%sote_trah_vis`; default hidden; 1 spawn: (2353, 3175, 0); 0 content refs.
+- [ ] `sote_lady_trahaearn_cave` — Elderly Elf, Lady Tangwen Trahaearn; varbit `%sote_trah`; default hidden; 1 spawn: (2334, 9574, 0); 0 content refs.
+- [ ] `sote_lady_trahaearn_wander` — Lady Tangwen Trahaearn; varbit `%sote_trah_vis`; default hidden; 1 spawn: (2337, 3177, 1); 0 content refs.
+- [ ] `sote_lord_amlodd` — Lord Ieuan Amlodd; varbit `%sote_amlodd_vis`; default hidden; 1 spawn: (2349, 3170, 0); 0 content refs.
+- [ ] `sote_lord_amlodd_valley` — Lord Ieuan Amlodd, Mysterious Figure; varbit `%sote_amlodd`; default hidden; 1 spawn: (3051, 4486, 0); 0 content refs.
+- [ ] `sote_lord_amlodd_wander` — Lord Ieuan Amlodd; varbit `%sote_amlodd_vis`; default hidden; 1 spawn: (2353, 3179, 0); 0 content refs.
+- [ ] `sote_lord_crwys` — Lord Piquan Crwys; varbit `%sote_crwys_vis`; default hidden; 1 spawn: (2354, 3176, 0); 0 content refs.
+- [ ] `sote_lord_crwys_wander` — Lord Piquan Crwys; varbit `%sote_crwys_vis`; default hidden; 1 spawn: (2339, 3164, 0); 0 content refs.
+- [ ] `sw_armadyl_ghost` — Ancient Ghost; varbit `%shadow_realm_visibility`; default hidden; 2 spawns: (1913, 5967, 0), (2105, 2895, 0); 0 content refs.
+- [ ] `sw_bandos_ghost` — Ancient Ghost; varbit `%shadow_realm_visibility`; default hidden; 2 spawns: (2128, 5997, 0), (2320, 2925, 0); 0 content refs.
+- [ ] `tbwcu_fanellaman_multinpc` — Fanellaman; varbit `%chat_fanellaman`; default hidden; 1 spawn: (2759, 3096, 0); 0 content refs.
+- [ ] `tbwcu_gabooty_multinpc` — Gabooty; varbit `%chat_gabooty`; default hidden; 1 spawn: (2794, 3065, 0); 0 content refs.
+- [ ] `tbwcu_jagbakoba_multinpc` — Jagbakoba; varbit `%chat_jag`; default hidden; 1 spawn: (2799, 3047, 0); 0 content refs.
+- [ ] `tbwcu_karaday_multinpc` — Karaday; varbit `%chat_karaday`; default hidden; 1 spawn: (2799, 3084, 0); 0 content refs.
+- [ ] `tbwcu_layleen_multinpc` — Layleen; varbit `%chat_layleen`; default hidden; 1 spawn: (2786, 3074, 1); 0 content refs.
+- [ ] `tbwcu_mamma_bufetta_multinpc` — Mamma Bufetta; varbit `%chat_mamma`; default hidden; 1 spawn: (2794, 3076, 0); 0 content refs.
+- [ ] `tbwcu_murcaily_multinpc` — Murcaily; varbit `%chat_murc`; default hidden; 1 spawn: (2816, 3083, 0); 0 content refs.
+- [ ] `tbwcu_rionasta_multinpc` — Rionasta; varbit `%chat_rion`; default hidden; 1 spawn: (2782, 3094, 0); 0 content refs.
+- [ ] `tbwcu_safta_doc_multinpc` — Safta Doc; varbit `%chat_safta`; default hidden; 1 spawn: (2790, 3100, 0); 0 content refs.
+- [ ] `tbwcu_sharimika_multinpc` — Sharimika; varbit `%chat_sharimika`; default hidden; 1 spawn: (2794, 3076, 1); 0 content refs.
+- [ ] `templetrek_multi_child_hard` — Smiddi Ryak (hard); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3475, 3235, 0); 0 content refs.
+- [ ] `templetrek_multi_man_med` — Valantay Eppel (medium); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3480, 3237, 0); 0 content refs.
+- [ ] `templetrek_multi_oldman_hard` — Rolayne Twickit (hard); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3476, 3235, 0); 0 content refs.
+- [ ] `templetrek_multi_retired_man_easy` — Dalcian Fang (easy); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3481, 3241, 0); 0 content refs.
+- [ ] `templetrek_multi_retired_soldier_easy` — Fyiona Fray (easy); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3480, 3241, 0); 0 content refs.
+- [ ] `templetrek_multi_woman_med` — Jayene Kliyn (medium); varbit `%templetrek_npcs_visible`; default hidden; 1 spawn: (3479, 3237, 0); 0 content refs.
+- [ ] `tourtrap_qip_ana_shanty_multi` — Ana; varbit `%tourtrap_ana_visible_shanty_pass`; default hidden; 1 spawn: (3305, 3112, 0); 0 content refs.
+- [ ] `tourtrap_qip_irena_multi_happy` — Irena; varbit `%tourtrap_qip_irena_state`; default hidden; 1 spawn: (3304, 3113, 0); 0 content refs.
+- [ ] `trawler_tentacle_port` — Enormous Tentacle; varbit `%tentacle_port`; default hidden; 4 spawns: (1883, 4830, 0), (1883, 4830, 1), (2011, 4830, 0), …; 0 content refs.
+- [ ] `trawler_tentacle_starboard` — Enormous Tentacle; varbit `%tentacle_starboard`; default hidden; 4 spawns: (1883, 4818, 0), (1883, 4818, 1), (2011, 4818, 0), …; 0 content refs.
+- [ ] `twocats_niete` — Neite; varbit `%niete_visible`; default hidden; 1 spawn: (2923, 3566, 0); 0 content refs.
+- [ ] `zep_multi_assistant_gno` — Assistant Le Smith; varbit `%mm2_zep_gnome_pilot`; default hidden; 1 spawn: (2480, 3458, 0); 0 content refs.

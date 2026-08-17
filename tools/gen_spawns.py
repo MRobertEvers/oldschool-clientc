@@ -99,6 +99,17 @@ def normalise(text):
     return re.sub(r"[^a-z0-9]", "", re.sub(r"<[^>]*>", "", text or "").lower())
 
 
+# Audited display-name aliases for rows whose id and cache symbol are stable,
+# but whose external dump used a genuinely different presentation. Each key is
+# `(cache symbol, dump display name)` and each value is the reachable cache
+# display name that must still be present. Requiring all three facts keeps this
+# narrow: if a later cache reallocates the id/symbol or renames the variant, the
+# row goes back to `name drift` instead of being admitted by a fuzzy match.
+NPC_NAME_ALIASES = {
+    ("head_wizard", normalise("Sedridor")): {normalise("Archmage Sedridor")},
+}
+
+
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
 
@@ -182,7 +193,10 @@ def main():
         candidates = names_cache[name]
         if not candidates:
             unnamed += 1
-        elif normalise(row["name"]) not in candidates:
+        else:
+            claimed = normalise(row["name"])
+            alias_targets = NPC_NAME_ALIASES.get((name, claimed), set())
+        if candidates and claimed not in candidates and not (candidates & alias_targets):
             reject["npc: name drift"] += 1
             drift.setdefault(ident, [name, sorted(candidates), row["name"], 0])
             drift[ident][3] += 1
