@@ -7,19 +7,30 @@
 > | 1 instancing and geometry | **done** — all twelve squares, the three plane-1 rooms, Nexus-plus-one-room instancing, room/path/tile/music tables. `::toarooms` builds every one of them for real |
 > | 2 invocations and scaling | **done** — the 44-row table generated out of the cache's own structs, the exclusive-category and prerequisite rules, and the raid/path/team factors. The generator and `::toarun` independently reconstruct the 600 ceiling |
 > | 3 points and rewards | **done** as arithmetic — the ledger, the multiplier table with its three-down cap, the death penalty, the scaled raid level and the unique curve. Not yet wired to a chest |
-> | 4 challenge rooms | **Het done**, the other three not started. The room clock landed with it — one player queue, re-armed each tick, dispatching to the current room, which is the only per-tick hook this raid has |
-> | 5 path bosses | **Zebak's clock done**, unspawned; the other three not started |
-> | 6 the Wardens | not started |
-> | 7 Combat Achievements | not started |
-> | 8 `::toarun` | **34 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` (12 rooms) and `::toaprobe` |
+> | 4 challenge rooms | **done** — Het's beam and mining window, Scabaras's five puzzle rule sets, Crondis's water and crocodile priority, Apmeken's eight waves and sight layer |
+> | 5 path bosses | **done** — Zebak, Ba-Ba, Kephri and Akkha, each with its clock, thresholds and specials, spawned at the ceiling and healed down |
+> | 6 the Wardens | **done** — all three phases, including the phase-1 inversion that decides which Warden survives |
+> | 7 Combat Achievements | **done** — 51 tasks through `~ca_task_complete`, with the Perfect flags cleared by damage and double-gated on the room being implemented |
+> | 8 `::toarun` | **49 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` (12 rooms plus the config ceilings) and `::toaprobe` |
 >
-> **The selftest is proven able to fail**, twice and in the two places it
-> matters. Changing one invocation's raid-level modifier from +50 to +45 was
+> Also done: the loot table (uniques with their raid-level-shifting weights,
+> three common rolls, both bad-luck mitigations), the vault, and `toa.npc`,
+> which authors every boss at the raid's ceiling because `npc_statheal` cannot
+> exceed the config base and this raid scales **up**.
+>
+> **The selftest is proven able to fail**, four times now. Changing one invocation's raid-level modifier from +50 to +45 was
 > caught by two independent checks — `invocation 12 raid level 45` and
 > `raid level ceiling is 585, wanted 600`. Adopting the reference
 > implementation's team scaling (+90% for every extra member) was caught as
 > `team factor 4-man is 370, wanted 340` and `Zebak 8-man is 4234, wanted 3364`,
-> which are exactly the reference's own numbers.
+> which are exactly the reference's own numbers. Reversing one baboon's counter
+> style was caught as `thrower counter is 3, wanted 1`. And editing one
+> `hitpoints=` line in `toa.npc` from 15211 to 15200 passed `::toarun` and
+> failed `::toarooms` with `config hitpoints 15200 wanted 15211` — which is the
+> split that matters: `::toarun` checks the arithmetic and only something that
+> spawns an npc can check the file. That gap was real when the arithmetic check
+> was first written, and the comment claiming otherwise was corrected by adding
+> the missing check rather than by softening the claim.
 >
 > **Three things fell out of building it**, all recorded in §12:
 >
