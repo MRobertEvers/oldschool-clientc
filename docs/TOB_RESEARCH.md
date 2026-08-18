@@ -942,7 +942,7 @@ Three independent checks were run on it, and all three hold:
   be the pillar hitsplat (at 17 a single small would delete a five-man pillar in eight swings,
   and learners would lose pillars every raid).
 
-### Implemented
+### Implemented, and what the engine needed
 
 `^tob_nylo_pillar_hp` now carries the five-man anchor plus a
 `^tob_nylo_pillar_hp_step = 50`, and `~tob_nylo_pillar_hp` takes the party scale. One
@@ -951,6 +951,40 @@ the cache's five-man value to the SOLO value** (330 / 350 / 355), because `npc_s
 cannot raise an npc above its config base and `~tob_nylo_set_hp` only ever subtracts. Bosses
 can be authored at their five-man figure and scaled down; pillars are the one npc in the raid
 that scales the other way, so their base must be the top of the line rather than the bottom.
+
+**The engine already supported the scaling itself.** `hitpoints=` on an authored npc block is
+a mapped server-scope field (`content_fields.c`), `mock230_content.c` parses it into
+`def->hitpoints`, and a spawned npc takes `base_hitpoints = def->hitpoints`. So no opcode or
+loader work was required for the curve — only for *proving* it.
+
+**No new opcode, deliberately.** The obvious engine change would be a type-level accessor so
+`~tobrun` could assert the base-vs-solo coupling directly. That is the wrong move here:
+`ss_opcode.h`, `ss_trigger.h` and `ss_meta.gen.h` are **generated from the LostCity reference
+server** and checked in, so a tree-invented `nc_hitpoints` would be silently dropped the next
+time `gen_opcode_meta.py` runs. `nc_param` cannot reach it either — the support's param table
+carries no `hitpoints` row. The invariant therefore lives where this tree already puts
+config facts that scripts cannot express: a **content contract check**,
+`tools/check_tob_pillar_contract.py`, wired into `mock230-scripts` beside the charter, God
+Wars and quest-combat contracts. It pins three things and each was **proved to fail** by
+mutation:
+
+| Mutation | Caught |
+|---|---|
+| npc base back to the cache's 130 | *"hitpoints=130, but the solo figure is 330"* |
+| step 50 → 20 (Zenyte's wrong slope) | *"the curve gives 210 for a solo pillar; Jagex published 330"* |
+| five-man anchor 130 → 140 | *"anchor 140 != cache stat4 130 on npc 8358"* |
+
+**An existing in-game check had pinned the old assumption**, and the engine's own selftest
+caught it: `::tobrooms` asserted `npc_basestat(hitpoints) = ^tob_nylo_pillar_hp`, which was
+correct only while the pillar was one flat number. It now asserts the base against the *solo*
+figure, and — newly meaningful — the **current** hitpoints against the party's figure. That
+second half is the one that could not fail before and can now: it is what proves the
+subtraction landed rather than being swallowed by `~tob_nylo_set_hp`'s `$base <= $hp` guard.
+
+Verified by running `dev_mock230 --selftest` three times: the four pillar failures present
+before the fix are gone and no new failure appeared. (That harness carries ~268 pre-existing
+failures in this tree, and its `::tdtest` line flips between runs on identical content — the
+shared-RNG flakiness already on record — so the comparison is failure-set diffs, not totals.)
 
 ---
 

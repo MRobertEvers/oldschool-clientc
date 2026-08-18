@@ -3134,8 +3134,25 @@ npc_take_step(struct Mock230Npc* npc)
     try_dx = 0;
     try_dz = 0;
 
-    /* Diagonal only for 1x1 — PathingEntity.takeStep. */
-    if( size == 1 && dx != 0 && dz != 0 &&
+    /*
+     * Diagonal first, at every size.
+     *
+     * This used to be gated on `size == 1`, which is not what the reference
+     * does: `PathingEntity.takeStep` tries the diagonal, then the X leg, then
+     * the Z leg, and leaves the footprint entirely to `canTravel`. Ours already
+     * had the footprint half — `collision_map_can_travel_typed` carries the
+     * size-2 three-tile diagonal check and a size>=3 corners-plus-mid-edge loop,
+     * both written against StepValidator — so the gate was refusing a step the
+     * collision map was ready to answer.
+     *
+     * What it cost: every npc bigger than 1x1 walked in an L. A Nylocas
+     * Matomenos is size 2, and a crab that should cut the corner of the Maiden's
+     * arena on the diagonal instead walked six tiles west and then six tiles
+     * south — the same total distance, a visibly wrong path, and one that runs
+     * along the rows the other crabs are queued on instead of away from them.
+     * "The nylocas do not path correctly towards Maiden" is this line.
+     */
+    if( dx != 0 && dz != 0 &&
         mock230_scene_can_travel_typed(npc->level, npc->x, npc->z, dx, dz, size, extra,
                                        coll_type) )
     {
@@ -13812,6 +13829,32 @@ selftest_useon(
         for( int t = 0; t < 4; t++ )
             mock230_world_tick(srv);
     }
+    else if( player->active_script )
+    {
+        /*
+         * A recipe that parked on a plain `p_delay` rather than on a make-menu.
+         *
+         * Not every use-on goes through interface 270: a one-off build with a
+         * published craft time — the Tormented Demon uniques are 4 to 7 ticks —
+         * states that time as `p_delay` and produces exactly one item. Such a
+         * recipe parks with NO resume button, so the branch above does not fire
+         * and, before this, the world was never ticked at all: the script sat
+         * suspended, the product never landed, and the probe reported "neither
+         * click order works" for a pair whose dispatch was fine.
+         *
+         * That is the same false negative this whole harness exists to prevent,
+         * one layer down — it just pointed at the harness instead of at the
+         * content. Ticking here cannot change what any menu-driven recipe
+         * reports, because those take the branch above; it can only turn a
+         * silent zero into an answer.
+         *
+         * Bounded, and bounded generously: the longest published craft time in
+         * this family is 7 ticks, and a script still parked after 16 is parked
+         * on something that is not a delay.
+         */
+        for( int t = 0; t < 16 && player->active_script; t++ )
+            mock230_world_tick(srv);
+    }
     player->active_script = NULL;
 }
 
@@ -14106,8 +14149,17 @@ mock230_world_selftest(void)
     {
         static struct Mock230Capture td_only_capture;
         int td_said_pass = 0;
+        /* Every stanza that runs content loads the pack for itself; this gate
+         * sits above the first of them, so it has to do the same. Both paths
+         * because the suite is run from the repo root and from src/. */
+        int td_loaded = mock230_scripts_load(
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
+        if( !td_loaded )
+            td_loaded = mock230_scripts_load(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         fprintf(stderr, "mock230 selftest: Tormented Demon focused runtime\n");
+        SELFTEST_CHECK(td_loaded, "the focused Tormented Demon lane loads a compiled script pack");
         mock230_capture_begin(srv, &td_only_capture);
         mock230_scripts_run_debugproc(srv, "tdtest");
         mock230_capture_end(srv);
@@ -14126,6 +14178,210 @@ mock230_world_selftest(void)
                 fprintf(stderr, "  %s\n", text);
         }
         SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+
+        /*
+         * The two item-on-item recipes, driven through the packet handler.
+         *
+         * `::tdtest` above calls the demon's procs directly, which is the right
+         * shape for arithmetic and the wrong shape for a CLICK: a recipe whose
+         * `[opheldu]` rung is eaten by a competing binding passes every proc
+         * test ever written and does nothing in front of the game. That is not
+         * hypothetical here — bow-wood was already spoken for by bow-stringing,
+         * so the scorching bow's reverse click order is a branch inside
+         * `bows.rs2`'s rung rather than a rung of its own, and only a probe
+         * that asserts the PRODUCT can tell the two apart.
+         *
+         * Levels go to 99 for the duration, and Duradel's notes are granted:
+         * a level gate and a missing gate both answer with the same silence a
+         * dead rung does, and this probe is about dispatch.
+         */
+        if( td_loaded )
+        {
+            int td_stats[2] = { mock230_content_symbol(MOCK230_PACK_STAT, "fletching"),
+                                mock230_content_symbol(MOCK230_PACK_STAT, "smithing") };
+            int td_notes = mock230_world_varp("td_notes_read");
+            int td_saved_notes = td_notes >= 0 ? player->varps[td_notes] : 0;
+            int td_saved_level[2] = { 0, 0 };
+            int td_saved_xp[2] = { 0, 0 };
+            struct Mock230Item td_saved_inv[MOCK230_INV_SLOTS];
+            struct
+            {
+                const char* a;
+                int a_count;
+                const char* b;
+                int b_count;
+                const char* product;
+                int want;
+                const char* what;
+            } td_pairs[] = {
+                /*
+                 * Both orders. `[opheldu,tormented_synapse]` is the rung one
+                 * way; the other way is the branch grafted into `bows.rs2`'s
+                 * own `[opheldu,unstrung_magic_longbow]`, because a trigger may
+                 * be declared once in this tree. A `want` of 3 is what says the
+                 * graft is actually reached.
+                 */
+                { "tormented_synapse", 1, "unstrung_magic_longbow", 1, "scorching_bow", 3,
+                  "winding a scorching bow" },
+
+                /*
+                 * Both objs are the SAME record, so this is the one pair whose
+                 * two "orders" are the same click. It is still run through both
+                 * because the guard that matters — `last_slot ! last_useslot` —
+                 * is about slots and not about objs, and a guard written
+                 * against objs would pass one order and fail the other.
+                 */
+                { "bone_claw", 2, "bone_claw", 2, "bone_claws", 3, "pairing two burning claws" },
+            };
+
+            memcpy(td_saved_inv, player->inv, sizeof(td_saved_inv));
+            SELFTEST_CHECK(td_notes >= 0, "%%td_notes_read should resolve as a varp");
+            if( td_notes >= 0 )
+                player->varps[td_notes] = 1;
+            for( size_t i = 0; i < sizeof(td_stats) / sizeof(td_stats[0]); i++ )
+                if( td_stats[i] >= 0 )
+                {
+                    td_saved_level[i] = player->stat_level[td_stats[i]];
+                    td_saved_xp[i] = player->stat_xp_tenths[td_stats[i]];
+                }
+            for( size_t i = 0; i < sizeof(td_pairs) / sizeof(td_pairs[0]); i++ )
+            {
+                int a = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].a);
+                int b = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].b);
+                int product = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].product);
+                int got;
+
+                SELFTEST_CHECK(a > 0 && b > 0 && product > 0,
+                               "%s: every obj should resolve by name (%s=%d %s=%d %s=%d)",
+                               td_pairs[i].what, td_pairs[i].a, a, td_pairs[i].b, b,
+                               td_pairs[i].product, product);
+                if( a <= 0 || b <= 0 || product <= 0 )
+                    continue;
+                got = selftest_useon_both(srv, a, td_pairs[i].a_count, b, td_pairs[i].b_count,
+                                          product, td_stats,
+                                          (int)(sizeof(td_stats) / sizeof(td_stats[0])));
+                SELFTEST_CHECK(got == td_pairs[i].want,
+                               "%s should work in both click orders, got %s (%d)",
+                               td_pairs[i].what,
+                               got == 3 ? "both"
+                                        : got == 1 ? "only <a> onto <b>"
+                                                   : got == 2 ? "only <b> onto <a>" : "neither",
+                               got);
+            }
+            for( size_t i = 0; i < sizeof(td_stats) / sizeof(td_stats[0]); i++ )
+                if( td_stats[i] >= 0 )
+                {
+                    mock230_combat_set_level(player, td_stats[i], td_saved_level[i]);
+                    player->stat_xp_tenths[td_stats[i]] = td_saved_xp[i];
+                }
+            if( td_notes >= 0 )
+                player->varps[td_notes] = td_saved_notes;
+            player->active_script = NULL;
+            memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
+        }
+
+        /*
+         * The three smouldering drops, clicked where they lie.
+         *
+         * These are the only objs in the tree that are USED without being
+         * picked up: their cache records replace ground-op slot 3 — the slot
+         * that otherwise reads "Take" — with "Crush" and "Eat-from". So the
+         * whole mechanic rests on `[opobj3,smouldering_gland]` SHADOWING
+         * `[opobj3,_]`, pickup.rs2's catch-all, and if it does not the player
+         * simply picks the gland up and the effect never happens.
+         *
+         * A "did it dispatch" probe therefore has to assert the negative as
+         * well: the item must be gone from the floor AND absent from the
+         * backpack. Asserting only that the script ran would pass on a build
+         * where the catch-all also fired.
+         */
+        if( td_loaded )
+        {
+            static const struct
+            {
+                const char* obj;
+                const char* varp;
+                const char* what;
+            } td_ground[] = {
+                { "smouldering_gland", "td_gland_left", "crushing a smouldering gland" },
+                { "smouldering_heart", "td_heart_hold_left", "crushing a smouldering heart" },
+                /* The flesh has no varp of its own — its counter is the ground
+                 * pile's count — so it is asserted on the pile shrinking. */
+                { "smouldering_pile_of_flesh", NULL, "eating from a pile of flesh" },
+            };
+            struct Mock230Item td_saved_inv[MOCK230_INV_SLOTS];
+            const int td_x = 3222, td_z = 3218;
+
+            memcpy(td_saved_inv, player->inv, sizeof(td_saved_inv));
+            for( size_t i = 0; i < sizeof(td_ground) / sizeof(td_ground[0]); i++ )
+            {
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, td_ground[i].obj);
+                int varp = td_ground[i].varp ? mock230_world_varp(td_ground[i].varp) : -1;
+                int count = strcmp(td_ground[i].obj, "smouldering_pile_of_flesh") == 0 ? 4 : 1;
+                uint8_t payload[6];
+                int in_backpack = 0;
+                int on_floor = 0;
+
+                SELFTEST_CHECK(obj > 0, "%s: %s should resolve as an obj",
+                               td_ground[i].what, td_ground[i].obj);
+                if( obj <= 0 )
+                    continue;
+                SELFTEST_CHECK(td_ground[i].varp == NULL || varp >= 0,
+                               "%s: %%%s should resolve as a varp", td_ground[i].what,
+                               td_ground[i].varp ? td_ground[i].varp : "");
+
+                player->active_script = NULL;
+                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                    inv_set(player, slot, -1, 0);
+                if( varp >= 0 )
+                    player->varps[varp] = 0;
+                selftest_park_player(srv, td_x, td_z);
+                mock230_world_obj_add(srv, obj, count, td_x, td_z, player->level, 1000);
+
+                payload[0] = (uint8_t)(td_x >> 8);
+                payload[1] = (uint8_t)td_x;
+                payload[2] = (uint8_t)(td_z >> 8);
+                payload[3] = (uint8_t)td_z;
+                payload[4] = (uint8_t)(obj >> 8);
+                payload[5] = (uint8_t)obj;
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+                for( int t = 0; t < 4 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                mock230_world_tick(srv);
+
+                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                    if( player->inv[slot].obj_id == obj )
+                        in_backpack = 1;
+                for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                    if( srv->ground[slot].active && srv->ground[slot].obj_id == obj )
+                        on_floor += srv->ground[slot].count;
+
+                SELFTEST_CHECK(!in_backpack,
+                               "%s must not pick it up — [opobj3,%s] has to shadow "
+                               "pickup.rs2's [opobj3,_], or the option in the cache is a lie",
+                               td_ground[i].what, td_ground[i].obj);
+                if( varp >= 0 )
+                    SELFTEST_CHECK(player->varps[varp] > 0,
+                                   "%s should arm its effect, %%%s = %d",
+                                   td_ground[i].what, td_ground[i].varp, player->varps[varp]);
+                if( count > 1 )
+                    SELFTEST_CHECK(on_floor == count - 1,
+                                   "%s should leave %d bite(s) on the floor, got %d",
+                                   td_ground[i].what, count - 1, on_floor);
+                else
+                    SELFTEST_CHECK(on_floor == 0, "%s should consume it, %d left on the floor",
+                                   td_ground[i].what, on_floor);
+
+                for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                    if( srv->ground[slot].active && srv->ground[slot].obj_id == obj )
+                        mock230_world_ground_take(srv, slot);
+                if( varp >= 0 )
+                    player->varps[varp] = 0;
+            }
+            player->active_script = NULL;
+            memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
+        }
+
         fprintf(stderr, "mock230 Tormented Demon focused selftest: %d failure(s)\n",
                 g_selftest_failures);
         return g_selftest_failures;
@@ -38617,6 +38873,186 @@ mock230_world_selftest(void)
                 mate->active = 0;
         }
 
+        fprintf(stderr, "mock230 selftest: no Theatre npc runs on engine aggression\n");
+        {
+            /*
+             * The contract, over the whole roster rather than the one boss a
+             * player happened to report.
+             *
+             * `huntmode=aggressive` came from `combat_stats.generated.npc`, so
+             * it is not a thing anybody chose for these npcs — it is a default
+             * a code generator applied to 8 000 monsters, three of which happen
+             * to be in this raid. Every Theatre fight is `defaultmode=none`
+             * plus an `[ai_timer]` that picks its own target with `huntall`, so
+             * an engine-latched `combat_target` is never wanted here: it adds a
+             * facing nothing asked for, an attack clock beside the scripted
+             * one, and — on anything that moves — costs the npc its route,
+             * because `advance_npcs` reads a combat target as "combat owns this
+             * npc's movement".
+             *
+             * Asserted as a LIST rather than per boss because the failure that
+             * prompted it was asymmetric: of Vasilias's three colour records
+             * the generator marked only the melee one, and Vasilias changes
+             * colour by changing type — so it charged the player on melee
+             * phases and pathed correctly on the other two. Anything that only
+             * checked "the boss" would have found that two times in three.
+             *
+             * Regenerating the combat block is what reintroduces this, and
+             * that is exactly when nobody is looking at the Theatre.
+             */
+            static const char* const k_tob_npcs[] = {
+                "tob_maiden_100", "tob_maiden_70", "tob_maiden_50", "tob_maiden_30",
+                "maiden_elemental", "maiden_blood_slug",
+                "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
+                "nylocas_boss_melee", "nylocas_boss_magic", "nylocas_boss_ranged",
+                "nylocas_boss_spawning",
+                "tob_sotetseg_combat", "tob_sotetseg_creeper",
+                "tob_xarpus_combat", "tob_xarpus_static", "tob_xarpus_feeding",
+                "verzik_initial", "verzik_phase1", "verzik_phase2", "verzik_phase3",
+            };
+            int aggressive = 0;
+
+            for( size_t i = 0; i < sizeof(k_tob_npcs) / sizeof(k_tob_npcs[0]); i++ )
+            {
+                int id = mock230_content_symbol(MOCK230_PACK_NPC, k_tob_npcs[i]);
+                const struct Mock230NpcDef* def = id >= 0 ? mock230_content_npc(id) : NULL;
+
+                if( !def )
+                    continue;
+                if( def->huntmode == MOCK230_HUNT_AGGRESSIVE )
+                {
+                    aggressive++;
+                    fprintf(stderr, "    %s is aggressive\n", k_tob_npcs[i]);
+                }
+            }
+            SELFTEST_CHECK(aggressive == 0,
+                           "%d Theatre npc(s) still take a target from engine aggression",
+                           aggressive);
+
+            /*
+             * And the three that MOVE must not be able to take one by
+             * retaliating either — that is the other half of the same latch,
+             * and the half a player triggers by simply attacking the boss.
+             * Only the movers: a rooted boss keeps its facing latch when it is
+             * hit, which is right, and has no route to lose.
+             */
+            {
+                static const char* const k_movers[] = {
+                    "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
+                    "nylocas_boss_melee", "nylocas_boss_magic", "nylocas_boss_ranged",
+                    "verzik_phase3",
+                };
+                int retaliating = 0;
+
+                for( size_t i = 0; i < sizeof(k_movers) / sizeof(k_movers[0]); i++ )
+                {
+                    int id = mock230_content_symbol(MOCK230_PACK_NPC, k_movers[i]);
+                    const struct Mock230NpcDef* def = id >= 0 ? mock230_content_npc(id) : NULL;
+
+                    if( !def )
+                        continue;
+                    if( def->retaliate )
+                    {
+                        retaliating++;
+                        fprintf(stderr, "    %s retaliates\n", k_movers[i]);
+                    }
+                }
+                SELFTEST_CHECK(retaliating == 0,
+                               "%d script-walked Theatre boss(es) lose their route on the "
+                               "first hit", retaliating);
+            }
+        }
+
+        /*
+         * BLOAT PATROLS PAST A PLAYER INSTEAD OF CHARGING THEM.
+         *
+         * Reported from a live client: "the Bloat is immediately turning
+         * towards the player and not pathing correctly". Two separate paths
+         * caused it and both set `combat_target`, which `advance_npcs` reads as
+         * "combat owns this npc's movement" — so the waypoint drain is skipped
+         * and the boss walks at the player instead of round its circuit.
+         *
+         *   * `huntmode=aggressive`, inherited from the generated combat block.
+         *     `maybe_aggress` latches the nearest player inside `huntrange`,
+         *     which is 24 for Bloat because the flies must reach across the
+         *     room — so it took a target on the fight's first tick, untouched.
+         *   * retaliation on the first hit, which `retaliate=no` opts out of.
+         *
+         * Both are now declared away in tob.npc, and this is the test that says
+         * so. It asserts three things, and the third is what the report was
+         * actually about: no target, no facing latch, and IT MOVED.
+         *
+         * "It moved" is the load-bearing one. A boss can have no combat target
+         * and still stand still — that is precisely what the earlier bug looked
+         * like once you stopped it charging — so a test that only checked
+         * `combat_target < 0` would have passed on a Bloat frozen to the spot.
+         */
+        {
+            struct Mock230Player* host = srv->active_player;
+            int boss = -1;
+            int saved_god = host->godmode;
+
+            mock230_scripts_run_debugproc(srv, "tobout");
+            mock230_scripts_run_debugproc(srv, "tob 2");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            boss = tob_harness_boss(srv, host);
+            SELFTEST_CHECK(boss >= 0, "the Bloat room should hold its boss");
+            if( boss >= 0 )
+            {
+                struct Mock230Npc* npc = &srv->npcs[boss];
+                int start_x;
+                int start_z;
+                int moved = 0;
+
+                host->godmode = 1;
+                /* Standing right beside it, which is the whole point: this is
+                 * the arrangement that used to make it turn round. */
+                mock230_scripts_run_debugproc(srv, "tobstand");
+                start_x = npc->x;
+                start_z = npc->z;
+                for( int t = 0; t < 6; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( npc->x != start_x || npc->z != start_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(npc->combat_target < 0,
+                               "Bloat must not take a combat target from a nearby player, got %d",
+                               npc->combat_target);
+                SELFTEST_CHECK(npc->face_entity < 0,
+                               "and must not latch a facing onto them, got %d",
+                               npc->face_entity);
+                SELFTEST_CHECK(moved,
+                               "and must walk its circuit, still on %d,%d after 6 ticks",
+                               npc->x, npc->z);
+
+                /*
+                 * And the same after being hit. Retaliation is a separate latch
+                 * from aggression and opting out of one does not opt out of the
+                 * other — `retaliate=no` is what covers this half.
+                 */
+                mock230_combat_hit_npc(srv, boss, 0, 10);
+                start_x = npc->x;
+                start_z = npc->z;
+                moved = 0;
+                for( int t = 0; t < 6; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( npc->x != start_x || npc->z != start_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(npc->combat_target < 0,
+                               "nor after being attacked, got %d", npc->combat_target);
+                SELFTEST_CHECK(moved,
+                               "and it keeps walking while it is being hit, still on %d,%d",
+                               npc->x, npc->z);
+
+                host->godmode = saved_god;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+        }
+
         /*
          * Bloat flinching.
          *
@@ -39886,6 +40322,23 @@ mock230_world_selftest(void)
                  * since he declares no `wanderrange`) asserts the opposite of
                  * what his content says. */
                 if( npc->mode == MOCK230_NPCMODE_PATROL )
+                    continue;
+                /*
+                 * And neither has an npc in mode NONE. This is the same
+                 * exemption as the patroller's and it was missing because,
+                 * until `defaultmode_stated` landed, `defaultmode=none` did
+                 * nothing and no npc that MOVES was ever in this mode — a
+                 * `nomove` record is mode NONE too and passes trivially.
+                 *
+                 * The Pestilent Bloat is the case: `defaultmode=none` with no
+                 * `moverestrict`, deliberately, because walking its circuit is
+                 * its mechanic. Its circuit is wider than the default five-tile
+                 * radius, so once the mode line started working this fired 200
+                 * times — once per tick — about an npc doing exactly what its
+                 * content says. An npc that is not wandering cannot be measured
+                 * against a wander radius.
+                 */
+                if( npc->mode == MOCK230_NPCMODE_NONE )
                     continue;
                 SELFTEST_CHECK(npc->x - npc->spawn_x <= npc->wander_radius &&
                                    npc->spawn_x - npc->x <= npc->wander_radius,
