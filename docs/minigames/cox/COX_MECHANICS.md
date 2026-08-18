@@ -240,6 +240,14 @@ unprotected:
 | Green | Protect from Missiles |
 | Purple | Protect from Magic |
 
+⚠️ The chat line is **colour-coded to match the sphere** 🎥 — "they will be
+colour coded in the chat though so you don't even actually have to see the
+spheres at all, you can just check your chat"
+([edb0ys 1:10:23](https://www.youtube.com/watch?v=uM2VZicSSZM&t=4223)). The
+message *is* the tell; an uncoloured line loses half the mechanic. RuneLite is
+no evidence either way here — `CoxPlugin` runs `Text.standardize()` before
+matching, which strips the tags.
+
 ### 2.7 Phase-specific attacks 📖
 
 | Phase | Attack | Numbers |

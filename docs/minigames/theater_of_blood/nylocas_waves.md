@@ -142,30 +142,61 @@ Both slots of a lane spawn on adjacent tiles; a big is 2×2 and covers both, and
 reported on the lower-coordinate one. Slot order is blert's, resolved against the
 tiles by matching size and style in the 25 lanes where the two spawns differ.
 
-| Lane | Slot 0 | Slot 1 |
-|---|---|---|
-| East | (3310, 4249) | (3310, 4248) — big at (3309, 4248) |
-| South | (3296, 4233) | (3295, 4233) — big at (3295, 4233) |
-| West | (3281, 4249) | (3281, 4248) — big at (3281, 4248) |
+| Lane | Slot 0 | Slot 1 | A big (2×2) anchors at |
+|---|---|---|---|
+| East | (3310, 4249) *north* | (3310, 4248) *south* | (3309, 4248) |
+| South | (3296, 4233) *east* | (3295, 4233) *west* | (3295, 4233) |
+| West | (3281, 4249) *north* | (3281, 4248) *south* | (3281, 4248) |
+
+So slot 0 is the **north** tile of a side lane and the **east** tile of the south
+lane. `~tob_nylo_lane_coord` had this the other way round, which put every paired
+spawn on its neighbour's tile; fixed with this table.
 
 ### Pillar footprints
 
-Each support is **2×2**, and its tiles are impassable — over 199 raids no player
-or npc ever occupied one, which is how the footprints below were fixed rather than
-assumed. Nylos attack from the two room-facing sides only.
+`tob_nylocas_support` is **`size=3`** in the cache, and an npc's coord is its
+south-west tile, so each support is a 3×3 anchored in its corner with one row and
+one column inside the room wall. What is inside the playable room is a **2×2**
+block at each corner, and those eight tiles are impassable: over 199 raids no
+player or npc ever occupied one, while every tile around them is walked
+constantly. Nylos attack from the two room-facing sides only, so a pillar holds at
+most four attackers.
 
-| Pillar | Footprint | Attack tiles |
-|---|---|---|
-| NW | (3290–3291, 4253–4254) | (3292, 4253–4254) and (3290–3291, 4252) |
-| NE | (3300–3301, 4253–4254) | (3299, 4253–4254) and (3300–3301, 4252) |
-| SW | (3290–3291, 4243–4244) | (3292, 4243–4244) and (3290–3291, 4245) |
-| SE | (3300–3301, 4243–4244) | (3299, 4243–4244) and (3300–3301, 4245) |
+| Pillar | Npc anchor (SW tile) | Blocked inside the room | Attack tiles |
+|---|---|---|---|
+| NW | (3289, 4253) | (3290–3291, 4253–4254) | (3292, 4253–4254) and (3290–3291, 4252) |
+| NE | (3300, 4253) | (3300–3301, 4253–4254) | (3299, 4253–4254) and (3300–3301, 4252) |
+| SW | (3289, 4242) | (3290–3291, 4243–4244) | (3292, 4243–4244) and (3290–3291, 4245) |
+| SE | (3300, 4242) | (3300–3301, 4243–4244) | (3299, 4243–4244) and (3300–3301, 4245) |
 
-These are the same tiles as `PillarCorner` in the Zenyte/Near-Reality server tree
-([`room/nylocas/model/PillarLocation.kt`](https://github.com/Winktabulous/regarded-dev/blob/main/plugins/excluded/theatreofblood/src/main/kotlin/com/zenyte/game/content/theatreofblood/room/nylocas/model/PillarLocation.kt)),
-which is the only other place they are written down. That tree spawns the four
-supports and nothing else of the wave phase — its `PillarLocation.getRandom()` is
-a private-server shortcut, and is **not** evidence about the assignment.
+The anchors and attack tiles are both written down in exactly one other place —
+`PillarLocation` and its `PillarCorner`s in the Zenyte/Near-Reality server tree
+([`room/nylocas/model/PillarLocation.kt`](https://github.com/Winktabulous/regarded-dev/blob/main/plugins/excluded/theatreofblood/src/main/kotlin/com/zenyte/game/content/theatreofblood/room/nylocas/model/PillarLocation.kt))
+— and they agree with the measurement tile for tile. That tree spawns the four
+supports and nothing else of the wave phase; its `PillarLocation.getRandom()` is a
+private-server shortcut, and is **not** evidence about the assignment.
+
+The [Wiki's Support map data](https://oldschool.runescape.wiki/w/Support_(Theatre_of_Blood))
+pins a *different* corner of each — (3291, 4244), (3291, 4254), (3301, 4244),
+(3301, 4254). Using a pin as an anchor puts all four supports two tiles into the
+room, on top of the very tiles nylos stand on to attack them.
+
+### Splits do not inherit a pillar
+
+Measured the same way, over the same raids, using blert's `parentRoomId` to link
+each split to the big it came from. Splits are the one part of this that is *not*
+fixed data:
+
+- of **3 685** splits where both the split and its parent reached a pillar, only
+  **37 %** went to the parent's;
+- nearest-pillar-to-the-split-tile does no better, at **34 %** of 9 183 splits;
+- against a 25 % baseline both are weak, and both are inflated the same way — a
+  split sent across the room dies on the way more often than one sent next door,
+  so it never enters the sample.
+
+The reading that survives is that a split picks for itself, near enough uniformly
+over the four. Distinguishing uniform from slightly-biased needs a survivorship
+correction and is registered as **M37**.
 
 ### One correction to the wave table above: wave 30, south lane
 

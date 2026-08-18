@@ -23,6 +23,11 @@ enum
     MOCK230_POH_UPPER_LEVEL = 2,
     /* https://oldschool.runescape.wiki/w/Servant%27s_money_bag */
     MOCK230_POH_MONEY_BAG_MAX = 3000000,
+    /* Sparse cache varbit values: Rick 1, Maid 3, Cook 5, Butler 6, Demon 8. */
+    MOCK230_POH_SERVANT_TYPE_MAX = 8,
+    /* Services completed since the last wage; the eighth resets to zero. */
+    MOCK230_POH_SERVANT_SERVICE_MAX = 7,
+    MOCK230_POH_SERVANT_TASK_MAX = 5,
     /* https://oldschool.runescape.wiki/w/Treasure_room#Treasure */
     MOCK230_POH_TREASURE_MAX = 100000,
     /* Fifteen cache-backed Boss lair jars, Kraken through Shellbane gryphon. */

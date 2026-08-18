@@ -8,6 +8,14 @@ boolean_value(int value)
     return value == 0 || value == 1;
 }
 
+static int
+servant_type_value(int value)
+{
+    /* Exact poh_servant_type cache-varbit ordinals. */
+    return value == 0 || value == 1 || value == 3 || value == 5 ||
+           value == 6 || value == 8;
+}
+
 void
 mock230_poh_init(struct Mock230PohState* poh)
 {
@@ -146,17 +154,17 @@ mock230_poh_set(
         poh->grid_size = value;
         return 1;
     case MOCK230_POH_FIELD_SERVANT_TYPE:
-        if( value < 0 || value > 15 )
+        if( !servant_type_value(value) )
             return 0;
         poh->servant_type = value;
         return 1;
     case MOCK230_POH_FIELD_SERVANT_PAID:
-        if( value < 0 )
+        if( value < 0 || value > MOCK230_POH_SERVANT_SERVICE_MAX )
             return 0;
         poh->servant_paid = value;
         return 1;
     case MOCK230_POH_FIELD_SERVANT_LAST_TASK:
-        if( value < -1 )
+        if( value < -1 || value > MOCK230_POH_SERVANT_TASK_MAX )
             return 0;
         poh->servant_last_task = value;
         return 1;
@@ -547,8 +555,12 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->door_mode < 0 || poh->door_mode > 2 ||
         !boolean_value(poh->teleport_inside) ||
         !boolean_value(poh->default_build_mode) || poh->grid_size < 3 ||
-        poh->grid_size > 7 || poh->servant_type < 0 || poh->servant_type > 15 ||
-        poh->servant_paid < 0 || poh->servant_last_task < -1 || poh->money_bag < 0 ||
+        poh->grid_size > 7 || !servant_type_value(poh->servant_type) ||
+        poh->servant_paid < 0 ||
+        poh->servant_paid > MOCK230_POH_SERVANT_SERVICE_MAX ||
+        poh->servant_last_task < -1 ||
+        poh->servant_last_task > MOCK230_POH_SERVANT_TASK_MAX ||
+        poh->money_bag < 0 ||
         poh->money_bag > MOCK230_POH_MONEY_BAG_MAX ||
         poh->family_crest < -1 || poh->family_crest > 15 ||
         poh->head_trophies < 0 || poh->head_trophies > 0x1ff ||

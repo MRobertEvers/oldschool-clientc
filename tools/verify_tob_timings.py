@@ -61,6 +61,8 @@ EVENT = {
     "BLOAT_HANDS_DROP": 113,
 }
 
+MAIDEN_BLOOD_SPAWN = 8367
+
 STAGE = {"maiden": 10, "bloat": 11, "nylocas": 12, "sotetseg": 13,
          "xarpus": 14, "verzik": 15}
 
@@ -147,6 +149,22 @@ def constants() -> dict[str, int]:
     return out
 
 
+def wave_table() -> dict[int, int]:
+    """The generated `tob_nylo_wave` rows: wave -> natural stall."""
+    path = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
+                        "minigames", "minigame_tob", "configs", "tob_nylo.dbrow")
+    out, wave = {}, None
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("data=wave,"):
+                wave = int(line.split(",")[1])
+            elif line.startswith("data=stall,") and wave is not None:
+                out[wave] = int(line.split(",")[1])
+                wave = None
+    return out
+
+
 def intervals(events: list[dict], type_id: int) -> list[int]:
     ticks = sorted({e["tick"] for e in events if e["type"] == type_id})
     return [b - a for a, b in zip(ticks, ticks[1:])]
@@ -159,12 +177,21 @@ class Report:
     def check(self, name: str, measured, expected, ok: bool, note: str = "") -> None:
         self.rows.append((name, str(measured), str(expected), note, ok))
 
+    def note(self, name: str, measured, note: str = "") -> None:
+        """An observation with no constant to fail against. Reported rather
+        than dropped: a number nobody printed is a number nobody checked."""
+        self.rows.append((name, str(measured), "-", note, None))
+
     def render(self) -> int:
         bad = 0
         width = max(len(r[0]) for r in self.rows) if self.rows else 10
         for name, measured, expected, note, ok in self.rows:
-            flag = "ok  " if ok else "MISMATCH"
-            if not ok:
+            if ok is None:
+                flag = "note"
+            elif ok:
+                flag = "ok"
+            else:
+                flag = "MISMATCH"
                 bad += 1
             print("%-8s %-*s measured %-22s constant %-10s %s"
                   % (flag, width, name, measured, expected, note))
@@ -194,14 +221,30 @@ def analyse_maiden(raids, k, rep) -> None:
               common == k["tob_maiden_attack_ticks"],
               "the most common gap is the cadence; longer gaps are phase transitions")
 
-    # Blood splats land 11 ticks after the throw, per TobMistakeTracker. The
-    # recording gives the splat ticks directly, so the claim under test is the
-    # LIFETIME: how long a tile keeps appearing in successive splat events.
+    # The blood splat.
+    #
+    # NOT asserted against `^tob_maiden_blood_splat_ticks`, because the two are
+    # different quantities and comparing them was this tool's own bug. That
+    # constant is TobMistakeTracker's `MAIDEN_BLOOD_GAME_TICK_LENGTH = 11`,
+    # which is how long a tile still COSTS you - it sets a `deactivationTick`
+    # for the mistake detector. What a recording shows is how long the tile is
+    # still DRAWN, and blert merges the splat graphic (1579) with the blood
+    # trail objects into one event, so a tile near a blood spawn is a trail
+    # rather than a splat.
+    #
+    # Measured on the only clean window there is: ticks before the first blood
+    # spawn npc (8367) exists in the room, where every tile must be a splat
+    # from one of Maiden's own attacks.
     lifetimes = []
     for events in raids:
+        slugs = [e["tick"] for e in events
+                 if e["type"] == EVENT["NPC_SPAWN"] and (e.get("npc") or {}).get("id") == MAIDEN_BLOOD_SPAWN]
+        cut = min(slugs) if slugs else None
+        if cut is None:
+            continue
         seen: dict[tuple[int, int], list[int]] = {}
         for e in events:
-            if e["type"] != EVENT["MAIDEN_BLOOD_SPLATS"]:
+            if e["type"] != EVENT["MAIDEN_BLOOD_SPLATS"] or e["tick"] >= cut:
                 continue
             for tile in e.get("maidenBloodSplats", []):
                 seen.setdefault((tile["x"], tile["y"]), []).append(e["tick"])
@@ -214,11 +257,47 @@ def analyse_maiden(raids, k, rep) -> None:
                     lifetimes.append(run)
                     run = 1
             lifetimes.append(run)
-    common = mode_of(lifetimes)
-    rep.check("blood splat lifetime", summary(lifetimes),
-              k["tob_maiden_blood_splat_ticks"],
-              common == k["tob_maiden_blood_splat_ticks"],
-              "consecutive ticks one tile stays a splat")
+    if lifetimes:
+        drawn = k["tob_maiden_blood_splat_drawn"]
+        common = mode_of(lifetimes)
+        rep.check("blood splat drawn for",
+                  "%s min=%d" % (summary(lifetimes), min(lifetimes)), drawn,
+                  common == drawn,
+                  "drawn lifetime, NOT the %d-tick damage window; longer runs are "
+                  "two splats overlapping on one tile"
+                  % k["tob_maiden_blood_splat_ticks"])
+
+    # The blood spawn's trail. Measured on the clean tail - runs still ending
+    # after the last slug is dead, where nothing new is being laid.
+    tails = []
+    for events in raids:
+        deaths = [e["tick"] for e in events
+                  if e["type"] == EVENT["NPC_DEATH"] and (e.get("npc") or {}).get("id") == MAIDEN_BLOOD_SPAWN]
+        if not deaths:
+            continue
+        last = max(deaths)
+        seen: dict[tuple[int, int], list[int]] = {}
+        for e in events:
+            if e["type"] != EVENT["MAIDEN_BLOOD_SPLATS"]:
+                continue
+            for tile in e.get("maidenBloodSplats", []):
+                seen.setdefault((tile["x"], tile["y"]), []).append(e["tick"])
+        for ticks in seen.values():
+            run = [ticks[0]]
+            for a, b in zip(ticks, ticks[1:]):
+                if b - a == 1:
+                    run.append(b)
+                else:
+                    if run[-1] > last:
+                        tails.append(len(run))
+                    run = [b]
+            if run[-1] > last:
+                tails.append(len(run))
+    if tails:
+        trail = k["tob_maiden_blood_trail_ticks"]
+        rep.check("blood trail lifetime", summary(tails), trail,
+                  mode_of(tails) == trail,
+                  "runs outliving the last blood spawn; shorter ones are cut by the room ending")
 
 
 def analyse_bloat(raids, k, rep) -> None:
@@ -234,49 +313,102 @@ def analyse_bloat(raids, k, rep) -> None:
             hit = [s for s in stomps if d < s < d + 40]
             if hit:
                 down_to_stomp.append(hit[0] - d)
-        # blert states the walk length on the down event itself.
+        # blert states the walk length on the down event itself, in TWO fields:
+        # `walkTime` is the walk, and `upTicks` is `walkTime + 1`. Reading
+        # `upTicks` shifts every measurement up by one and makes the Wiki's
+        # 34..42 look like it is off by one when it is exact.
         for e in events:
             if e["type"] != EVENT["BLOAT_DOWN"]:
                 continue
             info = e.get("bloatDown", {})
-            if "upTicks" not in info:
+            if "walkTime" not in info:
                 continue
-            (first_walks if info.get("downNumber") == 1 else walks).append(info["upTicks"])
+            (first_walks if info.get("downNumber") == 1 else walks).append(info["walkTime"])
 
     rep.check("bloat down -> up", summary(down_to_up), k["tob_bloat_up_offset"],
               mode_of(down_to_up) == k["tob_bloat_up_offset"])
     rep.check("bloat down -> stomp", summary(down_to_stomp), k["tob_bloat_stomp_offset"],
               mode_of(down_to_stomp) == k["tob_bloat_stomp_offset"])
 
+    # The bonus is not the first walk's alone. The Wiki gives it to a Bloat
+    # that was not attacked during its down, and a team that is repositioning
+    # or waiting for a stomp leaves it alone on later downs too - so the
+    # envelope for EVERY walk is min .. max+bonus.
+    #
+    # That envelope is what the recordings draw exactly: 34 to 46 over 42
+    # walks, with 34 the most common and 46 reached. Both ends of both
+    # constants are therefore confirmed rather than merely not-contradicted.
     lo, hi = k["tob_bloat_walk_min"], k["tob_bloat_walk_max"]
-    inrange = [w for w in walks if lo <= w <= hi]
-    rep.check("bloat walk (later)", summary(walks), "%d..%d" % (lo, hi),
+    top = hi + k["tob_bloat_walk_unattacked_bonus"]
+    inrange = [w for w in walks if lo <= w <= top]
+    rep.check("bloat walk (later)", "%s min=%d max=%d" % (summary(walks), min(walks), max(walks)),
+              "%d..%d" % (lo, top),
               len(walks) > 0 and len(inrange) == len(walks),
-              "every later walk must sit inside the stated range")
-    bonus = k["tob_bloat_walk_unattacked_bonus"]
-    inrange1 = [w for w in first_walks if lo <= w <= hi + bonus]
-    rep.check("bloat walk (first)", summary(first_walks),
-              "%d..%d" % (lo, hi + bonus),
+              "min..max+bonus; an unattacked down earns the bonus on any walk")
+    # The FIRST walk, now asserted. It was previously left as a note on the
+    # theory that blert's tick 0 being room entry made it a measurement of the
+    # team rather than of the boss. It is not: the first-walk distribution is
+    # the later one shifted +5 at BOTH ends, which a variable human delay could
+    # not produce. So it is a constant, and it is checked like one.
+    delay = k["tob_bloat_first_walk_delay"]
+    lo1, hi1 = lo + delay, top + delay
+    inrange1 = [w for w in first_walks if lo1 <= w <= hi1]
+    rep.check("bloat walk (first)",
+              "%s min=%d max=%d" % (summary(first_walks), min(first_walks), max(first_walks)),
+              "%d..%d" % (lo1, hi1),
               len(first_walks) > 0 and len(inrange1) == len(first_walks),
-              "the first walk gets the unattacked bonus")
+              "the later envelope plus the %d-tick startup" % delay)
+    shifted = [w - delay for w in first_walks]
+    rep.check("bloat first-walk shift",
+              "shifted min=%d max=%d" % (min(shifted), max(shifted)),
+              "%d..%d" % (lo, top),
+              min(shifted) >= lo and max(shifted) <= top,
+              "the shift is exact: subtract it and the first walks are ordinary ones")
 
 
-def analyse_nylocas(raids, k, rep) -> None:
-    firsts, cycles = [], []
+def analyse_nylocas(raids, k, rep, waves) -> None:
+    """Check the generated stall table against the recordings.
+
+    A wave spawns `naturalStall` ticks after the previous one *if nobody
+    stalled*; a team over the cap makes the gap longer, never shorter. So the
+    table's value has to be the MINIMUM observed gap - a stall table that is
+    too low would show up as gaps below it, which is the failure worth
+    catching.
+
+    Splits are excluded (`parentRoomId != 0`): they spawn when their parent
+    dies, on whatever tick that was, and counting them as wave spawns is what
+    made 1217 of 1790 gaps look like they were off-cycle.
+    """
+    per_wave = collections.defaultdict(list)
     for events in raids:
-        spawns = sorted({e["tick"] for e in events
-                         if e["type"] == EVENT["NPC_SPAWN"] and "nylo" in (e.get("npc") or {})})
-        if not spawns:
-            spawns = sorted({e["tick"] for e in events if e["type"] == EVENT["NPC_SPAWN"]})
-        if spawns:
-            firsts.append(spawns[0])
-        cycles += [b - a for a, b in zip(spawns, spawns[1:]) if b > a]
-    rep.check("nylo first wave tick", summary(firsts), k["tob_nylo_first_wave_tick"],
-              mode_of(firsts) == k["tob_nylo_first_wave_tick"])
-    off = [c for c in cycles if c % k["tob_nylo_cycle_ticks"] != 0]
-    rep.check("nylo wave cycle", "n=%d, %d not a multiple" % (len(cycles), len(off)),
-              k["tob_nylo_cycle_ticks"], len(cycles) > 0 and not off,
-              "every gap between waves must be a multiple of the cycle")
+        first = {}
+        for e in events:
+            nylo = (e.get("npc") or {}).get("nylo")
+            if e["type"] != EVENT["NPC_SPAWN"] or not nylo:
+                continue
+            if nylo.get("parentRoomId"):
+                continue
+            w = nylo["wave"]
+            first[w] = min(first.get(w, e["tick"]), e["tick"])
+        for w in sorted(first):
+            if w + 1 in first:
+                per_wave[w].append(first[w + 1] - first[w])
+
+    below, checked, offcycle = [], 0, 0
+    for w, gaps in sorted(per_wave.items()):
+        stall = waves.get(w)
+        if stall is None:
+            continue
+        checked += 1
+        offcycle += sum(1 for g in gaps if g % k["tob_nylo_cycle_ticks"] != 0)
+        if min(gaps) < stall:
+            below.append("w%d min %d < %d" % (w, min(gaps), stall))
+    rep.check("nylo stall table", "%d waves checked, %d under table" % (checked, len(below)),
+              "no gap below its stall", not below,
+              "; ".join(below[:4]))
+    rep.check("nylo wave cycle", "%d off-cycle gaps" % offcycle,
+              k["tob_nylo_cycle_ticks"], offcycle == 0,
+              "every wave-to-wave gap is a multiple of the cycle")
 
 
 def analyse_simple(raids, k, rep, label: str, key: str, note: str = "") -> None:
@@ -291,7 +423,11 @@ def analyse_verzik(raids, k, rep) -> None:
     histogram would blend them. Split on the npc id changing, which is what a
     phase change is."""
     per_phase = {1: [], 2: [], 3: []}
-    ids = {8369: 1, 8370: 1, 8371: 2, 8372: 3, 10830: 1, 10831: 1, 10832: 2, 10833: 3}
+    # From the cache's own gameval table (`sources/cache_npc_verzik.txt`), not
+    # from the order the ids happen to appear in: 8371 and 8373 are the two
+    # TRANSITION forms and attack in neither phase, so a map that counted up
+    # from 8370 would file every phase-2 attack under phase 3. It did.
+    ids = {8370: 1, 8372: 2, 8374: 3}
     for events in raids:
         buckets = collections.defaultdict(list)
         for e in events:
@@ -335,7 +471,7 @@ def main() -> int:
     if rooms["bloat"]:
         analyse_bloat(rooms["bloat"], k, rep)
     if rooms["nylocas"]:
-        analyse_nylocas(rooms["nylocas"], k, rep)
+        analyse_nylocas(rooms["nylocas"], k, rep, wave_table())
     if rooms["sotetseg"]:
         analyse_simple(rooms["sotetseg"], k, rep, "sotetseg period", "tob_sote_attack_ticks")
     if rooms["xarpus"]:

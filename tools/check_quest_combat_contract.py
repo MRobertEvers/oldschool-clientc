@@ -242,6 +242,16 @@ ROVING_ISLWYN = CONTENT / "quests/quest_rovingelves/scripts/rovingelves_islwyn.r
 ROVING_WATERFALL_LOCS = CONTENT / "quests/quest_waterfall/scripts/quest_waterfall_locs.rs2"
 ROVING_LEVEL_REQUIRE = CONTENT / "skill_combat/scripts/levelrequire.rs2"
 ROVING_GENERATED_COMBAT = CONTENT / "npc/configs/combat_stats.generated.npc"
+AHOY_CONSTANT = CONTENT / "quests/quest_ghostsahoy/configs/ghostsahoy.constant"
+AHOY_VARP = CONTENT / "quests/quest_ghostsahoy/configs/ghostsahoy.varp"
+AHOY_NPC = CONTENT / "quests/quest_ghostsahoy/configs/ghostsahoy.npc"
+AHOY_BOOK = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_book.rs2"
+AHOY_HUB = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_hub.rs2"
+AHOY_MANUAL = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_manual.rs2"
+AHOY_ROBES = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_robes.rs2"
+AHOY_SHARED = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_shared.rs2"
+AHOY_COOKING = CONTENT / "skill_cooking/scripts/cooking.rs2"
+AHOY_DYES = CONTENT / "skill_crafting/scripts/dye_cape.rs2"
 CATEGORY_PACK = ROOT / "OSRS-Content/osrs239-content/pack/category.pack"
 COMBAT_STATS = CONTENT / "skill_combat/combat_stats.rs2"
 PLAYER_DEATH = CONTENT / "player/death.rs2"
@@ -529,6 +539,18 @@ def check_manifest() -> None:
     require({15292285, 14458305, 15272093, 15199663, 15267068,
              15184516, 15201942, 15292719, 15291690} <= revisions,
             "Roving Elves: pinned Wiki audit set drifted")
+    ahoy = [row for row in rows if row["id"] == "quest-ghosts-ahoy"]
+    require(len(ahoy) == 1,
+            "manifest: expected exactly one Ghosts Ahoy row")
+    require(ahoy[0]["implementation_status"] == "implementation-in-progress",
+            "Ghosts Ahoy: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(ahoy[0][key]), f"Ghosts Ahoy: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in ahoy[0]["source_audits"]}
+    require({15297463, 15297469, 15297814, 15272821, 15185508,
+             14888479, 15297464, 15293864, 14768954} <= revisions,
+            "Ghosts Ahoy: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3649,6 +3671,143 @@ def check_roving_elves() -> None:
     )
 
 
+def check_ghosts_ahoy() -> None:
+    require_text(
+        AHOY_CONSTANT.read_text(),
+        (
+            "^ahoy_req_agility = 25", "^ahoy_req_cooking = 20",
+            "^ahoy_captain_chest_coord = 1_56_55_35_25",
+            "^ahoy_rock_chest_coord = 1_56_55_22_44",
+            "^ahoy_lobster_chest_coord = 0_56_55_34_22",
+            "^ahoy_lobster_loot_coord = 0_56_55_35_22",
+            "^ahoy_lobster_spawn_coord = 0_56_55_33_22",
+            "^ahoy_lobster_lifetime = 200",
+            "^ahoy_lobster_head_rate = 25",
+            "^ahoy_lobster_clue_rate = 128",
+            "^ahoy_dig_book_coord = 0_59_55_27_10",
+            "^ahoy_boat_fare = 25",
+        ),
+        "Ghosts Ahoy exact wreck, lobster and captain constants",
+    )
+    require_text(
+        AHOY_VARP.read_text(),
+        (
+            "[ahoy_lobster_active]", "scope=temp",
+            "[ahoy_flag_top]", "[ahoy_flag_bottom]", "[ahoy_flag_skull]",
+            "[ahoy_ship_top]", "[ahoy_ship_bottom]", "[ahoy_ship_skull]",
+            "[ahoy_dragontooth_pass]", "[ahoy_captain_chest_unlocked]",
+        ),
+        "Ghosts Ahoy private persistent puzzle state",
+    )
+    require_text(
+        AHOY_NPC.read_text(),
+        (
+            "[giant_lobster]", "hitpoints=32", "attack=18", "strength=26",
+            "defence=40", "magic=1", "ranged=1", "huntmode=aggressive",
+            "param=attackrate,4", "param=damagetype,^stab_style",
+            "param=stabattack,0", "param=strengthbonus,0",
+            "param=stabdefence,5", "param=slashdefence,15",
+            "param=crushdefence,5", "param=magicdefence,0",
+            "param=rangedefence,5", "param=death_drop,null",
+        ),
+        "Ghosts Ahoy exact Giant Lobster combat row",
+    )
+    require_text(
+        AHOY_HUB.read_text(),
+        (
+            "[proc,ahoy_boil_nettle_tea]()(boolean)",
+            "if (stat(cooking) < ^ahoy_req_cooking)",
+            "slayerguide_slayer_gloves", "ranger_gloves",
+            "magictraining_infinitygloves", "lunar_moonclan_gloves",
+            "granite_gloves", "lunar_gloves", "beekeeper_gloves",
+            "obj_add_private(coord, ahoy_bone_key, 1",
+            "inv_add(inv, ashes, 1);",
+            "I can replace the model ship when you have a free inventory slot.",
+        ),
+        "Ghosts Ahoy prerequisites, tea and unique-item recovery",
+    )
+    book = AHOY_BOOK.read_text()
+    require_text(
+        book,
+        (
+            "[proc,ahoy_flag_init]", "add(1, random(6))",
+            "[proc,ahoy_dye_colour](obj $dye)(int)",
+            "case reddye", "case bluedye", "case yellowdye",
+            "case orangedye", "case greendye", "case purpledye",
+            "if_openoverlay(ahoy_windspeed)", "[timer,ahoy_wind]",
+            "%ahoy_ship_top ! %ahoy_flag_top",
+            "if (loc_coord = ^ahoy_rock_chest_coord)",
+            "if (loc_coord ! ^ahoy_lobster_chest_coord)",
+            "if (loc_coord ! ^ahoy_lobster_loot_coord)",
+            "healenergy(-500);", "stat_random(agility, 120, 260)",
+            "stat_advance(agility, 100);", "~maplink_agility;",
+        ),
+        "Ghosts Ahoy per-player flag, three-chest and rock contract",
+    )
+    require_text(
+        book,
+        (
+            "npc_add(^ahoy_lobster_spawn_coord, giant_lobster, ^ahoy_lobster_lifetime);",
+            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "[opnpc2,giant_lobster]", "[apnpc2,giant_lobster]",
+            "[ai_queue3,giant_lobster]", "npc_findhero", "p_finduid(uid)",
+            "%ahoy_killed_lobster = 1;",
+            "obj_add_private($drop, seaweed, 1",
+            "random(^ahoy_lobster_head_rate)", "arceuus_corpse_scorpion",
+            "random(^ahoy_lobster_clue_rate)", "trail_clue_beginner",
+            "[timer,ahoy_lobster_monitor]", "~ahoy_cleanup_lobster;",
+            "[proc,ahoy_on_death]", "[proc,ahoy_on_logout]",
+        ),
+        "Ghosts Ahoy owner-private timed lobster and complete loot",
+    )
+    require("@wiki_lobster_drop" not in book and "@lobster_drop" not in book,
+            "Ghosts Ahoy: quest lobster must not leak a generic lobster table")
+    require_text(
+        book,
+        (
+            "inv_total(inv, ahoy_map_scrap_1) < 1",
+            "inv_total(inv, ahoy_map_scrap_2) < 1",
+            "inv_total(inv, ahoy_map_scrap_3) < 1",
+            "inv_add(inv, ahoy_map_complete, 1);",
+            "inv_total(worn, ring_of_charos_unlocked) > 0", "$fare = 10;",
+            "inv_total(inv, ectotoken) < 500", "%ahoy_dragontooth_pass = 1;",
+            "distance(coord, ^ahoy_dragontooth_dock_coord) <= 20",
+            "coord = ^ahoy_dig_book_coord", "inv_add(inv, ahoy_book_of_haricanto, 1);",
+        ),
+        "Ghosts Ahoy map, captain fare and exact dig route",
+    )
+    require_text(
+        AHOY_MANUAL.read_text(),
+        ("I've lost the bow you signed for Ak-Haranu.",
+         "inv_total(bank, oak_longbow_signed) < 1",
+         "inv_add(inv, oak_longbow_signed, 1);"),
+        "Ghosts Ahoy signed-bow recovery",
+    )
+    require_text(
+        AHOY_ROBES.read_text(),
+        ("I can replace the bedsheet when you have a free inventory slot.",
+         "I can replace the petition when you have a free inventory slot.",
+         "obj_add_private(coord, ahoy_robes_of_necrovarus, 1",
+         "inv_total(bank, ahoy_robes_of_necrovarus) >= 1"),
+        "Ghosts Ahoy bedsheet, petition and robes recovery",
+    )
+    require_text(
+        AHOY_SHARED.read_text(),
+        ("%prieststart < ^priest_complete", "%priestperil < ^priestperil_complete",
+         "%priestperil = ^priestperil_complete;", "%ahoy_flag_top = 0;",
+         "%ahoy_dragontooth_pass = 0;", "%ahoy_captain_chest_unlocked = 0;"),
+        "Ghosts Ahoy deterministic reset coverage",
+    )
+    require_text(AHOY_COOKING.read_text(), ("if (last_useitem = bowl_nettlewater)", "~ahoy_boil_nettle_tea;"),
+                 "Ghosts Ahoy shared cooking-fire integration")
+    require(AHOY_DYES.read_text().count("case ahoy_toy_boat_repaired :") == 6,
+            "Ghosts Ahoy: all six dye triggers must reach the repaired ship")
+    require_text(PLAYER_DEATH.read_text(), ("~ahoy_on_death;",),
+                 "Ghosts Ahoy death cleanup")
+    require_text(PLAYER_LOGOUT.read_text(), ("~ahoy_on_logout;",),
+                 "Ghosts Ahoy logout cleanup")
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -3679,10 +3838,11 @@ def main() -> int:
         check_in_search_of_the_myreque()
         check_creature_of_fenkenstrain()
         check_roving_elves()
+        check_ghosts_ahoy()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain and Roving Elves (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves and Ghosts Ahoy (ok)")
     return 0
 
 
