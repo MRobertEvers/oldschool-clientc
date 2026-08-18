@@ -37506,6 +37506,62 @@ mock230_world_selftest(void)
         }
 
         /*
+         * The Tombs of Amascut's tables and arithmetic (`::toarun`,
+         * minigames/minigame_toa/scripts/toa_selftest.rs2).
+         *
+         * Default-on and cheap for the same reason ::tobrun is: it spawns
+         * nothing and touches no player state. Every check reads either the
+         * generated `toa_invocation` table or a `^toa_*` constant and compares
+         * them against each other.
+         *
+         * Two of its checks are the reason it exists.
+         *
+         * The first reconstructs the RAID LEVEL CEILING out of the generated
+         * table -- one invocation from each of the four exclusive categories
+         * plus every non-exclusive toggle -- and requires it to be 600. That
+         * table is not authored: `tools/gen_toa_invocations.py` reads the
+         * cache's own structs for it, and the whole difficulty system hangs off
+         * param 1159 meaning what this tree thinks it means. If a later cache
+         * moves those params, every raid silently becomes the wrong difficulty
+         * and this is the only thing that would say so.
+         *
+         * The second pins TEAM SCALING at four and eight players. The reference
+         * implementation this raid was researched against scales boss health by
+         * +90% for every extra member; the Wiki says 90% for the 2nd and 3rd and
+         * 60% beyond, and this tree follows the Wiki. The two disagree by a
+         * third on an 8-man Zebak, and the check exists so that somebody
+         * reading the reference and "fixing" the divergence fails here rather
+         * than shipping it.
+         *
+         * Asserted on the OK line rather than on the absence of FAIL, for the
+         * same reason as the stanzas above it.
+         */
+        {
+            static struct Mock230Capture toa_capture;
+            int toa_said_ok = 0;
+
+            mock230_capture_begin(srv, &toa_capture);
+            mock230_scripts_run_debugproc(srv, "toarun");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&toa_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&toa_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &toa_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "toarun") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "toarun OK") != NULL )
+                    toa_said_ok = 1;
+            }
+            SELFTEST_CHECK(toa_said_ok, "::toarun should reach its OK line");
+        }
+
+        /*
          * Sotetseg's maze generator (`::tobmaze`, same file).
          *
          * Its own stanza because it needs its own instruction budget, not
@@ -37649,6 +37705,47 @@ mock230_world_selftest(void)
                     tobrooms_said_ok = 1;
             }
             SELFTEST_CHECK(tobrooms_said_ok, "::tobrooms should reach its OK line");
+        }
+
+        /*
+         * Every ToA room builds, and builds on its own plane (`::toarooms`).
+         *
+         * The sibling of ::tobrooms, and here for the same reason: every other
+         * ToA check reads tables, and a table cannot see the map underneath the
+         * room. What it cannot see in THIS raid is the plane. Three of the
+         * twelve squares -- Akkha and both Warden rooms -- are on plane 1;
+         * `map_instance_copy_square` copies all four planes, so a room
+         * addressed on plane 0 is a perfectly valid instance full of solid
+         * rock, and nothing about it raises an error. The Theatre lost Xarpus
+         * to exactly that, which is why the check exists before the rooms do.
+         *
+         * Runs after ::toarun for the same reason ::tobrooms runs after
+         * ::tobrun: it teleports the fixture player through twelve instances.
+         * It frees them and leaves via ~toa_leave.
+         */
+        {
+            static struct Mock230Capture toarooms_capture;
+            int toarooms_said_ok = 0;
+
+            mock230_capture_begin(srv, &toarooms_capture);
+            mock230_scripts_run_debugproc(srv, "toarooms");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&toarooms_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&toarooms_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &toarooms_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "toarooms") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "toarooms OK") != NULL )
+                    toarooms_said_ok = 1;
+            }
+            SELFTEST_CHECK(toarooms_said_ok, "::toarooms should reach its OK line");
         }
 
         /*
