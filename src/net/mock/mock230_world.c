@@ -9919,6 +9919,10 @@ mock230_world_login(struct Mock230Player* player)
 
     player->login_pending = 0;
     player->login_scene_pending = srv->wire && srv->wire->revision >= 239;
+    /* The async map loader snapshots the active root plane while creating its
+     * replacement WorldView. State it before the rebuild, including on a save
+     * that logs straight back into an upper floor. */
+    mock230_send_set_active_world(player);
     mock230_send_rebuild(player);
     player->rebuild_pending = 0;
     if( player->login_scene_pending )
@@ -9940,6 +9944,10 @@ mock230_world_login_finish(struct Mock230Player* player)
     const struct Mock230Ids* ids = mock230_ids();
 
     mock230_world_set_active(srv, player);
+
+    /* Root-world info batches start by selecting their world and plane. The
+     * login rebuild's GPI block only seeds the player-coordinate tracker. */
+    mock230_send_set_active_world(player);
 
     /*
      * 1b. Establish the local actor before any plugin-visible client state.
@@ -11410,6 +11418,11 @@ phase_client_out(struct Mock230Player* player)
      * player and the first thing done here. It only enqueues, so it is ahead of
      * every encoder below rather than entangled with them. */
     mock230_world_update_map(player);
+
+    /* SET_ACTIVE_WORLD precedes both a possible rebuild and the entity/zone
+     * streams below. In particular, its plane is what the revision-239 map
+     * loader copies into a replacement WorldView. */
+    mock230_send_set_active_world(player);
 
     /*
      * The instance under this player is not the one its scene was copied from.
@@ -13688,6 +13701,94 @@ mock230_world_selftest(void)
     }
     mock230_world_init(srv, 426, 408);
     mock230_world_player_init(player);
+
+    /*
+     * Two-process GWD restart probe.  The companion harness runs `arm` and
+     * `assert` in separate mock230 processes against the same save directory.
+     * Arm deliberately exits without releasing its private-room reservation;
+     * assert therefore proves both sides of the restart boundary: the fresh
+     * process owns no stale map-pool reservation, and scope=temp player fields
+     * cannot resurrect the old handle from disk.
+     */
+    {
+        const char* restart_phase =
+            getenv("MOCK230_SELFTEST_GWD_RESTART_PHASE");
+
+        if( restart_phase && restart_phase[0] )
+        {
+            static struct Mock230Capture varp_capture;
+            const char* path = mock230_save_path("gwd_restart_selftest");
+            int instance_varp = mock230_content_symbol(
+                MOCK230_PACK_VARP, "map_instance_handle");
+            int faction_varp = mock230_content_symbol(
+                MOCK230_PACK_VARP, "gwd_private_faction");
+            int client_varps = mock230_varp_client_count();
+
+            SELFTEST_CHECK(
+                instance_varp >= 0 && faction_varp >= 0,
+                "GWD restart probe resolves transient ownership varps");
+            SELFTEST_CHECK(
+                client_varps == 5705,
+                "base revision-239 cache exposes exactly 5705 client varps "
+                "(got %d)", client_varps);
+            mock230_capture_begin(srv, &varp_capture);
+            mock230_send_varp_small(player, 3078, 1);
+            mock230_send_varp_large(player, 3078, 1000);
+            mock230_send_varp_small(player, client_varps, 1);
+            mock230_send_varp_large(player, client_varps, 1000);
+            mock230_capture_end(srv);
+            SELFTEST_CHECK(
+                varp_capture.count == 2 &&
+                    varp_capture.packets[0].name == PKT_NAME_VARP_SMALL &&
+                    varp_capture.packets[1].name == PKT_NAME_VARP_LARGE,
+                "official-client varp boundary sends valid ids and drops "
+                "both encodings at id %d (captured %d)",
+                client_varps, varp_capture.count);
+            if( strcmp(restart_phase, "arm") == 0 )
+            {
+                int handle = mock230_mapinstance_alloc(
+                    mock230_world_cache_dir(), 8, 8);
+
+                remove(path);
+                SELFTEST_CHECK(
+                    handle != 0 && mock230_mapinstance_live_count() == 1,
+                    "GWD restart arm leaves one live private reservation");
+                if( handle != 0 && instance_varp >= 0 && faction_varp >= 0 )
+                {
+                    mock230_mapinstance_set_owner(handle, player->pid + 1);
+                    player->varps[instance_varp] = handle;
+                    player->varps[faction_varp] = 5;
+                    SELFTEST_CHECK(
+                        mock230_save_player(player, path),
+                        "GWD restart arm writes the owner save");
+                }
+            }
+            else if( strcmp(restart_phase, "assert") == 0 )
+            {
+                SELFTEST_CHECK(
+                    mock230_mapinstance_live_count() == 0,
+                    "fresh server process has zero private reservations");
+                SELFTEST_CHECK(
+                    mock230_load_player(player, path),
+                    "fresh server process reads the armed owner save");
+                SELFTEST_CHECK(
+                    instance_varp >= 0 && faction_varp >= 0 &&
+                        player->varps[instance_varp] == 0 &&
+                        player->varps[faction_varp] == 0,
+                    "restart cannot restore a private-room handle/faction");
+                remove(path);
+            }
+            else
+            {
+                SELFTEST_CHECK(
+                    0, "unknown GWD restart probe phase '%s'", restart_phase);
+            }
+            fprintf(stderr,
+                    "mock230 God Wars restart %s: %d failure(s)\n",
+                    restart_phase, g_selftest_failures);
+            return g_selftest_failures;
+        }
+    }
 
     /*
      * A focused God Wars lane can run against an isolated script pack even
@@ -19053,7 +19154,8 @@ mock230_world_selftest(void)
                 };
                 static const int perm_values[] = { 77, 2, 4, 9, 321, 2 };
                 static const char* const temp_varp_names[] = {
-                    "gwd_altar_ready", "gwd_private_faction",
+                    "map_instance_handle", "gwd_altar_ready",
+                    "gwd_private_faction",
                     "nex_contribution_uid", "nex_contribution_damage",
                     "nex_encounter_start", "nex_cough_until",
                 };
@@ -35511,6 +35613,63 @@ mock230_world_selftest(void)
                            "Chambers of Xeric points/death contracts should pass, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_cox;
+        }
+
+        /*
+         * `::cox` — ACTUALLY ENTER THE RAID.
+         *
+         * Everything above this point tests arithmetic. None of it can tell you
+         * whether the map instance assembles, whether the player lands inside
+         * it, or whether Tekton exists once they do — and those are exactly the
+         * failures that look like "the room does nothing" rather than like a
+         * wrong number. This block runs the raid.
+         *
+         * The instance is torn down again at the end so the rest of the suite
+         * does not inherit a player standing in a raid.
+         */
+        {
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "cox") ==
+                               MOCK230_TRIGGER_RAN,
+                           "::cox should reach content");
+
+            /*
+             * A map instance actually got built. `map_instance_find` answering
+             * for the player's tile is the load-bearing part: it proves the
+             * reservation exists AND that the player is standing inside it,
+             * which two separate bugs could each break.
+             */
+            int handle = mock230_mapinstance_find(player->x, player->z);
+            SELFTEST_CHECK(handle != 0,
+                           "entering CoX should put the player inside a map instance; "
+                           "landed at %d,%d level %d with handle %d",
+                           player->x, player->z, player->level, handle);
+
+            /* Tekton exists, in one of his six forms. */
+            int tekton = 0;
+            for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            {
+                if( !srv->npcs[i].active )
+                    continue;
+                if( srv->npcs[i].type >= 7540 && srv->npcs[i].type <= 7545 )
+                    tekton++;
+            }
+            SELFTEST_CHECK(tekton > 0,
+                           "entering CoX should spawn Tekton, found %d", tekton);
+
+            /* And leaving tears the instance down rather than leaking it. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "cox_leave") ==
+                               MOCK230_TRIGGER_RAN,
+                           "::cox_leave should reach content");
+            SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
+                           "leaving CoX should free the instance");
+
+            player->x = saved_x;
+            player->z = saved_z;
+            player->level = saved_level;
         }
 
         /*

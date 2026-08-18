@@ -192,6 +192,14 @@ enum GameProtoPktName
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
 
+    /**
+     * Select the root/dynamic world and plane that the following entity and
+     * zone packets address. Revision 239 does not derive the active root plane
+     * from PLAYER_INFO: omitting this leaves the actor tracker on the new
+     * plane while the rendered WorldView remains on the old one.
+     */
+    PKT_NAME_SET_ACTIVE_WORLD,
+
     PKT_NAME_COUNT
 };
 

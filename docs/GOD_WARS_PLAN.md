@@ -53,7 +53,10 @@ by the existence of code. As of the audit date, the repository now has:
   room occupancy through their cache-defined Peek option.
 - [x] Explicit ambient four-way NPC warfare, player attribution, exact Gorak
   prayer/stat-drain behavior, Aviansie melee rules, generated versioned drops,
-  and applicable non-Wilderness tertiaries.
+  and applicable non-Wilderness tertiaries. A live Gorak kill exposed the
+  shared `randomjewel` table's valid no-drop branch falling off a typed proc;
+  it now returns `(null, 0)`, which the floor-object primitive treats as no
+  award instead of underflowing the VM stack.
 - [x] Frozen Door progression, Ancient Prison population, Zaros essence,
   Ashuelot services, Ancient Forge, death bank, the four Zarosian soldier drop
   tables, and their specials/Ancient Magicks effects.
@@ -64,13 +67,13 @@ by the existence of code. As of the audit date, the repository now has:
 - [x] Script compilation in an isolated content tree plus deterministic
   `check-godwars-manifest` and `check-godwars-contract` build gates. The latest
   focused content compile produced 22,197 scripts and the isolated GWD VM lane
-  passed with zero failures. Unrelated Theatre of Blood and Zulrah scripts were
-  omitted from that isolated compile because concurrent content work left
-  their temporary dependency overlays incomplete. A normal whole-tree
-  `mock230` rebuild is presently
-  blocked by unrelated in-flight training-dummy changes in
-  `mock230_combat.c`; the focused binary therefore uses that translation unit
-  from `HEAD` while compiling all current GWD runtime changes.
+  passed with zero failures, including the Gorak no-drop correction. Unrelated
+  Theatre of Blood and Zulrah scripts were omitted from that isolated compile
+  because concurrent content work left their temporary dependency overlays
+  incomplete. The current native `mock230` binary also rebuilds successfully;
+  the isolated script pack intentionally retains the pre-existing shared
+  combat procedures so unrelated in-flight training-dummy hooks cannot abort
+  GWD prayer/stat fixtures.
 - [x] Four-map-square lifecycle triggers which keep the KC overlay present
   while moving within the dungeon and atomically clear all five counters plus
   the overlay only after a real departure.
@@ -271,7 +274,12 @@ by the existence of code. As of the audit date, the repository now has:
   personal death/best-time records, and death-storage state survive relog. It
   also pins the opposite boundary: Zaros trip KC plus altar cooldown, private
   ownership, contribution, encounter-start, and cough state are temporary and
-  reload as zero.
+  reload as zero. `map_instance_handle` is explicitly included in that
+  opposite boundary. `tools/test_godwars_restart.py` goes beyond an in-process
+  reload: its first server process saves an owner while deliberately retaining
+  one live Nex-room reservation, and its second process boots against the same
+  save directory and proves both the global reservation count and the saved
+  handle/faction reload as zero.
 - [x] The same real-VM lane exercises every Nex phase floor twice: a hit which
   crosses the threshold and a hit received at the exact threshold. It proves
   damage is capped at 2,720/2,040/1,360/680 HP, a concurrent follow-up cannot
@@ -418,9 +426,34 @@ by the existence of code. As of the audit date, the repository now has:
 
 The remaining acceptance work is runtime-focused: Turmoil's unpublished OSRS
 activation cadence and Ice Prison's unpublished fixed defence roll need
-primary-source evidence; client/video replay plus real-client, server-process
-restart, and live multiplayer soak at the end of this plan must still be
-executed. These are intentionally left unchecked below.
+primary-source evidence; complete client/video replay of every boss attack and
+a live multiplayer soak at the end of this plan must still be executed. These
+are intentionally left unchecked below.
+
+### Revision-239 client and restart acceptance evidence
+
+- [x] The repository's patched official Java client was launched through
+  `tools/perf/run_java_client.sh` against the real TCP server and a separate
+  cache directory seeded from `cache.osrs239`; the user's existing Jagex cache
+  was not modified. The client logged in, rendered the snowy entrance, entered
+  and rendered the dungeon, displayed the five KC/essence counters, and showed
+  ambient NPC combat with a hitsplat and health bar. Staff commands `::~gwd`,
+  `::~gwdkc`, and `::~gwdboss` all traversed the production client-cheat packet
+  path and were acknowledged by the server.
+- [x] That run found an official-client compatibility defect before it became
+  a silent acceptance claim: the base cache has client varp IDs `0..5704`, but
+  the optional Ancient Curses lane declares later IDs. The server now measures
+  the active cache's actual varp capacity and refuses to encode either
+  `VARP_SMALL` or `VARP_LARGE` beyond it. The automated restart probe pins the
+  base capacity at 5,705, proves ID 3,078 still emits both encodings, and proves
+  boundary ID 5,705 emits neither. An overlay cache that genuinely supplies
+  the extra varps measures the larger boundary and continues to receive them.
+- [x] `tools/test_godwars_restart.py` passes its `arm` and `assert` phases in
+  two distinct native-server processes against one temporary save directory.
+- [ ] Retain durable video/client traces for every boss auto and special,
+  including projectile travel/impact, sound, forced movement, hitsplat, and
+  cooldown timing. The entrance/dungeon smoke above proves compatibility and
+  map/UI/combat rendering, not this full audiovisual matrix.
 
 ## Audit-start repository baseline and known gaps
 
@@ -1010,6 +1043,11 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
   fixture places identical actors on identical local tiles, then proves each
   translated room retains its own targets/projectile recipients, private loot
   owner and quantity, player state, five-actor reset, and teardown.
+- [x] A real server-process restart cannot preserve or alias a private-room
+  reservation. The two-process harness intentionally terminates phase one with
+  one live Nex reservation and a saved owner handle; phase two starts a new
+  native server, loads that same save, and observes zero live reservations,
+  zero `map_instance_handle`, and zero `gwd_private_faction`.
 
 ## Reference index
 

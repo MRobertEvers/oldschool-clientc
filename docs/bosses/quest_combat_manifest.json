@@ -3289,15 +3289,85 @@
       "encounter_summary": "Experiment (51)",
       "plan_line": 114,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Creature_of_Fenkenstrain?oldid=15292324",
+          "revision": 15292324,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Creature_of_Fenkenstrain/Quick_guide?oldid=15087904",
+          "revision": 15087904,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Creature_of_Fenkenstrain?oldid=15263305",
+          "revision": 15263305,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Experiment?oldid=15199186",
+          "revision": 15199186,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cavern_key?oldid=15184609",
+          "revision": 15184609,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Chest_(Creature_of_Fenkenstrain)?oldid=15201910",
+          "revision": 15201910,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Grave_(Haunted_Woods)?oldid=14684724",
+          "revision": 14684724,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "fenk_experiment_1 level-51 key-bearing wolf-woman",
+        "fenk_experiment_2/fenk_experiment_3 level-25 training variants",
+        "fenk_fenkenstrain and fenk_gardener dialogue actors"
+      ],
+      "item_gamevals": [
+        "fenk_marble_amulet/fenk_obsidian_amulet/fenk_star_amulet",
+        "fenk_mausoleum_key and ordinary bones",
+        "fenk_head_empty/fenk_brain/fenk_head_full/fenk_torso/fenk_arms/fenk_legs",
+        "fenk_shed_key/fenk_brush0..3/fenk_cane/bronzecraftwire",
+        "fenk_lightning_mould/silver_bar/fenk_conductor"
+      ],
+      "loc_gamevals": [
+        "fenk_coffin and exact 3577,9927 eastern cave landing",
+        "fenk_mausoleum_door and open-by-default fenk_chest_open",
+        "Ed Lestwit grave plus the exact Rolomere/Rolovanne/Rologray mausoleum graves",
+        "fenk_shed_door/cupboard/cane pile and west upstairs fireplace",
+        "all _smithing_furnace locations for conductor casting"
+      ],
+      "trigger_handlers": [
+        "oplocu/oploc1:star memorial and full authored east-to-northwest cave route",
+        "opnpc2/apnpc2/ai_queue3:level-51 attack gate, credited private key and ordinary bones",
+        "oploc1/oplocu:consumed cavern key, permanent gate-use latch and re-entry",
+        "oploc1/2:open/close/search chest with inventory-only replacement checks",
+        "oploc1/2:coordinate-specific head, torso, arms and legs graves",
+        "opnpc1/oploc1/opheldu:shed key, door, brush, three canes and three bronze wires",
+        "oplocu/_smithing_furnace:west-chimney mould and boostable level-20 silver conductor"
+      ],
+      "loot_contract": "A credited level-51 Experiment kill during the quest always produces ordinary bones through the standard death handler and one owner-private cavern key, and cannot be initiated while a key is in the backpack, after the gate has been used, before hiring or after completion. Level-25 Experiments produce only their ordinary bones here. The open cave chest independently supplies an inventory-only cavern-key replacement during or after the quest; a banked key does not suppress it. No Experiment death advances the quest stage.",
+      "test_ids": [
+        "quest-combat-contract:fenkenstrain-route",
+        "quest-combat-contract:fenkenstrain-experiment",
+        "quest-combat-contract:fenkenstrain-key-recovery",
+        "quest-combat-contract:fenkenstrain-parts-conductor"
+      ],
+      "known_gaps": [
+        "Rag and Bone Man II's conditional 1/4 Experiment bone remains deferred until that quest exposes its wishlist state; it is deliberately not emitted unconditionally.",
+        "The gardener identifies the exact Ed Lestwit grave but does not yet physically follow the player and provide live directional dialogue through the Haunted Woods.",
+        "The final lightning/tower sequence uses the classic cache map and reduced messages rather than the complete camera, animation and audio choreography.",
+        "A real-client level-51 attack/key/gate/retry, level-25 training, chest/bank/full-inventory, all grave, shed/brush/wire, furnace/boost and quest-finale smoke is pending."
+      ]
     },
     {
       "id": "quest-roving-elves",

@@ -121,6 +121,7 @@ enum
     OP_MESSAGE_GAME = PKT_NAME_MESSAGE_GAME,
     OP_NPC_INFO = PKT_NAME_NPC_INFO,
     OP_SET_NPC_UPDATE_ORIGIN = PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+    OP_SET_ACTIVE_WORLD = PKT_NAME_SET_ACTIVE_WORLD,
     OP_SERVER_TICK_END = PKT_NAME_SERVER_TICK_END,
     OP_UPDATE_STAT = PKT_NAME_UPDATE_STAT,
     OP_UPDATE_PID = PKT_NAME_UPDATE_PID,
@@ -422,6 +423,35 @@ wire_for(struct Mock230Player* player)
 {
     struct Mock230Server* srv = player ? player->world : NULL;
     return (srv && srv->wire) ? srv->wire : mock230_wire_default();
+}
+
+static void
+flush(struct Mock230Player* player, struct RSAreaBuf* buf, int opcode, int var);
+
+/*
+ * Select revision 239's root WorldView and the plane addressed by the info
+ * batch that follows. Map instances in this server are copied root-world
+ * scenes, not WORLDENTITY_INFO worlds, so their world index is still zero.
+ *
+ * This is deliberately sent before a rebuild as well as before PLAYER_INFO:
+ * the Java client's asynchronous map loader snapshots the active WorldView
+ * plane when it is created. PLAYER_INFO updates its independent coordinate
+ * tracker, but never writes WorldView.field1400; without this packet a
+ * same-scene teleport from plane 0 to a God Wars chamber on plane 2 leaves the
+ * chamber black even though the local tracker reports the right coordinate.
+ */
+void
+mock230_send_set_active_world(struct Mock230Player* player)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230Wire* wire = wire_for(player);
+
+    if( !wire || wire->revision < 239 )
+        return;
+    open_packet(&buf, 3);
+    rsab_p2(&buf, 0); /* WorldEntityInfo.ROOT_WORLD */
+    rsab_p1(&buf, player->level & 3);
+    flush(player, &buf, OP_SET_ACTIVE_WORLD, 0);
 }
 
 /* ------------------------------------------------------------------ */

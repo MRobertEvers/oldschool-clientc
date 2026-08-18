@@ -612,6 +612,34 @@ def fixed_point_experience(value: int | float) -> int:
     return int(scaled)
 
 
+# Revision 239 contains the Demonic Pacts League Hall scenery, but the checked-in
+# Wiki item snapshot predates that League and therefore cannot discover these
+# display-only locs through infobox object IDs. Append them after the historical
+# variants so existing durable variant indices remain stable. The functional
+# League Hall contract and current Wiki are the review authority for this small
+# cache-era bridge.
+LEAGUE_HALL_RUNTIME_LOC_EXTENSIONS = {
+    "poh_leaguehall_trophy_pedestal_simple": [
+        f"poh_leaguehall_pedestal_{position}_simple_league_6_{tier}"
+        for position in range(1, 4)
+        for tier in ("bronze", "iron", "steel", "mithril", "adamant", "rune", "dragon")
+    ],
+    "poh_leaguehall_trophy_pedestal_decorative": [
+        f"poh_leaguehall_pedestal_{position}_decorative_league_6_{tier}"
+        for position in range(1, 4)
+        for tier in ("bronze", "iron", "steel", "mithril", "adamant", "rune", "dragon")
+    ],
+    "poh_leaguehall_outfitstand_oak": [
+        f"poh_leaguehall_outfitstand_oak_league_6_t{tier}"
+        for tier in range(1, 4)
+    ],
+    "poh_leaguehall_outfitstand_mahogany": [
+        f"poh_leaguehall_outfitstand_mahogany_league_6_t{tier}"
+        for tier in range(1, 4)
+    ],
+}
+
+
 def render_runtime_rows(crosswalk: dict[str, object]) -> str:
     """Render the cache/Wiki join as RuneScript-readable runtime DB rows.
 
@@ -643,6 +671,10 @@ def render_runtime_rows(crosswalk: dict[str, object]) -> str:
         )
         for built_loc in furniture["built_locs"]:
             lines.append(f"data=built_loc,{built_loc['symbol']}")
+        for built_loc in LEAGUE_HALL_RUNTIME_LOC_EXTENSIONS.get(
+            furniture["symbol"], []
+        ):
+            lines.append(f"data=built_loc,{built_loc}")
         for auxiliary in furniture["auxiliary_locs"]:
             lines.append(
                 "data=auxiliary_loc,"

@@ -6511,6 +6511,8 @@ mock230_world_obj_delayed_queue(
 void
 mock230_send_player_info(struct Mock230Player* player);
 void
+mock230_send_set_active_world(struct Mock230Player* player);
+void
 mock230_send_npc_info(struct Mock230Player* player);
 
 /**

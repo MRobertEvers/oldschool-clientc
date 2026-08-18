@@ -226,6 +226,14 @@ ROUTEQUEST_NPC = CONTENT / "quests/quest_routequest/configs/quest_routequest.npc
 ROUTEQUEST_VARP = CONTENT / "quests/quest_routequest/configs/quest_routequest.varp"
 ROUTEQUEST_CONSTANT = CONTENT / "quests/quest_routequest/configs/quest_routequest.constant"
 ROUTEQUEST_MYREQUE2 = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_hideout.rs2"
+FENK_CORE = CONTENT / "quests/quest_fenkenstrain/scripts/fenkenstrain.rs2"
+FENK_FINISH = CONTENT / "quests/quest_fenkenstrain/scripts/fenkenstrain_finish.rs2"
+FENK_PARTS = CONTENT / "quests/quest_fenkenstrain/scripts/fenkenstrain_parts.rs2"
+FENK_LIGHTNING = CONTENT / "quests/quest_fenkenstrain/scripts/fenkenstrain_lightning.rs2"
+FENK_CONSTANT = CONTENT / "quests/quest_fenkenstrain/configs/fenkenstrain.constant"
+FENK_EXPERIMENT_DROP = CONTENT / "drop_tables/scripts/wiki_experiment.rs2"
+FENK_SMELTING = CONTENT / "skill_smithing/scripts/smelting/smelting.rs2"
+FENK_GENERATED_COMBAT = CONTENT / "npc/configs/combat_stats.generated.npc"
 COMBAT_STATS = CONTENT / "skill_combat/combat_stats.rs2"
 PLAYER_DEATH = CONTENT / "player/death.rs2"
 PLAYER_LOGOUT = CONTENT / "player/logout.rs2"
@@ -487,6 +495,19 @@ def check_manifest() -> None:
     revisions = {audit["revision"] for audit in myreque[0]["source_audits"]}
     require({15292283, 14479041, 15286926, 15199509, 15013176, 15263062} <= revisions,
             "In Search of the Myreque: pinned Wiki audit set drifted")
+    fenk = [row for row in rows if row["id"] == "quest-creature-of-fenkenstrain"]
+    require(len(fenk) == 1,
+            "manifest: expected exactly one Creature of Fenkenstrain row")
+    require(fenk[0]["implementation_status"] == "implementation-in-progress",
+            "Creature of Fenkenstrain: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(fenk[0][key]),
+                f"Creature of Fenkenstrain: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in fenk[0]["source_audits"]}
+    require({15292324, 15087904, 15263305, 15199186, 15184609,
+             15201910, 14684724} <= revisions,
+            "Creature of Fenkenstrain: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3391,6 +3412,81 @@ def check_in_search_of_the_myreque() -> None:
             "In Search of the Myreque: private varp allocations drifted")
 
 
+def check_creature_of_fenkenstrain() -> None:
+    require_text(
+        FENK_CONSTANT.read_text(),
+        ("^fenk_experiment_cave = 0_55_155_57_7",
+         "^fenk_ed_grave = 0_56_54_24_35",
+         "^fenk_mausoleum_torso_grave = 0_54_55_46_56",
+         "^fenk_mausoleum_arms_grave = 0_54_55_48_57",
+         "^fenk_mausoleum_legs_grave = 0_54_55_50_56"),
+        "Creature of Fenkenstrain exact route constants",
+    )
+    core = FENK_CORE.read_text()
+    require_text(
+        core,
+        ("Partial completion of The Restless Ghost", "%prieststart < ^priest_started",
+         "%priestperil < ^fenk_pip_gate", "They are checked at conductor casting"),
+        "Creature of Fenkenstrain requirements",
+    )
+    require_text(FENK_FINISH.read_text(),
+                 ("stat(thieving) < ^fenk_thieve_req", "stat_advance(thieving, ^fenk_thieve_xp);"),
+                 "Creature of Fenkenstrain final boostable Thieving gate")
+    parts = FENK_PARTS.read_text()
+    require_text(
+        parts,
+        ("[oploc1,fenk_coffin]", "p_teleport(^fenk_experiment_cave);",
+         "[opnpc2,fenk_experiment_1]", "[apnpc2,fenk_experiment_1]",
+         "[proc,fenk_can_attack_key_experiment]()(boolean)",
+         "%fenk_unlocked_cavern = 1 | inv_total(inv, fenk_mausoleum_key) > 0",
+         "You don't have the heart to kill the poor creature again.",
+         "[ai_queue3,fenk_experiment_1]",
+         "obj_add_private(npc_coord, fenk_mausoleum_key, 1, ^lootdrop_duration, 100);",
+         "~npc_default_death;", "[oploc1,fenk_mausoleum_door]",
+         "inv_del(inv, fenk_mausoleum_key, 1);", "%fenk_unlocked_cavern = 1;",
+         "[oploc1,fenk_chest_open]", "inv_total(inv, fenk_mausoleum_key) > 0",
+         "inv_freespace(inv) < 1", "You take a key out of the chest.",
+         "loc_coord = ^fenk_ed_grave", "loc_coord = ^fenk_mausoleum_torso_grave",
+         "loc_coord = ^fenk_mausoleum_arms_grave", "loc_coord = ^fenk_mausoleum_legs_grave"),
+        "Creature of Fenkenstrain cave, key and body-part route",
+    )
+    require("npc_add(^fenk_experiment_cave" not in parts,
+            "Creature of Fenkenstrain: memorial must not duplicate a static Experiment")
+    generic_drop = FENK_EXPERIMENT_DROP.read_text()
+    require_text(
+        generic_drop,
+        ("[ai_queue3,fenk_experiment_2]", "[ai_queue3,fenk_experiment_3]",
+         "~npc_default_death;", "conditional 1/4 Experiment bone remains deferred"),
+        "Creature of Fenkenstrain level-25 ordinary drops",
+    )
+    require("fenk_mausoleum_key" not in generic_drop and "rag_experiment_bone" not in generic_drop,
+            "Creature of Fenkenstrain: level-25 Experiments must not leak quest keys or deferred bones")
+    require_text(
+        FENK_GENERATED_COMBAT.read_text(),
+        ("[fenk_experiment_1]", "hitpoints=40", "attack=40", "strength=50",
+         "defence=50", "magic=1", "ranged=1", "respawnrate=8",
+         "param=attackrate,4", "param=damagetype,0", "param=stabattack,0",
+         "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0",
+         "param=magicdefence,0", "param=rangedefence,0", "param=death_drop,bones"),
+        "Creature of Fenkenstrain level-51 Experiment combat row",
+    )
+    require_text(
+        FENK_LIGHTNING.read_text(),
+        ("[oploc1,fenk_shed_door]", "inv_total(inv, fenk_shed_key) < 1",
+         "%fenk_unlocked_shed = 1;", "inv_add(inv, fenk_cane, 1);",
+         "inv_total(inv, bronzecraftwire) < 1", "inv_del(inv, bronzecraftwire, 1);",
+         "if (loc_coord ! 1_55_55_24_35)", "[proc,fenk_try_cast_conductor]()(boolean)",
+         "stat(crafting) < ^fenk_craft_req", "inv_del(inv, silver_bar, 1);",
+         "stat_advance(crafting, 500);"),
+        "Creature of Fenkenstrain shed, brush and conductor route",
+    )
+    require_text(
+        FENK_SMELTING.read_text(),
+        ("case silver_bar :", "if (~fenk_try_cast_conductor = true)", "@craft_silver;"),
+        "Creature of Fenkenstrain real-furnace integration",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -3419,10 +3515,11 @@ def main() -> int:
         check_haunted_mine()
         check_troll_romance()
         check_in_search_of_the_myreque()
+        check_creature_of_fenkenstrain()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance and In Search of the Myreque (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque and Creature of Fenkenstrain (ok)")
     return 0
 
 

@@ -1214,6 +1214,7 @@ static const int k_transcribed_osrs239[] = {
      * 0"), which is the guard working rather than a packet to wave through.
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+    PKT_NAME_SET_ACTIVE_WORLD,
 
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
@@ -1365,6 +1366,7 @@ mock230_wire_pkt_name(int pkt_name)
     case PKT_NAME_RESET_ANIMS: return "RESET_ANIMS";
     case PKT_NAME_UPDATE_REBOOT_TIMER: return "UPDATE_REBOOT_TIMER";
     case PKT_NAME_HINT_ARROW: return "HINT_ARROW";
+    case PKT_NAME_SET_ACTIVE_WORLD: return "SET_ACTIVE_WORLD";
     /* A `?` here is not cosmetic: this switch is what the "not transcribed"
      * report prints, so a name missing from it turns a work item into an
      * anonymous one. */
