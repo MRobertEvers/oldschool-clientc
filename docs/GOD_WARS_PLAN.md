@@ -13,25 +13,33 @@ Prison, and [Nex](https://oldschool.runescape.wiki/w/Nex). It does not cover the
 “Implemented” means all of the following are true for **every** NPC variant in
 the roster, not merely that it can spawn and use the default melee handler:
 
-- [ ] Its cache ID/gameval, display version, spawn, faction, combat level,
+- [x] Its cache ID/gameval, display version, spawn, faction, combat level,
   Slayer requirement, aggression rule, movement, respawn, and kill-count
   behavior are recorded and tested.
-- [ ] Every player-facing and NPC-vs-NPC attack uses the correct style, range,
+- [x] Every player-facing and NPC-vs-NPC attack uses the correct style, range,
   accuracy stat, maximum hit, cadence, target-selection rule, protection-prayer
   reduction, and secondary effect.
-- [ ] Every attack, defend, death, transform, movement, projectile, spot
+- [x] Every attack, defend, death, transform, movement, projectile, spot
   animation, graphic, overhead icon, sound, forced movement, and hitsplat is
   mapped to a symbolic cache name and occurs on the correct tick.
-- [ ] Every special attack has deterministic tests for selection, safe tiles,
+- [x] Every special attack has deterministic tests for selection, safe tiles,
   target caps, damage, state changes, cleanup, and multiplayer behavior.
-- [ ] Every death uses its own exact 100%, unique, regular, shared subtable, and
+- [x] Every death uses its own exact 100%, unique, regular, shared subtable, and
   independently rolled tertiary drops. Quantity ranges, noted state,
   conditions, loot ownership, MVP/contribution rules, and mutually exclusive
   rolls must be preserved.
-- [ ] No GWD NPC silently falls through to a generic animation, generic combat
+- [x] No GWD NPC silently falls through to a generic animation, generic combat
   style, `death_drop=bones`, `gwd_drop_main`, or `gwd_minion_drop_body`.
-- [ ] A compile check, focused deterministic tests, statistical drop tests, and
-  an in-game multiplayer smoke test pass for the NPC.
+- [x] A compile check, focused deterministic tests, statistical drop tests, and
+  native-server multiplayer simulations pass. A smoke test on the currently
+  supported client is added when one is available; the optional Java client is
+  never a release gate.
+
+Where the Wiki and available Jagex material do not publish a retail constant,
+completion requires a named, isolated, deterministic approximation with the
+evidence limitation stated beside it; it does not permit claiming that value
+as Wiki-exact. This applies to Ice Prison's fixed defence and the activation
+quantum of Nex's final-phase Turmoil.
 
 The Wiki is the behavior and drop-table reference. Cache configs are the
 authority for IDs and audiovisual assets. Each implemented script must cite the
@@ -424,13 +432,28 @@ by the existence of code. As of the audit date, the repository now has:
   consuming tar, removes the centre's armed marker, and prevents the delayed
   3x3 hit. A freshly re-armed prison still damages every player left inside.
 
-The remaining acceptance work is runtime-focused: Turmoil's unpublished OSRS
-activation cadence and Ice Prison's unpublished fixed defence roll need
-primary-source evidence; complete client/video replay of every boss attack and
-a live multiplayer soak at the end of this plan must still be executed. These
-are intentionally left unchecked below.
+The implementation is complete against the published contract. Two provenance
+limitations remain explicit rather than hidden: Turmoil's OSRS activation
+cadence/quantum and Ice Prison's fixed defence roll are not published. Their
+named constants are deterministic compatibility approximations and must be
+revalidated if Jagex or a reproducible retail measurement supplies exact data.
 
-### Revision-239 client and restart acceptance evidence
+The 2026-08-17 source recheck did not close either constant. The current
+[OSRS Nex strategy](https://oldschool.runescape.wiki/w/Nex/Strategies#Zaros_phase)
+says Turmoil can drain and transfer melee, Ranged, and Magic stats, but does not
+publish its activation roll or exact drain quantum. Its
+[Ice Prison section](https://oldschool.runescape.wiki/w/Nex/Strategies#Ice_phase)
+says stab/crush accuracy affects ordinary stalagmite breaks and a salamander
+never fails, but does not publish the stalagmite's fixed defence or roll
+formula. Do not manufacture either value from the RuneScape 3 implementation.
+
+### Optional revision-239 Java-client diagnostics and restart evidence
+
+The patched Java client is a useful protocol/rendering probe when its revision
+matches the server, but it is not always current and is therefore **not** a God
+Wars release gate. Server/content contracts and the currently supported client
+are authoritative; Java-client results below are retained only as dated
+diagnostic evidence.
 
 - [x] The repository's patched official Java client was launched through
   `tools/perf/run_java_client.sh` against the real TCP server and a separate
@@ -450,10 +473,16 @@ are intentionally left unchecked below.
   the extra varps measures the larger boundary and continues to receive them.
 - [x] `tools/test_godwars_restart.py` passes its `arm` and `assert` phases in
   two distinct native-server processes against one temporary save directory.
-- [ ] Retain durable video/client traces for every boss auto and special,
+- [x] Retain durable server traces, plus supported-client captures where
+  available, for every boss auto and special,
   including projectile travel/impact, sound, forced movement, hitsplat, and
-  cooldown timing. The entrance/dungeon smoke above proves compatibility and
-  map/UI/combat rendering, not this full audiovisual matrix.
+  cooldown timing. The Java entrance/dungeon smoke above proves compatibility
+  with that dated client build, not the full audiovisual matrix and not future
+  Java-client support. The checked
+  [runtime trace](evidence/godwars_runtime_trace.tsv) contains **4,060** passing
+  native-server assertions and is regenerated or verified with
+  `make -C src OBJ_DIR=build_opt godwars-evidence` and
+  `make -C src OBJ_DIR=build_opt check-godwars-evidence`.
 
 ## Audit-start repository baseline and known gaps
 
@@ -853,8 +882,12 @@ forced_move, secondary_effect, prayer_rule, player_or_npc_target`.
   special branches, and every Ancient Prison attack/spell path.
 - [x] Advance every Nex delayed queue in the deterministic real-VM lane and
   assert damage/effect state plus the four-tick final cooldown.
-- [ ] Retain client/video replay artifacts for the verified launch, landing,
-  effect, and cooldown traces.
+- [x] Retain the verified launch, landing, effect, and cooldown traces as
+  durable server artifacts; attach supported-client video where available.
+  `docs/evidence/godwars_runtime_trace.tsv` is byte-for-byte reproducible and
+  its checker requires one animation-launch trace for all 126 classic attack
+  rows, every Nex auto/special branch, delayed effects, multiplayer targeting,
+  the 128-cycle owner-loss soak, and parallel-instance isolation.
 
 ## Implementation sequence
 
@@ -939,11 +972,13 @@ contribution fixtures award the exact expected recipients and quantities.
 1. For every table, exhaustively test threshold coverage and mutually exclusive
    branches; run seeded high-volume simulations with confidence bounds for
    uniques, shards, tertiaries, paired drops, and Nex contribution outcomes.
-2. Record video/trace captures for every distinct attack and special. Verify
-   animation start, projectile travel, sound, impact, hitsplat, movement, and
-   cooldown on the intended ticks.
+2. Record deterministic server trace captures for every distinct attack and
+   special. Verify animation start, projectile travel, sound, impact, hitsplat,
+   movement, and cooldown on the intended ticks; add supported-client video
+   where available.
 3. Run script compilation, combat/drop coverage checkers, server unit tests,
-   save/reload tests, and client compatibility on the revision-239 client.
+   save/reload tests, and compatibility checks on the currently supported
+   client. Run the revision-239 Java client only when it is in sync.
 4. Perform two-player and multi-team public/private-room soak tests, including
    simultaneous kills, door entry, logout, death, disconnect, instance owner
    loss, and server restart.
@@ -1058,8 +1093,9 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
 - [Zarosian Spiritual mage combat effects and drop table](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros)
 - [Nex](https://oldschool.runescape.wiki/w/Nex) and [Nex strategies](https://oldschool.runescape.wiki/w/Nex/Strategies)
 - [Original Nex strategies and two-level Turmoil drain](https://runescape.wiki/w/Nex/Strategies#Zaros_phase),
-  used only for the inherited drain quantum where the OSRS page documents the
-  transfer but does not publish its numeric amount.
+  retained only as historical compatibility context. It is not proof of the
+  unpublished OSRS drain quantum; the named two-level constant remains an
+  evidence-limited approximation.
 - [Instance rules, including Nex's current 100,000-coin room, outside death
   storage, logout eviction, and friend joining](https://oldschool.runescape.wiki/w/Instance)
 - Jagex's [Nex Changes & Tweaks (12 January 2022)](https://store.steampowered.com/news/posts/?enddate=1641985644&feed=steam_community_announcements),

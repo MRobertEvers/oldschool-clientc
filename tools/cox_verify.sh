@@ -110,8 +110,9 @@ if [ -n "$CONTENT_ROOT" ]; then
 else
     out=$(./src/build_opt/mock230 --selftest 2>&1 || true)
 fi
-if echo "$out" | grep -q "Chambers of Xeric"; then
-    echo "$out" | grep "Chambers of Xeric"
+COX_FAIL='Chambers of Xeric|::cox|entering CoX|leaving CoX'
+if echo "$out" | grep -qE "$COX_FAIL"; then
+    echo "$out" | grep -E "$COX_FAIL"
     echo "RESULT: CoX selftest FAILED"
     exit 1
 fi

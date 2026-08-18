@@ -11854,6 +11854,103 @@ mock230_world_tick(struct Mock230Server* srv)
 /* ------------------------------------------------------------------ */
 
 static int g_selftest_failures;
+static unsigned long g_selftest_checks;
+static FILE* g_selftest_evidence;
+
+/*
+ * Optional durable evidence for long, stateful suites such as God Wars.
+ *
+ * stderr remains deliberately failure-only: making every successful runtime
+ * assertion noisy would bury the first useful error in ordinary development.
+ * `MOCK230_SELFTEST_EVIDENCE=/path` instead records every assertion in a
+ * deterministic TSV file. A separate checker can then prove that a retained
+ * run covered every manifest row and named boss branch, rather than treating
+ * one final "0 failures" line as evidence for hundreds of mechanics.
+ */
+static void
+selftest_evidence_field(FILE* out, const char* text)
+{
+    const unsigned char* p = (const unsigned char*)(text ? text : "");
+
+    while( *p )
+    {
+        switch( *p )
+        {
+        case '\\': fputs("\\\\", out); break;
+        case '\t': fputs("\\t", out); break;
+        case '\r': fputs("\\r", out); break;
+        case '\n': fputs("\\n", out); break;
+        default: fputc(*p, out); break;
+        }
+        p++;
+    }
+}
+
+static int
+selftest_evidence_begin(const struct Mock230Wire* wire)
+{
+    const char* path = getenv("MOCK230_SELFTEST_EVIDENCE");
+
+    g_selftest_checks = 0;
+    g_selftest_failures = 0;
+    g_selftest_evidence = NULL;
+    if( !path || !path[0] )
+        return 1;
+    g_selftest_evidence = fopen(path, "wb");
+    if( !g_selftest_evidence )
+    {
+        fprintf(stderr, "mock230 selftest: cannot write evidence %s\n", path);
+        return 0;
+    }
+    fputs("mock230-selftest-evidence-v1\nwire\t", g_selftest_evidence);
+    selftest_evidence_field(
+        g_selftest_evidence, wire && wire->name ? wire->name : "unknown");
+    fputs("\nindex\tstatus\tmessage\n", g_selftest_evidence);
+    return 1;
+}
+
+static void
+selftest_evidence_end(const char* scope)
+{
+    if( !g_selftest_evidence )
+        return;
+    fputs("summary\t", g_selftest_evidence);
+    selftest_evidence_field(g_selftest_evidence, scope);
+    fprintf(g_selftest_evidence, "\t%lu\t%d\n", g_selftest_checks,
+            g_selftest_failures);
+    fclose(g_selftest_evidence);
+    g_selftest_evidence = NULL;
+}
+
+static void
+selftest_check(
+    int passed,
+    const char* expression,
+    const char* file,
+    int line,
+    const char* format,
+    ...)
+{
+    char message[2048];
+    va_list ap;
+
+    va_start(ap, format);
+    vsnprintf(message, sizeof(message), format, ap);
+    va_end(ap);
+    g_selftest_checks++;
+    if( g_selftest_evidence )
+    {
+        fprintf(g_selftest_evidence, "%06lu\t%s\t", g_selftest_checks,
+                passed ? "PASS" : "FAIL");
+        selftest_evidence_field(g_selftest_evidence, message);
+        fputc('\n', g_selftest_evidence);
+    }
+    if( passed )
+        return;
+    fprintf(stderr, "  FAIL %s\n       (%s at %s:%d)\n", message,
+            expression, file, line);
+    g_selftest_failures++;
+}
 
 /*
  * The three varps this server keeps its own bookkeeping in.
@@ -11880,12 +11977,11 @@ enum
 #define SELFTEST_CHECK(cond, ...)                                                                  \
     do                                                                                             \
     {                                                                                              \
-        if( !(cond) )                                                                              \
-        {                                                                                          \
-            fprintf(stderr, "  FAIL " __VA_ARGS__);                                                \
-            fprintf(stderr, "\n       (%s at %s:%d)\n", #cond, __FILE__, __LINE__);                \
-            g_selftest_failures++;                                                                 \
-        }                                                                                          \
+        int selftest_passed_ = (cond) != 0;                                                        \
+        if( !selftest_passed_ || g_selftest_evidence )                                             \
+            selftest_check(selftest_passed_, #cond, __FILE__, __LINE__, __VA_ARGS__);              \
+        else                                                                                       \
+            g_selftest_checks++;                                                                  \
     } while( 0 )
 
 /*
@@ -13661,6 +13757,8 @@ mock230_world_selftest(void)
         if( rev_name )
             fprintf(stderr, "mock230 selftest: wire %s\n", srv->wire->name);
     }
+    if( !selftest_evidence_begin(srv->wire) )
+        return 1;
     /* Shop definitions were parsed once at boot (global tables); this srv is
      * a fresh, just-memset instance and needs its own shared containers seeded
      * from them, same as any other boot path. */
@@ -13783,6 +13881,7 @@ mock230_world_selftest(void)
             fprintf(stderr,
                     "mock230 God Wars restart %s: %d failure(s)\n",
                     restart_phase, g_selftest_failures);
+            selftest_evidence_end("godwars-restart");
             return g_selftest_failures;
         }
     }
@@ -21975,6 +22074,7 @@ mock230_world_selftest(void)
         }
         fprintf(stderr, "mock230 God Wars focused selftest: %d failure(s)\n",
                 g_selftest_failures);
+        selftest_evidence_end("godwars-focused");
         return g_selftest_failures;
     }
 
@@ -50525,5 +50625,6 @@ mock230_world_selftest(void)
         fprintf(stderr, "mock230 selftest: %d failure(s)\n", g_selftest_failures);
     else
         fprintf(stderr, "mock230 selftest: all checks passed\n");
+    selftest_evidence_end("full");
     return g_selftest_failures;
 }

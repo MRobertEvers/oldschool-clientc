@@ -1,22 +1,33 @@
 # Theatre of Blood — full implementation plan
 
-> **Status, 17 August 2026: the raid runs end to end, solo. Steps 2, 4, 5, 6,
-> 8, 9, 10, 11, 12 and 17 have landed.** `minigame_tob/` is 4 configs and 9
-> scripts; the tree compiles (25,675 scripts) and `::tobrun` reports **OK — 14
-> checks passed**.
+> **Status, 17 August 2026: the raid is implemented end to end, solo.**
+> `minigame_tob/` is 4 configs and 14 scripts; the tree compiles (26,325
+> scripts) and `::tobrun` reports **OK - 14 checks passed**, proven able to fail.
 >
-> **Live:** instancing and room progression through all six rooms with one
-> instance held at a time; every boss's real attack clock (Maiden 10, Bloat's
-> 32-tick down with the stomp at +29 and the rise at +33, Nylocas' 4-tick cycle
-> driving the 120-row spawn table with cap stalls, Sotetseg 5 with the
-> death-ball counter, Xarpus 7-then-4 and the 8-tick stare, Verzik 14 / 4 / 7→5
-> with the four-special rotation); Maiden's thresholds, crab spawn set and leak
-> counter; the Sotetseg maze seed generator.
+> | Step | State |
+> |---|---|
+> | 1 stat/combat blocks | generated blocks already existed for the six bosses |
+> | 2 `tob.constant` | **done** - every id, tile, tick, threshold, each with a provenance tag or an `[Mn]` |
+> | 3 party | **model done** - ordered 5-slot list in instance registers, orb order, mode choice, Hard Mode gate. The lobby *board* (invites, ready check) is interface work and is not built |
+> | 4 instancing | **done** - one room instance at a time, plus a second for the shadow realm; progression by watchdog |
+> | 5 Maiden | **done** - 10-tick clock, 70/50/30 thresholds, uniform random crab subset, leak counter, blood splats (11 ticks), blood spawns and trails |
+> | 6 Bloat | **done** - 32-tick down, stomp at +29, rise at +33, walk clock with the unattacked bonus, turn cooldown, per-tick flies, falling hands, half damage while walking |
+> | 7 supply chests | **done** - points by performance, carried between the two chests, the eight-item list, and the onion for a player who died in both preceding rooms |
+> | 8 Nylocas | **done** - 4-tick cycle over the 120-row table, cap stalls, pillars and the wipe condition, 52-tick self-destruct, nulling and reflect |
+> | 9-10 Sotetseg | **done** - 5-tick, +1-tick melee hitsplat, death ball on the 10th magic, maze generator, shadow realm as a second instance, rag damage |
+> | 11 Xarpus | **done** - exhumed budget, first spit +7 then every 4, screech, 8-tick stare |
+> | 12 Verzik | **done** - 14/4/7->5, reds at 35%, the four-special rotation, webs, yellows, tornadoes, the P1 shield cap with the Dawnbringer exemption |
+> | 13 vault and drops | **done** - unique roll by mode, weighted table, three common rolls |
+> | 14 performance board | **done** - deaths, challenge time and overall time, kept apart because the records use one and the Hard Mode reward threshold uses the other |
+> | 15 Combat Achievements | **done** - tasks 237-260 through the tree's own `~ca_task_complete`, with real ids taken from each task's wiki page. The six `Perfect` flags are cleared by damage rather than set by its absence, so an unimplemented mechanic cannot award a task |
+> | 16 Entry/Hard deltas | **threaded** - mode reaches every room; several deltas live, not all |
+> | 17 `::tobrun` | **done** - 14 checks, wired into `mock230 --selftest` |
 >
-> **Not live, and each says so in the file that owns it:** blood splats and
-> spawns, the Nylocas pillars, the shadow-realm maze itself (the second
-> instance), Verzik's webs/yellows/tornado behaviour, wrong-style nulling and
-> reflect, the P1 damage cap, the party system, loot and Combat Achievements.
+> Known-approximate, each tagged in the file that owns it: the nylo->pillar
+> assignment (M24), Bloat's near-side line of sight and fly spread (M33),
+> Sotetseg's projectile split (M34), Verzik's melee-chance predicate (M28) and
+> hard-NPC webs (M35), the yellow-pool occupancy test (M36), and true over-hit
+> damage (M32).
 >
 > What is in the tree:
 >

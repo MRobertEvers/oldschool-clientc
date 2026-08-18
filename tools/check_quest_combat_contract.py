@@ -234,6 +234,15 @@ FENK_CONSTANT = CONTENT / "quests/quest_fenkenstrain/configs/fenkenstrain.consta
 FENK_EXPERIMENT_DROP = CONTENT / "drop_tables/scripts/wiki_experiment.rs2"
 FENK_SMELTING = CONTENT / "skill_smithing/scripts/smelting/smelting.rs2"
 FENK_GENERATED_COMBAT = CONTENT / "npc/configs/combat_stats.generated.npc"
+ROVING_CONSTANT = CONTENT / "quests/quest_rovingelves/configs/quest_rovingelves.constant"
+ROVING_MOSS = CONTENT / "quests/quest_rovingelves/scripts/rovingelves_mossgiant.rs2"
+ROVING_SEED = CONTENT / "quests/quest_rovingelves/scripts/rovingelves_seed.rs2"
+ROVING_ELUNED = CONTENT / "quests/quest_rovingelves/scripts/rovingelves_eluned.rs2"
+ROVING_ISLWYN = CONTENT / "quests/quest_rovingelves/scripts/rovingelves_islwyn.rs2"
+ROVING_WATERFALL_LOCS = CONTENT / "quests/quest_waterfall/scripts/quest_waterfall_locs.rs2"
+ROVING_LEVEL_REQUIRE = CONTENT / "skill_combat/scripts/levelrequire.rs2"
+ROVING_GENERATED_COMBAT = CONTENT / "npc/configs/combat_stats.generated.npc"
+CATEGORY_PACK = ROOT / "OSRS-Content/osrs239-content/pack/category.pack"
 COMBAT_STATS = CONTENT / "skill_combat/combat_stats.rs2"
 PLAYER_DEATH = CONTENT / "player/death.rs2"
 PLAYER_LOGOUT = CONTENT / "player/logout.rs2"
@@ -508,6 +517,18 @@ def check_manifest() -> None:
     require({15292324, 15087904, 15263305, 15199186, 15184609,
              15201910, 14684724} <= revisions,
             "Creature of Fenkenstrain: pinned Wiki audit set drifted")
+    roving = [row for row in rows if row["id"] == "quest-roving-elves"]
+    require(len(roving) == 1,
+            "manifest: expected exactly one Roving Elves row")
+    require(roving[0]["implementation_status"] == "implementation-in-progress",
+            "Roving Elves: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(roving[0][key]), f"Roving Elves: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in roving[0]["source_audits"]}
+    require({15292285, 14458305, 15272093, 15199663, 15267068,
+             15184516, 15201942, 15292719, 15291690} <= revisions,
+            "Roving Elves: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3487,6 +3508,147 @@ def check_creature_of_fenkenstrain() -> None:
     )
 
 
+def check_roving_elves() -> None:
+    require_text(
+        ROVING_CONSTANT.read_text(),
+        (
+            "^rovingelves_islwyn_coord = 0_35_49_51_11",
+            "^rovingelves_eluned_coord = 0_35_49_49_9",
+            "^rovingelves_chalice_coord = 0_40_154_43_54",
+            "^rovingelves_bow_price = 900000",
+            "^rovingelves_shield_price = 750000",
+            "^rovingelves_reward_charges = 500",
+            "^rovingelves_full_charges = 2500",
+        ),
+        "Roving Elves exact route, reward and charge constants",
+    )
+    require_text(
+        CATEGORY_PACK.read_text(),
+        (
+            "46=trail_clue_easy", "47=trail_clue_hard",
+            "48=trail_clue_hard_challenge", "50=trail_clue_hard_puzzle",
+            "51=trail_clue_medium", "52=trail_clue_medium_challenge",
+            "180=trail_clue_medium_key", "750=trail_clue_elite_step",
+            "959=trail_clue_master_puzzle",
+        ),
+        "Roving Elves tomb clue-category coverage",
+    )
+    waterfall = ROVING_WATERFALL_LOCS.read_text()
+    require_text(
+        waterfall,
+        (
+            "[proc,waterfall_tomb_item_forbidden]",
+            "case magic_runes, firemaking_logs, arrowheads",
+            "weapon_pickaxe", "trail_clue_master_puzzle",
+            "case arrow_shaft, feather, headless_arrow, bow_string, knife, needle",
+            "if ($obj = bh_rune_pouch | $obj = goblin_rpg)",
+            "case monkrobetop, monkrobebottom",
+            "[proc,waterfall_tomb_forbidden_loadout]",
+            "while ($slot < inv_size(inv))", "while ($slot < inv_size(worn))",
+            "[proc,waterfall_can_enter_glarials_tomb]",
+            "[oplocu,glarials_tombstone_waterfall_quest]",
+            "if (%waterfall_quest = ^waterfall_complete | inv_total(worn, glarials_amulet_waterfall_quest) > 0 | inv_total(inv, glarials_amulet_waterfall_quest) > 0)",
+            "[oploc1,baxtorian_crate_waterfall_quest]",
+            "inv_add(inv, baxtorian_key_waterfall_quest, 1);",
+        ),
+        "Roving Elves Glarial tomb and post-Waterfall route",
+    )
+    generated = ROVING_GENERATED_COMBAT.read_text()
+    moss_row = generated.split("[roving_mossgiant]", 1)[1].split("\n[", 1)[0]
+    require_text(
+        moss_row,
+        (
+            "hitpoints=120", "attack=60", "strength=60", "defence=60",
+            "magic=1", "ranged=1", "respawnrate=10", "huntmode=aggressive",
+            "param=attackrate,6", "param=damagetype,2",
+            "param=crushattack,66", "param=strengthbonus,62",
+            "param=stabdefence,0", "param=slashdefence,0",
+            "param=crushdefence,0", "param=magicdefence,0",
+            "param=rangedefence,0", "param=death_drop,big_bones",
+        ),
+        "Roving Elves Moss Guardian combat row",
+    )
+    moss = ROVING_MOSS.read_text()
+    require_text(
+        moss,
+        (
+            "[opnpc2,roving_mossgiant]", "[apnpc2,roving_mossgiant]",
+            "~waterfall_tomb_forbidden_loadout()",
+            "[ai_opplayer2,roving_mossgiant]",
+            "def_int $attack_roll = ~npc_melee_attack_roll(^crush_style);",
+            "~player_defence_roll(^crush_style)",
+            "~player_defence_roll(^magic_style)",
+            "spotanim_pl(roving_mossgiant_impact, 92, 0);",
+            "~playerhit_n_melee_bypass_prayer(^magic_style",
+            "npc_attackdelay(6);", "[ai_queue3,roving_mossgiant]",
+            "npc_findhero", "p_finduid(uid)",
+            "obj_add_private(npc_coord, roving_old_consecration_seed, 1",
+            "%rovingelves_quest = ^rovingelves_obtained_old_seed;",
+            "if (random(400) = 0)", "dorgesh_construction_bone",
+            "if (random(10025) < 2)", "dorgesh_construction_bone_curved",
+            "~npc_default_death;",
+        ),
+        "Roving Elves credited Guardian combat and loot",
+    )
+    require("@wiki_moss_giant_drop" not in moss and "@moss_giant_drop" not in moss,
+            "Roving Elves: Moss Guardian must not use a generic moss-giant table")
+    eluned = ROVING_ELUNED.read_text()
+    require_text(
+        eluned,
+        (
+            "[proc,rovingelves_eluned_login]", "%roving_female_woodelf = 2;",
+            "[opnpc1,roving_female_woodelf]", "[opnpc1,eluned_prif]",
+            "inv_del(inv, roving_old_consecration_seed, 1);",
+            "inv_add(inv, roving_new_consecration_seed, 1);",
+            "if (inv_total(inv, roving_new_consecration_seed) = 0)",
+            "if (inv_freespace(inv) < 1)",
+        ),
+        "Roving Elves Eluned transform, enchantment and recovery",
+    )
+    require_text(
+        ROVING_SEED.read_text(),
+        (
+            "[opheld1,roving_new_consecration_seed]",
+            "if (inv_total(inv, spade) < 1)",
+            "inzone(^rovingelves_chalice_zone_min, ^rovingelves_chalice_zone_max, coord)",
+            "loc_find(^rovingelves_chalice_coord, baxtorian_chalice_waterfall_quest)",
+            "inv_del(inv, roving_new_consecration_seed, 1);",
+            "%rovingelves_quest = ^rovingelves_seed_planted;",
+            "loc_add(^rovingelves_chalice_coord, roving_crystal_growth, 0, centrepiece_straight, 20);",
+        ),
+        "Roving Elves spade, Chalice and growth ritual",
+    )
+    islwyn = ROVING_ISLWYN.read_text()
+    require_text(
+        islwyn,
+        (
+            "[proc,rovingelves_islwyn_login]", "%roving_bowyer = 2;",
+            "if (%regicide_quest ! ^regicide_complete | %waterfall_quest ! ^waterfall_complete)",
+            "~p_choice3(\"Shields are for wimps! Give me the bow!\"",
+            "inv_add(inv, crystal_bow, 1);",
+            "inv_add(inv, crystal_shield, 1);",
+            "~crystal_set_charges(inv, crystal_bow, ^rovingelves_reward_charges);",
+            "~crystal_set_charges(inv, crystal_shield, ^rovingelves_reward_charges);",
+            "[opnpc3,roving_bowyer]", "[opnpc3,roving_islwyn_2ops]",
+            "def_int $price = ^rovingelves_bow_price;",
+            "$price = ^rovingelves_shield_price;",
+            "~crystal_set_charges(inv, $item, ^rovingelves_full_charges);",
+        ),
+        "Roving Elves crystal reward and fixed-price purchases",
+    )
+    require("npc_add(" not in islwyn and "npc_add(" not in eluned,
+            "Roving Elves: cache-authored camp NPCs must not be duplicated")
+    require_text(
+        ROVING_LEVEL_REQUIRE.read_text(),
+        (
+            "case crystal_bow, crystal_bow_2500, crystal_shield, crystal_shield_2500",
+            "roving_crystal_bow_new", "roving_crystal_shield_new",
+            "if (%rovingelves_quest < ^rovingelves_complete)",
+        ),
+        "Roving Elves crystal equipment completion gate",
+    )
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -3516,10 +3678,11 @@ def main() -> int:
         check_troll_romance()
         check_in_search_of_the_myreque()
         check_creature_of_fenkenstrain()
+        check_roving_elves()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque and Creature of Fenkenstrain (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain and Roving Elves (ok)")
     return 0
 
 

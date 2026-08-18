@@ -591,7 +591,7 @@ endif
 .PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 test-mock230-poh check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract test-construction-catalog test-poh-quest-status bench-uitree test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
-.PHONY: check-gauntlet-contract test-poh-menagerie
+.PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -2155,6 +2155,23 @@ check-godwars-manifest:
 check-godwars-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_godwars_contract.py
 
+# These targets consume the already-compiled full content pack. Keeping the
+# script build separate lets a God Wars evidence run diagnose its own lane even
+# when an unrelated content contract blocks the aggregate mock230-scripts gate.
+.PHONY: godwars-evidence check-godwars-evidence test-godwars-restart
+godwars-evidence: mock230 check-godwars-manifest check-godwars-contract
+	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --skip-contracts \
+		--server src/$(OBJ_DIR)/mock230
+
+check-godwars-evidence: mock230 check-godwars-manifest check-godwars-contract
+	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --check --skip-contracts \
+		--server src/$(OBJ_DIR)/mock230
+
+test-godwars-restart: mock230
+	@cd $(REPO_ROOT) && python3 tools/test_godwars_restart.py \
+		--server src/$(OBJ_DIR)/mock230 \
+		--scripts OSRS-Content/osrs239-content/server/scripts/build
+
 check-quest-combat-manifest:
 	@cd $(REPO_ROOT) && python3 tools/generate_quest_combat_manifest.py --check
 
@@ -2176,6 +2193,9 @@ test-poh-quest-status:
 
 test-poh-menagerie:
 	@cd $(REPO_ROOT) && python3 tools/check_poh_menagerie.py
+
+test-poh-league-hall:
+	@cd $(REPO_ROOT) && python3 tools/check_poh_league_hall.py
 
 test-mock230-poh: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_poh_test \

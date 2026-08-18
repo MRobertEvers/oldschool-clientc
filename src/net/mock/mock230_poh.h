@@ -13,10 +13,12 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 7,
+    MOCK230_POH_SCHEMA_VERSION = 8,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
+    /* Twelve complete house-style template planes in revision 239. */
+    MOCK230_POH_STYLE_MAX = 11,
     MOCK230_POH_GROUND_LEVEL = 1,
     MOCK230_POH_UPPER_LEVEL = 2,
     /* https://oldschool.runescape.wiki/w/Servant%27s_money_bag */
@@ -29,6 +31,8 @@ enum
     MOCK230_POH_DUMMY_VARIANT_MASK_MAX = 0x1f,
     /* https://oldschool.runescape.wiki/w/Update:Poll_78:_Near-Miss_%26_Skilling_Improvements */
     MOCK230_POH_GAMES_PRIZE_MAX = 100000,
+    /* Permanent wall-kit entitlements: Deathly, Hosidius and Cosy Cabin. */
+    MOCK230_POH_STYLE_UNLOCK_MASK_MAX = 0x7,
 };
 
 enum Mock230PohField
@@ -62,6 +66,7 @@ enum Mock230PohField
     MOCK230_POH_FIELD_BOSS_JARS = 26,
     MOCK230_POH_FIELD_DUMMY_VARIANTS = 27,
     MOCK230_POH_FIELD_GAMES_PRIZE_COINS = 28,
+    MOCK230_POH_FIELD_STYLE_UNLOCKS = 29,
 };
 
 enum Mock230PohRoomField
@@ -131,6 +136,7 @@ struct Mock230PohState
     int boss_jars;
     int dummy_variants;
     int games_prize_coins;
+    int style_unlocks;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

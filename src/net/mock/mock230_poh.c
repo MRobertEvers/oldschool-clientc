@@ -90,6 +90,8 @@ mock230_poh_get(
         return poh->dummy_variants;
     case MOCK230_POH_FIELD_GAMES_PRIZE_COINS:
         return poh->games_prize_coins;
+    case MOCK230_POH_FIELD_STYLE_UNLOCKS:
+        return poh->style_unlocks;
     default:
         return 0;
     }
@@ -114,7 +116,7 @@ mock230_poh_set(
         poh->location = value;
         return 1;
     case MOCK230_POH_FIELD_STYLE:
-        if( value < 0 || value > 31 )
+        if( value < 0 || value > MOCK230_POH_STYLE_MAX )
             return 0;
         poh->style = value;
         return 1;
@@ -242,6 +244,11 @@ mock230_poh_set(
         if( value < 0 || value > MOCK230_POH_GAMES_PRIZE_MAX )
             return 0;
         poh->games_prize_coins = value;
+        return 1;
+    case MOCK230_POH_FIELD_STYLE_UNLOCKS:
+        if( value < 0 || value > MOCK230_POH_STYLE_UNLOCK_MASK_MAX )
+            return 0;
+        poh->style_unlocks = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -535,7 +542,8 @@ mock230_poh_validate(const struct Mock230PohState* poh)
 {
     if( poh->schema_version != MOCK230_POH_SCHEMA_VERSION ||
         !boolean_value(poh->owns_house) || poh->location < 0 || poh->location > 31 ||
-        poh->style < 0 || poh->style > 31 || !boolean_value(poh->locked) ||
+        poh->style < 0 || poh->style > MOCK230_POH_STYLE_MAX ||
+        !boolean_value(poh->locked) ||
         poh->door_mode < 0 || poh->door_mode > 2 ||
         !boolean_value(poh->teleport_inside) ||
         !boolean_value(poh->default_build_mode) || poh->grid_size < 3 ||
@@ -559,6 +567,8 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->dummy_variants > MOCK230_POH_DUMMY_VARIANT_MASK_MAX ||
         poh->games_prize_coins < 0 ||
         poh->games_prize_coins > MOCK230_POH_GAMES_PRIZE_MAX ||
+        poh->style_unlocks < 0 ||
+        poh->style_unlocks > MOCK230_POH_STYLE_UNLOCK_MASK_MAX ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )
