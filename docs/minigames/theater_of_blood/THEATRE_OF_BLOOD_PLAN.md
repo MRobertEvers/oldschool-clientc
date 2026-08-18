@@ -1396,9 +1396,15 @@ Region 12612, area (3162, 4379) 17 × 17. Three phases with three different cloc
 
 | | ≤3 | 4 | 5 |
 |---|---:|---:|---:|
-| Normal | 3810 | 4445 | 5080 |
+| Normal | 3750 | 4375 | 5000 |
 | Hard | 4500 | 5250 | 6000 |
-| Entry | 680 (blert) | | |
+| Entry | **520 per player** (cache + Wiki; blert's 680 is stale) | | |
+
+The Normal ladder is the **cache's own `stat4` (5000) and the Wiki's infobox**,
+scaled 0.75 / 0.875 / 1.0 — the same ladder the Hard figures follow off 6000.
+blert says 3810 / 4445 / 5080, which is that ladder off a base of 5080 and is
+not what either the cache or the Wiki carries. Entry is 520 **per player**
+(§M19), not a flat 680.
 
 Level 960. Defence **250** in Normal, lowered to **200** in Hard Mode. Ranged
 defence +160 across the board; **no melee defence** — which is why a scythe is the
@@ -2104,7 +2110,7 @@ italic values are Wiki prose; anything marked `[Mn]` is unmeasured.
 | Nylocas Prinkipas (size 3, `attackrate` 4) | — | **300 / 350 / 400** | — |
 | Nylocas Vasilias | **1875 / 2187 / 2500** | **1875 / 2187 / 2500** | 360 |
 | Sotetseg | **3000 / 3500 / 4000** | **3000 / 3500 / 4000** | 560 |
-| Xarpus | **3810 / 4445 / 5080** | **4500 / 5250 / 6000** | 680 |
+| Xarpus | **3750 / 4375 / 5000** | **4500 / 5250 / 6000** | 520/player |
 | Verzik P1 | **1500 / 1750 / 2000** | **1500 / 1750 / 2000** | 240 |
 | Verzik P2 / P3 | **2437 / 2843 / 3250** | **2437 / 2843 / 3250** | 320 |
 | Verzik Matomenos | **150 / 175 / 200** | **150 / 175 / 200** | — |

@@ -784,6 +784,20 @@ apply_bridges(void)
 {
 }
 
+/* TEMPORARY DEBUG: raw tile settings + link_below, for the ToB map survey. */
+int
+mock230_scene_debug_settings(int level, int x, int z)
+{
+    int sx = x - g_base_x;
+    int sz = z - g_base_z;
+
+    if( sx < 0 || sx >= SCENE_TILES || sz < 0 || sz >= SCENE_TILES )
+        return -1;
+    if( level < 0 || level >= SCENE_LEVELS )
+        return -1;
+    return g_settings[level][sx][sz] | (g_link_below[sx][sz] ? 0x100 : 0);
+}
+
 /* ------------------------------------------------------------------ */
 /* Build                                                               */
 /* ------------------------------------------------------------------ */
