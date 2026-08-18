@@ -253,8 +253,14 @@ SSC_LanesDiscover(
     assert(content_root);
 
     memset(set, 0, sizeof(*set));
+    /* Normalised before anything is opened. The default root is `<src>/../..`,
+     * and `opendir` resolves `..` through the filesystem — so an intermediate
+     * directory that does not exist makes the whole path unopenable even though
+     * the place it names does exist. Collapsing it here also makes every path
+     * built from it comparable with the ones the source walk builds. */
     snprintf(set->content_root, sizeof(set->content_root), "%s", content_root);
-    snprintf(ported, sizeof(ported), "%s/ported", content_root);
+    lane_normalise(set->content_root);
+    snprintf(ported, sizeof(ported), "%s/ported", set->content_root);
 
     handle = opendir(ported);
     if( !handle )
@@ -292,7 +298,7 @@ SSC_LanesDiscover(
         int read;
 
         snprintf(lane_dir, sizeof(lane_dir), "%s/%s", ported, names[i]);
-        read = lane_read(&set->lanes[set->count], content_root, lane_dir, names[i]);
+        read = lane_read(&set->lanes[set->count], set->content_root, lane_dir, names[i]);
         if( read < 0 )
             return -1;
         if( read > 0 )

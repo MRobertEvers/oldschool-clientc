@@ -486,10 +486,34 @@ struct Mock230NpcDef
         int pause;
     } patrol[MOCK230_NPC_PATROL_MAX];
     int patrol_count;
-    /** The mode an npc starts in and returns to. `MOCK230_NPCMODE_NONE` unless
-     *  the block says otherwise; a `wanderrange` still implies wander, which is
-     *  what every npc without a `defaultmode=` line gets. */
+    /** The mode an npc starts in and returns to. Only meaningful when
+     *  `defaultmode_stated` is set; a `wanderrange` still implies wander, which
+     *  is what every npc without a `defaultmode=` line gets. */
     int defaultmode;
+    /**
+     * Whether a block actually SAID `defaultmode=`.
+     *
+     * Needed because `MOCK230_NPCMODE_NONE` is zero, so "the block asked for
+     * none" and "the block said nothing" were the same value, and
+     * `mock230_world_npc_default_mode` distinguished them with
+     * `if( def->defaultmode != MOCK230_NPCMODE_NONE )`. That test can never be
+     * true for `none`: every `defaultmode=none` line in the tree — 90-odd of
+     * them, most of the Theatre of Blood roster among them — was a no-op, and
+     * the npc silently kept the wander it was trying to turn off.
+     *
+     * It went unnoticed because the npcs that state it usually also state
+     * `moverestrict=nomove`, which zeroes `wander_radius` at spawn and makes
+     * the first branch answer NONE anyway. The ones that must MOVE cannot use
+     * that cover, and they were the ones that broke: a Nylocas Matomenos walked
+     * two tiles at the Maiden and was dragged back to its spawn tile by the
+     * roam it had asked not to have.
+     *
+     * The parser's own comment already promised this: "a `defaultmode` the
+     * engine silently ignored would give an npc the *wander* behaviour under a
+     * config line saying it does something else — which is a config that reads
+     * correct and behaves wrong, the worst outcome available here."
+     */
+    int defaultmode_stated;
 };
 
 /** Definition for an npc type, or NULL when the content tree has no block for

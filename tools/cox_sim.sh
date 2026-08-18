@@ -27,7 +27,6 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 C=OSRS-Content/osrs239-content
-CONST=build/summoning-constants-off
 TRACE=build/cox_sim/trace.txt
 
 TICKS=64
@@ -49,25 +48,11 @@ make -C src mock230 >/dev/null 2>&1 || make -C src mock230
 echo "--- allocate ids ---"
 python3 tools/ss_allocate.py --tree $C >/dev/null
 
-echo "--- stage constants ---"
-python3 tools/stage_summoning_server_constants.py \
-    --src $C/server/scripts --out $CONST --enabled 0 | tail -1
-
 echo "--- compile ---"
 src/build_opt/sscompile \
     --src $C/server/scripts \
     --out $C/server/scripts/build \
-    --pack $C/pack \
-    --pack $C/configs \
-    --pack $C/ported/scape2009_summoning/pack \
-    --pack build/summoning-varbit-stage \
-    --pack $C/ported/rs2012_qbd_td/pack \
-    --pack $C/ported/rs558_ancient_curses/pack \
-    --pack $C/ported/herblore_items/pack \
-    --component-root $C/ported/scape2009_summoning \
-    --component-root $C/ported/scape2009_summoning/interface_overlays \
-    --component-root $C/ported/rs2012_qbd_td \
-    --constants $CONST 2>&1 | tee build/cox_sim/compile.log | tail -2
+    --content-root $C 2>&1 | tee build/cox_sim/compile.log | tail -2
 
 # An unchecked compile is how a harness comes to certify a build that does not
 # exist: sscompile stops at the first error and leaves the previous script.dat
@@ -105,18 +90,12 @@ if ! grep -q "^compiled " build/cox_sim/compile.log; then
         [ -e "$ISO/$d" ] || [ ! -e "$C/$d" ] || ln -s "$(cd $C && pwd)/$d" "$ISO/$d"
     done
     mkdir -p "$ISO/server/scripts/build"
-    python3 tools/stage_summoning_server_constants.py \
-        --src "$ISO/server/scripts" --out "$CONST" --enabled 0 >/dev/null 2>&1
+    # Own `pack/`, shared `configs/`; lanes through the isolated tree's own
+    # `ported` symlink. Same shape as tools/cox_verify.sh's fallback.
     src/build_opt/sscompile --src "$ISO/server/scripts" \
         --out "$ISO/server/scripts/build" \
-        --pack "$ISO/pack" --pack $C/configs \
-        --pack $C/ported/scape2009_summoning/pack --pack build/summoning-varbit-stage \
-        --pack $C/ported/rs2012_qbd_td/pack --pack $C/ported/rs558_ancient_curses/pack \
-        --pack $C/ported/herblore_items/pack \
-        --component-root $C/ported/scape2009_summoning \
-        --component-root $C/ported/scape2009_summoning/interface_overlays \
-        --component-root $C/ported/rs2012_qbd_td \
-        --constants "$CONST" 2>&1 | tee build/cox_sim/compile_iso.log | tail -1
+        --content-root "$ISO" \
+        --pack "$ISO/pack" --pack $C/configs 2>&1 | tee build/cox_sim/compile_iso.log | tail -1
     if ! grep -q "^compiled " build/cox_sim/compile_iso.log; then
         echo "ISOLATED COMPILE FAILED - refusing to report a harness result"
         exit 1
@@ -185,16 +164,11 @@ assert old in s, "mutation target not found - cox_olm.rs2 moved"
 open(p, 'w').write(s.replace(old, "[ai_spawn,olm_head_spawning]\nnpc_settimer(0);", 1))
 PY
     PACKDIR=$C/pack
-    [ -n "$ISO" ] && PACKDIR="$ISO/pack"
+    ROOTDIR=$C
+    [ -n "$ISO" ] && PACKDIR="$ISO/pack" && ROOTDIR="$ISO"
     src/build_opt/sscompile --src $SRC --out $SRC/build \
-        --pack $PACKDIR --pack $C/configs \
-        --pack $C/ported/scape2009_summoning/pack --pack build/summoning-varbit-stage \
-        --pack $C/ported/rs2012_qbd_td/pack --pack $C/ported/rs558_ancient_curses/pack \
-        --pack $C/ported/herblore_items/pack \
-        --component-root $C/ported/scape2009_summoning \
-        --component-root $C/ported/scape2009_summoning/interface_overlays \
-        --component-root $C/ported/rs2012_qbd_td \
-        --constants $CONST > build/cox_sim/compile_mutation.log 2>&1
+        --content-root $ROOTDIR \
+        --pack $PACKDIR --pack $C/configs > build/cox_sim/compile_mutation.log 2>&1
     # CHECKED. An unchecked rebuild here leaves the previous script.dat in place,
     # so the "broken" run is really the good build measured twice -- it passes,
     # and the gate reports itself worthless. That is exactly what happened.

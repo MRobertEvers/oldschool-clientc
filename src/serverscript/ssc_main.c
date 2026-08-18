@@ -522,12 +522,6 @@ main(int argc, char** argv)
         source_roots[source_root_count].weak = 1;
         source_root_count++;
     }
-    /* The seam directory lives under `--src`, so it would otherwise be walked
-     * twice — once as a strong root and once as a weak one, which is a duplicate
-     * of every name in it. */
-    for( i = 0; i < seam_count; i++ )
-        excludes[exclude_count++] = seams[i];
-
     memset(&diag, 0, sizeof(diag));
     if( !SSC_CompileRoots(compiler, source_roots, source_root_count, excludes, exclude_count,
                           &diag) )

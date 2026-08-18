@@ -1470,12 +1470,18 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 #
 # Always -O3, whatever flavor the client is being built in. sscompile is a build
 # tool, not the program under test: it reads ~15k scripts on every content
-# change, and inheriting OPT=0 from a debug client build (or, worse, the ASan
-# flags) turns a five-second step into a minute-long one for no diagnostic gain
-# — nobody debugs the client by stepping through the script compiler. $(CFLAGS)
-# is still the base, so the include paths, the C standard and the warning set
-# stay identical; only the optimisation level is pinned. The trailing -O3 wins
-# because the last -O on a command line is the one gcc and clang obey.
+# change, and inheriting OPT=0 from a debug client build turns a five-second
+# step into a much longer one for no diagnostic gain — nobody debugs the client
+# by stepping through the script compiler. $(CFLAGS) is still the base, so the
+# include paths, the C standard and the warning set stay identical; only the
+# optimisation level is pinned. The trailing -O3 wins because the last -O on a
+# command line is the one gcc and clang obey.
+#
+# The sanitizers are deliberately NOT stripped the same way. ENABLE_ASAN=1 is an
+# explicit ask, and a compiler that reads 15k files is a good place for ASan to
+# find something; -O3 and -fsanitize=address compose. What is being pinned here
+# is the accident (a debug client build slowing the content loop), not the
+# deliberate choice.
 SSC_CFLAGS = $(CFLAGS) -O3
 
 sscompile: $(OBJ_DIR) $(SSC_SRCS) serverscript/ssc_main.c

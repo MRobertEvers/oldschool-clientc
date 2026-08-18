@@ -32,11 +32,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 
 # server/scripts holds both the .rs2 sources sscompile reads (--src) and the
-# build/ and build_summoning/ directories sscompile writes into. Walking the
-# source tree for freshness must prune the two output dirs, or the plain
-# build would always look stale right after the summoning one runs, and vice
-# versa.
-OUTPUT_DIR_NAMES = ("build", "build_summoning")
+# build*/ directories sscompile writes into. Walking the source tree for
+# freshness must prune the output dirs, or the plain build would always look
+# stale right after a lane build runs, and vice versa.
+#
+# By PREFIX, not by a list of names. The list was ("build", "build_summoning"),
+# from when those were the only two packs anyone compiled; `build_curses` and
+# `build_summoning_curses` arrived later and were never added, so each of them
+# made every other pack look stale forever. Now that a pack's output directory
+# is a build parameter (MOCK230_SCRIPT_OUT) rather than one of a fixed few, a
+# list of known names cannot be kept correct at all.
+def is_output_dir(name: str) -> bool:
+    return name == "build" or name.startswith("build_")
 
 STALE, FRESH, ERROR = 0, 1, 2
 
@@ -51,7 +58,7 @@ def oldest_output_mtime(out_dir: Path) -> float | None:
     return min(dat.stat().st_mtime, idx.stat().st_mtime)
 
 
-def newest_under(path: Path, prune: tuple[str, ...] = ()) -> tuple[float, Path] | None:
+def newest_under(path: Path, prune=None) -> tuple[float, Path] | None:
     """The newest (mtime, file) at or below `path`, or None if it has no files."""
 
     if path.is_file():
@@ -61,7 +68,7 @@ def newest_under(path: Path, prune: tuple[str, ...] = ()) -> tuple[float, Path] 
     newest: tuple[float, Path] | None = None
     for parent, dirs, files in os.walk(path):
         if prune:
-            dirs[:] = [d for d in dirs if d not in prune]
+            dirs[:] = [d for d in dirs if not prune(d)]
         for name in files:
             member = Path(parent) / name
             try:
@@ -75,19 +82,23 @@ def newest_under(path: Path, prune: tuple[str, ...] = ()) -> tuple[float, Path] 
     return newest
 
 
-def inputs_for(tree: Path, extra: list[Path]) -> list[tuple[Path, tuple[str, ...]]]:
+def inputs_for(tree: Path, extra: list[Path]) -> list[tuple[Path, object]]:
     # The lane component-roots are walked whole rather than limited to their
     # `pack`/`configs`/`interface_overlays` subdirectories: sscompile only
     # reads a subset of each lane, but a broader freshness check only ever
     # costs an unnecessary rebuild, never a missed one.
     paths = [
-        (tree / "server" / "scripts", OUTPUT_DIR_NAMES),
-        (tree / "pack", ()),
-        (tree / "configs", ()),
-        (tree / "ported" / "scape2009_summoning", ()),
-        (tree / "ported" / "rs2012_qbd_td", ()),
+        (tree / "server" / "scripts", is_output_dir),
+        (tree / "pack", None),
+        (tree / "configs", None),
+        # Every lane, rather than the two that existed when this was written:
+        # a lane is discovered from `ported/<lane>/lane.ini` now, so a list of
+        # lane names here would have to be kept in step with the tree by hand,
+        # and the failure mode of forgetting is a lane whose edits never
+        # trigger a recompile.
+        (tree / "ported", None),
     ]
-    paths += [(p, ()) for p in extra]
+    paths += [(p, None) for p in extra]
     return paths
 
 

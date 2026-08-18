@@ -1545,11 +1545,20 @@ npc_config_key(
          * and behaves wrong, the worst outcome available here.
          */
         if( strcmp(value, "patrol") == 0 )
+        {
             def->defaultmode = MOCK230_NPCMODE_PATROL;
+            def->defaultmode_stated = 1;
+        }
         else if( strcmp(value, "none") == 0 || strcmp(value, "null") == 0 )
+        {
             def->defaultmode = MOCK230_NPCMODE_NONE;
+            def->defaultmode_stated = 1;
+        }
         else if( strcmp(value, "wander") == 0 )
+        {
             def->defaultmode = MOCK230_NPCMODE_WANDER;
+            def->defaultmode_stated = 1;
+        }
         else
             CONTENT_ERROR("%s: defaultmode `%s` is not implemented\n", where, value);
     }
@@ -3912,6 +3921,8 @@ init_defaults(void)
     g_npc_default.defend_sound = -1;
     g_npc_default.death_sound = -1;
     g_npc_default.defaultmode = MOCK230_NPCMODE_NONE;
+    /* Unstated, so an npc with no block keeps the radius-derived default. */
+    g_npc_default.defaultmode_stated = 0;
 }
 
 int

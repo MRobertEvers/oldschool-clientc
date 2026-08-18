@@ -505,6 +505,65 @@ flat black rather than hidden. Branch on the decoded model's provenance format,
 not the cache revision—a cache can contain more than one model format. Verify a
 flattened output by decoding it again and comparing its hidden-face count.
 
+### 3.5a Content lanes — a body of ported content a build can leave out
+
+A **lane** is content that lives in the tree but is not necessarily in the pack:
+Summoning, the Ancient Curses, the 2012 QBD/Tormented Demons import, items
+authored for Herblore. Each is a directory under `<content>/ported/<lane>/`
+carrying a `lane.ini` that describes itself — and that descriptor is the only
+place the lane's shape is stated:
+
+```ini
+[lane]
+name=rs558_ancient_curses
+default=off              ; gated: compiled only when a build asks for it
+constant=curses_enabled  ; ^flag shared files test; 1 when in, 0 when out
+
+[compile]
+scripts=server/scripts/ported_rs558_ancient_curses   ; paths are content-relative
+pack=ported/rs558_ancient_curses/pack
+pack_file=ported/rs558_ancient_curses/configs/all.varbit.compack
+component_root=ported/rs558_ancient_curses
+```
+
+`default=on` marks an *additive* lane — new records the base tree already names
+by hand (`herb_tar`, the QBD's npcs). It is compiled unless something explicitly
+leaves it out, because a build without it fails to resolve names rather than
+quietly playing without the content.
+
+**Selecting lanes.** `make -C src mock230-lanes` lists what a tree declares.
+A pack is built with `make -C src mock230-scripts-lanes MOCK230_SCRIPT_LANES="a b"
+MOCK230_SCRIPT_OUT=<dir>`; `mock230-scripts`, `-summoning`, `-curses` and
+`-summoning-curses` are that one recipe with the list filled in. A boot manifest
+names its lanes in `[content:lanes]`, one `lane=` per line, and `run-live.sh` /
+`run-live.ps1` compile exactly those — nothing infers the lane set from the
+output directory's name any more.
+
+A lane that is not selected contributes **nothing**: no scripts (its server
+directory is subtracted from the `--src` walk it lives inside), no symbols, no
+component names, and its `^flag` reads 0.
+
+**Seams — how the base tree calls a lane that may not be there.** Combat asks
+whether a curse is deflecting; login asks the familiar system to restore itself.
+Those calls have to compile in a build without the lane, so the base tree keeps
+a default definition of each in `server/scripts/lane_seams/`, and the lane's own
+definition *replaces* it when the lane is compiled. Adding a call from shared
+content into a lane means adding the seam beside it; the pair is what keeps the
+lane optional. Each seam's default must be the value the lane itself returns when
+its feature is off, or a lane-absent build and a flag-off build differ.
+
+Mechanically: a seam directory is a *weak* source root (`struct SSC_SourceRoot`,
+`src/serverscript/ssc.h`). Weak loses to strong, and only to strong — two seams,
+or two lanes, sharing a name is still the duplicate it always was. Without this
+the two definitions are simply a duplicate script name, which `SSC_Declare`
+refuses; that is why every lane used to be mandatory.
+
+What a lane still shares with the base tree: its `.constant` and `.dbtable`
+files are read even when the lane is off, because shared files name lane
+constants inside their gated branches. Deleting a lane's directory outright
+would take those with it. Leaving the lane out of a build is supported;
+deleting it is a content edit with a caller list to fix first.
+
 ### 3.6 Phase 0 — the gaps that make this confusing today
 
 These four are why "what goes in which pack" currently *feels* unresolved

@@ -82,6 +82,14 @@ test_load_fields(void)
     CHECK(strcmp(bm.client_args[7], "--revconfig") == 0);
     CHECK(strcmp(bm.client_args[8], "C:\\Program Files\\ui.ini") == 0);
 
+    /* Build information the launcher reads back: which content lanes went into
+     * the pack `scripts=` names. Read in file order, because the order they are
+     * handed to sscompile is the order they were written. */
+    CHECK(bm.lane_count == 2);
+    CHECK(strcmp(bm.lanes[0], "scape2009_summoning") == 0);
+    CHECK(strcmp(bm.lanes[1], "rs558_ancient_curses") == 0);
+    CHECK(bm.lanes_error == 0);
+
     CHECK(bm.js5_enabled == 1);
     CHECK(strcmp(bm.js5_host, "js5.example.com") == 0);
     CHECK(bm.js5_port == 43594);

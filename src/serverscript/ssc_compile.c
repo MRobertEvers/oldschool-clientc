@@ -3648,23 +3648,32 @@ SSC_CompileRoots(
     {
         /*
          * An exclusion subtracts a subtree from the roots that *contain* it; it
-         * never cancels a root of its own. The seam directory is the case: it
-         * sits inside `--src`, so it is excluded there to keep it from being
-         * walked twice — and its own root must still collect it.
+         * never cancels a root of its own.
+         *
+         * Every other root is an exclusion too, and that is not a convenience:
+         * a lane's scripts and the base tree's seams both live *inside* `--src`,
+         * so without this each of them is walked twice — once by the root that
+         * contains it and once as itself — and every name in it is a duplicate
+         * declaration. Deriving it here rather than asking each caller to
+         * subtract its own roots is what keeps that from being a footgun with
+         * one correct spelling and several plausible wrong ones.
          */
-        const char* kept[64];
+        const char* kept[128];
         int kept_count = 0;
         int j;
 
         assert(roots[i].dir);
-        for( j = 0; j < exclude_count; j++ )
+        for( j = 0; j < exclude_count + root_count; j++ )
         {
-            if( path_is_within(roots[i].dir, excludes[j]) )
+            const char* exclusion =
+                j < exclude_count ? excludes[j] : roots[j - exclude_count].dir;
+
+            if( path_is_within(roots[i].dir, exclusion) )
                 continue;
             /* Dropping one silently is a subtree that quietly compiles back
              * into the pack — abort instead. */
             assert(kept_count < (int)(sizeof(kept) / sizeof(kept[0])));
-            kept[kept_count++] = excludes[j];
+            kept[kept_count++] = exclusion;
         }
         if( roots[i].weak )
             collect_sources(roots[i].dir, kept, kept_count, &weak, &weak_count,

@@ -2693,7 +2693,13 @@ mock230_world_npc_default_mode(const struct Mock230Npc* npc)
      * castle the hardest npc in Lumbridge to find.
      */
     mode = npc->wander_radius > 0 ? MOCK230_NPCMODE_WANDER : MOCK230_NPCMODE_NONE;
-    if( def->defaultmode != MOCK230_NPCMODE_NONE )
+    /*
+     * `defaultmode_stated`, not `defaultmode != NONE`. `MOCK230_NPCMODE_NONE`
+     * is zero, so the old test could never be true for `defaultmode=none` and
+     * every one of those lines in the content tree was a no-op — see the
+     * field's comment for what that cost.
+     */
+    if( def->defaultmode_stated )
         mode = def->defaultmode;
     if( def->patrol_count > 0 )
         mode = MOCK230_NPCMODE_PATROL;
@@ -37165,6 +37171,49 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Sotetseg's maze generator (`::tobmaze`, same file).
+         *
+         * Its own stanza because it needs its own instruction budget, not
+         * because it needs its own fixture: a script gets 500,000 instructions,
+         * ::tobrun has very nearly spent them walking the Nylocas tables, and
+         * one generated maze is 210 cells of path arithmetic. Sixteen of them
+         * fit comfortably in a script of their own and not at all in that one.
+         *
+         * What it guards is the one piece of this raid that is generated rather
+         * than tabulated. The path is eight random seeds turned into fifteen
+         * rows, and every way of getting that wrong still produces a plausible
+         * pattern of red tiles - an inverted row/seed mapping starts the maze
+         * at the portal end, a seed that overflows its four-bit field carries
+         * into its neighbour, a dropped run/tile rule leaves a row the player
+         * cannot step onto. None of those look like a bug from inside the room;
+         * they look like a maze.
+         */
+        {
+            static struct Mock230Capture maze_capture;
+            int maze_said_ok = 0;
+
+            mock230_capture_begin(srv, &maze_capture);
+            mock230_scripts_run_debugproc(srv, "tobmaze");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&maze_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&maze_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &maze_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tobmaze") == NULL && strstr(text, "tobrun FAIL") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "tobmaze OK") != NULL )
+                    maze_said_ok = 1;
+            }
+            SELFTEST_CHECK(maze_said_ok, "::tobmaze should reach its OK line");
+        }
+
+        /*
          * The over-hit primitive (`::tobhit`, p_overhit / SS_OP_P_OVERHIT).
          *
          * Separate stanza from ::tobrun because it damages the player. What it
@@ -37292,7 +37341,19 @@ mock230_world_selftest(void)
                 { 1, "Maiden",   10, 60 },
                 { 2, "Bloat",     0, 60 },  /* period 0: cycle checked separately */
                 { 4, "Sotetseg",  5, 60 },
-                { 5, "Xarpus",    4, 60 },
+                /*
+                 * Xarpus needs a much longer window than the others, and the
+                 * reason is the room rather than the measurement: his first
+                 * phase does not attack at all. Solo he unearths seven exhumed
+                 * nine ticks apart, the last of them stays open eleven, and
+                 * only then does he stand up - with the first spit seven ticks
+                 * after that. So nothing is measurable for the first ~80 ticks
+                 * and a 60-tick window sees a boss that never swings.
+                 *
+                 * The period is recovered from (last - first) / (count - 1), so
+                 * the idle head of the run costs nothing but wall clock.
+                 */
+                { 5, "Xarpus",    4, 160 },
                 /*
                  * Verzik is measured at her PHASE 3 cadence of 7, not P1's 14.
                  * She does not stay on the throne: by the time the room is
@@ -37586,6 +37647,164 @@ mock230_world_selftest(void)
         }
 
         /*
+         * ====================================================================
+         * The Maiden's Nylocas Matomenos actually walk at her
+         * ====================================================================
+         *
+         * The cadence block above never drops her below 70 %, so nothing in the
+         * suite has ever seen a crab. That is how "they walk back and forth"
+         * shipped: the twenty spawn tiles were table-checked and correct, the
+         * crab count was table-checked and correct, and the one thing nobody
+         * measured was whether the crab MOVED TOWARD HER.
+         *
+         * It could not. Two independent faults, either of which alone is
+         * enough:
+         *
+         *   - `maiden_elemental` stated no `defaultmode`, so it took the
+         *     engine's default of WANDER with a five-tile leash. Past five tiles
+         *     from its spawn the wander branch calls
+         *     `mock230_world_npc_walk_to(npc, spawn_x, spawn_z)` every tick,
+         *     overwriting the waypoint `[ai_timer,maiden_elemental]` had just
+         *     queued. Two tiles forward, two tiles back, forever.
+         *   - the goal tile was her south-WEST corner, six tiles inside a body
+         *     nothing can walk through, and "arrived" was a radius measured from
+         *     that same corner - so a crab pressed against her east face read
+         *     six tiles away and never arrived even when the wander let it get
+         *     there.
+         *
+         * What this measures is the only thing that distinguishes the fixed
+         * case from either broken one: the gap between the nearest crab's
+         * footprint and hers, sampled every tick. A wanderer's gap oscillates
+         * and ends roughly where it started; a crab that paths ends at 1 and
+         * then vanishes into the leak counter. So the assertions are (a) the
+         * gap strictly shrinks over the run and (b) `^tob_var_leaks` moves off
+         * zero - a and b are the two halves of "reached her", and the leak
+         * counter is what both her attacks scale off, so b is also the check
+         * that arriving still does something.
+         *
+         * Placed after the cadence loop's last `::tobout`, so the instance it
+         * builds is its own and its ticks land on nobody else's budget.
+         */
+        {
+            const int k_matomenos = 8366;
+            const int k_var_leaks = 5;   /* ^tob_var_leaks */
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int saved_dying = player->dying;
+            int boss;
+
+            fprintf(stderr, "mock230 selftest: Maiden crabs\n");
+            player->dying = 0;
+            player->godmode = 1;
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->hitpoints = 99;
+            mock230_combat_sync_hitpoints(player);
+
+            mock230_scripts_run_debugproc(srv, "tob 1");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            mock230_world_tick(srv);
+            boss = tob_harness_boss(srv, player);
+            SELFTEST_CHECK(boss >= 0, "the Maiden crab run should find her");
+            if( boss >= 0 )
+            {
+                int handle = mock230_mapinstance_find(player->x, player->z);
+                int spawned = 0;
+                int first_gap = -1;
+                int last_gap = -1;
+                int min_gap = 1 << 30;
+                int leaks;
+
+                /*
+                 * Drop her under 70 % from here rather than by swinging at her.
+                 * The threshold is the trigger under test; how she got there is
+                 * not, and a fixture that has to out-damage 1050 hitpoints is a
+                 * test of the damage pipeline wearing a crab test's name.
+                 */
+                srv->npcs[boss].hitpoints = srv->npcs[boss].max_hitpoints / 2;
+
+                for( int t = 0; t < 60; t++ )
+                {
+                    int gap = -1;
+
+                    mock230_world_tick(srv);
+                    mock230_scripts_run_debugproc(srv, "tobstand");
+                    /*
+                     * Her body moves type as she crosses each threshold, and
+                     * `tob_harness_boss` finds by proximity rather than by type
+                     * for exactly that reason - but a crab standing next to her
+                     * is nearer to the player than she is, so re-finding here
+                     * would start measuring a crab's distance to itself. Her
+                     * slot does not change when her type does, so it is held.
+                     */
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    {
+                        int dx = 0;
+                        int dz = 0;
+                        int msize;
+                        int csize;
+
+                        if( !srv->npcs[n].active || srv->npcs[n].type != k_matomenos )
+                            continue;
+                        if( mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                            continue;
+                        if( n == boss )
+                            continue;
+                        spawned++;
+                        msize = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+                        csize = srv->npcs[n].size > 0 ? srv->npcs[n].size : 1;
+                        /* Edge to edge, per axis - the same measure the content
+                         * arrival test uses and the one a corner subtraction
+                         * gets wrong on her north and east faces. */
+                        if( srv->npcs[boss].x > srv->npcs[n].x + csize - 1 )
+                            dx = srv->npcs[boss].x - (srv->npcs[n].x + csize - 1);
+                        else if( srv->npcs[n].x > srv->npcs[boss].x + msize - 1 )
+                            dx = srv->npcs[n].x - (srv->npcs[boss].x + msize - 1);
+                        if( srv->npcs[boss].z > srv->npcs[n].z + csize - 1 )
+                            dz = srv->npcs[boss].z - (srv->npcs[n].z + csize - 1);
+                        else if( srv->npcs[n].z > srv->npcs[boss].z + msize - 1 )
+                            dz = srv->npcs[n].z - (srv->npcs[boss].z + msize - 1);
+                        if( (dx > dz ? dx : dz) < gap || gap < 0 )
+                            gap = dx > dz ? dx : dz;
+                    }
+                    if( gap >= 0 )
+                    {
+                        if( first_gap < 0 )
+                            first_gap = gap;
+                        last_gap = gap;
+                        if( gap < min_gap )
+                            min_gap = gap;
+                    }
+                }
+                leaks = mock230_mapinstance_var_get(handle, k_var_leaks);
+                fprintf(stderr,
+                        "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), leaks %d\n",
+                        spawned, first_gap, last_gap, min_gap, leaks);
+                SELFTEST_CHECK(spawned > 0,
+                               "crossing 70%% should spawn Nylocas Matomenos");
+                SELFTEST_CHECK(first_gap > 0 && min_gap < first_gap,
+                               "a Matomenos must close on her, not pace "
+                               "(started %d tiles out, got no closer than %d)",
+                               first_gap, min_gap);
+                SELFTEST_CHECK(leaks > 0,
+                               "a Matomenos that reaches her must raise the leak "
+                               "counter, got %d",
+                               leaks);
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            player->dying = saved_dying;
+            mock230_combat_sync_hitpoints(player);
+        }
+
+        /*
          * The player techniques: 5-tick Xarpus, Verzik P2 scythe walking,
          * Bloat flinching, one-tick tanking Verzik P3.
          *
@@ -37796,7 +38015,9 @@ mock230_world_selftest(void)
                 const char* technique;
             } k_tech[] = {
                 { 4, "Sotetseg", 5, 60, "tick counting: a 5-tick boss" },
-                { 5, "Xarpus",   4, 60, "5-tick Xarpus: a 4-tick boss under a 5-tick weapon" },
+                /* 160 for the same reason as the cadence table above: his
+                 * first phase is the exhumed, and it does not attack. */
+                { 5, "Xarpus",   4, 160, "5-tick Xarpus: a 4-tick boss under a 5-tick weapon" },
             };
             int saved_hp = player->hitpoints;
             int saved_god = player->godmode;
@@ -42235,6 +42456,17 @@ mock230_world_selftest(void)
 
             memcpy(player->stat_level, level_before, sizeof(level_before));
             memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
+            /*
+             * Lift the collision stamp, not just the active flag.
+             *
+             * `active = 0` retires the npc from every list that walks the pool
+             * but leaves its footprint written into the scene, so the tile it
+             * happened to stop on stays blocked for the rest of the run by an
+             * npc that no longer exists. The stanza below stands on this same
+             * tile and walks out of it, and spent a build measuring a refused
+             * step that was really this ghost.
+             */
+            npc_set_occupancy(npc, 0);
             npc->active = 0;
             mock230_zone_npc_refile(srv, subject);
         }
@@ -42282,6 +42514,12 @@ mock230_world_selftest(void)
             player->stat_boosted[MOCK230_STAT_STRENGTH] = 99;
             selftest_park_player(srv, start_x, start_z + 1);
 
+            /*
+             * Eastward, out of the same tile the stanza above walks out of,
+             * so the route is one this file has already shown to be clear.
+             * West is not: 3261 is blocked map, which is how this stanza first
+             * read as "the second step does nothing".
+             */
             npc->mode = MOCK230_NPCMODE_NONE;
             npc->move_speed = 0;
             npc_queue_waypoint(npc, start_x + 4, start_z);
@@ -42289,18 +42527,19 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(npc->combat_target < 0,
                            "the fixture must not be in combat, or this measures the wrong mover");
             SELFTEST_CHECK(npc->x == start_x + 1 && npc->z == start_z,
-                           "a walking npc takes one tile, moved to %d,%d (from %d,%d)",
-                           npc->x, npc->z, start_x, start_z);
+                           "a walking npc takes one tile, moved to %d,%d (from %d,%d; mode %d wp %d)",
+                           npc->x, npc->z, start_x, start_z, npc->mode, npc->waypoint_index);
 
             {
                 int walked_x = npc->x;
 
+                npc->mode = MOCK230_NPCMODE_NONE;
                 npc->move_speed = 1;
                 npc_queue_waypoint(npc, start_x + 4, start_z);
                 mock230_world_tick(srv);
                 SELFTEST_CHECK(npc->x == walked_x + 2 && npc->z == start_z,
-                               "a running npc takes two, moved to %d,%d (from %d,%d)",
-                               npc->x, npc->z, walked_x, start_z);
+                               "a running npc takes two, moved to %d,%d (from %d,%d; mode %d wp %d)",
+                               npc->x, npc->z, walked_x, start_z, npc->mode, npc->waypoint_index);
             }
 
             /*
@@ -42309,10 +42548,15 @@ mock230_world_selftest(void)
              * difference between a run and a boss that walks through the
              * corner of its own circuit and keeps going.
              */
-            npc_queue_waypoint(npc, npc->x + 1, npc->z);
             {
-                int target_x = npc->x + 1;
+                /* Back the way it came, over tiles these three ticks have
+                 * already walked, so a refusal here cannot be the map: the
+                 * tile one further east is blocked, which is how this check
+                 * first read as "the run overshot". */
+                int target_x = npc->x - 1;
 
+                npc->mode = MOCK230_NPCMODE_NONE;
+                npc_queue_waypoint(npc, target_x, npc->z);
                 mock230_world_tick(srv);
                 SELFTEST_CHECK(npc->x == target_x,
                                "a running npc stops on its waypoint, at %d want %d",
@@ -42321,6 +42565,9 @@ mock230_world_selftest(void)
 
             memcpy(player->stat_level, level_before, sizeof(level_before));
             memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
+            /* Lift the stamp as well as the flag, so the next stanza to stand
+             * here does not measure this npc's ghost — see the westward note. */
+            npc_set_occupancy(npc, 0);
             npc->active = 0;
             npc->move_speed = 0;
             mock230_zone_npc_refile(srv, subject);

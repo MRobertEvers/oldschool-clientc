@@ -12,6 +12,7 @@
 
 #include "ss_opcode.h"
 #include "ssc.h"
+#include "ssc_lane.h"
 #include "ssvm.h"
 
 #include <stdio.h>
@@ -1858,6 +1859,217 @@ test_dbcolumn_return_type(void)
     fixture_close(&fixture);
 }
 
+/* ------------------------------------------------------------------ */
+/* Content lanes                                                       */
+/* ------------------------------------------------------------------ */
+
+/** The script whose name is `name`, or NULL. */
+static const struct SSVM_Script*
+find_script(const struct SSC_Compiler* compiler, const char* name)
+{
+    int i;
+
+    for( i = 0; i < SSC_ScriptCount(compiler); i++ )
+    {
+        const struct SSVM_Script* script = SSC_ScriptAt(compiler, i);
+
+        if( script && script->name && strcmp(script->name, name) == 0 )
+            return script;
+    }
+    return NULL;
+}
+
+/*
+ * A lane replaces the base tree's default for a name, and leaving the lane out
+ * subtracts its scripts from the walk they live inside.
+ *
+ * Both halves have to be checked by WHICH BODY LANDED, not by whether the
+ * compile succeeded: the failure this mechanism exists to prevent is the seam
+ * and the lane both compiling, one of them silently overwriting the other at the
+ * same id, with the winner decided by sort order.
+ */
+static void
+test_lane_seams(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    struct SSC_SourceRoot roots[3];
+    const char* excludes[1];
+    const struct SSVM_Script* script;
+    char dir[256];
+    char path[400];
+    char lane_dir[400];
+    char seam_dir[400];
+    char command[1200];
+    FILE* file;
+
+    printf("lane seams\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_lane_%d", (int)getpid());
+    snprintf(lane_dir, sizeof(lane_dir), "%s/lane_a", dir);
+    snprintf(seam_dir, sizeof(seam_dir), "%s/lane_seams", dir);
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s && mkdir -p %s", dir, lane_dir,
+             seam_dir);
+    if( system(command) != 0 )
+        return;
+
+    /* The base tree calls a name it does not define. */
+    snprintf(path, sizeof(path), "%s/base.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[proc,base_entry]()(int)\nreturn(~lane_answer);\n", file);
+    fclose(file);
+
+    /* The seam: the answer when the lane is not in the build. */
+    snprintf(path, sizeof(path), "%s/seam.rs2", seam_dir);
+    file = fopen(path, "wb");
+    fputs("[proc,lane_answer]()(int)\nreturn(0);\n", file);
+    fclose(file);
+
+    /* The lane: the real answer, plus a script of its own that must not exist
+     * at all in a build without the lane. */
+    snprintf(path, sizeof(path), "%s/lane.rs2", lane_dir);
+    file = fopen(path, "wb");
+    fputs("[proc,lane_answer]()(int)\nreturn(7);\n"
+          "[proc,lane_private]\nreturn;\n",
+          file);
+    fclose(file);
+
+    /* Lane off: the base root walks the whole of `dir`, so the lane's own
+     * directory has to be subtracted from it. */
+    roots[0].dir = dir;
+    roots[0].weak = 0;
+    roots[1].dir = seam_dir;
+    roots[1].weak = 1;
+    excludes[0] = lane_dir;
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(SSC_CompileRoots(compiler, roots, 2, excludes, 1, &diag),
+          "a build without the lane compiles");
+    script = find_script(compiler, "[proc,lane_answer]");
+    CHECK(script != NULL, "and still has the name the base tree calls");
+    if( script )
+        CHECK(strstr(script->source_path, "lane_seams") != NULL,
+              "answered by the seam, not the lane");
+    CHECK(find_script(compiler, "[proc,lane_private]") == NULL,
+          "and carries none of the lane's own scripts");
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    /* Lane on: the same exclusion, plus the lane as its own root. Excluding it
+     * unconditionally is what keeps the enabled lane from being walked twice —
+     * which would be a duplicate declaration of every name in it. */
+    roots[0].dir = dir;
+    roots[0].weak = 0;
+    roots[1].dir = lane_dir;
+    roots[1].weak = 0;
+    roots[2].dir = seam_dir;
+    roots[2].weak = 1;
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(SSC_CompileRoots(compiler, roots, 3, excludes, 1, &diag),
+          "a build with the lane compiles");
+    if( diag.message[0] )
+        printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+    script = find_script(compiler, "[proc,lane_answer]");
+    CHECK(script != NULL, "and has the name once");
+    if( script )
+        CHECK(strstr(script->source_path, "lane_a") != NULL,
+              "answered by the lane, which replaced the seam");
+    CHECK(find_script(compiler, "[proc,lane_private]") != NULL,
+          "and carries the lane's own scripts");
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+/* A lane describes itself, and every path in the descriptor is resolved against
+ * the content root — including through the `<src>/../..` form the compiler
+ * derives that root from by default, which is the shape that once made every
+ * exclusion match nothing. */
+static void
+test_lane_descriptors(void)
+{
+    struct SSC_LaneSet set;
+    struct SSC_Lane* lane;
+    char dir[256];
+    char path[400];
+    char command[1200];
+    char derived_root[600];
+    FILE* file;
+
+    printf("lane descriptors\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_lanedesc_%d", (int)getpid());
+    snprintf(command, sizeof(command),
+             "rm -rf %s && mkdir -p %s/ported/gated && mkdir -p %s/ported/additive "
+             "&& mkdir -p %s/ported/nodescriptor",
+             dir, dir, dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    snprintf(path, sizeof(path), "%s/ported/gated/lane.ini", dir);
+    file = fopen(path, "wb");
+    fputs("; a gated lane\n"
+          "[lane]\n"
+          "default=off\n"
+          "constant=gated_enabled\n"
+          "\n"
+          "[compile]\n"
+          "scripts=server/scripts/ported_gated\n"
+          "pack=ported/gated/pack\n"
+          "pack_file=ported/gated/configs/all.varbit.compack\n"
+          "component_root=ported/gated\n",
+          file);
+    fclose(file);
+
+    snprintf(path, sizeof(path), "%s/ported/additive/lane.ini", dir);
+    file = fopen(path, "wb");
+    fputs("[lane]\nname=additive\ndefault=on\n\n[compile]\npack=ported/additive/pack\n", file);
+    fclose(file);
+
+    CHECK_EQ(SSC_LanesDiscover(&set, dir), 2,
+             "only directories carrying a lane.ini are lanes");
+    lane = SSC_LaneFind(&set, "gated");
+    CHECK(lane != NULL, "a lane is named by its directory when it states nothing");
+    if( lane )
+    {
+        CHECK_EQ(lane->enabled_by_default, 0, "default=off");
+        CHECK_EQ(strcmp(lane->constant, "gated_enabled"), 0, "and names its feature flag");
+        CHECK_EQ(lane->script_count, 1, "one script root");
+        CHECK_EQ(lane->pack_file_count, 1, "one named index");
+        CHECK_EQ(lane->component_root_count, 1, "one component root");
+    }
+    lane = SSC_LaneFind(&set, "additive");
+    CHECK(lane != NULL, "and a lane may name itself instead");
+    if( lane )
+        CHECK_EQ(lane->enabled_by_default, 1, "default=on");
+
+    /* The same tree reached the way sscompile reaches it with no
+     * --content-root: `<src>/../..`. The descriptor's paths must come out
+     * identical to the ones above, or nothing the walk builds will match them. */
+    snprintf(derived_root, sizeof(derived_root), "%s/server/scripts/../..", dir);
+    CHECK_EQ(SSC_LanesDiscover(&set, derived_root), 2, "discovered through a `..` root too");
+    lane = SSC_LaneFind(&set, "gated");
+    if( lane )
+    {
+        char expected[SSC_LANE_PATH_MAX];
+
+        snprintf(expected, sizeof(expected), "%s/server/scripts/ported_gated", dir);
+        CHECK_EQ(strcmp(lane->scripts[0], expected), 0,
+                 "with `..` collapsed out of every path");
+    }
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
 int
 main(void)
 {
@@ -1891,6 +2103,8 @@ main(void)
     test_param_type_shadowing();
     test_script_name_argument();
     test_dbcolumn_return_type();
+    test_lane_seams();
+    test_lane_descriptors();
     test_errors();
 
     if( g_fail )

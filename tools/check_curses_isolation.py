@@ -136,10 +136,20 @@ def main() -> int:
         tree / "server/scripts/skill_combat/scripts/npc_combat_ranged.rs2",
         tree / "pack/varp.server",
     }
+    # The seams are the sanctioned third place a curses name appears outside the
+    # lane: `server/scripts/lane_seams/` holds the base tree's DEFAULT for every
+    # procedure the lane provides, so a build without the lane still compiles
+    # (src/serverscript/ssc.h, struct SSC_SourceRoot). Those definitions exist
+    # precisely to be replaced by the lane, and every one of them is inert -- the
+    # strongest possible form of "fails closed" -- so allowing the directory
+    # wholesale is not a hole in this rule but the other half of it.
+    seams = tree / "server/scripts/lane_seams"
     for path in sorted(tree.rglob("*.rs2")):
         if CLIENT_LANE.as_posix() in path.as_posix():
             continue
         if SERVER_LANE.as_posix() in path.as_posix():
+            continue
+        if seams == path.parent or seams in path.parents:
             continue
         # Anchored at a word boundary, or every mention of The Corsair Curse
         # matches: that quest's `~cc_curses_solved` contains the prefix but is

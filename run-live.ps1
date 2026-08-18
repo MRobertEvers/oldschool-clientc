@@ -34,7 +34,8 @@
         overlay is built before the client runs -- but only when it is stale.
         tools\cache_overlay_stale.py owns that decision and is shared with
         run-live.sh, so the two launchers cannot drift.
-      * scripts=...build_summoning selects the Summoning script pack.
+      * [content:lanes] names the content lanes the script pack is compiled
+        from; scripts= says where that pack lands.
       * the OSRS-Content tree is discovered, not demanded: the first checkout
         carrying both ported\ lanes wins, build\ checkouts before the submodule
         (the submodule tracks main, which has the lanes but not their facebake).
@@ -178,6 +179,29 @@ function Get-ManifestValue([string]$Key) {
     return ''
 }
 
+# Which content lanes this profile's script pack is built from --
+# `[content:lanes]`, one `lane=` per line (src/serverscript/ssc_lane.h).
+#
+# Section-scoped, unlike Get-ManifestValue: `lane` is a repeated key, and a
+# manifest-wide match would also pick up a `[revconfig:...]` record that happens
+# to use the word. run-live.sh reads it with the same rule.
+#
+# This replaces guessing the lane set from the OUTPUT DIRECTORY'S NAME
+# (`*build_summoning`, `*build_curses`), which could only recognise lanes this
+# launcher had been taught: a new lane was not launchable until both launchers
+# learned its suffix.
+function Get-ManifestLanes {
+    $lanes = @()
+    $inSection = $false
+    foreach ($line in $manifestText) {
+        if ($line -match '^\s*\[') { $inSection = ($line -match '^\s*\[content:'); continue }
+        if ($inSection -and $line -match '^\s*lane\s*=\s*(.*?)\s*$' -and $Matches[1]) {
+            $lanes += $Matches[1]
+        }
+    }
+    return $lanes
+}
+
 $rev = Get-ManifestValue 'rev'
 if (-not $rev) {
     Write-Error "run-live.ps1: no rev= in [net:boot] of '$Manifest'"
@@ -185,6 +209,7 @@ if (-not $rev) {
 }
 $cacheDir = Get-ManifestValue 'dir'
 $serverScripts = Get-ManifestValue 'scripts'
+$manifestLanes = Get-ManifestLanes
 $manifestTransport = Get-ManifestValue 'transport'
 # Named $manifestHost, never $Host -- that is PowerShell's own automatic
 # variable for the hosting application, and assigning it corrupts the console.
@@ -678,20 +703,14 @@ function Test-ServerScriptsFresh {
         --out $OutDir @treeArgs `
         --input (Resolve-RepoPath 'src\serverscript') `
         --input (Resolve-RepoPath 'src\makefile') `
-        --input (Resolve-RepoPath 'tools\ss_allocate.py') `
-        --input (Resolve-RepoPath 'tools\stage_summoning_server_constants.py')
+        --input (Resolve-RepoPath 'tools\ss_allocate.py')
     if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
     return ($LASTEXITCODE -eq 1)
 }
 
 function Build-Scripts {
-    $target = if ($serverScripts -like '*build_summoning_curses') { 'mock230-scripts-summoning-curses' }
-        elseif ($serverScripts -like '*build_summoning') { 'mock230-scripts-summoning' }
-        elseif ($serverScripts -like '*build_curses') { 'mock230-scripts-curses' }
-        else { 'mock230-scripts' }
-
-    # Most manifests carry no scripts= at all -- it only needs stating when
-    # build_summoning applies instead of mock230-scripts' own default output,
+    # Most manifests carry no scripts= at all -- it only needs stating when a
+    # lane profile wants its own output instead of mock230-scripts' default,
     # which is $(MOCK230_CONTENT_DIR)/server/scripts/build (src/makefile). Assert-
     # ContentTree has already run by every call site, so $env:MOCK230_CONTENT_DIR
     # is set.
@@ -706,8 +725,22 @@ function Build-Scripts {
         return
     }
 
-    Write-Host "run-live.ps1: building the server script pack ($target)..." -ForegroundColor Cyan
-    Invoke-Make -Targets @($target)
+    # A profile that names lanes gets exactly those, compiled where it said. A
+    # profile that names none is the pristine one and goes through
+    # `mock230-scripts`, the only target carrying the full set of content
+    # contracts. Same split as run-live.sh's build_scripts.
+    if ($manifestLanes.Count -gt 0 -or $serverScripts) {
+        $laneText = if ($manifestLanes.Count) { $manifestLanes -join ' ' } else { '(defaults only)' }
+        Write-Host "run-live.ps1: building the server script pack (lanes: $laneText)..." -ForegroundColor Cyan
+        Invoke-Make -Targets @(
+            'mock230-scripts-lanes',
+            "MOCK230_SCRIPT_LANES=$($manifestLanes -join ' ')",
+            "MOCK230_SCRIPT_OUT=$outDir")
+        return
+    }
+
+    Write-Host 'run-live.ps1: building the server script pack (mock230-scripts)...' -ForegroundColor Cyan
+    Invoke-Make -Targets @('mock230-scripts')
 }
 
 # Cache and scripts are one consistency boundary. Keep the fast path together

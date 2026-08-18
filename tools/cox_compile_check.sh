@@ -40,7 +40,6 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 CONTENT="$ROOT/OSRS-Content/osrs239-content"
 WORK="${TMPDIR:-/tmp}/cox-compile-check"
 ISO="$WORK/isotree"
-CONST="$WORK/constants"
 OUT="$WORK/out"
 PKG="minigames/minigame_cox"
 
@@ -52,7 +51,7 @@ SSC="$ROOT/src/build_opt/sscompile"
 
 echo "staging an isolated tree in $WORK"
 rm -rf "$ISO"
-mkdir -p "$ISO" "$CONST" "$OUT"
+mkdir -p "$ISO" "$OUT"
 # Only `server` and `interfaces` are needed. Copying the whole content dir would
 # be 1.9G of maps and models for no benefit; components come from `interfaces`,
 # which is why pointing --src at a bare scripts copy drops 26,951 components to
@@ -60,6 +59,11 @@ mkdir -p "$ISO" "$CONST" "$OUT"
 cp -R "$CONTENT/server" "$ISO/"
 cp -R "$CONTENT/interfaces" "$ISO/"
 cp -R "$CONTENT/pack" "$ISO/"
+# `ported` is a symlink, not a copy. It is where the lane descriptors live, and
+# without it this tree declares no lanes at all -- which would leave every lane's
+# server scripts (copied above, inside `server/`) in the --src walk with none of
+# their symbols, and the run would fail in content the CoX work never touched.
+ln -s "$CONTENT/ported" "$ISO/ported"
 
 # Files the CoX work owns but which live OUTSIDE the package. Reverting these
 # would silently drop the change under test: the points hook lives in the shared
@@ -84,21 +88,15 @@ for f in $(git -C "$CONTENT" ls-files --others --exclude-standard | grep 'server
 done
 echo "reverted $reverted in-flight script(s), removed $removed untracked"
 
+# --content-root is the isolated tree, which reaches every lane through the
+# `ported` symlink staged above; --pack is stated because this tree borrows the
+# shared `configs/` while keeping its own `pack/`, which is not the default
+# pair. Nothing here names a lane: `ported/<lane>/lane.ini` does.
 compile() {
-    python3 "$ROOT/tools/stage_summoning_server_constants.py" \
-        --src "$ISO/server/scripts" --out "$CONST" --enabled 0 >/dev/null 2>&1
     "$SSC" --src "$ISO/server/scripts" --out "$OUT" \
+        --content-root "$ISO" \
         --pack "$ISO/pack" \
-        --pack "$CONTENT/configs" \
-        --pack "$CONTENT/ported/scape2009_summoning/pack" \
-        --pack "$ROOT/build/summoning-varbit-stage" \
-        --pack "$CONTENT/ported/rs2012_qbd_td/pack" \
-        --pack "$CONTENT/ported/rs558_ancient_curses/pack" \
-        --pack "$CONTENT/ported/herblore_items/pack" \
-        --component-root "$CONTENT/ported/scape2009_summoning" \
-        --component-root "$CONTENT/ported/scape2009_summoning/interface_overlays" \
-        --component-root "$CONTENT/ported/rs2012_qbd_td" \
-        --constants "$CONST" 2>&1 | sed "s|$ISO/server/scripts/||"
+        --pack "$CONTENT/configs" 2>&1 | sed "s|$ISO/server/scripts/||"
 }
 
 if [ "$1" = "--selftest" ]; then
