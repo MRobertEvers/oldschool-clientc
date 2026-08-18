@@ -1,6 +1,42 @@
 # Tombs of Amascut — full implementation plan
 
-> **Status, 18 August 2026: research complete, nothing built.**
+> **Status, 18 August 2026: steps 1-3 built and gated; steps 4-7 not started.**
+>
+> | Step | State |
+> |---|---|
+> | 1 instancing and geometry | **done** — all twelve squares, the three plane-1 rooms, Nexus-plus-one-room instancing, room/path/tile/music tables. `::toarooms` builds every one of them for real |
+> | 2 invocations and scaling | **done** — the 44-row table generated out of the cache's own structs, the exclusive-category and prerequisite rules, and the raid/path/team factors. The generator and `::toarun` independently reconstruct the 600 ceiling |
+> | 3 points and rewards | **done** as arithmetic — the ledger, the multiplier table with its three-down cap, the death penalty, the scaled raid level and the unique curve. Not yet wired to a chest |
+> | 4 challenge rooms | not started |
+> | 5 path bosses | not started |
+> | 6 the Wardens | not started |
+> | 7 Combat Achievements | not started |
+> | 8 `::toarun` | **32 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` |
+>
+> **The selftest is proven able to fail**, twice and in the two places it
+> matters. Changing one invocation's raid-level modifier from +50 to +45 was
+> caught by two independent checks — `invocation 12 raid level 45` and
+> `raid level ceiling is 585, wanted 600`. Adopting the reference
+> implementation's team scaling (+90% for every extra member) was caught as
+> `team factor 4-man is 370, wanted 340` and `Zebak 8-man is 4234, wanted 3364`,
+> which are exactly the reference's own numbers.
+>
+> **Three things fell out of building it**, all recorded in §12:
+>
+> 1. **`map_blocked` does not answer inside an instance** — engine gap `[E1]`,
+>    found by `::toaprobe` with a control rather than assumed. The Lumbridge
+>    respawn reads open; every tile within six of every ToA entry, in eleven
+>    rooms on both planes, reads blocked. It is the Theatre's problem too and
+>    has never surfaced there because nothing in it asks.
+> 2. **The 55% unique ceiling is unreachable on one player's points.** A solo
+>    raider caps at 64,000 reward points, which at raid level 400 is 17.2%. The
+>    cap binds only on a group's summed points.
+> 3. **The Wiki's pickaxe table and Mod Ash's statement of the same rule
+>    disagree at exactly Mining 99.** Ash wins — he is describing the code — so
+>    an unboosted 99 takes the middle band.
+>
+> Original status line, kept because the plan below is still the plan:
+> **research complete, nothing built.**
 > This document is the plan; the evidence behind it is
 > [`ENCOUNTERS.md`](ENCOUNTERS.md) (mechanics), [`ASSET_INDEX.md`](ASSET_INDEX.md)
 > (every cache id) and [`SOURCES.md`](SOURCES.md) (where all of it came from,
@@ -354,7 +390,8 @@ phantoms reuse the path bosses' behaviour and invocations.
 
 | Tag | What is unknown | Where |
 |---|---|---|
-| `[D1]` | instance lifetime policy — one room live, or one per path in progress | §2 |
+| `[D1]` | **decided** — the Nexus plus one room at a time. A party split across two paths is not modelled and `~toa_enter_room` says so | §2 |
+| `[E1]` | **engine gap.** `map_blocked` reports every instance tile as blocked; the collision map is not populated for instance coordinates. Blocks any room mechanic that needs pathing or a walkability test — crocodile aggro, baboon waves, rolling boulders, the Crondis tile-skip. Confirm a fix with `::toaprobe` | §2 |
 | `[M1]` | puzzle-room completion point awards; only plugin estimates exist | §ENCOUNTERS §0 |
 | `[M2]` | Spitting Scarab range: 8 or 10 tiles | §6 |
 | `[M3]` | Akkha Memory Blast iteration count by path level | §6 |
