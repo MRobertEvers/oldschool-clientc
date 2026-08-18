@@ -556,13 +556,29 @@ enum
      * `mock230_ids()->lootdrop_duration`. */
 
     /* Parked script bookkeeping. */
-    /* 32, up from 16: the reference's queue is an uncapped linked list, and
-     * the QBD encounter's documented worst case (three wall waves + their
-     * steppers, four soul shadows, Royal-crossbow bleed splats, the platform
-     * hazard, siphon and worm chains, plus transient damage entries) can
-     * exceed 16 concurrent entries — a full queue is an SSVM abort content
-     * cannot see coming. */
-    MOCK230_QUEUE_MAX = 32,
+    /*
+     * 64, up from 32, which was up from 16: the reference's queue is an
+     * UNCAPPED linked list, so every number here is ours and every overflow is
+     * an SSVM abort content cannot see coming — it does not drop the entry, it
+     * kills the rest of the script that queued it.
+     *
+     * 32 came from the QBD's worst case (three wall waves + their steppers,
+     * four soul shadows, Royal-crossbow bleed splats, the platform hazard,
+     * siphon and worm chains). The Theatre's Nylocas room beats it by a wide
+     * margin and does so as a matter of routine: the room's own cap is 24
+     * nylocas alive, every one of them swings at a player every three ticks
+     * through `queue*(combat_damage_player, ...)`, and a wave that ages out
+     * detonates into everyone within two tiles at once. A tank taking the room
+     * is the case, and 32 was not enough for it.
+     *
+     * What that cost was not a missed hit. The overflow aborted whatever proc
+     * was mid-queue, and the one that noticed was the SUPPORT COLLAPSE: its
+     * damage sweep is a `huntall` loop of `queue*`s, and the abort took the
+     * retarget that follows it with it — so a pillar fell, hurt nobody past the
+     * cap, and left its attackers chewing on a support that was no longer
+     * there.
+     */
+    MOCK230_QUEUE_MAX = 64,
     /** Arguments one queued script can carry. The reference's list is
      *  unbounded; five are used by the GWD barrage landing queues, and eight
      *  leaves fixed-size headroom for the next content-owned effect. Overflow

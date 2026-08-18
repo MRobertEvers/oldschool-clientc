@@ -120,21 +120,17 @@ CONTENT_ROOTS = (
 #
 # One name per row of cp_types.c's register, plus `constant` (cp_common.c reads
 # it to resolve `^names` inside the configs above).
+#
+# This list is also what makes sscompile's own output harmless: `build*/` holds
+# script.dat and script.idx, and neither `dat` nor `idx` is a config extension,
+# so the packs a launch rewrites cannot make the client cache look stale.
+# server_scripts_stale.py has to prune those directories by name because it has
+# no extension filter to do it for free.
 CONFIG_EXTS = frozenset((
     "underlay", "overlay", "idk", "inv", "loc", "enum", "npc", "obj", "param",
     "seq", "spotanim", "varbit", "varp", "varc", "hitsplat", "healthbar",
     "struct", "mapelement", "dbrow", "dbtable", "constant",
 ))
-
-
-# sscompile writes its packs into `server/scripts/build*/`, so the config walk
-# above must prune them: script.dat is rewritten on every launch, and left in
-# the walk it would make the client cache permanently stale by way of an output
-# nothing bakes from. By PREFIX, for the reason server_scripts_stale.py records
-# — a pack's output directory is a build parameter (MOCK230_SCRIPT_OUT), so a
-# list of known names cannot be kept correct.
-def is_output_dir(name: str) -> bool:
-    return name == "build" or name.startswith("build_")
 
 
 # The lanes are pruned from the ordinary walk because the ordinary bake does not
@@ -217,7 +213,7 @@ def content_inputs_for(tree: Path, base: Path | None,
     paths: list[tuple[Path, object, object]] = [
         (tree / root, is_lane_dir, None) for root in CONTENT_ROOTS
     ]
-    paths.append((tree / "server" / "scripts", is_output_dir, CONFIG_EXTS))
+    paths.append((tree / "server" / "scripts", None, CONFIG_EXTS))
     if base is not None:
         paths.append((base, None, None))
     paths += [(path, None, None) for path in extra]

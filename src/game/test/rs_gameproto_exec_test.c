@@ -329,6 +329,50 @@ main(void)
         printf("ok - SET_MAP_FLAG stores scene-local tiles\n");
     }
 
+    /*
+     * A LOC_ANIM in the same zone update as a LOC_ADD_CHANGE for the same tile
+     * must apply AFTER it.
+     *
+     * The reference client applies a zone loc change to the scene the moment it
+     * reads it, so the two ops work in the order they were written. This client
+     * cannot: a change waits for its loc config and models to become resident,
+     * so `App_WorldLocChange` enqueues on the serial exec FIFO. While the
+     * animation was applied synchronously beside that, it ran FIRST - it looked
+     * up the scenery before the pending change had built it, found the old loc
+     * or nothing, and dropped the sequence with no error. The loc then stood on
+     * whatever frame its config `anim=` left it on, which is every "the loc is
+     * stuck in a frame" report there has ever been here.
+     *
+     * The property under test is ORDER, so that is what is asserted: both ops
+     * are on the one queue and the animation is behind the change. Reverting
+     * `App_WorldSceneryAnim` to a direct call leaves one task here, not two.
+     */
+    {
+        struct App app;
+        struct ToriRS_Task* head;
+
+        memset(&app, 0, sizeof(app));
+        app.exec_runner.queue = ToriRS_TaskQueue_New();
+
+        App_WorldLocChange(&app, 12, 34, 0, 32744 /* loc */, 22 /* grounddecor */, 0);
+        App_WorldSceneryAnim(&app, 12, 34, 0, 22, 8068 /* seq */);
+
+        head = app.exec_runner.queue->head;
+        assert(head != NULL);
+        assert(head->next != NULL);
+        assert(head->next->next == NULL);
+        /* Both are AppSpawn tasks; the change was enqueued first and a FIFO
+         * keeps it there. `ToriRS_TaskQueue_Run` runs the head until it yields
+         * and leaves the rest queued in order, so this ordering IS the fix. */
+        assert(strcmp(head->name, "AppSpawn") == 0);
+        assert(strcmp(head->next->name, "AppSpawn") == 0);
+
+        /* The queue's own teardown: each task's vtable Free owns its
+         * allocation, so hand-freeing them here double-frees. */
+        ToriRS_TaskQueue_Free(app.exec_runner.queue);
+        printf("ok - LOC_ANIM queues behind a same-tile LOC_ADD_CHANGE\n");
+    }
+
     UITree_Free(tree);
     InvManager_Free(&invs);
     VarPManager_Free(&varps);

@@ -27,6 +27,16 @@
 # moved under it, because nothing else bakes those. TORIRS_FORCE_CACHE_BAKE=1
 # bakes without asking.
 #
+# The ordinary content bake (cache.osrs239.baked, `mock230-cache`) is checked
+# the same way and for the same reason -- it is what puts an edited config,
+# interface, CS2 script or sprite in front of a client -- both when a manifest
+# boots it directly and as layer 0 under an overlay that is based on it.
+#
+# One chain is NOT based on it: anything rooted at cache.osrs239.rs2012 is
+# composed on the pristine cache.osrs239, so ordinary content cannot enter it at
+# any freshness. That case prints what is missing rather than baking, since no
+# bake reachable from here would carry it.
+#
 # The server script pack is compiled here too, when anything sscompile reads is
 # newer than the last compile. TORIRS_FORCE_SCRIPT_BUILD=1 recompiles without
 # asking.
@@ -492,6 +502,80 @@ cache_overlay() {
     make -C src "$_target" || exit 1
 }
 
+# Layer 0: the ORDINARY content bake, under everything above.
+#
+# `mock230-cache` is the target that walks the tree proper — configs/,
+# interfaces, CS2, sprites, maps — and writes cache.osrs239.baked. Nothing asked
+# for it here until now, and nothing else asks for it either, so the hole was
+# exactly as wide as the one the lane check closes and shaped the same way: a
+# manifest naming `cache.osrs239.baked` booted whichever bake somebody last ran
+# by hand, and the summoning/curses overlays stacked on that base inherited its
+# staleness silently. `configs/all.hitsplat` was a day newer than the cache
+# every client in this tree was booting when this was written.
+#
+# The predicate is the same script with no --lane (tools/cache_overlay_stale.py),
+# for the same reason the lane check is: one implementation, and `make` would
+# apply this rule itself if the target were a real file.
+#
+# $1 is the cache to bake. That is the OVERLAY'S BASE, not $CACHE_DIR, whenever
+# this runs as a layer under one — and once it rebakes, the overlay's own
+# predicate sees a base newer than itself and rebakes in turn, which is how one
+# content edit propagates all the way up a composition.
+cache_base_bake() {
+    _cache=$1
+    # `make -C src` resolves a relative path against src/, not the repo root.
+    case "$_cache" in
+        /*) _abs=$_cache ;;
+        *) _abs=$(pwd)/$_cache ;;
+    esac
+    if python3 tools/cache_overlay_stale.py \
+            --cache "$_cache" \
+            --base "${MOCK230_CACHE_BASE:-cache.osrs239}" \
+            ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
+            --input src/makefile \
+            --input 3rd/rscache/tools/cachepack >&2; then
+        _stale=0
+    else
+        _stale=$?
+    fi
+    if [ "$_stale" = 1 ]; then
+        echo "run-live.sh: content cache $_cache is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" >&2
+        return 0
+    fi
+    echo "run-live.sh: baking the content cache $_cache..." >&2
+    make -C src mock230-cache MOCK230_CACHE_DIR="$_abs" || exit 1
+}
+
+# The same question where there is no bake that could answer it.
+#
+# A cache in the rs2012 chain is composed on the PRISTINE `cache.osrs239`
+# (RS2012_CACHE_BASE, src/makefile) rather than on the content bake, and each
+# stager copies only its own `ported/` lane on top. So the ordinary tree is not
+# an input to that chain at any freshness: rebaking every layer would not put a
+# single edited config in it. Say so instead — the alternative is what this file
+# spent six sessions learning to avoid, a launcher that looks prepared.
+#
+# Note the inverted rule: a predicate that could not answer stays SILENT here.
+# For a bake, "cannot answer" must mean bake; for a warning, it would mean crying
+# wolf on every launch of a checkout without python3.
+cache_base_warn() {
+    _cache=$1
+    if python3 tools/cache_overlay_stale.py \
+            --cache "$_cache" \
+            ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} >&2; then
+        _stale=0
+    else
+        _stale=$?
+    fi
+    [ "$_stale" = 0 ] || return 0
+    echo "run-live.sh: ^^ $_cache is composed on the pristine cache.osrs239, so" >&2
+    echo "  those ordinary-content edits are NOT in it and no bake here can put" >&2
+    echo "  them there. Server-side work (.rs2, params, npc/loc server fields)" >&2
+    echo "  travels by the script pack and is unaffected. For client-visible" >&2
+    echo "  edits, rebase the chain: make -C src mock230-cache, then rerun with" >&2
+    echo "  RS2012_CACHE_BASE=\$PWD/cache.osrs239.baked TORIRS_FORCE_CACHE_BAKE=1" >&2
+}
+
 # The bases match the Makefile's `?=` defaults, and honour the same overrides:
 # a caller that moves SUMMONING_CACHE_BASE must not leave the freshness check
 # watching a cache the bake no longer reads.
@@ -531,8 +615,13 @@ build_cache_overlay() {
             cache_overlay "Ancient Curses over Summoning" rs558_ancient_curses \
                 "$_rs2012_summ" \
                 tools/stage_curses_overlay.py mock230-cache-all
+            cache_base_warn "$CACHE_DIR"
             ;;
+        # Rooted on the content bake, so layer 0 runs first: a rebuilt base is
+        # one of the overlay predicate's own inputs, which is what carries an
+        # ordinary-content edit up into the overlay without a second rule.
         *cache.osrs239.curses)
+            cache_base_bake "${CURSES_CACHE_BASE:-cache.osrs239.baked}"
             cache_overlay "Ancient Curses" rs558_ancient_curses \
                 "${CURSES_CACHE_BASE:-cache.osrs239.baked}" \
                 tools/stage_curses_overlay.py mock230-cache-curses
@@ -546,8 +635,10 @@ build_cache_overlay() {
             cache_overlay "Summoning over QBD/TD" scape2009_summoning \
                 "$_rs2012_base" \
                 tools/stage_summoning_overlay.py mock230-cache-rs2012-summoning
+            cache_base_warn "$CACHE_DIR"
             ;;
         *cache.osrs239.summoning)
+            cache_base_bake "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}"
             cache_overlay "Summoning" scape2009_summoning \
                 "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
                 tools/stage_summoning_overlay.py mock230-cache-summoning
@@ -566,6 +657,13 @@ build_cache_overlay() {
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
                 "${RS2012_CACHE_BASE:-cache.osrs239}" \
                 tools/stage_rs2012_overlay.py mock230-cache-rs2012
+            cache_base_warn "$CACHE_DIR"
+            ;;
+        # A manifest that boots the ordinary bake itself (manifest_osrs239_net.ini).
+        # It had no arm at all, so the one cache every non-lane profile runs on was
+        # the only one nothing ever checked.
+        *cache.osrs239.baked)
+            cache_base_bake "$CACHE_DIR"
             ;;
     esac
 }

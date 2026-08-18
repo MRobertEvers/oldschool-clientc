@@ -225,11 +225,15 @@ def main() -> int:
 
         # A lane edit belongs to the lane's own bake. Left in the ordinary walk
         # it would rebake the base cache too, and only the overlay would carry
-        # the edit.
-        os.utime(tree / "ported" / LANE / "PROVENANCE.md", (now + 10, now + 10))
-        check("base: newer lane is not the base bake's business",
-              run_base(tool, tree, baked, base), tool.FRESH, failures)
-        os.utime(tree / "ported" / LANE / "PROVENANCE.md", (now - 100, now - 100))
+        # the edit. The asset payload is the case that needs the prune: it sits
+        # at `models/ported/<lane>/`, INSIDE a root the ordinary walk reads.
+        for member in (f"ported/{LANE}/PROVENANCE.md",
+                       f"models/ported/{LANE}/rs2012_model_70260.ob3"):
+            path = tree / member
+            os.utime(path, (now + 10, now + 10))
+            check(f"base: newer {member} is not the base bake's business",
+                  run_base(tool, tree, baked, base), tool.FRESH, failures)
+            os.utime(path, (now - 100, now - 100))
 
         # A re-unpacked pristine cache moves every record the tree does not
         # state, exactly as in lane mode.

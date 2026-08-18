@@ -34,6 +34,11 @@
         overlay is built before the client runs -- but only when it is stale.
         tools\cache_overlay_stale.py owns that decision and is shared with
         run-live.sh, so the two launchers cannot drift.
+      * the ordinary content bake (cache.osrs239.baked, mock230-cache) is
+        checked by the same script with no --lane, both when a manifest boots
+        it directly and as layer 0 under an overlay based on it. It is what
+        puts an edited config, interface, CS2 script or sprite in front of a
+        client, and nothing watched it at all until that was added.
       * [content:lanes] names the content lanes the script pack is compiled
         from; scripts= says where that pack lands.
       * the OSRS-Content tree is discovered, not demanded: the first checkout
@@ -559,8 +564,16 @@ function Resolve-CachePath([string]$Path) {
 # mode of a skipped one is a session spent debugging content that was never in
 # the cache. TORIRS_FORCE_CACHE_BAKE=1 is read by the script itself, so there is
 # no branch for it here.
+#
+# An empty -Lane asks the other half of the same predicate: the ORDINARY content
+# bake (`mock230-cache`, which walks the tree proper and writes
+# cache.osrs239.baked) rather than a marked lane. Nothing watched that until it
+# was added, so the one cache every non-lane profile boots was the only one with
+# no freshness rule at all -- see run-live.sh's cache_base_bake.
 function Test-CacheOverlayFresh {
-    param([string]$Lane, [string]$Base, [string]$Stager)
+    param([string]$Lane, [string]$Base, [string]$Stager, [string]$Cache)
+
+    if (-not $Cache) { $Cache = $cacheDir }
 
     # Function-scoped, and deliberate: a non-zero exit is this predicate's
     # ANSWER, not a failure, and PowerShell 7.4+ raises native non-zero exits as
@@ -575,6 +588,7 @@ function Test-CacheOverlayFresh {
     }
     if (-not $py) {
         Write-Host 'run-live.ps1: no python3 on PATH -- baking rather than assuming the cache is fresh' -ForegroundColor Yellow
+        $script:CacheStaleExit = 2
         return $false
     }
 
@@ -593,14 +607,25 @@ function Test-CacheOverlayFresh {
     # of more than one element as truthy regardless of what it contains, so the
     # $false case never reached the caller. Assignment is what stops the
     # python process's stdout from leaking into the function's output stream.
+    $laneArgs = @()
+    if ($Lane) { $laneArgs = @('--lane', $Lane, '--input', (Resolve-RepoPath $Stager)) }
+
+    # An empty -Base omits the flag rather than resolving to the repo root: a
+    # `--base` pointing at the whole checkout would make every file in it an
+    # input, and the predicate would answer "stale" forever.
+    $baseArgs = @()
+    if ($Base) { $baseArgs = @('--base', (Resolve-RepoPath $Base)) }
+
     $global:LASTEXITCODE = 0
     $stdout = & $py.Source (Join-Path $repo 'tools\cache_overlay_stale.py') `
-        --cache (Resolve-CachePath $cacheDir) --lane $Lane `
-        --base (Resolve-RepoPath $Base) @treeArgs `
-        --input (Resolve-RepoPath $Stager) `
+        --cache (Resolve-CachePath $Cache) @laneArgs @baseArgs @treeArgs `
         --input (Resolve-RepoPath 'src\makefile') `
         --input (Resolve-RepoPath '3rd\rscache\tools\cachepack')
     if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
+    # The bool answers "skip?", which is exit 1 alone. The warn path needs the
+    # three-way answer -- 0 stale, 2 could-not-answer -- so keep the raw exit
+    # beside it rather than collapsing both into "not fresh".
+    $script:CacheStaleExit = $LASTEXITCODE
     return ($LASTEXITCODE -eq 1)
 }
 
@@ -624,11 +649,27 @@ function Build-CacheOverlay {
     $lane = switch -Wildcard ($cacheDir) {
         '*cache.osrs239.summoning' {
             @{
-                Label   = 'Summoning'
-                Lane    = 'scape2009_summoning'
-                Base    = $summoningBase
-                Stager  = 'tools\stage_summoning_overlay.py'
-                Targets = @('mock230-cache-summoning')
+                Label      = 'Summoning'
+                Lane       = 'scape2009_summoning'
+                Base       = $summoningBase
+                Stager     = 'tools\stage_summoning_overlay.py'
+                Targets    = @('mock230-cache-summoning')
+                # Rooted on the content bake, so layer 0 runs first: a rebuilt
+                # base is one of this overlay's own predicate inputs, which is
+                # what carries an ordinary-content edit up into it.
+                BaseAction = 'bake'
+                BaseCache  = $summoningBase
+            }
+            break
+        }
+        # The ordinary bake itself (manifest_osrs239_net.ini). It had no arm at
+        # all, so the one cache every non-lane profile runs on was the only one
+        # nothing ever checked.
+        '*cache.osrs239.baked' {
+            @{
+                Label      = 'content'
+                BaseAction = 'bake'
+                BaseCache  = 'cache.osrs239.baked'
             }
             break
         }
@@ -643,6 +684,11 @@ function Build-CacheOverlay {
                 Base    = $rs2012Base
                 Stager  = 'tools\stage_rs2012_overlay.py'
                 Targets = @('mock230-cache-rs2012', 'mock230-servpack')
+                # Composed on the PRISTINE cache.osrs239 (RS2012_CACHE_BASE),
+                # so the ordinary tree is not an input to this chain at any
+                # freshness and there is no bake to ask for. Report, do not
+                # bake.
+                BaseAction = 'warn'
             }
             break
         }
@@ -655,13 +701,45 @@ function Build-CacheOverlay {
         return
     }
 
-    if (Test-CacheOverlayFresh -Lane $lane.Lane -Base $lane.Base -Stager $lane.Stager) {
-        Write-Host "run-live.ps1: $($lane.Label) cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
-        return
+    if ($lane.BaseAction -eq 'bake') {
+        $contentBase = if ($env:MOCK230_CACHE_BASE) { $env:MOCK230_CACHE_BASE } else { 'cache.osrs239' }
+        if (Test-CacheOverlayFresh -Lane '' -Base $contentBase -Cache $lane.BaseCache) {
+            Write-Host "run-live.ps1: content cache $($lane.BaseCache) is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
+        }
+        elseif ($lane.BaseCache -ne 'cache.osrs239.baked') {
+            # MOCK230_CACHE_DIR would have to reach the makefile as an MSYS path
+            # (make.ps1 passes VAR=value through untouched, but the recipe is
+            # POSIX sh). Rather than invent that translation, say what to run.
+            Write-Host "run-live.ps1: $($lane.BaseCache) is stale; bake it with .\make.ps1 mock230-cache MOCK230_CACHE_DIR=..." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "run-live.ps1: baking the content cache $($lane.BaseCache)..." -ForegroundColor Cyan
+            Invoke-Make -Targets @('mock230-cache')
+        }
     }
 
-    Write-Host "run-live.ps1: baking $cacheDir ($($lane.Targets -join ' '))..." -ForegroundColor Cyan
-    Invoke-Make -Targets $lane.Targets
+    if (-not $lane.Lane) { return }
+
+    if (Test-CacheOverlayFresh -Lane $lane.Lane -Base $lane.Base -Stager $lane.Stager) {
+        Write-Host "run-live.ps1: $($lane.Label) cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "run-live.ps1: baking $cacheDir ($($lane.Targets -join ' '))..." -ForegroundColor Cyan
+        Invoke-Make -Targets $lane.Targets
+    }
+
+    # The same question where no bake can answer it: ordinary-content edits
+    # cannot enter a pristine-rooted chain. A predicate that could not answer
+    # stays SILENT here -- for a bake, "cannot answer" must mean bake; for a
+    # warning it would mean crying wolf on every launch without python3.
+    if ($lane.BaseAction -eq 'warn') {
+        Test-CacheOverlayFresh -Lane '' -Base '' -Cache $cacheDir | Out-Null
+        if ($script:CacheStaleExit -eq 0) {
+            Write-Host "run-live.ps1: ^^ $cacheDir is composed on the pristine cache.osrs239, so those" -ForegroundColor Yellow
+            Write-Host "  ordinary-content edits are NOT in it and no bake here can put them there." -ForegroundColor Yellow
+            Write-Host "  Server-side work (.rs2, params, npc/loc server fields) is unaffected." -ForegroundColor Yellow
+        }
+    }
 }
 
 # tools\server_scripts_stale.py is the only implementation of this predicate
