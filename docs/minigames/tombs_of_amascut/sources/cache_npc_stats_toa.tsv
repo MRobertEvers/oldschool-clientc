@@ -1,0 +1,184 @@
+id	symbol	name	vislevel	size	stat1_atk	stat2_str	stat3_def	stat4_hp	stat5_rng	stat6_mag	attackrate	param_26_style	maxhit_param	category
+729	scarab_swarm	Scarabs	92	1	255	10	2	25			1	1		
+4189	toa_apmeken_captured		1	1										1686
+10680	toa_zebak_transmog	Zebak	371	5										
+11652	poh_warden_pet_tumeken	Tumeken's Guardian	0	1										764
+11653	poh_warden_pet_elidinis	Elidinis' Guardian	0	1										764
+11654	toa_apmeken_captured_vis	Apmeken	0	1										
+11655	toa_apmeken_freed_vis	Apmeken	0	1										
+11656	toa_apmeken_nexus_vis	Apmeken	0	1										
+11657	toa_crondis_captured_vis	Crondis	0	3										
+11659	toa_crondis_freed_vis	Crondis	0	1										
+11660	toa_crondis_nexus_vis	Crondis	0	1										
+11661	toa_scabaras_captured_vis	Scabaras	0	1										
+11662	toa_scabaras_freed_vis	Scabaras	0	1										
+11663	toa_scabaras_nexus_vis	Scabaras	0	1										
+11686	toa_het_captured_vis	Het	0	2										
+11687	toa_het_freed_vis	Het	0	1										
+11688	toa_het_nexus_vis	Het	0	1										
+11689	toa_osmumten_vis	Osmumten	0	1										
+11690	toa_osmumten_wardens_vis	Osmumten	0	1										
+11691	toa_osmumten_vault_vis_0	Spirit	0	1										
+11692	toa_osmumten_vault_vis_1	Osmumten	0	1										
+11693	toa_osmumten_vault_vis_2	Osmumten	0	1										
+11694	toa_midraidloot_trader	Helpful Spirit	0	1										922
+11695	toa_player_ghost	Ghost	0	1										
+11696	toa_amascut_vis	Amascut	0	1										1687
+11697	toa_scabaras_scarab	Scarab	56	1	20	28	32	12	50			4		
+11698	toa_scabaras_guesser_obelisk	<col=00ffff>Obelisk</col>	0	1				120						1688
+11699	toa_scabaras_guesser_obelisk_hit	<col=00ffff>Obelisk</col>	0	1				120						1688
+11700	toa_crondis_tree_1	<col=00ffff>Palm of Resourcefulness</col>	0	5										1689
+11701	toa_crondis_tree_2	<col=00ffff>Palm of Resourcefulness</col>	0	5										1689
+11702	toa_crondis_tree_3	<col=00ffff>Palm of Resourcefulness</col>	0	5										1689
+11703	toa_crondis_tree_4	<col=00ffff>Palm of Resourcefulness</col>	0	5										1689
+11704	toa_crondis_tree_5	<col=00ffff>Palm of Resourcefulness</col>	0	5										1689
+11705	toa_crondis_crocodile	Crocodile	71	2	150	100	60	30		30	7	2		
+11706	toa_het_goal	<col=00ffff>Het's Seal (protected)</col>	0	3				119						1690
+11707	toa_het_goal_vulnerable	<col=00ffff>Het's Seal (weakened)</col>	0	3										1690
+11708	toa_het_orb	<col=00ffff>Orb of Darkness</col>	0	1										
+11709	toa_path_apmeken_baboon_melee_1	Baboon Brawler	56	1	40	12	40	25	40	40	4	2	0	1691
+11710	toa_path_apmeken_baboon_ranged_1	Baboon Thrower	56	1	40	12	40	30	40	40	4	4	0	1691
+11711	toa_path_apmeken_baboon_magic_1	Baboon Mage	56	1	40	12	40	20	40	40	4	5	0	1691
+11712	toa_path_apmeken_baboon_melee_2	Baboon Brawler	68	1	60	20	60	30	60	60	4	2	0	1691
+11713	toa_path_apmeken_baboon_ranged_2	Baboon Thrower	68	1	60	20	60	35	60	60	4	4	0	1691
+11714	toa_path_apmeken_baboon_magic_2	Baboon Mage	68	1	60	20	60	25	60	60	4	5	0	1691
+11715	toa_path_apmeken_baboon_shaman	Baboon Shaman	74	1	60	20	60	40	60	60	8	5	0	1691
+11716	toa_path_apmeken_baboon_zombie	Volatile Baboon	72	1	60	20	60	8	60	60	4	2	0	1691
+11717	toa_path_apmeken_baboon_cursed	Cursed Baboon	70	1	60	20	60	20	60	60	4	2	0	1691
+11718	toa_path_apmeken_baboon_thrall	Baboon Thrall	52	1	40	12	40	2	40	40	4	2	0	1691
+11719	toa_kephri_boss_shielded	Kephri	341	5	0	80	0	150	0	125	6	5	50	1692
+11720	toa_kephri_boss_weak	Kephri	341	5	0	80	0	150	0	125	6	5	50	1692
+11721	toa_kephri_boss_enrage	Kephri	341	5	0	80	0	80	0	125	6	5	50	1692
+11722	toa_kephri_boss_dead	Kephri	341	5	0	80	0	80	0	125			50	
+11723	toa_kephri_shield_scarab	Scarab Swarm	8	1		0		10				2		
+11724	toa_kephri_guardian_melee	Soldier Scarab	89	3	75	80	80	40	95	100	6	1	65	1693
+11725	toa_kephri_guardian_ranged	Spitting Scarab	89	3		80	80	40	95	100	3	4	65	1693
+11726	toa_kephri_guardian_mage	Arcane Scarab	89	3	75	80	80	40	95	100	6	5	65	1693
+11727	toa_kephri_scarab_rangekite	Agile Scarab	53	1	60	5	20	30	40	30	4	4	25	1694
+11728	kephri_egg_explode	<col=00ffff>Egg</col>	0	1		0		35				2		1694
+11729	kephri_egg_hatch	<col=00ffff>Egg</col>	0	1		0		35				2		1694
+11730	toa_zebak	Zebak	371	9	250	70	140	580	120	100	7		30	1695
+11731	toa_zebak_tail	Zebak's Tail	0	9										
+11732	toa_zebak_enraged	Zebak	371	9	250	70	140	580	120	100	7		30	1695
+11733	toa_zebak_dead	Zebak	0	9										1696
+11734	toa_zebak_tail_dead	Zebak's Tail	0	9										1696
+11735	toa_zebak_jug	<col=00ffff>Jug</col>	0	1				5						1697
+11736	toa_zebak_jug_rolling	<col=00ffff>Jug</col>	0	1										1697
+11737	toa_zebak_safespot	<col=00ffff>Boulder</col>	0	1				150						
+11738	toa_zebak_wave	<col=00ffff>Wave</col>	0	1										1698
+11739	toa_zebak_wave_bloody	<col=00ffff>Bloody Wave</col>	0	1										1698
+11740	toa_zebak_landcroc	Crocodile	0	2								1		
+11741	toa_zebak_watercroc	Crocodile	0	1	250		70				2	2		
+11742	toa_zebak_blood_cloud	Blood Cloud	0	2				25						1699
+11743	toa_zebak_blood_cloud_small	Blood Cloud	0	1				30						1699
+11744	spotanim_zebak_ranged01_npc		1	7										
+11745	spotanim_zebak_jugbreak_npc		1	3										
+11746	toa_warden_elidinis_phase1_inactive	Elidinis' Warden	489	5	200	100	150	800	100	100	14		0	1700
+11747	toa_warden_tumeken_phase1_inactive	Tumeken's Warden	489	5	200	100	150	800	100	100	14		0	1700
+11748	toa_warden_elidinis_phase1	Elidinis' Warden	489	5	200	100	150	800	100	100	14		0	1700
+11749	toa_warden_tumeken_phase1	Tumeken's Warden	489	5	200	100	150	800	100	100	14		0	1700
+11750	toa_wardens_p1_obelisk_npc_inactive	<col=00ffff>Obelisk</col>	0	3	200	100	150	260	100	100			0	1701
+11751	toa_wardens_p1_obelisk_npc	<col=00ffff>Obelisk</col>	0	3	200	100	150	260	100	100			0	1701
+11752	toa_wardens_p2_obelisk_npc	<col=00ffff>Obelisk</col>	0	3	200	100	150	260	100	100			0	1701
+11753	toa_warden_elidinis_phase2_mage	Elidinis' Warden	489	5	300	100	150	140	190	190	7	5	0	1700
+11754	toa_warden_elidinis_phase2_range	Elidinis' Warden	489	5	300	100	150	140	190	190	7	5	0	1700
+11755	toa_warden_elidinis_phase2_exposed	Elidinis' Warden	489	5	300	100	150	140	190	190	7	5	0	1700
+11756	toa_warden_tumeken_phase2_mage	Tumeken's Warden	489	5	300	100	150	140	190	190	8	1	12	1700
+11757	toa_warden_tumeken_phase2_range	Tumeken's Warden	489	5	300	100	150	140	190	190	8	1	12	1700
+11758	toa_warden_tumeken_phase2_exposed	Tumeken's Warden	489	5	300	100	150	140	190	190	8	1	12	1700
+11759	toa_warden_elidinis_phase3_inactive	Elidinis' Warden	489	5	150	150	150	880	150	150		5	40	1700
+11760	toa_warden_tumeken_phase3_inactive	Tumeken's Warden	489	5	150	150	150	880	150	150		1	40	1700
+11761	toa_warden_elidinis_phase3	Elidinis' Warden	544	5	150	150	150	880	150	150		5	40	1700
+11762	toa_warden_tumeken_phase3	Tumeken's Warden	544	5	150	150	150	880	150	150		1	40	1700
+11763	toa_warden_elidinis_phase3_charging	Elidinis' Warden	544	5	150	150	150	880	150	150		5	40	1700
+11764	toa_warden_tumeken_phase3_charging	Tumeken's Warden	544	5	150	150	150	880	150	150		1	40	1700
+11765	toa_warden_p3_death_tumeken		1	5										1702
+11766	toa_warden_p3_death_elidinis		1	5										1702
+11767	toa_amascut_p3	<col=00ffff>Phantom</col>	0	8										1703
+11768	toa_amascut_p3_enrage	<col=00ffff>Phantom</col>	0	8										1703
+11769	toa_wardens_energy		0	1										1704
+11770	toa_warden_tumeken_core	<col=00ffff>Core</col>	0	1										1705
+11771	toa_warden_elidinis_core	<col=00ffff>Core</col>	0	1										1705
+11772	wardens_p3_orb_blue	<col=00ffff>Energy Siphon</col>	0	1		150				150				1706
+11773	wardens_p3_orb_red		74	1		100				100				1706
+11774	toa_wardens_zebak	Zebak's Phantom	371	5	250	70	140	580	120	100			30	
+11775	toa_wardens_baba	Ba-Ba's Phantom	359	5	150	80	160	380	0	100		2	0	
+11776	toa_wardens_kephri	Kephri's Phantom	341	5	0	80	0	150	0	125		5	50	
+11777	toa_wardens_akkha	Akkha's Phantom	337	5	100	80	140	400	100	100		1	40	
+11778	toa_baba	Ba-Ba	359	5	150	80	160	380	0	100	6	2	0	1707
+11779	toa_baba_coffin	Ba-Ba	359	5	200	100	220	380	0	100	4	2	0	1707
+11780	toa_baba_digging	Ba-Ba	359	5	150	80	160	380	0	100	6	2	0	1707
+11781	toa_baba_baboon	Baboon	77	1	0	50	0	10	80	50		2	0	1708
+11782	toa_baba_boulder	<col=00ffff>Boulder</col>	0	3		500		25						1709
+11783	toa_baba_boulder_weak	<col=00ffff>Boulder</col>	0	3		500		25						1709
+11784	toa_baba_rubble	<col=00ffff>Rubble</col>	0	3				25						1710
+11785	toa_baba_rubble_2	<col=00ffff>Rubble</col>	0	3				25						1710
+11786	toa_baba_rubble_3	<col=00ffff>Rubble</col>	0	3				25						1710
+11787	toa_baba_rubble_4	<col=00ffff>Rubble</col>	0	3				25						1710
+11788	toa_baba_sarc_npc		0	1				60						
+11789	akkha_spawn	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11790	akkha_melee	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11791	akkha_range	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11792	akkha_mage	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11793	akkha_enrage_spawn	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11794	akkha_enrage_initial	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11795	akkha_enrage	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11796	akkha_enrage_dummy	Akkha	337	3	100	80	140	400	100	100	6	1	40	1711
+11797	akkha_shadow	Akkha's Shadow	108	3	100	30	140	70	100	100	6	1	40	1712
+11798	akkha_shadow_enrage	Akkha's Shadow	108	3	100	30	140	70	100	100	6	1	40	1712
+11799	akkha_shadow_enrage_dummy	Akkha's Shadow	108	3	100	30	140	70	100	100	6	1	40	1712
+11800	akkha_trail_orb_lightning	<col=00ffff>Orb of Lightning</col>	0	1										1713
+11801	akkha_trail_orb_darkness	<col=00ffff>Orb of Darkness</col>	0	1										1713
+11802	akkha_trail_orb_burn	<col=00ffff>Burning Orb</col>	0	1										1713
+11803	akkha_trail_orb_freeze	<col=00ffff>Frozen Orb</col>	0	1										1713
+11804	akkha_enrage_orb	<col=00ffff>Unstable Orb</col>	0	1										1714
+11805	akkha_headbar_npc		0	2										
+11806	toa_bank_camel	Bank Camel	0	2										
+11807	toa_maisa_vis	Maisa	0	1										
+11809	toa_apmeken_vis	Apmeken	0	1										
+11810	toa_crondis_vis	Crondis	0	1										
+11811	toa_het_vis	Het	0	1										
+11812	warden_pet_tumeken	Tumeken's Guardian	0	1										
+11813	warden_pet_elidinis	Elidinis' Guardian	0	1										
+11818	toa_apmeken_freed		1	1										922
+11819	toa_apmeken_nexus		1	1										922
+11820	toa_crondis_captured		1	3										1686
+11821	toa_crondis_freed		1	1										922
+11822	toa_crondis_nexus		1	1										922
+11823	toa_scabaras_captured		1	1										1686
+11824	toa_scabaras_freed		1	1										922
+11825	toa_scabaras_nexus		1	1										922
+11826	toa_het_captured		1	2										1686
+11827	toa_het_freed		1	1										922
+11828	toa_het_nexus		1	1										922
+11829	toa_osmumten_vault		1	1										922
+11830	toa_osmumten_baba		1	1										922
+11831	toa_osmumten_zebak		1	1										922
+11832	toa_osmumten_kephri		1	1										922
+11833	toa_osmumten_akkha		1	1										922
+11834	toa_osmumten_wardens		1	1										922
+11835	toa_amascut		1	1										922
+11836	toa_lobby_maisa		1	1										922
+11837	toa_lobby_apmeken		1	1										922
+11838	toa_lobby_crondis		1	1										922
+11839	toa_lobby_het		1	1										922
+11840	poh_warden_pet_akkha	Akkhito	0	1										764
+11841	poh_warden_pet_baba	Babi	0	1										764
+11842	poh_warden_pet_kephri	Kephriti	0	1										764
+11843	poh_warden_pet_zebak	Zebo	0	2										764
+11844	poh_warden_pet_tumeken_destroyed	Tumeken's Damaged Guardian	0	1										764
+11845	poh_warden_pet_elidinis_destroyed	Elidinis' Damaged Guardian	0	1										764
+11846	warden_pet_akkha	Akkhito	0	1										
+11847	warden_pet_baba	Babi	0	1										
+11848	warden_pet_kephri	Kephriti	0	1										
+11849	warden_pet_zebak	Zebo	0	2										
+11850	warden_pet_tumeken_destroyed	Tumeken's Damaged Guardian	0	1										
+11851	warden_pet_elidinis_destroyed	Elidinis' Damaged Guardian	0	1										
+12125	osb10_toa_kephri_cutscene	Kephri	341	5										
+12126	osb10_toa_akkha_cutscene	Akkha	337	3										
+12127	osb10_toa_baba_cutscene	Ba-Ba	359	5										
+12128	osb10_toa_zebak_cutscene	Zebak	371	9										
+12129	osb10_toa_zebak_tail_cutscene	Zebak's Tail	0	9										
+12130	osb10_toa_warden_tumeken_phase1_cutscene	Tumeken's Warden	489	5										
+12131	osb10_toa_warden_elidinis_cutscene	Elidinis' Warden	489	5										
+12132	osb10_toa_wardens_obelisk_cutscene	<col=00ffff>Obelisk</col>	0	3										

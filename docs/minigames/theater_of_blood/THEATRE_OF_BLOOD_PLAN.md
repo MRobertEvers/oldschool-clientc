@@ -1212,11 +1212,25 @@ reflect. Three **Nylocas Prinkipas** (npcs **10803–10806**, HP 400/350/300, **
 with a forced 16-tick stall. Like Vasilias it is four npc ids, one per form.
 Vasilias's ranged attack hits **everyone within 2 tiles of its target**, and its
 magic attack **bounces through the whole team** unless everyone is on one tile
-(the "death dot"), ignoring prayer and defence, halved within 2 tiles of the
-target and increased beyond that.
+(the "death dot"), ignoring prayer and defence. **Corrected against the Wiki
+while implementing it:** the bounce carries *the same damage the target took*
+rather than a fresh roll per player, and the 2-tile rule is a **discount for
+standing close** — "reduced by 50% if standing within two tiles of the target" —
+not a penalty for standing far. There is no "increased beyond"; beyond two tiles
+is simply the full hit.
 
 **Entry Mode**: same 31 waves and the same failure condition, but ~20 % health on
-everything and a **longer** Vasilias colour-switch interval **[MEASURE M9]**.
+everything. The Vasilias colour-switch interval is **the same 10 ticks** as every
+other mode — the Entry Mode page states that figure outright, this page's own
+"takes longer" sentence is a numberless comparative, and the cache shows no
+per-mode difference in the boss records at all (M9, closed; see
+[`TOB_RESEARCH.md`](../../TOB_RESEARCH.md)).
+
+Entry hitpoints scale the **opposite way** to Normal and Hard, which matters more
+than the interval did: Normal and Hard drain a 5-man figure *down* for smaller
+parties, Entry multiplies a **per-player unit up** by party size (Vasilias 360 ×
+scale, so the Wiki's 1440 is the 4-player figure). The wave nylocas are the
+exception inside the exception and stay **flat** at 2 / 3 (M19).
 
 ---
 
@@ -1390,21 +1404,34 @@ sounds 3230 open / 3995 close) which fire green orbs (`tob_xarpus_exhumed_energy
 **1550**) at him, healing him (`tob_xarpus_absorb` 8060, sound 3956).
 
 - **Standing on an exhumed stops it healing him** for as long as you stand there.
-- Total exhumed for the phase, by number of players present (OpenOSRS
-  `XarpusHandler`):
+- The phase, by number of players present — **measured over 391 exhumeds in 31
+  recorded rooms** ([`TOB_RESEARCH.md` §M12–M15](../../TOB_RESEARCH.md)), every
+  scale matching OpenOSRS' `XarpusHandler` exactly. **Four numbers move with
+  party size, in three different directions:**
 
-| Players | 1 | 2 | 3 | 4 | 5 |
-|---|---:|---:|---:|---:|---:|
-| Exhumed | 7 | 9 | 12 | 15 | 18 |
+| Players | 1 | 2 | 3 | 4 | 5 | 3 (Hard) |
+|---|---:|---:|---:|---:|---:|---:|
+| Exhumed | 7 | 9 | 12 | 15 | 18 | **16** |
+| Spawn cadence (ticks) | 12 | 8 | 8 | 4 | 4 | 4 |
+| Heal per orb | 20 | 16 | 12 | 9 | 8 | 12 |
+| Open for (ticks) | 11 | 11 | 11 | 11 | 11 | **9** |
 
-  The Wiki gives different figures in two places; see §15. **[MEASURE M12]**
-- Each exhumed heals **more than once** — the `Perfect Xarpus` achievement is
-  worded "without letting an exhumed heal Xarpus **more than twice**", so an
-  exhumed that is covered late can still have healed twice legally.
+  The first one rises on room tick 8–11 whatever the cadence is. A **Hard Mode
+  trio gets more exhumed than a regular four-man**, on the fastest cadence and
+  with the shortest cover window. The Wiki gives different figures in two places
+  and both are wrong; see §15. **M12–M15 are all closed.**
+- An uncovered exhumed fires an orb **every tick, from three ticks after it
+  rises** — not "more than once" as a figure of speech but eight orbs each if
+  nobody covers it. That is what makes `Perfect Xarpus` ("without letting an
+  exhumed heal Xarpus **more than twice**") a real constraint rather than a
+  formality: the third orb lands 5 ticks after the exhumed appears.
 - The number absorbed permanently scales two later numbers: the P2 poison damage,
   and the P3 retaliation damage (§10.5).
-- Phase 1 ends when the exhumed budget is exhausted; the npc changes 8339 → 8340
-  and he **stands up with the health he ended P1 with**.
+- Phase 1 ends when the exhumed budget is exhausted — but **not immediately**.
+  Phase 2 opens **9 ticks after the last exhumed despawns** in every recorded
+  raid (trio: last rise 97 → despawn 108 → P2 at 117; four-man: 64 → 75 → 84),
+  and the first spit is 7 ticks after that. The npc changes 8339 → 8340 and he
+  **stands up with the health he ended P1 with**.
 
 ### 10.3 Phase 2 — Poison
 
@@ -1466,19 +1493,18 @@ T = 0     First player crosses. Xarpus 8338 -> 8339. He is at 75% health.
           PHASE 1.
 
 while exhumed_budget > 0:
-    +k    spawn an exhumed: ground object 32743 at a pseudo-random arena tile,
-          seq 8064 then 8066 loop, sound 3230.
-                                            [MEASURE M13: the spawn cadence in
-          ticks, and whether it is fixed or scales with party size.]
+    +9    the FIRST exhumed rises - room tick 8-11 in every recording, whatever
+          the cadence is - then one every cadence(scale) ticks: 12 solo, 8 at
+          two or three, 4 at four or five, 4 in Hard Mode. Ground object 32743
+          at a pseudo-random arena tile, seq 8064 then 8066 loop, sound 3230.
     while the exhumed is open and NO player stands on its tile:
-        every h ticks: fire projectile 1550 at Xarpus; he plays 8060 and heals.
-                                            [MEASURE M14: h, and the heal amount.]
-    +m    the exhumed closes (seq 8066, sound 3995); exhumed_budget -= 1.
-                                            [MEASURE M15: the open duration; the
-          OpenOSRS plugin models it as 11 ticks but has an 18 in a dead comment.]
+        EVERY TICK from spawn+3: fire projectile 1550 at Xarpus; he plays 8060
+        and heals by heal(scale) - 20/16/12/9/8, inverse to party size.
+    +11   the exhumed closes (seq 8066, sound 3995); exhumed_budget -= 1.
+          (NINE ticks in Hard Mode, not eleven.)
 
-when exhumed_budget hits 0:
-    +0    npc 8339 -> 8340, seq `tob_xarpus_fly_up` 8061. PHASE 2.
+when exhumed_budget hits 0 and the last exhumed has despawned:
+    +9    npc 8339 -> 8340, seq `tob_xarpus_fly_up` 8061. PHASE 2.
     +7    FIRST SPIT.
     then every 4 ticks: SPIT
         +0  seq 8059; pick the target by orb order; launch 1555 at their tile.
@@ -1508,8 +1534,12 @@ and one player must pick it up before Verzik.
 
 **Hard Mode** (10770–10773): as the fight starts he **poisons the outer two rings
 of the arena**, sparing only the six tiles by the entrance — leaving a 3-tile
-working radius; his Defence drops to 200 to compensate; the exhumed cluster more
-predictably; in P3 he faces the last quadrant he was hit from instead of rotating.
+working radius; his Defence drops to 200 to compensate; in P3 he faces the last
+quadrant he was hit from instead of rotating. And phase 1 is harder in three
+measured ways at once (§10.2): **a trio gets 16 exhumed** rather than 12 — more
+than a regular four-man — on the **4-tick cadence** rather than 8, each **open
+for 9 ticks** rather than 11. Its healing pool, 16 × 12 = 192, is deliberately
+larger than any regular scale's ~140.
 
 **Entry Mode** (10766–10769): screech at 22.5 %; protection prayers have no effect
 at all in this room, so prayer points can go into offensive prayers.
@@ -1962,28 +1992,28 @@ approximation and tag it in `tob.constant`.
 | # | Room | Question |
 |---|---|---|
 | M1 | Maiden | **Closed.** First attack *animation* on room tick **9** (25 of 26 recorded rooms; the 26th started a tick late), then a flat **10-tick** cadence — 582 of 582 gaps, unbroken across all 78 crab transmogs. Neither "on the room-start tick" nor "10 ticks later": the clock is armed at room start and first fires on the 10th tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M2 | Maiden | **Cooldown confirmed, roll estimated.** Over 608 recorded attacks the 3-attack cooldown was **never** violated, and she can throw blood on her first attack of the room. On top of it there is a roll: **119 of 385 eligible attacks, p̂ = 0.309** (CI 0.26–0.36, consistent with a flat 1/3); blood-throw gaps are near-geometric. Whether it is exactly 1/3, and whether it is conditional on anything, needs a bigger harvest. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M2 | Maiden | **Cooldown confirmed; roll is 1/3 or 1/4, evidence favours 1/3.** Over 608 recorded attacks the 3-attack cooldown was **never** violated, and she can throw blood on her first attack of the room. On top of it a roll: **119 of 385 eligible attacks, p̂ = 0.309, 95 % CI [0.263, 0.355]** — an interval that contains 1/3 and **excludes** the 1/4 that Zenyte's server uses (`BLOOD_ATTACK_CHANCE = 4`, gated by the same two-storm cooldown). Carry 1/3, tag 1/4 as the alternative. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M3 | Maiden | **Closed** — stated outright by `TobMistakeTracker`'s `MaidenMistakeDetector`: flight = **50 + 15·d client cycles** (d = tiles from her *hitbox*; 1 tile = 65 cycles), the two bonus splats on the furthest player are **+25 cycles** so they always activate a tick later, and the landed splat lasts **exactly 11 ticks**. `ticks = floor(cycles/30)`. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M4 | Maiden | **Closed.** Ten fixed slots (5 north, 5 south) each with a "scuffed" variant one tile east and one tile outward; table matches blert's constants and 462 recorded spawns. **Scale 5 uses all ten every time**; below that a **fresh uniform subset of 2 × scale** is drawn per spawn (per-slot counts χ² p ≈ 0.92). Spawn is **on the transmog tick itself** — crab spawn tick == Maiden id-change tick in 81 of 81 events. The scuff applies to the whole spawn set at once (2 of 60 events), not per crab. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M5 | Maiden | **Measured — 29 ticks.** No plugin models the trail, but blert transmits the live trail-tile set every tick: over 3 366 tile runs, **80 % are exactly 29 ticks** (17.4 s). Longer runs are a spawn re-walking its own trail and restarting the clock, which is why a stopwatch gives the Wiki's "20–30 seconds" — that measures a *patch*, not a tile. Confirm 29 vs 30 with a direct `GameObjectDespawned` capture before hard-coding. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M6 | Bloat | **Two of three closed.** **16 hands per drop**; **shadow→land is 3 ticks** (TobMistakeTracker states it, and blert's drop→splat delta is 3 with no exceptions); the **drop cadence is HP-gated — every 6 ticks above the threshold, every 4 below**, bracketed to **(34 %, 41.3 %]** and proven by one raid that did both in different walks. Hands fall only while he walks. **Stun duration still open** — no plugin models it, no source gives ticks. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M7 | Nylocas | **Half closed — by the cache.** Pillar hitpoints are stated: `stat4=130` on `tob_nylocas_support` (Hard 150, Entry 155), read the same way as the small nylo's 11 and the big's 22. `tob.constant` uses those and no longer guesses 200. Still open: the damage one nylocas does to a pillar per swing (`^tob_nylo_pillar_hit_max = 2`, disclosed), and party-size scaling. **The research pass could not close the scaling question and explains why:** in this cache the Normal-mode boss figures are the *5-man* values that the server scales down (Maiden 3500 → 3062 → 2625), so a single support figure is equally consistent with "130 flat" and "130 at five players". blert never sees the supports at all — the only npc ids in its Nylocas stream are 8342–8357 — so the API cannot answer it either. Needs a capture of the support's HP varbit in a trio and a five-man; damage per swing falls out of the same recording. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M5 | Maiden | **Closed — 30 ticks.** Measured 29 ticks of active life per trail tile (80 % of 3 366 recorded runs; longer runs are a spawn re-covering its own trail), and Zenyte's `BloodTrail` states the constant outright — `ticks = 31`, active at 30, removed at 0, with a `resetTimer()` that restarts it on re-cover. Two sources, one off-by-one: **use 30**. The Wiki's "roughly 20–30 seconds" measures the lifetime of a *patch* under a circling spawn, not of a tile. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M6 | Bloat | **Two of three closed, third has a lead.** **16 hands per drop**; **shadow→land is 3 ticks** (stated by TobMistakeTracker, and blert's drop→splat delta is 3 with no exceptions, and Zenyte independently drops on `ticks % 5 == 0` and lands on `% 5 == 3`); the **drop cadence is HP-gated — 6 ticks above the threshold, 4 below**, bracketed to **(34 %, 41.3 %]** and proven by one raid that did both in different walks. Down phase is ~33 ticks (Zenyte `freeze(32)`). **Stun duration:** Zenyte says **3 ticks** (`member.stun(3)`, `Entity.stun(int ticks)`) — the only figure any source gives, but it is suspiciously equal to the shadow delay two lines above it, so implement it tagged and confirm with a splat-tick→first-action capture. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M7 | Nylocas | **Half closed — by the cache; the scaling question is now firmly open.** Pillar hitpoints: `stat4=130` on `tob_nylocas_support` (Hard 150, Entry 155). Three sources give three figures — cache **130**, Zenyte `380 − 20 × party` (360 solo…280 at five), Near-Reality **flat 500** — and the two servers do not even agree on *whether* it scales, which is the clearest sign neither author knew. Keep the cache: on every ToB npc verified in this pass its `stat4` was right (Maiden 3500, small nylo 11, big 22, web 10, and the whole Entry per-player table behind M19). blert never sees the supports (only ids 8342–8357 appear), so the API cannot help; needs a capture of the support's HP varbit in a trio and a five-man. **Damage per swing** now has a first figure: Zenyte deals a flat `large ? 4 : 2`, so the disclosed `^tob_nylo_pillar_hit_max = 2` matches for smalls and **4 for bigs** is a new lead. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M8 | Nylocas | **Closed.** `boss_spawn = first wave-check tick ≥ cleanup_end + 16`, i.e. four full cycles after the last nylo *despawns*, rounded up to the next cycle-0 tick. Reproduces **22 of 22** recorded raids exactly (observed deltas 16–19), and blert's own guide words it as "the start of the 5th cycle following the despawn". Keyed on despawn, not death — the death→despawn delay is itself a function of size, cause and whether it was walking. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M9 | Nylocas | **Regular mode closed, Entry still open.** Vasilias always spawns **melee**, first switches **9 ticks** after spawn, then exactly every **10 ticks**, and **never repeats a style back-to-back** (185 recorded switches). Regular mode gets two autos per style window. Entry's "takes longer" is unmeasured: blert holds Entry raids but none completed in the recent window — page `startTime=lt<epoch_ms>` back and read the switch ticks off the boss's npc id. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M9 | Nylocas | **Regular closed; Entry resolved on the balance of evidence.** Vasilias always spawns **melee**, first switches **9 ticks** after spawn, then exactly every **10 ticks**, and **never repeats a style** (185 recorded switches; Zenyte independently does `ticks % 10` with `types.remove(type)`). For Entry the Wiki contradicts itself: the [Nylocas Vasilias](https://oldschool.runescape.wiki/w/Nylocas_Vasilias) page says the boss "takes longer to switch colours" with no figure, while [Theatre of Blood/Entry Mode](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Entry_Mode) says it "will change colours after 10 ticks (6 seconds)" and "will never remain in the same form twice in a row". The cache backs the specific number — the `_story` boss records are structurally identical to the regular ones, same `param=attackrate,int,4` — and blert is a dead end (its entire database holds **one** Entry raid, unfinished). **Implement Entry at 10 ticks, tagged**, and soften §8's claim of a longer interval. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M10 | Sotetseg | **Closed — 1 tick.** He flips to his inactive npc id on the maze proc tick and back on maze end; the first post-maze attack is the **very next tick** in 25 of 26 recorded mazes. The gap from his *last pre-maze* attack is 25–51 ticks and is pure noise — it tracks how fast the player ran the maze, which is why this looked open. He can also attack *on* the proc tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M11 | Sotetseg | **Downgraded to "verify".** An empirical generator (8 seeds, `max_x_change = 5`, odd rows are runs, even rows single tiles) is recovered in [`ENCOUNTER_TIMING.md` §5.5](ENCOUNTER_TIMING.md). Compare distributions against the community trainer over 10 000 mazes. **A real-maze corpus is now reachable:** blert emits `TOB_SOTE_MAZE_PATH` with the lit tiles in maze grid coordinates (x 0–13, y 0–14, matching devqhp's 14 × 15). Two traps before using it — a maze is the *union* over its events so a late-joining recorder yields a partial maze, and the `maze` index field read 0 on 70 of 71 events in a raid that clearly ran two, so the second maze can merge into the first and produce two tiles per row, which would *falsely refute* the "even rows are single tiles" rule. Filter to mazes covering all 15 rows with no gaps, split by tick gap as well as by index, then compare. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M11 | Sotetseg | **Reduced to one yes/no question.** A **second, independent** generator now exists — Zenyte's `ShadowRealmArea.generatePath` — and it agrees with the devqhp trainer on the **14 × 15 grid**, on **`max_x_change = 5`** (two independent reconstructions landing on 5 promotes it to a near-certain game constant), on horizontal runs joined by straight vertical segments, and on the path only advancing towards the far row. They disagree on exactly one thing: devqhp advances **2 rows per turn always** (so always **7 horizontal runs**), Zenyte advances **2 or 4** (so 4–7 runs). **So M11 is now: do real mazes always have exactly seven horizontal runs?** Answerable from a blert `TOB_SOTE_MAZE_PATH` corpus — keep only mazes covering all 15 rows with no gaps, and split by tick gap as well as by the `maze` index field, which read 0 on 70 of 71 events in a raid that ran two mazes and would otherwise merge them into a false refutation. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M12 | Xarpus | **Closed** — **7 / 9 / 12 / 15 / 18** exhumeds at scales 1–5 (measured, 31 rooms, matches OpenOSRS exactly), and **16 for a Hard Mode trio** — more than a regular four-man, a case no source in the plan covered. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M13 | Xarpus | **Closed — scaled, not fixed.** Spawn cadence is **12 ticks solo, 8 at scales 2–3, 4 at scales 4–5** (and 4 in Hard Mode), dead regular within a raid, first exhumed always on tick 8–11. Phase length is not monotonic: a trio is slow-drip (8t × 12), a four-man a fast burst (4t × 15). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M14 | Xarpus | **Closed.** An uncovered exhumed fires a heal orb **every tick, starting 3 ticks after it spawns**. Heal per orb is set by scale and moves *inversely* to it: **20 / 16 / 12 / 9 / 8** for scales 1–5 (Hard trio 12). `count × heal` is near-invariant (140/144/144/135/144), which points at a fixed healing pool split across the exhumeds — so no single heal constant is correct, and it cannot be derived from his max HP (which is flat across scales 1–3 while the heal is not). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M15 | Xarpus | **Closed — 11 ticks, but 9 in Hard Mode.** `despawn − spawn` over 391 recorded exhumeds: 11 in every regular-mode raid (327 samples, zero variance), **9 in every Hard Mode raid** (64 samples, an exact match to 4 raids × 16). OpenOSRS' `11` is right and its commented-out `18` is dead. The Hard Mode figure is new and matters — a 9-tick window on a 4-tick spawn cadence. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M15 | Xarpus | **Closed — 11 ticks, but 9 in Hard Mode.** `despawn − spawn` over 391 recorded exhumeds: 11 in every regular-mode raid (327 samples, zero variance), **9 in every Hard Mode raid** (64 samples, an exact match to 4 raids × 16). OpenOSRS' `11` is right and its commented-out `18` is dead; Near-Reality's maintainer independently corrected Zenyte's 9 to **11**, landing on the measured figure. The Hard Mode figure is new and matters — a 9-tick window on a 4-tick spawn cadence. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M40 | Xarpus | The **pebble stomp**: how much damage standing underneath him costs per tick. §10.3 says "light damage" and names no figure, and no plugin models the stomp at all, so `tob.constant` encodes 1-5 and tags it. Its other half - that the stomp *interrupts the spit* - is stated and is implemented. |
 | M16 | Verzik | **Closed.** First P1 auto on room tick **19–20** (12 rooms at 19, 17 at 20 — a one-tick recorder-alignment split, not two behaviours; it does not track scale or mode), then a flat **14-tick** cadence to the end of the phase. Not an immediate attack, and not one attack-speed of delay. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M17 | Bloat | **Closed — 39–47.** blert's aggregate over **98 445 recorded first downs** contains not one 38: counts fall geometrically 39→46 and **spike at 47** (a hard cap), with a 1.6 % tail at 48–53 from the documented "turn or speed change delays the down by 5 ticks" rule. Later walks are the same shape moved down five: **34–42, cap at 42**. Down phase is a flat 33 ticks. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M18 | Verzik | **Closed — floor + roll + a gate**, all three: the roll happens only **after every third lightning ball**, it is **25 %**, and **a live Athanatos suppresses the spawn entirely** ([Strategies](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Strategies), local `sources/wiki_Theatre_of_Blood_Strategies.wikitext:925`). The gate is the mechanically important one — it is the basis of deliberately leaving the Athanatos alive. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M19 | Verzik / all | **Closed — no.** Entry mode scales **up from a per-player base** (cache `stat4`: Maiden 500, Bloat 320, Sotetseg 560, Xarpus 520, Verzik 300/400/600) while Normal and Hard scale **down** from a 5-man base — two directions in one raid. The Wiki's Entry infobox figure is the **4-player** value: six bosses check out at exactly 4 × the cache unit. The Wiki's own "20 % in a solo party" is measured from the 5-man Entry value, not from its own infobox. Note **blert's Entry HP for Xarpus and Verzik disagrees with the rev-239 cache** — prefer the cache. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M20 | All | **Split verdict.** Verzik **P1 → P2 resets**: first attack **+16 ticks** from the phase event in 29 of 29 rooms, and that 16 is *not* blert's own seed (+3), so it is a real observation; the P2 cadence is then a flat 4. Verzik **P2 → P3 (+12) is unverified** — blert *asserts* it (`P3_TICKS_BEFORE_FIRST_ATTACK`) and emits P3 attacks from that clock, so measuring it there is circular. Maiden's clock **free-runs**: 582 of 582 gaps were 10 across all crab spawns. So: a transition that swaps the npc resets the clock; an in-phase event does not. See the provenance audit in [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M20 | All | **Split verdict.** Verzik **P1 → P2 resets**: first attack **+16 ticks** from the phase event in 29 of 29 rooms, and 16 is *not* blert's own seed (+3), so it is a real observation; the P2 cadence is then a flat 4 (three sources agree). Maiden's clock **free-runs** — 582 of 582 gaps were 10 across every crab spawn. **P2 → P3 is the one figure this pass could not pin**: blert *asserts* `+12` and emits P3 attacks from that clock, so measuring it there is circular, and Zenyte's independent reading is `+7` from its own transition start. Read it off the P3 attack **animation** the way M16 was read. Attack speeds themselves are confirmed: P1 14, P2 4, P3 7 → 5 enraged. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M21 | Verzik | **Closed — flat 10, every mode.** The cache settles the Wiki's self-contradiction: `verzik_web_npc` and `verzik_web_npc_hard` both carry `stat4=10`. What scales with the party is the **number** of webs (one per player), not their hitpoints. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M22 | All | **Bands and the gate documented, formula unpublished.** 6–13 points per player per chest, carrying over from the Bloat chest to the Sotetseg chest; Jagex's newspost bands are **above average 10–13, average 8–11, below average 6–9** (they overlap, so the roll is not a partition). One hard gate is stated: dying in **both** Maiden and Bloat yields only an onion, and taking the onion restores eligibility if you then survive the next two rooms. What "performance" is computed from was never published and no plugin models it. Implement the gate exactly and treat the classification as a disclosed free parameter. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M22 | All | **Bands and the gate documented; formula unpublished, but there is now a credible skeleton.** 6–13 points per player per chest, carrying over; Jagex's bands are above-average 10–13, average 8–11, below-average 6–9 (overlapping, so not a partition), and dying in **both** Maiden and Bloat yields only an onion. Near-Reality models the system on the **correct varbit** (6460, which our own cache names `tob_midwaychest_points`): start 8, **+3 per encounter**, MVP-by-damage bonuses (Maiden 2, Bloat 2, Nylocas 1, Sotetseg 1, Xarpus 2, Verzik 2/phase), −4 per death, −8 at the end. At the first chest that yields **6** with no bonuses and **10** with both MVPs — matching the documented floor and putting a top performer in the above-average band. Implement that shape with the gate, tagged. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M24 | Nylocas | **Done.** The spawn→pillar assignment, measured over 199 recorded raids; see §8.4.1 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
 | M44 | Sotetseg | **The death ball's party scaling.** The Wiki gives one figure — *"up to 188 damage (scaling with party size)"* — and one datum about the scaling: with two or more players alive and nobody sharing the 3 × 3 it is *"a guaranteed kill (121+)"*. So 188 is the 5-scale ceiling and 121 is a floor that already holds at scale 2; everything between is invented. `tob.constant` tabulates **121 / 155 / 188** for {≤3, 4, 5} and says so. Measure a solo, a trio and a five-man ball into an unshared target. |
 | M45 | Sotetseg | **The maze tornado's damage.** *"players in the arena will also be chased by a red vortex that will deal damage to the whole party if intercepted"* — no number, in the Wiki, blert, tob-qol or TobMistakeTracker; §9.3 says only "heavy damage". `^tob_sote_tornado_max` is set at 94, half the death ball's ceiling, entirely as a disclosed guess. |
@@ -1995,8 +2025,8 @@ approximation and tag it in `tob.constant`.
 | M46 | Sotetseg | **How far a wrong maze tile reaches.** The Wiki words the rag as damage to *"the player"*; §9.3 and [`ENCOUNTER_TIMING.md` §5.3](ENCOUNTER_TIMING.md) both word it as damage to *"nearby players"*, which is what makes the maze a team mechanic rather than one person's problem. Nothing states the radius. `^tob_sote_rag_range` is 1 — the 3 × 3 around the tile stepped on, the smallest thing that can mean "nearby". |
 | M39 | All | `tools/gen_npc_stats.py` skips any npc with an authored block anywhere in the tree — a rule from when the loader was first-match-wins. It now merges overlays, so the skip should be narrowed to blocks that actually declare stats. 394 of 754 authored blocks are overlay-only, so narrowing would emit generated stats for ~352 npcs at once: worth doing, worth its own diff. The tool currently just refuses to drop a block it already emits. |
 | M38 | Nylocas | **Closed — it moves.** Tracked from the boss's own coordinates over its full lifetime: 2 of 6 recorded fights show it on more than one tile (up to **4 distinct tiles**, once two tiles east of where it landed). A stationary npc cannot do that, so leaving it mobile in `tob.npc` was right. It simply rarely needs to move — it attacks at range in every style. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M37 | Nylocas | **Still open, but the bias-free experiment is now a query, not a capture.** blert's `NPC_SPAWN` carries each nylo's `spawnType` **and its parent** (`parentRoomId`), and `NPC_UPDATE` carries per-tick coordinates, so the pillar a split settles beside is recoverable — and raids in which **no pillar dies** can be selected up front, removing the redirect rather than correcting for it. blert's guide also settles the other half: wave spawns are **deterministic** ("each wave-spawned Nylocas always targets the same pillar in every encounter", and "splits from bigs cannot be aggros"), so splits are the only stochastic part. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). **M25 is closed** (the cache's own 210 ground decorations per square settle the underworld maze origin in blert's favour) and **crab walk-vs-run is now closed too**: Nylocas Matomenos positions over 14 895 consecutive tick pairs contain **4 812 one-tile steps and zero two-tile steps**, so they walk. **M31 is not answered and the obvious dataset is circular** — blert *generates* `TOB_XARPUS_SPIT` from its own `TICKS_PER_TURN_P2 = 4`, so the flat 4 it reports proves nothing; the observed splat stream is *consistent* with a flat 4 at scales 2–4 but is muddied by bounce chains. Filter splats to `source == XARPUS` with the projectile starting on his tile and re-measure. Still open: whether "one tick before" means the click or the move (needs the local harness — the pipeline in §1 predicts both, so it is a discriminating test), the Xarpus turn/fire alignment, the Verzik scan frame, and per-weapon projectile flight times (the method that closed M3 is the lever: RuneLite's `Projectile.remainingCycles` is exact, but blert records projectile ids without cycle counts, so this needs a small capture plugin). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M37 | Nylocas | **Still open; the bias-free experiment is now a query, not a capture.** blert's `NPC_SPAWN` carries each nylo's `spawnType` **and its parent** (`parentRoomId`), and `NPC_UPDATE` carries per-tick coordinates, so the pillar a split settles beside is recoverable — and raids in which **no pillar dies** can be selected up front, removing the redirect rather than correcting for it. The wave-spawn half is settled: blert's guide states each wave-spawned nylo "always targets the same pillar in every encounter" and that "splits from bigs cannot be aggros", so splits are the only stochastic part. (Zenyte picks targets with `Collections.shuffle(pillars)` — flatly contradicted by the 199-raid measurement behind M24, and a good example of taking an RSPS's numbers only, never its rules.) See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). **M25 closed** (the cache's own 210 ground decorations per square settle the underworld maze origin in blert's favour). **Crab walk-vs-run closed** — Matomenos positions over 14 895 consecutive tick pairs give 4 812 one-tile steps and **zero** two-tile steps, so they walk. **M31 closed — the spit cadence is a flat 4 at every scale**: `tob_xarpus_combat` carries a single `param=attackrate,int,4`, matching blert's constant and the modal observed splat gap; Near-Reality's 5 is a seconds→ticks slip (3 s = 5 ticks vs the real 2.4 s). More generally the cache states the cadence for **Bloat 1, Sotetseg 5, Xarpus 4, Verzik P3 7, Vasilias 4** and states **none** for Maiden or Verzik P1/P2 — so those three are script-driven and the measured 10 / 14 / 4 are the only sources for them. Still open: whether "one tick before" means the click or the move (needs the local harness — §1 predicts both, so it is a discriminating test), the Xarpus turn/fire alignment, the Verzik scan frame, and per-weapon projectile flight times (the M3 method is the lever: `Projectile.remainingCycles` is exact, but blert records ids without cycle counts, so this needs a small capture plugin). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 
 ---
 

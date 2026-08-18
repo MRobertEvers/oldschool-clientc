@@ -1,0 +1,70 @@
+{{Infobox Monster
+|name = Soldier Scarab
+|image = [[File:Soldier Scarab.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 89
+|size = 3
+|examine = One of Kephri's false children.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 17
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 7
+|hitpoints = 40
+|scaledhp = Yes
+|att = 75
+|str = 80
+|def = 80
+|mage = 100
+|range = 95
+|attbns = 100
+|strbns = 55
+|amagic = 250
+|mbns = 65
+|arange = 350
+|rngbns = 0
+|dstab = 15
+|dslash = 250
+|dcrush = 30
+|dmagic = -15
+|dlight = 250
+|dstandard = 250
+|dheavy = 250
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11724
+}}
+'''Soldier Scarabs''' are a monster that is summoned by [[Kephri]] in the [[Tombs of Amascut]]. They use melee attacks.
+
+If Kephri's shield/health is depleted, the scarab will occasionally send out an unattackable scarab swarm to recharge her shield or restore her health respectively. The amount restored scales to the scarab's health.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Kephri's children concept art.png|Concept art of the Soldier Scarab by [[Mod Jerv]], alongside the [[Spitting Scarab|Spitting]] and [[Arcane Scarab]]s.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+*Soldier Scarabs have had their Magic Defence reduced from +10 to -15.
+*Scarabs inside Kephri's encounter no longer scale their Defence with Raid Level.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The Soldier Scarab now has a 50% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

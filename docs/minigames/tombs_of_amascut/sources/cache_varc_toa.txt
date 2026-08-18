@@ -1,0 +1,16 @@
+# varc — 14 Tombs of Amascut records from cache.osrs239
+# id	symbol
+1081	toa_client_nextrefresh
+1082	toa_partylist_scrollpos
+1083	toa_invocations_scrollpos
+1084	toa_summary_scrollpos
+1085	toa_raid_summary_tooltip
+1086	toa_invocations_layout_rewards_hidden
+1099	toa_client_name0
+1100	toa_client_name1
+1101	toa_client_name2
+1102	toa_client_name3
+1103	toa_client_name4
+1104	toa_client_name5
+1105	toa_client_name6
+1106	toa_client_name7

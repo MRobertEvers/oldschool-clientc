@@ -1,0 +1,237 @@
+{{Multi Infobox
+|text1 = Phase 1
+|item1 = 
+{{Infobox NPC
+|version1 = Charging
+|version2 = Destroyed
+|name = Elidinis' Warden
+|image1 = [[File:Elidinis' Warden.png|180px]]
+|image2 = [[File:Elidinis' Warden (level-489, destroyed).png|250px|class=notpageimage]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|level = 489
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = An ancient automaton imbued with the power of Elidinis.
+|map = {{Map|name=Elidinis' Warden|3794,5154|mapID=-1|r=3|plane=1|mtype=square}}
+|id1 = 11746,11748
+|id2 = 11759
+|leagueRegion = Desert
+}}
+|text2 = Phase 2
+|item2 = 
+{{Infobox Monster
+|version1 = Active
+|version2 = Core-ejected
+|name = Elidinis' Warden
+|image1 = [[File:Elidinis' Warden (level-489).png|250px]]
+|image2 = [[File:Elidinis' Warden (level-489, core-ejected).png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 489
+|size = 5
+|examine = An ancient automaton imbued with the power of Elidinis.
+|xpbonus = 5
+|max hit = 20
+|aggressive = Yes
+|poisonous = No
+|attack style = Melee, Ranged, Magic
+|attack speed = 7
+|hitpoints1 = 140
+|hitpoints2 = 4500
+|scaledhp = Yes
+|att = 300
+|str = 150
+|def = 100
+|mage = 190
+|range = 190
+|attbns = 0
+|strbns = 10
+|amagic = 225
+|mbns = 0
+|arange = 225
+|rngbns = 0
+|dstab = 70
+|dslash = 70
+|dcrush = 70
+|dmagic = -30
+|dlight = 70
+|dstandard = 70
+|dheavy = 70
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 11753,11754
+|id2 = 11755
+}}
+|text3 = Phase 3
+|item3 = 
+{{Infobox Monster
+|version1 = Damaged
+|version2 = Invulnerable
+|version3 = Enraged
+|name = Elidinis' Warden
+|image1 = [[File:Elidinis' Warden (level-544).png|250px]]
+|image2 = [[File:Elidinis' Warden (level-544, immune).png|230px]]
+|image3 = [[File:Elidinis' Warden (level-544, immune).png|230px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 544
+|size = 5
+|examine = An ancient automaton imbued with the power of Elidinis.
+|xpbonus = 10
+|max hit = 26
+|aggressive = Yes
+|poisonous = No
+|attack style = Melee, Ranged, Magic
+|attack speed = 7
+|hitpoints = 880
+|scaledhp = Yes
+|att = 150
+|str = 150
+|def1 = 150
+|def2 = 150
+|def3 = 180
+|mage = 150
+|range = 150
+|attbns = 0
+|strbns = 40
+|amagic = 230
+|mbns = 40
+|arange = 300
+|rngbns = 40
+|dstab = 40
+|dslash = 40
+|dcrush = 20
+|dmagic = 20
+|dlight = 20
+|dstandard = 20
+|dheavy = 20
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 11761
+|id2 = 11763
+|id3 = 11761
+}}
+}}
+'''Elidinis' Warden''' is the final boss of the [[Tombs of Amascut]], and is fought alongside [[Tumeken's Warden]]. The Wardens are in fact ancient, massive automatons built by [[Tumeken]] himself using a [[Tumeken's shadow|staff of great power]]:{{CiteText|text=The wardens|quote=In war, great weapons can turn the tide against even the strongest foes, and legend has long spoken of Tumeken using a powerful staff to build two such weapons.}}  one imbued with his divine essence, and the other with that of his wife [[Elidinis]].{{CiteText|text=The wardens|quote=In truth, referring to Tumeken's creations as 'weapons' does them no justice. They are in fact two ancient automatons, built to embody Tumeken and Elidinis themselves and seemingly imbued with their divine essence.}} The Wardens were entrusted with the Kharidian Empire, and were extensively used throughout the [[Kharidian–Zarosian War]] as a means to fight back against the invading [[Zarosian Empire|Zarosian forces]].{{CiteNPC|npc=Mehhar|loc=Beneath Cursed Sands|quote=My father [Osmumten] had a responsibility greater than most. At the time of his rule, our people were locked in a great war. To hold back the Ruinous Powers, our gods granted us immensely powerful weapons.}}
+
+When the war ended with Tumeken's sacrifice, Pharaoh [[Osmumten]] was tasked by Elidinis to hide the weapons the gods had used and given to them, in order to prevent the weapons from falling into the wrong hands. Some of these weapons would later be buried with Osmumten in the [[Jaltevas Pyramid]], including [[Tumeken's shadow]], [[Elidinis' ward]], and the Wardens.{{CiteNPC|npc=Mehhar|loc=Beneath Cursed Sands|quote=When the war was over, my father was tasked with hiding those weapons, lest they fall into nefarious hands. Two of them were buried with him.}}
+
+Osmumten's tomb would eventually be buried in the sands, with knowledge of the Wardens' existence becoming legends.{{CiteText|text=The wardens|quote=It was believed any truth to these legends had long since been lost, but here in Osmumten's tomb, the truth is revealed: the weapons exist, and they are the prize the Devourer so fervently seeks.}} [[Amascut]], corrupted as the Devourer, sought the Wardens to use them as the catalyst for her ascension to godhood, as they have the ability to drain and transfer divine energy between beings.{{CiteNPC|npc=Mehhar|loc=Beneath Cursed Sands|quote=The weapons in my father's tomb can be used to drain a being of divine energy and transfer that energy to another. If used correctly, they would grant the Devourer true godhood.}}{{CiteNPC|npc=High Priest of Scabaras|loc=Beneath Cursed Sands|quote=The four of them [Apmeken, Crondis, Het, and Scabaras] all came from Tumeken himself. Their power is his power. If she claims that power as her own, she will become a true goddess...}}
+
+Amascut would spend many centuries capturing and imprisoning the lesser deities of the [[Menaphite Pantheon]] through various deceptive means,{{CiteNPC|npc=High Priest of Scabaras|loc=Beneath Cursed Sands|quote=We helped her capture them. It took many lifetimes, but she was able to fool them all.}} and later brought them to the Jaltevas Pyramid to finally enact her plans.{{CiteText|text=Akila's journal|quote=After we gave her a way in, the true horror of her plans became clear. I had never set eyes on the four lesser deities, but I knew them when I saw them. She had them all. She took them into the tomb, along with a selection of ghastly beasts.}} [[Player character|The adventurer]] would later proceed to free the lesser deities and defeat the Wardens, foiling Amascut's plans, but not before her having gained a considerable amount of power from them.
+
+==Mechanics==
+{{Main|Tombs of Amascut/Strategies#The Wardens}}
+[[File:Tombs of Amascut - fighting Elidinis' Warden.png|thumb|left|280px|A player fighting Elidinis' Warden.]]
+
+The fight with the Wardens occurs in three phases:
+# The [[Obelisk (Tombs of Amascut)|obelisk]] will begin transferring energy to the Wardens, and so the player must disrupt the charging process by attacking the obelisk. Depending on which energy trough the player stands on and blocks, one of the Wardens will be destroyed while the other will successfully power up. To power up Elidinis' Warden, a player must stand on the east trough.
+# Once Elidinis' Warden is powered up, it will initially use [[Protect from Melee]] and [[Protect from Missiles]] simultaneously, meaning magic must be used to first damage it. It shares the same special attack pool as Tumeken's Warden. Once the Warden is damaged enough, the [[core]] will pop out and can be attacked. When defeated, players will face Tumeken's Warden in the third phase.
+# If Tumeken's Warden was fought in the second phase, players will face the final phase against Elidinis' Warden. It will attack the player by raising the floors, and summon phantoms of the bosses the player fought in the upper levels of the tomb ([[Akkha's Phantom|Akkha]] and [[Kephri's Phantom|Kephri]]), as well as unleash [[Energy Siphon|Energy Siphons]] and red lightning.
+
+In phase three, the Warden's base defence level can be lowered by a maximum of 30 damage, reducing its base defence level down to a minimum of 120. Upon reducing the Warden below 5% HP for the first time, the Warden will enrage and heal for 20% of its maximum HP. While the Warden is enraged, the raising floor attacks will stop and instead lightning will strike various tiles on the ground. The tiles at the back of the room will slowly be stripped away, eventually limiting the arena to one row. When entering the enraged state, the Warden's base defence level is reset to 180, but it can be re-lowered by a maximum of 60 damage, reducing its base defence level down to a minimum of 120 as well.
+
+Once defeated, the Warden will be consumed by the large, black [[Phantom (Tombs of Amascut)|phantom]] of unknown origin. In its place, a white teleport crystal will appear that takes players to Osmumten's burial chamber, where they can then claim their rewards for the raid.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=The wardens|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players have not read it or have it stored.</ref>}}
+{{DropsTableBottom}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Tombs of Amascut - Wardens concept art.png|Concept art of the Wardens, by [[Mod Grub]].
+Wardens boss room concept art.png|The Wardens' environment concept, by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The Wardens are no longer immune to the life leech effects of the [[Sanguinesti staff]] and the [[amulet of blood fury]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Elidinis' Warden now has a 50% elemental weakness to [[earth spells]].
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = The obelisk's Converging Beam attack during the second phase of the Warden fight now stops when the Warden's [[core]] is ejected.
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change =
+* The [[Supplies (Tombs of Amascut)|supplies]] interface can now be opened if a bomb is flying towards the player at the end of phase 1.
+* During phase 3, Akkha's Phantom will no longer change attack styles as frequently when the Stay Vigilant invocation is enabled.
+* During phase 3, the Warden will no longer briefly stop attacking after the death of a party member.
+* During phase 3, red lightning will no longer occasionally stop unexpectedly.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change =
+* An issue in which players could get stuck in purgatory has been fixed.
+* An issue in which the Warden could attack during the transition to phase 3 has been fixed.
+}}
+{{Subject changes
+|date = 2 September 2022
+|update = Tombs of Amascut: Balance Changes Revisited
+|type = hotfix
+|change =
+* The core's health has been increased.
+* The health scaling of the core has been reduced by 75% when additional invocations are active.
+* The core's duration of exposure now lengthens with each subsequent ejection from the Warden.
+* The small delay of movement when the final phase begins has been reduced.
+* The time needed to successfully clear the skull mechanic in phase 3 has been reverted to its original duration.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change =
+* Players should no longer be able to click through the obelisk during phase 1.
+* Adjusted damage formula during phase 2 to benefit less from accuracy and have a lower max ceiling.
+* Reduced core's exposure time by 7 ticks.
+* Increased Warden's health in phase 2 for larger groups.
+* Slightly increased the Warden's health in phase 3.
+* Slightly reduced the Warden's magic attack bonus in phase 3.
+* Reduced time needed to successfully clear the skull mechanic in phase 3.
+* Damage dealt to the Warden from successfully clearing the skull mechanic in phase 3 reduced.
+* Players are no longer forced into unwalkable terrain when the phantom removes a row of floor tiles.
+}}
+{{Subject changes
+|date = 26 August 2022
+|type = hotfix
+|change =
+* Players now only deal their max hit on [[core]]s with melee. Previously, some magic weapons were able to do so.
+* Thralls and pets will no longer appear on top of [[Energy Siphon]]s.
+}}
+{{Subject changes
+|date = 25 August 2022
+|type = hotfix
+|change = Dying at specific points in the fight no longer leads to inconsistencies in boss behaviour.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* In the concept art Elidinis' Warden featured turquoise accents, a colour heavily associated with Elidinis; it wasn't implemented in the final design.
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}
+{{Bosses}}

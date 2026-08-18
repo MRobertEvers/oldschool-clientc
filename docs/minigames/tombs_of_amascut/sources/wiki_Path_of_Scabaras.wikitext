@@ -1,0 +1,28 @@
+{{Otheruses|def=no|strategies on how to complete the puzzle room|Tombs of Amascut/Strategies#Path of Scabaras}}
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Started
+|version3 = Completed
+|name = Path of Scabaras
+|image1 = [[File:Path of Scabaras (normal).png|250x250px]]
+|image2 = [[File:Path of Scabaras (started).png|250x250px]]
+|image3 = [[File:Path of Scabaras (completed).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Jaltevas Pyramid]]
+|options1 = Enter, Quick-Enter
+|options2 = Enter, Quick-Enter
+|options3 = None
+|examine1 = Walk the Path of Scabaras?
+|examine2 = Another path has been started.
+|examine3 = The Path of Scabaras has been completed.
+|map = {{Map|x:3559,y:5155|mapID=-1|mtype=pin}}
+|id1 = 46155
+|id2 = 46156
+|id3 = 46157
+}}
+The '''Path of Scabaras''' in [[Tombs of Amascut]] leads to [[Kephri]], the guardian of [[Scabaras]]. If another path has been entered, the scarab is removed to show that another path is currently being attempted. After the path of Scabaras is cleared, the fire disappears. 
+
+{{Tombs of Amascut}}

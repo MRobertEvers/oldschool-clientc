@@ -10954,6 +10954,39 @@ mock230_world_loc_revert_queue(
 {
     if( duration <= 0 || duration >= INT_MAX )
         return 1;
+    /*
+     * RE-STATING a tile's revert REPLACES the pending one; it does not add a
+     * second. Two reverts for one tile is not a state the world can be in —
+     * whichever fires first undoes the loc, and the other then undoes whatever
+     * happens to be standing there when it lands.
+     *
+     * The case that made it matter is the Maiden's blood trails. A blood spawn
+     * that walks back over its own trail re-covers the tile, and the reference
+     * restarts the clock: Zenyte's `BloodTrail.resetTimer()` sets `ticks = 30`
+     * again, which is what produces the runs of 40, 50, 60, 90 and 110 ticks in
+     * the recorded raids (docs/TOB_RESEARCH.md M5). Queueing a second revert
+     * instead left the FIRST one standing, so a re-covered tile expired 30
+     * ticks after it was first painted however many times it was refreshed —
+     * the patch under a circling spawn would blink out from under it.
+     *
+     * Matched on tile and shape, which together are what `loc_add` addresses:
+     * one shape per tile is the scene's own rule (`mock230_scene_find_loc_exact`
+     * takes exactly that pair).
+     */
+    for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
+    {
+        struct Mock230LocRevert* entry = &srv->loc_reverts[i];
+
+        if( !entry->active )
+            continue;
+        if( entry->x != x || entry->z != z || entry->level != level ||
+            entry->shape != shape )
+            continue;
+        entry->delay = duration + 1;
+        entry->loc_id = loc_id;
+        entry->angle = angle;
+        return 1;
+    }
     for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
     {
         struct Mock230LocRevert* entry = &srv->loc_reverts[i];
@@ -38375,10 +38408,20 @@ mock230_world_selftest(void)
                 struct Mock230Npc* npc = &srv->npcs[boss];
 
                 mock230_world_npc_teleport(npc, base_x + 24, base_z + 29, npc->level);
-                /* Stop the patrol. Everything below is a question about where
+                /*
+                 * Stop the patrol. Everything below is a question about where
                  * Bloat IS, and a boss that walks answers a different one each
-                 * time it is asked. */
+                 * time it is asked.
+                 *
+                 * BOTH halves are needed. Stopping the `[ai_timer]` stops the
+                 * script re-queueing a corner, but the waypoint it queued last
+                 * tick is still on the npc and the noMode drain still walks it
+                 * — which is exactly what `npc_setmovespeed` two stanzas up
+                 * exists to feed. Without the second line Bloat drifted between
+                 * a measurement and its control.
+                 */
                 npc->timer_interval = 0;
+                npc->waypoint_index = -1;
 
                 mock230_world_set_active(srv, host);
                 mock230_scripts_run_debugproc(srv, "tobwarp 30 35");
@@ -38418,33 +38461,56 @@ mock230_world_selftest(void)
                  * "Bloat cannot see the mate" passes on one that returns false
                  * for everything; only both together say the test discriminates.
                  */
-                if( getenv("MOCK230_TOB_LOS") )
-                {
-                    /* Temporary probe: what the tank actually is, in flags. */
-                    for( int lz = 33; lz <= 36; lz++ )
-                    {
-                        fprintf(stderr, "    los z=%d:", lz);
-                        for( int lx = 28; lx <= 36; lx++ )
-                        {
-                            struct CollisionMap* cm = mock230_scene_collision(npc->level);
-                            int flags = 0;
-                            if( cm )
-                                flags = mock230_scene_tile_flags(npc->level, base_x + lx,
-                                                                 base_z + lz);
-                            fprintf(stderr, " (%d,%d)=%08x los=%d", lx, lz, flags,
-                                    mock230_scene_line_of_sight(npc->level, base_x + 28,
-                                                                base_z + 33, base_x + lx,
-                                                                base_z + lz, 1, 1, 1, 1, 0));
-                        }
-                        fprintf(stderr, "\n");
-                    }
-                }
                 SELFTEST_CHECK(los_host == 1,
                                "Bloat's near-side test sees the exposed raider, got %d",
                                los_host);
-                SELFTEST_CHECK(los_mate == 0,
-                               "and does NOT see the one behind the tank, got %d",
-                               los_mate);
+                /*
+                 * The second half needs something to hide behind, so the room
+                 * is censused first and reported on separately. The distinction
+                 * is the whole value of this stanza: the near-side test is
+                 * correct content standing in a room that gives it no obstacle.
+                 */
+                {
+                    int locs = 0;
+                    int projs = 0;
+                    int floors = 0;
+
+                    for( int lz = 20; lz < 44; lz++ )
+                        for( int lx = 20; lx < 44; lx++ )
+                        {
+                            int flags = mock230_scene_tile_flags(npc->level, base_x + lx,
+                                                                 base_z + lz);
+                            if( flags & COLL_FLAG_LOC )
+                                locs++;
+                            if( flags & COLL_FLAG_LOC_PROJ_BLOCKER )
+                                projs++;
+                            if( flags & COLL_FLAG_FLOOR )
+                                floors++;
+                        }
+                    /*
+                     * The central tank (locs 32955/32957/32959/32960/32964/33084)
+                     * is what the whole room is played around, and it is not in
+                     * the instance's collision at all: all 576 tiles read
+                     * floor-blocked with no loc and no projectile blocker,
+                     * while the surrounding non-instanced scene has 297 loc
+                     * tiles and 10 008 open ones. The square's TERRAIN reaches
+                     * the instance and its LOCS do not.
+                     *
+                     * Not a Bloat defect, and deliberately not reported as one
+                     * — but it makes Bloat's signature mechanic inert, so it is
+                     * reported here, where it was found, with the census that
+                     * identifies it.
+                     */
+                    SELFTEST_CHECK(locs > 0 || projs > 0,
+                                   "the Bloat room's tank must block sight, or the "
+                                   "near-side test has nothing to test against "
+                                   "(of 576 tiles: loc=%d proj=%d floor=%d)",
+                                   locs, projs, floors);
+                    if( locs > 0 || projs > 0 )
+                        SELFTEST_CHECK(los_mate == 0,
+                                       "and does NOT see the one behind the tank, got %d",
+                                       los_mate);
+                }
 
                 /* Now the spread. Both raiders healthy, neither invulnerable. */
                 host->godmode = 0;
@@ -38465,41 +38531,36 @@ mock230_world_selftest(void)
                                "the exposed raider takes fly damage, on %d",
                                host->hitpoints);
                 SELFTEST_CHECK(mate->hitpoints < 99,
-                               "and it SPREADS to the one Bloat cannot see, on %d",
+                               "and the second raider in the room is hit too, on %d",
                                mate->hitpoints);
-
                 /*
-                 * The control, and the reason the check above means anything.
-                 * Move the mate out of spread range but leave them just as
-                 * hidden: if they still burn, what was being measured was
-                 * Bloat reaching them directly, not the spread.
+                 * WHY THERE IS NO CONTROL HERE, AND WHAT IS THEREFORE NOT
+                 * PROVEN.
                  *
-                 * (35,31) is due EAST of the tank, so every line from Bloat's
-                 * east column crosses it, and seven tiles from the host — well
-                 * outside the three-tile spread. The first tile tried here was
-                 * (30,39), which is north of the tank rather than behind it:
-                 * the corridor at x28 runs straight past the tank's north-west
-                 * corner, Bloat saw them directly, and the control failed for
-                 * the right reason. Note the mate is still inside the fly hunt
-                 * either way — found, and then rejected by the line of sight,
-                 * which is the case worth controlling for.
+                 * The check above says both raiders burned. It does NOT say the
+                 * second one burned *by the spread*: with no sight blocker in
+                 * the room (see the census above) Bloat can see them directly,
+                 * and a direct hit and a spread hit are the same hitsplat. The
+                 * two are only separable by standing the second raider
+                 * somewhere Bloat cannot see, which this room currently cannot
+                 * offer.
+                 *
+                 * A second volley with the mate moved out of spread range would
+                 * be the obvious control and does not work either, for a
+                 * separate reason worth recording: `lineofsight` is answered
+                 * from the *scene*, the scene is rebuilt around the player
+                 * during a tick, and the fixture is evicted from the instance a
+                 * few ticks after entering (the room harness above re-runs
+                 * `::tobstand` every tick for exactly this). After the tick that
+                 * lands the first volley, the room is no longer in the built
+                 * scene and every line-of-sight query returns 0 — so a second
+                 * volley measures the scene, not the fight. Measured, not
+                 * assumed: the control read `tobbloatlos 0` for a tile Bloat had
+                 * just been shown to see.
+                 *
+                 * So the spread stays half-tested on purpose, and this comment
+                 * is the honest half. Both of its blockers are named above.
                  */
-                host->hitpoints = 99;
-                mate->hitpoints = 99;
-                mock230_combat_sync_hitpoints(host);
-                mock230_combat_sync_hitpoints(mate);
-                mock230_world_set_active(srv, mate);
-                mock230_scripts_run_debugproc(srv, "tobwarp 35 31");
-                mock230_world_set_active(srv, host);
-                mock230_scripts_run_proc_on_npc(srv, "[proc,tob_bloat_flies]", boss);
-                mock230_world_tick(srv);
-                SELFTEST_CHECK(host->hitpoints < 99,
-                               "the exposed raider still burns with nobody beside them, on %d",
-                               host->hitpoints);
-                SELFTEST_CHECK(mate->hitpoints == 99,
-                               "and out of spread range the hidden one does not, on %d",
-                               mate->hitpoints);
-
                 npc->timer_interval = 0;
             }
 

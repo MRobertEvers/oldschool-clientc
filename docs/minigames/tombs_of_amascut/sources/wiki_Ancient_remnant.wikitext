@@ -1,0 +1,37 @@
+{{Infobox Item
+|name = Ancient remnant
+|image = [[File:Ancient remnant.png]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Contains the essence of two legendary guardians.
+|value = 10000
+|alchable = No
+|weight = 0.190
+|id = 27381
+|leagueRegion = Desert
+}}
+[[File:Ancient remnant detail.png|left|120px]]
+The '''ancient remnant''' is an item obtained from the [[Tombs of Amascut]] raid. It is used on the [[Tumeken's guardian]] [[pet]] to allow it to [[Metamorphosis|metamorphose]] into [[Tumeken's damaged guardian|Tumeken's]]/[[Elidinis' damaged guardian]].
+
+In order to receive one from the [[Chest (Tombs of Amascut)|reward chest]], players must complete a raid at level 450+ with zero deaths for all party members, whilst having all invocations for the Wardens enabled. 
+
+Note that only one remnant can be obtained by the player per raid. If the requirements for multiple remnants are met, the following order of priority determines which one is awarded: [[Remnant of akkha|Akkha]], [[Remnant of zebak|Zebak]], [[Remnant of ba-ba|Ba-Ba]], [[Remnant of kephri|Kephri]], Ancient.
+
+==Item sources==
+{{Drop sources|Ancient remnant}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Trivia==
+* The item model appears to be a recoloured [[strange implement]].
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

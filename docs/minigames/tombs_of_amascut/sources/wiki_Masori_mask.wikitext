@@ -1,0 +1,77 @@
+{{Infobox Item
+|name = Masori mask
+|image = [[File:Masori mask.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = An ancient mask once worn by a powerful ranger.
+|value = 800000
+|weight = 1.000
+|exchange = Yes
+|id = 27226
+|leagueRegion = Desert
+}}
+[[File:Masori mask detail.png|left|130px]]
+[[File:Masori mask chathead.png|left]]
+The '''Masori mask ''' is obtained as a rare drop from the [[Tombs of Amascut]]. It is part of the [[Masori armour]] set, and requires level 80 [[Ranged]] and 30 [[Defence]] to equip. As with the rest of the armour set, the mask boasts the highest [[ranged]] attack bonus of any item in the [[head slot]].
+
+The mask can be upgraded into a [[Masori mask (f)|fortified variant]] by attaching an [[Armadylean plate]] onto it, increasing the Defence level to equip it to level 80. This process requires level 90 [[Crafting]], and is not reversible.
+
+{{Costume storage|armour case|[[Masori armour]] set|set=true}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -1
+|arange = +12
+|dstab = +3
+|dslash = +4
+|dcrush = +3
+|dmagic = +6
+|drange = +4
+|str = 0
+|rstr = +2
+|mdmg = 0
+|prayer = 0
+|slot = head
+|image = [[File:Masori mask equipped male.png|130px]]
+|altimage = [[File:Masori mask equipped female.png|130px]]
+}}
+
+==Products==
+{{Uses material list|Masori mask}}
+
+==Item sources==
+{{Drop sources|Masori mask}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Masori mask}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Masori armour equipped male.png|The Masori armour set on body type A.
+Masori armour equipped female.png|The Masori armour set on body type B.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = The Masori mask no longer has any graphical issues when worn with [[Tumeken's shadow]] or [[Osmumten's fang]].
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+{{Ranged armour}}
+
+[[Category:Items storable in the costume room]]
+[[Category:Collection log items]]

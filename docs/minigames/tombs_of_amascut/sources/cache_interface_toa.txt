@@ -1,0 +1,11 @@
+# interface — 10 Tombs of Amascut entries from pack/3_interfaces.pack
+481	toa_hud
+482	toa_raid_summary
+771	toa_chests
+772	toa_partylist
+773	toa_lobby
+774	toa_partydetails
+775	toa_scoreboard
+776	toa_invocations
+777	toa_midraid_loot
+778	toa_midraidloot_bag

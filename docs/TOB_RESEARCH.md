@@ -780,9 +780,26 @@ two of the original) gives a modal gap of **4 ticks at scales 2, 3 and 4** — 6
 trio gaps, 144 of 465 overall — with a broad spread from bounce chains being merged or
 split by the clustering. So: **consistent with a flat 4 at all scales, not proof of it.**
 
-**What would close it:** keep only splats whose `source == XARPUS` *and* whose projectile
-started on Xarpus' own tile (blert records both), then take gaps between successive
-first-splats. That filter exists in the data already — this is a query, not a new capture.
+**The filtered version was then run, and it exposed a confounder that rules this route out.**
+Keeping only `source == XARPUS` splats inside the P2 window:
+
+| Scale | raids | gaps | distribution | share of 4s |
+|---|---|---|---|---|
+| 3 | 8 | 165 | mode **4** (83) | 50 % |
+| 4 | 3 | 56 | mode **4** (20) | 36 % |
+| 2 | 4 | 84 | mode **5–6** (19 + 23), only 3 gaps of 4 | **4 %** |
+
+The duo column looks like a slower cadence, and it is not: blert keys splats by **target
+tile** and drops a splat whose tile is already recorded
+(*"This splat has already been recorded, no need to do it again"*). With two players there are
+far fewer distinct target tiles, so re-hits on an active splat tile are invisible and the gaps
+inflate. The observable is censored exactly where the party is small — i.e. precisely where
+the question is.
+
+So: **trios and four-mans are consistent with a flat 4-tick spit, and duos/solos cannot be
+measured this way at all.** Closing M31 needs the tick of Xarpus' *own* attack — his
+animation or the projectile leaving him — which no public dataset records. It is a small
+capture plugin: log the spit animation tick at scale 1, 2 and 5.
 
 ---
 
@@ -919,21 +936,430 @@ for ~352 npcs at once.
 
 ---
 
+## Second pass — non-blert sources
+
+Blert closed the timing questions but is a dead end for anything it does not record:
+Entry Mode (**one** Entry raid exists in its entire database, and it is unfinished), the
+Nylocas supports (they never appear in its npc stream), and anything the *server* decides
+that the client cannot see. So the second pass went after two other kinds of source.
+
+### Where the sources came from
+
+A `gh search code` sweep for **server-side** class signatures — `"class Xarpus extends"`,
+`"NylocasVasilias extends"`, `"PestilentBloat extends NPC"` — rather than plugin names.
+That surfaced something the plan never had: **Zenyte**, a well-regarded OSRS-accurate
+private server whose source is mirrored publicly (read from
+[`Skryllzz/SSLCode`](https://github.com/Skryllzz/SSLCode), also mirrored in `matthewl99/Server-RSPS`
+and `Rims-Naps/Zyrox-Server`; a fuller local copy now sits at
+`/Users/matthewevers/Documents/git_repos/ZenyteLikeServer` — 98 ToB files versus the
+mirror's ~60, and every constant cited below is **identical** in both, so they are the same
+version of the codebase), with a complete `com.zenyte.game.content.theatreofblood`
+package: every room, `PillarSupport`, `BloodTrail`, `XarpusExhumedPhase`, `Web`,
+`NylocasAthanatosV`, and a Sotetseg maze **generator**.
+
+**Its evidence tier is below plugin code and it must be read that way.** A recorder that
+mis-times a tick produces a broken parse; a server that mis-implements a mechanic just
+plays slightly wrong and nobody notices. Zenyte is a *reimplementation*, so it is
+corroboration where it agrees with a measurement and a **lead** where it has a number
+nobody else does — never an authority. Two places below it is provably wrong.
+
+### Independent confirmations (Zenyte agreeing with measurements it cannot have copied)
+
+| Quantity | Measured here | Zenyte | Verdict |
+|---|---|---|---|
+| Maiden attack period | 10 ticks | `TICKS_PER_ATTACK = 10` | agree |
+| Maiden blood cooldown shape | cooldown flag + roll, never violated in 608 attacks | `canRollBloodAttack` — *"can only roll blood attack after 2 storm attacks"* | agree, same **shape** |
+| Xarpus exhumed heal start | every tick from spawn **+3** | *"First three ticks are used for animation"*, heals while `ticks >= start+3` | agree |
+| Xarpus exhumed window end | closes at **+11** | heal window ends `< start + 11` | agree |
+| Xarpus exhumed count | 7 / 9 / 12 / 15 / 18 | 7 / **8** / 12 / 15 / 18 | agree on 4 of 5 |
+| Xarpus heal per orb | 20 / 16 / 12 / 9 / 8 | 20 / 16 / 12 / 9 / **6** | agree on 4 of 5 |
+| Xarpus spawn interval | 12 / 8 / 8 / 4 / 4 | **13** / 8 / 8 / 4 / 4 | agree on 4 of 5 |
+| Bloat shadow → land | 3 ticks | hands drop on `ticks % 5 == 0`, land on `% 5 == 3` | agree |
+| Bloat down duration | 33 ticks | `freeze(32)` on the stomp | agree within a tick |
+| Vasilias switch period | 9 then every 10 | `ticks % 10 == 0` | agree |
+| Vasilias never repeats a style | 185 switches, no repeat | `types.remove(type)` before the roll | agree |
+| Verzik web hitpoints | cache `stat4=10` | `setHitpoints(10)` | agree |
+
+The Xarpus row is the striking one. **20 / 16 / 12 / 9** is not a sequence anybody guesses,
+and Zenyte parameterises it exactly the way the measurements came out
+(`XarpusExhumedPhase(xarpus, maxSpawns, healAmount, spawnInterval, lifespan)`), so two
+independent reconstructions — one from recorded raids, one from a server author watching the
+game — produced the same table. Where they differ (scale 2 count, scale 5 heal, solo
+interval) **prefer the measurement**: mine is 31 recorded rooms of the live game.
+
+### M5 — the 29-vs-30 caveat is resolved: it is **30**
+
+The measurement flagged that 29 looked like an odd constant and that a one-tick observation
+error would make it 30. Zenyte's `BloodTrail`:
+
+```java
+private int ticks = 31;
+...
+case 30: maiden.addSplat(tile); World.spawnObject(this); return true;   // becomes active
+case 0:  remove(); return false;                                       // gone
+public void resetTimer() { ticks = 30; }                               // re-covered
+```
+
+**30 ticks of active life**, and `resetTimer()` restarts it when a spawn re-covers the tile —
+which is exactly the mechanism inferred from the long tail (runs of 40, 50, 60, 90, 110).
+Take the trail as **30 ticks**, with the measured 29 being the despawn seen a tick early.
+
+### M2 — the roll is 1/3 or 1/4, and the measurement favours 1/3
+
+Zenyte rolls `Utils.random(1, BLOOD_ATTACK_CHANCE) == 1` with **`BLOOD_ATTACK_CHANCE = 4`**,
+i.e. **1/4**, gated by the same two-storm cooldown.
+
+Measured here: **119 blood throws in 385 eligible attacks, p̂ = 0.309, 95 % CI
+[0.263, 0.355]**. That interval **excludes 0.25** (two-sided p ≈ 0.01) and contains 1/3.
+So the live game looks like **1/3**, and Zenyte's 1/4 is likely its author rounding down.
+Not conclusive on a single sample this size — but the plan should carry 1/3 and note 1/4 as
+the alternative, rather than treating either as settled.
+
+### M6 — a stun figure, at last: Zenyte says **3 ticks**
+
+`member.stun(3)` on a hand hit, and `Entity.stun(final int ticks)` confirms the unit is
+ticks. This is the only number any source gives for the Bloat hand stun — the Wiki says
+*"temporarily"*, secondary guides say *"a few seconds"*, and no plugin models it at all.
+
+**Treat it as a lead, not a fact.** It is suspiciously equal to the 3-tick shadow→land delay
+sitting two lines above it in the same file, which is exactly how a reimplementation
+accidentally reuses a constant. Worth implementing as 3 with the tag, and worth the small
+capture (splat tick → first tick the player can act) to confirm.
+
+### M7 — Zenyte contradicts the cache, and the cache wins
+
+```java
+protected void setStats() {
+    final var partySize = getRaid().getParty().getSize();
+    combatDefinitions.setHitpoints(380 - (partySize * 20));   // 360 solo … 280 at five
+}
+```
+
+Zenyte's supports scale **inversely** with party size — *more* pillar hitpoints in a smaller
+team — and none of its five values (360/340/320/300/280) matches the cache's `stat4=130`.
+This is invention, and it is the clearest demonstration in this pass of why an RSPS ranks
+below the cache. **M7 stays open**, with the cache's 130/150/155 as the figures and the
+scaling question unresolved (see that section above for why the cache cannot settle it).
+
+Zenyte also **shuffles the pillar list** to pick a target
+(`Collections.shuffle(pillars)`), which blert's measurement over 199 raids flatly
+contradicts — wave spawns are deterministic. Another invention, and a useful warning about
+taking Zenyte's *rules* rather than just its numbers.
+
+### M11 — a **second, independent** maze generator, and it disagrees with devqhp's
+
+Zenyte generates the maze rather than replaying one, so its generator is a rival hypothesis
+to the devqhp trainer's. `ShadowRealmArea.generatePath`:
+
+```java
+MAZE_WIDTH = 14, MAZE_HEIGHT = 15
+final var yIndexOffset = 2;
+final var maxXChange  = 5;
+int xIndex = Utils.random(0, MAZE_WIDTH - 1);            // start column
+while (yIndex < MAZE_HEIGHT - 1) {
+    int newXIndex = Utils.random(max(0, xIndex - maxXChange),
+                                min(xIndex + maxXChange, MAZE_WIDTH - 1));
+    // ... fill every tile between xIndex and newXIndex on this row  (a horizontal run)
+    int newYIndex = yIndex + (Utils.random(1) == 0 ? yIndexOffset : yIndexOffset * 2);
+    // ... fill every tile between yIndex and newYIndex at newXIndex (a vertical run)
+}
+```
+
+Where the two agree — and this is worth a lot:
+
+* the grid is **14 × 15**;
+* **`max_x_change = 5`**. Two people reconstructing this independently both landed on 5,
+  which promotes it from "devqhp's parameter" to a near-certain game constant;
+* turns are horizontal runs on a row, joined by straight vertical segments;
+* the path only ever moves **towards** the far row.
+
+Where they disagree — and this is now the whole of M11:
+
+| | devqhp trainer | Zenyte |
+|---|---|---|
+| rows advanced per turn | always **2** | **2 or 4**, rolled each turn |
+| number of horizontal runs | always **7** | 4–7, varies per maze |
+| start column | `random(1, 13)` — never the far-west column | `random(0, 13)` |
+
+**That makes M11 a single yes/no question against real mazes: does every maze have exactly
+seven horizontal runs?** If yes, devqhp is right and Zenyte's double-height step is
+invention. If some mazes have five or six, Zenyte is right and devqhp's strict alternation
+is an artefact of a corpus too small to show the rarer shape. This is a far sharper target
+than "compare distributions over 10 000 mazes", and it is answerable from the maze corpus
+blert can supply (with the two harvesting traps noted in the M11 section above).
+
+### M9 — Entry Mode: the Wiki contradicts itself, and the specific number should win
+
+Blert cannot help (one Entry raid, unfinished). But the Wiki states the interval twice, in
+two places, and they disagree:
+
+> The boss **takes longer** to switch colours compared to regular and hard mode.
+> — [Nylocas Vasilias](https://oldschool.runescape.wiki/w/Nylocas_Vasilias), Entry Mode section
+
+> The Nylocas Vasilias always starts grey, but will **change colours after 10 ticks
+> (6 seconds)** … The boss will never remain in the same form twice in a row.
+> — [Theatre of Blood/Entry Mode](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Entry_Mode)
+
+The second is the Entry Mode page itself, it gives a number, and its 10 ticks matches
+regular mode, blert's guide, Zenyte, and the 185 switches measured here. The first is a
+vague comparative with no figure.
+
+Supporting the "no difference" reading: the **cache shows no per-mode difference** in the
+boss records at all — `nylocas_boss_{melee,magic,ranged}` and their `_story` counterparts
+carry the identical `param=attackrate,int,4`, and the Entry boss records are structurally
+identical to the regular ones. Anything mode-specific would have to be script-side.
+
+**Recommendation: implement Entry at 10 ticks like every other mode**, tagged, and treat the
+"takes longer" sentence as unsourced until somebody records an Entry raid. Note the plan's
+§ on Entry Mode currently asserts a longer interval — that line should be softened.
+
+### Verzik: two more corroborations, and one fresh contradiction
+
+Zenyte's Verzik attack speeds match the measurements and blert's constants exactly:
+`VerzikPhase2.ATTACK_DELAY = 4`, `VerzikPhase3.attackDelay = 7` dropping to `5` when
+enraged. The observed P3 gaps here were 7 (428 of them) and 5 (203), so three sources agree.
+
+The **phase openings do not agree**, which matters because M20's P2→P3 figure was already
+unverified:
+
+| | blert | Zenyte |
+|---|---|---|
+| P1 → P2 opening | first attack **+16** from its phase event (observed) | transition animation runs 10 ticks, then `ticksUntilAttack = 3` → **+13** from transition start |
+| P2 → P3 opening | `P3_TICKS_BEFORE_FIRST_ATTACK = 12` (asserted) | transition animation runs 4 ticks, then `ticksUntilAttack = 3` → **+7** from transition start |
+
+The two anchor their clocks differently — Zenyte from the start of its transition, blert from
+the npc change it detects — so 16-vs-13 and 12-vs-7 are not straight contradictions. But
+neither is either figure *confirmed*: blert asserts its 12 and Zenyte's 7 is its own reading.
+**The P2 → P3 opening is the one Verzik number this pass could not pin**, and it needs the
+same treatment M16 got: read it off the P3 attack *animation*, not off anybody's clock.
+
+### Nylocas room cap: measured, and it does not scale with the party
+
+Zenyte shrinks the cap for small teams:
+
+```java
+var cap = wave.getNylocasCap();
+if (raid.getParty().getSize() <= 2) {
+    cap = (cap == 12 ? 7 : 15);
+}
+```
+
+That is testable *observationally*, because blert detects a **stall** by seeing that a wave
+failed to spawn on a wave-check tick, and reports the live nylo count at that moment (both
+are counts of real npcs, not derived constants — unlike its `roomCap` field, which is
+computed and therefore useless here).
+
+| Scale | stalls observed | live nylos at a pre-wave-20 stall | at a post-20 stall |
+|---|---|---|---|
+| 2 | 16 | **12**–13 | 24 |
+| 3 | 57 | **12**–14 | 24 |
+| 4 | 26 | **12**–13 | 24 |
+
+A cap of 7 would produce stalls at 7–8 alive. **The minimum is 12 at every scale, including
+16 stalls in duos** — so the pre-cap ceiling is 12 and the post-wave-20 ceiling is 24
+regardless of party size, exactly as blert's guide states. Zenyte's small-party reduction is
+invention. (Counts slightly above the cap — 13, 14 — are the documented behaviour that the
+cap is checked *at* the spawn tick while splits can push the room over it in between.)
+
+### M22 — a second source also failed to find the formula
+
+Zenyte implements the chest with a scheme of its own — the top-damage player gets +2 points
+at the Bloat chest and +1 at the Sotetseg chest, a death costs −4 — which matches nothing in
+the published bands. That is not evidence about the game, but it *is* evidence about the
+record: a server author with every incentive to copy the real formula could not find it
+either. M22's formula should be treated as genuinely unpublished, not merely un-looked-for.
+
+---
+
+## Third source — Near-Reality, and a provenance warning about it
+
+The user supplied a second server tree at `/Users/matthewevers/Documents/git_repos/RSPS-NEAR-REALITY`
+(119 ToB files, Kotlin) as a fuller implementation than Zenyte's.
+
+**Read the header before the constants.** Its ToB lives in the *same package*
+(`com.zenyte.game.content.theatreofblood`) and its files carry `@author Tommeh` — Zenyte's
+author — plus `@author Jire`. Its Sotetseg maze generator is a line-for-line Kotlin port of
+Zenyte's (same `yIndexOffset = 2`, `maxXChange = 5`, same loop), and its Maiden keeps
+`BLOOD_ATTACK_CHANCE = 4` with the same trailing comment. **Near-Reality's ToB is a
+descendant of Zenyte's, not an independent reconstruction**, so where the two agree that is
+*one* source, not two. What *is* informative is where a later maintainer **changed** a
+value — that is a deliberate correction by someone with the live game in front of them.
+
+### The corrections it made, and what they are worth
+
+| Quantity | Zenyte | Near-Reality | Measured here |
+|---|---|---|---|
+| Xarpus exhumed lifespan | 9 | **11** | **11** (327 samples, regular mode) |
+| Nylocas support hitpoints | `380 − 20 × party` | **flat 500** | cache says **130** |
+| Hard Mode falling flesh | not modelled | `ticks % 3 == 0 && randomBoolean()` | Wiki: falls constantly in HM |
+
+The Xarpus row is the useful one: an independent maintainer moved the lifespan from 9 to
+**11**, landing on the figure measured here from 391 recorded exhumeds. Its whole exhumed
+table is otherwise identical to Zenyte's — `(7,20,13,11) (8,16,8,11) (12,12,8,11)
+(15,9,4,11) (18,6,4,11)` — so the count/heal/interval columns still corroborate the
+measurements at four scales out of five.
+
+### M7 — three sources, three numbers, and why the cache still wins
+
+| Source | Nylocas support hitpoints |
+|---|---|
+| rev-239 cache `stat4` | **130** (Hard 150, Entry 155) |
+| Zenyte | `380 − 20 × party` → 360 solo … 280 at five |
+| Near-Reality | flat **500** |
+
+Nobody agrees with anybody, and the two servers do not even agree on *whether it scales* —
+which is the clearest possible sign that neither author knew. **M7 stays open**, and the
+positive argument for the cache's 130 is worth stating because it is not circular: on every
+ToB npc where a figure has been independently verified in this pass, `stat4` has been right —
+Maiden 3500, small nylo 11, big nylo 22, Verzik web 10, and the whole Entry-mode per-player
+table behind M19. A cache field with that track record beats two disagreeing
+reimplementations.
+
+Its other half — damage per swing — gets a first figure from Zenyte:
+
+```java
+if (target instanceof PillarSupport) { damage = large ? 4 : 2; }
+```
+
+A flat **2 from a small nylo, 4 from a big**, no roll. The plan's disclosed
+`^tob_nylo_pillar_hit_max = 2` matches the small case; the big-nylo 4 is new, and is a lead
+rather than a fact.
+
+### M22 — the best reconstruction of the points system that exists
+
+Near-Reality models the whole thing, and one detail proves its author was reading the real
+game rather than inventing: the points live in **varbit 6460**, which our own rev-239 cache
+names `tob_midwaychest_points` (`sources/cache_vars.txt:20`).
+
+Its model (`TheatreOfBloodContributions.kt`):
+
+```
+START_CONTRIBUTION_POINTS                 = 8     # every player starts with 8
+ENCOUNTER_PARTICIPATION_..._REWARD        = 3     # per encounter survived/participated
+DEATH_..._PENALTY                         = 4     # per death
+most-damage (MVP) bonus per room          = Maiden 2, Bloat 2, Nylocas 1, Sotetseg 1, Xarpus 2
+                                            Verzik 2 per phase
+POST_VERZIK_..._SUBTRACTED                = 8     # the starting 8 is removed at the end
+```
+
+and the party's `totalContributionPoints() / maxContributionPoints(playerCount)` ratio is
+what its reward generator consumes. The **supply-chest** currency itself accrues at **+3 per
+encounter** (`TheatreRoom.kt:210`, with a matching subtraction on death at `:410`).
+
+Check that against the documented bands: at the first chest (after Maiden and Bloat) a player
+has 3 + 3 = **6** with no bonuses, and up to 6 + 2 + 2 = **10** with both MVPs. The Wiki's
+range is **6–13** and Jagex's bands are below-average 6–9 / average 8–11 / above-average
+10–13 — so the floor matches exactly and the MVP bonuses land a top performer in the
+above-average band. That is a genuinely credible skeleton: **a flat per-room award, plus
+damage-based bonuses, minus a death penalty**, which is also the only shape consistent with
+the one hard rule the Wiki does state (two deaths → onion).
+
+It is still a reconstruction, and the exact inputs remain unpublished, so M22 stays a
+disclosed parameter. But "+3 per room, +MVP, −4 per death" is a far better default than a
+made-up classifier, and it reproduces the documented floor.
+
+### What Near-Reality confirms without changing
+
+`stun(3)` on a Bloat hand and `freeze(32)` on the down are carried over unchanged, so they
+remain **one** source's figures (Zenyte's), not two. The Verzik web is `hitpoints = 10`,
+agreeing with the cache. Nothing in the tree pins Verzik's P2 → P3 opening, which stays the
+one Verzik figure this pass could not settle.
+
+---
+
+### What else the second sweep of Near-Reality gave, and did not give
+
+Reading the files I had skipped rather than grepping for names:
+
+* **M49 (the P3 melee chance, outside this list but in the plan's table) gets a second
+  opinion at 50 %.** `ThirdPhase.kt` uses exactly the predicate TobMistakeTracker settled for
+  M28 — adjacent and not overlapping — and then a coin flip:
+  ```kotlin
+  if (middleLocation.getTileDistance(victim.location) == 4
+      && !CollisionUtil.collides(x, y, size, victim.x, victim.y, victim.size)
+      && Utils.randomBoolean()) meleeAttack(victim)
+  else if (Utils.randomBoolean()) magicAttack() else rangeAttack()
+  ```
+  The plan's disclosed 50 % now has an independent implementation behind it, and the
+  magic-vs-range split is also a coin flip there.
+* **Verzik P3 specials every 4 attacks** (`attackCounter == 4`) — matching blert's
+  `P3_ATTACKS_BEFORE_SPECIAL = 4`.
+* **Hard Mode falling flesh** is `ticks % 3 == 0 && Utils.randomBoolean()`, i.e. a coin flip
+  every third tick while he walks, which is a concrete reading of the Wiki's "flesh falls all
+  of the time in Hard Mode".
+* **It does not help M7's damage-per-swing at all**: Near-Reality never ported the small
+  nylocas' pillar attack — there is no `is PillarSupport` branch anywhere in its tree — so
+  Zenyte's flat `large ? 4 : 2` remains the only figure in existence.
+* **It does not help M20's P2 → P3 opening.** `ThirdPhase.onPhaseStart` sets the transform
+  animations and resets `attackCounter`; no opening delay is modelled, so that figure is
+  still unsourced in every implementation examined.
+
+## The cache states four attack rates — and pointedly not the others
+
+Near-Reality's Xarpus poison phase (the file I had missed on the first sweep) does not
+inherit Zenyte's cadence — it sets its own:
+
+```kotlin
+private val startDelay     = TimeUnit.SECONDS.toTicks(4).toInt()   // ~6-7 ticks
+private val attackInterval = TimeUnit.SECONDS.toTicks(3).toInt()   // 5 ticks
+...
+if (ticks >= startDelay && ticks % attackInterval == 0) { /* spit */ }
+```
+
+**5 ticks, flat, not scale-dependent** — against blert's asserted 4. Two implementations
+disagreeing sent me to the one source that can arbitrate, which I should have checked first:
+the npc's own `attackrate` param in the rev-239 cache.
+
+| npc | cache `attackrate` | agrees with |
+|---|---|---|
+| `tob_bloat` (8359) | **1** | the flies hitting every tick |
+| `tob_sotetseg_combat` (8388) | **5** | the 5-tick cadence measured here |
+| `tob_xarpus_combat` (8340) | **4** | blert's constant, and the modal splat gap measured here |
+| `verzik_phase3` (8374) | **7** | blert's `P3_ATTACK_SPEED`, Zenyte's `attackDelay` |
+| `nylocas_boss_{melee,magic,ranged}` | **4** | Vasilias' two autos per 10-tick window |
+| `verzik_nylocas_*` | **3** | — |
+
+And the absences are as informative as the values: **Maiden carries no `attackrate` at all**
+(zero occurrences in her entire cache extract, every phase), and neither does
+`verzik_phase1` or `verzik_phase2`. So the raid splits cleanly in two:
+
+* **Cache-stated cadences** — Bloat 1, Sotetseg 5, Xarpus 4, Verzik P3 7, Vasilias 4.
+  Readable without measuring anything.
+* **Script-driven cadences** — Maiden's 10, Verzik P1's 14, Verzik P2's 4. Nothing in the
+  cache states them, which is precisely why they needed measuring, and why the figures in M1,
+  M16 and M20 above are the only sources for them.
+
+### M31 — therefore closed: the spit cadence is a flat 4, at every scale
+
+`tob_xarpus_combat` carries **one** `attackrate` field, value **4**, with no per-scale
+variant. A cadence that changed with party size would have to be scripted on top of it, and
+no source suggests that: blert's constant is 4, the observed splat gaps are modally 4 wherever
+the dedupe does not censor them (trio 50 %, four-man 36 %), and the cache states 4.
+
+**Near-Reality's 5 is wrong, and looks like a units slip** — 3 seconds converts to 5 ticks,
+whereas the real 4 ticks is 2.4 s. The Xarpus melee trainer's hint that the `Players` setting
+changes his attack frequency describes the trainer, not the game.
+
+That also disposes of the last worry in the M31 section above: the censored duo data was never
+going to be needed, because the cache answers it outright.
+
+---
+
 ## Status summary
 
 | # | Room | Status after this pass | Basis |
 |---|---|---|---|
 | M1 | Maiden | **Closed** — first attack tick 9, then flat 10 (582/582 gaps) | observed, 26 rooms |
-| M2 | Maiden | **Mostly closed** — ≥3-attack cooldown never violated in 608 attacks; roll ≈ 0.31 per eligible attack | observed |
+| M2 | Maiden | **Mostly closed** — cooldown never violated in 608 attacks; roll p̂ = 0.309, CI excludes Zenyte's 1/4 and contains 1/3 | observed + server source |
 | M3 | Maiden | **Closed** — `50 + 15·d` cycles, `+25` for the two bonus splats, 11-tick splat | TobMistakeTracker source |
 | M4 | Maiden | **Closed** — 10-slot table, uniform subset of 2×scale, on the transmog tick | observed, 81 spawns |
-| M5 | Maiden | **Measured** — trail tile active 29 ticks (80 % of 3 366 runs); re-covering explains the Wiki's 20–30 s | observed |
-| M6 | Bloat | **2 of 3 closed** — 16 hands per drop, 3-tick shadow→land, cadence 6→4 ticks HP-gated in (34 %, 41.3 %]; stun length still open | observed + TobMistakeTracker |
-| M7 | Nylocas | Open — cache figure cannot distinguish flat from scaled; supports absent from blert | — |
+| M5 | Maiden | **Closed — 30 ticks.** Measured 29 over 3 366 runs; Zenyte's `BloodTrail` states 30 with a `resetTimer()` on re-cover, resolving the off-by-one | observed + server source |
+| M6 | Bloat | **2 of 3 closed** — 16 hands per drop, 3-tick shadow→land, cadence 6→4 ticks HP-gated in (34 %, 41.3 %]. Stun length: Zenyte says **3 ticks**, the only figure anywhere, but it may be a copied constant | observed + both source trees |
+| M7 | Nylocas | Open — three sources give three support HPs (cache 130, Zenyte `380−20×party`, Near-Reality flat 500) and the two servers disagree on whether it scales at all; damage per swing gets a first figure from Zenyte (small 2, big 4) | cache + 2 servers |
 | M8 | Nylocas | **Closed** — first wave-check tick ≥ cleanup+16; 22/22 raids | observed |
-| M9 | Nylocas | **Regular closed** — melee first, switch at +9 then every 10, never repeating; Entry open | observed, 185 switches |
+| M9 | Nylocas | **Regular closed**, Entry **resolved on the balance of evidence** — the Entry Mode page says 10 ticks, matching every other source; the "takes longer" line is a numberless comparative on a different page, and the cache shows no per-mode difference | observed + Wiki + cache |
 | M10 | Sotetseg | **Closed** — 1 tick after re-activation, 25/26 mazes | observed |
-| M11 | Sotetseg | Open — but a maze corpus is harvestable from `TOB_SOTE_MAZE_PATH` | — |
+| M11 | Sotetseg | Open, but **reduced to one yes/no question**: do real mazes always have exactly 7 horizontal runs? Two independent generators agree on the 14×15 grid and `max_x_change = 5`, and disagree only on whether a turn advances 2 rows or 2-or-4 | two reconstructions |
 | M12 | Xarpus | **Closed** — 7/9/12/15/18 by scale (HM trio 16) | observed |
 | M13 | Xarpus | **Closed** — scaled: 12t solo, 8t at 2–3, 4t at 4–5 | observed |
 | M14 | Xarpus | **Closed** — a heal orb every tick from spawn+3; 20/16/12/9/8 by scale | observed |
@@ -944,15 +1370,40 @@ for ~352 npcs at once.
 | M19 | All | **Closed** — Entry scales *up* per player; the Wiki figure is the 4-player value | cache + plugin + Wiki |
 | M20 | All | **Split** — Verzik P1→P2 resets (+16, observed); P2→P3 +12 is blert's constant, not measured; Maiden's clock free-runs through crab spawns | mixed |
 | M21 | Verzik | **Closed** — webs are 10 HP flat; the party scales their *number* | cache |
-| M22 | All | Bands and the death gate documented; formula unpublished | Jagex/Wiki |
+| M22 | All | Bands and the death gate documented; formula unpublished, but Near-Reality's reconstruction (+3/encounter, MVP bonuses, −4/death, on the correct varbit 6460) reproduces the documented 6-point floor | Jagex/Wiki + servers |
 | M23–M30 | — | Crab walk-vs-run **closed** (never >1 tile/tick); rest open | observed |
-| M31 | Xarpus | Not answered — the attack stream is circular; splats are consistent with flat 4 | — |
+| M31 | Xarpus | **Closed — flat 4 at every scale.** `tob_xarpus_combat` carries a single `attackrate=4`; blert's constant, the modal splat gap, and the cache all agree, and Near-Reality's 5 is a seconds→ticks slip | cache + observed |
 | M37 | Nylocas | Open — but the bias-free experiment is now a query, not a capture | — |
 | M38 | Nylocas | **Closed** — it moves (up to 4 distinct tiles in one fight) | observed |
 | M39 | All | Not a research item | — |
 
-**Net: 16 questions closed, 3 partially closed, and for every one still open there is now a
+**Net: 18 questions closed (M31 closed by the cache's `attackrate`), 3 partially closed, and for every one still open there is now a
 named dataset or capture that would close it.**
+
+---
+
+## Applied to the tree — Maiden
+
+Every Maiden finding above is now in the encounter. What each one changed:
+
+| # | Finding | Was | Is | Pinned by |
+|---|---|---|---|---|
+| M1 | First attack on room tick **9** | `~tob_first_attack_delay` returned her 10-tick period, so she opened a tick late every raid | `^tob_maiden_first_attack_ticks = 9`, a separate constant because the two numbers answer different questions | `~tob_st_maiden_research` — asserts 9 *and* that it differs from the period |
+| M2 | Cooldown **plus a 1/3 roll** | deterministic: blood on every 4th attack, forever, on the same beat | `^tob_maiden_blood_roll_in = 3`; a failed roll deliberately does **not** arm the cooldown, or a 1/3 roll becomes a 1-in-12 beat | `~tob_st_maiden_blood_cadence` — the simulated floor is now `>= 3` rather than `= 3`, since the gap is no longer fixed |
+| M3 | `50 + 15·d` cycles, `+25` for the two bonus splats | one shot at one player, on `~player_projectile`'s own distance from the source tile | `~tob_maiden_flight`, distance from her **footprint** via `npc_range` | `~tob_st_maiden_flight` — the 65/80/95/110 table, and "+25 lands one tick later" at every distance |
+| M4 | Scuffed is per **spawn event**, ~3 % | the twenty tiles existed but the fight always passed `false` | one roll per set in `~tob_maiden_spawn_set`; `^tob_maiden_scuffed_chance = 3` | `~tob_st_maiden_research` — the scuffed tile is one east and one *outward*, as a rule over all ten slots |
+| M4 | Spawn on the **transmog tick** | already correct | unchanged | — |
+| M5 | Trail is **30** ticks, and re-covering **restarts** it | 29, and a second `loc_add` queued a *second* revert so the first still fired — a re-covered tile expired 30 ticks after it was *first* painted | 30, and `mock230_world_loc_revert_queue` now replaces a pending revert for the same tile+shape | `~tob_st_maiden_research` — 30 for the trail, still 11 for her own pool, as two distinct objects |
+| M19 | Entry scales **up** per player | `^tob_maiden_hp_entry = 2000` used as a base: a solo Entry Maiden had 4× her health | 500, the cache's `stat4` unit, multiplied by scale at the call site; Matomenos likewise 16 | `~tob_st_maiden_research` — `4 × unit` must equal the Wiki's 2000 / 64 |
+| M23 | Crabs **walk**, never 2 tiles/tick | — | `npc_walk` + the waypoint stepper is walk speed; nothing sets a run | — |
+
+All six mutation-proved: each constant was reverted to its pre-finding value and the
+corresponding `::tobrun` check was confirmed to go red with the right message.
+
+**Not applied, and why:** M2's roll is *probably* 1/3 — the CI excludes 1/4 but a single
+385-attack sample cannot separate 1/3 from 0.30, so the constant carries the tag rather
+than a claim. M4's "slight excess of balanced north/south splits" is below the sample's
+resolution and is treated as uniform, as the finding recommends.
 
 ---
 

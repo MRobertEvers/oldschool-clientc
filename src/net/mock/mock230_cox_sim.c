@@ -219,10 +219,26 @@ cox_sim_dump_npcs(struct Mock230Server* srv, FILE* out)
  * repeated. Reading the code alone is the bug this comment exists to prevent.
  */
 static void
-cox_sim_record(struct Mock230Server* srv, struct CoxSimRun* run, int ticks)
+cox_sim_record(
+    struct Mock230Server* srv,
+    struct CoxSimRun* run,
+    int ticks,
+    const char* action_varp,
+    const char* serial_varp)
 {
-    int varp_action = mock230_world_varp("cox_trace_action");
-    int varp_serial = mock230_world_varp("cox_trace_serial");
+    /* Olm's PRIVATE channel, not the shared one.
+     *
+     * The shared %cox_trace_action slot is last-writer-wins within a tick. That
+     * was fine when a raid held a single encounter, and stopped being fine the
+     * moment the layout generator started placing all fifteen: Vespula's portal
+     * traces every two ticks and the icefiend every three or four, so the value
+     * standing at the end of a tick was almost never Olm's. Every one of the 70
+     * assertions this harness raised read "Olm used portal.drain", which is not
+     * a rotation bug -- it is this harness reading another room's telemetry.
+     *
+     * Content mirrors codes 1..11 into cox_trace_olm_* for exactly this reason. */
+    int varp_action = mock230_world_varp(action_varp);
+    int varp_serial = mock230_world_varp(serial_varp);
     struct Mock230Player* player = srv->active_player;
     int last_serial;
 
@@ -522,6 +538,11 @@ mock230_cox_sim_run(struct Mock230Server* srv)
     {
         int tekton = 0;
 
+        /* Rooms are dealt by seed now, so Tekton is not reliably the room the
+         * player spawns in. Walk to him first: an encounter nobody stands in
+         * front of never engages, which reads as a dead ai_timer. */
+        mock230_scripts_run_debugproc(srv, "coxgoto_tekton");
+
         for( int i = 0; i < MOCK230_NPC_MAX; i++ )
             if( srv->npcs[i].active && srv->npcs[i].type >= 7540 && srv->npcs[i].type <= 7545 )
                 tekton++;
@@ -536,7 +557,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
             memset(run.code, 0, sizeof(run.code));
             memset(run.hurt, 0, sizeof(run.hurt));
             run.ticks = 0;
-            cox_sim_record(srv, &run, ticks);
+            cox_sim_record(srv, &run, ticks, "cox_trace_tekton_action", "cox_trace_tekton_serial");
             cox_sim_check_tekton(srv, &run);
             fprintf(stderr, "  tekton: %d ticks traced\n", run.ticks);
         }
@@ -550,7 +571,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
         memset(run.code, 0, sizeof(run.code));
         memset(run.hurt, 0, sizeof(run.hurt));
         run.ticks = 0;
-        cox_sim_record(srv, &run, ticks);
+        cox_sim_record(srv, &run, ticks, "cox_trace_olm_action", "cox_trace_olm_serial");
         cox_sim_check_olm(srv, &run);
         fprintf(stderr, "  olm: %d ticks traced\n", run.ticks);
     }

@@ -1,0 +1,153 @@
+{{Infobox Monster
+|name = Akkha
+|image = [[File:Akkha.png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 337
+|size = 3
+|examine = A manifestation of vengeance.
+|xpbonus = 
+|max hit = 55
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]], [[Magic]], [[Ranged]]
+|attack speed = 6
+|hitpoints = 400
+|scaledhp = Yes
+|att = 100
+|str = 140
+|def = 80
+|mage = 100
+|range = 100
+|attbns = 115
+|strbns = 30
+|amagic = 115
+|mbns = 40
+|arange = 115
+|rngbns = 40
+|dstab = 60
+|dslash = 120
+|dcrush = 120
+|dmagic = 10
+|dlight = 60
+|dstandard = 60
+|dheavy = 60
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|freezeresistance = 100
+|id = 11789,11790,11791,11792,11793,11794,11795,11796
+}}
+'''Akkha''' is a powerful apparition encountered at the end of the Path of Het, within the [[Tombs of Amascut]] [[raid]]. Once a human warrior dedicated to the god [[Het]], he eventually came under the influence of [[Amascut]] and was used by her to imprison Het.
+
+==History==
+Akkha was once a human warrior who dedicated himself to the god [[Het]],{{CiteText|text=Het's capture|quote=Like many of his fellow cultists, Akkha's life prior to the cult was as a soldier dedicated to Het.}} he eventually believed that the god had abandoned him, leading him to join the Children of Rebirth, a cult dedicated to the goddess of rebirth - the original form of [[Amascut]] prior to her corruption into the Devourer.{{CiteText|text=Het's capture|quote=The Children of Rebirth was a cult of former warriors dedicated to the Devourer's original form, Amascut - the goddess of rebirth.}} The cult believed that, in order for her to rebirth them in perfect form, achieving a perfect death was essential.{{CiteText|text=Het's capture|quote=They were firm in their belief that they must achieve a perfect death, so that Amascut would allow them to be reborn in perfected form.}}
+
+When the time came for the cult to initiate their rebirth, they performed a ritual and called upon Amascut, sacrificing themselves in her name by imbibing a lethal poison.{{CiteText|text=Het's capture|quote=When the day of their supposed rebirth came, they performed a ritual to Amascut and poisoned themselves in her name.}} While the rest of the cult perished, the poison failed to kill Akkha, leaving him on the verge of death. Amascut would soon arrive and seal him in a sarcophagus, trapping him in a tormented state between life and death.{{CiteText|text=Het's capture|quote=With Amascut long gone, the ritual instead called out to the Devourer and she arrived to find Akkha as the sole survivor among the many dead. His poison had failed, but he was on the verge of death. The Devourer took Akkha and sealed him in a sarcophagus, trapping him between life and death.}}
+
+With Akkha in tow, Amascut performed a ritual to lure Het to her. Though Het was well aware that it was a trap, he had a sense of duty to the warrior who had once dedicated his life to him.{{CiteText|text=Het's capture|quote=She then performed a ritual of her own, calling out to Het. While Het almost certainly realised it was a trap, he was unable to ignore the call. Like many of his fellow cultists, Akkha's life prior to the cult was as a soldier dedicated to Het, and so the god felt he had a duty to help his former acolyte.}} However, instead of facing Amascut, he faced the manifestation of a vengeful Akkha, and was distracted long enough for Amascut to overpower and imprison Het.{{CiteText|text=Het's capture|quote=Het arrived expecting to face the Devourer, but was faced with a manifestation of Akkha himself. Fueled by vengeance against the god who had abandoned him, this manifestation gave the Devourer the distraction she needed to capture Het.}}
+
+An [[Player character|adventurer]] would later defeat Akkha in order to free Het, who would leave some [[eldritch ashes|unusual ashes]] behind. The adventurer collected them and brought them to the [[High Priest (Sophanem)|High Priest]] of [[Sophanem]], asking him to give Akkha's remains a proper send-off.
+
+==Mechanics==
+{{Main|Tombs of Amascut/Strategies#Akkha, Guardian of Het}}
+[[File:Tombs of Amascut - Fighting Akkha.png|thumb|left|280px|A player fighting Akkha, the Guardian of Het.]]
+Akkha uses all three combat styles. Unlike the other demi-bosses, Akkha also utilises protection prayers and focuses on one style and one prayer at a time. The style he uses influences his prayer; he will always pray against the same style with which he is currently attacking. Akkha will change combat styles after he performs six auto-attacks followed by a special attack, or if he is unable to attack his target for more than a minute. With the Stay Vigilant invocation, Akkha has a 1/4 chance to switch attack styles following an auto-attack, and a 1/5 chance to switch styles following a special attack{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1351144970907549738|date=17 March 2025|archiveurl=https://reldo.runescape.wiki/i/27962819#chat-messages-431834766325841920-1351144970907549738|archivedate=8 March 2026|quote=Ah - there's a 1/4 roll for normal attacks to switch between ranged & magic, and a 1/5 roll for others.}}, with a minimum of two attacks per attack style. Including the Stay Vigilant invocation, Akkha will always cycle his primary combat style as melee, ranged, magic. 
+
+Akkha's attacks cannot be fully blocked by prayer similarly to [[Kephri]]. His melee attacks hit the hardest, can cleave onto other players next to his main target and will be used if anyone is underneath him even when chasing his main target. His ranged and magic attacks hit everyone in the arena; while it is a distance attack, he will always try to close the gap between him and his target. 
+
+After reaching 80% of his health, Akkha will generate four [[Akkha's Shadow|shadows]] of himself in the four corners of the arena. Once one of these four shadows are dispelled, Akkha must be lured to the quadrant of the dispelled shadow to be damaged, as he will channel immunity from his shadows otherwise. This will be repeated at 60%, 40% and 20% intervals.
+
+{{Clear|left}}
+
+Akkha has a number of special attacks that he uses:
+* '''Detonate''' - Akkha will mark all players for detonation. The damage from this attack can be avoided by not standing in the same row or column as another player, as the player will detonate in a + shaped pattern. This attack can also be negated by having every player stand on the same tile. This attack is only used in group encounters.
+* '''Memory Blast''' - Akkha will disappear, and the symbols of the four sections of the arena will glow in a certain order. Players must remember this order and stand in those sections to avoid the blast that occurs throughout the rest of the arena. Alternatively, a skilled player can run/walk past the blast to take no damage.
+* '''Trailing Orbs''' - Akkha will summon orbs in a trail behind players as they move around the arena. Stepping on an orb will cause it to explode and deal damage to the player. This attack can be avoided by simply standing still, as no orbs will be able to spawn behind you, or by simply avoiding stepping on any of the orbs.
+
+Should players have the '''Path Level''' invocations active, every two levels will cause the following:
+
+* An additional iteration to the Memory Blast attack.
+* The unstable orbs deal more damage (still capped at 25 damage).
+
+After using a special attack, Akkha will aggro onto the player closest to his centre tile. If all players are the same distance, he will prioritise whoever has the highest defence bonus in any style, checking players in the order they're listed in the party. A bulwark makes him treat that player's defence (whichever style it was) as 50% higher.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1537030079798845520|date=2026-08-12|quote=1: Whichever is highest for a player out of their stab, slash, crush, ranged or magic. A bulwark makes him treat that player's defence (whichever style it was) as 50% higher. Hypothetically, if Player A's highest defence bonus is +50 in stab, and Player B's highest defence bonus is +60 in magic, and neither has a bulwark. it'll choose Player B. But in that scenario if Player A equipped a bulwark, it'd treat their highest defence as +75, so it'd choose Player A. 2: Central tile of the NPC.|archiveurl=|archivedate=|ctxquote=|notes=|name=}}{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1537031229147316234|date=2026-08-12|quote=If it's found one player with an effective bonus of X at a distance of Y, it'll stay with that player unless... it finds one whose distance is <Y or whose distance is Y but whose effective bonus is >X i.e. preference for the first it found. And the order it's checking the players is the order they're listed in the party.|archiveurl=|archivedate=|ctxquote=|notes=|name=}}
+
+Upon having his health depleted, Akkha will make his final stand, restoring 20% of his maximum health before merging into one of the shadows in the four corners of the arena, with Protect from Magic and Missiles simultaneously active. He will also launch numerous white orbs across the arena that deal moderate damage if they make contact with the player. The damage of these orbs scales to both raid and path level, but is capped at 25. Additionally, if the raid level is below 300, using [[Protect from Magic]] will mitigate some of this damage.
+
+Akkha will remain in one quadrant until three [[successful hit]]s are made (increasing by one for every additional player in the team) by players before  swapping to another quadrant. Thralls do not contribute towards the cap, so [[zombified thrall]]s are effective in dealing minor chip damage.
+
+==Drops==
+{{DropsTableHead|leagueRegion=Desert}}
+{{DropsLine|name=Het's capture|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players do not have it stored in their bank.</ref>}}
+{{DropsLine|name=Eldritch ashes|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players dealt the most damage to Akkha.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+Akkha concept art.jpg|Concept art of Akkha, by [[Mod Grub]].
+Tombs of Amascut - Path of Het concept art.jpg|Concept art of the Path of Het, by [[Mod Jerv]].
+Akkha boss room concept art.jpg||Concept art of Akkha's room, by Mod Jerv.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change = Attacking Akkha with the [[Eye of Ayak]] no longer causes him to turn invisible.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change =
+* Protection prayers will now reduce more damage from Akkha's standard attacks.
+* Akkha now only protects against the same style that he's attacking with.
+* Akkha's stat drain effect now only affects combat skills.
+* Akkha's special attacks now occur every 7 attacks, up from 6.
+* Akkha's enrage phase now spawns fewer orbs.
+* Akkha's Stay Vigilant invocation means he'll use a special attack every 6 attacks, as opposed to the base version's 7.
+* If the 'Stay Vigilant' invocation is enabled, Akkha will only swap the style he's attacking with when he uses a special attack, provided he's used a regular attack since the last special.
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Akkha can now be affected by burn damage.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = Awakened DT2 Bosses & Poll 80
+|change = Akkha, during his enrage phase, will now teleport after a certain number of [[successful hit]]s from the player themselves, rather than a fixed number of hits that previously included missed hits and thrall damage.
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Players will now stop attacking when Akkha changes attack styles/protection prayers.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = 
+* [[Unstable Orb]]s will now only damage one player.
+* Reduced the amount of unstable orbs that spawn. To compensate, they will deal increased damage, up to a max of 25.
+* Akkha will change combat styles and prayers if he has not done so after 60 seconds.
+}}
+{{Subject changes
+|date = 26 August 2022
+|type = hotfix
+|change = [[Unstable Orb]]s now spawn consistently.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*His name appears to be a portmanteau of {{WP|Ancient Egyptian conception of the soul#Akh (intellect)|Akh}} and {{WP|Ancient Egyptian conception of the soul#Ka (vital essence)|Ka}}, two different aspects of the soul from Egyptian mythology.
+*In the 37th [[Postbag from the Hedge]], Akkha reveals that he was originally from [[Al Kharid]].{{CitePostbag|issue=37|author=Akkha|letter=letter 1|quote=I, Akkha of Al Kharid, will answer your call!}}
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}
+{{Bosses}}

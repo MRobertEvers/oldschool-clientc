@@ -1,0 +1,121 @@
+{{Switch infobox
+|text1 = Inactive
+|item1 =
+{{Infobox NPC
+|name = Obelisk
+|image = [[File:Obelisk (Tombs of Amascut, inactive).png|140px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = An ancient body of power.
+|map = No
+|id = 11750
+|leagueRegion = Desert
+}}
+|text2 = Phase 1
+|item2 = 
+{{Infobox Monster
+|name = Obelisk
+|image = [[File:Obelisk (Tombs of Amascut, phase 1).png|140px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = N/A
+|size = 3
+|examine = An ancient body of power.
+|xpbonus = 
+|max hit = 0 <!-- 16 for Monster Examine -->
+|aggressive = No
+|poisonous = No
+|attack style = None <!-- "All" for Monster Examine -->
+|attack speed = 4
+|hitpoints = 260
+|scaledhp = Yes
+|att = 200
+|str = 150
+|def = 100
+|mage = 100
+|range = 100
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 70
+|dslash = 70
+|dcrush = 70
+|dmagic = 50
+|dlight = 60
+|dstandard = 20
+|dheavy = 60
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11751
+|leagueRegion = Desert
+}}
+|text3 = Phase 2
+|item3 = 
+{{Infobox NPC
+|name = Obelisk
+|image = [[File:Obelisk (Tombs of Amascut, phase 2).png|140px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = An ancient body of power.
+|map = No
+|id = 11752
+|leagueRegion = Desert
+}}
+}}
+The '''obelisk''' is the object that charges [[Tumeken's Warden]] and [[Elidinis' Warden]] during the first phase of the fight, where it begins transferring energy to them, through several orbs it emits to them.
+
+During the second phase of the fight, it will also discharge a series of attacks.
+
+The obelisk's base Defence level is 100, which can only be lowered by a maximum of 40 levels, reducing its base defence level to a minimum of 60.
+[[File:Tombs of Amascut - Wardens charging.png|thumb|left|300px|A player blocks the western energy trough to disrupt Tumeken's Warden's charging, while the obelisk charges Elidinis' Warden enough to unleash an attack.]]
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Obelisk
+|location = [[Tombs of Amascut]]
+|levels = N/A
+|members = Yes
+|mapID = -1
+|plane = 1
+|3808,5154
+|mtype = square
+|leagueRegion = Desert
+}}
+{{LocTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The obelisk's standard [[Ranged]] defence has been decreased from 60 to 20.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = The obelisk's Converging Beam attack during the second phase of the Warden fight now stops when the Warden's [[core]] is ejected.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The obelisk can now be Monster Examined.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = Fixed a bug where players could click through the Obelisk.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

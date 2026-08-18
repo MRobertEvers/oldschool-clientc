@@ -1,0 +1,28 @@
+{{Otheruses|def=no|strategies on how to complete the puzzle room|Tombs of Amascut/Strategies#Path of Het}}
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Started
+|version3 = Completed
+|name = Path of Het
+|image1 = [[File:Path of Het (normal).png|250x250px]]
+|image2 = [[File:Path of Het (started).png|250x250px]]
+|image3 = [[File:Path of Het (completed).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Jaltevas Pyramid]]
+|options1 = Enter, Quick-Enter
+|options2 = Enter, Quick-Enter
+|options3 = None
+|examine1 = Walk the Path of Het?
+|examine2 = Another path has been started.
+|examine3 = The Path of Het has been completed.
+|map = {{Map|x:3539,y:5146|plane=0|mapID=-1|mtype=pin}}
+|id1 = 46164
+|id2 = 46165
+|id3 = 46166
+}}
+The '''Path of Het''' in [[Tombs of Amascut]] leads to [[Het's Seal|Het's seal]] and [[Akkha]], the guardian of [[Het]]. If another path has been entered, the helmet is removed to show that another path is currently being attempted. After the Path of Het is cleared, the fire disappears. 
+
+{{Tombs of Amascut}}

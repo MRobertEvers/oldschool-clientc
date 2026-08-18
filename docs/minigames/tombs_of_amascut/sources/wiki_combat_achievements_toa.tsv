@@ -1,0 +1,52 @@
+id	name	tier	monster	type	description
+421	Tombs Speed Runner	Master	Tombs of Amascut	Speed	Complete the Tombs of Amascut (normal) within 18 mins at any group size.
+422	Tombs Speed Runner II	Grandmaster	Tombs of Amascut: Expert Mode	Speed	Complete the Tombs of Amascut (expert) within 20 mins at any group size.
+423	Tombs Speed Runner III	Grandmaster	Tombs of Amascut: Expert Mode	Speed	Complete the Tombs of Amascut (expert) within 18 mins in a group of 8.
+424	You are not prepared	Master	Tombs of Amascut	Restriction	Complete a full Tombs of Amascut raid only using supplies given inside the tomb and without anyone dying.
+425	Helpful spirit who?	Elite	Tombs of Amascut	Restriction	Complete the Tombs of Amascut without using any supplies from the Helpful Spirit and without anyone dying. Honey locusts are included in this restriction.
+426	Resourceful Raider	Master	Tombs of Amascut: Expert Mode	Restriction	Complete the Tombs of Amascut with the "On a diet" and "Dehydration" invocations activated and without anyone dying.
+427	But... Damage	Master	Tombs of Amascut: Expert Mode	Restriction	Complete the Tombs of Amascut without anyone in your party wearing or holding any equipment at tier 75 or above.
+428	Chompington	Master	Tombs of Amascut	Mechanical	Defeat Zebak using only melee attacks and without dying yourself.
+429	Fancy feet	Master	Tombs of Amascut: Expert Mode	Restriction	Complete phase three of The Wardens in a group of two or more, using only melee attacks and without dying yourself. The 'Insanity' invocation must be activated.
+430	Hardcore Raiders	Elite	Tombs of Amascut	Perfection	Complete the Tombs of Amascut in a group of two or more without anyone dying.
+431	Hardcore Tombs	Elite	Tombs of Amascut	Perfection	Complete the Tombs of Amascut solo without dying.
+432	Perfect Het	Elite	Tombs of Amascut	Perfection	Complete the Het room without taking any damage from the light beam and orbs. You must destroy the core after one exposure.
+433	Perfect Akkha	Master	Tombs of Amascut	Perfection	Complete Akkha in a group of two or more, without anyone taking any damage from the following: Akkha's attacks off-prayer, Akkha's special attacks (orbs, memory, detonate), exploding shadow timers, orbs in the enrage phase or attacking Akkha with the wrong style. You must have all Akkha invocations activated.
+434	Perfection of Het	Grandmaster	Tombs of Amascut: Expert Mode	Perfection	Complete 'Perfect Het' and 'Perfect Akkha' in a single run of the Tombs of Amascut.
+435	Perfect Apmeken	Elite	Tombs of Amascut	Perfection	Complete the Apmeken room in a group of two or more, without anyone allowing any dangers to trigger, standing in venom or being hit by a volatile baboon. You must complete this room in less than three minutes.
+436	Perfect Ba-Ba	Master	Tombs of Amascut	Perfection	Defeat Ba-Ba in a group of two or more, without anyone taking any damage from the following: Ba-Ba's Attacks off-prayer, Ba-Ba's slam, rolling boulders, rubble attack or falling rocks. No sarcophagi may be opened. You must have all Ba-Ba invocations activated.
+437	Perfection of Apmeken	Grandmaster	Tombs of Amascut: Expert Mode	Perfection	Complete 'Perfect Apmeken' and 'Perfect Ba-Ba' in a single run of the Tombs of Amascut.
+438	Perfect Crondis	Elite	Tombs of Amascut	Perfection	Complete the Crondis room without letting a crocodile get to the tree, without anyone losing water from their container and in under one minute.
+439	Perfect Zebak	Master	Tombs of Amascut	Perfection	Defeat Zebak without anyone taking any damage from: poison, Zebak's basic attacks off-prayer, blood spawns and waves. You also must not push more than two jugs on the roar attack during the fight (you may destroy stationary ones). You must have all Zebak invocations activated.
+440	Perfection of Crondis	Grandmaster	Tombs of Amascut: Expert Mode	Perfection	Complete 'Perfect Crondis' and 'Perfect Zebak' in a single run of the Tombs of Amascut.
+441	Perfect Scabaras	Master	Tombs of Amascut	Perfection	Complete the Scabaras room in less than a minute without anyone taking any damage from puzzles.
+442	Perfect Kephri	Master	Tombs of Amascut	Perfection	Defeat Kephri in a group of two or more, without anyone taking any damage from the following: egg explosions, Kephri's attacks, Exploding Scarabs, Bodyguards, dung attacks. No eggs may hatch throughout the fight.
+443	Perfection of Scabaras	Grandmaster	Tombs of Amascut: Expert Mode	Perfection	Complete 'Perfect Scabaras' and 'Perfect Kephri' in a single run of Tombs of Amascut.
+444	Perfect Wardens	Master	Tombs of Amascut	Perfection	Defeat The Wardens in a group of two or more, without anyone taking avoidable damage from the following: Warden attacks, obelisk attacks, lightning attacks in phase three, skull attack in phase three, Demi god attacks in phase three. You must have all Wardens invocations activated.
+445	Insanity	Grandmaster	Tombs of Amascut: Expert Mode	Perfection	Complete 'Perfect Wardens' at expert or above.
+446	Amascut's Remnant	Grandmaster	Tombs of Amascut: Expert Mode	Mechanical	Complete the Tombs of Amascut at raid level 500 or above without anyone dying.
+447	Something of an expert myself	Master	Tombs of Amascut: Expert Mode	Mechanical	Complete the Tombs of Amascut raid at level 350 or above without anyone dying.
+448	Maybe I'm the boss.	Grandmaster	Tombs of Amascut: Expert Mode	Mechanical	Complete a Tombs of Amascut raid with every single boss invocation activated and without anyone dying.
+449	Dropped the ball	Elite	Tombs of Amascut	Mechanical	Defeat Akkha without dropping any materialising orbs and without dying yourself.
+450	Akkhan't Do it	Grandmaster	Tombs of Amascut: Expert Mode	Mechanical	Defeat Akkha with all Akkha invocations activated and the path levelled up to at least four, without dying yourself.
+451	No skipping allowed	Elite	Tombs of Amascut	Mechanical	Defeat Ba-Ba after only attacking the non-weakened boulders in the rolling boulder phase, without dying yourself. The Boulderdash invocation must be activated.
+452	I'm in a rush	Elite	Tombs of Amascut	Mechanical	Defeat Ba-Ba after destroying four or fewer rolling boulders in total without dying yourself.
+453	Ba-Bananza	Master	Tombs of Amascut: Expert Mode	Mechanical	Defeat Ba-Ba with all Ba-Ba invocations activated and the path levelled up to at least four, without dying yourself.
+454	All Praise Zebak	Grandmaster	Tombs of Amascut: Expert Mode	Mechanical	Defeat Zebak without losing a single prayer point. You must also meet the conditions of the 'Rockin' Around The Croc' achievement.
+455	Rockin' around the croc	Master	Tombs of Amascut: Expert Mode	Mechanical	Defeat Zebak with all Zebak invocations activated and the path levelled up to at least four, without dying yourself.
+456	Doesn't bug me	Master	Tombs of Amascut: Expert Mode	Mechanical	Defeat Kephri with all Kephri invocations activated and the path levelled up to at least four, without dying yourself.
+457	All out of medics	Master	Tombs of Amascut: Expert Mode	Mechanical	Defeat Kephri without letting her heal above 25% after the first down. The 'Medic' invocation must be activated. You must do this without dying yourself.
+458	Down Do Specs	Elite	Tombs of Amascut	Mechanical	Defeat the Wardens after staggering the boss a maximum of twice during phase two, without dying yourself.
+459	Better get movin'	Master	Tombs of Amascut	Mechanical	Defeat Elidinis' Warden in phase three of the Wardens fight with 'Aerial Assault', 'Stay vigilant' and 'Insanity' invocations activated and without dying yourself.
+460	Warden't you believe it	Master	Tombs of Amascut: Expert Mode	Mechanical	Defeat the Wardens with all Wardens invocations activated, at expert level and without dying yourself.
+461	Novice Tomb Explorer	Hard	Tombs of Amascut: Entry Mode	Kill Count	Complete the Tombs of Amascut in Entry mode (or above) once.
+462	Novice Tomb Looter	Hard	Tombs of Amascut: Entry Mode	Kill Count	Complete the Tombs of Amascut in Entry mode (or above) 25 times.
+463	Novice Tomb Raider	Elite	Tombs of Amascut: Entry Mode	Kill Count	Complete the Tombs of Amascut in Entry mode (or above) 50 times.
+464	Movin' on up	Hard	Tombs of Amascut: Entry Mode	Restriction	Complete a Tombs of Amascut raid at level 50 or above.
+465	Confident Raider	Hard	Tombs of Amascut: Entry Mode	Restriction	Complete a Tombs of Amascut raid at level 100 or above.
+466	Tomb Looter	Master	Tombs of Amascut	Kill Count	Complete the Tombs of Amascut 25 times.
+467	Tomb Raider	Master	Tombs of Amascut	Kill Count	Complete the Tombs of Amascut 50 times.
+468	Tomb Explorer	Elite	Tombs of Amascut	Kill Count	Complete the Tombs of Amascut once.
+469	Expert Tomb Explorer	Elite	Tombs of Amascut: Expert Mode	Kill Count	Complete the Tombs of Amascut (Expert mode) once.
+470	Expert Tomb Looter	Master	Tombs of Amascut: Expert Mode	Kill Count	Complete the Tombs of Amascut (Expert mode) 25 times.
+471	Expert Tomb Raider	Grandmaster	Tombs of Amascut: Expert Mode	Kill Count	Complete the Tombs of Amascut (Expert mode) 50 times.

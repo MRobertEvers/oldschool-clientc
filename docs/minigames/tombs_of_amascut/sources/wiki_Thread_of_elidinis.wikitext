@@ -1,0 +1,47 @@
+{{Infobox Item
+|name = Thread of elidinis
+|image = [[File:Thread of elidinis.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Inspect, Destroy
+|destroy = You will have to obtain another one from raiding the Tombs of Amascut or from Perdu for a fee.
+|examine = A spool of thread that gives off a divine energy.
+|value = 14000
+|alchable = No
+|weight = 0.003
+|id = 27279
+|leagueRegion = Desert
+}}
+[[File:Thread of elidinis detail.png|left|120px]]
+The '''thread of Elidinis''' is an uncommon reward from the [[Chest (Tombs of Amascut)|rewards chest]] within the [[Tombs of Amascut]]. Players with 75 [[Crafting]]{{Boostable|yes}} can use the thread on a [[rune pouch]] with a [[needle]] in their [[inventory]] to create a [[divine rune pouch]], which can store four types of [[runes]] instead of three. This process can be reversed to return both items.
+
+The base rate of receiving the thread is 1/10. To [[Bad luck mitigation|mitigate bad luck]], the rate is scaled linearly with the number of raid completions, up to a maximum of 3/10 upon completing 15 raids.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1658043649047887873|date=15 May 2023|archiveurl=https://reldo.runescape.wiki/i/109799|archivedate=5 August 2023|quote=[(...) The bad luck protection for jewels. Does it cap out at 90 or 270 raids? I.E. 60x1,5 or 180×1,5. (...)] I think it's 1.5 x 180 like you said, so 270 - if I'm reading my colleagues' code directly. (...)}} Once the player gets their first thread, the drop rate is decreased to 1/50.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1654554310867386368|date=5 May 2023|archiveurl=https://reldo.runescape.wiki/i/108953|archivedate=5 May 2023|quote=[Can you confirm the drop rate of the Thread of elidinis after getting the first one? Is it 1/10? I haven't seen a single duplicate thread for almost 200 raids after losing it.] No, if I'm reading the loot code correctly (which isn't a sure thing, as it isn't something I ever worked on myself) it changes to 1/50 after you've had one of those.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1650416621444276226|date=24 April 2023|archiveurl=https://reldo.runescape.wiki/i/107850|archivedate=6 May 2023|quote=I'd wonder if that 1/10 advertisement was massively over-simplified. It looks to me like it's affected by whether you already have the jewels, as well as whether you already had a thread (moving the chance to 1/50 as you say).}} Additionally, players can buy the thread from [[Perdu]] for 350,000 [[coins]] if they have obtained it from the Tombs of Amascut at least once.
+
+'''Note:''' This item is destroyed on death.
+
+==Products==
+{{Uses material list|Thread of elidinis}}
+
+==Item sources==
+{{Drop sources|Thread of elidinis}}
+
+===Shop locations===
+{{Store locations list|Thread of elidinis}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Trivia==
+* Supposedly, the thread was created after [[Elidinis]] saved a dry, barren field of [[flax]] during a drought. She brought water from the [[River Elid]] to the field, restoring the dead and dying plants to life. The first spool of thread created from the rejuvenated flax was dedicated to Elidinis by the farmer's wife, and to her surprise, the thread never ran out, no matter how much was used.
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

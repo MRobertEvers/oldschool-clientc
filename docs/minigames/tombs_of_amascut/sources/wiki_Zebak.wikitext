@@ -1,0 +1,174 @@
+{{Multi Infobox
+|text1 = Monster
+|item1 =
+{{Infobox Monster
+|version1 = Normal
+|version2 = Enraged
+|name = Zebak
+|image = [[File:Zebak.png|290px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 371
+|size = 9
+|examine1 = A big gluttonous croc.
+|examine2 = He seems a tad upset.
+|xpbonus1 = 62.5
+|xpbonus2 = 
+|max hit = 38 ([[Melee]]), 16 ([[Magic]]), 16 ([[Ranged]])
+|aggressive = Yes
+|poisonous = No
+|attack style = Melee, Ranged, Magic
+|attack speed1 = 7
+|attack speed2 = 4
+|hitpoints = 580
+|scaledhp = Yes
+|att = 250
+|str = 140
+|def = 70
+|mage = 100
+|range = 120
+|attbns = 160
+|strbns = 100
+|amagic = 215
+|mbns = 30
+|arange = 220
+|rngbns = 16
+|dstab = 160
+|dslash = 160
+|dcrush = 260
+|dmagic = 200
+|dlight = 110
+|dstandard = 110
+|dheavy = 110
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 11730
+|id2 = 11732
+|leagueRegion = Desert
+}}
+|text2 = NPC
+|item2 = 
+{{Infobox NPC
+|name = Zebak
+|image = [[File:Zebak (dead).png|290px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = [[Crocodile]]
+|location = [[Tombs of Amascut]]
+|gender = Male
+|examine = A big dead croc.
+|map = {{Map|name=Zebak|3921,5408|mapID=-1|r=3|mtype=square}}
+|id = 11733
+|leagueRegion = Desert
+}}
+}}
+'''Zebak''' is a large crocodile encountered at the end of the [[Path of Crondis]], within the [[Tombs of Amascut]] [[raid]]. As the strongest crocodile with an ever growing hunger, Zebak accepted an offer by [[Amascut]] to lure [[Crondis]] in return for endless supply of food; however, he was instead cursed to an eternal life without being able to eat while guarding his former god in the tombs.
+
+==History==
+Once a regular crocodile, Zebak was neither the strongest or fastest among his kind.{{CiteText|text=Crondis' capture|quote=Zebak was never the strongest of his kind, or the fastest. However, he may well have been one of the smartest.}} However, embodying [[Crondis]]' ideals, Zebak instead used his resourcefulness to lure his fellow crocodiles into traps, such as taking their food and letting them starve, and, eventually, also eating them.{{CiteText|text=Crondis' capture|quote=Unable to compare with his rivals in the traditional way, Zebak instead used his ingenuity to lure them into elaborate traps. To begin with, he simply took their food and left them to starve, but over time, his hunger grew. Before long, he started to feast on his victims too.}} Over time, he became the strongest crocodile, but his gluttony was so boundless that he began having difficulty in maintaining a stable supply of food.{{CiteText|text=Crondis' capture|quote=In the end, the once weak crocodile had grown to become the strongest. You'd be forgiven for thinking he might have stopped there, but Zebak's hunger knew no end. As he continued to feast, his food supply ran short.}}
+
+Like with [[Kephri]], [[Amascut]] eventually learned of Zebak's desires, promising him a supply of food so bountiful that he would never go hungry. In exchange, Zebak would help her to lure and capture [[Crondis]], to which he agreed and succeeded.{{CiteText|text=Crondis' capture|quote=In return for his service, the Devourer promised Zebak that he would never go hungry again. Blinded by avarice, he willingly agreed. Together, Zebak and the Devourer lured Crondis to her imprisonment.}} However, Amascut, instead of fulfilling her promise, cursed Zebak so that any food he tried to eat would crumble into dust, as well as preventing him from starving to death, leaving him eternally tormented.{{CiteText|text=Crondis' capture|quote=However, rather than granting the endless supply of food he craved, the Devourer cursed him. To a being like Zebak, the curse was a fate far worse than death, for it caused every bite of food to turn to dust in his mouth. He longed for death, but the Devourer's curse prevented this as well, binding him to the world of the living.}}
+
+An [[Player character|adventurer]] would later slay Zebak to free Crondis, who took a [[Fang (Tombs of Amascut)|fang]] that broke off and buried it in an islet surrounded by crocodiles on the [[River Elid]].
+
+==Mechanics==
+{{Main|Tombs of Amascut/Strategies#Zebak, Guardian of Crondis}}
+[[File:Tombs of Amascut - Fighting Zebak.png|thumb|left|280px|A player fighting Zebak, the Guardian of Crondis.]]
+Zebak's base defence level can be lowered by a maximum of 20 damage, reducing his base defence level down to a minimum of 50. 
+
+Zebak attacks with all three attack styles, with his melee attack having a chance to inflict bleeding, which deals additional damage over time that is increased further with movement. His melee attack can be avoided simply by standing away from melee range. Zebak's standard attacks will be indicated by visual and audio cues: His magic attack spits a pot into the air that splits into red orbs, whereas his ranged attack spits a large rock into the air that splinters into smaller rocks.
+
+At 85%, 70%, 55% and 40% health, Zebak will queue one of two special attacks and alternate between them.
+
+* '''Great Roar''' - Zebak launches more acid into the arena, this time with three stones. The players will then have some time (four of Zebak's attacks) to move pots of water towards the stones, to then break to cleanse the area behind the stones of poison before Zebak lets out a mighty roar. Each [[Jug (Tombs of Amascut)|jug]] of water will clear a 5x5 area of poison (3x3 with '''Upset Stomach''' enabled). If the player is not within 3 tiles behind the stones that Zebak previously spat out, this roar knocks the player back and deals massive amounts of damage.
+
+* '''Tidal Waves''' - Zebak launches waves that slowly move from one side of the arena to the other. The player will have to navigate Zebak's arena and avoid getting hit by the waves by going between the gaps in the waves. If the player is hit by one of Zebak's waves, the player will take 6 - 10 damage, (scales with invocation), and be pushed in the direction that the wave is going. If the wave pushes the player over into the water, they will need to quickly scale back up a nearby ramp; they cannot attack in this state, and Zebak will continue attacking alongside other crocodiles lurking in the water.
+{{clear|left}}
+
+Upon reaching ~25% of his health, Zebak will become enraged, significantly increasing his attack speed.
+
+Should players have the '''Path Level''' invocations active, every two levels will cause the following:
+
+* Zebak's auto-attacks will be faster. This speed only affects the projectile launch, not when it shatters into the team below.
+* The Tidal Waves open gap is tightened by one tile.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Crondis' capture|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players do not have it stored in their bank.</ref>}}
+{{DropsLine|name=Fang (Tombs of Amascut)|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players dealt the most damage to Zebak.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Zebak concept art.png|Concept art of Zebak, by [[Mod Grub]].
+Tombs of Amascut - Path of Crondis concept art.png|Concept art of the Path of Crondis, by Mod Grub.
+Zebak boss room concept art.png||Concept art of Zebak's room, by Mod Grub.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = Water jugs in the Tombs of Amascut Zebak fight can now be attacked with Magic, as intended. 
+}}
+{{Subject changes
+|date = 24 May 2023
+|update = Bounty Hunter is Back!
+|change = Experience modifiers for [[NPCs]] stops scaling with [[HP]] after 2,000 HP in order to reduce the potency of some training methods at Zebak.
+}}
+{{Subject changes
+|date = 28 September 2022
+|update = Tombs of Amascut & Group Ironman Changes
+|change = The jugs at Zebak have been given an attack delay, so you can preserve ammo by only attacking them once.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = Players can no longer avoid Zebak's melee attack by standing on certain tiles of the rocks adjacent to him.
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Fixed an issue where crocodiles were not being cleaned up in the Zebak boss fight.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The rocks next to Zebak that were added to discourage melee safespotting should no longer block ranged attacks.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change =
+* Health increased by roughly 10%.
+* Some rubble has been added around Zebak to prevent melee safespotting.
+* Zebak's Great Roar no longer knocks players into the safe areas at the edges of the room.
+* Two extra jugs now appear during jug-related mechanics.
+* Jugs no longer roll between rocks and more reliably break on contact.
+* Jugs no longer have an attack delay if they are attacked before Zebak.
+* Jugs roll two tiles further before stopping.
+}}
+{{Subject changes
+|date = 25 August 2022
+|type = hotfix
+|change = Zebak will now properly reset following a wipe. Previously, he could perform special attacks upon re-entry after a wipe.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Zebak's name appears to be portmanteau of {{WP|Sobek}}, a crocodile-headed god from Egyptian mythology, and {{WP|Beelzebub}}, one of the {{WP|Classification of demons|seven Princes of Hell}}, being particularly associated with the {{WP|Seven deadly sins#Gluttony|sin of gluttony}}.
+* If the player is bleeding from Zebak's melee attack, they will leave behind temporary splatters of blood in their path. Should a [[Wave (Tombs of Amascut)|wave]] wash over these splatters, then the wave will be become [[Bloody Wave]]s.
+* Zebak's story resembles the Greek myth of {{WP|Tantalus}}, who was sent to {{WP|Tartarus}} as punishment for his trickery and avarice. He was made to stand in a pool under a fruit tree; whenever he tried to take a drink of water the pool would recede, and whenever he tried to eat the fruit from the tree the branches would raise, thus preventing him from ever being able to eat or drink.
+* Despite being a crocodile, defeating Zebak does not count for completion of the "In a while..." elite clue step.
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}
+{{Bosses}}
