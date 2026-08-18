@@ -1609,6 +1609,20 @@ mock230_scene_can_travel_typed(
         map, x - g_base_x, z - g_base_z, offset_x, offset_z, size, extra_flag, coll_type);
 }
 
+/* Raw collision flags at an absolute tile, 0 outside the built scene. A probe
+ * for tests and diagnostics: "is this blocked" has several right answers
+ * depending on who is asking, so this hands back the bits and lets the caller
+ * decide which question it meant. */
+int
+mock230_scene_tile_flags(int level, int x, int z)
+{
+    struct CollisionMap* map = mock230_scene_collision(level);
+
+    if( !map || !mock230_scene_contains(x, z) )
+        return 0;
+    return collision_map_tile(map, x - g_base_x, z - g_base_z);
+}
+
 int
 mock230_scene_line_of_sight(
     int level,

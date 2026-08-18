@@ -38273,6 +38273,244 @@ mock230_world_selftest(void)
         }
 
         /*
+         * TWO PLAYERS, ONE BLOAT: the near-side line of sight, and the spread.
+         *
+         * These are the two mechanics the Pestilent Bloat is known for and the
+         * two this server could never run. Every entrant called
+         * `map_instance_from_square` and got a PRIVATE room with a private
+         * boss, so a "party" was N solo raids: the fly spread had nobody to
+         * spread to, and the custom near-side line of sight — which exists so
+         * that a teammate behind the central tank is safe and one beside them
+         * is not — was decided against an audience of one. Both were written,
+         * compiled, and unreachable, which is the failure mode this whole raid
+         * specialises in.
+         *
+         * `map_instance_findflag` is what closed it: a joiner cannot name the
+         * host, so it could not find the host's reservation.
+         *
+         * Determinism, and why this does not just tick the room. Bloat patrols,
+         * so its footprint moves every tick and with it the answer to every
+         * geometry question here. Instead the boss is parked on the room's WEST
+         * side, its `[ai_timer]` is stopped, and `[proc,tob_bloat_flies]` is
+         * run directly — the damage is decided at that instant and one tick
+         * then drains the queues it filled.
+         *
+         * The geometry, in the room's local coordinates (tob.constant): the
+         * tank fills x29..34, z29..34 and is what blocks sight. Bloat is parked
+         * at (24,29) so its 5x5 spans x24..28, z29..33 — directly west of the
+         * tank. Both raiders stand in the corridor north of the tank, two tiles
+         * apart: the host at (30,35), which Bloat's east column can see along
+         * the outside of the tank's north-west corner, and the mate at (32,35),
+         * which is far enough along that every line from Bloat's near side
+         * crosses the tank itself.
+         *
+         * That is the room's actual pillar geometry rather than a contrived
+         * one, and it is worth saying why the first attempt was not: the mate
+         * was put diagonally behind the tank's corner, and a 45-degree ray
+         * clips a corner tile rather than being stopped by it. Bloat saw them,
+         * the check failed, and the failure was the test's, not the fight's.
+         */
+        {
+            struct Mock230Player* host = srv->active_player;
+            struct Mock230Player* mate = NULL;
+            int handle = 0;
+            int base_x = 0;
+            int base_z = 0;
+            int boss = -1;
+            int joined = 0;
+            int los_host = -1;
+            int los_mate = -1;
+            int saved_god = host->godmode;
+
+            mock230_scripts_run_debugproc(srv, "tobout");
+            mock230_scripts_run_debugproc(srv, "tob 2");
+
+            mate = mock230_world_add_player(srv, NULL);
+            SELFTEST_CHECK(mate != NULL, "a second raider should fit in the world");
+            if( mate )
+            {
+                mock230_world_player_init(mate);
+                mate->level = host->level;
+                /*
+                 * Through the real content path, not by assigning a handle:
+                 * `~tob_join_raid` is the thing under test, and a harness that
+                 * handed out the handle itself would pass with the join still
+                 * broken.
+                 */
+                mock230_world_set_active(srv, mate);
+                {
+                    static struct Mock230Capture jc;
+                    mock230_capture_begin(srv, &jc);
+                    mock230_scripts_run_debugproc(srv, "tobjoin");
+                    mock230_capture_end(srv);
+                    for( int w = mock230_capture_find(&jc, 90, 0); w >= 0;
+                         w = mock230_capture_find(&jc, 90, w + 1) )
+                    {
+                        const struct Mock230CapturedPacket* pk = &jc.packets[w];
+                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                            continue;
+                        if( sscanf((const char*)pk->data + 1, "tobjoin %d", &joined) == 1 )
+                            break;
+                    }
+                }
+                SELFTEST_CHECK(joined > 0,
+                               "the second raider joins the host's instance, got handle %d",
+                               joined);
+                mock230_world_set_active(srv, host);
+            }
+
+            handle = mock230_mapinstance_find(host->x, host->z);
+            SELFTEST_CHECK(handle > 0 && handle == joined,
+                           "and both raiders are in ONE instance (host %d, mate %d)",
+                           handle, joined);
+            mock230_scripts_run_debugproc(srv, "tobgo");
+
+            if( mate && joined > 0 && mock230_mapinstance_base(handle, &base_x, &base_z) )
+            {
+                boss = tob_harness_boss(srv, host);
+                SELFTEST_CHECK(boss >= 0, "the Bloat room should hold its boss");
+            }
+            if( boss >= 0 )
+            {
+                struct Mock230Npc* npc = &srv->npcs[boss];
+
+                mock230_world_npc_teleport(npc, base_x + 24, base_z + 29, npc->level);
+                /* Stop the patrol. Everything below is a question about where
+                 * Bloat IS, and a boss that walks answers a different one each
+                 * time it is asked. */
+                npc->timer_interval = 0;
+
+                mock230_world_set_active(srv, host);
+                mock230_scripts_run_debugproc(srv, "tobwarp 30 35");
+                mock230_world_set_active(srv, mate);
+                mock230_scripts_run_debugproc(srv, "tobwarp 32 35");
+                mock230_world_set_active(srv, host);
+
+                {
+                    static struct Mock230Capture lc;
+                    mock230_capture_begin(srv, &lc);
+                    mock230_scripts_run_debugproc(srv, "tobbloatlos 30 35");
+                    mock230_scripts_run_debugproc(srv, "tobbloatlos 32 35");
+                    mock230_capture_end(srv);
+                    {
+                        int nth = 0;
+                        for( int w = mock230_capture_find(&lc, 90, 0); w >= 0;
+                             w = mock230_capture_find(&lc, 90, w + 1) )
+                        {
+                            const struct Mock230CapturedPacket* pk = &lc.packets[w];
+                            int value = -1;
+
+                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                                continue;
+                            if( sscanf((const char*)pk->data + 1, "tobbloatlos %d", &value) != 1 )
+                                continue;
+                            if( nth == 0 )
+                                los_host = value;
+                            else if( nth == 1 )
+                                los_mate = value;
+                            nth++;
+                        }
+                    }
+                }
+                /*
+                 * The pair, not either alone. "Bloat sees the host" passes on
+                 * a line-of-sight test that returns true for everything, and
+                 * "Bloat cannot see the mate" passes on one that returns false
+                 * for everything; only both together say the test discriminates.
+                 */
+                if( getenv("MOCK230_TOB_LOS") )
+                {
+                    /* Temporary probe: what the tank actually is, in flags. */
+                    for( int lz = 33; lz <= 36; lz++ )
+                    {
+                        fprintf(stderr, "    los z=%d:", lz);
+                        for( int lx = 28; lx <= 36; lx++ )
+                        {
+                            struct CollisionMap* cm = mock230_scene_collision(npc->level);
+                            int flags = 0;
+                            if( cm )
+                                flags = mock230_scene_tile_flags(npc->level, base_x + lx,
+                                                                 base_z + lz);
+                            fprintf(stderr, " (%d,%d)=%08x los=%d", lx, lz, flags,
+                                    mock230_scene_line_of_sight(npc->level, base_x + 28,
+                                                                base_z + 33, base_x + lx,
+                                                                base_z + lz, 1, 1, 1, 1, 0));
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                }
+                SELFTEST_CHECK(los_host == 1,
+                               "Bloat's near-side test sees the exposed raider, got %d",
+                               los_host);
+                SELFTEST_CHECK(los_mate == 0,
+                               "and does NOT see the one behind the tank, got %d",
+                               los_mate);
+
+                /* Now the spread. Both raiders healthy, neither invulnerable. */
+                host->godmode = 0;
+                mate->godmode = 0;
+                host->dying = mate->dying = 0;
+                host->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                host->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                host->hitpoints = 99;
+                mate->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                mate->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                mate->hitpoints = 99;
+                mock230_combat_sync_hitpoints(host);
+                mock230_combat_sync_hitpoints(mate);
+
+                mock230_scripts_run_proc_on_npc(srv, "[proc,tob_bloat_flies]", boss);
+                mock230_world_tick(srv);
+                SELFTEST_CHECK(host->hitpoints < 99,
+                               "the exposed raider takes fly damage, on %d",
+                               host->hitpoints);
+                SELFTEST_CHECK(mate->hitpoints < 99,
+                               "and it SPREADS to the one Bloat cannot see, on %d",
+                               mate->hitpoints);
+
+                /*
+                 * The control, and the reason the check above means anything.
+                 * Move the mate out of spread range but leave them just as
+                 * hidden: if they still burn, what was being measured was
+                 * Bloat reaching them directly, not the spread.
+                 *
+                 * (35,31) is due EAST of the tank, so every line from Bloat's
+                 * east column crosses it, and seven tiles from the host — well
+                 * outside the three-tile spread. The first tile tried here was
+                 * (30,39), which is north of the tank rather than behind it:
+                 * the corridor at x28 runs straight past the tank's north-west
+                 * corner, Bloat saw them directly, and the control failed for
+                 * the right reason. Note the mate is still inside the fly hunt
+                 * either way — found, and then rejected by the line of sight,
+                 * which is the case worth controlling for.
+                 */
+                host->hitpoints = 99;
+                mate->hitpoints = 99;
+                mock230_combat_sync_hitpoints(host);
+                mock230_combat_sync_hitpoints(mate);
+                mock230_world_set_active(srv, mate);
+                mock230_scripts_run_debugproc(srv, "tobwarp 35 31");
+                mock230_world_set_active(srv, host);
+                mock230_scripts_run_proc_on_npc(srv, "[proc,tob_bloat_flies]", boss);
+                mock230_world_tick(srv);
+                SELFTEST_CHECK(host->hitpoints < 99,
+                               "the exposed raider still burns with nobody beside them, on %d",
+                               host->hitpoints);
+                SELFTEST_CHECK(mate->hitpoints == 99,
+                               "and out of spread range the hidden one does not, on %d",
+                               mate->hitpoints);
+
+                npc->timer_interval = 0;
+            }
+
+            mock230_world_set_active(srv, host);
+            host->godmode = saved_god;
+            mock230_scripts_run_debugproc(srv, "tobout");
+            if( mate )
+                mate->active = 0;
+        }
+
+        /*
          * Bloat flinching.
          *
          * Bloat is only attackable safely while it is DOWN: it goes down, stomps
