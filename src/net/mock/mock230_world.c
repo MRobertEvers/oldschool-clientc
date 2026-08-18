@@ -9919,10 +9919,6 @@ mock230_world_login(struct Mock230Player* player)
 
     player->login_pending = 0;
     player->login_scene_pending = srv->wire && srv->wire->revision >= 239;
-    /* The async map loader snapshots the active root plane while creating its
-     * replacement WorldView. State it before the rebuild, including on a save
-     * that logs straight back into an upper floor. */
-    mock230_send_set_active_world(player);
     mock230_send_rebuild(player);
     player->rebuild_pending = 0;
     if( player->login_scene_pending )
@@ -11419,11 +11415,6 @@ phase_client_out(struct Mock230Player* player)
      * every encoder below rather than entangled with them. */
     mock230_world_update_map(player);
 
-    /* SET_ACTIVE_WORLD precedes both a possible rebuild and the entity/zone
-     * streams below. In particular, its plane is what the revision-239 map
-     * loader copies into a replacement WorldView. */
-    mock230_send_set_active_world(player);
-
     /*
      * The instance under this player is not the one its scene was copied from.
      *
@@ -11494,6 +11485,7 @@ phase_client_out(struct Mock230Player* player)
              * scripts belong behind the acknowledgement. NPC_INFO belongs
              * beside it so the replacement view starts from one coherent
              * entity snapshot, and TICK_END closes that packet group. */
+            mock230_send_set_active_world(player);
             mock230_send_player_info(player);
             mock230_send_npc_info(player);
             mock230_send_tick_end(player);
@@ -11511,6 +11503,11 @@ phase_client_out(struct Mock230Player* player)
          * force a mid-walk tile-centre snap. */
     }
 
+    /* Root-world info batches select their world and plane immediately before
+     * the entity streams. In particular this must follow REBUILD_REGION: the
+     * login client has no initialized replacement WorldView before that
+     * packet, while the active selection still has to precede PLAYER_INFO. */
+    mock230_send_set_active_world(player);
     mock230_send_player_info(player);
     mock230_send_npc_info(player);
 
@@ -22604,6 +22601,7 @@ mock230_world_selftest(void)
             0x00, 0x00, 0x00,       /* slot 0 empty: no count follows */
             0x01, 0x55, 0x67, 0x07, /* slot 1 obj 0x5566, count 7 */
         };
+        static const uint8_t active_world[] = { 0x00, 0x00, 0x02 };
         static const struct
         {
             int name;
@@ -22639,6 +22637,8 @@ mock230_world_selftest(void)
               stoptransmit, sizeof(stoptransmit) },
             { PKT_NAME_UPDATE_INV_PARTIAL, "UPDATE_INV_PARTIAL empty boundary",
               invpartial, sizeof(invpartial) },
+            { PKT_NAME_SET_ACTIVE_WORLD, "SET_ACTIVE_WORLD_V2 root plane",
+              active_world, sizeof(active_world) },
         };
         static struct Mock230Capture capture;
         const struct Mock230Wire* saved_wire = srv->wire;
@@ -22647,7 +22647,10 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(wire239 != NULL, "the osrs239 wire adapter should exist");
         if( wire239 )
         {
+            int saved_level = player->level;
+
             srv->wire = wire239;
+            player->level = 2;
             mock230_capture_begin(srv, &capture);
             mock230_send_if_movesub(player, 0x11223344, 0x55667788);
             mock230_send_if_setcolour(player, 0x11223344, 0x5566);
@@ -22675,12 +22678,14 @@ mock230_world_selftest(void)
 
                 mock230_send_inv_partial(player, -1, 0x1234, slots, 2, 0x3);
             }
+            mock230_send_set_active_world(player);
             mock230_capture_end(srv);
+            player->level = saved_level;
             srv->wire = saved_wire;
 
             SELFTEST_CHECK(!capture.overflow, "rev239 writer capture did not overflow");
             SELFTEST_CHECK(capture.count == (int)(sizeof(expected) / sizeof(expected[0])),
-                           "all sixteen canonical writers emitted (got %d)", capture.count);
+                           "all canonical writers emitted (got %d)", capture.count);
             for( int i = 0; i < (int)(sizeof(expected) / sizeof(expected[0])); i++ )
             {
                 int opcode = mock230_wire_opcode(wire239, expected[i].name);
@@ -30038,10 +30043,13 @@ mock230_world_selftest(void)
         static struct Mock230Capture capture;
         int old_x = player->x;
         int old_z = player->z;
+        int old_level = player->level;
         int login_x = 2495;
         int login_z = 5112;
+        int login_level = 2;
         int waits_for_scene = srv->wire->revision >= 239;
         int rebuild = mock230_wire_opcode(srv->wire, PKT_NAME_REBUILD_NORMAL);
+        int active_world = mock230_wire_opcode(srv->wire, PKT_NAME_SET_ACTIVE_WORLD);
         int player_info = mock230_wire_opcode(srv->wire, PKT_NAME_PLAYER_INFO);
         int opentop = mock230_wire_opcode(srv->wire, PKT_NAME_IF_OPENTOP);
         int stat = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_STAT);
@@ -30056,7 +30064,7 @@ mock230_world_selftest(void)
          * the selected wire so `MOCK230_REV=osrs239 --selftest` exercises 239
          * instead of comparing its traffic to hard-coded revision-230 ids. */
         int k_burst[6];
-        int k_finish[] = { player_info, opentop, stat, inv_full, tick_end };
+        int k_finish[] = { active_world, player_info, opentop, stat, inv_full, tick_end };
         int burst_count = 0;
 
         k_burst[burst_count++] = rebuild;
@@ -30080,6 +30088,7 @@ mock230_world_selftest(void)
          */
         player->x = login_x;
         player->z = login_z;
+        player->level = login_level;
         player->place_dirty = 1;
         mock230_capture_begin(srv, &capture);
         mock230_world_login(player);
@@ -30106,7 +30115,8 @@ mock230_world_selftest(void)
                            "rev 239 must wait for MAP_BUILD_COMPLETE after its rebuild");
             SELFTEST_CHECK(!player->login_pending,
                            "[login] must not be eligible before the scene is complete");
-            SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
+            SELFTEST_CHECK(mock230_capture_find(&capture, active_world, 0) < 0 &&
+                               mock230_capture_find(&capture, player_info, 0) < 0 &&
                                mock230_capture_find(&capture, opentop, 0) < 0 &&
                                mock230_capture_find(&capture, stat, 0) < 0 &&
                                mock230_capture_find(&capture, inv_full, 0) < 0 &&
@@ -30182,6 +30192,21 @@ mock230_world_selftest(void)
                 mock230_capture_has_sequence(
                     &capture, k_finish, (int)(sizeof(k_finish) / sizeof(k_finish[0]))),
                 "the acknowledged rev-239 scene should place before UI/stats and tick end");
+            {
+                int active_at = mock230_capture_find(&capture, active_world, 0);
+                if( active_at >= 0 )
+                {
+                    const struct Mock230CapturedPacket* packet =
+                        &capture.packets[active_at];
+
+                    SELFTEST_CHECK(packet->len == 3 && packet->data[0] == 0 &&
+                                       packet->data[1] == 0 &&
+                                       packet->data[2] == login_level,
+                                   "SET_ACTIVE_WORLD must encode root-world index 0 and "
+                                   "plane %d",
+                                   login_level);
+                }
+            }
             SELFTEST_CHECK(!player->login_scene_pending && player->login_pending,
                            "scene acknowledgement should release exactly one [login] latch");
             clock_at = selftest_capture_find_varp_large(&capture, srv->wire, date_varp);
@@ -30231,6 +30256,7 @@ mock230_world_selftest(void)
         /* Keep all later fixtures at the location this section inherited. */
         player->x = old_x;
         player->z = old_z;
+        player->level = old_level;
         player->place_dirty = 1;
         maybe_rebuild(srv);
         player->rebuild_pending = 0;
