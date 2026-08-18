@@ -193,7 +193,8 @@ write_poh(
             "treasure_coins = %d\n"
             "treasure_ready_minute = %d\n"
             "boss_jars = %d\n"
-            "dummy_variants = %d\n",
+            "dummy_variants = %d\n"
+            "games_prize_coins = %d\n",
             poh->schema_version, poh->owns_house, poh->location, poh->style,
             poh->locked, poh->door_mode, poh->teleport_inside,
             poh->default_build_mode, poh->grid_size, poh->servant_type,
@@ -202,7 +203,8 @@ write_poh(
             poh->spice_red, poh->spice_orange, poh->spice_brown,
             poh->spice_yellow, poh->tip_coins, poh->tip_platinum,
             poh->tip_notify, poh->tip_auto_bank, poh->treasure_coins,
-            poh->treasure_ready_minute, poh->boss_jars, poh->dummy_variants);
+            poh->treasure_ready_minute, poh->boss_jars, poh->dummy_variants,
+            poh->games_prize_coins);
 
     fprintf(file,
             "\n[poh_rooms]\n"
@@ -721,6 +723,10 @@ mock230_load_player(
             else if( strcmp(key, "dummy_variants") == 0 )
                 mock230_poh_set(
                     &player->poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, atoi(value));
+            else if( strcmp(key, "games_prize_coins") == 0 )
+                mock230_poh_set(&player->poh,
+                                MOCK230_POH_FIELD_GAMES_PRIZE_COINS,
+                                atoi(value));
             break;
 
         case SAVE_POH_ROOMS:

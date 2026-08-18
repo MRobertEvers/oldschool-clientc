@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    273  host commands
+ *    285  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      5  host commands (player)
  *     11  host commands (poh)
- *    402  total, of 471 declared opcodes
+ *    414  total, of 481 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 402
-#define MOCK230_OPCODE_DECLARED_COUNT 471
+#define MOCK230_OPCODE_COVERAGE_COUNT 414
+#define MOCK230_OPCODE_DECLARED_COUNT 481
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11067
+#define MOCK230_OPCODE_VALUE_LIMIT 11077
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -45,6 +45,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1, /* SS_OP_PUSH_VARP (host commands) */
     2, /* SS_OP_POP_VARP (host commands) */
     3, /* SS_OP_PUSH_CONSTANT_STRING (VM core) */
+    4, /* SS_OP_PUSH_VARN (host commands) */
+    5, /* SS_OP_POP_VARN (host commands) */
     6, /* SS_OP_BRANCH (VM core) */
     7, /* SS_OP_BRANCH_NOT (VM core) */
     8, /* SS_OP_BRANCH_EQUALS (VM core) */
@@ -443,6 +445,16 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11064, /* SS_OP_MAP_INSTANCE_FLAG_GET (host commands) */
     11065, /* SS_OP_MAP_INSTANCE_FLAG_SET (host commands) */
     11066, /* SS_OP_LAST_STEP_COORD (host commands) */
+    11067, /* SS_OP_MAP_INSTANCE_VAR_GET (host commands) */
+    11068, /* SS_OP_MAP_INSTANCE_VAR_SET (host commands) */
+    11069, /* SS_OP_P_NAMEDIALOG (host commands) */
+    11070, /* SS_OP_LAST_STRING (host commands) */
+    11071, /* SS_OP_P_FINDMUTUALFRIEND (host commands) */
+    11072, /* SS_OP_INV_TRANSMIT_FROM (host commands) */
+    11073, /* SS_OP_P_FINDVISIBLEPLAYER (host commands) */
+    11074, /* SS_OP_P_ISFRIEND (host commands) */
+    11075, /* SS_OP_MAP_INSTANCE_FIND_OWNER (host commands) */
+    11076, /* SS_OP_MAP_INSTANCE_PLAYERCOUNT (host commands) */
 };
 
 #endif

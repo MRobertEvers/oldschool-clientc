@@ -75,8 +75,19 @@ test_opcode_names(void)
     CHECK_EQ(SSVM_OpcodeFromName("map_instance_flag_set"),
              SS_OP_MAP_INSTANCE_FLAG_SET,
              "compiler command lookup sees shared instance flags");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_var_set"),
+             SS_OP_MAP_INSTANCE_VAR_SET,
+             "compiler command lookup sees shared instance integers");
     CHECK_EQ(SSVM_OpcodeFromName("last_step_coord"), SS_OP_LAST_STEP_COORD,
              "compiler command lookup sees the previous movement tile");
+    CHECK_EQ(SSVM_OpcodeFromName("inv_transmit_from"), SS_OP_INV_TRANSMIT_FROM,
+             "compiler command lookup sees cross-player inventory views");
+    CHECK_EQ(SSVM_OpcodeFromName("p_findvisibleplayer"),
+             SS_OP_P_FINDVISIBLEPLAYER,
+             "compiler command lookup sees social-visibility player lookup");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_find_owner"),
+             SS_OP_MAP_INSTANCE_FIND_OWNER,
+             "compiler command lookup sees owned instance lookup");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -193,9 +204,30 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FLAG_SET);
     CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
           "map_instance_flag_set(handle, mask, enabled) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_VAR_GET);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_var_get(handle, slot) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_VAR_SET);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_var_set(handle, slot, value) -> boolean");
     m = SSVM_OpcodeMeta(SS_OP_LAST_STEP_COORD);
     CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
           "last_step_coord() -> coord");
+    m = SSVM_OpcodeMeta(SS_OP_INV_TRANSMIT_FROM);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "inv_transmit_from(owner, inv, component) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_P_FINDVISIBLEPLAYER);
+    CHECK(m->int_in == 0 && m->str_in == 1 && m->int_out == 1 && m->str_out == 0,
+          "p_findvisibleplayer(name) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_P_ISFRIEND);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "p_isfriend(uid) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FIND_OWNER);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_find_owner(owner, flags) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_PLAYERCOUNT);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_playercount(handle) -> int");
 }
 
 static void
@@ -267,6 +299,15 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
     CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
           "remote_view_end requires the protected active player");
+    m = SSVM_OpcodeMeta(SS_OP_INV_TRANSMIT_FROM);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "inv_transmit_from requires the protected active viewer");
+    m = SSVM_OpcodeMeta(SS_OP_P_FINDVISIBLEPLAYER);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "p_findvisibleplayer requires the protected active requester");
+    m = SSVM_OpcodeMeta(SS_OP_P_ISFRIEND);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "p_isfriend requires the protected active player");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */

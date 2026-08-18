@@ -88,6 +88,8 @@ mock230_poh_get(
         return poh->boss_jars;
     case MOCK230_POH_FIELD_DUMMY_VARIANTS:
         return poh->dummy_variants;
+    case MOCK230_POH_FIELD_GAMES_PRIZE_COINS:
+        return poh->games_prize_coins;
     default:
         return 0;
     }
@@ -235,6 +237,11 @@ mock230_poh_set(
         if( value < 0 || value > MOCK230_POH_DUMMY_VARIANT_MASK_MAX )
             return 0;
         poh->dummy_variants = value;
+        return 1;
+    case MOCK230_POH_FIELD_GAMES_PRIZE_COINS:
+        if( value < 0 || value > MOCK230_POH_GAMES_PRIZE_MAX )
+            return 0;
+        poh->games_prize_coins = value;
         return 1;
     case MOCK230_POH_FIELD_SCHEMA_VERSION:
     default:
@@ -550,6 +557,8 @@ mock230_poh_validate(const struct Mock230PohState* poh)
         poh->boss_jars > MOCK230_POH_BOSS_JAR_MASK_MAX ||
         poh->dummy_variants < 0 ||
         poh->dummy_variants > MOCK230_POH_DUMMY_VARIANT_MASK_MAX ||
+        poh->games_prize_coins < 0 ||
+        poh->games_prize_coins > MOCK230_POH_GAMES_PRIZE_MAX ||
         poh->room_count < 0 || poh->room_count > MOCK230_POH_ROOM_MAX ||
         poh->decoration_count < 0 ||
         poh->decoration_count > MOCK230_POH_DECORATION_MAX )

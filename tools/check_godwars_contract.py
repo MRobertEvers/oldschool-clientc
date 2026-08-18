@@ -10,7 +10,9 @@ replace one of those rules.
 from __future__ import annotations
 
 import csv
+import hashlib
 import re
+from collections import Counter
 from pathlib import Path
 
 
@@ -22,6 +24,9 @@ PRISON = (GWD / "scripts/godwars_prison.rs2").read_text()
 PRISON_DROPS = (GWD / "scripts/godwars_prison_drops.rs2").read_text()
 AMBIENT_DROPS = (GWD / "scripts/godwars_ambient_drops.rs2").read_text()
 DROPS = (GWD / "scripts/godwars_drops.rs2").read_text()
+WIKI_IMP = (
+    ROOT / "OSRS-Content/osrs239-content/server/scripts/drop_tables/scripts/wiki_imp.rs2"
+).read_text()
 FROZEN = (GWD / "scripts/godwars_frozen_door.rs2").read_text()
 ENTRANCE = (GWD / "scripts/godwars_entrance.rs2").read_text()
 BOSSES = (GWD / "scripts/godwars_bosses.rs2").read_text()
@@ -74,6 +79,46 @@ MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
         raise AssertionError(f"{label}: missing {needle!r}")
+
+
+def literal_drop_ledger(filename: str, text: str) -> list[tuple[str, ...]]:
+    """Return context/object/quantity rows for literal authored obj_add calls."""
+    rows: list[tuple[str, ...]] = []
+    context = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("["):
+            context = line
+        for match in re.finditer(r"\b(obj_add(?:_private)?)\(", line):
+            depth = 1
+            cursor = match.end()
+            start = cursor
+            while cursor < len(line) and depth:
+                if line[cursor] == "(":
+                    depth += 1
+                elif line[cursor] == ")":
+                    depth -= 1
+                cursor += 1
+            if depth:
+                continue
+            body = line[start:cursor - 1]
+            args: list[str] = []
+            arg_start = 0
+            nested = 0
+            for index, char in enumerate(body):
+                if char == "(":
+                    nested += 1
+                elif char == ")":
+                    nested -= 1
+                elif char == "," and nested == 0:
+                    args.append(body[arg_start:index].strip())
+                    arg_start = index + 1
+            args.append(body[arg_start:].strip())
+            if len(args) < 3 or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", args[1]):
+                continue
+            rows.append((filename, context, match.group(1), args[1],
+                         " ".join(args[2].split())))
+    return rows
 
 
 def proc_body(text: str, name: str) -> str:
@@ -184,6 +229,21 @@ def main() -> None:
     require(NEX, "$protected_at_cast = true", "Zaros projectile-time prayer rule")
     require(NEX, "npc_type = nex_soulsplit", "Soul Split healing")
     require(NEX, "npc_type = nex_deflect", "Deflect Melee")
+    turmoil = proc_body(NEX, "nex_turmoil_transfer")
+    require(CONSTANT, "^nex_turmoil_drain_levels = 2", "named Turmoil drain quantum")
+    for stat in ("attack", "strength", "defence", "ranged", "magic"):
+        require(turmoil, f"stat_sub({stat}, ^nex_turmoil_drain_levels, 0);",
+                f"Turmoil player {stat} drain")
+        require(turmoil, f"npc_statheal({stat}, ${stat}_drain, 0);",
+                f"Turmoil Nex {stat} transfer")
+    require(turmoil, "nex_spot_leech_projanim_defence", "Turmoil leech projectile")
+    require(turmoil, "nex_spot_leech_impact_spotanim_defence", "Turmoil leech impact")
+    require(turmoil, "mah4_curses_leech_launch", "Turmoil leech launch sound")
+    require(turmoil, "mah4_curses_leech_impact", "Turmoil leech impact sound")
+    damage_player = proc_body(NEX, "nex_damage_player")
+    require(damage_player, "npc_var_get(^nex_var_phase) = ^nex_phase_zaros",
+            "Turmoil final-phase gate")
+    require(damage_player, "~nex_turmoil_transfer($source);", "Turmoil landed-hit dispatch")
     for cry in (
         "Fill my soul with smoke!", "Fumus, don't fail me!",
         "Umbra, don't fail me!", "Cruor, don't fail me!",
@@ -209,10 +269,14 @@ def main() -> None:
             "public Nex arena-exit contribution cleanup")
     require(proc_body(FROZEN, "gwd_frozen_door_leave"), "~nex_clear_contribution;",
             "Ancient Prison departure contribution cleanup")
-    for terminal in ("gwd_private_release", "gwd_private_on_death",
-                     "gwd_private_on_logout"):
-        require(proc_body(PRIVATE, terminal), "~nex_clear_contribution;",
-                f"{terminal} contribution cleanup")
+    private_clear = proc_body(PRIVATE, "gwd_private_clear_player")
+    require(private_clear, "~nex_clear_contribution;",
+            "private player contribution cleanup")
+    for terminal in ("gwd_private_release", "gwd_private_on_death"):
+        require(proc_body(PRIVATE, terminal), "~gwd_private_clear_player(",
+                f"{terminal} player cleanup routing")
+    require(proc_body(PRIVATE, "gwd_private_on_logout"), "~gwd_private_release(",
+            "private logout cleanup routing")
 
     # Kree's blue attack is ranged-magic: magic accuracy, ranged defence and
     # Protect from Missiles. Both tornado colours share successful knockback,
@@ -228,6 +292,13 @@ def main() -> None:
     require(BOSSES, "[proc,gwd_prayer_drain_amount]", "spectral Prayer drain helper")
     require(BOSSES, "inv_getobj(worn, ^wearpos_lhand) = spectral", "spectral shield check")
     require(BOSSES, "$prayer_drain = divide(stat(prayer), 4);", "spectral K'ril special")
+    bodyguard_ranged = proc_body(BOSSES, "gwd_bodyguard_ranged")
+    require(bodyguard_ranged, "~gwd_bodyguard_ranged_hit", "bodyguard ranged accuracy seam")
+    bodyguard_ranged_hit = proc_body(BOSSES, "gwd_bodyguard_ranged_hit")
+    require(bodyguard_ranged_hit, "randominc(~npc_ranged_attack_roll)",
+            "bodyguard ranged attack roll")
+    require(bodyguard_ranged_hit, "randominc(~player_defence_roll(^ranged_style))",
+            "bodyguard ranged defence roll")
     assert NEX.count("~gwd_prayer_drain_amount") >= 6
     war = proc_body(AMBIENT, "gwd_war_swing")
     require(war, "npc_param(proj_launch)", "ambient launch spot animation")
@@ -277,7 +348,8 @@ def main() -> None:
         require(proc_body(DROPS, name), primary_selector, f"{name} 127-slot table")
     require(proc_body(DROPS, "gwd_bodyguard_shard"), "random(12)", "bodyguard shard divisor")
     boss_tertiary = proc_body(DROPS, "gwd_boss_tertiary_code")
-    require(boss_tertiary, "random(250)", "classic boss elite clue rate")
+    require(boss_tertiary, "random(~gwd_boss_elite_clue_rate)",
+            "classic boss conditional elite clue rate")
     require(boss_tertiary, "random(5000)", "classic boss pet rate")
     boss_award = proc_body(DROPS, "gwd_drop_boss_tertiary_roll")
     require(boss_award, "modulo($code, 2) = 1", "independent elite clue bit")
@@ -372,12 +444,43 @@ def main() -> None:
     require(CONSTANT, "^gwd_private_loot_duration = 30000", "three-hour private loot")
     require(FROZEN, "[oploc2,nex_fight_barrier_outer_priv]", "private Nex barrier option")
     require(FROZEN, "~gwd_nex_private_enter;", "private Nex entry dispatch")
+    require(FROZEN, "~gwd_nex_private_join;", "private Nex friend-join dispatch")
+    require(FROZEN, "Join a friend's private Nex room.", "private Nex friend-join choice")
+    require(CONSTANT, "^gwd_nex_private_cap = 20", "private Nex population cap")
     nex_private = proc_body(PRIVATE, "gwd_nex_private_enter")
     require(nex_private, "def_int $fee = 100000;", "private Nex fixed fee")
     require(nex_private, "~gwd_take_chamber_access(5)", "private Nex essence/key use")
     for actor in ("nex_spawning", "nex_smokemage", "nex_shadowmage", "nex_bloodmage", "nex_icemage"):
         require(PRIVATE, f"$type = {actor}", f"private Nex spawn {actor}")
     require(PRIVATE, "queue(gwd_nex_private_reset", "private Nex respawn")
+    nex_join = proc_body(PRIVATE, "gwd_nex_private_join")
+    for needle, label in (
+        ('p_namedialog("Enter the private Nex room owner\'s name:")', "owner-name dialogue"),
+        ("def_string $host_name = last_string;", "owner-name reply"),
+        ("p_findmutualfriend($host_name)", "mutual online friend lookup"),
+        ("map_instance_owner($handle) ! $owner", "creator ownership validation"),
+        ("huntall(~gwd_private_coord($handle, ^nex_centre), 64, 0);", "instance population scan"),
+        ("~gwd_nex_private_has_space($population)", "twenty-player cap gate"),
+        ("~gwd_take_chamber_access(5)", "guest essence/key consumption"),
+        ("%map_instance_handle = $handle;", "guest room handle binding"),
+        ("%gwd_private_faction = 5;", "guest Nex-room binding"),
+    ):
+        require(nex_join, needle, f"private Nex friend join {label}")
+    nex_has_space = proc_body(PRIVATE, "gwd_nex_private_has_space")
+    require(nex_has_space, "if ($population < ^gwd_nex_private_cap) { return(true); }",
+            "private Nex strict population cap")
+    require(nex_has_space, "return(false);", "private Nex full-room rejection")
+    private_release = proc_body(PRIVATE, "gwd_private_release")
+    require(private_release, "if ($owner ! uid)", "private guest departure branch")
+    require(private_release, "~gwd_private_clear_player($handle, $faction);", "private guest cleanup")
+    require(private_release, "~gwd_private_eject_guests($handle, $faction, $owner);", "private owner guest ejection")
+    private_reset = proc_body(PRIVATE, "gwd_nex_private_schedule_reset")
+    require(private_reset, "map_instance_owner($handle)", "private Nex owner reset routing")
+    require(private_reset, "p_finduid($owner)", "private Nex owner reset context")
+    require(SCRIPT_HOST, "case SS_OP_P_NAMEDIALOG:", "runtime name-dialogue opcode")
+    require(SCRIPT_HOST, "case SS_OP_LAST_STRING:", "runtime last-string opcode")
+    require(SCRIPT_HOST, "case SS_OP_P_FINDMUTUALFRIEND:", "runtime mutual-friend opcode")
+    assert SCRIPT_HOST.count("mock230_friends_is_friend(") >= 2, "mutual-friend lookup must be reciprocal"
     require(NEX, "[proc,nex_room_coord]", "instance-relative Nex coordinates")
     for coordinate in ("centre", "fumus", "umbra", "cruor", "glacies"):
         direct = re.compile(rf"(?<!nex_room_coord\()\^nex_{coordinate}\b")
@@ -535,7 +638,9 @@ def main() -> None:
     require(award, "if ($code >= 4)", "Nex clue award bit")
     require(award, "~nex_drop_unique_private($where);", "Nex unique award")
     require(award, "nexpet", "Nex pet award")
-    require(award, "trail_elite_emote_exp1", "Nex elite clue award")
+    require(award, "~gwd_clue_drop_obj(4, trail_elite_emote_exp1, $boxed)",
+            "Nex conditional elite clue/box award")
+    require(award, "~gwd_record_pet(nexpet);", "Nex pet insurance/log award")
     death = script_body(NEX_DROPS, "ai_queue3", "nex")
     require(death, "def_int $base_chance = divide(multiply($damage, 1000), $total);",
             "Nex base contribution chance")
@@ -572,6 +677,83 @@ def main() -> None:
                 f"no-death-drop: this Zarosian {soldier}'s cache death_drop is null",
                 f"Zarosian {soldier} null-remains waiver")
 
+    # Exact inclusive quantity expressions across the four authored GWD drop
+    # files. Counts matter: losing one of two identical rows is still drift.
+    quantity_text = DROPS + AMBIENT_DROPS + PRISON_DROPS + NEX_DROPS
+    actual_ranges = Counter(
+        (int(low), int(high))
+        for low, high in re.findall(
+            r"~random_range\((\d+),\s*(\d+)\)", quantity_text
+        )
+    )
+    expected_ranges = Counter({
+        (1, 2): 1, (1, 4): 4, (1, 5): 1, (1, 10): 5,
+        (1, 11): 1, (1, 16): 1, (1, 10000): 1, (2, 5): 1,
+        (2, 7): 2, (2, 30): 1, (3, 64): 1, (3, 80): 1,
+        (3, 102): 1, (4, 13): 1, (4, 64): 1, (5, 9): 1,
+        (5, 10): 5, (5, 204): 1, (6, 39): 1, (6, 100): 1,
+        (8, 13): 1, (10, 15): 1, (11, 29): 1, (12, 283): 1,
+        (15, 20): 4, (20, 25): 1, (23, 2354): 1, (25, 30): 1,
+        (30, 60): 1, (35, 40): 1, (38, 43): 1, (38, 98): 1,
+        (40, 45): 2, (40, 70): 1, (42, 2252): 1, (62, 67): 1,
+        (65, 70): 1, (80, 85): 2, (84, 876): 1, (85, 95): 1,
+        (85, 986): 1, (86, 592): 1, (95, 100): 7,
+        (100, 105): 1, (100, 150): 1, (115, 120): 1,
+        (120, 125): 1, (123, 10000): 1, (145, 150): 1,
+        (193, 10000): 1, (295, 300): 1, (400, 499): 1,
+        (586, 601): 1, (1000, 1100): 3, (1300, 1337): 4,
+        (1300, 1400): 4, (1400, 1500): 4, (6900, 6942): 1,
+        (8539, 26748): 1, (19500, 20000): 1,
+        (20100, 20600): 2, (20500, 21000): 2,
+    })
+    assert actual_ranges == expected_ranges, (
+        f"GWD quantity-range ledger drift: {actual_ranges - expected_ranges}; "
+        f"missing {expected_ranges - actual_ranges}"
+    )
+    # Pin the complete authored literal item/quantity/noted-state mapping, not
+    # just branch thresholds. Context is part of each row, so moving an item to
+    # another NPC/table also fails this gate. The 335 rows include 35 explicit
+    # cert_* (noted) mappings; dynamic tuple suppliers are covered separately.
+    literal_rows: list[tuple[str, ...]] = []
+    for filename, source in (
+        ("godwars_drops.rs2", DROPS),
+        ("godwars_ambient_drops.rs2", AMBIENT_DROPS),
+        ("godwars_prison_drops.rs2", PRISON_DROPS),
+        ("godwars_nex_drops.rs2", NEX_DROPS),
+        ("wiki_imp.rs2", WIKI_IMP),
+    ):
+        literal_rows.extend(literal_drop_ledger(filename, source))
+    literal_canonical = "\n".join("|".join(row) for row in sorted(literal_rows))
+    assert len(literal_rows) == 335, len(literal_rows)
+    assert sum(row[3].startswith("cert_") for row in literal_rows) == 35
+    assert hashlib.sha256(literal_canonical.encode()).hexdigest() == (
+        "3e0179fe636343e5c76ad2b7557ee26e825ab3c109fb458bff8f416bd9c87a29"
+    ), "GWD literal item/quantity/noted-state ledger drift"
+    paired_rows = {
+        "gwd_drop_kree_main": (
+            "obj_add($where, 3doserangerspotion, 3",
+            "obj_add($where, 3dose2defense, 3",
+        ),
+        "gwd_drop_zilyana_main": (
+            "obj_add($where, 3dosepotionofsaradomin, 3",
+            "obj_add($where, 4dose2restore, 3",
+            "obj_add($where, 3dose2defense, 3",
+            "obj_add($where, 3dose1magic, 3",
+        ),
+        "gwd_drop_kril_main": (
+            "obj_add($where, 3dose2attack, 3",
+            "obj_add($where, 3dose2strength, 3",
+            "obj_add($where, 3dose2restore, 3",
+            "obj_add($where, 3dosepotionofzamorak, 3",
+        ),
+    }
+    for proc, rows in paired_rows.items():
+        body = proc_body(DROPS, proc)
+        for row in rows:
+            require(body, row, f"{proc} paired fixed quantity")
+    armadyl_ammo = proc_body(DROPS, "gwd_bodyguard_armadyl_main")
+    assert armadyl_ammo.count("calc($feathers + 90)") == 2
+
     # Conditional Brimstone tertiaries are neither part of the 127-way main
     # table nor unconditional: all four generals use the capped 1/50 rate,
     # while the three Armadyl substitutes retain their level-derived rates.
@@ -596,6 +778,70 @@ def main() -> None:
     require(proc_body(DROPS, "gwd_bodyguard_armadyl"),
             "~gwd_drop_brimstone_key($where, ~gwd_armadyl_bodyguard_brimstone_denominator);",
             "Armadyl bodyguard Brimstone tertiary")
+    frozen_piece = proc_body(DROPS, "gwd_drop_frozen_key_piece")
+    require(frozen_piece, "%gwd_frozen_door_state < 1",
+            "frozen-key inactive-miniquest suppression")
+    require(frozen_piece, "inv_total(inv, nex_frozen_key)",
+            "assembled frozen-key inventory suppression")
+    require(frozen_piece, "inv_total(bank, nex_frozen_key)",
+            "assembled frozen-key bank suppression")
+    require(frozen_piece, "inv_total(inv, $piece)",
+            "owned frozen-key piece suppression")
+    for needle in (
+        "%rag_quest = ^rag_collecting",
+        "testbit(%rag_submit, ^rag_bit_goblin) = ^false",
+        "inv_total(inv, rag_goblin_bone) = 0",
+        "inv_total(bank, rag_goblin_bone) = 0",
+    ):
+        require(AMBIENT_DROPS, needle, "Rag goblin-bone prerequisite")
+    clue_rate = proc_body(DROPS, "gwd_boss_elite_clue_rate")
+    for tier in ("elite", "master", "grandmaster"):
+        require(clue_rate, f"%ca_tier_status_{tier} = 2",
+                f"classic boss elite clue {tier} reward")
+    require(clue_rate, "return(237);", "rewarded classic boss elite clue rate")
+    require(clue_rate, "return(250);", "base classic boss elite clue rate")
+
+    # Global prerequisites used by GWD-authored tertiaries. X Marks the Spot
+    # changes each tier to its stackable scroll-box object; champion rolls need
+    # 32 QP and suppress already-defeated champions; all five GWD pets write
+    # their insurance bit and pass through the collection catalogue.
+    clue_obj = proc_body(DROPS, "gwd_clue_drop_obj")
+    for tier, clue, box in (
+        (0, "trail_clue_beginner", "league_clue_box_beginner"),
+        (1, "trail_clue_easy_simple001", "league_clue_box_easy"),
+        (2, "trail_clue_medium_map001", "league_clue_box_medium"),
+        (3, "trail_clue_hard_map001", "league_clue_box_hard"),
+        (4, "trail_elite_emote_exp1", "league_clue_box_elite"),
+    ):
+        if tier < 4:
+            require(clue_obj, f"$tier = {tier}", f"clue tier {tier} selector")
+        require(clue_obj, box, f"clue tier {tier} box")
+        require(DROPS + AMBIENT_DROPS + PRISON_DROPS + NEX_DROPS,
+                clue, f"clue tier {tier} exact unboxed object")
+    require(clue_obj, "return($unboxed);", "exact unboxed clue preservation")
+    require(proc_body(DROPS, "gwd_drop_clue"),
+            "%cluequest >= ^xmarks_complete", "X Marks clue-box prerequisite")
+    champion = proc_body(DROPS, "gwd_champion_scroll_allowed")
+    require(champion, "$quest_points < 32", "champion-scroll QP prerequisite")
+    require(champion, "$defeated ! 0", "champion duplicate suppression")
+    champion_award = proc_body(DROPS, "gwd_drop_champion_scroll")
+    require(champion_award, "would have received a Champion's scroll",
+            "champion duplicate feedback")
+    for defeated in ("goblin", "hobgoblin", "imp", "jogre"):
+        require(DROPS + AMBIENT_DROPS + WIKI_IMP,
+                f"%champions_defeated_{defeated}",
+                f"{defeated} champion completion prerequisite")
+    pet = proc_body(DROPS, "gwd_record_pet")
+    for varbit in (
+        "armadylpet", "bandospet", "saradominpet", "zamorakpet", "nex"
+    ):
+        require(pet, f"%pet_insurance_{varbit} = 1;",
+                f"{varbit} automatic pet insurance")
+    require(pet, "~collection_earn_if_catalogued($pet, 1);",
+            "GWD pet collection logging")
+    require(proc_body(DROPS, "gwd_boss_tertiary_code"),
+            "random(~gwd_boss_elite_clue_rate)",
+            "classic boss conditional elite clue selector")
 
     # Each Ancient Prison main table receives rolls 0..125 after its two
     # top-level 1/128 ceremonial/gem slots. Thresholds must be monotonic and
@@ -614,7 +860,7 @@ def main() -> None:
     for effect in (
         "queue(poison_player, 0, 16)",
         "stat_sub(attack, 15, 0)",
-        "npc_statheal(hitpoints, max(divide($amount, 5), 1), 0)",
+        "npc_statheal(hitpoints, max(divide($rolled_damage, 5), 1), 0)",
         "queue(npc_freeze_player, 0, 6)",
     ):
         require(PRISON, effect, "Zarosian spiritual mage effects")
@@ -624,6 +870,16 @@ def main() -> None:
         "Zarosian spiritual mage random-roll wrapper",
     )
     mage_roll = proc_body(PRISON, "gwd_prison_mage_attack_roll")
+    require(
+        mage_roll,
+        "if ($accurate = true) {\n    $rolled_damage = randominc(38);",
+        "Zarosian spiritual mage preserves the pre-prayer damage roll",
+    )
+    require(
+        mage_roll,
+        "queue*(gwd_prison_mage_land, $delay)(npc_uid, $spell, $damage, $impact, $accurate, $rolled_damage);",
+        "Zarosian spiritual mage carries pre-prayer damage to landing",
+    )
     for spell in ("nex_smoke_attack_proj", "nex_shadow_attack_proj", "nex_blood_attack_proj", "nex_ice_attack_proj"):
         require(mage_roll, spell, f"Zarosian spiritual mage {spell} path")
     for sound in (

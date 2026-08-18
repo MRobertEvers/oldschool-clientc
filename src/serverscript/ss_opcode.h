@@ -493,10 +493,20 @@
 #define SS_OP_MAP_INSTANCE_FLAG_GET 11064
 #define SS_OP_MAP_INSTANCE_FLAG_SET 11065
 #define SS_OP_LAST_STEP_COORD 11066
+#define SS_OP_MAP_INSTANCE_VAR_GET 11067
+#define SS_OP_MAP_INSTANCE_VAR_SET 11068
+#define SS_OP_P_NAMEDIALOG 11069
+#define SS_OP_LAST_STRING 11070
+#define SS_OP_P_FINDMUTUALFRIEND 11071
+#define SS_OP_INV_TRANSMIT_FROM 11072
+#define SS_OP_P_FINDVISIBLEPLAYER 11073
+#define SS_OP_P_ISFRIEND 11074
+#define SS_OP_MAP_INSTANCE_FIND_OWNER 11075
+#define SS_OP_MAP_INSTANCE_PLAYERCOUNT 11076
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11067
+#define SS_OPCODE_MAX 11077
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 471
+#define SS_OPCODE_COUNT 481
 
 #endif

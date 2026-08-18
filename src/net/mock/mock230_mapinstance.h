@@ -80,6 +80,17 @@
 #define MOCK230_MAPINSTANCE_ZONES 16
 #define MOCK230_MAPINSTANCE_LEVELS 4
 
+/**
+ * Small content-owned integer register file attached to each live instance.
+ *
+ * Dynamic-map activities need more than yes/no switches: a house game has a
+ * phase, two player uids, turn, scores and a prize balance.  The engine owns
+ * only the lifetime and bounds of these registers; RuneScript assigns every
+ * slot's meaning.  Sixty-four is intentionally finite and visible so content
+ * cannot turn an instance into an unbounded key/value heap.
+ */
+#define MOCK230_MAPINSTANCE_VARS 64
+
 /** Zones per axis in a map square — the granularity the cache's archives, and
  *  therefore the allocator's reservations, come in. */
 #define MOCK230_MAPINSTANCE_SQUARE_ZONES 8
@@ -152,6 +163,15 @@ int
 mock230_mapinstance_owner(int handle);
 
 /**
+ * Find a live reservation owned by `player_uid` and carrying every bit in
+ * `required_flags`. A zero mask accepts any reservation; 0 means no match.
+ */
+int
+mock230_mapinstance_find_owner(
+    int player_uid,
+    int required_flags);
+
+/**
  * Read or write a content-owned, session-local flag on a live instance.
  *
  * This is deliberately a generic bitset rather than POH state: challenge mode
@@ -168,6 +188,24 @@ mock230_mapinstance_flag_set(
     int handle,
     int mask,
     int enabled);
+
+/**
+ * Read or write one content-owned, session-local integer register.
+ *
+ * Registers start at zero on allocation and are erased on free/reset.  Invalid
+ * handles or slots read as zero and reject writes.  Values are deliberately
+ * unrestricted signed ints: player uids, scores and clocks all share the same
+ * RuneScript integer representation.
+ */
+int
+mock230_mapinstance_var_get(
+    int handle,
+    int slot);
+int
+mock230_mapinstance_var_set(
+    int handle,
+    int slot,
+    int value);
 
 /** Clear every live reservation owned by this uid; returns the number cleared. */
 int

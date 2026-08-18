@@ -2511,15 +2511,153 @@
       "encounter_summary": "Five Loar shades (40)",
       "plan_line": 107,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shades_of_Mort%27ton?oldid=15292280",
+          "revision": 15292280,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shades_of_Mort%27ton/Quick_guide?oldid=14988872",
+          "revision": 14988872,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Shades_of_Mort%27ton?oldid=15263293",
+          "revision": 15263293,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Loar_Shade?oldid=15199268",
+          "revision": 15199268,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shades_of_Mort%27ton_(minigame)?oldid=15299270",
+          "revision": 15299270,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sacred_oil?oldid=15214951",
+          "revision": 15214951,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Pyre_logs?oldid=15185388",
+          "revision": 15185388,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Serum_207?oldid=15183419",
+          "revision": 15183419,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Serum_208?oldid=15214952",
+          "revision": 15214952,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Razmire_Keelgan?oldid=15115043",
+          "revision": 15115043,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ulsquire_Shauncy?oldid=14879578",
+          "revision": 14879578,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shade_key?oldid=15285193",
+          "revision": 15285193,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shade_Catacombs?oldid=15233566",
+          "revision": 15233566,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Urium_Shade?oldid=15200239",
+          "revision": 15200239,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Dampe?oldid=14826321",
+          "revision": 14826321,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Bronze_Chest_(red)?oldid=14980834",
+          "revision": 14980834,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Steel_Chest_(red)?oldid=14980845",
+          "revision": 14980845,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Black_Chest_(red)?oldid=14980856",
+          "revision": 14980856,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Silver_Chest_(red)?oldid=14980868",
+          "revision": 14980868,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "shadeshadow_level1..6 and shade_level1..6",
+        "shade_heaven",
+        "shades_undead_zealot_1",
+        "afflicted male/female variants",
+        "mortton_razmire/mortton_ulsquire",
+        "shades_coffin_keeper (Dampe)"
+      ],
+      "item_gamevals": [
+        "serum2071..4/serum2081..4 and oliveoil/sacred_oil dose families",
+        "thirteen pyre-log tiers from normal through rosewood",
+        "shade_bones1..6 (Loar/Phrin/Riyl/Asyn/Fiyr/Urium)",
+        "25 bronze/steel/black/silver/gold Shade keys",
+        "five locks, broken/bronze/steel/black/silver/gold wearable coffins",
+        "swamppaste/flamtaer_hammer/flamtaer_bag/fine_cloth/damned_amulet",
+        "tree-wizard/bloody books and swampbark/bloodbark runescrolls",
+        "easy/medium/hard/elite clues, zealot robes and keyed-chest pools"
+      ],
+      "loc_gamevals": [
+        "Flamtaer temple wall stages, sacred-fire altar and funeral pyres",
+        "all thirteen pyre-log/remains states",
+        "Shade Catacombs entrance and four tier doors",
+        "25 keyed chests",
+        "Altar of the Damned",
+        "Razmire builder/general shops"
+      ],
+      "trigger_handlers": [
+        "ai_queue2/3 and ai_opplayer2:_shade rise/combat/remains/Loar credit",
+        "oploc1/3/u:temple repair, sanctity and fire altar; temple attack/drain timers",
+        "opheldu/oploc1/u/4:oil, pyre logs, remains and ignition",
+        "oploc1/u:catacomb entrance, doors, 25 chests and Altar of the Damned",
+        "opnpc1/3/u:Dampe; opheld1/3/4/5:wearable coffins",
+        "quest dialogue, Serum 207/208 afflicted cures, shops and completion queue"
+      ],
+      "loot_contract": "Only directly credited Loar shade deaths advance the five-kill quest stage; every shade tier drops its matching remains and can apply its current 1/20 Strength drain. Sacred oil consumes the tier-correct two-to-four doses across all thirteen current pyre-log types, applies Pyromancer creation XP, and funeral burning applies exact Firemaking/Prayer XP including current Morytania diary multipliers and modern camphor/ironwood/rosewood corrections. Loar through Urium rewards use their exact coin bands and two key-band probabilities, with five-minute owner-private pedestal rewards. The completed quest gates non-consuming catacomb tier doors and 25 exact-key chests; opening is inventory-atomic, consumes one key, rolls tier locks and splitbark books/scrolls in order, gives steel-or-better bag-or-paste tertiaries, standard treasure/clues/zealot uniques and coins, and can release an undead zealot. Bleached bones each charge one later full Prayer restore at the Altar of the Damned. Dampe repairs one broken wearable coffin with a selected lock; capacities are 3/8/14/20/28 remains and Empty withdraws highest tier first.",
+      "test_ids": [
+        "quest-combat-contract:mortton-quest",
+        "quest-combat-contract:mortton-shades",
+        "quest-combat-contract:mortton-temple",
+        "quest-combat-contract:mortton-pyres",
+        "quest-combat-contract:mortton-catacombs",
+        "quest-combat-contract:mortton-coffin"
+      ],
+      "known_gaps": [
+        "Current chest table modifiers for already-owned clue scrolls and the ring-of-wealth reshaping of standard (non-lock/non-scroll) rewards are not yet represented; the current no-clue base pools and ring-adjusted lock/scroll denominators are implemented.",
+        "The public Wiki labels the undead-zealot chest release only as rare and does not publish an exact rate; the implementation retains the audited cache-era 1/128 roll.",
+        "The runtime represents shade attacks on temple walls with the same structural loss/degradation rules on a player timer because it lacks the reference NPC-to-location hunt mode.",
+        "A real-client multiplayer, all pyre tiers, full-inventory chest, coffin equip/configure, altar charge, temple destruction, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-the-fremennik-trials",
@@ -2529,15 +2667,117 @@
       "encounter_summary": "First three Koschei forms; Draugen (69); optional repeated Lanzig, Borrokar, Lensa, or Freidir (48)",
       "plan_line": 108,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Fremennik_Trials?oldid=15292303",
+          "revision": 15292303,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Fremennik_Trials/Quick_guide?oldid=15290109",
+          "revision": 15290109,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Fremennik_Trials?oldid=15263294",
+          "revision": 15263294,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Koschei_the_deathless?oldid=15293789",
+          "revision": 15293789,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Draugen?oldid=15215949",
+          "revision": 15215949,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hunters%27_talisman?oldid=15184168",
+          "revision": 15184168,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Fremennik_blade?oldid=15183020",
+          "revision": 15183020,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Thorvald_the_Warrior?oldid=15239757",
+          "revision": 15239757,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sigli_the_Huntsman?oldid=15136941",
+          "revision": 15136941,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Lanzig?oldid=15199225",
+          "revision": 15199225,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Borrokar?oldid=15199667",
+          "revision": 15199667,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Lensa?oldid=15199668",
+          "revision": 15199668,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Freidir?oldid=15199666",
+          "revision": 15199666,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Lyre?oldid=15183561",
+          "revision": 15183561,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "viking_enemy1..4 (Koschei forms)",
+        "viking_draugen/viking_draugen_safe",
+        "viking_sigli/viking_thorvald/viking_peer",
+        "viking_man2/viking_man3/viking_man4/viking_woman2 (Freidir/Borrokar/Lanzig/Lensa)"
+      ],
+      "item_gamevals": [
+        "viking_draugen_talisman_uncharged/viking_draugen_talisman",
+        "viking_sword",
+        "viking_unstrung_lyre",
+        "documented Koschei allowed/forbidden loadout categories",
+        "exact 512-slot citizen primary table and 1/128 easy clue tertiary"
+      ],
+      "loc_gamevals": [
+        "viking_warrior_ladder_down/viking_warrior_ladder_up",
+        "twelve moving Draugen province anchors",
+        "Koschei basement arena and upstairs return"
+      ],
+      "trigger_handlers": [
+        "oploc1:Koschei ladders; opnpc2/ai_queue3:four Koschei forms",
+        "timer:Koschei monitor/phase timeout; player death/logout/drop cleanup hooks",
+        "opheld1/5:hunter's talismans; timer:Draugen move/timeout; ai_queue3:Draugen",
+        "opnpc1:Sigli/Thorvald/Peer; opheld2:Fremennik blade",
+        "ai_queue3:Freidir/Borrokar/Lanzig/Lensa exact citizen table"
+      ],
+      "loot_contract": "Koschei and the Draugen have null ordinary death drops and require direct credited damage. Koschei's first three forms advance immediately; form four drains Prayer and either a safe one-HP loss or victory earns the vote, while victory alone awards a Fremennik blade with private-ground full-inventory fallback. The Draugen converts exactly one uncharged hunter's talisman to charged proof, also with private-ground fallback, and Sigli consumes it. Freidir, Borrokar, Lanzig and Lensa retain public ordinary combat semantics and share an exact 512-slot primary table with 100% bones, 30/512 unstrung lyre, quest-gated Fremennik equipment and blamish oil, herbs, nature-talisman gem table and ten nothing slots, plus an independent 1/128 easy clue.",
+      "test_ids": [
+        "quest-combat-contract:fremennik-koschei",
+        "quest-combat-contract:fremennik-draugen",
+        "quest-combat-contract:fremennik-loadout",
+        "quest-combat-contract:fremennik-citizen-loot",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actors occupy the shared classic map squares rather than cloned modern instances.",
+        "Some exact camera and audio choreography is reduced to messages and cache-era animation.",
+        "A real-client two-player ownership, loadout matrix, safe-death, exit/teleport/logout/timeout cleanup, moving-target, inventory-full, public-loot, death and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-horror-from-the-deep",
@@ -2547,15 +2787,117 @@
       "encounter_summary": "Dagannoth (100), then Dagannoth Mother (100)",
       "plan_line": 109,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Horror_from_the_Deep?oldid=15294310",
+          "revision": 15294310,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Horror_from_the_Deep/Quick_guide?oldid=15080801",
+          "revision": 15080801,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Horror_from_the_Deep?oldid=15263295",
+          "revision": 15263295,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dagannoth_(Horror_from_the_Deep)?oldid=15274475",
+          "revision": 15274475,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dagannoth_mother?oldid=15199457",
+          "revision": 15199457,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Rusty_casket?oldid=15254124",
+          "revision": 15254124,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Damaged_book?oldid=15174921",
+          "revision": 15174921,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Jossik?oldid=15196239",
+          "revision": 15196239,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Lighthouse_key?oldid=15183873",
+          "revision": 15183873,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Holy_book?oldid=15300898",
+          "revision": 15300898,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Unholy_book?oldid=15300896",
+          "revision": 15300896,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Book_of_balance?oldid=15294284",
+          "revision": 15294284,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "horror_dagannoth_jr1..jr4",
+        "horror_dagganoth_aira/airb/airc",
+        "horror_dagganoth_air/water/melee/earth/fire/ranged",
+        "horror_lighthousekeeeper_injured/horror_lighthousekeeeper_well",
+        "gunnjorn and larrissa"
+      ],
+      "item_gamevals": [
+        "woodplank/nails/hammer",
+        "horror_key",
+        "swamp_tar/molten_glass/tinderbox",
+        "airrune/waterrune/earthrune/firerune",
+        "all sword and arrow categories",
+        "horror_diary1/horror_diary2/horror_diary3",
+        "bones/horror_casket",
+        "unfinished_saradominbook/unfinished_zamorakbook/unfinished_guthixbook",
+        "saradominbook_complete/zamorakbook_complete/guthixbook_complete"
+      ],
+      "loc_gamevals": [
+        "horror_broken_bridge_left_spot/horror_broken_bridge_right_spot",
+        "horror_lighthouse_doorway",
+        "horror_lighthouse_cog_broken/_noop",
+        "horror_bookcase",
+        "horror_mid_left_door/horror_mid_right_door",
+        "basement spawn 0_39_72_22_34 and exit 0_39_56_13_54"
+      ],
+      "trigger_handlers": [
+        "oploc1/u:bridge, lighthouse door/lamp, bookcase and six-offering wall",
+        "opnpc1:Gunnjorn key, injured Jossik encounter, well Jossik reward",
+        "opnpc2/ai_queue3/4/ai_timer:juvenile and Mother phases",
+        "player_hit_npc_prepare and player Magic elemental latch:Mother colour damage gate",
+        "timer/player death/logout:owner-private timeout and cleanup",
+        "opnpc4:Jossik lost-book recovery; opobj3:rusty-casket pickup block"
+      ],
+      "loot_contract": "The juvenile has null ordinary loot and a credited or recoil-only death advances directly to the Mother. The Mother also has null generic death loot: her credited death adds ordinary bones privately, grants the fragile rusty casket to inventory when possible (otherwise Jossik recovers it), completes the quest, exits the basement and awards 4,662.5 Magic XP. Jossik consumes/recover-opens the casket into one persistent choice among the three unfinished god books and replaces only the chosen book when neither its damaged nor completed form exists in inventory, bank or worn slots. A ground casket cannot be picked up.",
+      "test_ids": [
+        "quest-combat-contract:horror-route",
+        "quest-combat-contract:horror-junior",
+        "quest-combat-contract:horror-mother",
+        "quest-combat-contract:horror-casket-books",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actors occupy the shared classic lighthouse map rather than cloned modern instances.",
+        "Exact modern camera and audio choreography is reduced to messages and cache-era animation.",
+        "The global Twinflame staff secondary-hit mechanic is absent and is deferred to that staff's implementation; standard matching Earth spells work.",
+        "A real-client two-player ownership, bridge/door/wall, all-colour/style, recoil-only, timeout/death/logout, full-inventory casket, book-loss and relog smoke is still pending."
+      ]
     },
     {
       "id": "quest-monkey-madness-i",
@@ -2565,15 +2907,93 @@
       "encounter_summary": "Jungle Demon (195)",
       "plan_line": 110,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Monkey_Madness_I?oldid=15302455",
+          "revision": 15302455,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Monkey_Madness_I/Quick_guide?oldid=15257376",
+          "revision": 15257376,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Monkey_Madness_I?oldid=15263300",
+          "revision": 15263300,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Jungle_Demon?oldid=15199289",
+          "revision": 15199289,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/10th_squad_sigil?oldid=15182884",
+          "revision": 15182884,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Garkor?oldid=15238361",
+          "revision": 15238361,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Waymottin?oldid=15238401",
+          "revision": 15238401,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Zooknock?oldid=15286805",
+          "revision": 15286805,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "mm_demon",
+        "mm_garkor_final_battle/mm_zooknock_final_battle",
+        "mm_waymottin_final_battle/mm_bunkwicket_final_battle/mm_bunkdo_final_battle",
+        "mm_carado_final_battle/mm_lumo_final_battle/mm_karam_final_battle",
+        "mm_bonzara",
+        "mm_garkor/mm_zooknock/mm_waymottin"
+      ],
+      "item_gamevals": [
+        "mm_monkey_dentures/mm_monkey_amulet_mould/gold_bar/mm_enchanted_gold_bar",
+        "mm_monkey_talisman and seven valid monkey-remains/greegree variants",
+        "mm_monkey_greegree_for_normal_monkey",
+        "mm_sigil",
+        "malicious_ashes",
+        "coins/diamond and optional Daero combat-XP split"
+      ],
+      "loc_gamevals": [
+        "Ape Atoll Dungeon Zooknock route",
+        "Garkor/Awowogei Chapter 4 route",
+        "banana-plantation arena 1_42_143",
+        "arena exit near 0_42_43_24_32"
+      ],
+      "trigger_handlers": [
+        "opnpcu/opnpc1:Zooknock amulet, talisman and greegree route",
+        "opnpc1:Garkor induction and Waymottin sigil replacement",
+        "opheld2:mm_sigil stage/Wilderness/confirmation gate and private squad spawn",
+        "ai_timer/ai_applayer2/ai_queue3:mm_demon allied damage, four waves, melee and credit",
+        "timer/player death/logout:arena leave and owner-private cleanup",
+        "opnpc1:Garkor/Zooknock/Bonzara post-kill exit; Narnode reward and Daero training"
+      ],
+      "loot_contract": "The owner-private Jungle Demon has no generic table. A credited player, recoil, Retribution or simultaneous-death finish advances the quest and creates exactly one owner-private malicious ashes; allied damage can reduce it to ten Hitpoints but a would-be allied kill restores 21-42 HP (12-25% of 170) and cannot progress the quest. Narnode separately preflights three inventory slots, then grants 10,000 coins and three diamonds before the 3-QP completion. Daero's optional permanent training grants 35,000 XP to either Strength/Hitpoints or Attack/Defence and 20,000 XP to the other pair.",
+      "test_ids": [
+        "quest-combat-contract:mm1-route-sigil",
+        "quest-combat-contract:mm1-demon",
+        "quest-combat-contract:mm1-allied-credit",
+        "quest-combat-contract:mm1-reward",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actors occupy the shared classic banana-plantation map rather than a cloned modern instance.",
+        "Squad contribution is represented by exact-timed hitsplats rather than autonomous NPC-to-NPC pathing.",
+        "Exact camera, screen-shake and audio choreography is reduced to cache-era messages and delays.",
+        "A real-client two-player ownership, sigil-gate matrix, ally heal-back, recoil/Retribution simultaneous death, wave/style, safespot, full-inventory, death, relog and exit smoke is still pending."
+      ]
     },
     {
       "id": "quest-haunted-mine",
@@ -2583,15 +3003,100 @@
       "encounter_summary": "Treus Dayth (95)",
       "plan_line": 111,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Haunted_Mine?oldid=15292305",
+          "revision": 15292305,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Haunted_Mine/Quick_guide?oldid=14834641",
+          "revision": 14834641,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Haunted_Mine?oldid=15263301",
+          "revision": 15263301,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Treus_Dayth?oldid=15234627",
+          "revision": 15234627,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Crystal-mine_key?oldid=15183506",
+          "revision": 15183506,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Glowing_fungus?oldid=15183507",
+          "revision": 15183507,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Salve_shard?oldid=15183505",
+          "revision": 15183505,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Zealot%27s_key?oldid=15183508",
+          "revision": 15183508,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Salve_amulet?oldid=15241628",
+          "revision": 15241628,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "saradominist_zealot",
+        "hauntedmine_cheeky_ghost",
+        "hauntedmine_boss_key/hauntedmine_boss_ghost",
+        "hauntedmine_boss_cart/crane_posessed_mine"
+      ],
+      "item_gamevals": [
+        "hauntedmine_lift_key",
+        "glowing_fungus/ashes",
+        "chisel",
+        "hauntedmine_reward_key",
+        "crystalshard_necklace_unstrung",
+        "ball_of_wool/crystalshard_necklace",
+        "trail_clue_beginner"
+      ],
+      "loc_gamevals": [
+        "both hauntedmine_back_entrance routes and every authored ladder",
+        "glowing_mushroom/glowing_mushroom2 and hauntedmine_puzzle_cart",
+        "hauntedmine_point_lever1..8/hauntedmine_points_info",
+        "hauntedmine_lift_valve/lift_side_r/lift_flooded",
+        "hauntedmine_dark_stairs_top and both hauntedmine_rewarddoor leaves",
+        "crystalcorner"
+      ],
+      "trigger_handlers": [
+        "opnpc1/opnpc3:Zealot quest gate and key issue/full-inventory fallback",
+        "oploc1/timer/opheld5:fungus cart, outside/drop decay and valve ghost race",
+        "opnpc1/2,ai_timer,ai_queue3:owner-private Treus start/combat/credit",
+        "timer:HP-scaled cart/crane hazards and room/death/logout cleanup",
+        "opnpc1:crystal-mine key reclaim; oploc1:reward doors and repeatable shard",
+        "opheldu:ball of wool/salve shard stringing"
+      ],
+      "loot_contract": "Treus Dayth has no primary table. A credited owner kill stops the machinery and independently rolls one owner-private beginner clue at 1/90. The crystal-mine key is a separate post-kill NPC interaction with inventory-full private-ground fallback and inventory/bank duplicate recovery. A chisel/current 35 Crafting outcrop interaction separately awards the first and all replacement salve shards; the key is retained, and ball of wool converts one shard to a salve amulet with no Crafting XP.",
+      "test_ids": [
+        "quest-combat-contract:haunted-mine-route",
+        "quest-combat-contract:haunted-mine-dayth",
+        "quest-combat-contract:haunted-mine-loot-recovery",
+        "quest-combat-contract:haunted-mine-salve",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actor occupies the shared classic boss room rather than a cloned modern instance.",
+        "Wiki and Quest Helper publish the valve race but not its exact duration; the implementation calibrates it to 30 ticks.",
+        "Wrong cart configurations preserve documented sink/return semantics without reconstructing every hidden topology/cutscene, and machinery/projectile presentation is reduced.",
+        "The global Lunar String Jewellery spell is absent; ordinary ball-of-wool salve stringing is implemented.",
+        "A real-client multiplayer, full route/lever, fungus lifecycle, valve race, machinery tile, combat/prayer, clue, full-inventory, death/logout/relog and post-quest shortcut smoke is pending."
+      ]
     },
     {
       "id": "quest-troll-romance",
@@ -2601,15 +3106,96 @@
       "encounter_summary": "Arrg (113); unsafe death",
       "plan_line": 112,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Troll_Romance?oldid=15292383",
+          "revision": 15292383,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Troll_Romance/Quick_guide?oldid=14845426",
+          "revision": 14845426,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Troll_Romance?oldid=15263302",
+          "revision": 15263302,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Arrg?oldid=15215810",
+          "revision": 15215810,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sled?oldid=15239793",
+          "revision": 15239793,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Wax?oldid=15185234",
+          "revision": 15185234,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Trollweiss?oldid=15184737",
+          "revision": 15184737,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ug?oldid=15095285",
+          "revision": 15095285,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Aga?oldid=15109118",
+          "revision": 15109118,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "trollromance_ug/trollromance_aga/trollromance_arrg",
+        "trollromance_arrg_attackable owner-private combat form",
+        "death_smithy/death_sherpa"
+      ],
+      "item_gamevals": [
+        "maple_logs or yew_logs/iron_bar/rope",
+        "bucket_wax/swamp_tar/cake_tin/trollromance_wax",
+        "trollromance_toboggon/trollromance_toboggon_waxed",
+        "trollromance_rare_flower",
+        "bones and exact Arrg 128-slot/ensouled-head loot",
+        "uncut_diamond/uncut_ruby/uncut_emerald reward"
+      ],
+      "loc_gamevals": [
+        "Tenzing and Dunstan route",
+        "Trollweiss piste barriers and rare flowers",
+        "shared Troll arena 0_45_56",
+        "Ug/Aga/Arrg stronghold rooms"
+      ],
+      "trigger_handlers": [
+        "opnpc1:Tenzing/Dunstan/Ug/Aga/Arrg dialogue and atomic handoffs",
+        "opheldu/oploc1:sled wax, boostable level-28 slide and Trollweiss pickup",
+        "opheld2/timer:worn sled and full-inventory teleport-loss policy",
+        "opnpc2/ai_timer/ai_queue3:owner-private dual-style Arrg and credited death",
+        "timer/player death/logout/login:arena and sled lifecycle cleanup",
+        "opnpc1:seven-slot gem reward and quest completion"
+      ],
+      "loot_contract": "A credited owner-private Arrg death always creates private regular bones and exactly one private roll from the current 128-slot weapons, runes, herb, seed, material, coin or nature-talisman gem table, plus an independent private ensouled troll head at 1/45. The conditional Rag and Bone Man II troll bone at 1/4 awaits that quest's wishlist state. Ug separately preflights seven inventory spaces, then atomically grants one uncut diamond, two uncut rubies and four uncut emeralds with 8,000 Agility XP, 4,000 Strength XP and 2 QP.",
+      "test_ids": [
+        "quest-combat-contract:troll-romance-route",
+        "quest-combat-contract:troll-romance-arrg",
+        "quest-combat-contract:troll-romance-loot",
+        "quest-combat-contract:troll-romance-reward",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actor occupies the shared classic Troll arena rather than a cloned modern instance.",
+        "The Wiki publishes neither Arrg's prayer-penetration chance nor the hidden accuracy modifier behind its significantly more accurate +0-bonus ranged attack; the implementation calibrates these to 1/5 penetration and a fourfold ranged roll.",
+        "Rag and Bone Man II's conditional 1/4 troll bone remains deferred until that quest exposes its wishlist state.",
+        "The piste uses cache-era teleports/messages rather than the complete camera and sled-crash choreography.",
+        "A real-client multiplayer, all route/material orders, sled loss/rebuild, safespot, style/prayer/poison/venom, every loot band, timeout/death/logout, seven-slot reward and relog smoke is pending."
+      ]
     },
     {
       "id": "quest-in-search-of-the-myreque",
@@ -2619,15 +3205,81 @@
       "encounter_summary": "Skeleton Hellhound (97)",
       "plan_line": 113,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/In_Search_of_the_Myreque?oldid=15292283",
+          "revision": 15292283,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/In_Search_of_the_Myreque/Quick_guide?oldid=14479041",
+          "revision": 14479041,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:In_Search_of_the_Myreque?oldid=15286926",
+          "revision": 15286926,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Skeleton_Hellhound?oldid=15199509",
+          "revision": 15199509,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cyreg_Paddlehorn?oldid=15013176",
+          "revision": 15013176,
+          "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Swamp_Boaty?oldid=15263062",
+          "revision": 15263062,
+          "retrieved": "2026-08-17"
+        }
+      ],
+      "npc_gamevals": [
+        "multi_vanstrom_stranger_entity/route_vanstrom_klause_sitting/canafis_stranger",
+        "route_cyreg_paddlehorn/route_curpile_fyod",
+        "route_veliaf_hurtz_parent and all five Myreque member wrappers",
+        "skeleton_hellhound owner-private combat actor"
+      ],
+      "item_gamevals": [
+        "steel_longsword/steel_sword x2/steel_mace/steel_warhammer/steel_dagger",
+        "druid_pouch with five charges",
+        "woodplank x6/hammer/nails x225",
+        "coins x10 or worn ring_of_charos_unlocked"
+      ],
+      "loc_gamevals": [
+        "route_rowboat_mortton/route_rowboat_hollows",
+        "spooky_tree_base_forbridge/swamp_bridge1",
+        "freedomfighterentrance and underground-door pairs",
+        "route_cavewalltunnel/thrttavernbasementfalsewall/thrttavernbasementladder/thrt_tavern_trap_door"
+      ],
+      "trigger_handlers": [
+        "opnpc1:Vanstrom start and Cyreg four-answer persuasion/material handoff",
+        "oploc1/2:Charos-aware boat fares, bridge repair and hideout traversal",
+        "opnpc1:three Curpile questions and five-member introduction bitfield",
+        "opnpc1:atomic six-weapon Veliaf handoff and stage-81 survivor transforms",
+        "opnpc2/ai_queue3/timer:owner-private no-drop Skeleton Hellhound and retry lifecycle",
+        "player death/logout/login:outside-room grave, cleanup and Vanstrom/Stranger reconciliation",
+        "oploc1/opnpc1:secret wall, mandatory Canifis trapdoor exit and exact XP completion"
+      ],
+      "loot_contract": "The owner-private level-97 Skeleton Hellhound drops nothing: no bones, rubies or generic hellhound table. A credited owner kill only advances the quest to Veliaf's escape dialogue. The final Stranger interaction separately grants 600 XP each in Attack, Defence, Strength, Hitpoints and Crafting plus 2 QP and route/fairy-ring access.",
+      "test_ids": [
+        "quest-combat-contract:myreque-route",
+        "quest-combat-contract:myreque-hound",
+        "quest-combat-contract:myreque-no-loot",
+        "quest-combat-contract:myreque-death-retry",
+        "mock230-selftest:npc-owner-visibility"
+      ],
+      "known_gaps": [
+        "The owner-private actor occupies the shared classic chamber rather than a cloned modern instance.",
+        "Vanstrom's mist, two Blood Burst kills and disappearance use cache-stage transforms plus messages rather than the complete camera, animation and audio cutscene.",
+        "The rev-239 map places a visually complete rope bridge instead of its three native unplaced rung wrappers; three separate plank-and-75-nail repairs are enforced before crossing, but per-rung visual replacement is unavailable on this map.",
+        "The runtime exposes no script-readable demon attribute; the Hellhound is deliberately not marked undead, but global demonbane classification remains unavailable.",
+        "A real-client multiplayer, every Cyreg/question/material/fare branch, bridge visual, safespot, poison/venom, leave/reentry, death/grave, logout/relog and reward smoke is pending."
+      ]
     },
     {
       "id": "quest-creature-of-fenkenstrain",

@@ -764,7 +764,7 @@ mock230_combat_hit_npc(
     int amount)
 {
     struct Mock230Npc* npc;
-    int training_dummy;
+    int immutable_target;
 
     if( slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
@@ -778,11 +778,24 @@ mock230_combat_hit_npc(
      * ordinary loot/respawn lifecycle.
      * https://oldschool.runescape.wiki/w/Combat_dummy
      * https://oldschool.runescape.wiki/w/Ornate_undead_combat_dummy */
-    training_dummy = mock230_npc_category(npc->type) == 981;
+    /* Category 298 is likewise cache-exclusive: 195 POH combat-stone forms
+     * (three materials x (destroyed + 4x4x4 crack states)). RuneScript owns
+     * their independent stab/slash/crush durability and model changes; this
+     * landing boundary supplies the same essential mechanism as for a dummy:
+     * show the exact splat without consuming the NPC's ordinary HP lifecycle.
+     * https://oldschool.runescape.wiki/w/Combat_stone_(NPC,_marble) */
+    /* Category 610 contains the cache-native Elemental Balance projections.
+     * RuneScript accepts only elemental combat spells and owns both balance
+     * axes; ordinary melee/ranged attacks may show a blocked splat but must
+     * never destroy, retaliate through, or award XP from the puzzle actor.
+     * https://oldschool.runescape.wiki/w/Elemental_balance_space */
+    immutable_target = mock230_npc_category(npc->type) == 981 ||
+                       mock230_npc_category(npc->type) == 298 ||
+                       mock230_npc_category(npc->type) == 610;
 
     if( amount > npc->hitpoints )
         amount = npc->hitpoints;
-    if( !training_dummy )
+    if( !immutable_target )
         npc->hitpoints -= amount;
 
     /* One mask carries the splat and the bar. A zero-damage hit is a *block*
@@ -820,7 +833,7 @@ mock230_combat_hit_npc(
      * the Inferno's Ancestral Glyph, which walks a fixed row while the adds
      * chew on it for the whole Zuk phase — needs the hit, the splat and the
      * flinch below, and none of this. */
-    if( !training_dummy && npc->combat_target < 0 && npc_def(npc)->retaliate )
+    if( !immutable_target && npc->combat_target < 0 && npc_def(npc)->retaliate )
     {
         /*
          * Switching a fight from an npc to a person is not a new fight, and the

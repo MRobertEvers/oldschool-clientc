@@ -63,8 +63,11 @@ by the existence of code. As of the audit date, the repository now has:
   and the cache animations/projectiles/spotanims/sounds named in this plan.
 - [x] Script compilation in an isolated content tree plus deterministic
   `check-godwars-manifest` and `check-godwars-contract` build gates. The latest
-  focused content compile produced 22,290 scripts and the isolated GWD VM lane
-  passed with zero failures. A normal whole-tree `mock230` rebuild is presently
+  focused content compile produced 22,197 scripts and the isolated GWD VM lane
+  passed with zero failures. Unrelated Theatre of Blood and Zulrah scripts were
+  omitted from that isolated compile because concurrent content work left
+  their temporary dependency overlays incomplete. A normal whole-tree
+  `mock230` rebuild is presently
   blocked by unrelated in-flight training-dummy changes in
   `mock230_combat.c`; the focused binary therefore uses that translation unit
   from `HEAD` while compiling all current GWD runtime changes.
@@ -105,6 +108,21 @@ by the existence of code. As of the audit date, the repository now has:
   exact translated tiles, translates every centre/corner/boundary mechanic,
   restores the complete roster for the next kill, and shares the same
   departure/death lifecycle and three-hour floor-object policy.
+- [x] Nex private-room guests can enter the creator's display name through the
+  revision-239 name dialogue. Admission requires reciprocal Friends List
+  entries, both players online on the same world, a live room owned by the
+  named creator, and fewer than 20 current occupants. Only the creator needs
+  Hard Combat Achievements; every guest still consumes 40 Ancient essence or
+  an ecumenical key. Guest exit/death/logout clears only that guest, while
+  creator exit/death/logout ejects all guests and releases the room. The
+  focused VM proves one-way-friend rejection, successful no-CA guest entry,
+  access consumption, guest-safe teardown, creator ejection, and the 19/20
+  capacity boundary. A second simultaneous creator/guest pair proves the two
+  room handles, occupants, admission targets, and teardown paths cannot
+  cross-bind, matching Jagex's
+  [Nex Changes & Tweaks](https://store.steampowered.com/news/posts/?enddate=1641985644&feed=steam_community_announcements)
+  rules and the Wiki's [Nex instance](https://oldschool.runescape.wiki/w/Instance#Nex)
+  description.
 - [x] Instance release purges dynamic floor objects in the world-level teardown
   used by scripted exits and disconnect fallback; an engine self-test proves an
   instanced pile is removed without deleting an ordinary-world pile.
@@ -131,12 +149,28 @@ by the existence of code. As of the audit date, the repository now has:
 - [x] The generated ledger now also emits
   `src/net/mock/mock230_gwd_manifest.gen.h`, making all **126** reviewed classic
   attack paths a runtime oracle instead of a CSV-only review artifact. The
-  focused VM resolves every NPC, sequence, projectile, launch graphic, impact
-  graphic, synth, cadence, and exact player/NPC handler against the revision-239
-  packs. It then executes all **53** ambient player hooks, all **51** aligned
-  NPC-target hooks, all **12** bodyguards, and every original-general branch,
-  observing the exact animation, launch graphic, projectile config, target UID,
-  sound, and landing graphic each row declares.
+  compiled oracle retains style, maximum hit, prayer rule, and secondary effect
+  as well as every NPC, sequence, projectile, launch graphic, impact graphic,
+  synth, cadence, and exact player/NPC handler. The focused VM resolves those
+  fields against the revision-239 packs, then executes all **53** ambient
+  player hooks, all **51** aligned NPC-target hooks, all **12** bodyguards, and
+  every original-general branch, observing the exact animation, launch graphic,
+  projectile config, target UID, sound, and landing graphic each row declares.
+- [x] The classic outcome matrix now anchors all **75** player-facing rows to
+  six reviewed style classes, nine secondary-effect rows, and two
+  prayer-penetration rows. Real-VM fixtures obtain both accurate and missed
+  rolls for Stab, Slash, Crush, Ranged, and Magic; prove zero, unprotected
+  maximum, and protected maximum landings for all three melee substyles and
+  Ranged; and drive fixed Magic through a miss, minimum 10, maximum 20, and the
+  same seeded maximum under Protect from Magic. Gorak's typeless maximum still
+  lands through Protect from Melee and his maximum four-level drain is tested
+  against all 22 eligible non-Hitpoints skills. Kree's wind produces a
+  collision-checked one-tile `p_exactmove` on an open chamber tile and is
+  cancelled at the chamber boundary. Together with the existing all-22
+  Aviansie rejection, four phase-mage immunity, Ancient spell-effect, K'ril
+  poison/prayer-smash, Kree targeting/AOE, and god-spell impact fixtures, this
+  closes every reviewed classic style/effect outcome class without relying on
+  a random damage zero as evidence of a miss.
 - [x] Projectile traces now inspect the same current-tick zone record consumed
   by the wire encoder. Every classic targeted projectile is required to use
   source/destination heights 40/36, launch delay 32, the authored
@@ -225,9 +259,13 @@ by the existence of code. As of the audit date, the repository now has:
   actor-free reservation. A third pass verifies the two-stage death contract
   for every room: the faction-correct external grave coordinate is selected,
   actors are removed while the square remains reserved through the corpse, and
-  post-corpse cleanup finally releases the handle. Multiplayer joining,
-  multi-owner joining and prolonged soak coverage remain in the unchecked
-  matrix.
+  post-corpse cleanup finally releases the handle. One creator/guest join and
+  teardown plus two simultaneous owner/guest groups are deterministic-tested.
+  A further **128-cycle** owner/guest soak reallocates the same Nex source,
+  admits the reciprocal friend through the production name dialogue, and
+  rotates normal owner release, owner logout, and two-stage owner death. Every
+  cycle proves both players lose their room state, the old handle is invalid,
+  and the live reservation count returns to zero before the pool is reused.
 - [x] A disk-backed player save/reload fixture proves all four original KC
   counters, Frozen Door/debrief state, hilt reset day, ecumenical state, Nex
   personal death/best-time records, and death-storage state survive relog. It
@@ -357,15 +395,32 @@ by the existence of code. As of the audit date, the repository now has:
   synth 2692 because both packs use the name. `SOUND_SYNTH` now types its first
   argument as the synth namespace, with a compiler regression fixture using
   the revision-239 collision.
+- [x] The [Zarosian spiritual mage](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros)
+  now retains the accurate pre-prayer damage roll separately from visible
+  damage. Protect from Magic blocks the hitsplat damage but does not suppress
+  Smoke poison, Shadow's 15-level Attack drain, Blood healing for 20% of the
+  pre-prayer roll, or Ice's six-tick freeze. The real-VM matrix proves all four
+  unprotected landings, all four protected accurate landings, exact healing,
+  and a miss control with no secondary effect.
+- [x] Final-phase [Turmoil](https://oldschool.runescape.wiki/w/Nex/Strategies#Zaros_phase)
+  now drains Attack, Strength, Defence, Ranged, and Magic by the inherited
+  two-level activation quantum on a successful damaging auto and restores the
+  same live drains to Nex. It emits the revision-239 defence-leech projectile,
+  impact graphic, and launch/impact sounds. Real-VM controls prove that
+  pre-Zaros damage and zero-damage Zaros hits cannot activate it, while a
+  landed Zaros hit transfers exactly two levels in all five stats. The quantum
+  follows the original [Nex Turmoil mechanic](https://runescape.wiki/w/Nex/Strategies#Zaros_phase);
+  the exact OSRS activation cadence remains an evidence item below.
+- [x] The live Ice Prison interaction now proves the Wiki's special salamander
+  rule: a black salamander always breaks a clickable outer stalagmite without
+  consuming tar, removes the centre's armed marker, and prevents the delayed
+  3x3 hit. A freshly re-armed prison still damages every player left inside.
 
-The remaining acceptance work is runtime-focused: Turmoil's unpublished drain
-amount/transfer timing and Ice Prison's unpublished
-fixed defence roll need primary-source evidence; private-room and
-multi-owner teardown still requires runtime soak validation; the engine does
-not yet expose Friends Chat membership/instance
-ownership needed for friends to join a host's private Nex room; and the
-client/video replay, relog/restart, and multiplayer soak matrix at the end of
-this plan must still be executed. These are intentionally left unchecked below.
+The remaining acceptance work is runtime-focused: Turmoil's unpublished OSRS
+activation cadence and Ice Prison's unpublished fixed defence roll need
+primary-source evidence; client/video replay plus real-client, server-process
+restart, and live multiplayer soak at the end of this plan must still be
+executed. These are intentionally left unchecked below.
 
 ## Audit-start repository baseline and known gaps
 
@@ -587,6 +642,9 @@ miniquest state. Brimstone keys require the correct Konar task. Clues, champion
 scrolls, long/curved bones, and pets are independent tertiary rolls and require
 their own prerequisite/collection behavior; unsupported prerequisites must be
 implemented or explicitly fail the phase gate, never silently omitted.
+The four generals' elite-clue roll is 1/250 normally and
+[1/237 after the elite Combat Achievement rewards tier](https://oldschool.runescape.wiki/w/General_Graardor#Tertiary);
+elite, master, and grandmaster reward status must all select the improved rate.
 
 ### Original bodyguards
 
@@ -603,8 +661,13 @@ per-NPC tertiary difference.
   each 1/16,129; each shard 1/1,524; steel arrows x91–101 7/127; steel darts,
   smoke runes x10–15, manta rays x2, mushroom potatoes x3, noted crushed nests
   x2, noted grimy kwuarm at 8/127; exact 1,000–1,100 coin fallback; hard clue
-  1/128, key piece 1/20, and conditional Brimstone key. Arrow/dart quantity is
-  the feather roll plus 90.
+  1/128, key piece 1/20, and a conditional Brimstone key at 1/92 for
+  [Skree](https://oldschool.runescape.wiki/w/Wingman_Skree#Tertiary), 1/91 for
+  [Geerin](https://oldschool.runescape.wiki/w/Flockleader_Geerin#Tertiary), or
+  1/89 for [Kilisa](https://oldschool.runescape.wiki/w/Flight_Kilisa#Tertiary).
+  Arrow/dart quantity is the feather roll plus 90. These rates use the
+  [Brimstone key combat-level formula](https://oldschool.runescape.wiki/w/Brimstone_key#Drop_rate)
+  and only apply when the matching Aviansie task was assigned by Konar.
 - [x] **Saradomin trio:** bones; Saradomin sword 3/16,129; each shard 1/1,524;
   steel arrows, steel darts, law runes x5–10, monkfish x3, summer pie, noted
   grimy ranarr, and noted unicorn horns x6 at 8/127; noted snape grass x5 at
@@ -858,8 +921,16 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
 
 ## Required test matrix
 
-- [ ] One deterministic success, miss, protected hit, unprotected hit, maximum
+- [x] One deterministic success, miss, protected hit, unprotected hit, maximum
   hit, and effect-immunity case for every attack style/effect.
+  The compiled ledger identifies all six style classes and every secondary
+  effect. The classic shared-primitive matrix covers all five rolled accuracy
+  families plus typeless penetration, protection and maximum boundaries;
+  effect-specific fixtures cover Gorak, Kree, K'ril, god spells, every flying
+  Aviansie, and the original-general selectors/AOEs. The Ancient Prison matrix
+  separately covers unprotected and protected accurate Smoke/Shadow/Blood/Ice
+  landings plus a miss, and the Nex matrix covers phase-mage immunity and every
+  phase effect.
 - [x] One animation/projectile/sound tick trace for every distinct attack and
   every boss special.
 - [x] Solo, two-player, and many-player targeting/AOE tests for every general.
@@ -893,8 +964,30 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
   Nex/Zarosian handlers carry reasoned waivers, and the ordinary
   [Blood Reaver](https://oldschool.runescape.wiki/w/Blood_Reaver#Drops) real
   death hook is VM-tested to emit exactly one malicious ashes.
-- [ ] Every noted/stack/paired quantity is exact at its minimum and maximum;
-  every conditional-drop prerequisite is toggled both ways.
+- [x] Every inclusive variable quantity expression in the four authored GWD
+  drop files is pinned as an exact 98-entry multiset. The VM drives both
+  endpoints of all 62 unique ranges with deterministic Java-RNG seeds; this
+  includes the three ambient offset ranges, all boss/bodyguard/Ancient Prison/
+  Nex quantities, all five classic potion pairs, both Nex pairs, and Armadyl
+  bodyguard arrow/dart `feathers + 90` at 91 and 101.
+- [x] Every authored fixed/noted stack-to-item mapping and every conditional
+  prerequisite used by a GWD table is pinned. The contract fingerprints **335**
+  context/item/quantity rows, including all **35** explicit `cert_*` noted
+  mappings, so changing an item, quantity, noted state, or owning table fails
+  the gate. The real VM tests all five exact clue variants before and all five
+  tier-matched scroll boxes after
+  [X Marks the Spot](https://oldschool.runescape.wiki/w/X_Marks_the_Spot),
+  [Champion's scroll](https://oldschool.runescape.wiki/w/Champion%27s_scroll)
+  eligibility at 31/32 Quest Points plus defeated-champion suppression, and
+  automatic insurance/collection routing for all four classic boss
+  [pets](https://oldschool.runescape.wiki/w/Pet) and Nexling.
+- [x] The implemented GWD-local prerequisite seams are toggled both ways in the
+  real VM: inactive/active/owned/assembled frozen-key states; inactive,
+  collectible, submitted, and already-owned Rag and Bone Man goblin bones;
+  Konar/non-Konar, matching/non-matching, hit/miss Brimstone selection; and
+  base versus elite/master/grandmaster boss-clue rates, pre/post-quest clue-box
+  selection, champion eligibility/duplicate suppression, and every GWD pet's
+  insurance bit.
 - [x] Nex equal/unequal contribution, first-hunt-order MVP tie policy, exact
   25-damage eligibility threshold, simultaneous private unique winners,
   death/disconnect/arena-exit teardown, full-inventory floor loot, every value
@@ -903,6 +996,15 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
   [Ironmen remain eligible at Nex](https://oldschool.runescape.wiki/w/Nex#Drops)
   and Jagex's rule that
   [leaving wipes personal contribution without redistributing it](https://oldschool.runescape.wiki/w/Update:Nex_Rewards#Rewards).
+- [x] Nex private-room admission rejects one-way friendship and admits a named
+  reciprocal online friend on the same world; the guest does not need the
+  creator's Hard Combat Achievement unlock, consumes their own essence, can
+  leave and rejoin without releasing the room, and is ejected when the creator
+  releases it. A second simultaneous creator/guest pair proves room handles,
+  occupants, and teardown cannot cross-bind. The strict 19/20 population
+  boundary is tested independently. A 128-cycle production-dialog soak rotates
+  owner release, logout, and death and returns the reservation count to zero
+  after every cycle.
 - [x] No cross-instance targeting, projectile, floor object, KC, altar cooldown,
   death-bank, scoreboard, or reset leakage. A simultaneous two-instance Nex VM
   fixture places identical actors on identical local tiles, then proves each
@@ -915,9 +1017,17 @@ exceptions beyond the explicitly out-of-scope Wilderness dungeon.
 - Boss strategy/mechanics pages: [Graardor](https://oldschool.runescape.wiki/w/General_Graardor/Strategies), [Kree'arra](https://oldschool.runescape.wiki/w/Kree%27arra/Strategies), [Zilyana](https://oldschool.runescape.wiki/w/Commander_Zilyana/Strategies), and [K'ril](https://oldschool.runescape.wiki/w/K%27ril_Tsutsaroth/Strategies)
 - [The Frozen Door](https://oldschool.runescape.wiki/w/The_Frozen_Door)
 - [Ancient Prison](https://oldschool.runescape.wiki/w/Ancient_Prison)
+- [Zarosian Spiritual mage combat effects and drop table](https://oldschool.runescape.wiki/w/Spiritual_mage#Zaros)
 - [Nex](https://oldschool.runescape.wiki/w/Nex) and [Nex strategies](https://oldschool.runescape.wiki/w/Nex/Strategies)
+- [Original Nex strategies and two-level Turmoil drain](https://runescape.wiki/w/Nex/Strategies#Zaros_phase),
+  used only for the inherited drain quantum where the OSRS page documents the
+  transfer but does not publish its numeric amount.
 - [Instance rules, including Nex's current 100,000-coin room, outside death
   storage, logout eviction, and friend joining](https://oldschool.runescape.wiki/w/Instance)
+- Jagex's [Nex Changes & Tweaks (12 January 2022)](https://store.steampowered.com/news/posts/?enddate=1641985644&feed=steam_community_announcements),
+  the primary-source contract for creator-only Hard Combat Achievements,
+  reciprocal online friendship, per-guest Ancient essence, and the 20-player
+  private-room cap.
 - [God equipment and aggression protection](https://oldschool.runescape.wiki/w/God_Wars_Dungeon#God_equipment)
 - [Fire of Unseasonal Warmth](https://oldschool.runescape.wiki/w/Fire_of_Unseasonal_Warmth)
   and the [old fire-pit recipe](https://oldschool.runescape.wiki/w/Old_fire_pit)

@@ -112,6 +112,14 @@ main(void)
           "the ornate combat-dummy unlock ledger round-trips");
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, 0x20),
           "unknown ornate combat-dummy unlock bits are rejected");
+    check(mock230_poh_set(&poh, MOCK230_POH_FIELD_GAMES_PRIZE_COINS,
+                          MOCK230_POH_GAMES_PRIZE_MAX) &&
+              mock230_poh_get(&poh, MOCK230_POH_FIELD_GAMES_PRIZE_COINS) ==
+                  MOCK230_POH_GAMES_PRIZE_MAX,
+          "the Games-room prize balance round-trips");
+    check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_GAMES_PRIZE_COINS,
+                           MOCK230_POH_GAMES_PRIZE_MAX + 1),
+          "the Games-room prize balance rejects over-cap coins");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);
     parlour = mock230_poh_room_add(&poh, 101, 4, 4, 1, 2, 4);

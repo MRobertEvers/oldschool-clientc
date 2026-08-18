@@ -130,6 +130,40 @@ phase/crab model.
 
 Bloat floor object ids and the "Maiden scuff warning" model.
 
+### `tobmistaketracker/` — [QuestingPet/TobMistakeTracker](https://github.com/QuestingPet/TobMistakeTracker)
+
+A plugin that detects, per tick, which raider made which mistake. Because it has to
+attribute damage to the right player on the right tick, it encodes the raid's
+timing rules more explicitly than anything else in this folder.
+
+- `VerzikMeleeChancedTracker.java` — stores `lastTickTargetArea` / `lastTickVerzikArea`
+  every tick and judges the tank from **last tick's** positions when the attack
+  animation fires. Its predicate is the actual melee-chance condition:
+  `!verzikArea.intersectsWith(tankArea) && verzikArea.distanceTo(tankArea) == 1`
+  — adjacent draws a melee, *underneath* does not.
+- `MaidenMistakeDetector.java` — `MAIDEN_BLOOD_GAME_TICK_LENGTH = 11`
+  (*"each blood tile from maiden lasts exactly 11 ticks"*), and the splat's
+  activation tick computed from the projectile's remaining cycles ÷ 30.
+- `BloatMistakeDetector.java` — hand tiles keyed on graphic **1576** and cleared
+  every tick: a hand is lethal for exactly one tick.
+- `VerzikP2MistakeDetector.java` — urnbomb tiles keyed on graphic **1584**, also
+  cleared every tick; Hard Mode acid pool is game object **41747**; the player
+  knockback animation is **1157**.
+- Every detector tests `raider.getPreviousWorldLocation()`, never the current tile.
+
+### `community_tools/` — practice simulators
+
+`devqhp_sotetseg.js` — the full source of the
+[Sotetseg maze trainer](https://devqhp.github.io/osrs/sotetseg/). Contains the maze
+generator (`maze_width 14`, `maze_height 15`, `path_turns 8`, `max_x_change 5`,
+`tornado_row 4`) and credits the high-level players who supplied the maze corpus it
+was derived from. See [`../COMMUNITY_SOURCES.md`](../COMMUNITY_SOURCES.md) §3.1.
+
+The [Xarpus melee trainer](https://spacescape20xx.itch.io/xarpus-melee-trainer) by
+SpaceScape has no downloadable source, but its instructions are quoted in
+[`../ENCOUNTER_TIMING.md`](../ENCOUNTER_TIMING.md) §6.1 — it is the source that
+names the scan tick in plain words.
+
 ### `vtob/` — [Vainiven/V-TOB](https://github.com/Vainiven/V-TOB)
 
 A ToB bot script. Its value here is purely geometric: `PestilentBloat.java` names
@@ -138,18 +172,41 @@ tile as world coordinates.
 
 ## 4. Video guides (machine transcripts)
 
-`transcripts/` holds four YouTube guides downloaded with
-`yt-dlp --write-auto-subs`, deduped and chaptered by
-`vtt_to_md.py`. These are the least reliable sources in the folder — auto-captions
-mangle numbers ("sod egg" is Sotetseg, "zarus" is Xarpus) — and are cited only where
-they corroborate something already established.
+`transcripts/` holds **19** YouTube guides downloaded with
+`yt-dlp --write-auto-subs`, deduped and chaptered by `vtt_to_md.py`. These are the
+least reliable sources in the folder — auto-captions mangle numbers ("sod egg" is
+Sotetseg, "zarus"/"sarpus" is Xarpus, "versic" is Verzik) — and are cited only where
+they corroborate something already established, **except** where a guide states a
+movement instruction in ticks, which no plugin can express.
+
+**Whole-raid**
 
 | File | Video | Length |
 |---|---|---|
-| `yt_yNZZQNAdQAM.md` | S2L OSRS, *Max-Efficiency Theatre of Blood 4s Guide OSRS 2025 updated* — <https://www.youtube.com/watch?v=yNZZQNAdQAM> | 57:34 |
-| `yt_KF9y2GYTJ-A.md` | Patyfatycake, *The Ultimate Beginners Guide To The Theatre Of Blood [OSRS]* — <https://www.youtube.com/watch?v=KF9y2GYTJ-A> | 31:09 |
-| `yt_VU4WQ1ghn4E.md` | Chriskies, *OSRS - Solo ToB guide (Theatre of Blood)* — <https://www.youtube.com/watch?v=VU4WQ1ghn4E> | 27:09 |
-| `yt_G9jx6OUnaws.md` | Beleti, *Hard Mode Theatre of Blood (Mage POV)* — <https://www.youtube.com/watch?v=G9jx6OUnaws> | 26:23 |
+| `yt_yNZZQNAdQAM.md` | S2L OSRS, *Max-Efficiency Theatre of Blood 4s Guide 2025* — <https://www.youtube.com/watch?v=yNZZQNAdQAM> | 57:34 |
+| `yt_KF9y2GYTJ-A.md` | Patyfatycake, *The Ultimate Beginners Guide To The Theatre Of Blood* — <https://www.youtube.com/watch?v=KF9y2GYTJ-A> | 31:09 |
+| `yt_VU4WQ1ghn4E.md` | Chriskies, *Solo ToB guide* — <https://www.youtube.com/watch?v=VU4WQ1ghn4E> | 27:09 |
+| `yt_G9jx6OUnaws.md` | Beleti, *Hard Mode ToB (Mage POV)* — <https://www.youtube.com/watch?v=G9jx6OUnaws> | 26:23 |
+
+**Per boss** — one dedicated guide per room, minimum
+
+| Room | File | Video |
+|---|---|---|
+| Maiden | `yt_VEqiIF9EbcM.md` | Indarkment, *Grandmaster Explains Maiden in 3 Levels of Difficulty* |
+| Maiden | `yt_1ldGvUsOx2M.md` | Indarkment, *Maiden Freezing 101* |
+| Bloat | `yt_oKXoj9Yxy7Q.md` | BillNylo, *Bloat Flinching and Tick Fixing Guide* — the rise window |
+| Bloat | `yt_3yAP8lsyBcE.md` | Horselord, *Duo Bloat Guide* (22:29) |
+| Nylocas | `yt__QXdNAZh7Yo.md` | Deflne Alive, *Optimal Nylocas Strategy: How to Achieve Sub 4* |
+| Nylocas | `yt_yAi5A52J32E.md` | The Academy, *Nylocas Vasilias — Team Guide* |
+| Sotetseg | `yt_JdtL9UI5uy0.md` | cBold, *Sotetseg Maze Guide — Diagonals and L-Shapes* |
+| Xarpus | `yt_fPpIRjQWtlE.md` | Crusher, *5 Tick Xarpus Guide — Master the Scythe Walk* (16:02) |
+| Xarpus | `yt_Lt-iZwJUKmc.md` | Plank2g, *ToB Made Easy: Melee Xarpus* |
+| Xarpus | `yt_uQzR4iIuv6s.md` | Lone Gym Rat, *Melee Xarpus 5 Tick Scythe Example* |
+| Verzik P2 | `yt_KiaFwopnnEI.md` | Rob, *Learning ToB: All you need to know about Verzik P2* |
+| Verzik P2 | `yt_eswoo8D364c.md` | Plank2g, *Verzik P2 Explained for Whip and Scythe Walk* |
+| Verzik P3 | `yt_D1b4eWwnOHU.md` | S2L OSRS, *Complete Verzik P3 Guide* (15:21) |
+| Verzik P3 | `yt_oGPT3sZMnd8.md` | 07samsquanches, *P3 Verzik Guide — Learner, Tanking, Pogtank* (18:37) |
+| Verzik P3 | `yt_3lQjrLeuvHo.md` | Granddad Jad, *Phase 3 Verzik Tanking Guide (1:1 and 2:1:1)* |
 
 ## 5. Sources deliberately not used
 

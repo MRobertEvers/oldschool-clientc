@@ -29,6 +29,7 @@
 
 #include "mock230_container.h"
 #include "mock230_content.h"
+#include "mock230_friends.h"
 #include "mock230_ids.h"
 #include "mock230_scene.h"
 #include "mock230_session.h"
@@ -37,6 +38,7 @@
 #include "ss_opcode.h"
 #include "ssvm.h"
 #include "ssvm_provider.h"
+#include "net/jbase37.h"
 
 /* Derived from the `case SS_OP_*:` labels in this file and in the VM core.
  * See gen_opcode_coverage.py for why it is generated. */
@@ -909,6 +911,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
     case SSVM_SUSPENDED:
     case SSVM_PAUSEBUTTON:
     case SSVM_COUNTDIALOG:
+    case SSVM_NAMEDIALOG:
         /* One parked script per player. A second would need somewhere to live
          * and, more importantly, would let two scripts interleave writes to the
          * same player — the reference has the same single slot. */
@@ -1367,7 +1370,9 @@ mock230_scripts_close_dialogue(struct Mock230Server* srv)
     state = player->active_script;
     if( !state )
         return 0;
-    if( state->execution != SSVM_PAUSEBUTTON && state->execution != SSVM_COUNTDIALOG )
+    if( state->execution != SSVM_PAUSEBUTTON &&
+        state->execution != SSVM_COUNTDIALOG &&
+        state->execution != SSVM_NAMEDIALOG )
         return 0;
 
     /* The conversation ends here rather than resuming: the script's next
@@ -3864,6 +3869,26 @@ player_by_uid(struct Mock230Server* srv, int32_t uid)
     return &srv->players[pid];
 }
 
+/** The online player on this world whose canonical base-37 name matches. */
+static struct Mock230Player*
+player_by_display_name(
+    struct Mock230Server* srv,
+    const char* display_name)
+{
+    int64_t wanted = (int64_t)strtobase37(display_name ? display_name : "");
+
+    if( wanted == 0 )
+        return NULL;
+    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    {
+        struct Mock230Player* candidate = &srv->players[i];
+
+        if( candidate->active && candidate->name37 == wanted )
+            return candidate;
+    }
+    return NULL;
+}
+
 /*
  * Whether `::god` should refuse this stat write.
  *
@@ -5591,6 +5616,65 @@ mock230_script_command(
         if( opcode == SS_OP_P_FINDUID )
             SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
         SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_P_FINDMUTUALFRIEND:
+    {
+        const char* display_name = NULL;
+        struct Mock230Player* requester = player;
+        struct Mock230Player* found;
+
+        if( !SSVM_PopStr(state, &display_name) )
+            return 1;
+        found = player_by_display_name(srv, display_name);
+        if( !requester || !found || requester == found ||
+            !mock230_friends_is_friend(requester->name37, found->name37) ||
+            !mock230_friends_is_friend(found->name37, requester->name37) )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_P_FINDVISIBLEPLAYER:
+    {
+        const char* display_name = NULL;
+        struct Mock230Player* requester = player;
+        struct Mock230Player* found;
+
+        if( !SSVM_PopStr(state, &display_name) )
+            return 1;
+        found = player_by_display_name(srv, display_name);
+        if( !requester || !found || requester == found ||
+            !mock230_friends_visible_to(requester->name37, found->name37) )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
+    case SS_OP_P_ISFRIEND:
+    {
+        int32_t other_uid;
+        struct Mock230Player* other;
+
+        if( !SSVM_PopInt(state, &other_uid) )
+            return 1;
+        other = player_by_uid(srv, other_uid);
+        SSVM_PushInt(state,
+                     player && other &&
+                         mock230_friends_is_friend(player->name37, other->name37));
         return 1;
     }
 
@@ -8728,6 +8812,38 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_MAP_INSTANCE_FIND_OWNER:
+    {
+        int32_t owner_uid;
+        int32_t required_flags;
+
+        if( !SSVM_PopInt(state, &required_flags) ||
+            !SSVM_PopInt(state, &owner_uid) )
+            return 1;
+        SSVM_PushInt(
+            state, mock230_mapinstance_find_owner(owner_uid, required_flags));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_PLAYERCOUNT:
+    {
+        int32_t handle;
+        int count = 0;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        for( int i = 0; i < srv->player_count; i++ )
+        {
+            const struct Mock230Player* occupant = &srv->players[i];
+
+            if( occupant->active &&
+                mock230_mapinstance_find(occupant->x, occupant->z) == handle )
+                count++;
+        }
+        SSVM_PushInt(state, count);
+        return 1;
+    }
+
     case SS_OP_MAP_INSTANCE_FLAG_GET:
     {
         int32_t handle;
@@ -8749,6 +8865,30 @@ mock230_script_command(
             !SSVM_PopInt(state, &handle) )
             return 1;
         SSVM_PushInt(state, mock230_mapinstance_flag_set(handle, mask, enabled));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_VAR_GET:
+    {
+        int32_t handle;
+        int32_t slot;
+
+        if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_var_get(handle, slot));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_VAR_SET:
+    {
+        int32_t handle;
+        int32_t slot;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &slot) ||
+            !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_var_set(handle, slot, value));
         return 1;
     }
 
@@ -10086,6 +10226,28 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_INV_TRANSMIT_FROM:
+    {
+        int32_t owner_uid;
+        int32_t inv_id;
+        int32_t component;
+        struct Mock230Player* owner;
+
+        if( !SSVM_PopInt(state, &component) || !SSVM_PopInt(state, &inv_id) ||
+            !SSVM_PopInt(state, &owner_uid) )
+            return 1;
+        owner = player_by_uid(srv, owner_uid);
+        if( !owner )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state,
+                     mock230_container_bind_from(srv, owner, srv->active_player, inv_id,
+                                                 component));
+        return 1;
+    }
+
     case SS_OP_INV_STOPTRANSMIT:
     {
         int32_t component;
@@ -10332,6 +10494,24 @@ mock230_script_command(
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
+    /* Revision 239's generic name-entry meslayer. The client returns the
+     * value through RESUME_P_NAMEDIALOG; LAST_STRING reads the copied result
+     * after this instruction resumes. */
+    case SS_OP_P_NAMEDIALOG:
+    {
+        const char* prompt = NULL;
+        const char* strings[1];
+
+        if( !SSVM_PopStr(state, &prompt) )
+            return 1;
+        strings[0] = prompt ? prompt : "Enter a player name:";
+        state->last_string = "";
+        mock230_send_run_clientscript_mixed(
+            player, 109, "s", NULL, strings, 1);
+        SSVM_Suspend(state, SSVM_NAMEDIALOG);
+        return 1;
+    }
+
     /*
      * `last_int` is a property of the SCRIPT STATE, not of the player — the
      * reference pushes `state.lastInt` (PlayerOps.ts) and the npc queue seeds it
@@ -10347,6 +10527,9 @@ mock230_script_command(
      */
     case SS_OP_LAST_INT:
         SSVM_PushInt(state, state->last_int);
+        return 1;
+    case SS_OP_LAST_STRING:
+        SSVM_PushStr(state, state->last_string ? state->last_string : "");
         return 1;
     case SS_OP_LAST_SLOT:
         SSVM_PushInt(state, player->last_slot);
@@ -10600,6 +10783,30 @@ mock230_scripts_resume_countdialog(
         return 0;
     srv->active_player->last_int = value;
     state->last_int = value;
+    rebind_active_npc(srv, state);
+    return run_or_park(srv, state);
+}
+
+/** Release a p_namedialog wait with a bounded copy of the client's reply. */
+int
+mock230_scripts_resume_namedialog(
+    struct Mock230Server* srv,
+    const uint8_t* text,
+    int len)
+{
+    struct SSVM_State* state = srv->active_player->active_script;
+    char* copy;
+
+    if( !srv->scripts_ok || !state || state->execution != SSVM_NAMEDIALOG ||
+        !text || len < 0 )
+        return 0;
+    copy = SSVM_StrPoolDupLen(&state->pool, (const char*)text, (size_t)len);
+    if( !copy )
+    {
+        SSVM_Abort(state, "namedialog reply exhausted the string pool");
+        return run_or_park(srv, state);
+    }
+    state->last_string = copy;
     rebind_active_npc(srv, state);
     return run_or_park(srv, state);
 }

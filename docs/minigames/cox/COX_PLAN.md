@@ -9,10 +9,18 @@ This document is the room-by-room specification, the reference index, and the
 build order. It is meant to be read alongside two sources, both linked from
 every item:
 
+> 📐 **The tick-by-tick behavioural spec now lives in
+> [`COX_MECHANICS.md`](COX_MECHANICS.md)** — Olm's 12-step rotation and 4-tick
+> action clock, the head-turn skip/catch-up rule, per-room attack cadences,
+> the verified room library, exact thieving-chest tables, the scaling formulas,
+> and a list of every source conflict left unresolved. Read it before
+> implementing any encounter. This file remains the build order.
+
 | Tag | Source |
 | --- | --- |
 | **W** | [OSRS Wiki](https://oldschool.runescape.wiki/w/Chambers_of_Xeric) — the authority on numbers |
 | **T** | [`synq_transcript.md`](synq_transcript.md) — Synq, *Remastered Solo Raids Guide 2026*, 3:54:55, 99 chapters — the authority on **behaviour a player actually observes** (tick counts, pathing, head turns, room solve orders) |
+| **P** | [`sources/`](sources/) — RuneLite/OpenOSRS plugin code (exact tick constants), plus two more guide transcripts |
 
 Every **T** link is a deep-link into the video; the same chapter title is a `##`
 heading in [`synq_transcript.md`](synq_transcript.md), so
@@ -1102,7 +1110,34 @@ Partly verified at runtime:
   penalty branches — and a `SELFTEST_CHECK` pair in `mock230_world.c` beside
   `::hamstoreroomtest`.
 
-### 🚧 Open blocker: `::coxrun` does not execute
+### ✅ Blocker resolved — and the cause was my own tooling
+
+`::coxrun` now runs and its result is read back correctly. **Verified in both
+directions**: mutating `^cox_points_per_damage` 5→7 or
+`^cox_death_personal_loss_pct` 40→30 turns the selftest red (`got 1`), and
+restoring turns it green. The fixture can fail, so its passing means something.
+
+Two self-inflicted faults, both worth remembering:
+
+1. **A build helper that suppressed compiler output.** When a compile failed,
+   the *previous* `script.dat` stayed in place and the selftest happily reported
+   a pass — so a deliberately broken constant looked correct. Every "the test
+   cannot fail" result came from this. Never redirect the compiler to
+   `/dev/null`.
+2. **A tautological assertion.** The points check compared against
+   `multiply(10, ^cox_points_per_damage)` — the same constant the implementation
+   reads — so mutating it moved both sides together. It is now a literal `50`.
+
+There was never a bug in the debugproc dispatcher; I spent a long time chasing
+one. Both lessons are now enforced by
+[`tools/cox_verify.sh`](../../../tools/cox_verify.sh), which fails loudly at
+every step, refuses to report a selftest result when the compile did not
+produce a new pack, and **falls back to the isolated tree** when another
+session's in-flight edit breaks the shared one (which happened repeatedly:
+`quest_troll`, `combat.rs2`, `flamtaer_temple`, `viking_peer`,
+`viking_thorvald`).
+
+### Historic: the symptom as it looked before the cause was found
 
 `mock230_scripts_run_debugproc(srv, "coxrun")` returns `MOCK230_TRIGGER_RAN`,
 but the fixture's very first statement never takes effect: with
@@ -1180,24 +1215,58 @@ Goal: all 17 rooms, linear, fixed. No layout generation, no Olm.
 
 **Done when:** a player can clear every room in sequence and reach the Olm door.
 
-### Phase 3 — the Great Olm
+### Phase 3 — the Great Olm — **started; rotation and clock implemented**
 
-Its own milestone. Build in this order, testing each before the next:
+[`cox_olm.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox_olm.rs2)
+now implements the parts the research pinned down exactly
+([`COX_MECHANICS.md` §2](COX_MECHANICS.md)):
 
-1. Head turn (§3.2) — nothing else is testable until this is right
-2. Hands: spawn, HP, clenching, per-hand damage gating
-3. Basic attack cycle + the 1/5 style switch
-4. Phase transitions and the phase count formula
-5. Phase-specific specials, one at a time
-6. Final phase: life siphon, 1/2 special rate
-7. Autoheal (both variants)
+- ✅ **4-tick action clock**, driven from a single writer (`[ai_timer,olm_head]`)
+  so the hands cannot race the rotation
+- ✅ **The 12-step rotation** — steps 4/8/12 special, 2/6/10 empty, rest standard.
+  The empty step is a real step and is commented as such: deleting it would
+  shorten the cycle from 12 to 9
+- ✅ **Catch-up**, paid off on the next step *in addition to* that step's action,
+  and explicitly non-accumulating
+- ✅ Special order from the plugin enum, with the phase-dependent wrap (heal only
+  reachable in the final phase)
+- ✅ 1/5 style switch; 1/3 special chance rising to 1/2 in the final phase
+- ✅ Phase transitions gated on **both** hands being down
+- ✅ Spawning forms → live forms via the cache's own transform pair
+
+Remaining, in order:
+
+1. ❌ **`~cox_olm_zone_occupied` is a stub that always returns true**, which
+   disables the skip and therefore the entire 3:1 / 4:1 family. It needs the
+   chamber's zone geometry — which third of the room the head faces. It is
+   isolated in its own proc precisely so the rotation above is already correct
+   and only this has to change. **This is the next Olm task.**
+2. ❌ Chamber tile positions are **placeholders** — the Olm room's interior has
+   not been surveyed (R2 measured the room grid, not the chamber)
+3. ❌ The four specials are named, correctly slotted stubs
+4. ❌ Per-hand damage gating, clenching, autoheal (both variants)
 
 **Done when:** all four setup methods from §3.3 are reproducible, and a sample
 of the §3.6 movement patterns work.
 
 ### Phase 4 — normal mode layout generation
 
-- Seeded room graph (the `gauntlet_layout.rs2` pattern)
+**The room library is now known** — see
+[`COX_MECHANICS.md` §1b](COX_MECHANICS.md). Every room exists in exactly three
+**authored door variants (CCW / THRU / CW)**, and the room↔plane taxonomy from
+the de0 plugin matches my template survey on every room checked. Two
+consequences:
+
+- The generator **picks a variant**, it does not rotate geometry — so
+  `^map_instance_turn_none` in `cox.rs2` is right, and the Gauntlet's rotation
+  logic should *not* be copied wholesale.
+- Room type is `(plane, index)`; the plane assignments are confirmed
+  (Tekton/mystics/muttadiles/tightrope on plane 1; guardians/vespula/crabs on
+  plane 2; the rest on plane 0).
+
+Remaining:
+
+- Seeded room graph (the `gauntlet_layout.rs2` pattern, minus rotation)
 - Floor composition rules (7–8 rooms normal, 8 large) 📖
 - Scouting: the boss books (locs 12310, 13482–13485) that tell a scout what's inside
 

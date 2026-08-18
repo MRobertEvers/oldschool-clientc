@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11067] = {
+static const char* const g_ss_opcode_names[11077] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -478,6 +478,16 @@ static const char* const g_ss_opcode_names[11067] = {
     [11064] = "MAP_INSTANCE_FLAG_GET",
     [11065] = "MAP_INSTANCE_FLAG_SET",
     [11066] = "LAST_STEP_COORD",
+    [11067] = "MAP_INSTANCE_VAR_GET",
+    [11068] = "MAP_INSTANCE_VAR_SET",
+    [11069] = "P_NAMEDIALOG",
+    [11070] = "LAST_STRING",
+    [11071] = "P_FINDMUTUALFRIEND",
+    [11072] = "INV_TRANSMIT_FROM",
+    [11073] = "P_FINDVISIBLEPLAYER",
+    [11074] = "P_ISFRIEND",
+    [11075] = "MAP_INSTANCE_FIND_OWNER",
+    [11076] = "MAP_INSTANCE_PLAYERCOUNT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -487,7 +497,7 @@ static const char* const g_ss_opcode_names[11067] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11067] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11077] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -959,6 +969,16 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11067] = {
     [11064] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FLAG_GET */
     [11065] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FLAG_SET */
     [11066] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* LAST_STEP_COORD */
+    [11067] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_VAR_GET */
+    [11068] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_VAR_SET */
+    [11069] = { 0, 1, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_NAMEDIALOG */
+    [11070] = { 0, 0, 0, 1, 1, 0, 0, 0, 0x000, 0x000 }, /* LAST_STRING */
+    [11071] = { 0, 1, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_FINDMUTUALFRIEND */
+    [11072] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* INV_TRANSMIT_FROM */
+    [11073] = { 0, 1, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_FINDVISIBLEPLAYER */
+    [11074] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_ISFRIEND */
+    [11075] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FIND_OWNER */
+    [11076] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_PLAYERCOUNT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

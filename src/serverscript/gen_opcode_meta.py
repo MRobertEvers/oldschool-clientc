@@ -597,6 +597,71 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # underfoot loc can knock a player back to the side from which they entered.
     "LAST_STEP_COORD": (11066, 0, 0, 1, 0),
 
+    # map_instance_var_get(int $handle, int $slot)(int)
+    # map_instance_var_set(int $handle, int $slot, int $value)(boolean)
+    #
+    # A bounded register file with the same lifetime as the flag bitset above.
+    # Content owns the schema; the engine supplies only shared integer storage
+    # for dynamic-map phases, player uids, scores, clocks and prize balances.
+    "MAP_INSTANCE_VAR_GET": (11067, 2, 0, 1, 0),
+    "MAP_INSTANCE_VAR_SET": (11068, 3, 0, 1, 0),
+
+    # p_namedialog(string $prompt); last_string()(string)
+    #
+    # Revision 239 removed the old server packet but retained the generic
+    # meslayer clientscript and RESUME_P_NAMEDIALOG reply. Keep the reference's
+    # wait/read split (the same shape as P_COUNTDIALOG/LAST_INT) while letting
+    # current content state its own prompt.
+    "P_NAMEDIALOG": (11069, 0, 1, 0, 0),
+    "LAST_STRING": (11070, 0, 0, 0, 1),
+
+    # p_findmutualfriend(string $display_name)(boolean)
+    #
+    # Resolve an online player on this world only when both accounts list one
+    # another as friends, then grant protected access to that player. This is
+    # generic group-instance mechanism; Nex and POH content keep ownership,
+    # admission, fee and capacity policy in RuneScript.
+    "P_FINDMUTUALFRIEND": (11071, 0, 1, 1, 0),
+
+    # inv_transmit_from(player_uid $owner, inv $inventory, component $component)(boolean)
+    #
+    # Paint a live owner's private inventory on the active viewer's component.
+    # Mutation remains ordinary owner-context RuneScript; this is the generic
+    # read-only mechanism needed by guest-visible POH collections.
+    "INV_TRANSMIT_FROM": (11072, 3, 0, 1, 0),
+
+    # p_findvisibleplayer(string $display_name)(boolean)
+    #
+    # Resolve an online player whom the active player's social relationship is
+    # allowed to see, then grant protected access to that player.  Unlike the
+    # mutual-friend command this preserves the three-way private-chat policy
+    # (off/friends/on), including the target's ignore list.  House portals use
+    # it because the cache's own contract is "private chat set so that you can
+    # message them", not "both players must have added each other".
+    "P_FINDVISIBLEPLAYER": (11073, 0, 1, 1, 0),
+
+    # p_isfriend(player_uid $other)(boolean)
+    #
+    # One-way friend-list membership for the active player.  Current POHs may
+    # be entered while their online owner is elsewhere only by a player the
+    # owner has added; mutual friendship is a stricter and different rule.
+    "P_ISFRIEND": (11074, 1, 0, 1, 0),
+
+    # map_instance_find_owner(player_uid $owner, int $required_flags)(int)
+    #
+    # Find a live reservation owned by a player and carrying every requested
+    # content-owned flag.  A zero mask matches any owned instance.  This lets
+    # content resume a shared house after its owner walked out without treating
+    # the owner's generic %map_instance_handle as a global registry.
+    "MAP_INSTANCE_FIND_OWNER": (11075, 2, 0, 1, 0),
+
+    # map_instance_playercount(int $handle)(int)
+    #
+    # Count live players whose coordinates are inside the reservation.  The
+    # engine supplies geometry only; content decides whether zero means free,
+    # a delayed shutdown, or a session that remains joinable.
+    "MAP_INSTANCE_PLAYERCOUNT": (11076, 1, 0, 1, 0),
+
     # loc_add_op(coord, loc, int angle, locshape shape, int duration,
     #            int opslot, string optext)
     #
@@ -956,6 +1021,16 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "MAP_INSTANCE_FLAG_GET": (0, 0),
     "MAP_INSTANCE_FLAG_SET": (0, 0),
     "LAST_STEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_VAR_GET": (0, 0),
+    "MAP_INSTANCE_VAR_SET": (0, 0),
+    "P_NAMEDIALOG": (1 << POINTER_BITS["p_active_player"], 0),
+    "LAST_STRING": (0, 0),
+    "P_FINDMUTUALFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
+    "INV_TRANSMIT_FROM": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_FINDVISIBLEPLAYER": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_ISFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_FIND_OWNER": (0, 0),
+    "MAP_INSTANCE_PLAYERCOUNT": (0, 0),
     # None, and that matches LOC_ADD (3000), whose require mask is 0x000: the
     # command names its own coord and needs no active anything. Listed rather
     # than omitted so the assert in the writer stays a whitelist.

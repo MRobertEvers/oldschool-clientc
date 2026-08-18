@@ -166,6 +166,72 @@ TROLL_DENULTH = CONTENT / "quests/quest_death/scripts/death_denulth.rs2"
 TROLL_DUNSTAN = CONTENT / "quests/quest_death/scripts/death_dunstan.rs2"
 TROLL_DAD_SPAWN = CONTENT / "areas/world/configs/m45_56.spawn"
 TROLL_PRISON_SPAWN = CONTENT / "areas/world/configs/m44_157.spawn"
+MORTTON_CORE = CONTENT / "quests/quest_mortton/scripts/quest_mortton.rs2"
+MORTTON_RAZMIRE = CONTENT / "quests/quest_mortton/scripts/razmire_keelgan.rs2"
+MORTTON_ULSQUIRE = CONTENT / "quests/quest_mortton/scripts/ulsquire_shauncy.rs2"
+MORTTON_AFFLICTED = CONTENT / "quests/quest_mortton/scripts/afflicted.rs2"
+MORTTON_SHADES = CONTENT / "minigames/game_mortton/scripts/mortton_shades.rs2"
+MORTTON_TEMPLE = CONTENT / "minigames/game_mortton/scripts/flamtaer_temple.rs2"
+MORTTON_PYRE = CONTENT / "minigames/game_mortton/scripts/mortton_pyre.rs2"
+MORTTON_CATACOMBS = CONTENT / "minigames/game_mortton/scripts/mortton_catacombs.rs2"
+MORTTON_COFFIN = CONTENT / "minigames/game_mortton/scripts/mortton_coffin.rs2"
+MORTTON_PYRE_CONFIG = CONTENT / "minigames/game_mortton/configs/flamtaer_pyre.struct"
+MORTTON_SHADE_CONFIG = CONTENT / "minigames/game_mortton/configs/mortton_shades.struct"
+MORTTON_COFFIN_CONFIG = CONTENT / "minigames/game_mortton/configs/mortton_coffin.inv"
+VIKING_NPC = CONTENT / "quests/quest_viking/configs/quest_viking.npc"
+VIKING_CONSTANT = CONTENT / "quests/quest_viking/configs/quest_viking.constant"
+VIKING_VARP = CONTENT / "quests/quest_viking/configs/quest_viking.varp"
+VIKING_SIGLI = CONTENT / "quests/quest_viking/scripts/viking_sigli.rs2"
+VIKING_THORVALD = CONTENT / "quests/quest_viking/scripts/viking_thorvald.rs2"
+VIKING_PEER = CONTENT / "quests/quest_viking/scripts/viking_peer.rs2"
+VIKING_CITIZENS = CONTENT / "quests/quest_viking/scripts/viking_citizen_drops.rs2"
+VIKING_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
+HORROR_INTERACTIONS = CONTENT / "quests/quest_horror/scripts/horror_interactions.rs2"
+HORROR_ENCOUNTER = CONTENT / "quests/quest_horror/scripts/horror_encounter.rs2"
+HORROR_JOSSIK = CONTENT / "quests/quest_horror/scripts/horror_jossik.rs2"
+HORROR_NPC = CONTENT / "quests/quest_horror/configs/quest_horror.npc"
+HORROR_VARP = CONTENT / "quests/quest_horror/configs/quest_horror.varp"
+HORROR_CONSTANT = CONTENT / "quests/quest_horror/configs/quest_horror.constant"
+HORROR_GUNNJORN = CONTENT / "areas/area_barbarian_outpost/scripts/gunnjorn.rs2"
+HORROR_MAGIC = CONTENT / "skill_combat/scripts/player/player_magic.rs2"
+HORROR_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
+HORROR_HIT_FUNNEL = CONTENT / "areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2"
+MM1_DEMON = CONTENT / "quests/quest_mm/scripts/mm_demon.rs2"
+MM1_NPC = CONTENT / "quests/quest_mm/configs/quest_mm.npc"
+MM1_VARP = CONTENT / "quests/quest_mm/configs/quest_mm.varp"
+MM1_GARKOR = CONTENT / "quests/quest_mm/scripts/mm_garkor.rs2"
+MM1_ZOOKNOCK = CONTENT / "quests/quest_mm/scripts/mm_zooknock.rs2"
+MM1_NARNODE = CONTENT / "quests/quest_mm/scripts/mm_narnode.rs2"
+MM1_DAERO = CONTENT / "quests/quest_mm/scripts/mm_daero.rs2"
+MM1_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
+HMQ_DAYTH = CONTENT / "quests/quest_hauntedmine/scripts/hauntedmine_dayth.rs2"
+HMQ_DUNGEON = CONTENT / "quests/quest_hauntedmine/scripts/hauntedmine_dungeon.rs2"
+HMQ_ZEALOT = CONTENT / "quests/quest_hauntedmine/scripts/hauntedmine_zealot.rs2"
+HMQ_NPC = CONTENT / "quests/quest_hauntedmine/configs/quest_hauntedmine.npc"
+HMQ_VARP = CONTENT / "quests/quest_hauntedmine/configs/quest_hauntedmine.varp"
+HMQ_CONSTANT = CONTENT / "quests/quest_hauntedmine/configs/quest_hauntedmine.constant"
+HMQ_STRINGING = CONTENT / "skill_crafting/scripts/jewellery/stringing.rs2"
+HMQ_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
+TROLLLOVE_ARRG = CONTENT / "quests/quest_troll_love/scripts/trollromance_arrg.rs2"
+TROLLLOVE_SLED = CONTENT / "quests/quest_troll_love/scripts/trollromance_sled.rs2"
+TROLLLOVE_UG = CONTENT / "quests/quest_troll_love/scripts/trollromance_ug.rs2"
+TROLLLOVE_NPC = CONTENT / "quests/quest_troll_love/configs/quest_troll_love.npc"
+TROLLLOVE_VARP = CONTENT / "quests/quest_troll_love/configs/quest_troll_love.varp"
+TROLLLOVE_CONSTANT = CONTENT / "quests/quest_troll_love/configs/quest_troll_love.constant"
+TROLLLOVE_DUNSTAN = CONTENT / "quests/quest_death/scripts/death_dunstan.rs2"
+TROLLLOVE_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
+ROUTEQUEST_ROUTE = CONTENT / "quests/quest_routequest/scripts/routequest_start_and_route.rs2"
+ROUTEQUEST_HIDEOUT = CONTENT / "quests/quest_routequest/scripts/routequest_hideout.rs2"
+ROUTEQUEST_NPC = CONTENT / "quests/quest_routequest/configs/quest_routequest.npc"
+ROUTEQUEST_VARP = CONTENT / "quests/quest_routequest/configs/quest_routequest.varp"
+ROUTEQUEST_CONSTANT = CONTENT / "quests/quest_routequest/configs/quest_routequest.constant"
+ROUTEQUEST_MYREQUE2 = CONTENT / "quests/quest_inaidofthemyreque/scripts/myreque2_hideout.rs2"
+COMBAT_STATS = CONTENT / "skill_combat/combat_stats.rs2"
+PLAYER_DEATH = CONTENT / "player/death.rs2"
+PLAYER_LOGOUT = CONTENT / "player/logout.rs2"
+PLAYER_LOGIN = CONTENT / "player/login.rs2"
+PLAYER_DROP = CONTENT / "player/scripts/drop.rs2"
+CRUMBLE_UNDEAD = CONTENT / "skill_combat/scripts/player/spells/crumble_undead.rs2"
 COMBAT_XP = CONTENT / "skill_combat/combat.rs2"
 SHOP_GENERATOR = ROOT / "tools/gen_shop_scripts.py"
 QUEST_MANIFEST_GENERATOR = ROOT / "tools/generate_quest_combat_manifest.py"
@@ -333,6 +399,94 @@ def check_manifest() -> None:
              15199781, 15199816, 15267891, 15185591, 15185592,
              15031769, 15003284, 15289542, 15284766} <= revisions,
             "Troll Stronghold: pinned Wiki audit set drifted")
+    mortton = [row for row in rows if row["id"] == "quest-shades-of-mort-ton"]
+    require(len(mortton) == 1, "manifest: expected exactly one Shades of Mort'ton row")
+    require(mortton[0]["implementation_status"] == "implementation-in-progress",
+            "Shades of Mort'ton: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(mortton[0][key]), f"Shades of Mort'ton: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in mortton[0]["source_audits"]}
+    require({15292280, 14988872, 15263293, 15199268, 15299270,
+             15214951, 15185388, 15183419, 15214952, 15115043,
+             14879578, 15285193, 15233566, 15200239} <= revisions,
+            "Shades of Mort'ton: pinned Wiki audit set drifted")
+    fremennik = [row for row in rows if row["id"] == "quest-the-fremennik-trials"]
+    require(len(fremennik) == 1,
+            "manifest: expected exactly one The Fremennik Trials row")
+    require(fremennik[0]["implementation_status"] == "implementation-in-progress",
+            "The Fremennik Trials: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(fremennik[0][key]),
+                f"The Fremennik Trials: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in fremennik[0]["source_audits"]}
+    require({15292303, 15290109, 15263294, 15293789, 15215949,
+             15184168, 15183020, 15239757, 15136941, 15199225,
+             15199667, 15199668, 15199666, 15183561} <= revisions,
+            "The Fremennik Trials: pinned Wiki audit set drifted")
+    horror = [row for row in rows if row["id"] == "quest-horror-from-the-deep"]
+    require(len(horror) == 1,
+            "manifest: expected exactly one Horror from the Deep row")
+    require(horror[0]["implementation_status"] == "implementation-in-progress",
+            "Horror from the Deep: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(horror[0][key]),
+                f"Horror from the Deep: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in horror[0]["source_audits"]}
+    require({15294310, 15080801, 15263295, 15274475, 15199457,
+             15254124, 15174921, 15196239, 15183873, 15300898,
+             15300896, 15294284} <= revisions,
+            "Horror from the Deep: pinned Wiki audit set drifted")
+    mm1 = [row for row in rows if row["id"] == "quest-monkey-madness-i"]
+    require(len(mm1) == 1,
+            "manifest: expected exactly one Monkey Madness I row")
+    require(mm1[0]["implementation_status"] == "implementation-in-progress",
+            "Monkey Madness I: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(mm1[0][key]), f"Monkey Madness I: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in mm1[0]["source_audits"]}
+    require({15302455, 15257376, 15263300, 15199289, 15182884,
+             15238361, 15238401, 15286805} <= revisions,
+            "Monkey Madness I: pinned Wiki audit set drifted")
+    haunted = [row for row in rows if row["id"] == "quest-haunted-mine"]
+    require(len(haunted) == 1,
+            "manifest: expected exactly one Haunted Mine row")
+    require(haunted[0]["implementation_status"] == "implementation-in-progress",
+            "Haunted Mine: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(haunted[0][key]), f"Haunted Mine: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in haunted[0]["source_audits"]}
+    require({15292305, 14834641, 15263301, 15234627, 15183506,
+             15183507, 15183505, 15183508, 15241628} <= revisions,
+            "Haunted Mine: pinned Wiki audit set drifted")
+    troll_love = [row for row in rows if row["id"] == "quest-troll-romance"]
+    require(len(troll_love) == 1,
+            "manifest: expected exactly one Troll Romance row")
+    require(troll_love[0]["implementation_status"] == "implementation-in-progress",
+            "Troll Romance: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(troll_love[0][key]), f"Troll Romance: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in troll_love[0]["source_audits"]}
+    require({15292383, 14845426, 15263302, 15215810, 15239793,
+             15185234, 15184737, 15095285, 15109118} <= revisions,
+            "Troll Romance: pinned Wiki audit set drifted")
+    myreque = [row for row in rows if row["id"] == "quest-in-search-of-the-myreque"]
+    require(len(myreque) == 1,
+            "manifest: expected exactly one In Search of the Myreque row")
+    require(myreque[0]["implementation_status"] == "implementation-in-progress",
+            "In Search of the Myreque: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(myreque[0][key]),
+                f"In Search of the Myreque: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in myreque[0]["source_audits"]}
+    require({15292283, 14479041, 15286926, 15199509, 15013176, 15263062} <= revisions,
+            "In Search of the Myreque: pinned Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -2450,6 +2604,793 @@ def check_troll_stronghold() -> None:
     )
 
 
+def check_shades_of_mortton() -> None:
+    core = MORTTON_CORE.read_text()
+    require_text(
+        core,
+        (
+            "[proc,mortton_mix_serum]", "~attempt_brew_potion($ashes_slot, $tarromin_slot)",
+            "%morttonquest = ^mortton_made_serum;", "[queue,mortton_quest_complete]",
+            "%morttonquest = ^mortton_quest_complete;", "stat_advance(crafting,20000);",
+            "stat_advance(herblore,20000);", "shadekey_silver_purple",
+        ),
+        "Shades of Mort'ton quest and reward route",
+    )
+
+    shades = MORTTON_SHADES.read_text()
+    require_text(
+        shades,
+        (
+            "[ai_queue3,_shade]", "npc_param(death_drop)",
+            "npc_type = shadeshadow_level1 | npc_type = shade_level1",
+            "queue(mortton_quest_shade_kill, 0, 0);", "[queue,mortton_quest_shade_kill]",
+            "%morttonquest = ^mortton_killed_5_shades;", "random(20) = 0",
+            "stat_sub(strength, 1, 0);", "%temple_sanctity = min(3000",
+        ),
+        "Shades of Mort'ton shade combat, remains and five-kill credit",
+    )
+
+    temple = MORTTON_TEMPLE.read_text()
+    require_text(
+        temple,
+        (
+            "[oploc1,_temple_wall]", "stat(crafting) < 20",
+            "inv_total(inv, hammer) < 1 & inv_total(inv, flamtaer_hammer) < 1",
+            "[proc,mortton_temple_crafting_roll]", "$crafting_bonus = 40",
+            "~mortton_has_temple_timber", "inv_del(inv, swamppaste, 5);",
+            "[timer,sanctity_drain]", "[timer,mortton_temple_attack]",
+            "%current_temple_build = max(0, sub(%current_temple_build, 20));",
+            "[proc,mortton_degrade_temple_wall]", "[oploc1,templefire_altar_nofire]",
+            "%morttonquest = ^mortton_created_sacred_oil;",
+        ),
+        "Shades of Mort'ton Flamtaer temple contract",
+    )
+
+    pyre = MORTTON_PYRE.read_text()
+    require_text(
+        pyre,
+        (
+            "[label,create_sacred_logs]", "pyre_required_doses",
+            "[proc,mortton_pyromancer_xp]", "if ($bonus = 20) $bonus = 25;",
+            "[oploc1,temple_pyre]", "[proc,mortton_best_pyre_logs]",
+            "[oploc1,_pyre_loaded]", "[proc,mortton_best_pyre_remains]",
+            "[oploc1,_pyre_remains_loaded]", "[label,light_funeral_pyre]",
+            "%morytania_diary_elite_complete", "%morytania_diary_hard_complete",
+            "[proc,mortton_pyre_prayer_xp]", "[proc,give_shade_rewards]",
+            "obj_add_private($coord, $reward, $count, 500, 500);",
+        ),
+        "Shades of Mort'ton pyre, XP and private reward contract",
+    )
+    pyre_config = MORTTON_PYRE_CONFIG.read_text()
+    for section, level, fire_xp, doses in (
+        ("pyre_logs", 5, 505, 2), ("pyre_oak_logs", 20, 700, 2),
+        ("pyre_willow_logs", 35, 1000, 3), ("pyre_teak_logs", 40, 1200, 3),
+        ("pyre_arctic_logs", 47, 1585, 2), ("pyre_maple_logs", 50, 1750, 3),
+        ("pyre_mahogany_logs", 55, 2100, 3), ("pyre_yew_logs", 65, 2550, 4),
+        ("pyre_camphor_logs", 71, 3200, 4), ("pyre_magic_logs", 80, 4045, 4),
+        ("pyre_ironwood_logs", 85, 4350, 4), ("pyre_redwood_logs", 95, 5000, 4),
+        ("pyre_rosewood_logs", 97, 5900, 4),
+    ):
+        require_text(pyre_config,
+                     (f"[{section}]", f"param=pyre_level,{level}",
+                      f"param=pyre_fm_experience,{fire_xp}",
+                      f"param=pyre_required_doses,{doses}"),
+                     f"Shades of Mort'ton {section} pyre row")
+
+    shade_config = MORTTON_SHADE_CONFIG.read_text()
+    for section, low, high, low_key, high_key in (
+        ("loar_shades", 200, 300, 0, 790),
+        ("phrin_shades", 400, 500, 125, 665),
+        ("riyl_shades", 600, 700, 125, 665),
+        ("asyn_shades", 800, 900, 282, 508),
+        ("fiyr_shades", 2000, 4000, 634, 156),
+        ("urium_shades", 2000, 7000, 790, 0),
+    ):
+        require_text(shade_config,
+                     (f"[{section}]", f"param=shades_low_coin,{low}",
+                      f"param=shades_high_coin,{high}",
+                      f"param=shades_low_key_chance,{low_key}",
+                      f"param=shades_high_key_chance,{high_key}"),
+                     f"Shades of Mort'ton {section} reward row")
+
+    catacombs = MORTTON_CATACOMBS.read_text()
+    require_text(
+        catacombs,
+        (
+            "[label,enter_shade_catacombs]", "%morttonquest < ^mortton_quest_complete",
+            "[oploc1,shadelair_steeldoor]", "[oploc1,shadelair_blackdoor]",
+            "[oploc1,shadelair_silverdoor]", "[oploc1,shadelair_golddoor]",
+            "[label,open_shade_chest]", "add(inv_freespace(inv), 1) < $slots_needed",
+            "inv_del(inv, $key, 1);", "~mortton_chest_preroll(shades_lock_bronze, 0)",
+            "~mortton_chest_preroll(shades_lock_steel, 599)",
+            "~mortton_chest_preroll(shades_lock_black, 186)",
+            "~mortton_chest_preroll(shades_lock_silver, 76)",
+            "~mortton_chest_preroll(shades_lock_gold, 54)",
+            "sub(63, $wealth_bonus)", "[proc,mortton_splitbark_reward]",
+            "~obj_gettotal(flamtaer_bag) = 0 & random(2) = 0",
+            "[oplocu,shade_lair_temple_altar]", "%mortton_altar_charges = add",
+            "[oploc1,shade_lair_temple_altar]", "stat_heal(prayer, stat_base(prayer), 0);",
+        ),
+        "Shades of Mort'ton catacombs, chest and Altar of the Damned contract",
+    )
+    require(catacombs.count("@open_shade_chest(") == 50,
+            "Shades of Mort'ton: all 25 chests need open and item-use handlers")
+
+    coffin = MORTTON_COFFIN.read_text()
+    require_text(
+        coffin,
+        (
+            "[opnpc1,shades_coffin_keeper]", "[proc,mortton_dampe_repair]",
+            "[proc,mortton_coffin_fill]", "~mortton_coffin_fill(3)",
+            "~mortton_coffin_fill(8)", "~mortton_coffin_fill(14)",
+            "~mortton_coffin_fill(20)", "~mortton_coffin_fill(28)",
+            "[proc,mortton_coffin_empty]", "shade_bones6", "shade_bones1",
+            "[proc,mortton_coffin_remove_lock]", "[proc,mortton_coffin_destroy]",
+            "inv_clear(mortton_coffin_storage);",
+        ),
+        "Shades of Mort'ton Dampe and wearable coffin contract",
+    )
+    require_text(MORTTON_COFFIN_CONFIG.read_text(),
+                 ("[mortton_coffin_storage]", "size=28"),
+                 "Shades of Mort'ton private coffin storage")
+
+    require_text(MORTTON_AFFLICTED.read_text(),
+                 ("[queue,207_cure_affliction_reward]", "[queue,208_cure_affliction_reward]",
+                  "inv_add(inv, shadekey_bronze_bloodred, 1);"),
+                 "Shades of Mort'ton afflicted serum reward tables")
+    require_text(MORTTON_RAZMIRE.read_text(),
+                 ("%morttonquest = ^mortton_kill_shades;", "[label,razmire_general_open]",
+                  "[label,razmire_building_open]"),
+                 "Shades of Mort'ton Razmire route and shops")
+    require_text(MORTTON_ULSQUIRE.read_text(),
+                 ("%morttonquest = ^mortton_shades_to_ulsquire;",
+                  "queue(mortton_quest_complete, 0, 0);", "inv_add(inv, oliveoil3, 1);"),
+                 "Shades of Mort'ton Ulsquire route")
+
+
+def check_fremennik_trials() -> None:
+    npc = VIKING_NPC.read_text()
+    for form, hp, attack, strength, defence, speed in (
+        ("viking_enemy1", 30, 20, 20, 20, 4),
+        ("viking_enemy2", 50, 40, 40, 40, 4),
+        ("viking_enemy3", 70, 60, 60, 60, 4),
+        ("viking_enemy4", 255, 255, 5, 255, 1),
+    ):
+        start = npc.index(f"[{form}]")
+        end = npc.find("\n[", start + 1)
+        block = npc[start:] if end == -1 else npc[start:end]
+        require_text(
+            block,
+            (f"hitpoints={hp}", f"attack={attack}", f"strength={strength}",
+             f"defence={defence}", f"param=attackrate,{speed}",
+             "param=death_drop,null"),
+            f"The Fremennik Trials {form} combat row",
+        )
+    start = npc.index("[viking_draugen]")
+    end = npc.find("\n[", start + 1)
+    draugen_block = npc[start:] if end == -1 else npc[start:end]
+    require_text(
+        draugen_block,
+        ("hitpoints=60", "attack=60", "strength=60", "defence=60",
+         "param=attackrate,4", "param=stabdefence,100", "param=slashdefence,100",
+         "param=crushdefence,100", "param=magicdefence,500",
+         "param=rangedefence,500", "param=elemental_weakness,^element_air",
+         "param=elemental_weakness_percent,50", "param=combat_xp_multiplier,1025",
+         "param=undead,^true", "param=death_drop,null"),
+        "The Fremennik Trials Draugen combat row",
+    )
+
+    constants = VIKING_CONSTANT.read_text()
+    require_text(
+        constants,
+        ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 12",
+         "^viking_draugen_move_delay = 80", "^viking_draugen_lifetime = 1000",
+         "^viking_draugen_reveal_range = 3"),
+        "The Fremennik Trials encounter constants",
+    )
+    require_text(
+        VIKING_VARP.read_text(),
+        ("[viking_draugen_spot]", "[viking_draugen_active]",
+         "[viking_koschei_active]", "[viking_koschei_phase]"),
+        "The Fremennik Trials private encounter state",
+    )
+
+    sigli = VIKING_SIGLI.read_text()
+    require_text(
+        sigli,
+        ("[opheld1,viking_draugen_talisman_uncharged]",
+         "distance(coord, $target) <= ^viking_draugen_reveal_range",
+         "npc_add($target, viking_draugen, ^viking_draugen_lifetime);",
+         "npc_setowner;", "settimer(viking_draugen_move, ^viking_draugen_move_delay);",
+         "[timer,viking_draugen_timeout]", "[ai_queue3,viking_draugen]",
+         "if (npc_findhero = ^false)", "inv_del(inv, viking_draugen_talisman_uncharged, 1);",
+         "inv_add(inv, viking_draugen_talisman, 1);",
+         "obj_add_private(coord, viking_draugen_talisman, 1, ^lootdrop_duration, 100);",
+         "inv_del(inv, viking_draugen_talisman, 1);", "[proc,viking_draugen_direction]",
+         "north-east", "north-west", "south-east", "south-west"),
+        "The Fremennik Trials Sigli and Draugen controller",
+    )
+    require(sigli.count("case ") == 12,
+            "The Fremennik Trials: Draugen must have twelve moving anchors")
+
+    thorvald = VIKING_THORVALD.read_text()
+    require_text(
+        thorvald,
+        ("[oploc1,viking_warrior_ladder_down]", "~viking_koschei_forbidden_loadout",
+         "%viking_koschei_phase = 1;", "~viking_koschei_spawn(1);",
+         "[ai_queue3,viking_enemy1]", "~viking_koschei_spawn(2);",
+         "[ai_queue3,viking_enemy2]", "~viking_koschei_spawn(3);",
+         "[ai_queue3,viking_enemy3]", "~viking_koschei_spawn(4);",
+         "[ai_queue3,viking_enemy4]", "stat_sub(prayer, stat(prayer), 0);",
+         "if (stat(hitpoints) <= 1)", "~viking_koschei_finish(false);",
+         "~set_viking_thorvald_progress(^thorvald_complete);",
+         "inv_add(inv, viking_sword, 1);",
+         "obj_add_private(^viking_koschei_upstairs, viking_sword, 1, ^lootdrop_duration, 100);",
+         "[proc,viking_koschei_try_safe_death]()(boolean)",
+         "[proc,viking_koschei_on_logout]", "[proc,viking_koschei_drop_blocked]()(boolean)",
+         "[opheld2,viking_sword]", "if (%viking ! ^viking_complete)",
+         "case magic_runes, firemaking_logs, arrowheads"),
+        "The Fremennik Trials Thorvald and Koschei controller",
+    )
+    for form in ("viking_enemy1", "viking_enemy2", "viking_enemy3", "viking_enemy4"):
+        marker = f"[ai_queue3,{form}]"
+        start = thorvald.index(marker)
+        end = thorvald.find("\n[", start + 1)
+        block = thorvald[start:] if end == -1 else thorvald[start:end]
+        require("if (npc_findhero = ^false)" in block,
+                f"The Fremennik Trials: {form} must reject uncredited death")
+
+    require_text(
+        VIKING_PEER.read_text(),
+        ("[proc,viking_peer_can_deposit_all]()(boolean)", "~wint_is_activity_item($obj)",
+         "if (inv_freespace(bank) >= $needed)", "[proc,viking_peer_deposit_all]",
+         "inv_moveitem_uncert(inv, bank", "inv_moveitem_uncert(worn, bank"),
+        "The Fremennik Trials atomic Peer bank-all",
+    )
+
+    citizens = VIKING_CITIZENS.read_text()
+    for actor in ("viking_man2", "viking_man3", "viking_man4", "viking_woman2"):
+        require(f"[ai_queue3,{actor}]" in citizens,
+                f"The Fremennik Trials: missing citizen drop binding for {actor}")
+    require_text(
+        citizens,
+        ("obj_add(npc_coord, bones, 1", "def_int $roll = random(512);",
+         "$roll < 100", "bronze_warhammer", "$roll < 170", "iron_warhammer",
+         "%viking = ^viking_complete", "viking_sword", "viking_shield", "viking_helmet",
+         "$roll < 183", "~randomherb", "copper_ore, 5", "tin_ore, 5", "iron_ore, 5",
+         "coal, 1", "steel_bar, 1", "coins, 6", "coins, 15", "coins, 16",
+         "coins, 20", "coins, 38", "tinderbox", "vial_empty", "vial_water",
+         "bucket_empty", "$roll < 490", "viking_unstrung_lyre", "beer",
+         "eye_of_newt", "snape_grass", "jangerberries", "%heroquest = ^hero_complete",
+         "blamish_oil", "$roll < 502", "~troll_gem_drop(true)",
+         "if (random(128) = 0)", "trail_clue_easy_simple001"),
+        "The Fremennik Trials citizen 512-slot and tertiary loot contract",
+    )
+
+    require_text(PLAYER_DEATH.read_text(), ("~viking_koschei_try_safe_death",),
+                 "The Fremennik Trials safe-death hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~viking_koschei_on_logout;",),
+                 "The Fremennik Trials logout hook")
+    require_text(PLAYER_DROP.read_text(), ("~viking_koschei_drop_blocked",),
+                 "The Fremennik Trials arena drop gate")
+    require_text(CRUMBLE_UNDEAD.read_text(),
+                 ("if (npc_type = viking_draugen)",
+                  "Crumble Undead has no effect on the Draugen."),
+                 "The Fremennik Trials Draugen spell exception")
+
+    generated = VIKING_GENERATED_ANIMS.read_text()
+    for actor in ("viking_enemy1", "viking_enemy2", "viking_enemy3", "viking_enemy4",
+                  "viking_draugen", "viking_draugen_safe"):
+        require(f"[{actor}]" not in generated,
+                f"The Fremennik Trials: authored {actor} must not be duplicated by generated animation config")
+
+
+def check_horror_from_the_deep() -> None:
+    route = HORROR_INTERACTIONS.read_text()
+    require_text(
+        route,
+        ("[oplocu,horror_broken_bridge_left_spot]",
+         "[oplocu,horror_broken_bridge_right_spot]", "if ($item ! woodplank)",
+         "inv_total(inv, hammer) < 1", "inv_total(inv, nails) < 30",
+         "inv_del(inv, woodplank, 1);", "inv_del(inv, nails, 30);",
+         "[oploc1,horror_lighthouse_doorway]", "inv_total(inv, horror_key) < 1",
+         "[oploc1,horror_bookcase]", "horror_diary1", "horror_diary2",
+         "horror_diary3", "[oplocu,horror_lighthouse_cog_broken]",
+         "$item = swamp_tar", "$item = molten_glass", "$item = tinderbox",
+         "[oplocu,horror_mid_left_door]", "[oplocu,horror_mid_right_door]",
+         "$item = airrune", "$item = waterrune", "$item = earthrune",
+         "$item = firerune", "~horror_is_sword($item)",
+         "~horror_is_arrow($item)", "inv_del(inv, $item, 1);",
+         "case weapon_slash_sword, weapon_stab_sword, weapon_2h_sword",
+         "case arrows, arrows_dragon, ammo_ogre_arrow, ammo_training_arrow",
+         "p_telejump(0_39_72_22_26);", "[opobj3,horror_casket]"),
+        "Horror from the Deep route and item consumption",
+    )
+
+    npc = HORROR_NPC.read_text()
+    junior_forms = (
+        "horror_dagannoth_jr1", "horror_dagannoth_jr2",
+        "horror_dagannoth_jr3", "horror_dagannoth_jr4",
+    )
+    mother_forms = (
+        "horror_dagganoth_aira", "horror_dagganoth_airb",
+        "horror_dagganoth_airc", "horror_dagganoth_air",
+        "horror_dagganoth_water", "horror_dagganoth_melee",
+        "horror_dagganoth_earth", "horror_dagganoth_fire",
+        "horror_dagganoth_ranged",
+    )
+    for actor in junior_forms + mother_forms:
+        start = npc.index(f"[{actor}]")
+        end = npc.find("\n[", start + 1)
+        block = npc[start:] if end == -1 else npc[start:end]
+        require_text(
+            block,
+            ("hitpoints=120", "attack=78", "strength=78", "defence=81",
+             "magic=1", "ranged=50", "param=attackrate,4",
+             "param=strengthbonus,9", "param=elemental_weakness,^element_earth",
+             "param=elemental_weakness_percent,35", "param=death_drop,null"),
+            f"Horror from the Deep {actor} combat row",
+        )
+        if actor in junior_forms:
+            require_text(
+                block,
+                ("param=stabdefence,0", "param=slashdefence,0",
+                 "param=crushdefence,0", "param=magicdefence,0",
+                 "param=rangedefence,0"),
+                f"Horror from the Deep {actor} zero defences",
+            )
+        else:
+            require_text(
+                block,
+                ("param=stabdefence,150", "param=slashdefence,150",
+                 "param=crushdefence,150", "param=magicdefence,50",
+                 "param=rangedefence,50", "param=combat_xp_multiplier,1050"),
+                f"Horror from the Deep {actor} Mother defences",
+            )
+
+    require_text(
+        HORROR_CONSTANT.read_text(),
+        ("^horror_boss_spawn = 0_39_72_22_34",
+         "^horror_boss_exit = 0_39_56_13_54", "^horror_boss_lifetime = 1000",
+         "^horror_junior_regen_ticks = 20", "^horror_mother_colour_ticks = 30",
+         "^horror_bridge_nails_each = 30"),
+        "Horror from the Deep encounter constants",
+    )
+    require_text(
+        HORROR_VARP.read_text(),
+        ("[horror_boss_active]", "[horror_magic_element]", "[horror_reward_book]",
+         "scope=temp", "scope=perm"),
+        "Horror from the Deep private encounter and reward state",
+    )
+
+    encounter = HORROR_ENCOUNTER.read_text()
+    require_text(
+        encounter,
+        ("[proc,horror_spawn_junior]", "npc_add(0_39_72_22_34, horror_dagannoth_jr1, 1000);",
+         "npc_setowner;", "[ai_timer,horror_dagannoth_jr4]",
+         "npc_statheal(hitpoints, 1, 0);", "npc_settimer(20);",
+         "[timer,horror_timeout]", "settimer(horror_timeout, 1000);",
+         "[ai_queue3,horror_dagannoth_jr4]", "if (npc_findhero = ^false)",
+         "%horrorquest = ^horror_defeated_dagjr;",
+         "npc_add(0_39_72_22_34, horror_dagganoth_aira, 1000);",
+         "[ai_timer,horror_dagganoth_air]", "~horror_mother_change(horror_dagganoth_water);",
+         "[ai_timer,horror_dagganoth_water]", "~horror_mother_change(horror_dagganoth_melee);",
+         "[ai_timer,horror_dagganoth_melee]", "~horror_mother_change(horror_dagganoth_earth);",
+         "[ai_timer,horror_dagganoth_earth]", "~horror_mother_change(horror_dagganoth_fire);",
+         "[ai_timer,horror_dagganoth_fire]", "~horror_mother_change(horror_dagganoth_ranged);",
+         "[ai_timer,horror_dagganoth_ranged]", "~horror_mother_change(horror_dagganoth_air);",
+         "npc_settimer(30);", "def_int $hit1 = 0;", "def_int $hit2 = 0;",
+         "$hit1 = randominc(12);", "$hit2 = randominc(12);",
+         "~playerhit_n_ranged(true, $hit1, $duration);",
+         "~playerhit_n_ranged(true, $hit2, $duration);",
+         "obj_add_private($drop, bones, 1", "inv_add(inv, horror_casket, 1);",
+         "%horrorquest = ^horror_complete;", "p_telejump(0_39_56_13_54);",
+         "stat_advance(magic, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
+         "[proc,horror_abort]", "[proc,horror_on_logout]", "[proc,horror_on_death]",
+         "[proc,horror_mother_prepare_hit]", "case horror_dagganoth_air",
+         "%horror_magic_element = ^element_air", "case horror_dagganoth_water",
+         "%horror_magic_element = ^element_water", "case horror_dagganoth_melee",
+         "%damagetype = ^melee_style", "case horror_dagganoth_earth",
+         "%horror_magic_element = ^element_earth", "case horror_dagganoth_fire",
+         "%horror_magic_element = ^element_fire", "case horror_dagganoth_ranged",
+         "%damagetype = ^ranged_style", "return(0);"),
+        "Horror from the Deep owner-private combat and reward controller",
+    )
+
+    require_text(
+        HORROR_JOSSIK.read_text(),
+        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 0",
+         "~p_choice3(\"A damaged holy book\", 1, \"A damaged unholy book\", 2, \"A damaged book of balance\", 3)",
+         "unfinished_saradominbook", "unfinished_zamorakbook", "unfinished_guthixbook",
+         "inv_del(inv, horror_casket, 1);", "[opnpc4,horror_lighthousekeeeper_well]",
+         "[proc,horror_has_reward_book]()(boolean)", "saradominbook_complete",
+         "zamorakbook_complete", "guthixbook_complete", "inv_total(bank",
+         "inv_total(worn"),
+        "Horror from the Deep Jossik casket, choice and loss recovery",
+    )
+    require_text(
+        HORROR_GUNNJORN.read_text(),
+        ("[opnpc1,gunnjorn]", "inv_total(inv, horror_key) > 0",
+         "inv_total(bank, horror_key) > 0", "inv_add(inv, horror_key, 1);"),
+        "Horror from the Deep lighthouse-key issue and replacement",
+    )
+    require_text(
+        HORROR_HIT_FUNNEL.read_text(),
+        ("~horror_mother_is_type = true", "~horror_mother_prepare_hit($rolled_damage, $hit_success)"),
+        "Horror from the Deep shared hit funnel",
+    )
+    require_text(
+        HORROR_MAGIC.read_text(),
+        ("%horror_magic_element = ~elemental_spell_element($spell);",
+         "%horror_magic_element = ^element_none;"),
+        "Horror from the Deep elemental spell latch",
+    )
+    require_text(PLAYER_DEATH.read_text(), ("~horror_on_death;",),
+                 "Horror from the Deep death cleanup hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~horror_on_logout;",),
+                 "Horror from the Deep logout cleanup hook")
+
+    generated = HORROR_GENERATED_ANIMS.read_text()
+    for actor in junior_forms + mother_forms:
+        require(f"[{actor}]" not in generated,
+                f"Horror from the Deep: authored {actor} must not be duplicated by generated animation config")
+
+
+def check_monkey_madness_i() -> None:
+    require_text(
+        MM1_ZOOKNOCK.read_text(),
+        ("[opnpcu,mm_zooknock]", "case mm_monkey_dentures", "case gold_bar",
+         "case mm_monkey_amulet_mould", "inv_add(inv, mm_enchanted_gold_bar, 1);",
+         "case mm_small_ninja_monkey_bones, mm_medium_ninja_monkey_bones",
+         "case mm_monkey_talisman", "def_namedobj $talisman = enum(int, namedobj, mm_bones_mapping",
+         "inv_total(inv, mm_sigil) = 0", "inv_total(worn, mm_sigil) = 0",
+         "inv_total(bank, mm_sigil) = 0", "inv_freespace(inv) < 1",
+         "inv_add(inv, mm_sigil, 1);", "Waymottin hands you a replica"),
+        "Monkey Madness I Zooknock item chain and Waymottin recovery",
+    )
+    require_text(
+        MM1_GARKOR.read_text(),
+        ("case ^garkor_need_correct_disguise", "~mm_wearing_greegree = true",
+         "mm_monkey_greegree_for_normal_monkey", "%varbit_118 = ^awowogei_complete_mission",
+         "case ^garkor_learned_plan", "%mm_garkor = ^garkor_joined_10th_squad;",
+         "inv_freespace(inv) < 1", "inv_add(inv, mm_sigil, 1);",
+         "inv_total(bank, mm_sigil) = 0"),
+        "Monkey Madness I disguise, alliance and sigil induction",
+    )
+
+    npc = MM1_NPC.read_text()
+    require_text(
+        npc,
+        ("[mm_demon]", "hitpoints=170", "attack=170", "strength=170",
+         "defence=170", "magic=170", "ranged=1", "param=attackrate,6",
+         "param=stabattack,50", "param=slashattack,50", "param=strengthbonus,50",
+         "param=stabdefence,0", "param=slashdefence,50", "param=crushdefence,0",
+         "param=magicdefence,50", "param=rangedefence,0",
+         "param=elemental_weakness,^element_fire",
+         "param=elemental_weakness_percent,25", "param=combat_xp_multiplier,1075",
+         "param=death_drop,null"),
+        "Monkey Madness I Jungle Demon exact combat row",
+    )
+    require_text(
+        MM1_VARP.read_text(),
+        ("[mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
+        "Monkey Madness I private encounter state",
+    )
+
+    demon = MM1_DEMON.read_text()
+    require_text(
+        demon,
+        ("[opheld2,mm_sigil]", "%mm_main ! ^monkeymadness_completed_ch3",
+         "%mm_garkor ! ^garkor_joined_10th_squad", "~wilderness_level(coord) > 0",
+         "~p_choice2(\"Let the sigil teleport you\", 1, \"Not yet\", 2)",
+         "p_telejump(1_42_143_14_21);", "[proc,mm_demon_spawn_squad]",
+         "mm_garkor_final_battle", "mm_zooknock_final_battle",
+         "mm_waymottin_final_battle", "mm_bunkwicket_final_battle",
+         "mm_bunkdo_final_battle", "mm_carado_final_battle",
+         "mm_lumo_final_battle", "mm_karam_final_battle", "mm_bonzara",
+         "npc_add($spawn, $actor, 2000);", "npc_add($spawn, mm_demon, 2000);",
+         "npc_setowner;", "[ai_timer,mm_demon]", "npc_settimer(6);",
+         "def_int $gnome_hit = add(random(8), 3);",
+         "npc_statheal(hitpoints, add(random(22), 21), 0);",
+         "min($gnome_hit, sub(npc_stat(hitpoints), 10))",
+         "case 0 : $spell = ^wind_wave", "case 1 : $spell = ^water_wave",
+         "case 2 : $spell = ^earth_wave", "default : $spell = ^fire_wave",
+         "npc_range(coord) < 3", "~npc_meleeattack;",
+         "~npc_cast_spell_with_forced_max_hit($spell, 6, 32);",
+         "[ai_queue3,mm_demon]", "if (npc_findhero = ^false)",
+         "def_npc_uid $dead_demon = npc_uid;", "%mm_demon_active = 2;",
+         "%mm_main = ^monkeymadness_defeated_demon;",
+         "obj_add_private(npc_coord, malicious_ashes, 1",
+         "npc_finduid($dead_demon);", "~npc_default_death;",
+         "[timer,mm_demon_monitor]", "[proc,mm_demon_cleanup]",
+         "[proc,mm_demon_on_death]", "[proc,mm_demon_on_logout]",
+         "[opnpc1,mm_garkor_final_battle]", "[opnpc1,mm_zooknock_final_battle]",
+         "[opnpc1,mm_bonzara]"),
+        "Monkey Madness I owner-private final battle controller",
+    )
+    require(demon.count("~mm_demon_spawn_squad_member(") == 9,
+            "Monkey Madness I: final battle must spawn all nine support actors")
+
+    require_text(
+        MM1_NARNODE.read_text(),
+        ("[label,mm_narnode_reward]", "if (inv_freespace(inv) < 3)",
+         "inv_add(inv, coins, 10000);", "inv_add(inv, diamond, 3);",
+         "[queue,mm_quest_complete]", "%mm_main = ^monkeymadness_complete;",
+         "~quest_complete_rewards(quest_monkeymadness1"),
+        "Monkey Madness I Narnode reward and completion",
+    )
+    require_text(
+        MM1_DAERO.read_text(),
+        ("[label,daero_training]", "%mm_main = ^monkeymadness_complete_training;",
+         "stat_advance(attack, 200000);", "stat_advance(defence, 200000);",
+         "stat_advance(strength, 350000);", "stat_advance(hitpoints, 350000);",
+         "stat_advance(attack, 350000);", "stat_advance(defence, 350000);",
+         "stat_advance(strength, 200000);", "stat_advance(hitpoints, 200000);"),
+        "Monkey Madness I optional Daero training split",
+    )
+    require_text(PLAYER_DEATH.read_text(), ("~mm_demon_on_death;",),
+                 "Monkey Madness I death cleanup hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~mm_demon_on_logout;",),
+                 "Monkey Madness I logout cleanup hook")
+    require("[mm_demon]" not in MM1_GENERATED_ANIMS.read_text(),
+            "Monkey Madness I: authored Jungle Demon must not be duplicated by generated animation config")
+
+
+def check_haunted_mine() -> None:
+    require_text(
+        HMQ_ZEALOT.read_text(),
+        ("[opnpc1,saradominist_zealot]", "%priestperil < ^priestperil_complete",
+         "stat(crafting) < ^hmq_req_crafting", "[opnpc3,saradominist_zealot]",
+         "inv_total(bank, hauntedmine_lift_key) > 0", "inv_freespace(inv) < 1",
+         "obj_add_private(npc_coord, hauntedmine_lift_key, 1"),
+        "Haunted Mine Zealot requirements and key recovery",
+    )
+    require_text(
+        HMQ_DUNGEON.read_text(),
+        ("[oploc1,glowing_mushroom]", "[oploc1,glowing_mushroom2]",
+         "settimer(hmq_fungus_monitor, 1);", "[opheld5,glowing_fungus]",
+         "obj_add_private(coord, ashes, 1", "[proc,hmq_inside_mine]()(boolean)",
+         "%hauntedmine_endcart_fungus = 0;", "Oh dear, the mine cart seems to have sunk.",
+         "How useful, it's come right back to where it started.",
+         "[proc,hmq_levers_correct]()(boolean)", "[oploc1,hauntedmine_lift_valve]",
+         "inv_total(inv, hauntedmine_lift_key) < 1", "hauntedmine_cheeky_ghost",
+         "settimer(hmq_lift_ghost, ^hmq_lift_race_ticks);", "[timer,hmq_lift_ghost]",
+         "%hauntedmine_liftpoweredonce = 1;", "cleartimer(hmq_lift_ghost);"),
+        "Haunted Mine fungus, cart and valve/lift route",
+    )
+    require_text(
+        HMQ_CONSTANT.read_text(),
+        ("^hmq_lift_race_ticks = 30", "^hmq_daythroom_min",
+         "^hmq_daythroom_max", "^hmq_dayth_shift_1", "^hmq_dayth_shift_8",
+         "^hmq_crystalroom_min", "^hmq_crystalroom_max"),
+        "Haunted Mine encounter coordinates and calibrated race",
+    )
+    npc = HMQ_NPC.read_text()
+    require_text(
+        npc,
+        ("[hauntedmine_boss_ghost]", "hitpoints=100", "attack=70", "strength=70",
+         "defence=100", "magic=1", "ranged=1", "param=attackrate,4",
+         "param=stabdefence,5", "param=slashdefence,5", "param=crushdefence,5",
+         "param=magicdefence,-5", "param=rangedefence,5",
+         "param=elemental_weakness,^element_air",
+         "param=elemental_weakness_percent,25", "param=undead,^true",
+         "param=death_drop,null"),
+        "Haunted Mine exact Treus Dayth combat row",
+    )
+    require_text(
+        HMQ_VARP.read_text(),
+        ("[hmq_dayth_active]", "[hmq_dayth_crane_cd]", "protect=no",
+         "transmit=no", "scope=temp"),
+        "Haunted Mine private encounter state",
+    )
+    dayth = HMQ_DAYTH.read_text()
+    require_text(
+        dayth,
+        ("[opnpc1,hauntedmine_boss_key]", "npc_add(^hmq_dayth_key_coord, hauntedmine_boss_ghost, 2000);",
+         "npc_setowner;", "[ai_timer,hauntedmine_boss_ghost]", "randominc(15)",
+         "%prayer_protectfrommissiles = ^true", "randominc(8)",
+         "%prayer_protectfrommelee = ^true", "[proc,hmq_dayth_shift]",
+         "if (npc_stat(hitpoints) <= 25)", "[timer,hmq_dayth_hazards]",
+         "crane_posessed_mine", "randominc(10)", "[proc,hmq_on_dayth_track]()(boolean)",
+         "randominc(9)", "[ai_queue3,hauntedmine_boss_ghost]",
+         "def_npc_uid $dead_dayth = npc_uid;", "%hauntedmine = ^hmq_dayth_killed;",
+         "if (random(90) = 0)", "trail_clue_beginner", "[proc,hmq_dayth_cleanup]",
+         "[proc,hmq_dayth_on_death]", "[proc,hmq_dayth_on_logout]",
+         "inv_total(bank, hauntedmine_reward_key) > 0", "obj_add_private(npc_coord, hauntedmine_reward_key, 1",
+         "[oploc1,hauntedmine_rewarddoor_l]", "[oploc1,hauntedmine_rewarddoor_r]",
+         "~door_selfstage_open;", "[oploc1,crystalcorner]", "stat(crafting) < ^hmq_req_crafting",
+         "inv_add(inv, crystalshard_necklace_unstrung, 1);",
+         "stat_advance(strength, ^hmq_reward_strength_xp);"),
+        "Haunted Mine owner-private Treus, machinery, loot and shard controller",
+    )
+    require("~ring_of_recoil_check" not in dayth,
+            "Haunted Mine: Treus damage must not permit ring recoil")
+    require_text(
+        HMQ_STRINGING.read_text(),
+        ("case crystalshard_necklace_unstrung", "[opheldu,crystalshard_necklace_unstrung]",
+         "p_delay(2);", "inv_del(inv, ball_of_wool, 1);",
+         "inv_add(inv, crystalshard_necklace, 1);"),
+        "Haunted Mine salve amulet stringing",
+    )
+    require_text(PLAYER_DEATH.read_text(), ("~hmq_dayth_on_death;",),
+                 "Haunted Mine death cleanup hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~hmq_dayth_on_logout;",),
+                 "Haunted Mine logout cleanup hook")
+    require_text(PLAYER_LOGIN.read_text(), ("~hmq_fungus_login;",),
+                 "Haunted Mine fungus login monitor")
+    require("[hauntedmine_boss_ghost]" not in HMQ_GENERATED_ANIMS.read_text(),
+            "Haunted Mine: authored Treus must not be duplicated by generated animation config")
+
+
+def check_troll_romance() -> None:
+    require_text(
+        TROLLLOVE_CONSTANT.read_text(),
+        ("^troll_love_slide_agility = 28", "^troll_love_arrg_lifetime = 500",
+         "^troll_love_arrg_prayer_penetrate = 5",
+         "^troll_love_arrg_ranged_accuracy_scale = 4",
+         "^troll_love_arrg_melee_max = 38", "^troll_love_arrg_ranged_max = 30",
+         "^troll_love_arena_min", "^troll_love_arena_max"),
+        "Troll Romance encounter constants",
+    )
+    npc = TROLLLOVE_NPC.read_text()
+    require_text(
+        npc,
+        ("[trollromance_arrg_attackable]", "hitpoints=140", "attack=70",
+         "strength=140", "defence=40", "magic=0", "ranged=70",
+         "param=attackrate,4", "param=damagetype,^slash_style",
+         "param=slashattack,60", "param=strengthbonus,100",
+         "param=stabdefence,35", "param=slashdefence,60",
+         "param=crushdefence,35", "param=magicdefence,200",
+         "param=rangedefence,200", "param=elemental_weakness,^element_earth",
+         "param=elemental_weakness_percent,50",
+         "param=combat_xp_multiplier,1075", "param=death_drop,null"),
+        "Troll Romance exact Arrg combat row",
+    )
+    require_text(
+        TROLLLOVE_VARP.read_text(),
+        ("[troll_love_arrg_active]", "[troll_love_sled_riding]",
+         "protect=no", "transmit=no", "scope=temp"),
+        "Troll Romance private session state",
+    )
+    arrg = TROLLLOVE_ARRG.read_text()
+    require_text(
+        arrg,
+        ("This is not a safe death", "npc_add(^troll_love_arrg_spawn, trollromance_arrg_attackable",
+         "npc_setowner;", "[ai_timer,trollromance_arrg_attackable]",
+         "~playerhit_n_melee_bypass_prayer(^slash_style, $damage);",
+         "~playerhit_n_ranged($check_prayer, $damage, $duration);",
+         "multiply(~npc_ranged_attack_roll, ^troll_love_arrg_ranged_accuracy_scale)",
+         "[ai_queue3,trollromance_arrg_attackable]",
+         "%troll_love = ^troll_love_defeated_arrg;",
+         "[proc,trollromance_arrg_drop_table](coord $where)",
+         "obj_add_private($where, bones, 1", "def_int $roll = random(128);",
+         "else if ($roll < 123)", "~troll_gem_drop(true)",
+         "if (random(45) = 0) obj_add_private($where, arceuus_corpse_troll",
+         "[timer,trollromance_arrg_monitor]", "[proc,trollromance_arrg_cleanup]",
+         "[proc,trollromance_on_death]", "[proc,trollromance_on_logout]"),
+        "Troll Romance owner-private Arrg, loot and lifecycle",
+    )
+    require("@troll_drop_table" not in arrg,
+            "Troll Romance: Arrg must not use the public generic troll table")
+    require_text(
+        TROLLLOVE_SLED.read_text(),
+        ("inv_del(inv, cake_tin, 1);", "stat(agility) < ^troll_love_slide_agility",
+         "[opheld2,trollromance_toboggon_waxed]", "[timer,trollromance_sled_monitor]",
+         "inv_del(worn, trollromance_toboggon_waxed, 1);",
+         "[proc,trollromance_has_sled]()(boolean)", "[proc,trollromance_on_login]"),
+        "Troll Romance wax, slide and sled-loss route",
+    )
+    require_text(
+        TROLLLOVE_DUNSTAN.read_text(),
+        ("~trollromance_has_sled = false", "Lost it, did you?",
+         "if (%troll_love < ^troll_love_dunstan_made_sled)"),
+        "Troll Romance sled replacement",
+    )
+    require_text(
+        TROLLLOVE_UG.read_text(),
+        ("inv_total(worn, trollromance_rare_flower) > 0",
+         "inv_freespace(inv) < 7", "inv_add(inv, uncut_diamond, 1);",
+         "inv_add(inv, uncut_ruby, 2);", "inv_add(inv, uncut_emerald, 4);",
+         "stat_advance(agility, 80000);", "stat_advance(strength, 40000);"),
+        "Troll Romance flower and atomic reward",
+    )
+    require_text(COMBAT_STATS.read_text(),
+                 ("[proc,playerhit_n_melee_bypass_prayer]", "~playerhit_n_melee_apply"),
+                 "Troll Romance prayer-penetrating melee funnel")
+    require_text(PLAYER_DEATH.read_text(), ("~trollromance_on_death;",),
+                 "Troll Romance death cleanup hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~trollromance_on_logout;",),
+                 "Troll Romance logout cleanup hook")
+    require_text(PLAYER_LOGIN.read_text(), ("~trollromance_on_login;",),
+                 "Troll Romance login sled monitor")
+    require("[trollromance_arrg_attackable]" not in TROLLLOVE_GENERATED_ANIMS.read_text(),
+            "Troll Romance: authored Arrg must not be duplicated by generated animation config")
+
+
+def check_in_search_of_the_myreque() -> None:
+    require_text(
+        ROUTEQUEST_CONSTANT.read_text(),
+        ("^routequest_agility_req = 25", "^routequest_pouch_charges = 5",
+         "^routequest_boat_fee = 10", "^routequest_nails_per_rung = 75",
+         "^routequest_mortton_boat_land", "^routequest_hollows_boat_land",
+         "^routequest_chamber_outside", "^routequest_hound_lifetime = 500"),
+        "In Search of the Myreque route constants",
+    )
+    require_text(
+        ROUTEQUEST_NPC.read_text(),
+        ("[skeleton_hellhound]", "hitpoints=55", "attack=70", "strength=110",
+         "defence=100", "magic=1", "ranged=1", "param=attackrate,4",
+         "param=damagetype,^crush_style", "param=stabdefence,0",
+         "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0",
+         "param=rangedefence,0", "param=elemental_weakness,^element_earth",
+         "param=elemental_weakness_percent,35", "param=death_drop,null"),
+        "In Search of the Myreque exact Skeleton Hellhound row",
+    )
+    require("param=undead" not in ROUTEQUEST_NPC.read_text(),
+            "In Search of the Myreque: Skeleton Hellhound must not be undead")
+    require_text(
+        ROUTEQUEST_VARP.read_text(),
+        ("[routequest_hound_active]", "[routequest_hound_death]",
+         "protect=no", "transmit=no", "scope=temp"),
+        "In Search of the Myreque private encounter state",
+    )
+    route = ROUTEQUEST_ROUTE.read_text()
+    require_text(
+        route,
+        ("stat(agility) < ^routequest_agility_req", "[opnpc1,route_cyreg_paddlehorn]",
+         "inv_total(inv, steel_longsword) < 1", "inv_total(inv, steel_sword) < 2",
+         "%routequest = ^routequest_boatman_agreed", "inv_total(inv, druid_pouch) < ^routequest_pouch_charges",
+         "inv_del(inv, woodplank, ^routequest_boat_planks);",
+         "[oploc1,route_rowboat_mortton]", "[oploc2,route_rowboat_mortton]",
+         "inv_total(worn, ring_of_charos_unlocked) = 0", "inv_del(inv, coins, ^routequest_boat_fee);",
+         "[oploc1,route_rowboat_hollows]", "[oploc1,swamp_bridge1]",
+         "inv_del(inv, nails, ^routequest_nails_per_rung);", "%route_bridgecomplete != 7",
+         "[opnpc1,route_curpile_fyod]", "while ($i < ^routequest_question_count)",
+         "p_teleport(^routequest_hollows_boat_land);",
+         "[oploc1,freedomfighterentrancel]", "[oploc1,freedomfighterundergroundentrancel]"),
+        "In Search of the Myreque Cyreg, boat, bridge and Curpile route",
+    )
+    hideout = ROUTEQUEST_HIDEOUT.read_text()
+    require_text(
+        hideout,
+        ("[proc,routequest_veliaf]", "getbit_range(%routequest_myreque_bits",
+         "inv_del(inv, steel_longsword, 1);", "inv_del(inv, steel_sword, 2);",
+         "inv_del(inv, steel_mace, 1);", "inv_del(inv, steel_warhammer, 1);",
+         "inv_del(inv, steel_dagger, 1);", "%routequest = calc(^routequest_ambush + 1);",
+         "%thsfm_vanstrom_hide = 1;", "npc_add(^routequest_hound_spawn, skeleton_hellhound",
+         "npc_setowner;", "npc_setmode(applayer2);", "[ai_queue3,skeleton_hellhound]",
+         "%routequest = ^routequest_saved_myreque;", "It drops nothing",
+         "[timer,routequest_hound_monitor]", "[proc,routequest_hound_cleanup]",
+         "[proc,routequest_on_death]", "%routequest_hound_death = 1;",
+         "[proc,routequest_on_logout]", "[proc,routequest_on_login]",
+         "inzone(^routequest_chamber_min, ^routequest_chamber_max, coord) = true",
+         "[oploc1,thrttavernbasementfalsewall]", "[oploc1,thrttavernbasementladder]",
+         "[oploc1,thrt_tavern_trap_door]", "[opnpc1,canafis_stranger]",
+         "stat_advance(attack, 6000);", "stat_advance(defence, 6000);",
+         "stat_advance(strength, 6000);", "stat_advance(hitpoints, 6000);",
+         "stat_advance(crafting, 6000);"),
+        "In Search of the Myreque member, Hellhound, escape and reward route",
+    )
+    require("obj_add" not in hideout,
+            "In Search of the Myreque: Skeleton Hellhound must have no loot path")
+    require_text(
+        ROUTEQUEST_MYREQUE2.read_text(),
+        ("%routequest < ^routequest_complete", "~routequest_veliaf;",
+         "~routequest_polmafi;", "~routequest_ivan;"),
+        "In Search of the Myreque additive In Aid NPC dispatch",
+    )
+    require_text(PLAYER_DEATH.read_text(),
+                 ("~routequest_on_death;", "$death_coord = ^routequest_chamber_outside;"),
+                 "In Search of the Myreque outside-room grave hook")
+    require_text(PLAYER_LOGOUT.read_text(), ("~routequest_on_logout;",),
+                 "In Search of the Myreque logout cleanup hook")
+    require_text(PLAYER_LOGIN.read_text(), ("~routequest_on_login;",),
+                 "In Search of the Myreque login reconciliation hook")
+    alloc = PIP_VARP_ALLOC.read_text()
+    require("6816=routequest_hound_active" in alloc and "6817=routequest_hound_death" in alloc,
+            "In Search of the Myreque: private varp allocations drifted")
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -2471,10 +3412,17 @@ def main() -> int:
         check_regicide()
         check_tai_bwo_wannai_trio()
         check_troll_stronghold()
+        check_shades_of_mortton()
+        check_fremennik_trials()
+        check_horror_from_the_deep()
+        check_monkey_madness_i()
+        check_haunted_mine()
+        check_troll_romance()
+        check_in_search_of_the_myreque()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio and Troll Stronghold (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance and In Search of the Myreque (ok)")
     return 0
 
 

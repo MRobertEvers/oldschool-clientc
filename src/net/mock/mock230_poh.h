@@ -13,7 +13,7 @@
 
 enum
 {
-    MOCK230_POH_SCHEMA_VERSION = 6,
+    MOCK230_POH_SCHEMA_VERSION = 7,
     MOCK230_POH_ROOM_MAX = 38,
     MOCK230_POH_DECORATION_MAX = 512,
     MOCK230_POH_GRID_MAX = 8,
@@ -27,6 +27,8 @@ enum
     MOCK230_POH_BOSS_JAR_MASK_MAX = 0x7fff,
     /* Paid ornate combat-dummy forms: wilderness through dragon. */
     MOCK230_POH_DUMMY_VARIANT_MASK_MAX = 0x1f,
+    /* https://oldschool.runescape.wiki/w/Update:Poll_78:_Near-Miss_%26_Skilling_Improvements */
+    MOCK230_POH_GAMES_PRIZE_MAX = 100000,
 };
 
 enum Mock230PohField
@@ -59,6 +61,7 @@ enum Mock230PohField
     MOCK230_POH_FIELD_TREASURE_READY_MINUTE = 25,
     MOCK230_POH_FIELD_BOSS_JARS = 26,
     MOCK230_POH_FIELD_DUMMY_VARIANTS = 27,
+    MOCK230_POH_FIELD_GAMES_PRIZE_COINS = 28,
 };
 
 enum Mock230PohRoomField
@@ -127,6 +130,7 @@ struct Mock230PohState
     int treasure_ready_minute;
     int boss_jars;
     int dummy_variants;
+    int games_prize_coins;
 
     struct Mock230PohRoom rooms[MOCK230_POH_ROOM_MAX];
     int room_count;

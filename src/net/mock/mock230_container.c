@@ -318,6 +318,15 @@ mock230_container_forget(
     row = find_row(player->containers, MOCK230_CONTAINER_MAX, inv_id);
     if( !row )
         return;
+    /* A private row may be painted by a different player. Retire every
+     * embedded item array before releasing the storage, so an owner logout or
+     * row replacement cannot leave a guest looking at a stale collection. Do
+     * not send the inventory-global STOPTRANSMIT packet here: that viewer may
+     * also be listening to their own row with the same inv id. */
+    for( int i = 0; i < row->listener_count; i++ )
+        if( row->listeners[i].player )
+            mock230_send_if_clearinv(row->listeners[i].player,
+                                     row->listeners[i].component);
     if( row->owns_items )
         free(row->items);
     memset(row, 0, sizeof(*row));
@@ -331,6 +340,10 @@ mock230_container_shutdown_player(struct Mock230Player* player)
     {
         struct Mock230Container* row = &player->containers[i];
 
+        for( int l = 0; l < row->listener_count; l++ )
+            if( row->listeners[l].player )
+                mock230_send_if_clearinv(row->listeners[l].player,
+                                         row->listeners[l].component);
         if( row->owns_items )
             free(row->items);
         memset(row, 0, sizeof(*row));
@@ -848,18 +861,18 @@ full_capacity(const struct Mock230Container* row)
     return used;
 }
 
-/* A player row's listener always belongs to that row's own player; a world
- * row's listener belongs to whichever player's bind created it. One test
- * covers both without the caller needing to know which kind of row it has. */
+/* A listener is always qualified by its viewer. This used to matter only for
+ * shared world rows, where the same component id exists on every client. A
+ * Costume Room guest can now also view another player's private row, so the
+ * same rule is required there: one guest closing component 675:11 must not
+ * unbind the owner or every other guest from their copies of 675:11. */
 static int
 listener_matches(
     const struct Mock230Container* row,
     int i,
     struct Mock230Player* player)
 {
-    if( row->owner_kind == MOCK230_CONTAINER_WORLD )
-        return row->listeners[i].player == player;
-    return 1;
+    return row->listeners[i].player == player;
 }
 
 static int
@@ -908,43 +921,60 @@ mock230_container_unbind(
     int dropped = 0;
 
     assert(player);
-    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
-        dropped += unbind_row(&player->containers[i], player, component);
+    /* A viewer may be listening to another player's private container (the
+     * Costume Room collection view). Component ownership belongs to the
+     * listener, not the row, so remove that listener from every live private
+     * table rather than assuming it is stored on the viewer. */
     if( srv )
     {
+        for( int p = 0; p < srv->player_count; p++ )
+        {
+            struct Mock230Player* owner = &srv->players[p];
+
+            if( !owner->active )
+                continue;
+            for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+                dropped += unbind_row(&owner->containers[i], player, component);
+        }
         for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
             dropped += unbind_row(&srv->world_containers[i], player, component);
+    }
+    else
+    {
+        for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+            dropped += unbind_row(&player->containers[i], player, component);
     }
     return dropped;
 }
 
-int
-mock230_container_bind(
+static int
+bind_row(
     struct Mock230Server* srv,
-    struct Mock230Player* player,
+    struct Mock230Container* row,
+    struct Mock230Player* viewer,
     int32_t inv_id,
     int32_t component)
 {
-    struct Mock230Container* row = mock230_container_resolve(srv, player, inv_id);
     int listener_i;
 
     if( !row )
         return 0;
-    assert(player);
+    assert(viewer);
 
-    /* Same (inv, com[, player on a shared row]) already listening — LostCity's
-     * early return. */
+    /* Same (inv, component, viewer) already listening — LostCity's early
+     * return. Component ids are client-local, so even a private row may have
+     * several listeners using the same numeric component. */
     for( listener_i = 0; listener_i < row->listener_count; listener_i++ )
     {
         if( row->listeners[listener_i].component == component &&
-            listener_matches(row, listener_i, player) )
+            listener_matches(row, listener_i, viewer) )
             return 1;
     }
 
     /* A component listens to at most one inv; move it if it was elsewhere.
      * Only this player's prior binding of `component` moves — a shared row's
      * other listeners are other players and must not be touched. */
-    mock230_container_unbind(srv, player, component);
+    mock230_container_unbind(srv, viewer, component);
 
     if( row->listener_count >= MOCK230_CONTAINER_LISTENERS_MAX )
     {
@@ -957,14 +987,39 @@ mock230_container_bind(
     listener_i = row->listener_count++;
     row->listeners[listener_i].component = component;
     row->listeners[listener_i].first_seen = 1;
-    row->listeners[listener_i].player = player;
+    row->listeners[listener_i].player = viewer;
     /* The reference sends a full update the moment a listener is added, and the
      * interface being painted needs it: a paint hook only runs on a transmit,
      * so a panel mounted before the container existed stays empty otherwise.
      * Only this listener's first_seen is cleared — other listeners keep theirs. */
-    mock230_send_inv_full(player, (int)component, (int)inv_id, row->items, full_capacity(row));
+    mock230_send_inv_full(viewer, (int)component, (int)inv_id, row->items, full_capacity(row));
     row->listeners[listener_i].first_seen = 0;
     return 1;
+}
+
+int
+mock230_container_bind(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int32_t inv_id,
+    int32_t component)
+{
+    return bind_row(srv, mock230_container_resolve(srv, player, inv_id), player, inv_id,
+                    component);
+}
+
+int
+mock230_container_bind_from(
+    struct Mock230Server* srv,
+    struct Mock230Player* owner,
+    struct Mock230Player* viewer,
+    int32_t inv_id,
+    int32_t component)
+{
+    if( !owner || !viewer )
+        return 0;
+    return bind_row(srv, mock230_container_resolve(srv, owner, inv_id), viewer, inv_id,
+                    component);
 }
 
 void
@@ -1015,14 +1070,17 @@ mock230_container_flush(struct Mock230Player* player)
         for( int l = 0; l < row->listener_count; l++ )
         {
             int32_t component = row->listeners[l].component;
+            struct Mock230Player* target = row->listeners[l].player;
 
+            if( !target )
+                continue;
             if( !dirty && !row->listeners[l].first_seen )
                 continue;
             if( row->per_slot && dirty && !row->listeners[l].first_seen )
-                mock230_send_inv_partial(player, (int)component, (int)row->inv_id, row->items,
+                mock230_send_inv_partial(target, (int)component, (int)row->inv_id, row->items,
                                          row->slots, mock230_container_slot_mask(row));
             else
-                mock230_send_inv_full(player, (int)component, (int)row->inv_id, row->items,
+                mock230_send_inv_full(target, (int)component, (int)row->inv_id, row->items,
                                       full_capacity(row));
             row->listeners[l].first_seen = 0;
         }

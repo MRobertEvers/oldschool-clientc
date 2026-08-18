@@ -1458,6 +1458,7 @@ SSVM_StateAlloc(
     state->trigger = SSVM_ScriptTrigger(script);
     state->last_int = 0;
     SSVM_StrPoolInit(&state->pool);
+    state->last_string = "";
     SSVM_ErrorClear(&state->err);
 
     /* Push the caller's arguments so setup_new_script binds them exactly the

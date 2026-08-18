@@ -822,8 +822,17 @@ The `vars` mutation is the sharpest of these: storing per-player still passes
 the *same-player* read-back and fails only the cross-player check, which is why
 that test needs two players to mean anything.
 
-Content compiles clean (23,838 scripts) and `plunder.npc` loads with zero
-content errors.
+Content compiles clean — **25,275 scripts, zero errors across the whole tree**
+against HEAD `307bd64e` — and `plunder.npc` loads with zero content errors.
+
+One caveat worth recording, because it wasted more time than the feature did:
+`sscompile` **must be rebuilt immediately before each verification run**. This
+tree's engine gains ServerScript opcodes regularly, and content is committed
+that uses them; a compiler binary even an hour old rejects HEAD's content with
+`'x' is not a command`, and every such rejection then cascades as `no proc
+named ...` through whatever quarantines broken files — which reads exactly like
+a broken content tree and is not one. Two separate multi-hour detours in this
+session came from that, both of them chasing damage that did not exist.
 
 ---
 

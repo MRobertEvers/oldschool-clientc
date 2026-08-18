@@ -1808,6 +1808,48 @@ main(void)
             check(!peers[0].saw_npc_unknown_target && !peers[1].saw_npc_unknown_target,
                   "with every npc block attributed to a tracked npc");
 
+            /* Category 981 is cache-exclusive to the nine attached POH combat
+             * dummies. A dummy is a meter, not a killable monster: the full
+             * max-hit number must enter the update mask without reducing HP,
+             * starting retaliation, or scheduling death.
+             * https://oldschool.runescape.wiki/w/Combat_dummy */
+            {
+                int saved_type = npc->type;
+                int saved_hp = npc->hitpoints;
+                int saved_max_hp = npc->max_hitpoints;
+                int saved_target = npc->combat_target;
+                int saved_hitmark_count = npc->hitmark_count;
+                unsigned int saved_masks = npc->masks;
+                int dummy_type = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "poh_combat_dummy_npc");
+
+                check(dummy_type >= 0 && mock230_npc_category(dummy_type) == 981,
+                      "the cache identifies the POH combat dummy by category 981");
+                if( dummy_type >= 0 )
+                {
+                    npc->type = dummy_type;
+                    npc->hitpoints = 500;
+                    npc->max_hitpoints = 500;
+                    npc->combat_target = -1;
+                    npc->hitmark_count = 0;
+                    npc->masks = 0;
+                    mock230_combat_hit_npc(world, npc_slot, 28, 37);
+                    check(npc->hitpoints == 500,
+                          "a POH dummy hit leaves its hitpoints untouched");
+                    check(npc->hitmark_count == 1 && npc->hitmarks[0].damage == 37,
+                          "while preserving the exact damage hitsplat");
+                    check(npc->combat_target < 0 && npc->death_tick < 0,
+                          "and starts neither retaliation nor death");
+                }
+
+                npc->type = saved_type;
+                npc->hitpoints = saved_hp;
+                npc->max_hitpoints = saved_max_hp;
+                npc->combat_target = saved_target;
+                npc->hitmark_count = saved_hitmark_count;
+                npc->masks = saved_masks;
+            }
+
             /*
              * ── The npc's combat sounds ─────────────────────────────────
              *

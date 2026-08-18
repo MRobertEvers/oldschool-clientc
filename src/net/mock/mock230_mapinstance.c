@@ -64,6 +64,8 @@ struct Mock230MapInstance
     int owner_uid;
     /** Content-owned, session-local switches shared by everyone in the map. */
     uint32_t flags;
+    /** Content-owned integer registers shared by everyone in the map. */
+    int vars[MOCK230_MAPINSTANCE_VARS];
     /** Absolute south-west tile. */
     int base_x, base_z;
     int zone_w, zone_h;
@@ -419,6 +421,26 @@ mock230_mapinstance_owner(int handle)
 }
 
 int
+mock230_mapinstance_find_owner(
+    int player_uid,
+    int required_flags)
+{
+    uint32_t required = (uint32_t)required_flags;
+
+    if( player_uid <= 0 || required_flags < 0 )
+        return 0;
+    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    {
+        const struct Mock230MapInstance* inst = &g_instances[i];
+
+        if( inst->active && inst->owner_uid == player_uid &&
+            (inst->flags & required) == required )
+            return i + 1;
+    }
+    return 0;
+}
+
+int
 mock230_mapinstance_flag_get(
     int handle,
     int mask)
@@ -444,6 +466,32 @@ mock230_mapinstance_flag_set(
         inst->flags |= (uint32_t)mask;
     else
         inst->flags &= ~(uint32_t)mask;
+    return 1;
+}
+
+int
+mock230_mapinstance_var_get(
+    int handle,
+    int slot)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || slot < 0 || slot >= MOCK230_MAPINSTANCE_VARS )
+        return 0;
+    return inst->vars[slot];
+}
+
+int
+mock230_mapinstance_var_set(
+    int handle,
+    int slot,
+    int value)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || slot < 0 || slot >= MOCK230_MAPINSTANCE_VARS )
+        return 0;
+    inst->vars[slot] = value;
     return 1;
 }
 

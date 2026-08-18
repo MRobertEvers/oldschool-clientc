@@ -305,6 +305,20 @@ mock230_container_bind(
     int32_t inv_id,
     int32_t component);
 
+/** Bind `viewer's` component to a container owned by `owner`.
+ *
+ * This is the read-only cross-player half used by house collections: a guest
+ * paints the owner's Costume Room inventory, while all mutation remains in
+ * owner-context RuneScript. For a world-scoped inv, `owner` is ignored just as
+ * it is by resolve. */
+int
+mock230_container_bind_from(
+    struct Mock230Server* srv,
+    struct Mock230Player* owner,
+    struct Mock230Player* viewer,
+    int32_t inv_id,
+    int32_t component);
+
 /** Drop the listener that names `component` **for `player`**. Revision 239
  * first sends IF_CLEARINV for the component's embedded item array. The
  * inventory-global UPDATE_INV_STOPTRANSMIT remains the caller's

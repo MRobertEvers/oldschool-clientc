@@ -1856,6 +1856,13 @@ mock230_send_varp_small(
     int value)
 {
     struct RSAreaBuf buf;
+    int client_count = mock230_varp_client_count();
+
+    /* A transmit declaration can belong to a cache-overlay lane that is not
+     * active. Never encode an id the connected client's varp array cannot
+     * address; the official client treats it as a fatal protocol error. */
+    if( id < 0 || (client_count > 0 && id >= client_count) )
+        return;
     open_packet(&buf, 8);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
@@ -1884,6 +1891,10 @@ mock230_send_varp_large(
     int value)
 {
     struct RSAreaBuf buf;
+    int client_count = mock230_varp_client_count();
+
+    if( id < 0 || (client_count > 0 && id >= client_count) )
+        return;
     open_packet(&buf, 8);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);

@@ -49,6 +49,9 @@ static int g_carrier_count;
 /** The highest varp any loaded varbit is based on; -1 until one is. */
 static int g_max_basevar = -1;
 
+/** Size of the varplayer config group the active client actually loads. */
+static int g_client_varp_count;
+
 /** Non-zero while mock230_varbit_set is patching a base varp — a varbit write
  *  reaching mock230_world_set_varp is the correct path, not a violation. */
 static int g_patching;
@@ -86,6 +89,37 @@ mock230_varbit_load(const char* cache_dir)
     RSCache_Dat2DiskSetProfile(disk, &profile);
 
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
+
+    /*
+     * Measure the client's varp array from the active cache, separately from
+     * the highest varbit carrier below.  Base cache.osrs239 has varp records
+     * 0..5704 while a few varbits name carriers through 5724.  The official
+     * client sizes its array from the former: transmitting carrier 5705 is an
+     * immediate ArrayIndexOutOfBoundsException.  Overlay caches such as the
+     * Ancient Curses lane add real records at 5705/5706, so a constant cannot
+     * express the boundary correctly for both lanes.
+     */
+    {
+        struct RSCache_Dat2DiskArchive* varps = RSCache_Dat2DiskArchiveNewLoad(
+            disk, table, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER);
+
+        if( varps && RSCache_Dat2DiskArchiveInitMetadata(disk, varps) )
+        {
+            int max_id = -1;
+
+            for( int i = 0; i < varps->file_count; i++ )
+            {
+                int id = varps->file_ids ? varps->file_ids[i] : i;
+
+                if( id > max_id )
+                    max_id = id;
+            }
+            g_client_varp_count = max_id + 1;
+        }
+        if( varps )
+            RSCache_Dat2DiskArchiveFree(varps);
+    }
+
     archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_VARBIT);
     if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
     {
@@ -206,7 +240,15 @@ mock230_varbit_load(const char* cache_dir)
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
     fprintf(stderr, "mock230: varbit table loaded (%d records from %s)\n", loaded, cache_dir);
+    fprintf(stderr, "mock230: client varp capacity %d from %s\n",
+            g_client_varp_count, cache_dir);
     return loaded;
+}
+
+int
+mock230_varp_client_count(void)
+{
+    return g_client_varp_count;
 }
 
 void
@@ -215,6 +257,7 @@ mock230_varbit_free(void)
     free(g_varbits);
     g_varbits = NULL;
     g_varbit_count = 0;
+    g_client_varp_count = 0;
     free(g_carrier_bits);
     g_carrier_bits = NULL;
     g_carrier_count = 0;
@@ -303,4 +346,3 @@ mock230_varbit_set(
     g_patching--;
     return range->basevar;
 }
-

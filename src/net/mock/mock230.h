@@ -427,8 +427,16 @@ enum
      * floor is now checked rather than assumed: `mock230_content_load` refuses
      * to boot when the tree declares a varp this cannot hold, and says by how
      * much.
+     *
+     * Raised 1024 -> 2048 when Chambers of Xeric was added. The tree's highest
+     * allocated varp reached 6774 against a ceiling of 6749, and the symptom
+     * was exactly the one described above: `[proc,cox_selftest_olm_spec_order]`
+     * aborted on PUSH_VARP, so the whole `::coxrun` fixture died before it
+     * could report, and its result varp read back as the harness's own seed
+     * rather than as a failure count. The abort message names the varp, which
+     * is what made it findable at all.
      */
-    MOCK230_VARP_SERVER_HEADROOM = 1024,
+    MOCK230_VARP_SERVER_HEADROOM = 2048,
     MOCK230_VARP_COUNT = MOCK230_VARP_CACHE_MAX + MOCK230_VARP_SERVER_HEADROOM,
     /*
      * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per
@@ -1689,11 +1697,11 @@ struct Mock230Container
      * `first_seen` is per listener: a new bind gets a full update immediately,
      * without forcing every other listener to re-send.
      *
-     * `player` distinguishes listeners on a WORLD row, where `component` alone
-     * is not unique: `(300<<16)|16` (shopmain:items) is the same numeric id on
-     * every client, so two different players opening the same shared shop are
-     * two listeners on one row, not one. It is unused (and left NULL) on a
-     * PLAYER row, where the row's own `owner` already answers "which player".
+     * `player` distinguishes viewers because a component id is local to one
+     * client: `(300<<16)|16` (shopmain:items) is the same numeric id on every
+     * client. That is true for world rows and for a private row exposed
+     * read-only to another player, such as a Costume Room collection. The row's
+     * `owner` answers who owns the items; this field answers who sees them.
      */
     struct
     {
@@ -3880,6 +3888,14 @@ mock230_varbit_load(const char* cache_dir);
 void
 mock230_varbit_free(void);
 
+/**
+ * Number of varp records the active client cache can address.  This is not the
+ * highest varp used as a varbit carrier: a cache can contain server-side
+ * carrier ids beyond the client's varp array.  Zero means no cache is loaded.
+ */
+int
+mock230_varp_client_count(void);
+
 /** Read a varbit out of the player's varps. 0 when the id is unknown. */
 int
 mock230_varbit_get(
@@ -5536,11 +5552,19 @@ mock230_scripts_resume_countdialog(
     struct Mock230Server* srv,
     int32_t value);
 
+/** Release a p_namedialog wait with the decoded, non-NUL reply bytes. */
+int
+mock230_scripts_resume_namedialog(
+    struct Mock230Server* srv,
+    const uint8_t* text,
+    int len);
+
 /**
  * End a script parked on a dialogue, because the interface it is blocked on is
  * being taken away. Returns 1 when one was actually discarded.
  *
- * Only a `p_pausebutton` / `p_countdialog` wait: those two are the ones whose
+ * Only a `p_pausebutton`, `p_countdialog`, or `p_namedialog` wait: these are
+ * the waits whose
  * only way forward is a click on an interface that is about to stop existing,
  * so leaving them parked would wedge the player's single script slot until
  * logout. A `p_delay` wait survives — its clock is still running, and the

@@ -7492,7 +7492,8 @@ mock230_world_close_modal_ex(
     abort_dialog =
         player->active_script &&
         (player->active_script->execution == SSVM_PAUSEBUTTON ||
-         player->active_script->execution == SSVM_COUNTDIALOG);
+         player->active_script->execution == SSVM_COUNTDIALOG ||
+         player->active_script->execution == SSVM_NAMEDIALOG);
     if( abort_dialog )
         mock230_send_trigger_ondialogabort(player);
 
@@ -7708,10 +7709,9 @@ handle_resume_countdialog(
         mock230_bank_resume_countdialog(srv, (int)value);
 }
 
-/* These callbacks exist as separate prots at 239. The current RuneScript VM
- * only has PAUSEBUTTON and COUNTDIALOG parked-state kinds, so text and object
- * answers are decoded and routed (rather than silently dropped) but are not
- * mis-delivered to a different wait kind. */
+/* These callbacks exist as separate prots at 239. Name replies release only a
+ * NAMEDIALOG wait; string-dialog replies remain decoded and logged without
+ * being mis-delivered to a different wait kind. */
 static void
 handle_resume_textdialog(
     struct Mock230Server* srv,
@@ -7729,6 +7729,8 @@ handle_resume_textdialog(
                     ? "RESUME_P_NAMEDIALOG"
                     : "RESUME_P_STRINGDIALOG",
                 text.len, (const char*)text.bytes);
+    if( name == PKTOUT_NAME_RESUME_P_NAMEDIALOG )
+        mock230_scripts_resume_namedialog(srv, text.bytes, text.len);
 }
 
 static void
@@ -15000,6 +15002,11 @@ mock230_world_selftest(void)
              * exact player/NPC trigger before executing the paths below. */
             {
                 int resolved_rows = 0;
+                int player_rows = 0;
+                int npc_rows = 0;
+                int player_effect_rows = 0;
+                int player_penetration_rows = 0;
+                int player_style_mask = 0;
 
                 SELFTEST_CHECK(
                     MOCK230_GWD_MANIFEST_COUNT == 126,
@@ -15061,11 +15068,50 @@ mock230_world_selftest(void)
                         SSVM_ProviderGetByName(srv->scripts, hook) != NULL,
                         "%s/%s retains exact handler %s",
                         row->gameval, row->attack_name, hook);
+                    SELFTEST_CHECK(
+                        row->style[0] && row->max_hit[0] &&
+                            row->secondary_effect[0] && row->prayer_rule[0],
+                        "%s/%s retains reviewed style/max/effect/prayer metadata",
+                        row->gameval, row->attack_name);
+                    if( row->targets_npc )
+                    {
+                        npc_rows++;
+                    }
+                    else
+                    {
+                        player_rows++;
+                        if( strcmp(row->style, "magic") == 0 )
+                            player_style_mask |= 1 << 0;
+                        else if( strcmp(row->style, "crush") == 0 )
+                            player_style_mask |= 1 << 1;
+                        else if( strcmp(row->style, "stab") == 0 )
+                            player_style_mask |= 1 << 2;
+                        else if( strcmp(row->style, "ranged") == 0 )
+                            player_style_mask |= 1 << 3;
+                        else if( strcmp(row->style, "slash") == 0 )
+                            player_style_mask |= 1 << 4;
+                        else if( strcmp(row->style, "typeless crush") == 0 )
+                            player_style_mask |= 1 << 5;
+                        if( strcmp(row->secondary_effect, "none") != 0 )
+                            player_effect_rows++;
+                        if( strstr(row->prayer_rule, "penetrat") != NULL ||
+                            strstr(row->prayer_rule, "penetration") != NULL )
+                            player_penetration_rows++;
+                    }
                     resolved_rows++;
                 }
                 SELFTEST_CHECK(
                     resolved_rows == MOCK230_GWD_MANIFEST_COUNT,
                     "all compiled GWD attack-ledger rows are runtime audited");
+                SELFTEST_CHECK(
+                    player_rows == 75 && npc_rows == 51 &&
+                        player_style_mask == 0x3f && player_effect_rows == 9 &&
+                        player_penetration_rows == 2,
+                    "reviewed GWD ledger keeps 75 player/51 NPC rows, all six "
+                    "styles, nine player-effect rows, and two prayer-penetration "
+                    "rows (got %d/%d mask %x effects %d penetration %d)",
+                    player_rows, npc_rows, player_style_mask,
+                    player_effect_rows, player_penetration_rows);
             }
 
             /* Execute every ambient roster member through its exact trigger.
@@ -15214,6 +15260,293 @@ mock230_world_selftest(void)
                     war_count);
                 if( war_target >= 0 )
                     srv->npcs[war_target].active = 0;
+            }
+
+            /* The row trace above proves selection and presentation. Keep the
+             * shared classic landing primitives independently observable too:
+             * all five rolled styles must produce both accuracy outcomes;
+             * the three melee substyles and Ranged must preserve a supplied
+             * maximum, a zero/miss, and prayer blocking; Gorak's null style
+             * must penetrate that same prayer. Magic's delayed protected,
+             * unprotected, maximum and miss landings are exercised by the
+             * Ancient Prison/Nex matrix below. */
+            {
+                static const struct
+                {
+                    const char* name;
+                    const char* constant;
+                    const char* npc;
+                    const char* proc;
+                } roll_cases[] = {
+                    { "stab", "stab_style", "godwars_ancient_hellhound",
+                      "[proc,npc_player_hit_roll]" },
+                    { "slash", "slash_style", "godwars_ancient_vampire",
+                      "[proc,npc_player_hit_roll]" },
+                    { "crush", "crush_style", "godwars_ancient_greater_demon",
+                      "[proc,npc_player_hit_roll]" },
+                    { "magic", "magic_style", "godwars_spiritual_saradomin_mage",
+                      "[proc,npc_player_hit_roll]" },
+                    { "ranged", "ranged_style", "godwars_saradomin_centaur",
+                      "[proc,gwd_bodyguard_ranged_hit]" },
+                };
+                int slots[sizeof(roll_cases) / sizeof(roll_cases[0])];
+
+                player->x = 426 * 8;
+                player->z = 408 * 8;
+                player->level = 0;
+                for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+                {
+                    player->stat_level[stat] = 99;
+                    player->stat_boosted[stat] = 99;
+                }
+                player->hitpoints = player->max_hitpoints = 99;
+                for( size_t c = 0;
+                     c < sizeof(roll_cases) / sizeof(roll_cases[0]); c++ )
+                {
+                    int npc_id = mock230_content_symbol(
+                        MOCK230_PACK_NPC, roll_cases[c].npc);
+                    int style = mock230_content_constant_int(
+                        roll_cases[c].constant, -1);
+                    int seen = 0;
+
+                    slots[c] = mock230_world_npc_spawn(
+                        srv, npc_id, player->x + 1 + (int)c, player->z,
+                        player->level);
+                    SELFTEST_CHECK(
+                        slots[c] >= 0 && style >= 0,
+                        "%s GWD accuracy fixture resolves", roll_cases[c].name);
+                    if( slots[c] < 0 || style < 0 )
+                        continue;
+                    srv->npcs[slots[c]].spawn_pending = 0;
+                    for( int seed = 0; seed < 4096 && seen != 3; seed++ )
+                    {
+                        int32_t style_arg = style;
+                        int accurate = -1;
+
+                        SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
+                        if( mock230_scripts_run_proc_int_on_npc(
+                                srv, roll_cases[c].proc, slots[c],
+                                c == 4 ? NULL : &style_arg,
+                                c == 4 ? 0 : 1, &accurate) )
+                            seen |= accurate ? 1 : 2;
+                    }
+                    SELFTEST_CHECK(
+                        seen == 3,
+                        "%s GWD accuracy roll deterministically reaches hit "
+                        "and miss outcomes (mask %d)",
+                        roll_cases[c].name, seen);
+                }
+
+                /* Direct landing arguments are deliberate: accuracy was
+                 * isolated immediately above, so a rolled zero cannot be
+                 * mistaken for a miss here. */
+                if( slots[2] >= 0 )
+                {
+                    static const char* const melee_constants[] = {
+                        "stab_style", "slash_style", "crush_style",
+                    };
+                    int32_t land_args[2];
+
+                    player->stat_level[MOCK230_STAT_PRAYER] = 99;
+                    player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
+                    if( selftest_prayer_on(srv, "prayer_protectfrommelee") )
+                        selftest_prayer_toggle(srv, "prayer_protectfrommelee");
+                    for( size_t style = 0;
+                         style < sizeof(melee_constants) /
+                                     sizeof(melee_constants[0]);
+                         style++ )
+                    {
+                        land_args[0] = mock230_content_constant_int(
+                            melee_constants[style], -1);
+                        land_args[1] = 14;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,playerhit_n_melee]", slots[2],
+                                land_args, 2) && player->hitpoints == 85,
+                            "%s unprotected maximum landing deals 14",
+                            melee_constants[style]);
+                        land_args[1] = 0;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,playerhit_n_melee]", slots[2],
+                                land_args, 2) && player->hitpoints == 99,
+                            "%s miss landing deals zero",
+                            melee_constants[style]);
+                    }
+                    selftest_prayer_toggle(srv, "prayer_protectfrommelee");
+                    SELFTEST_CHECK(
+                        selftest_prayer_on(srv, "prayer_protectfrommelee"),
+                        "Protect from Melee is active for GWD outcome matrix");
+                    for( size_t style = 0;
+                         style < sizeof(melee_constants) /
+                                     sizeof(melee_constants[0]);
+                         style++ )
+                    {
+                        land_args[0] = mock230_content_constant_int(
+                            melee_constants[style], -1);
+                        land_args[1] = 14;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,playerhit_n_melee]", slots[2],
+                                land_args, 2) && player->hitpoints == 99,
+                            "Protect from Melee blocks %s maximum landing",
+                            melee_constants[style]);
+                    }
+                    land_args[0] = -1;
+                    land_args[1] = 14;
+                    player->hitpoints =
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,playerhit_n_melee]", slots[2],
+                            land_args, 2) && player->hitpoints == 85,
+                        "Gorak typeless maximum penetrates Protect from Melee");
+                    selftest_prayer_toggle(srv, "prayer_protectfrommelee");
+                }
+
+                if( slots[4] >= 0 )
+                {
+                    const struct SSVM_Script* damage =
+                        SSVM_ProviderGetByName(
+                            srv->scripts, "[queue,combat_damage_player]");
+                    int32_t ranged_args[3] = { 1, 16, 30 };
+
+                    if( selftest_prayer_on(
+                            srv, "prayer_protectfrommissiles") )
+                        selftest_prayer_toggle(
+                            srv, "prayer_protectfrommissiles");
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,playerhit_n_ranged]", slots[4],
+                            ranged_args, 3) &&
+                            selftest_player_queue_match(
+                                player, damage, -1, 1, 16) == 1,
+                        "unprotected Ranged maximum landing preserves 16");
+                    ranged_args[1] = 0;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[proc,playerhit_n_ranged]", slots[4],
+                            ranged_args, 3) &&
+                            selftest_player_queue_match(
+                                player, damage, -1, 1, 0) == 1,
+                        "Ranged miss landing queues zero");
+                    selftest_prayer_toggle(
+                        srv, "prayer_protectfrommissiles");
+                    ranged_args[1] = 16;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SELFTEST_CHECK(
+                        selftest_prayer_on(
+                            srv, "prayer_protectfrommissiles") &&
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,playerhit_n_ranged]", slots[4],
+                                ranged_args, 3) &&
+                            selftest_player_queue_match(
+                                player, damage, -1, 1, 0) == 1,
+                        "Protect from Missiles blocks Ranged maximum landing");
+                    selftest_prayer_toggle(
+                        srv, "prayer_protectfrommissiles");
+                    memset(player->queue, 0, sizeof(player->queue));
+                }
+
+                if( slots[3] >= 0 )
+                {
+                    const struct SSVM_Script* damage =
+                        SSVM_ProviderGetByName(
+                            srv->scripts, "[queue,combat_damage_player]");
+                    int32_t magic_args[3] = { 10, 20, 1 };
+                    int seen_magic = 0;
+                    int maximum_seed = -1;
+
+                    if( selftest_prayer_on(
+                            srv, "prayer_protectfrommagic") )
+                        selftest_prayer_toggle(
+                            srv, "prayer_protectfrommagic");
+                    for( int seed = 0;
+                         seed < 4096 && seen_magic != 7; seed++ )
+                    {
+                        memset(player->queue, 0, sizeof(player->queue));
+                        SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
+                        if( !mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,gwd_boss_magic_fixed]", slots[3],
+                                magic_args, 3) )
+                            continue;
+                        if( selftest_player_queue_match(
+                                player, damage, -1, 1, 0) == 1 )
+                            seen_magic |= 1;
+                        if( selftest_player_queue_match(
+                                player, damage, -1, 1, 10) == 1 )
+                            seen_magic |= 2;
+                        if( selftest_player_queue_match(
+                                player, damage, -1, 1, 20) == 1 )
+                        {
+                            seen_magic |= 4;
+                            maximum_seed = seed;
+                        }
+                    }
+                    SELFTEST_CHECK(
+                        seen_magic == 7 && maximum_seed >= 0,
+                        "classic fixed Magic reaches miss, minimum 10 and "
+                        "maximum 20 outcomes (mask %d, max seed %d)",
+                        seen_magic, maximum_seed);
+                    selftest_prayer_toggle(
+                        srv, "prayer_protectfrommagic");
+                    memset(player->queue, 0, sizeof(player->queue));
+                    SSVM_EnvSeed(
+                        srv->script_env, (uint64_t)maximum_seed);
+                    SELFTEST_CHECK(
+                        selftest_prayer_on(
+                            srv, "prayer_protectfrommagic") &&
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,gwd_boss_magic_fixed]", slots[3],
+                                magic_args, 3) &&
+                            selftest_player_queue_match(
+                                player, damage, -1, 1, 0) == 1,
+                        "Protect from Magic blocks the same seeded maximum hit");
+                    selftest_prayer_toggle(
+                        srv, "prayer_protectfrommagic");
+                    memset(player->queue, 0, sizeof(player->queue));
+                }
+
+                if( slots[2] >= 0 )
+                {
+                    static const int drain_stats[] = {
+                        0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11,
+                        12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                    };
+                    int max_drains = 0;
+
+                    for( int roll = 0; roll < 22; roll++ )
+                    {
+                        int32_t drain_args[2] = { roll, 4 };
+                        int stat = drain_stats[roll];
+
+                        player->stat_level[stat] = 99;
+                        player->stat_boosted[stat] = 99;
+                        if( mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,gwd_gorak_drain]", slots[2],
+                                drain_args, 2) &&
+                            player->stat_boosted[stat] == 95 )
+                            max_drains++;
+                    }
+                    SELFTEST_CHECK(
+                        max_drains == 22,
+                        "Gorak maximum drain reaches every one of 22 non-HP "
+                        "skills (got %d)", max_drains);
+                }
+                for( size_t c = 0;
+                     c < sizeof(slots) / sizeof(slots[0]); c++ )
+                    if( slots[c] >= 0 )
+                        srv->npcs[slots[c]].active = 0;
+                memset(player->queue, 0, sizeof(player->queue));
+                SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
             }
 
             for( size_t i = 0;
@@ -15692,6 +16025,107 @@ mock230_world_selftest(void)
                 player->x = 426 * 8;
                 player->z = 408 * 8;
                 player->level = 0;
+            }
+
+            /* A successful Kree wind hit queues this exact production landing.
+             * Prove both forced-movement outcomes directly: an open interior
+             * tile receives a one-tile exact move, while the same vector at
+             * the chamber edge is immune because it would leave the room. */
+            {
+                int saved_x = player->x;
+                int saved_z = player->z;
+                int saved_level = player->level;
+                int saved_zone_x = srv->zone_x;
+                int saved_zone_z = srv->zone_z;
+                int kree_id = mock230_content_symbol(
+                    MOCK230_PACK_NPC, "godwars_armadyl_avatar");
+                int slot;
+
+                player->x = 44 * 64 + 15;
+                player->z = 82 * 64 + 54;
+                player->level = 2;
+                player->place_dirty = 1;
+                srv->zone_x = player->x >> 3;
+                srv->zone_z = player->z >> 3;
+                mock230_world_scene_rebuild(srv);
+                mock230_world_locs_reapply(srv);
+                world_occupancy_restamp(srv);
+                slot = mock230_world_npc_spawn(
+                    srv, kree_id, player->x - 2, player->z - 1,
+                    player->level);
+                SELFTEST_CHECK(slot >= 0,
+                               "Kree'arra spawns for knockback boundary");
+                if( slot >= 0 )
+                {
+                    int32_t origin[1];
+                    int start_x = 0;
+                    int start_z = 0;
+                    int found_open_push = 0;
+
+                    srv->npcs[slot].spawn_pending = 0;
+                    for( int local_x = 10;
+                         local_x <= 24 && !found_open_push; local_x++ )
+                    {
+                        for( int local_z = 50;
+                             local_z <= 58 && !found_open_push; local_z++ )
+                        {
+                            player->x = 44 * 64 + local_x;
+                            player->z = 82 * 64 + local_z;
+                            start_x = player->x;
+                            start_z = player->z;
+                            player->masks &= ~MOCK230_PMASK_EXACT_MOVE;
+                            origin[0] = mock230_coord_pack(
+                                player->level, start_x - 2, start_z - 1);
+                            if( mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[queue,gwd_kree_knockback]", slot,
+                                    origin, 1) &&
+                                (player->masks &
+                                 MOCK230_PMASK_EXACT_MOVE) != 0 )
+                                found_open_push = 1;
+                        }
+                    }
+                    SELFTEST_CHECK(
+                        found_open_push &&
+                            player->exact_start_x == start_x &&
+                            player->exact_start_z == start_z &&
+                            player->exact_end_x == start_x + 1 &&
+                            player->exact_end_z == start_z + 1 &&
+                            player->x == start_x + 1 &&
+                            player->z == start_z + 1 &&
+                            player->exact_start_cycle == 0 &&
+                            player->exact_end_cycle == 30,
+                        "Kree interior wind pushes one tile away over 0..30 "
+                        "cycles (start %d,%d end %d,%d)",
+                        player->exact_start_x, player->exact_start_z,
+                        player->exact_end_x, player->exact_end_z);
+
+                    player->x = 44 * 64 + 26;
+                    player->z = 82 * 64 + 60;
+                    player->masks &= ~MOCK230_PMASK_EXACT_MOVE;
+                    origin[0] = mock230_coord_pack(
+                        player->level, player->x - 2, player->z - 1);
+                    start_x = player->x;
+                    start_z = player->z;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,gwd_kree_knockback]", slot,
+                            origin, 1),
+                        "Kree chamber-edge knockback landing executes");
+                    SELFTEST_CHECK(
+                        (player->masks & MOCK230_PMASK_EXACT_MOVE) == 0 &&
+                            player->x == start_x && player->z == start_z,
+                        "Kree chamber edge cancels an out-of-bounds push");
+                    srv->npcs[slot].active = 0;
+                }
+                player->x = saved_x;
+                player->z = saved_z;
+                player->level = saved_level;
+                player->place_dirty = 1;
+                srv->zone_x = saved_zone_x;
+                srv->zone_z = saved_zone_z;
+                mock230_world_scene_rebuild(srv);
+                mock230_world_locs_reapply(srv);
+                world_occupancy_restamp(srv);
             }
 
             /* Exercise the two genuinely room-wide classic attacks with five
@@ -16997,6 +17431,105 @@ mock230_world_selftest(void)
                             srv, "[proc,prayer_deactivate_all]", NULL, 0);
                     }
 
+                    /* Turmoil's leech is a landed final-phase effect, not a
+                     * phase-entry blanket drain and not an effect of a zero.
+                     * Pin all five transferred combat levels plus its native
+                     * projectile/impact against both negative controls. */
+                    {
+                        const int magic_style =
+                            mock230_content_constant_int("magic_style", -1);
+                        const int leech_projectile = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM,
+                            "nex_spot_leech_projanim_defence");
+                        const int leech_impact = mock230_content_symbol(
+                            MOCK230_PACK_SPOTANIM,
+                            "nex_spot_leech_impact_spotanim_defence");
+                        static const int turmoil_stats[] = {
+                            MOCK230_STAT_ATTACK, MOCK230_STAT_STRENGTH,
+                            MOCK230_STAT_DEFENCE, MOCK230_STAT_RANGED,
+                            MOCK230_STAT_MAGIC,
+                        };
+                        int projectile_before = mock230_zone_event_count(
+                            srv, MOCK230_ZONE_EV_PROJANIM,
+                            leech_projectile);
+
+                        for( size_t i = 0;
+                             i < sizeof(turmoil_stats) /
+                                     sizeof(turmoil_stats[0]);
+                             i++ )
+                        {
+                            int stat = turmoil_stats[i];
+
+                            player->stat_level[stat] = 99;
+                            player->stat_boosted[stat] = 99;
+                            srv->npcs[boss].stat_drain[stat] = 10;
+                        }
+                        srv->npcs[boss].type = nex_id;
+                        srv->npcs[boss].script_vars[0] = 4;
+                        land_args[0] = source;
+                        land_args[1] = magic_style;
+                        land_args[2] = 10;
+                        land_args[3] = 0;
+                        SELFTEST_CHECK(
+                            magic_style >= 0 &&
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[proc,nex_damage_player]", boss,
+                                    land_args, 4) &&
+                                player->stat_boosted[MOCK230_STAT_ATTACK] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_STRENGTH] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_DEFENCE] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_RANGED] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_MAGIC] == 99,
+                            "pre-Zaros damage cannot activate Turmoil");
+
+                        srv->npcs[boss].script_vars[0] = 5;
+                        land_args[2] = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,nex_damage_player]", boss,
+                                land_args, 4) &&
+                                player->stat_boosted[MOCK230_STAT_ATTACK] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_STRENGTH] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_DEFENCE] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_RANGED] == 99 &&
+                                player->stat_boosted[MOCK230_STAT_MAGIC] == 99,
+                            "a zero-damage Zaros hit cannot activate Turmoil");
+
+                        land_args[2] = 10;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[proc,nex_damage_player]", boss,
+                                land_args, 4) &&
+                                player->stat_boosted[MOCK230_STAT_ATTACK] == 97 &&
+                                player->stat_boosted[MOCK230_STAT_STRENGTH] == 97 &&
+                                player->stat_boosted[MOCK230_STAT_DEFENCE] == 97 &&
+                                player->stat_boosted[MOCK230_STAT_RANGED] == 97 &&
+                                player->stat_boosted[MOCK230_STAT_MAGIC] == 97 &&
+                                srv->npcs[boss].stat_drain[MOCK230_STAT_ATTACK] == 8 &&
+                                srv->npcs[boss].stat_drain[MOCK230_STAT_STRENGTH] == 8 &&
+                                srv->npcs[boss].stat_drain[MOCK230_STAT_DEFENCE] == 8 &&
+                                srv->npcs[boss].stat_drain[MOCK230_STAT_RANGED] == 8 &&
+                                srv->npcs[boss].stat_drain[MOCK230_STAT_MAGIC] == 8 &&
+                                mock230_zone_event_count(
+                                    srv, MOCK230_ZONE_EV_PROJANIM,
+                                    leech_projectile) == projectile_before + 1 &&
+                                srv->npcs[boss].spotanim_id == leech_impact,
+                            "landed Zaros Turmoil drains and transfers two "
+                            "levels in all five combat stats with leech assets");
+                        for( size_t i = 0;
+                             i < sizeof(turmoil_stats) /
+                                     sizeof(turmoil_stats[0]);
+                             i++ )
+                        {
+                            int stat = turmoil_stats[i];
+
+                            player->stat_boosted[stat] =
+                                player->stat_level[stat];
+                            srv->npcs[boss].stat_drain[stat] = 0;
+                        }
+                        srv->npcs[boss].script_vars[0] = 1;
+                    }
+
                     mock230_scripts_run_proc(
                         srv, "[proc,prayer_deactivate_all]", NULL, 0);
                     memset(player->queue, 0, sizeof(player->queue));
@@ -17142,12 +17675,114 @@ mock230_world_selftest(void)
                     player->hitmark_count = 0;
                     player->hitpoints =
                         player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    /* Earlier combat fixtures can move the synthetic player
+                     * without rebuilding its 104x104 client scene. Put this
+                     * interaction on a fresh in-room tile and rebuild so the
+                     * runtime-added stalagmites are genuinely clickable, not
+                     * only present in the world-level ZoneMap. */
+                    player->x = srv->npcs[boss].x + 8;
+                    player->z = srv->npcs[boss].z;
+                    player->level = srv->npcs[boss].level;
+                    srv->zone_x = player->x >> 3;
+                    srv->zone_z = player->z >> 3;
+                    mock230_world_scene_rebuild(srv);
+                    mock230_world_locs_reapply(srv);
+                    {
+                        int salamander = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "black_salamander");
+                        int tar = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "salamander_tar_black");
+                        int centre = mock230_content_symbol(
+                            MOCK230_PACK_LOC, "nex_icicle_2");
+                        int outer = mock230_content_symbol(
+                            MOCK230_PACK_LOC, "nex_icicle_1");
+                        int saved_weapon =
+                            player->worn[MOCK230_WEAR_WEAPON].obj_id;
+                        int saved_weapon_count =
+                            player->worn[MOCK230_WEAR_WEAPON].count;
+                        int tar_before = 0;
+                        int tar_after = 0;
+                        int centre_slot = -1;
+                        int prison_x = player->x;
+                        int prison_z = player->z;
+                        int outer_slot;
+
+                        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                            if( player->inv[i].obj_id == tar )
+                                tar_before += player->inv[i].count;
+                        worn_set(
+                            player, MOCK230_WEAR_WEAPON, salamander, 1);
+                        land_args[0] = 1;
+                        SELFTEST_CHECK(
+                            salamander >= 0 && tar >= 0 && centre >= 0 &&
+                                outer >= 0 &&
+                                mock230_scripts_run_proc_args_on_npc(
+                                    srv, "[proc,nex_special_ice]", boss,
+                                    land_args, 1),
+                            "Nex Ice Prison arms for its salamander break test");
+                        for( int dx = -16; dx <= 16 && centre_slot < 0; dx++ )
+                            for( int dz = -16; dz <= 16; dz++ )
+                            {
+                                int candidate = mock230_scene_find_loc_id(
+                                    player->x + dx, player->z + dz,
+                                    player->level, centre);
+
+                                if( candidate >= 0 )
+                                {
+                                    centre_slot = candidate;
+                                    prison_x = player->x + dx;
+                                    prison_z = player->z + dz;
+                                    break;
+                                }
+                            }
+                        outer_slot = mock230_scene_find_loc_id(
+                            prison_x + 1, prison_z, player->level, outer);
+                        SELFTEST_CHECK(
+                            centre_slot >= 0 && outer_slot >= 0,
+                            "Ice Prison exposes its east wall as an active loc "
+                            "(centre/wall %d/%d at %d,%d)", centre_slot,
+                            outer_slot, prison_x, prison_z);
+                        {
+                            int break_result = outer_slot < 0
+                                                   ? MOCK230_TRIGGER_NONE
+                                                   : mock230_scripts_run_trigger_on_loc(
+                                                         srv, SS_TRIGGER_OPLOC1,
+                                                         outer,
+                                                         mock230_loc_category(outer),
+                                                         outer_slot);
+
+                            SELFTEST_CHECK(
+                                break_result == MOCK230_TRIGGER_RAN,
+                                "a salamander always breaks an Ice Prison wall "
+                                "(trigger %d)", break_result);
+                        }
+                        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                            if( player->inv[i].obj_id == tar )
+                                tar_after += player->inv[i].count;
+                        SELFTEST_CHECK(
+                            mock230_scene_find_loc_id(
+                                prison_x, prison_z, player->level, centre) < 0 &&
+                                tar_after == tar_before,
+                            "salamander break disarms the prison without tar");
+                        land_args[0] = mock230_coord_pack(
+                            player->level, prison_x, prison_z);
+                        land_args[1] = source;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,nex_ice_prison_land]", boss,
+                                land_args, 2) && player->hitmark_count == 0 &&
+                                player->hitpoints == 99,
+                            "a broken Ice Prison cannot apply its delayed hit");
+                        worn_set(player, MOCK230_WEAR_WEAPON, saved_weapon,
+                                 saved_weapon_count);
+                    }
+
                     land_args[0] = 1;
                     SELFTEST_CHECK(
                         mock230_scripts_run_proc_args_on_npc(
                             srv, "[proc,nex_special_ice]", boss,
                             land_args, 1),
-                        "Nex Ice Prison arms its live loc formation");
+                        "Nex Ice Prison re-arms its live loc formation");
                     land_args[0] = mock230_coord_pack(
                         player->level, player->x, player->z);
                     land_args[1] = source;
@@ -17917,8 +18552,8 @@ mock230_world_selftest(void)
             }
 
             /* Ancient Prison attack assets and the mage's four deterministic
-             * spell rotations. The mage landing is the second real five-arg
-             * queue user, so this also guards the widened queue ABI. */
+             * spell rotations. The mage landing carries six arguments, so
+             * this also guards the widened queue ABI. */
             {
                 static struct Mock230Capture prison_attack_capture;
                 static const struct
@@ -18173,7 +18808,7 @@ mock230_world_selftest(void)
                                "Nex prison mage spawns for landing effects");
                 if( mage >= 0 )
                 {
-                    int32_t land_args[5];
+                    int32_t land_args[6];
                     int32_t source = selftest_npc_uid(srv, mage);
 
                     srv->npcs[mage].spawn_pending = 0;
@@ -18197,11 +18832,12 @@ mock230_world_selftest(void)
                         land_args[3] = mock230_content_symbol(
                             MOCK230_PACK_SPOTANIM, mage_impacts[spell]);
                         land_args[4] = 1;
+                        land_args[5] = 20;
                         mock230_capture_begin(srv, &prison_land_capture);
                         SELFTEST_CHECK(
                             mock230_scripts_run_proc_args_on_npc(
                                 srv, "[queue,gwd_prison_mage_land]", mage,
-                                land_args, 5),
+                                land_args, 6),
                             "Nex prison mage spell %d landing executes", spell);
                         mock230_capture_end(srv);
                         SELFTEST_CHECK(
@@ -18238,7 +18874,66 @@ mock230_world_selftest(void)
                                 selftest_player_queue_match(
                                     player, freeze, 1, 0, 6) == 1,
                                 "Nex prison Ice queues a six-tick freeze");
+
+                        /* Protection blocks damage, not an accurate Ancient
+                         * spell's secondary effect. Blood healing is based on
+                         * the pre-prayer damage roll. */
+                        memset(player->queue, 0, sizeof(player->queue));
+                        player->hitmark_count = 0;
+                        player->hitpoints =
+                            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
+                        srv->npcs[mage].hitpoints =
+                            srv->npcs[mage].base_hitpoints - 50;
+                        npc_hp_before = srv->npcs[mage].hitpoints;
+                        land_args[2] = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_args_on_npc(
+                                srv, "[queue,gwd_prison_mage_land]", mage,
+                                land_args, 6),
+                            "protected Nex prison mage spell %d landing executes",
+                            spell);
+                        SELFTEST_CHECK(
+                            player->hitpoints == 99 &&
+                                player->hitmark_count == 1,
+                            "protection blocks Nex prison mage spell %d damage",
+                            spell);
+                        if( spell == 0 )
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, poison, 1, 0, 16) == 1,
+                                "protected accurate Smoke still poisons");
+                        else if( spell == 1 )
+                            SELFTEST_CHECK(
+                                player->stat_boosted[MOCK230_STAT_ATTACK] == 84,
+                                "protected accurate Shadow still drains 15 Attack");
+                        else if( spell == 2 )
+                            SELFTEST_CHECK(
+                                srv->npcs[mage].hitpoints == npc_hp_before + 4,
+                                "protected accurate Blood heals from pre-prayer damage");
+                        else
+                            SELFTEST_CHECK(
+                                selftest_player_queue_match(
+                                    player, freeze, 1, 0, 6) == 1,
+                                "protected accurate Ice still freezes six ticks");
                     }
+
+                    memset(player->queue, 0, sizeof(player->queue));
+                    player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
+                    land_args[1] = 0;
+                    land_args[2] = 0;
+                    land_args[4] = 0;
+                    land_args[5] = 20;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_args_on_npc(
+                            srv, "[queue,gwd_prison_mage_land]", mage,
+                            land_args, 6),
+                        "missed Nex prison mage landing executes");
+                    SELFTEST_CHECK(
+                        selftest_player_queue_match(
+                            player, poison, 1, 0, 16) == 0 &&
+                            player->stat_boosted[MOCK230_STAT_ATTACK] == 99,
+                        "missed Nex prison spell applies no secondary effect");
                     srv->npcs[mage].active = 0;
                 }
 
@@ -18589,6 +19284,65 @@ mock230_world_selftest(void)
                             "rejects the next duplicate");
                     }
 
+                    {
+                        int32_t piece_args[3] = {
+                            mock230_coord_pack(
+                                player->level, player->x, player->z),
+                            1,
+                            1,
+                        };
+                        int armadyl_piece;
+
+                        selftest_clear_inv(player);
+                        selftest_clear_ground(srv);
+                        player->varps[frozen_state] = 0;
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_drop_frozen_key_piece]",
+                            piece_args, 3);
+                        armadyl_piece = mock230_world_ground_find(
+                            srv, player->x, player->z, player->level,
+                            pieces[0]);
+                        SELFTEST_CHECK(
+                            armadyl_piece < 0,
+                            "frozen-key piece is suppressed before the miniquest");
+
+                        player->varps[frozen_state] = 1;
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_drop_frozen_key_piece]",
+                            piece_args, 3);
+                        armadyl_piece = mock230_world_ground_find(
+                            srv, player->x, player->z, player->level,
+                            pieces[0]);
+                        SELFTEST_CHECK(
+                            armadyl_piece >= 0 &&
+                                srv->ground[armadyl_piece].count == 1,
+                            "active Frozen Door miniquest awards one guaranteed "
+                            "Armadyl key piece");
+
+                        selftest_clear_ground(srv);
+                        selftest_give(player, pieces[0], 1);
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_drop_frozen_key_piece]",
+                            piece_args, 3);
+                        SELFTEST_CHECK(
+                            mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                pieces[0]) < 0,
+                            "owned frozen-key piece suppresses a duplicate drop");
+
+                        selftest_clear_inv(player);
+                        selftest_give(player, frozen_key, 1);
+                        player->varps[frozen_state] = 2;
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_drop_frozen_key_piece]",
+                            piece_args, 3);
+                        SELFTEST_CHECK(
+                            mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                pieces[0]) < 0,
+                            "assembled frozen key suppresses replacement pieces");
+                    }
+
                     selftest_clear_inv(player);
                     player->varps[frozen_state] = 1;
                     for( int i = 0; i < 4; i++ )
@@ -18708,6 +19462,61 @@ mock230_world_selftest(void)
                          (code == 16 && out >= 1 && out <= 5) ||
                          (code != 15 && code != 16 && out == 0)),
                     "Nex common category %d count B is valid, got %d", code, out);
+            }
+
+            /* Every literal inclusive range used by the GWD drop scripts.
+             * Java seeds 70054 and 5189 make the first nextDouble land in the
+             * bottom and top bucket respectively even for the widest 18,210-
+             * value range. This proves production random_range reaches both
+             * documented endpoints without a statistical hope of seeing them. */
+            {
+                static const int quantity_ranges[][2] = {
+                    { 1, 2 }, { 1, 4 }, { 1, 5 }, { 1, 10 },
+                    { 1, 11 }, { 1, 16 }, { 1, 10000 }, { 2, 5 },
+                    { 2, 7 }, { 2, 30 }, { 3, 64 }, { 3, 80 },
+                    { 3, 102 }, { 4, 13 }, { 4, 64 }, { 5, 9 },
+                    { 5, 10 }, { 5, 204 }, { 6, 39 },
+                    { 6, 100 }, { 8, 13 }, { 10, 15 }, { 11, 29 },
+                    { 12, 283 }, { 15, 20 }, { 20, 25 }, { 23, 2354 },
+                    { 25, 30 }, { 30, 60 }, { 35, 40 }, { 38, 43 },
+                    { 38, 98 }, { 40, 45 }, { 40, 70 }, { 42, 2252 },
+                    { 62, 67 }, { 65, 70 }, { 80, 85 }, { 84, 876 },
+                    { 85, 95 }, { 85, 986 }, { 86, 592 }, { 95, 100 },
+                    { 100, 105 }, { 100, 150 }, { 115, 120 },
+                    { 120, 125 }, { 123, 10000 }, { 145, 150 },
+                    { 193, 10000 }, { 295, 300 }, { 400, 499 },
+                    { 586, 601 }, { 1000, 1100 }, { 1300, 1337 },
+                    { 1300, 1400 }, { 1400, 1500 }, { 6900, 6942 },
+                    { 8539, 26748 }, { 19500, 20000 },
+                    { 20100, 20600 }, { 20500, 21000 },
+                };
+                uint64_t saved_rng = srv->script_env->rng;
+
+                for( size_t i = 0;
+                     i < sizeof(quantity_ranges) / sizeof(quantity_ranges[0]);
+                     i++ )
+                {
+                    int32_t range_args[2] = {
+                        quantity_ranges[i][0], quantity_ranges[i][1]
+                    };
+                    int minimum = -1;
+                    int maximum = -1;
+
+                    SSVM_EnvSeed(srv->script_env, 70054);
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,random_range]", range_args, 2, &minimum);
+                    SSVM_EnvSeed(srv->script_env, 5189);
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,random_range]", range_args, 2, &maximum);
+                    SELFTEST_CHECK(
+                        minimum == quantity_ranges[i][0] &&
+                            maximum == quantity_ranges[i][1],
+                        "GWD quantity range [%d,%d] reaches exact endpoints "
+                        "(got %d,%d)",
+                        quantity_ranges[i][0], quantity_ranges[i][1],
+                        minimum, maximum);
+                }
+                srv->script_env->rng = saved_rng;
             }
 
             /* Boundary cases above prove every primary roll reaches the right
@@ -18926,6 +19735,232 @@ mock230_world_selftest(void)
                     if( slot >= 0 )
                         srv->npcs[slot].active = 0;
                 }
+
+                {
+                    int status_varbits[3] = {
+                        mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, "ca_tier_status_elite"),
+                        mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, "ca_tier_status_master"),
+                        mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, "ca_tier_status_grandmaster"),
+                    };
+                    int saved_status[3];
+                    int rate = -1;
+                    int statuses_resolve = status_varbits[0] >= 0 &&
+                                           status_varbits[1] >= 0 &&
+                                           status_varbits[2] >= 0;
+
+                    SELFTEST_CHECK(
+                        statuses_resolve,
+                        "elite/master/grandmaster CA status varps resolve");
+                    for( int i = 0; statuses_resolve && i < 3; i++ )
+                    {
+                        saved_status[i] = mock230_varbit_get(
+                            player, status_varbits[i]);
+                        mock230_varbit_set(srv, status_varbits[i], 0);
+                    }
+                    SELFTEST_CHECK(
+                        statuses_resolve &&
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,gwd_boss_elite_clue_rate]", NULL,
+                            0, &rate) &&
+                            rate == 250,
+                        "classic boss elite clue base rate is 1/250 (got %d)",
+                        rate);
+                    for( int tier = 0; statuses_resolve && tier < 3; tier++ )
+                    {
+                        mock230_varbit_set(srv, status_varbits[tier], 2);
+                        rate = -1;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_boss_elite_clue_rate]",
+                                NULL, 0, &rate) &&
+                                rate == 237,
+                            "classic boss elite clue tier %d reward changes "
+                            "the rate to 1/237 (got %d)",
+                            tier, rate);
+                        mock230_varbit_set(srv, status_varbits[tier], 0);
+                    }
+                    for( int i = 0; statuses_resolve && i < 3; i++ )
+                        mock230_varbit_set(
+                            srv, status_varbits[i], saved_status[i]);
+                }
+
+                /* GWD conditional tertiary policy: all five clue tiers map to
+                 * their ordinary scroll before X Marks the Spot and to the
+                 * stackable scroll box afterwards. Champion scrolls require
+                 * 32 QP and stop after the matching champion is defeated. */
+                {
+                    struct
+                    {
+                        const char* clue;
+                        const char* box;
+                    } clue_tiers[] = {
+                        { "trail_clue_beginner", "league_clue_box_beginner" },
+                        { "trail_clue_easy_simple001", "league_clue_box_easy" },
+                        { "trail_clue_medium_map001", "league_clue_box_medium" },
+                        { "trail_clue_hard_map001", "league_clue_box_hard" },
+                        { "trail_elite_emote_exp1", "league_clue_box_elite" },
+                    };
+
+                    for( int tier = 0;
+                         tier < (int)(sizeof(clue_tiers) / sizeof(clue_tiers[0]));
+                         tier++ )
+                    {
+                        for( int boxed = 0; boxed <= 1; boxed++ )
+                        {
+                            int unboxed = mock230_content_symbol(
+                                MOCK230_PACK_OBJ, clue_tiers[tier].clue);
+                            int32_t clue_args[3] = { tier, unboxed, boxed };
+                            int selected = -1;
+                            int expected = mock230_content_symbol(
+                                MOCK230_PACK_OBJ,
+                                boxed ? clue_tiers[tier].box
+                                      : clue_tiers[tier].clue);
+
+                            SELFTEST_CHECK(
+                                expected >= 0 &&
+                                    mock230_scripts_run_proc_int(
+                                        srv, "[proc,gwd_clue_drop_obj]",
+                                        clue_args, 3, &selected) &&
+                                    selected == expected,
+                                "GWD clue tier %d boxed=%d selects %s "
+                                "(got %d, expected %d)",
+                                tier, boxed,
+                                boxed ? clue_tiers[tier].box
+                                      : clue_tiers[tier].clue,
+                                selected, expected);
+                        }
+                    }
+
+                    {
+                        int cluequest = mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, "cluequest");
+                        int hard = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "trail_hard_emote_exp1");
+                        int hard_box = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "league_clue_box_hard");
+                        int saved = cluequest >= 0
+                                        ? mock230_varbit_get(player, cluequest)
+                                        : 0;
+                        int32_t drop_args[4] = {
+                            mock230_coord_pack(
+                                player->level, player->x, player->z),
+                            3, hard, 200,
+                        };
+
+                        for( int complete = 0; complete <= 1; complete++ )
+                        {
+                            int expected = complete ? hard_box : hard;
+                            int slot;
+
+                            selftest_clear_ground(srv);
+                            if( cluequest >= 0 )
+                                mock230_varbit_set(
+                                    srv, cluequest, complete ? 8 : 0);
+                            SELFTEST_CHECK(
+                                cluequest >= 0 && expected >= 0 &&
+                                    mock230_scripts_run_proc(
+                                        srv, "[proc,gwd_drop_clue]",
+                                        drop_args, 4),
+                                "GWD production clue award executes at X "
+                                "Marks completion=%d", complete);
+                            slot = mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                expected);
+                            SELFTEST_CHECK(
+                                slot >= 0,
+                                "GWD production clue award emits %s at X "
+                                "Marks completion=%d",
+                                complete ? "hard scroll box"
+                                         : "exact hard clue variant",
+                                complete);
+                        }
+                        if( cluequest >= 0 )
+                            mock230_varbit_set(srv, cluequest, saved);
+                    }
+
+                    {
+                        struct
+                        {
+                            int qp;
+                            int defeated;
+                            int expected;
+                        } champion_cases[] = {
+                            { 31, 0, 0 },
+                            { 32, 0, 1 },
+                            { 200, 0, 1 },
+                            { 32, 1, 0 },
+                        };
+
+                        for( size_t i = 0;
+                             i < sizeof(champion_cases) /
+                                     sizeof(champion_cases[0]);
+                             i++ )
+                        {
+                            int32_t champion_args[2] = {
+                                champion_cases[i].qp,
+                                champion_cases[i].defeated,
+                            };
+                            int allowed = -1;
+
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_int(
+                                    srv,
+                                    "[proc,gwd_champion_scroll_allowed]",
+                                    champion_args, 2, &allowed) &&
+                                    allowed == champion_cases[i].expected,
+                                "champion-scroll QP/defeated %d/%d returns "
+                                "%d (got %d)",
+                                champion_cases[i].qp,
+                                champion_cases[i].defeated,
+                                champion_cases[i].expected, allowed);
+                        }
+                    }
+                }
+
+                /* A successful pet roll immediately sets the matching modern
+                 * insurance bit. The production proc also sends the item to
+                 * the collection catalogue, whose own membership guard keeps
+                 * non-catalogued objects harmless. */
+                {
+                    struct
+                    {
+                        const char* pet;
+                        const char* insurance;
+                    } pets[] = {
+                        { "armadylpet", "pet_insurance_armadylpet" },
+                        { "bandospet", "pet_insurance_bandospet" },
+                        { "saradominpet", "pet_insurance_saradominpet" },
+                        { "zamorakpet", "pet_insurance_zamorakpet" },
+                        { "nexpet", "pet_insurance_nex" },
+                    };
+
+                    for( size_t i = 0; i < sizeof(pets) / sizeof(pets[0]); i++ )
+                    {
+                        int pet = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, pets[i].pet);
+                        int insurance = mock230_content_symbol(
+                            MOCK230_PACK_VARBIT, pets[i].insurance);
+                        int saved = insurance >= 0
+                                        ? mock230_varbit_get(player, insurance)
+                                        : 0;
+                        int32_t pet_args[1] = { pet };
+
+                        if( insurance >= 0 )
+                            mock230_varbit_set(srv, insurance, 0);
+                        SELFTEST_CHECK(
+                            pet >= 0 && insurance >= 0 &&
+                                mock230_scripts_run_proc(
+                                    srv, "[proc,gwd_record_pet]", pet_args, 1) &&
+                                mock230_varbit_get(player, insurance) == 1,
+                            "%s pet roll sets %s", pets[i].pet,
+                            pets[i].insurance);
+                        if( insurance >= 0 )
+                            mock230_varbit_set(srv, insurance, saved);
+                    }
+                }
             }
 
             {
@@ -19041,6 +20076,105 @@ mock230_world_selftest(void)
                         }
                     }
 
+                    {
+                        struct
+                        {
+                            const char* proc;
+                            int roll;
+                            const char* first;
+                            const char* second;
+                            int count;
+                        } paired[] = {
+                            { "[proc,gwd_drop_kree_main]", 48,
+                              "3doserangerspotion", "3dose2defense", 3 },
+                            { "[proc,gwd_drop_zilyana_main]", 40,
+                              "3dosepotionofsaradomin", "4dose2restore", 3 },
+                            { "[proc,gwd_drop_zilyana_main]", 46,
+                              "3dose2defense", "3dose1magic", 3 },
+                            { "[proc,gwd_drop_kril_main]", 33,
+                              "3dose2attack", "3dose2strength", 3 },
+                            { "[proc,gwd_drop_kril_main]", 41,
+                              "3dose2restore", "3dosepotionofzamorak", 3 },
+                        };
+
+                        for( size_t i = 0;
+                             i < sizeof(paired) / sizeof(paired[0]); i++ )
+                        {
+                            int32_t paired_args[2] = {
+                                mock230_coord_pack(
+                                    player->level, player->x, player->z),
+                                paired[i].roll,
+                            };
+                            int first_id = mock230_content_symbol(
+                                MOCK230_PACK_OBJ, paired[i].first);
+                            int second_id = mock230_content_symbol(
+                                MOCK230_PACK_OBJ, paired[i].second);
+                            int first_slot;
+                            int second_slot;
+
+                            selftest_clear_ground(srv);
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc(
+                                    srv, paired[i].proc, paired_args, 2),
+                                "%s paired branch %d executes",
+                                paired[i].proc, paired[i].roll);
+                            first_slot = mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                first_id);
+                            second_slot = mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                second_id);
+                            SELFTEST_CHECK(
+                                first_slot >= 0 && second_slot >= 0 &&
+                                    srv->ground[first_slot].count ==
+                                        paired[i].count &&
+                                    srv->ground[second_slot].count ==
+                                        paired[i].count,
+                                "%s branch %d emits paired %s/%s x%d "
+                                "(slots %d/%d)",
+                                paired[i].proc, paired[i].roll,
+                                paired[i].first, paired[i].second,
+                                paired[i].count, first_slot, second_slot);
+                        }
+
+                        for( int projectile = 0; projectile < 2; projectile++ )
+                        {
+                            int roll = projectile == 0 ? 0 : 7;
+                            const char* object = projectile == 0
+                                                     ? "steel_arrow"
+                                                     : "steel_dart";
+                            int object_id = mock230_content_symbol(
+                                MOCK230_PACK_OBJ, object);
+
+                            for( int feathers = 1; feathers <= 11;
+                                 feathers += 10 )
+                            {
+                                int32_t ammo_args[3] = {
+                                    mock230_coord_pack(
+                                        player->level, player->x, player->z),
+                                    roll,
+                                    feathers,
+                                };
+                                int slot;
+
+                                selftest_clear_ground(srv);
+                                mock230_scripts_run_proc(
+                                    srv, "[proc,gwd_bodyguard_armadyl_main]",
+                                    ammo_args, 3);
+                                slot = mock230_world_ground_find(
+                                    srv, player->x, player->z, player->level,
+                                    object_id);
+                                SELFTEST_CHECK(
+                                    slot >= 0 &&
+                                        srv->ground[slot].count ==
+                                            feathers + 90,
+                                    "Armadyl bodyguard %s quantity is feather "
+                                    "roll %d + 90 = %d (slot %d)",
+                                    object, feathers, feathers + 90, slot);
+                            }
+                        }
+                    }
+
                     for( size_t i = 0; i < sizeof(drop_cases) / sizeof(drop_cases[0]); i++ )
                     {
                         const struct GwdDropCase* test = &drop_cases[i];
@@ -19150,6 +20284,91 @@ mock230_world_selftest(void)
                             ashes_id, ashes);
                         if( reaver >= 0 )
                             srv->npcs[reaver].active = 0;
+                    }
+
+                    /* Rag and Bone Man's goblin bone is a quest-state Always
+                     * row layered over the GWD goblin table. Exercise its real
+                     * death handler with the quest inactive, collectible,
+                     * submitted, and already-owned. */
+                    {
+                        int quest_varp = mock230_content_symbol(
+                            MOCK230_PACK_VARP, "rag_quest");
+                        int submit_varp = mock230_content_symbol(
+                            MOCK230_PACK_VARP, "rag_submit");
+                        int goblin_id = mock230_content_symbol(
+                            MOCK230_PACK_NPC, "godwars_goblin1");
+                        int bone_id = mock230_content_symbol(
+                            MOCK230_PACK_OBJ, "rag_goblin_bone");
+                        int goblin = mock230_world_npc_spawn(
+                            srv, goblin_id, player->x, player->z,
+                            player->level);
+                        int saved_quest = quest_varp >= 0
+                                              ? player->varps[quest_varp]
+                                              : 0;
+                        int saved_submit = submit_varp >= 0
+                                               ? player->varps[submit_varp]
+                                               : 0;
+                        int rag_resolved = quest_varp >= 0 &&
+                                           submit_varp >= 0 && goblin_id >= 0 &&
+                                           bone_id >= 0 && goblin >= 0;
+                        struct
+                        {
+                            int quest;
+                            int submit;
+                            int owned;
+                            int expected;
+                        } bone_cases[] = {
+                            { 0, 0, 0, 0 },
+                            { 1, 0, 0, 1 },
+                            { 1, 1, 0, 0 },
+                            { 1, 0, 1, 0 },
+                        };
+
+                        SELFTEST_CHECK(
+                            rag_resolved,
+                            "Rag and Bone Man GWD goblin prerequisite symbols resolve");
+                        for( size_t i = 0;
+                             rag_resolved &&
+                             i < sizeof(bone_cases) / sizeof(bone_cases[0]);
+                             i++ )
+                        {
+                            int bone_slot;
+
+                            selftest_clear_inv(player);
+                            selftest_clear_ground(srv);
+                            mock230_world_set_varp(
+                                srv, quest_varp, bone_cases[i].quest);
+                            mock230_world_set_varp(
+                                srv, submit_varp, bone_cases[i].submit);
+                            if( bone_cases[i].owned )
+                                selftest_give(player, bone_id, 1);
+                            SELFTEST_CHECK(
+                                mock230_scripts_run_proc_on_npc(
+                                    srv, "[ai_queue3,godwars_goblin1]",
+                                    goblin),
+                                "GWD goblin real death hook executes for Rag "
+                                "and Bone Man case %zu",
+                                i);
+                            bone_slot = mock230_world_ground_find(
+                                srv, player->x, player->z, player->level,
+                                bone_id);
+                            SELFTEST_CHECK(
+                                (bone_slot >= 0) == bone_cases[i].expected,
+                                "Rag goblin bone quest/submitted/owned %d/%d/%d "
+                                "drops iff collectible (%d, got %d)",
+                                bone_cases[i].quest, bone_cases[i].submit,
+                                bone_cases[i].owned, bone_cases[i].expected,
+                                bone_slot >= 0);
+                        }
+                        if( quest_varp >= 0 )
+                            mock230_world_set_varp(
+                                srv, quest_varp, saved_quest);
+                        if( submit_varp >= 0 )
+                            mock230_world_set_varp(
+                                srv, submit_varp, saved_submit);
+                        selftest_clear_inv(player);
+                        if( goblin >= 0 )
+                            srv->npcs[goblin].active = 0;
                     }
                     selftest_clear_ground(srv);
 
@@ -19860,6 +21079,520 @@ mock230_world_selftest(void)
                 mock230_world_set_active(srv, player);
             }
 
+            /* Retail Nex group-instance admission. The actual name-dialog
+             * wait is resumed with the rev-239 packet payload, then the
+             * production join proc proves one-way friendship is insufficient,
+             * only the creator needs Hard CAs, every guest spends essence,
+             * guest exit preserves the room, and owner exit ejects guests. */
+            {
+                struct Mock230Player* host = player;
+                struct Mock230Player* guest =
+                    mock230_world_add_player(srv, NULL);
+                const int instance_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "map_instance_handle");
+                const int faction_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_private_faction");
+                const int zaros_kc = mock230_content_symbol(
+                    MOCK230_PACK_VARBIT, "godwars_counter_zaros");
+                const int ca_hard = mock230_content_symbol(
+                    MOCK230_PACK_VARBIT, "ca_tier_status_hard");
+                const int32_t source = mock230_coord_pack(
+                    0, 45 * 64 + 44, 81 * 64 + 18);
+                int32_t release_args[2];
+                int handle = 0;
+                int base_x = 0;
+                int base_z = 0;
+                int has_space_19 = 0;
+                int has_space_20 = 1;
+                char saved_name[sizeof(host->display_name)];
+                int64_t saved_name37 = host->name37;
+
+                snprintf(saved_name, sizeof(saved_name), "%s",
+                         host->display_name);
+                SELFTEST_CHECK(
+                    guest != NULL && instance_varp >= 0 &&
+                        faction_varp >= 0 && zaros_kc >= 0 && ca_hard >= 0,
+                    "Nex friend-instance fixture resolves");
+                if( guest && instance_varp >= 0 && faction_varp >= 0 &&
+                    zaros_kc >= 0 && ca_hard >= 0 )
+                {
+                    static const uint8_t host_reply[] = "Nex Host";
+                    int32_t population;
+
+                    mock230_world_player_init(guest);
+                    mock230_world_set_display_name(host, "Nex Host");
+                    mock230_world_set_display_name(guest, "Nex Guest");
+                    mock230_friends_reset();
+                    mock230_friends_login(
+                        host->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_login(
+                        guest->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_add(guest->name37, host->name37);
+
+                    mock230_world_set_active(srv, host);
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_proc_int(
+                            srv, "[proc,map_instance_from_square]", &source, 1,
+                            &handle) && handle != 0,
+                        "Nex host allocates a private room for friend joining");
+                    if( handle != 0 )
+                    {
+                        mock230_mapinstance_base(handle, &base_x, &base_z);
+                        host->varps[instance_varp] = handle;
+                        host->varps[faction_varp] = 5;
+                        host->x = base_x + 45;
+                        host->z = base_z + 18;
+                        host->level = 0;
+                        args[0] = handle;
+                        mock230_scripts_run_proc(
+                            srv, "[proc,gwd_private_spawn_nex]", args, 1);
+
+                        guest->x = 45 * 64 + 20;
+                        guest->z = 81 * 64 + 19;
+                        guest->level = 0;
+                        mock230_world_set_active(srv, guest);
+                        mock230_varbit_set(srv, ca_hard, 0);
+                        mock230_varbit_set(srv, zaros_kc, 40);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_nex_private_join]", NULL, 0) &&
+                                guest->active_script &&
+                                guest->active_script->execution ==
+                                    SSVM_NAMEDIALOG,
+                            "Nex friend join parks on the real name dialog");
+                        SELFTEST_CHECK(
+                            mock230_scripts_resume_namedialog(
+                                srv, host_reply,
+                                (int)sizeof(host_reply) - 1) &&
+                                guest->varps[instance_varp] == 0 &&
+                                mock230_varbit_get(guest, zaros_kc) == 40,
+                            "one-way friendship cannot join or consume essence");
+
+                        mock230_friends_add(host->name37, guest->name37);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_nex_private_join]", NULL, 0) &&
+                                guest->active_script &&
+                                guest->active_script->execution ==
+                                    SSVM_NAMEDIALOG &&
+                                mock230_scripts_resume_namedialog(
+                                    srv, host_reply,
+                                    (int)sizeof(host_reply) - 1),
+                            "online mutual friend completes the name-dialog join");
+                        SELFTEST_CHECK(
+                            guest->varps[instance_varp] == handle &&
+                                guest->varps[faction_varp] == 5 &&
+                                mock230_mapinstance_find(
+                                    guest->x, guest->z) == handle &&
+                                mock230_varbit_get(guest, zaros_kc) == 0 &&
+                                mock230_varbit_get(guest, ca_hard) == 0 &&
+                                mock230_mapinstance_owner(handle) ==
+                                    host->pid + 1,
+                            "guest without Hard CAs spends 40 essence and joins "
+                            "the host-owned room");
+
+                        args[0] = 5;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_altar_exit]", args, 1) &&
+                                mock230_mapinstance_live_count() == 1 &&
+                                guest->varps[instance_varp] == 0 &&
+                                host->varps[instance_varp] == handle,
+                            "guest exit preserves the host and reservation");
+
+                        mock230_varbit_set(srv, zaros_kc, 40);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_nex_private_join]", NULL, 0) &&
+                                guest->active_script &&
+                                mock230_scripts_resume_namedialog(
+                                    srv, host_reply,
+                                    (int)sizeof(host_reply) - 1) &&
+                                guest->varps[instance_varp] == handle,
+                            "guest can rejoin the still-live host room");
+
+                        release_args[0] = handle;
+                        release_args[1] = 5;
+                        mock230_world_set_active(srv, host);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_release]",
+                                release_args, 2) &&
+                                mock230_mapinstance_live_count() == 0 &&
+                                host->varps[instance_varp] == 0 &&
+                                guest->varps[instance_varp] == 0 &&
+                                guest->x == 45 * 64 + 20 &&
+                                guest->z == 81 * 64 + 19,
+                            "owner release ejects the guest and frees the room");
+                    }
+
+                    population = 19;
+                    mock230_world_set_active(srv, host);
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_nex_private_has_space]", &population,
+                        1, &has_space_19);
+                    population = 20;
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,gwd_nex_private_has_space]", &population,
+                        1, &has_space_20);
+                    SELFTEST_CHECK(
+                        has_space_19 == 1 && has_space_20 == 0,
+                        "private Nex room admits player 20 and rejects player 21");
+
+                    mock230_friends_reset();
+                    mock230_world_set_active(srv, host);
+                    mock230_world_player_free(srv, guest->pid);
+                    mock230_world_player_reap(srv);
+                }
+                snprintf(host->display_name, sizeof(host->display_name), "%s",
+                         saved_name);
+                host->name37 = saved_name37;
+                mock230_world_set_active(srv, host);
+                selftest_park_player(srv, 426 * 8, 408 * 8);
+            }
+
+            /* Two live creator/guest groups must never cross-bind merely
+             * because both cloned the same Nex source square. This extends
+             * the single-group admission checks above across independent
+             * owners, then closes one room while the other remains usable. */
+            {
+                struct Mock230Player* host_a = player;
+                struct Mock230Player* guest_a =
+                    mock230_world_add_player(srv, NULL);
+                struct Mock230Player* host_b =
+                    mock230_world_add_player(srv, NULL);
+                struct Mock230Player* guest_b =
+                    mock230_world_add_player(srv, NULL);
+                const int instance_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "map_instance_handle");
+                const int faction_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_private_faction");
+                const int zaros_kc = mock230_content_symbol(
+                    MOCK230_PACK_VARBIT, "godwars_counter_zaros");
+                const int32_t source = mock230_coord_pack(
+                    0, 45 * 64 + 44, 81 * 64 + 18);
+                static const uint8_t host_a_reply[] = "Nex Alpha";
+                static const uint8_t host_b_reply[] = "Nex Beta";
+                int32_t release_args[2];
+                int handle_a = 0;
+                int handle_b = 0;
+                int base_a_x = 0;
+                int base_a_z = 0;
+                int base_b_x = 0;
+                int base_b_z = 0;
+                char saved_name[sizeof(host_a->display_name)];
+                int64_t saved_name37 = host_a->name37;
+
+                snprintf(saved_name, sizeof(saved_name), "%s",
+                         host_a->display_name);
+                SELFTEST_CHECK(
+                    guest_a && host_b && guest_b && instance_varp >= 0 &&
+                        faction_varp >= 0 && zaros_kc >= 0,
+                    "simultaneous Nex friend groups resolve four players");
+                if( guest_a && host_b && guest_b && instance_varp >= 0 &&
+                    faction_varp >= 0 && zaros_kc >= 0 )
+                {
+                    mock230_world_player_init(guest_a);
+                    mock230_world_player_init(host_b);
+                    mock230_world_player_init(guest_b);
+                    mock230_world_set_display_name(host_a, "Nex Alpha");
+                    mock230_world_set_display_name(guest_a, "Alpha Guest");
+                    mock230_world_set_display_name(host_b, "Nex Beta");
+                    mock230_world_set_display_name(guest_b, "Beta Guest");
+                    mock230_friends_reset();
+                    mock230_friends_login(
+                        host_a->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_login(
+                        guest_a->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_login(
+                        host_b->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_login(
+                        guest_b->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_add(host_a->name37, guest_a->name37);
+                    mock230_friends_add(guest_a->name37, host_a->name37);
+                    mock230_friends_add(host_b->name37, guest_b->name37);
+                    mock230_friends_add(guest_b->name37, host_b->name37);
+
+                    mock230_world_set_active(srv, host_a);
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,map_instance_from_square]", &source, 1,
+                        &handle_a);
+                    mock230_world_set_active(srv, host_b);
+                    mock230_scripts_run_proc_int(
+                        srv, "[proc,map_instance_from_square]", &source, 1,
+                        &handle_b);
+                    SELFTEST_CHECK(
+                        handle_a != 0 && handle_b != 0 &&
+                            handle_a != handle_b &&
+                            mock230_mapinstance_live_count() == 2 &&
+                            mock230_mapinstance_owner(handle_a) ==
+                                host_a->pid + 1 &&
+                            mock230_mapinstance_owner(handle_b) ==
+                                host_b->pid + 1,
+                        "two Nex creators own distinct simultaneous rooms");
+                    if( handle_a != 0 && handle_b != 0 &&
+                        mock230_mapinstance_base(
+                            handle_a, &base_a_x, &base_a_z) &&
+                        mock230_mapinstance_base(
+                            handle_b, &base_b_x, &base_b_z) )
+                    {
+                        host_a->varps[instance_varp] = handle_a;
+                        host_a->varps[faction_varp] = 5;
+                        host_a->x = base_a_x + 45;
+                        host_a->z = base_a_z + 18;
+                        host_a->level = 0;
+                        host_b->varps[instance_varp] = handle_b;
+                        host_b->varps[faction_varp] = 5;
+                        host_b->x = base_b_x + 45;
+                        host_b->z = base_b_z + 18;
+                        host_b->level = 0;
+
+                        guest_a->x = 45 * 64 + 20;
+                        guest_a->z = 81 * 64 + 19;
+                        guest_a->level = 0;
+                        mock230_world_set_active(srv, guest_a);
+                        mock230_varbit_set(srv, zaros_kc, 40);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_nex_private_join]", NULL, 0) &&
+                                mock230_scripts_resume_namedialog(
+                                    srv, host_a_reply,
+                                    (int)sizeof(host_a_reply) - 1) &&
+                                guest_a->varps[instance_varp] == handle_a,
+                            "first guest joins only the first creator room");
+
+                        guest_b->x = 45 * 64 + 20;
+                        guest_b->z = 81 * 64 + 19;
+                        guest_b->level = 0;
+                        mock230_world_set_active(srv, guest_b);
+                        mock230_varbit_set(srv, zaros_kc, 40);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_nex_private_join]", NULL, 0) &&
+                                mock230_scripts_resume_namedialog(
+                                    srv, host_b_reply,
+                                    (int)sizeof(host_b_reply) - 1) &&
+                                guest_b->varps[instance_varp] == handle_b &&
+                                mock230_mapinstance_find(
+                                    guest_a->x, guest_a->z) == handle_a &&
+                                mock230_mapinstance_find(
+                                    guest_b->x, guest_b->z) == handle_b,
+                            "second guest joins only the second creator room");
+
+                        release_args[0] = handle_a;
+                        release_args[1] = 5;
+                        mock230_world_set_active(srv, host_a);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_release]",
+                                release_args, 2) &&
+                                mock230_mapinstance_live_count() == 1 &&
+                                host_a->varps[instance_varp] == 0 &&
+                                guest_a->varps[instance_varp] == 0 &&
+                                host_b->varps[instance_varp] == handle_b &&
+                                guest_b->varps[instance_varp] == handle_b &&
+                                mock230_mapinstance_find(
+                                    guest_b->x, guest_b->z) == handle_b,
+                            "closing group one leaves group two intact");
+
+                        release_args[0] = handle_b;
+                        mock230_world_set_active(srv, host_b);
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_release]",
+                                release_args, 2) &&
+                                mock230_mapinstance_live_count() == 0 &&
+                                host_b->varps[instance_varp] == 0 &&
+                                guest_b->varps[instance_varp] == 0,
+                            "closing group two releases its remaining state");
+                    }
+
+                    /* Keep later fixtures independent even after a failed
+                     * assertion above: move every participant outside before
+                     * returning any still-live reservation to the pool. */
+                    host_a->x = guest_a->x = host_b->x = guest_b->x = 426 * 8;
+                    host_a->z = guest_a->z = host_b->z = guest_b->z = 408 * 8;
+                    host_a->level = guest_a->level = host_b->level =
+                        guest_b->level = 0;
+                    if( mock230_mapinstance_base(
+                            handle_a, &base_a_x, &base_a_z) )
+                        mock230_world_mapinstance_free(srv, handle_a);
+                    if( mock230_mapinstance_base(
+                            handle_b, &base_b_x, &base_b_z) )
+                        mock230_world_mapinstance_free(srv, handle_b);
+                    mock230_friends_reset();
+                    mock230_world_set_active(srv, host_a);
+                    mock230_world_player_free(srv, guest_a->pid);
+                    mock230_world_player_free(srv, host_b->pid);
+                    mock230_world_player_free(srv, guest_b->pid);
+                    mock230_world_player_reap(srv);
+                }
+                snprintf(host_a->display_name, sizeof(host_a->display_name),
+                         "%s", saved_name);
+                host_a->name37 = saved_name37;
+                mock230_world_set_active(srv, host_a);
+                selftest_park_player(srv, 426 * 8, 408 * 8);
+            }
+
+            /* Repeated ownership loss is where generation/slot leaks show up:
+             * a one-shot fixture can release the right room yet leave a stale
+             * reservation that only collides after the pool wraps. Reuse one
+             * mutual-friend pair for 128 allocate/join/teardown cycles and
+             * rotate normal release, logout, and the two-stage death handoff. */
+            {
+                struct Mock230Player* host = player;
+                struct Mock230Player* guest =
+                    mock230_world_add_player(srv, NULL);
+                const int instance_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "map_instance_handle");
+                const int faction_varp = mock230_content_symbol(
+                    MOCK230_PACK_VARP, "gwd_private_faction");
+                const int zaros_kc = mock230_content_symbol(
+                    MOCK230_PACK_VARBIT, "godwars_counter_zaros");
+                const int32_t source = mock230_coord_pack(
+                    0, 45 * 64 + 44, 81 * 64 + 18);
+                static const uint8_t host_reply[] = "Nex Soak";
+                char saved_name[sizeof(host->display_name)];
+                int64_t saved_name37 = host->name37;
+                int completed = 0;
+                int failed_cycle = -1;
+
+                snprintf(saved_name, sizeof(saved_name), "%s",
+                         host->display_name);
+                SELFTEST_CHECK(
+                    guest && instance_varp >= 0 && faction_varp >= 0 &&
+                        zaros_kc >= 0,
+                    "Nex owner-loss soak fixture resolves");
+                if( guest && instance_varp >= 0 && faction_varp >= 0 &&
+                    zaros_kc >= 0 )
+                {
+                    mock230_world_player_init(guest);
+                    mock230_world_set_display_name(host, "Nex Soak");
+                    mock230_world_set_display_name(guest, "Soak Guest");
+                    mock230_friends_reset();
+                    mock230_friends_login(
+                        host->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_login(
+                        guest->name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
+                    mock230_friends_add(host->name37, guest->name37);
+                    mock230_friends_add(guest->name37, host->name37);
+
+                    for( int cycle = 0; cycle < 128; cycle++ )
+                    {
+                        int handle = 0;
+                        int base_x = 0;
+                        int base_z = 0;
+                        int32_t release_args[2];
+                        int held_handle = 0;
+                        int ok = 1;
+
+                        mock230_world_set_active(srv, host);
+                        mock230_world_close_modal(srv);
+                        ok &= mock230_scripts_run_proc_int(
+                            srv, "[proc,map_instance_from_square]", &source, 1,
+                            &handle);
+                        ok &= handle != 0 &&
+                              mock230_mapinstance_base(
+                                  handle, &base_x, &base_z);
+                        if( !ok )
+                        {
+                            failed_cycle = cycle;
+                            break;
+                        }
+                        host->varps[instance_varp] = handle;
+                        host->varps[faction_varp] = 5;
+                        host->x = base_x + 45;
+                        host->z = base_z + 18;
+                        host->level = 0;
+
+                        guest->x = 45 * 64 + 20;
+                        guest->z = 81 * 64 + 19;
+                        guest->level = 0;
+                        mock230_world_set_active(srv, guest);
+                        mock230_world_close_modal(srv);
+                        mock230_varbit_set(srv, zaros_kc, 40);
+                        ok &= mock230_scripts_run_proc(
+                            srv, "[proc,gwd_nex_private_join]", NULL, 0);
+                        ok &= guest->active_script &&
+                              guest->active_script->execution ==
+                                  SSVM_NAMEDIALOG;
+                        ok &= mock230_scripts_resume_namedialog(
+                            srv, host_reply,
+                            (int)sizeof(host_reply) - 1);
+                        ok &= guest->varps[instance_varp] == handle &&
+                              guest->varps[faction_varp] == 5 &&
+                              mock230_mapinstance_find(
+                                  guest->x, guest->z) == handle;
+
+                        mock230_world_set_active(srv, host);
+                        mock230_world_close_modal(srv);
+                        if( cycle % 3 == 0 )
+                        {
+                            release_args[0] = handle;
+                            release_args[1] = 5;
+                            ok &= mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_release]",
+                                release_args, 2);
+                        }
+                        else if( cycle % 3 == 1 )
+                        {
+                            ok &= mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_on_logout]", NULL, 0);
+                        }
+                        else
+                        {
+                            ok &= mock230_scripts_run_proc_int(
+                                srv, "[proc,gwd_private_on_death]", NULL, 0,
+                                &held_handle) && held_handle == handle &&
+                                  mock230_mapinstance_live_count() == 1;
+                            release_args[0] = held_handle;
+                            ok &= mock230_scripts_run_proc(
+                                srv, "[proc,gwd_private_finish_death]",
+                                release_args, 1);
+                        }
+
+                        ok &= mock230_mapinstance_live_count() == 0 &&
+                              host->varps[instance_varp] == 0 &&
+                              host->varps[faction_varp] == 0 &&
+                              guest->varps[instance_varp] == 0 &&
+                              guest->varps[faction_varp] == 0 &&
+                              mock230_mapinstance_base(
+                                  handle, &base_x, &base_z) == 0;
+                        if( !ok )
+                        {
+                            failed_cycle = cycle;
+                            if( mock230_mapinstance_base(
+                                    handle, &base_x, &base_z) )
+                                mock230_world_mapinstance_free(srv, handle);
+                            break;
+                        }
+                        completed++;
+                        host->x = guest->x = 426 * 8;
+                        host->z = guest->z = 408 * 8;
+                        host->level = guest->level = 0;
+                    }
+                    SELFTEST_CHECK(
+                        completed == 128 && failed_cycle == -1,
+                        "Nex owner-loss soak completes 128 release/logout/death "
+                        "cycles without reservation or guest-state leakage "
+                        "(completed %d, failed cycle %d)",
+                        completed, failed_cycle);
+
+                    mock230_friends_reset();
+                    mock230_world_set_active(srv, guest);
+                    mock230_world_close_modal(srv);
+                    mock230_world_set_active(srv, host);
+                    mock230_world_close_modal(srv);
+                    mock230_world_player_free(srv, guest->pid);
+                    mock230_world_player_reap(srv);
+                }
+                snprintf(host->display_name, sizeof(host->display_name), "%s",
+                         saved_name);
+                host->name37 = saved_name37;
+                mock230_world_set_active(srv, host);
+                selftest_park_player(srv, 426 * 8, 408 * 8);
+            }
+
             /* Two simultaneous Nex instances are the isolation boundary in
              * its sharpest form: identical local tiles and actors, but distinct
              * translated squares and player-owned state. Exercise targeting,
@@ -19912,6 +21645,10 @@ mock230_world_selftest(void)
                         "two distinct Nex instance reservations coexist");
                     if( h1 != 0 && h2 != 0 )
                     {
+                        mock230_mapinstance_set_owner(
+                            h1, first->pid + 1);
+                        mock230_mapinstance_set_owner(
+                            h2, second->pid + 1);
                         mock230_mapinstance_base(h1, &x1, &z1);
                         mock230_mapinstance_base(h2, &x2, &z2);
                         first->x = x1 + 45;
@@ -33761,15 +35498,8 @@ mock230_world_selftest(void)
             int saved_cox = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-            int cox_rc = mock230_scripts_run_debugproc(srv, "coxrun");
-            fprintf(stderr,
-                    "COXDBG rc=%d active==player:%d varp7=%d\n",
-                    cox_rc, srv->active_player == player,
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            for( int vi = 0; vi < (int)(sizeof(player->varps) / sizeof(player->varps[0])); vi++ )
-                if( player->varps[vi] == 4242 )
-                    fprintf(stderr, "COXDBG sentinel 4242 landed in varp %d\n", vi);
-            SELFTEST_CHECK(cox_rc == MOCK230_TRIGGER_RAN,
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "coxrun") ==
+                               MOCK230_TRIGGER_RAN,
                            "::coxrun should reach content");
             /*
              * Reading the result back is the whole point. Checking only that
@@ -34929,6 +36659,51 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(zulrah_said_ok, "::zulrahrun should reach its OK line");
         }
 
+        /*
+         * The Theatre of Blood's data tables (`::tobrun`,
+         * minigames/minigame_tob/scripts/tob_selftest.rs2).
+         *
+         * Default-on and cheap: it spawns nothing and touches no player state
+         * — every check reads `tob_nylo.dbrow` and the `^tob_*` constants and
+         * compares them against each other.
+         *
+         * What it is really guarding is the Nylocas room's clock. The wave
+         * schedule is 31 natural stalls that must sum to 232 and land wave 31
+         * on room tick 236, every stall a multiple of the 4-tick cycle; the
+         * spawn table is 120 rows whose size, aggro and flicker census is
+         * pinned. Those numbers came out of a raid recorder rather than out of
+         * anybody's head (docs/minigames/theater_of_blood/COMMUNITY_SOURCES.md),
+         * and a one-row transcription slip in a 120-row table is exactly the
+         * defect no gameplay test would ever surface.
+         *
+         * Asserted on the OK line rather than the absence of FAIL, for the
+         * same reason as the two stanzas above it.
+         */
+        {
+            static struct Mock230Capture tob_capture;
+            int tob_said_ok = 0;
+
+            mock230_capture_begin(srv, &tob_capture);
+            mock230_scripts_run_debugproc(srv, "tobrun");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&tob_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&tob_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &tob_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tobrun") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "tobrun OK") != NULL )
+                    tob_said_ok = 1;
+            }
+            SELFTEST_CHECK(tob_said_ok, "::tobrun should reach its OK line");
+        }
+
         {
             static struct Mock230Capture gearrun_capture;
             int said_ok = 0;
@@ -36071,6 +37846,61 @@ mock230_world_selftest(void)
                 }
                 SELFTEST_CHECK(worn_partials >= 1,
                                "unequip-shaped dirty still reaches wornitems after stats close");
+            }
+
+            /* 9. A private row can be viewed by somebody other than its
+             * owner. Costume Room guests use the same component id as the
+             * owner on their own client, so both the bind key and unbind must
+             * include the viewer. Closing one guest's collection must not
+             * remove the owner's (or another guest's) listener. */
+            {
+                struct Mock230Player guest;
+                int guest_flushes = 0;
+
+                memset(&guest, 0, sizeof(guest));
+                guest.world = srv;
+                guest.active = 1;
+                SELFTEST_CHECK(row->listener_count == 1 &&
+                                   row->listeners[0].player == player,
+                               "private row starts with its owner's listener");
+                SELFTEST_CHECK(mock230_container_bind_from(
+                                   srv, player, &guest, inv_collection, component),
+                               "a guest binds to the owner's private container");
+                SELFTEST_CHECK(row->listener_count == 2 &&
+                                   row->listeners[0].player == player &&
+                                   row->listeners[1].player == &guest,
+                               "same component id keeps owner and guest listeners distinct");
+
+                mock230_container_clean(row);
+                mock230_container_set(row, 40, obj_test, 5);
+                mock230_capture_begin(srv, &capture);
+                mock230_container_flush(player);
+                mock230_capture_end(srv);
+                for( int i = 0; i < capture.count; i++ )
+                {
+                    int32_t pkt_com;
+                    int pkt_inv;
+
+                    if( capture.packets[i].opcode != 10 /* UPDATE_INV_FULL */ ||
+                        capture.packets[i].len < 8 )
+                        continue;
+                    pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
+                              ((int32_t)capture.packets[i].data[1] << 16) |
+                              ((int32_t)capture.packets[i].data[2] << 8) |
+                              (int32_t)capture.packets[i].data[3];
+                    pkt_inv = (capture.packets[i].data[4] << 8) |
+                              capture.packets[i].data[5];
+                    if( pkt_com == component && pkt_inv == inv_collection )
+                        guest_flushes++;
+                }
+                SELFTEST_CHECK(guest_flushes == 2,
+                               "one private-container change flushes to owner and guest (%d)",
+                               guest_flushes);
+                SELFTEST_CHECK(mock230_container_unbind(srv, &guest, component) == 1,
+                               "guest close removes exactly the guest listener");
+                SELFTEST_CHECK(row->listener_count == 1 &&
+                                   row->listeners[0].player == player,
+                               "owner listener survives the guest close");
             }
         }
 
