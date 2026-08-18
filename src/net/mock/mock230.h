@@ -528,9 +528,18 @@ enum
      *  suspended `[ai_queue3]` still owns it, and leaves without being removed
      *  at all if that script put its hitpoints back. */
     MOCK230_DEATH_REAP = 4,
-    /** Loc mutations that can be waiting to revert at once. Generous: a busy
-     *  mining site is a dozen, and the cost is 40 bytes each. */
-    MOCK230_LOC_REVERT_MAX = 128,
+    /**
+     * Loc mutations that can be waiting to revert at once. A busy mining site
+     * is a dozen; the sizing case is a whole floor pattern armed on one tick.
+     * The Hunllef's damaging-floor patterns are rectangles over its 12x12
+     * arena, and the largest — the paired full-length bands — covers 96 tiles,
+     * every one of them a `loc_add` with a duration. At 128 that single pattern
+     * left 32 slots for the rest of the world, and an overflow here does not
+     * fail loudly: `mock230_world_loc_revert_queue` warns on stderr and the loc
+     * stays put forever, which for that pattern means a permanently damaging
+     * floor tile. The cost is 40 bytes each, so headroom is cheap.
+     */
+    MOCK230_LOC_REVERT_MAX = 512,
     /**
      * Drops waiting for their delay to run out (`inv_dropitem_delayed`).
      *

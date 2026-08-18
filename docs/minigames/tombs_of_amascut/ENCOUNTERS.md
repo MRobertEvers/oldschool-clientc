@@ -887,7 +887,7 @@ Expert completions. [wiki]
 
 ---
 
-## 12. Music — all eleven tracks
+## 12. Music — all twelve tracks
 
 From DBTable 44 of cache.osrs239, already extracted in
 `docs/audio/music_tracks_osrs239.tsv`. `unlock` is the varp and bit the client

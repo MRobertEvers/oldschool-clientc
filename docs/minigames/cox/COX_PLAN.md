@@ -1,6 +1,11 @@
 # Chambers of Xeric — implementation plan
 
-Status: **built and ticking; not yet played.**
+Status: **assembled and ticking; not yet played.** §13 is the 2026-08-18 parity
+pass against Zenyte and Near-Reality — read it first, because it found that the
+raid was still stamping ONE room and that thirteen finished encounters had no
+way into a layout.
+
+Status before that pass: **built and ticking; not yet played.**
 [`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/)
 is ~4,500 lines across 18 scripts and three config files. The 2026-08-17 tick
 audit (§11) found 22 divergences from the sources, of which **19 are now fixed**
@@ -2234,3 +2239,102 @@ deliberately refuses rather than decoding with the 230 layout
 was tried and does not build a world at all. So the sheets are, for now, a
 geometry and camera check — real and useful, and honestly less than the name
 promises. Closing it is a 239 NPC_INFO port, tracked there rather than here.
+
+
+---
+
+## 13. The parity pass against Zenyte / Near-Reality — 2026-08-18
+
+Brief: *match all Chambers of Xeric implementations, preferring research over
+the Zenyte implementation, correcting as needed.* Sources read:
+`ZenyteLikeServer` (~190 files, ~20k lines under `content/chambersofxeric`) and
+`RSPS-NEAR-REALITY`, which is a Zenyte fork whose only CoX additions are
+`ScalingMechanics.java` and `Raids1BypassTask.java`.
+
+### 13.1 The finding that reframed the project
+
+**Thirteen finished encounters were unreachable.** `~cox_layout_room_at` dealt
+from a roster of EIGHT room types, and `~cox_build_instance` never called the
+layout generator at all — it stamped one Tekton room, exactly as Phase 1 left
+it. Vasa, the Vanguards, the Muttadiles, the shamans, the mystics and both
+scavenger rooms had working, tested spawn procs reachable only from
+`::coxvasa` and friends. The raid was one room and a boss.
+
+That is why this pass is mostly *assembly* rather than new encounters: the
+encounters were the part that already existed.
+
+### 13.2 Corrections made against the sources
+
+| # | What Zenyte/this tree had | What the research says | Where |
+| --- | --- | --- | --- |
+| P1 | `SMALL_SCAVENGER_RUNT` room holding a Scavenger runt | The runt was **removed 31 January 2019**; its page is `{{Gone}}` with historical ids 7546/7547, and in rev239 those ids are `ram_bartender` and `hunting_ojibway_trap_npc_off`. Porting Zenyte verbatim puts a bartender in the raid. Both scavenger rooms hold **beasts**. | `cox.npc` |
+| P2 | Guardians room stamped from cell row 1 | Zenyte's own `GUARDIANS(656, 2)` decodes to square 82 cell row **0**. Every non-thieving room returned row 1. | `cox_layout.rs2`, check 37 |
+| P3 | Scavenger drops as two rolls over two tables | "Scavenger beasts drop three items at a time" — one guaranteed bone plus **two rolls on a single 18-weight table**. | `cox.constant`, check 38 |
+| P4 | Overload ran 300 ticks | "Five minutes" is **500** ticks. It stopped eight reapplications early. | `cox_potion.rs2` |
+| P5 | Overload dealt 50 as one hitsplat | Overload (+): "This damage is applied in hits of 10 over a few ticks." | `cox_potion.rs2` |
+| P6 | Xeric's aid boosted `hitpoints, 2, 15`, nothing else | Mod Ash: "HP: TIER plus ((5 x TIER) + 2) percent. Defence: TIER plus ((4 x TIER) + 10) percent", plus a 9%+2 drain on Attack/Strength/Ranged/Magic. The defence boost and all four drains were absent; the heal percentage was 15 where the source says 12. | `cox_potion.rs2` |
+| P7 | "Only one dose-4 rung of each name in this cache" | The cache ships **all three tiers** of all seven families (20913–20996). The tier is set by Herblore level, not by raid performance. | `cox_potion.rs2` |
+| P8 | Plan §2.3: overload boost "4 + 10%" vs "5 + 13%" — unresolved | Resolved: the tiers are `(-) 4+10%`, standard `5+13%`, `(+) 6+16%`, i.e. `flat = tier+3`, `percent = 3*tier+7`. | `cox_potion.rs2` |
+| P9 | Zenyte `getShamanCount`: `<4 -> 2, <=7 -> 3, else 4` | The wiki prints the full table and it ends at **5**. This tree's existing `~cox_shaman_count` already matched the wiki; Zenyte's was NOT adopted. | unchanged |
+
+### 13.3 What was built
+
+- **Full room roster.** Fifteen content room types, replacing eight. Each floor
+  deals seven content rooms without replacement and places a resource room
+  last; floor two draws the complement, so all fourteen content rooms appear
+  exactly once per raid. Checks 35 and 36.
+- **Room homes table**, decoded from Zenyte's `(staticChunkY, height)` column:
+  chunk→tile is ×8 and tile→square is ÷64, so `660` is square 82 cell row 1.
+  Every entry agreed with this tree's own template survey except P2.
+- **Real multi-floor build.** `~cox_build_instance` stamps two full floors and
+  Olm's chamber; `~cox_layout_populate_floor` fills them after
+  `map_instance_build`.
+- **Room-local addressing.** `~cox_room_origin_of`, `~cox_room_local` and
+  `~cox_here_local`. Four npc lookups anchored at room (0,0) with a 32-tile
+  radius, and Tekton's spawn, his anvil, the meat tree and Vasa's crystal were
+  all instance-absolute. Correct only while the raid was one room.
+- **Scavenger rooms** — npcs, stats, and the 18-weight drop table with the
+  secondaries bundle.
+- **Resource room** — gourd tree, geyser, energy well, two herb patches with the
+  cache's own five-stage growth ladder, weed raking. The patch's **loc is its
+  state**, so no variable is needed and two rooms of two patches cannot desync.
+- **Herblore brewing** — cleaning, the 3×3 recipe grid, the level-driven tier
+  ladder (47/59/70, 52/65/78, 60/75/90) and the overload, whose `(+)` rung
+  additionally requires `(+)` components.
+- **Per-encounter trace channels.** The single shared `%cox_trace_action` slot
+  is last-writer-wins, which was fine with one encounter and useless with
+  fifteen: `tools/cox_sim.sh` raised **70 failures all reading "Olm used
+  portal.drain"** — Vespula's portal and the icefiend were overwriting Olm's
+  telemetry. Olm and Tekton now mirror their code ranges into private channels.
+
+### 13.4 Verification
+
+`tools/cox_verify.sh` — 39 checks green (was 34). `tools/cox_sim.sh` — green.
+`tools/cox_check_timers.py` — every `ai_timer` armed.
+
+The three new gates were mutation-proved, per the rule that a gate which cannot
+fail is not a gate: reverting the Guardians cell row turns check 37 red,
+shrinking `^cox_room_type_count` back to 8 turns check 36 red, and pointing
+buchu's weak rung at golpar's 47 turns check 39 red.
+
+### 13.5 Still missing after this pass
+
+Honest list, roughly by value:
+
+1. **Storage units** (private + shared) and their interfaces — Zenyte has ~700
+   lines across five classes; this tree has none.
+2. **Parties** — `RaidParty` and three interfaces. `raids_party_recruitment`
+   still answers "not implemented".
+3. **The reward chest as an object** — `~cox_reward_roll` exists and is tested,
+   but `raids_reward_chest` / the loot beams are not wired to it.
+4. **The seven lore books**, the dark relic, Xeric's talisman, the boss pets.
+5. **Fishing, cooking and woodcutting** in the resource room — `cox_bats.rs2`
+   covers hunter; the fishing spots, the seven fish tiers and the
+   `4 + 8×tier` cooking points are not built.
+6. **Antipoison** (noxifer + cicely) — the one recipe grid cell left unbuilt.
+7. **Floor progression** — the floors are stamped and populated, but nothing
+   walks a player from floor 1 to floor 2 to Olm; `::coxolm` is still the way in.
+8. **F21**, unchanged: nobody publishes the damage→points coefficient.
+
+None of this has been *played*. Two green harnesses and a populated instance are
+not a raid anybody has cleared.
