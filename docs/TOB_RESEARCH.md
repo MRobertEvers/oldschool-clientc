@@ -442,3 +442,234 @@ Six for six. So:
   (blert: Xarpus 680, Verzik 240/320/320; cache: 520 and 300/400/600). The Wiki agrees
   with the cache. Prefer the cache; blert's Entry-mode table looks stale, which is
   unsurprising — almost nobody records Entry raids, so an error there never surfaces.
+
+---
+
+## M4 — Maiden: spawn-tile selection for <10 crabs, and the spawn tick. **CLOSED**
+
+Measured from `NPC_SPAWN` events for Nylocas Matomenos (npc 8366) across 27 Maiden rooms
+at scales 1–5, 81 spawn events, 282 crabs.
+
+### The tile table (data agrees with blert's constants exactly)
+
+| Slot | Base tile | "Scuffed" tile |
+|---|---|---|
+| N1 | 3173, 4456 | 3174, 4457 |
+| N2 | 3177, 4456 | 3178, 4457 |
+| N3 | 3181, 4456 | 3182, 4457 |
+| N4 inner | 3185, 4454 | 3186, 4455 |
+| N4 outer | 3185, 4456 | 3186, 4457 |
+| S1 | 3173, 4436 | 3174, 4435 |
+| S2 | 3177, 4436 | 3178, 4435 |
+| S3 | 3181, 4436 | 3182, 4435 |
+| S4 inner | 3185, 4438 | 3186, 4437 |
+| S4 outer | 3185, 4436 | 3186, 4435 |
+
+(All coordinates are the crab's **south-west tile**. The scuffed variant is one tile east
+and one tile *outward* — north row +y, south row −y.)
+
+### Selection
+
+* **Count = 2 × party size**, confirmed at every scale: 2 / 4 / 6 / 8 / 10 crabs for
+  scales 1–5.
+* **Scale 5 uses all ten slots, every spawn** — deterministic, no selection at all
+  (6 five-man rooms × 3 spawns = 18 spawn events, all ten slots every time).
+* **Scale < 5 draws a fresh random subset of size 2 × scale on every spawn** — the same
+  raid uses different slots at 70 %, 50 % and 30 %.
+* The draw looks **uniform over the ten slots**: over 60 sub-5 spawn events the per-slot
+  counts were 33, 30, 30, 30, 30, 29, 28, 27, 23, 22 (mean 28.2, χ² ≈ 3.8 on 9 df,
+  p ≈ 0.92 — no detectable bias).
+* The north/south split is *close* to what drawing 2k of 10 uniformly would give, with a
+  slight excess of balanced splits (trio: 3–3 in 13 of 21 spawns vs ~48 % expected). Not
+  enough samples to claim a balance constraint; treat as uniform until a larger pull says
+  otherwise.
+
+### Timing — **on the transmog tick, not the next**
+
+The Maiden's npc id changes (8360 → 8361 → 8362 → 8363) at each HP threshold. In **every
+one of the 81 spawn events**, the crab `NPC_SPAWN` tick equals the id-change tick exactly:
+
+```
+047e7ac7  id changes at 43, 93, 134   crabs spawn at 43, 93, 134
+0ffb0fcb  id changes at 44, 99, 157   crabs spawn at 44, 99, 157
+029e4be8  id changes at 114, 216, 317 crabs spawn at 114, 216, 317
+```
+
+### Bonus: "scuffed" is a property of the spawn, not of the crab
+
+In 2 of 60 sub-5 spawn events (~3 %) **every** crab in the set spawned on its scuffed
+tile. No event mixed base and scuffed slots. So the scuff is decided once per spawn event
+(all ten offset together), which is worth knowing: blert models `scuffed` per crab, but
+the underlying thing appears to be per-spawn.
+
+---
+
+## M6 — Bloat: falling-flesh spawn rate, shadow→land delay, stun duration. **TWO OF THREE CLOSED**
+
+### Shadow → land delay: **3 ticks**
+
+Both sources agree, and one of them is measured.
+
+> When Bloat spawns hands/feet, they hit the ground after **3 GameTicks**. However, they
+> also create a new GraphicsObject for a blood squirt animation on that tick […] For any
+> player standing on the same tile as the blood object, they are stunned.
+> — [`BloatMistakeDetector.java`](https://github.com/QuestingPet/TobMistakeTracker/blob/master/src/main/java/com/tobmistaketracker/detector/BloatMistakeDetector.java)
+
+Blert emits a `TOB_BLOAT_HANDS_DROP` (shadows appear) and a `TOB_BLOAT_HANDS_SPLAT`
+(they land) event. Across every drop in 7 Bloat rooms, `splat_tick − drop_tick = 3`,
+with no exceptions.
+
+### Spawn rate: **16 hands per drop, and the drop cadence is HP-gated: 6 ticks → 4 ticks**
+
+Hands only fall while Bloat is **walking**; no drops occur between his down and his next
+up. Every drop event carried **16 hand tiles** (a few carried 15, consistent with two
+hands landing on one tile or one landing outside the recorded chunk).
+
+The cadence is not fixed — it tightens as he is damaged:
+
+| Raid | drop gaps | Bloat HP % at those drops |
+|---|---|---|
+| `5905be94` | 6, 6 | 87 → 80 % |
+| `0ffb0fcb` | 6 × 6 | 46.6 % |
+| `047e7ac7` | 6 × 5 | 41.7 % |
+| `7ca85464` | **6, 6, 6, 6, 6**, then **4 × 10** | **41.4 %** for the 6s, **2.3 %** for the 4s |
+| `56216003` | 4 × 9 | 34.0 % |
+| `74700b67` | 4 × 9 | 24.4 % |
+| `d5ef6c12` | 4 × 10 | 20.6 % |
+
+`7ca85464` is the decisive raid: the same Bloat dropped hands every 6 ticks in one walk
+and every 4 in a later one. So **the rate is a function of his health, not of the walk
+number or the party**. The threshold is bracketed to **(34 %, 41.3 %]** — 34.0 % already
+gives 4-tick drops and 41.3 % still gives 6-tick. A larger pull aimed at rooms sitting in
+that band would pin it (35 %, 37.5 % and 40 % are all plausible round numbers).
+
+### Down/up cycle (bonus, and it re-confirms M17)
+
+`TOB_BLOAT_DOWN` carries `downNumber`, `walkTime` and `upTicks`; `TOB_BLOAT_UP` gives the
+rise tick. Examples: down 1 at tick 45 (`walkTime` 45) → up at 78 = **33 ticks down**;
+down at 42 → up 75 = 33; down at 39 → up 72 = 33. The down phase looks like a flat
+33 ticks in regular mode, and the first `walkTime` values (45, 42, 39, 47, 41, 39) sit
+inside the 39–47 window M17 established.
+
+### Stun duration: **STILL OPEN**
+
+Neither plugin models it (TobMistakeTracker only needs the tick of the splat to flag the
+mistake, and blert records the hit, not its consequence), and no source found gives a
+tick figure — the Wiki says only *"stun them temporarily"* and secondary guides say
+*"a few seconds"*.
+
+**What would close it:** a client-side capture of the stun. The player's stun is visible
+as the `Stun` graphic and, more usefully, as the tick range in which queued input is
+discarded — record the tick of the hands splat and the first tick the stunned player can
+act again. This is exactly the kind of thing the harness in
+[`ENCOUNTER_TIMING.md`](minigames/theater_of_blood/ENCOUNTER_TIMING.md) is for.
+
+---
+
+## M9 (continued) — the Vasilias style clock, measured
+
+The regular-mode figure from blert's guide is confirmed against recorded raids. The boss's
+npc id encodes its style (8355 melee / 8356 range / 8357 mage), so the switch ticks are
+visible in the `NPC_UPDATE` stream:
+
+```
+0f88919b  spawn 351 melee, then 360, 370, 380, 390, 400, 410, 420, 430, 440, 450, 460, 470, 480
+634f5837  spawn 358 melee, then 367, 377, 387, 397, 407, 417, 427, 437
+3319b641  spawn 317 melee, then 326, 336, 346, 356, 366, 376, 386
+```
+
+* Always spawns **melee**.
+* **First switch 9 ticks after the spawn, then exactly every 10 ticks.** (The 9 is the same
+  off-by-one as Maiden's first attack on tick 9: the spawn tick counts as tick 1 of the
+  window.)
+* **No style ever repeats back-to-back** in any observed switch, confirming the guide's
+  "switches to a *different* random style".
+
+Entry Mode is still unmeasured — see M9 above for why and how.
+
+---
+
+## M10 — Sotetseg: tick gap between maze end and his first post-maze attack. **CLOSED — 1 tick**
+
+Sotetseg's npc id is the tell: he becomes the inactive form (8387) on the maze proc tick
+and returns to the active form (8388) when the maze ends. Measured across 6 Sotetseg rooms,
+12 mazes:
+
+| Raid | maze proc | re-activates | first attack after | gap |
+|---|---:|---:|---:|---:|
+| `047e7ac7` | 61 / 143 | 89 / 173 | 90 / 174 | **1 / 1** |
+| `0ffb0fcb` | 64 / 154 | 101 / 193 | 102 / 194 | **1 / 1** |
+| `39c0d85d` | 68 / 153 | 100 / 188 | 101 / 189 | **1 / 1** |
+| `3d30c636` | 57 / 147 | 98 / 194 | 99 / 195 | **1 / 1** |
+| `56216003` | 53 / 140 | 77 / 169 | 78 / 170 | **1 / 1** |
+| `5905be94` | 42 / 113 | 65 / 141 | 66 / 142 | **1 / 1** |
+
+**12 of 12: he attacks on the tick immediately after re-activating**, then resumes his
+5-tick cadence. The gap from his *last pre-maze* attack varies wildly (25–51 ticks)
+because the maze's length is player-dependent — which is why this question looked open:
+measuring from the wrong end gives noise. Measure from the re-activation and it is a
+constant 1.
+
+He can also attack **on** the proc tick itself (e.g. `047e7ac7`: attacks at 56 and 61 with
+the proc at 61), so the maze does not cancel an attack already scheduled for that tick.
+
+---
+
+## M21 — Verzik: web hitpoints by party size. **CLOSED — flat 10, in every mode**
+
+The rev-239 cache settles the contradiction between the Wiki's Web page ("10 Hitpoints")
+and its Verzik page ("depends on the amount of team members"):
+
+```
+[verzik_web_npc]       // id 8376   name=<col=00ffff>Web</col>   stat4=10
+[verzik_web_npc_hard]  // id 10854  name=<col=00ffff>Web</col>   stat4=10
+[verzik_web_npc_story] // id 10837  name=<col=00ffff>Web</col>   (no stat4)
+```
+
+**10 hitpoints, identical in Regular and Hard.** What scales with the party is the
+**number** of webs (one per player), not the hitpoints of each — which is almost certainly
+what the Verzik page meant and said badly.
+
+---
+
+## M38 — does Nylocas Vasilias walk? **CLOSED — yes, it moves**
+
+Measured from the boss's own coordinates in the `NPC_SPAWN`/`NPC_UPDATE` stream over its
+full lifetime (6 raids, 80–190 ticks each):
+
+| Raid | distinct tiles occupied |
+|---|---|
+| `0f88919b` | **4** — (3294,4246), (3294,4247), (3295,4246), (3296,4246) |
+| `3319b641` | **2** — (3293,4246), (3293,4247) |
+| `634f5837`, `19d4d96a`, `5a69843c`, `6a2a12a3` | 1 |
+
+Two of six raids show the boss on more than one tile, once two tiles east of where it
+landed. A stationary npc cannot do that, so **Vasilias is mobile** and the plan's decision
+to leave it walking in `tob.npc` is right. It simply does not *need* to move often: it
+attacks at range in every style, so it only walks when nothing is reachable — which is why
+four of six raids show it never leaving its spawn tile.
+
+---
+
+## M11 — Sotetseg maze: verifying the empirical generator. **STILL OPEN, but a corpus is now reachable**
+
+Blert emits `TOB_SOTE_MAZE_PATH` events carrying `activeTiles` — the maze tiles as they
+light up — so real mazes can be harvested from recorded raids. 11 mazes were pulled as a
+trial and the tiles do come through in maze grid coordinates (x 0–13, y 0–14, matching
+devqhp's 14 × 15 grid).
+
+**Do not use this trial as a verification yet.** Two things must be resolved first:
+
+1. Each event carries only the tiles lit *at that moment* (usually one), so a maze is the
+   union over its events. If the recorder joined late or the player skipped ahead, the
+   union is a partial maze — several of the 11 have gaps.
+2. The `maze` index field was `0` on 70 of 71 events in one raid that clearly ran two
+   mazes, so the second maze's tiles risk being merged into the first. A merged pair looks
+   like two tiles per row, which is exactly the shape that would *falsely refute*
+   devqhp's "even rows are single tiles" rule.
+
+**What would close it:** harvest maze paths at volume (hundreds of raids), keep only mazes
+whose union covers all 15 rows with no gaps, split them by the `maze` field *and* by a tick
+gap, and only then compare the row structure and the seed-to-seed `max_x_change ≤ 5` claim
+against devqhp's generator. That is a bounded, mechanical job against an API that already
+holds the data — the best available answer to M11 short of Jagex's source.
