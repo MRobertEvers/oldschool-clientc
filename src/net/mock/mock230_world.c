@@ -37406,6 +37406,47 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Every ToA room builds, and builds on its own plane (`::toarooms`).
+         *
+         * The sibling of ::tobrooms, and here for the same reason: every other
+         * ToA check reads tables, and a table cannot see the map underneath the
+         * room. What it cannot see in THIS raid is the plane. Three of the
+         * twelve squares -- Akkha and both Warden rooms -- are on plane 1;
+         * `map_instance_copy_square` copies all four planes, so a room
+         * addressed on plane 0 is a perfectly valid instance full of solid
+         * rock, and nothing about it raises an error. The Theatre lost Xarpus
+         * to exactly that, which is why the check exists before the rooms do.
+         *
+         * Runs after ::toarun for the same reason ::tobrooms runs after
+         * ::tobrun: it teleports the fixture player through twelve instances.
+         * It frees them and leaves via ~toa_leave.
+         */
+        {
+            static struct Mock230Capture toarooms_capture;
+            int toarooms_said_ok = 0;
+
+            mock230_capture_begin(srv, &toarooms_capture);
+            mock230_scripts_run_debugproc(srv, "toarooms");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&toarooms_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&toarooms_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &toarooms_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "toarooms") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "toarooms OK") != NULL )
+                    toarooms_said_ok = 1;
+            }
+            SELFTEST_CHECK(toarooms_said_ok, "::toarooms should reach its OK line");
+        }
+
+        /*
          * The harness proper: build each room, run it, and count ticks.
          *
          * Rooms are entered through `::tob N` + `::tobgo` — the same path a
