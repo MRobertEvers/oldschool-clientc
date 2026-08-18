@@ -7,11 +7,11 @@
 > | 1 instancing and geometry | **done** — all twelve squares, the three plane-1 rooms, Nexus-plus-one-room instancing, room/path/tile/music tables. `::toarooms` builds every one of them for real |
 > | 2 invocations and scaling | **done** — the 44-row table generated out of the cache's own structs, the exclusive-category and prerequisite rules, and the raid/path/team factors. The generator and `::toarun` independently reconstruct the 600 ceiling |
 > | 3 points and rewards | **done** as arithmetic — the ledger, the multiplier table with its three-down cap, the death penalty, the scaled raid level and the unique curve. Not yet wired to a chest |
-> | 4 challenge rooms | not started |
-> | 5 path bosses | not started |
+> | 4 challenge rooms | **Het done**, the other three not started. The room clock landed with it — one player queue, re-armed each tick, dispatching to the current room, which is the only per-tick hook this raid has |
+> | 5 path bosses | **Zebak's clock done**, unspawned; the other three not started |
 > | 6 the Wardens | not started |
 > | 7 Combat Achievements | not started |
-> | 8 `::toarun` | **32 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` |
+> | 8 `::toarun` | **34 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` (12 rooms) and `::toaprobe` |
 >
 > **The selftest is proven able to fail**, twice and in the two places it
 > matters. Changing one invocation's raid-level modifier from +50 to +45 was
@@ -407,7 +407,8 @@ phantoms reuse the path bosses' behaviour and invocations.
 | `[M8]` | the varbit the invocation state is actually stored in | §ASSET_INDEX §8 |
 | `[M9]` | Het mirror/beam **layout generator** | §5.1 |
 | `[M10]` | Crondis trap cycle period | §5.3 |
-| `[M11]` | Zebak Great Roar rock/jug placement patterns | §6 |
+| `[M11]` | Zebak Great Roar rock/jug placement patterns. The clock is built and checked; the specials announce and resolve without geometry rather than placing rocks on invented tiles | §6 |
+| `[M16]` | Zebak's attack-style distribution. Rolled flat across the three; no source states a pattern and the guides describe reacting to the animation | §6 |
 | `[M12]` | Kephri shield charge per swarm | §6 |
 | `[M13]` | Ba-Ba Rock Throw damage, solo vs group | §6 |
 | `[M14]` | Energy Siphon time limit | §7 |
