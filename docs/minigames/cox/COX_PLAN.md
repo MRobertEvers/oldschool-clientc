@@ -1,17 +1,16 @@
 # Chambers of Xeric — implementation plan
 
-Status: **partially built, not yet running.**
+Status: **built and ticking; not yet played.**
 [`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/)
-is ~3,400 lines across 18 scripts and three config files: Tekton, Olm, Vasa,
-Vespula, the Vanguards, the Guardians, the minion packs, the crab and thieving
-puzzles, points, scaling and rewards all have code. None of it ticks — see
-**§11.3 F0**: 21 `[ai_timer]` hooks and no `npc_settimer` anywhere, so every
-heartbeat in the raid is unarmed.
+is ~4,500 lines across 18 scripts and three config files. The 2026-08-17 tick
+audit (§11) found 22 divergences from the sources, of which **19 are now fixed**
+— including F0, which was the one that mattered: every `[ai_timer]` in the raid
+was unarmed, so nothing had a heartbeat at all. `tools/cox_verify.sh` is green on
+34 checks and `tools/cox_check_timers.py` gates F0 from coming back.
 
-> ⏱️ **§11 is the tick-level audit** (2026-08-17): what measures CoX and what
-> does not (Blert does **not** cover it yet), every published tick constant with
-> its Jagex quote, and 22 findings ranked against the implementation. Read §11.3
-> before touching an encounter — several constants below lost their argument.
+> ⏱️ **§11 is the tick-level audit**: what measures CoX and what does not (Blert
+> does **not** cover it yet), every published tick constant with its Jagex quote,
+> the 22 findings, and §11.6 for what the fix pass changed and what is left.
 
 This document is the room-by-room specification, the reference index, and the
 build order. It is meant to be read alongside two sources, both linked from
@@ -1889,18 +1888,24 @@ weights; and the tertiary rates 1/12, 1/53, 1/75, 1/400.
 
 ### 11.4 Verdict
 
-Not tick-perfect. F0 makes the stronger statement: **there is currently no tick
-behaviour to verify** — every heartbeat in the raid is unarmed, so Olm does not
-act, Tekton does not wake, and no interval in this document has ever run. Below
-that, F1 removes two thirds of Olm's special attacks and F2/F3 leave a phase
-consisting of nothing but a ranged/magic auto.
+**As audited (before the fix pass):** not tick-perfect, and F0 made the stronger
+statement — there was no tick behaviour to verify at all, because every heartbeat
+in the raid was unarmed. Below that, F1 removed two thirds of Olm's special
+attacks and F2/F3 left a phase consisting of nothing but a ranged/magic auto.
 
-What *is* right is the arithmetic: the 12-step rotation and its classification,
-the 4-tick action clock, the 1/5 style switch, the one-step catch-up bound, the
-5% clench threshold, the crab stun ladder, the Guardian damage multiplier. Those
-are the parts that are hardest to get right and that every solo method depends
-on, and they now have their sources recorded next to them. The gap is breadth and
-wiring, not foundations.
+**After the fix pass (§11.6):** every published tick constant in §11.2 is now
+either implemented or explicitly listed as unimplementable here. What remains is
+not arithmetic but *geometry and engine surface* — acid pools and fire walls are
+modelled as tile-checked queues rather than real ground effects, and stat
+regeneration is per-npc script timers because the engine has none. Both are
+honest approximations with the right numbers, and both are named as such in the
+code that implements them.
+
+The thing to hold onto: the parts that were right stayed right. The 12-step
+rotation and its classification, the 4-tick action clock, the 1/5 style switch,
+the one-step catch-up bound, the crab stun ladder and the Guardian damage
+multiplier were all correct before the audit and are untouched by it — they now
+just have their sources recorded beside them.
 
 Ranking for the next pass: **F0 first and alone** — until the timers are armed,
 none of the rest can be observed, and any fix to them is unverifiable. Then
@@ -1946,3 +1951,68 @@ The lesson F0 carries beyond CoX: a `[ai_timer]` hook that is never armed fails
   20-25 direct / 12-16 indirect (Strategies, phase transition). Same for the
   targeted-crystal power: "up to 15-20" vs "16-20". Unresolved; they may genuinely
   differ between the transition crystals and the power.
+
+### 11.6 The fix pass — what changed, 2026-08-17
+
+19 of the 22 findings are fixed. `tools/cox_verify.sh` compiles the package and
+runs 34 in-game checks green; `tools/cox_check_timers.py` is a new static gate.
+Both were mutation-tested: reverting `^cox_thieving_grubs_solo` to 20 turns check
+28 red, reverting the mystic table turns 27 red, and stripping every
+`npc_settimer` turns the timer gate red. A gate that cannot fail is not a gate.
+
+| # | Finding | Status | Where |
+|---|---|---|---|
+| F0 | 21 `[ai_timer]` hooks, zero `npc_settimer` | ✅ fixed | `[ai_spawn]` in all 9 room scripts + `tools/cox_check_timers.py` |
+| F1 | 1/3 roll gating the special slot | ✅ fixed | `cox_olm.rs2` — specials unconditional; the roll moved to `~cox_olm_standard_attack` |
+| F2 | Powers missing entirely | ✅ fixed | `cox_olm.rs2` — acid/flame/crystal, one per phase, announced, two attacks each |
+| F3 | Spheres missing | ✅ fixed | `~cox_olm_sphere` — 50% current HP, or prayer disabled + halved |
+| F4 | Final phase ran the wrong specials | ✅ fixed | `~cox_olm_special_kind` — siphon only, asserted by check 10 |
+| F5 | Clench had a threshold but no clock | ✅ fixed | 8-tick window, 45-tick invuln, generic-special suppression, off once the mage hand is down |
+| F6 | Head turn ignored player counts | ✅ fixed | `~cox_olm_turn_head` — most-populated zone, then the 4-tick hand-damage tiebreak |
+| F7 | Only Tekton had npc stats | ✅ fixed | `cox.npc` — 45 records, HP + attack rate + stat band |
+| F8 | Portal drained every tick | ✅ fixed | `npc_settimer(2)` — its timer *is* its 2-tick attack rate |
+| F9 | Vasa healed twice, by a 2023-removed rule | ✅ fixed | `%cox_vasa_siphoned` accrues, banks only on a full siphon |
+| F10 | Guardian HP was flat 250 | ✅ fixed | `~cox_guardian_hp_for_party`, check 29 |
+| F11 | Minion counts missed their tables | ✅ fixed | `~cox_shaman_count` / `~cox_mystic_count`, checks 26–27 |
+| F12 | No stat regeneration anywhere | ⚠️ partial | Ash's 13 npcs have their intervals; the 1-per-100 default is an **engine-wide** gap, not faked here |
+| F13 | Teleport damage curve | ✅ fixed | `~cox_olm_teleport_damage` — 5/tile capped at 50, check 31 |
+| F14 | Life siphon max hit 20 | ✅ fixed | 18, plus the 10-tick (6 s) window |
+| F15 | Dead disputed constants | ✅ fixed | Deleted; `attackrate` lives in `cox.npc` where the engine reads it |
+| F16 | Ice demon fire multiplier | ✅ fixed | 150 → 250, and the icefiend's re-rolled 3-or-4-tick interval |
+| F17 | Thieving grubs invented | ✅ fixed | 30 solo / 16 per player, check 28 |
+| F18 | Elite clue rolled unconditionally | ✅ fixed | Gated on no unique |
+| F19 | Only one purple possible | ✅ fixed | Surplus points roll again, up to six, check 34 |
+| F20 | CM limits stopped at 5 players | ✅ fixed | Full table + the 5,000-point bonus, check 30 |
+| F21 | Points coefficient invented | ❌ open | Still unpublished; the mini-boss decay and the penultimate-hand exclusion are also still missing |
+| F22 | **New** — enraged Tekton read as CM | ✅ fixed | He was healing 300 → 450 on enrage; max hit 78 → 59 |
+
+**F22 was found by the fix, not by the audit.** Building the stat table for F7
+meant reading Tekton's infobox version by version, and it has four:
+`hitpoints1 = 300` (normal), `hitpoints2 = 300` (**enraged**), `hitpoints3 = 450`
+(challenge mode), `hitpoints4 = 450` (CM enraged). This tree had `_enraged = 450`
+and `maxhit_enraged = 78`, which are rows three and three — so Tekton *healed 150
+and gained 19 max hit* at the moment he enraged, and challenge mode then scaled
+that again. The audit missed it because it read the constants' comments, which
+said "300 HP normal / 450 enraged" confidently. Reading the source a second time,
+for a different reason, is what caught it.
+
+**Two things the fix pass could not do honestly:**
+
+- **Ground effects are tile-checked queues, not real ground objects.** Acid
+  pools, the fire wall and the falling crystals capture a tile and re-check the
+  player's position when the damage lands — the idiom `inferno_adds.rs2` uses for
+  Jal-MejJak's lava. That gets the *numbers* and the *dodge* right: standing
+  still takes 3–6 per tick, stepping off does not. It does not render a pool, and
+  a second player walking into one takes nothing. Real ground effects need engine
+  surface this tree does not have yet.
+- **Regeneration is a script timer per npc.** The engine has no npc stat regen at
+  all, in or out of CoX. Ash's thirteen intervals are implemented; the
+  "otherwise default should be 100" half of his answer is deliberately *not*,
+  because faking it for thirteen npcs inside one minigame would hide an
+  engine-wide gap behind a room-shaped patch.
+
+**Still worth doing next**, in order: F21's damage→points coefficient is blocked
+on a number nobody publishes, so it stays flagged; the penultimate phase's hand
+*recovery* (the bar, the ~30 s refill, the no-points-on-a-recovered-hand rule) is
+the largest remaining piece of Olm; and none of this has been played — 34 green
+checks and a compiling package are not a raid anybody has cleared.

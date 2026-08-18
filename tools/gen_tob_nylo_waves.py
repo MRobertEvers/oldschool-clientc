@@ -188,21 +188,23 @@ def build() -> tuple[str, str, dict]:
                 rows.append("data=wave,%d" % n)
                 rows.append("data=lane,%d" % lane_id)
                 rows.append("data=slot,%d" % slot)
-                # `1`/`0`, NOT `true`/`false`. A dbrow value for a non-symbol
-                # column ends up in `atoi()` (mock230_db.c row_value), and
-                # `atoi("true")` is 0 — there is no boolean literal handling at
-                # all, so a column written `true` reads back false and nothing
-                # warns. ::tobrun's census caught it here (`big count 0 wanted
-                # 43`); four tables elsewhere in the tree are still written that
-                # way and are silently all-false.
-                # `true`/`false`, never `1`/`0` and never `yes`/`no`. The two
-                # columns are declared `boolean`, and a boolean column parses
-                # only the words: anything else reads back as 0, so every big
-                # and every aggro silently vanishes while the file still looks
-                # right. ::tobrun's census is what catches it - twice now, once
-                # per spelling.
-                rows.append("data=big,%s" % ("true" if nylo["big"] else "false"))
-                rows.append("data=aggro,%s" % ("true" if nylo["aggro"] else "false"))
+                # `1`/`0`, NOT `true`/`false` and NOT `yes`/`no`.
+                #
+                # `boolean` is a LITERAL column type (mock230_db.c
+                # db_type_is_literal), so it resolves against no pack and
+                # row_value() ends at `atoi(expanded)` - and atoi("true") is 0.
+                # A file written with the words looks right, loads without a
+                # warning, and reads back all-false.
+                #
+                # This has now been flipped to the words twice and caught twice
+                # by ::tobrun, most recently as `big count 0 wanted 43` plus
+                # `wave 1 has a pillar-bound spawn with no pillar` (the aggro
+                # column collapsing takes the pillar column down with it). If
+                # the words are wanted, teach row_value() to parse them first
+                # and the four other tables in the tree that are already
+                # silently all-false will start working too.
+                rows.append("data=big,%d" % (1 if nylo["big"] else 0))
+                rows.append("data=aggro,%d" % (1 if nylo["aggro"] else 0))
                 rows.append("data=pillar,%d" % PILLAR[pillar])
                 rows.append("data=style1,%d" % s1)
                 rows.append("data=style2,%d" % s2)

@@ -115,6 +115,40 @@ NPC_NAME_ALIASES = {
 # attackable public duplicate and permit cross-player quest credit.
 #
 # Source audit: https://oldschool.runescape.wiki/w/Fight_Arena?oldid=15240956
+# Whole map squares whose every npc belongs to an instance rather than to the
+# world. A per-tile exclusion list is the wrong shape for these: the Theatre of
+# Blood's squares hold the six bosses AND whatever the external dump happened
+# to be carrying when it was taken, and both are equally wrong in public space.
+#
+# What the dump actually put in the Maiden room, before this: one Maiden at
+# (3162,4444) and a 2x5 GRID of `tob_verzik_phase2_bloodnylocas_story` at
+# x=3170/3176, y=4438..4454. Verzik's blood nylocas, parked in Maiden's room, in
+# rows. They are not a spawn anybody intended - they are an artefact of the
+# import - and in game they read as "the boss room is full of crabs before the
+# fight starts".
+#
+# The Maiden was worse than cosmetic. `map_instance_from_square` COPIES a
+# square's spawns into the instance, so a world-spawned boss becomes two: the
+# public one and the instanced one, standing side by side. Every ToB room is
+# built by `~tob_build_room`, which adds its own boss with party-scaled
+# hitpoints, so the square must ship empty.
+#
+# Squares: 12613 Maiden, 13125 Bloat, 13122 Nylocas, 13123 Sotetseg + 13379 its
+# shadow realm, 12612 Xarpus, 12611 Verzik, 12867 the loot room, 12869 the
+# corridor. Named as (square_x, square_z), which is `region >> 8` and
+# `region & 0xFF`.
+INSTANCED_SQUARES = {
+    (49, 69),   # Maiden
+    (51, 69),   # Bloat
+    (51, 66),   # Nylocas
+    (51, 67),   # Sotetseg
+    (52, 67),   # Sotetseg's shadow realm
+    (49, 68),   # Xarpus
+    (49, 67),   # Verzik
+    (50, 67),   # loot room
+    (50, 69),   # corridor
+}
+
 NPC_SPAWN_EXCLUSIONS = {
     ("arena_scorpion", 2608, 3159, 0),
     ("arena_bouncer", 2608, 3162, 0),
@@ -267,6 +301,12 @@ def main():
             absent_square["m%d_%d" % square] += 1
             continue
         key = ("npc", name, row["x"], row["y"], level)
+        if (row["x"] // 64, row["y"] // 64) in INSTANCED_SQUARES:
+            reject["npc: instanced encounter square"] += 1
+            # Same reason as the per-tile case below: keep the empty file, so
+            # it still states that the square has no public actors.
+            kept[square]
+            continue
         if (name, row["x"], row["y"], level) in NPC_SPAWN_EXCLUSIONS:
             reject["npc: scripted owner-private encounter actor"] += 1
             # Preserve an empty generated file when every row on a shipped map

@@ -78,6 +78,11 @@ def main() -> int:
     require(constants, r"poh_servant_services_per_wage\s*=\s*8",
             "eight-service wage constant is missing")
     require(script, r"poh_servant_is_bone", "bone exclusion is missing")
+    require(script, r"poh_servant_table_service", "seat-aware guest service is missing")
+    require(script, r"poh_servant_serve_tea", "tea service is missing")
+    require(script, r"poh_servant_serve_drinks", "barrel-drink service is missing")
+    require(script, r"poh_servant_repeat", "last-request replay is missing")
+    require(script, r"poh_servant_guest_greet", "guest greeting is missing")
     require(script, r"poh_state_commit", "employment is not durable")
     require(header, r"MOCK230_POH_SERVANT_SERVICE_MAX\s*=\s*7",
             "engine service bound is missing")
@@ -87,7 +92,7 @@ def main() -> int:
             "engine sparse servant validation is missing")
 
     print("poh servant contract: 5 employees, 11 bank materials, 4 sawmill recipes, "
-          "3 bell pulls, and durable eight-service wages")
+          "3 bell pulls, table/tea/drink service, replay, and durable wages")
     return 0
 
 
