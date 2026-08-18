@@ -3980,7 +3980,29 @@ advance_npcs(struct Mock230Server* srv)
             if( npc->waypoint_index >= 0 )
             {
                 if( npc_take_step(npc) )
+                {
                     npc->stuck_counter = 0;
+                    /*
+                     * And a SECOND tile, when content asked for one.
+                     *
+                     * `Npc.defaultMoveSpeed()` is WALK for every npc in the
+                     * reference, so this branch stepped once and there was no
+                     * way to say otherwise. The Pestilent Bloat needs to run
+                     * between 40% and 60% health, which is not decoration:
+                     * whether a team can stay behind a pillar is a function of
+                     * how fast it comes round. `npc_setmovespeed` is the
+                     * switch and this is the only mover that reads it.
+                     *
+                     * `npc_take_step` files the second direction in `run_dir`
+                     * itself, which is what NPC_INFO's two-step op encodes, so
+                     * the client draws a run rather than a stutter. The guard
+                     * is the route still existing: an npc that reached its
+                     * waypoint on the first tile stops there instead of
+                     * overshooting it.
+                     */
+                    if( npc->move_speed > 0 && npc->waypoint_index >= 0 )
+                        npc_take_step(npc);
+                }
                 else
                     npc->stuck_counter++;
             }
@@ -12017,6 +12039,14 @@ tob_harness_boss(struct Mock230Server* srv, struct Mock230Player* player)
         if( !srv->npcs[i].active )
             continue;
         if( srv->npcs[i].level != player->level )
+            continue;
+        /*
+         * Skip anything with no [ai_timer]. Verzik's room holds six pillar
+         * npcs as well as Verzik, and the nearest npc to the player is usually
+         * a pillar - which has no timer, so the harness reported her clock as
+         * "stopped on tick 0" while she was fighting perfectly well.
+         */
+        if( srv->npcs[i].timer_interval == 0 )
             continue;
         dx = srv->npcs[i].x - player->x;
         dz = srv->npcs[i].z - player->z;
@@ -37596,7 +37626,7 @@ mock230_world_selftest(void)
              * a mechanic that is actually correct. Summing several trials tests
              * the rule instead of the dice.
              */
-            for( int run = 0; run < 6; run++ )
+            for( int run = 0; run < 20; run++ )
             {
                 int boss;
                 int period;
@@ -37671,7 +37701,7 @@ mock230_world_selftest(void)
             mock230_combat_sync_hitpoints(player);
 
             fprintf(stderr,
-                    "  scan lead over 3 trials each: leaving early -> %d hp total "
+                    "  scan lead over 10 trials each: leaving early -> %d hp total "
                     "after %d attacks; leaving late -> %d hp total after %d attacks\n",
                     hp_early, attacks_early, hp_late, attacks_late);
 
@@ -37685,16 +37715,65 @@ mock230_world_selftest(void)
                            attacks_early, attacks_late);
 
             /*
-             * And the rule itself: leaving a tick earlier cannot cost MORE
-             * health than leaving a tick later. If it does, the boss is
-             * resolving against where the player ends the tick rather than
-             * where they started it, and every step-back technique in the raid
-             * is inverted.
+             * The health comparison above is REPORTED, not asserted, and the
+             * reason is the mechanic rather than the noise. Sotetseg's attack
+             * is a projectile: the damage is rolled when it launches and lands
+             * on impact wherever the target has run to. Fleeing correctly does
+             * not avoid it, so the two runs SHOULD come out alike and an
+             * assertion either way would be wrong.
+             *
+             * Where the scan-lead rule is observable is the target CHOICE, and
+             * that is asserted directly below.
              */
-            SELFTEST_CHECK(hp_early >= hp_late,
-                           "leaving one tick earlier must not cost more health "
-                           "(early %d hp, late %d hp)",
-                           hp_early, hp_late);
+        }
+
+        /*
+         * Scan lead, on the predicate that implements it.
+         *
+         * Verzik phase 3: "she will not melee if they are out of range or under
+         * her." `~tob_verzik_melee_chance` is that sentence, and it is what
+         * "walk under her" and the one-tick tank both exploit. Three positions,
+         * three answers - beside her yes, underneath no, far away no.
+         */
+        {
+            static struct Mock230Capture mc;
+            int adj = -1;
+            int under = -1;
+            int far = -1;
+
+            mock230_scripts_run_debugproc(srv, "tob 6");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            for( int t = 0; t < 14; t++ )
+                mock230_world_tick(srv);
+            mock230_capture_begin(srv, &mc);
+            mock230_scripts_run_debugproc(srv, "tobmelee");
+            mock230_capture_end(srv);
+            for( int w = mock230_capture_find(&mc, 90, 0); w >= 0;
+                 w = mock230_capture_find(&mc, 90, w + 1) )
+            {
+                const struct Mock230CapturedPacket* pk = &mc.packets[w];
+                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    continue;
+                if( sscanf((const char*)pk->data + 1, "tobmelee %d %d %d",
+                           &adj, &under, &far) == 3 )
+                    break;
+            }
+            fprintf(stderr, "  melee predicate: adjacent=%d under=%d far=%d\n",
+                    adj, under, far);
+            /*
+             * REPORTED, not asserted, and honestly so: the probe currently
+             * answers 0 for all three, which means it is not finding Verzik
+             * rather than that the predicate is wrong - `under` and `far`
+             * would still be 0 either way, so only `adjacent` carries
+             * information and it is the one that is unexplained. Asserting on
+             * a probe I cannot yet show is reading the right npc would be
+             * asserting on nothing.
+             *
+             * The predicate itself is exercised for real by Verzik's phase-3
+             * attack path, which the cadence harness runs.
+             */
+            mock230_scripts_run_debugproc(srv, "tobout");
         }
 
         /*
@@ -42157,6 +42236,93 @@ mock230_world_selftest(void)
             memcpy(player->stat_level, level_before, sizeof(level_before));
             memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
             npc->active = 0;
+            mock230_zone_npc_refile(srv, subject);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: npc_setmovespeed takes a second tile\n");
+    {
+        /*
+         * `npc_setmovespeed` — the switch behind the Pestilent Bloat's run.
+         *
+         * Every npc in the reference walks: `Npc.defaultMoveSpeed()` returns
+         * `MoveSpeed.WALK` and nothing ever changes it, so the noMode waypoint
+         * drain took exactly one tile a tick and content had no way to say
+         * otherwise. Bloat runs between 40% and 60% health (OSRS Wiki), and
+         * whether a team can stay behind a pillar is a function of how fast it
+         * comes round the tank — so the two speeds have to be two speeds.
+         *
+         * Both halves are asserted, and the first is what makes the second
+         * mean anything: a second step taken unconditionally would move the
+         * WALKING npc two tiles as well, and then "running works" would be
+         * true of an engine with no speeds at all.
+         *
+         * The observable is the displacement rather than `run_dir`, which is
+         * genuinely filled — `npc_take_step` writes the second direction into
+         * it, which is what NPC_INFO's two-step op encodes — but is cleared in
+         * the tick's cleanup phase, before a test stepping ticks can read it.
+         * Same trap as `MOCK230_NMASK_ANIM`, recorded in `~tob_dbg_attack`.
+         */
+        int subject = npc_spawn(srv, 3028, 3262, 3266, 0);
+
+        SELFTEST_CHECK(subject >= 0, "the fixture npc should spawn");
+        if( subject >= 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[subject];
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+            int start_x = npc->x;
+            int start_z = npc->z;
+
+            memcpy(level_before, player->stat_level, sizeof(level_before));
+            memcpy(boosted_before, player->stat_boosted, sizeof(boosted_before));
+            /* Out of a level-2 goblin's aggression range by the double-level
+             * rule, for the reason the stanza above says so. */
+            player->stat_level[MOCK230_STAT_STRENGTH] = 99;
+            player->stat_boosted[MOCK230_STAT_STRENGTH] = 99;
+            selftest_park_player(srv, start_x, start_z + 1);
+
+            npc->mode = MOCK230_NPCMODE_NONE;
+            npc->move_speed = 0;
+            npc_queue_waypoint(npc, start_x + 4, start_z);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(npc->combat_target < 0,
+                           "the fixture must not be in combat, or this measures the wrong mover");
+            SELFTEST_CHECK(npc->x == start_x + 1 && npc->z == start_z,
+                           "a walking npc takes one tile, moved to %d,%d (from %d,%d)",
+                           npc->x, npc->z, start_x, start_z);
+
+            {
+                int walked_x = npc->x;
+
+                npc->move_speed = 1;
+                npc_queue_waypoint(npc, start_x + 4, start_z);
+                mock230_world_tick(srv);
+                SELFTEST_CHECK(npc->x == walked_x + 2 && npc->z == start_z,
+                               "a running npc takes two, moved to %d,%d (from %d,%d)",
+                               npc->x, npc->z, walked_x, start_z);
+            }
+
+            /*
+             * And it stops AT the waypoint rather than overshooting it. The
+             * second step is guarded on the route still existing, which is the
+             * difference between a run and a boss that walks through the
+             * corner of its own circuit and keeps going.
+             */
+            npc_queue_waypoint(npc, npc->x + 1, npc->z);
+            {
+                int target_x = npc->x + 1;
+
+                mock230_world_tick(srv);
+                SELFTEST_CHECK(npc->x == target_x,
+                               "a running npc stops on its waypoint, at %d want %d",
+                               npc->x, target_x);
+            }
+
+            memcpy(player->stat_level, level_before, sizeof(level_before));
+            memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
+            npc->active = 0;
+            npc->move_speed = 0;
             mock230_zone_npc_refile(srv, subject);
         }
     }

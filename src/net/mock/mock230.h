@@ -2103,6 +2103,22 @@ struct Mock230Npc
      */
     int run_dir;
     /**
+     * Tiles this npc takes off its queued route per tick: 0 walks, 1 runs.
+     *
+     * `Npc.defaultMoveSpeed()` in the reference returns `MoveSpeed.WALK` and
+     * nothing ever changes it, so every LostCity npc walks. OldSchool bosses
+     * do not: the Pestilent Bloat walks above 60% health, RUNS between 40% and
+     * 60%, and alternates below 40% on every attack made against it. Which
+     * band means which speed is content's business (`tob_bloat.rs2`); this is
+     * only the switch, written by `npc_setmovespeed`.
+     *
+     * Read by the noMode waypoint drain in `advance_npcs`, which is the mover
+     * `npc_walk` feeds. The wander and combat movers ignore it deliberately:
+     * a roaming npc has no reason to sprint, and outrunning a monster in
+     * pursuit is the mechanic (see `run_dir` above).
+     */
+    int move_speed;
+    /**
      * Which way the npc is FACING, in the same 0..7 space as `step_dir`
      * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
      *

@@ -145,6 +145,10 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * and browser builds. */
 #define BOOTMANIFEST_CLIENT_ARG_MAX 64
 #define BOOTMANIFEST_CLIENT_ARG_CAP 512
+/* Content lanes named by `[content:lanes]`. Matches SSC_LANE_MAX, the number
+ * sscompile will accept in one build. */
+#define BOOTMANIFEST_LANE_MAX 32
+#define BOOTMANIFEST_LANE_CAP 128
 #define BOOTMANIFEST_DEBUG_ACTION_MAX 64
 #define BOOTMANIFEST_DEBUG_HOTKEY_MAX 64
 #define BOOTMANIFEST_DEBUG_NAME_CAP 64
@@ -224,6 +228,23 @@ struct BootManifest
     /* Compiled script pack for the embedded mock server. Relative paths are
      * resolved against the manifest directory; "" keeps the server default. */
     char server_scripts[512];
+
+    /* [content:lanes] — which gated content lanes `server_scripts` above was
+     * compiled from, one `lane=` per line.
+     *
+     * Build-time information in a boot file, deliberately: the manifest is what
+     * a launcher is handed, and "this profile is the Summoning one" was
+     * previously encoded only in the SPELLING of the output directory
+     * (`build_summoning`), which run-live.sh pattern-matched to pick a make
+     * target. A new lane could not be launched at all without teaching the
+     * launcher a new suffix. Naming the lanes here says the same thing where a
+     * reader can see it, and lets one generic compile serve every profile.
+     *
+     * A manifest that names none compiles the tree's default lanes, which is
+     * what every profile that is not a lane development profile wants. */
+    char lanes[BOOTMANIFEST_LANE_MAX][BOOTMANIFEST_LANE_CAP];
+    int lane_count;
+    int lanes_error; /* lane-count overflow */
     /* "::" commands (';'-separated) to send once right after login; "" = none.
      * TORIRS_NET_CHEAT still overrides. */
     char cheat[256];

@@ -272,11 +272,42 @@ SSC_SymbolsLoadPack(
     const char* path,
     enum SSC_SymbolKind kind);
 
+/**
+ * Loads one `id=name` pack file, taking its kind from its filename.
+ *
+ * The single-file form of SSC_SymbolsLoadPackDir, for a lane that needs exactly
+ * one index out of a directory holding many. A lane's own `configs/` is the
+ * case that forced it: the whole directory is known-stale against that lane's
+ * own `pack/`, so loading all of it drags that drift into every other lane's
+ * symbol table, while the one aggregate compack beside it is all that is wanted.
+ */
+int
+SSC_SymbolsLoadPackFile(
+    struct SSC_Symbols* symbols,
+    const char* path);
+
 /** Loads a `^name value` constant file. */
 int
 SSC_SymbolsLoadConstants(
     struct SSC_Symbols* symbols,
     const char* path);
+
+/**
+ * Declare `^name` with a literal value that has no file behind it.
+ *
+ * A lane's feature flag: `^curses_enabled` is 1 in a build that compiled the
+ * Ancient Curses lane and 0 in one that did not, and shared files test it
+ * unconditionally — an undefined constant is a compile error, not a false. It
+ * comes from the build's lane selection rather than from content, so nothing in
+ * the tree can state it. `origin` names what declared it, for the duplicate
+ * diagnostic. Returns 0 when the name is already declared.
+ */
+int
+SSC_SymbolsDefineConstant(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const char* text,
+    const char* origin);
 
 /** Loads every `*.pack` in a directory, mapping the filename to a kind. */
 int
@@ -442,6 +473,45 @@ int
 SSC_CompileDir(
     struct SSC_Compiler* compiler,
     const char* dir,
+    struct SSC_Diag* diag);
+
+/**
+ * One directory of `.rs2` sources, and what a name declared in it means.
+ *
+ * `weak` marks a *seam*: a definition the base tree provides so that a call site
+ * compiles whether or not the lane that really implements it is in this build.
+ * A strong (non-weak) definition of the same name — which is what a lane ships —
+ * replaces it outright, body included. Without this the two are simply a
+ * duplicate script name, which SSC_Declare refuses, so the base tree could never
+ * name a lane's procedure and every lane was mandatory.
+ *
+ * Weak only ever loses to strong. Two weak definitions of one name, or two
+ * strong ones, are still the duplicate they always were.
+ */
+struct SSC_SourceRoot
+{
+    const char* dir;
+    int weak;
+};
+
+/**
+ * Compile several source roots as one pack, skipping anything under `excludes`.
+ *
+ * The exclusions are path prefixes, and they exist because a lane's server
+ * scripts live *inside* the base tree (`server/scripts/ported_<lane>`): a build
+ * that leaves the lane out has to subtract that subtree from the base walk, not
+ * merely decline to add it.
+ *
+ * Paths are sorted across all roots together, so a file's script id does not
+ * depend on which root it arrived through.
+ */
+int
+SSC_CompileRoots(
+    struct SSC_Compiler* compiler,
+    const struct SSC_SourceRoot* roots,
+    int root_count,
+    const char* const* excludes,
+    int exclude_count,
     struct SSC_Diag* diag);
 
 /** Writes `<dir>/script.dat` and `<dir>/script.idx`. */

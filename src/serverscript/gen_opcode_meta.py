@@ -642,6 +642,27 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # as npc_freeze above - engine takes the mechanism, content keeps the policy.
     "P_OVERHIT": (11077, 4, 0, 0, 0),
 
+    # npc_setmovespeed(int $speed)
+    #
+    # How many tiles the active NPC takes off its queued route per tick: 0 for
+    # a walk, 1 for a run. The reference has no such command and could not have
+    # one -- `Npc.defaultMoveSpeed()` returns `MoveSpeed.WALK` unconditionally,
+    # so every LostCity npc walks and nothing in its content ever needed to ask.
+    #
+    # OldSchool bosses do ask. The Pestilent Bloat's speed is a pure function of
+    # its health -- it walks above 60%, RUNS between 40% and 60%, and alternates
+    # below 40% on every attack made against it (OSRS Wiki: Pestilent Bloat) --
+    # and the band it is in is what decides whether a team can keep behind a
+    # pillar. There is no way to express that from content: `npc_walk` queues a
+    # waypoint and the npc phase drains exactly one tile from it.
+    #
+    # The engine already renders the two-tile step; only the switch was missing.
+    # `Mock230Npc.run_dir` is NPC_INFO's second direction and `playerfollow`
+    # has filled it since familiars landed, so this reuses that path rather
+    # than inventing one. Speed is engine mechanism; which health band means
+    # which speed stays content policy, in tob_bloat.rs2.
+    "NPC_SETMOVESPEED": (11078, 1, 0, 0, 0),
+
     # inv_transmit_from(player_uid $owner, inv $inventory, component $component)(boolean)
     #
     # Paint a live owner's private inventory on the active viewer's component.
@@ -999,6 +1020,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETMOVESPEED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (

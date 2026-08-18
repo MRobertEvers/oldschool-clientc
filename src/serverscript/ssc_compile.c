@@ -192,6 +192,22 @@ struct SSC_Compiler
      */
     const char* last_dbcolumn_types;
 
+    /**
+     * Set while the file being read is a lane seam (struct SSC_SourceRoot's
+     * `weak`), so a name a real lane already declared is stepped over here
+     * rather than reported as a duplicate.
+     */
+    int weak_source;
+    /** How many names the strong roots declared, fixed before the weak pass
+     *  starts. A weak declaration is an override candidate only against those:
+     *  two weak files sharing a name is the ordinary duplicate, not a seam. */
+    int strong_name_count;
+    /** The seam names a lane took over, so the compile pass drops those bodies
+     *  instead of writing them over the lane's at the same id. */
+    char (*shadowed)[SSC_MAX_NAME];
+    int shadowed_count;
+    int shadowed_capacity;
+
     struct SSC_Build build;
     struct SSC_Lexer lexer;
     struct SSC_Diag* diag;
@@ -370,6 +386,40 @@ script_id_for_name(struct SSC_Compiler* compiler, const char* name)
             return i;
     }
     return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lane seams                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Was this name declared by a lane, leaving the base tree's seam unused? */
+static int
+is_shadowed(struct SSC_Compiler* compiler, const char* name)
+{
+    int i;
+
+    for( i = 0; i < compiler->shadowed_count; i++ )
+    {
+        if( strcmp(compiler->shadowed[i], name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+shadow_add(struct SSC_Compiler* compiler, const char* name)
+{
+    if( compiler->shadowed_count == compiler->shadowed_capacity )
+    {
+        int capacity = compiler->shadowed_capacity ? compiler->shadowed_capacity * 2 : 32;
+        char (*grown)[SSC_MAX_NAME] =
+            (char(*)[SSC_MAX_NAME])realloc(compiler->shadowed, (size_t)capacity * SSC_MAX_NAME);
+
+        assert(grown);
+        compiler->shadowed = grown;
+        compiler->shadowed_capacity = capacity;
+    }
+    snprintf(compiler->shadowed[compiler->shadowed_count++], SSC_MAX_NAME, "%s", name);
 }
 
 /*
@@ -2799,6 +2849,7 @@ SSC_Free(struct SSC_Compiler* compiler)
     free(compiler->name_int_returns);
     free(compiler->name_str_returns);
     free(compiler->name_param_kinds);
+    free(compiler->shadowed);
     free(compiler);
 }
 
@@ -2899,6 +2950,31 @@ SSC_Declare(
             /* Command declarations are not scripts and must not take ids. */
             if( strcmp(trigger, "command") == 0 )
                 continue;
+
+            /*
+             * A seam a lane took over. The lane's declaration already holds the
+             * name and this one must not become a second id — that is precisely
+             * the duplicate the check below refuses. Recorded rather than merely
+             * skipped, because the emit pass has to drop this body too: it would
+             * otherwise resolve the same name back to the lane's id and write
+             * the default over the lane's real script.
+             *
+             * Only against the strong roots. Two seams sharing a name, or two
+             * lanes, is the ordinary duplicate and is still an error.
+             */
+            if( compiler->weak_source )
+            {
+                char seam_name[SSC_MAX_NAME];
+                int existing;
+
+                snprintf(seam_name, sizeof(seam_name), "[%.32s,%.90s]", trigger, subject);
+                existing = script_id_for_name(compiler, seam_name);
+                if( existing >= 0 && existing < compiler->strong_name_count )
+                {
+                    shadow_add(compiler, seam_name);
+                    continue;
+                }
+            }
 
             /*
              * Some script names are singleton entry points. Two declarations
@@ -3404,6 +3480,35 @@ SSC_CompileFile(
             continue;
         }
 
+        /*
+         * The other half of the seam override (see SSC_Declare): this name
+         * belongs to a lane in this build, so the default body is discarded
+         * rather than finished. finish_script resolves by name, and the name now
+         * answers with the lane's id — writing there would replace the lane's
+         * script with the stub, which is the failure this whole mechanism
+         * exists to avoid, and it would do it silently.
+         *
+         * A shadowed seam cannot carry stacked headers with it: those names
+         * would alias onto a body that is not being emitted. Say so rather than
+         * dropping them.
+         */
+        if( compiler->weak_source && is_shadowed(compiler, compiler->build.name) )
+        {
+            int i;
+
+            if( pending_count )
+            {
+                fail(compiler,
+                     "lane seam '%s' shares a body with %d other declaration(s); "
+                     "give each seam its own body",
+                     compiler->build.name, pending_count);
+                break;
+            }
+            for( i = 0; i < compiler->build.op_count; i++ )
+                free(compiler->build.string_operands[i]);
+            continue;
+        }
+
         if( !finish_script(compiler) )
             break;
 
@@ -3432,13 +3537,45 @@ compare_paths(const void* a, const void* b)
     return strcmp(*(const char* const*)a, *(const char* const*)b);
 }
 
-/** Collect every `.rs2` under `dir`, recursively. */
+/**
+ * Is `path` this exclusion, or inside it?
+ *
+ * Compared as whole path components, so excluding `.../ported_curses` cannot
+ * also take `.../ported_curses_extra` with it.
+ */
 static int
-collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_capacity)
+path_is_within(const char* path, const char* prefix)
 {
-    DIR* handle = opendir(dir);
-    struct dirent* entry;
+    size_t length = strlen(prefix);
 
+    while( length > 0 && prefix[length - 1] == '/' )
+        length--;
+    if( strncmp(path, prefix, length) != 0 )
+        return 0;
+    return path[length] == '\0' || path[length] == '/';
+}
+
+/** Collect every `.rs2` under `dir`, recursively, minus the excluded subtrees. */
+static int
+collect_sources(
+    const char* dir,
+    const char* const* excludes,
+    int exclude_count,
+    char*** out_paths,
+    int* out_count,
+    int* out_capacity)
+{
+    DIR* handle;
+    struct dirent* entry;
+    int i;
+
+    for( i = 0; i < exclude_count; i++ )
+    {
+        if( path_is_within(dir, excludes[i]) )
+            return 0;
+    }
+
+    handle = opendir(dir);
     if( !handle )
         return 0;
 
@@ -3456,7 +3593,7 @@ collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_cap
 
         if( S_ISDIR(info.st_mode) )
         {
-            collect_sources(path, out_paths, out_count, out_capacity);
+            collect_sources(path, excludes, exclude_count, out_paths, out_count, out_capacity);
             continue;
         }
 
@@ -3480,16 +3617,26 @@ collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_cap
 }
 
 int
-SSC_CompileDir(
+SSC_CompileRoots(
     struct SSC_Compiler* compiler,
-    const char* dir,
+    const struct SSC_SourceRoot* roots,
+    int root_count,
+    const char* const* excludes,
+    int exclude_count,
     struct SSC_Diag* diag)
 {
-    char** paths = NULL;
-    int count = 0;
-    int capacity = 0;
+    char** strong = NULL;
+    int strong_count = 0;
+    int strong_capacity = 0;
+    char** weak = NULL;
+    int weak_count = 0;
+    int weak_capacity = 0;
     int ok = 1;
     int i;
+
+    assert(compiler);
+    assert(roots);
+    assert(root_count > 0);
 
     /* SSC_Declare runs before SSC_CompileFile ever sets compiler->diag, but
      * both go through fail(), which only writes compiler->diag when it is
@@ -3497,20 +3644,85 @@ SSC_CompileDir(
      * drops its message and the caller sees an empty diagnostic. */
     compiler->diag = diag;
 
-    collect_sources(dir, &paths, &count, &capacity);
+    for( i = 0; i < root_count; i++ )
+    {
+        /*
+         * An exclusion subtracts a subtree from the roots that *contain* it; it
+         * never cancels a root of its own. The seam directory is the case: it
+         * sits inside `--src`, so it is excluded there to keep it from being
+         * walked twice — and its own root must still collect it.
+         */
+        const char* kept[64];
+        int kept_count = 0;
+        int j;
+
+        assert(roots[i].dir);
+        for( j = 0; j < exclude_count; j++ )
+        {
+            if( path_is_within(roots[i].dir, excludes[j]) )
+                continue;
+            /* Dropping one silently is a subtree that quietly compiles back
+             * into the pack — abort instead. */
+            assert(kept_count < (int)(sizeof(kept) / sizeof(kept[0])));
+            kept[kept_count++] = excludes[j];
+        }
+        if( roots[i].weak )
+            collect_sources(roots[i].dir, kept, kept_count, &weak, &weak_count,
+                            &weak_capacity);
+        else
+            collect_sources(roots[i].dir, kept, kept_count, &strong, &strong_count,
+                            &strong_capacity);
+    }
     /* Sorted so script ids are stable across machines — the container indexes
-     * by id, and a gosub compiled today must still resolve tomorrow. */
-    qsort(paths, (size_t)count, sizeof(char*), compare_paths);
+     * by id, and a gosub compiled today must still resolve tomorrow. Sorted
+     * across roots rather than per root, so which root a file arrived through
+     * cannot move it. */
+    qsort(strong, (size_t)strong_count, sizeof(char*), compare_paths);
+    qsort(weak, (size_t)weak_count, sizeof(char*), compare_paths);
 
-    for( i = 0; i < count && ok; i++ )
-        ok = SSC_Declare(compiler, paths[i], diag);
-    for( i = 0; i < count && ok; i++ )
-        ok = SSC_CompileFile(compiler, paths[i], diag);
+    /*
+     * Every strong name first. A seam only knows it lost once the lane that
+     * defines the same name has been declared, and the declare pass is a single
+     * forward walk, so the two sets cannot be interleaved.
+     */
+    for( i = 0; i < strong_count && ok; i++ )
+        ok = SSC_Declare(compiler, strong[i], diag);
+    compiler->strong_name_count = compiler->name_count;
+    compiler->weak_source = 1;
+    for( i = 0; i < weak_count && ok; i++ )
+        ok = SSC_Declare(compiler, weak[i], diag);
+    compiler->weak_source = 0;
 
-    for( i = 0; i < count; i++ )
-        free(paths[i]);
-    free(paths);
+    for( i = 0; i < strong_count && ok; i++ )
+        ok = SSC_CompileFile(compiler, strong[i], diag);
+    compiler->weak_source = 1;
+    for( i = 0; i < weak_count && ok; i++ )
+        ok = SSC_CompileFile(compiler, weak[i], diag);
+    compiler->weak_source = 0;
+
+    for( i = 0; i < strong_count; i++ )
+        free(strong[i]);
+    free(strong);
+    for( i = 0; i < weak_count; i++ )
+        free(weak[i]);
+    free(weak);
     return ok;
+}
+
+int
+SSC_CompileDir(
+    struct SSC_Compiler* compiler,
+    const char* dir,
+    struct SSC_Diag* diag)
+{
+    struct SSC_SourceRoot root;
+
+    assert(compiler);
+    assert(dir);
+
+    root.dir = dir;
+    root.weak = 0;
+    return SSC_CompileRoots(compiler, &root, 1, NULL, 0, diag);
 }
 
 /* ------------------------------------------------------------------ */

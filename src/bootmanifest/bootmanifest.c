@@ -167,6 +167,7 @@ enum bm_section
     BM_SECTION_DEBUG_HOTKEYS,
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
+    BM_SECTION_CONTENT,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
      * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
      * file for them, because only the RevConfig parser knows that dialect. */
@@ -199,6 +200,8 @@ bm_section_of(char const* header)
         return BM_SECTION_FEATURES;
     if( strncmp(header, "render:", 7) == 0 )
         return BM_SECTION_RENDER;
+    if( strncmp(header, "content:", 8) == 0 )
+        return BM_SECTION_CONTENT;
     if( strncmp(header, "revconfig:", 10) == 0 )
         return BM_SECTION_REVCONFIG;
     return BM_SECTION_NONE;
@@ -236,6 +239,33 @@ bm_set_kv(
                 "%s",
                 value);
             bm->client_arg_count++;
+            return;
+        }
+        break;
+
+    case BM_SECTION_CONTENT:
+        /* Read and kept, not acted on: the lanes are a BUILD input (which
+         * content went into the script pack `scripts=` names), and the launcher
+         * is what reads them back out. Parsing them here rather than only in
+         * the shell keeps one spelling of the key, and keeps the section from
+         * being reported as unknown by every client that boots the file. */
+        if( strcmp(key, "lane") == 0 )
+        {
+            if( bm->lane_count >= BOOTMANIFEST_LANE_MAX )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [content:lanes] holds at most %d lanes\n",
+                    BOOTMANIFEST_LANE_MAX);
+                bm->lanes_error = 1;
+                return;
+            }
+            snprintf(
+                bm->lanes[bm->lane_count],
+                sizeof(bm->lanes[bm->lane_count]),
+                "%s",
+                value);
+            bm->lane_count++;
             return;
         }
         break;

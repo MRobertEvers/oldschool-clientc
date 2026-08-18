@@ -593,6 +593,7 @@ endif
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
+.PHONY: mock230-scripts-lanes mock230-lanes
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1414,7 +1415,7 @@ test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
 # script and immediately run it.
 SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
 	content/content_register.c content/content_fields.c $(INI_SRC) \
-	serverscript/ssc_compile.c
+	serverscript/ssc_compile.c serverscript/ssc_lane.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
 # relation, and the 64-bit lookup key that a rev-230 component uid overflows.
@@ -1466,8 +1467,19 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 	./$(OBJ_DIR)/ss_verify_test $(SS_CORPUS)
 
 # RuneScript compiler: .rs2 -> script.dat/.idx.
+#
+# Always -O3, whatever flavor the client is being built in. sscompile is a build
+# tool, not the program under test: it reads ~15k scripts on every content
+# change, and inheriting OPT=0 from a debug client build (or, worse, the ASan
+# flags) turns a five-second step into a minute-long one for no diagnostic gain
+# — nobody debugs the client by stepping through the script compiler. $(CFLAGS)
+# is still the base, so the include paths, the C standard and the warning set
+# stay identical; only the optimisation level is pinned. The trailing -O3 wins
+# because the last -O on a command line is the one gcc and clang obey.
+SSC_CFLAGS = $(CFLAGS) -O3
+
 sscompile: $(OBJ_DIR) $(SSC_SRCS) serverscript/ssc_main.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
+	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
 	@echo "built $(OBJ_DIR)/sscompile"
 
 # Compiler end to end: each case writes real RuneScript, compiles it, loads it
@@ -2112,23 +2124,15 @@ test-mock230-bank: mock230-bank
 # exporting MOCK230_CONTENT_DIR once, instead of repeating it on every make
 # command line. A command-line assignment still wins over both.
 MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
-SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
-SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
-RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
-CURSES_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_rs558_ancient_curses
-CURSES_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
-# Genuinely new items authored outside the cache (HERBLORE_PORT_QUEUE.md
-# slice 30 — herb tar). Same shape as the lanes above: its own pack/obj.alloc
-# + obj.client, registered as its own --pack root below.
-HERBLORE_ITEMS_LANE = $(MOCK230_CONTENT_DIR)/ported/herblore_items
-SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
-SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
-# Allocate first, then compile.
-#
-# A `.enum` or `.dbtable` block declares a record by name and the compiler needs a
-# number, so tools/ss_allocate.py has to have run before sscompile sees the tree —
-# otherwise the first script that names one fails to compile. It only ever appends
-# below its marker, so running it on every build is idempotent.
+# The four ported/ lanes used to be spelled out here — SUMMONING_CLIENT_LANE,
+# RS2012_QBD_TD_CLIENT_LANE, CURSES_CLIENT_LANE, HERBLORE_ITEMS_LANE — and
+# threaded through every compile recipe as --pack and --component-root roots.
+# Each lane now describes itself in `<content>/ported/<lane>/lane.ini`, which is
+# what makes adding a fifth lane, or leaving one out, a content edit rather than
+# a makefile edit. See the mock230-scripts-lanes recipe below and
+# src/serverscript/ssc_lane.h. The cache bakes still name their own lane paths
+# (SUMMONING_LANE further down): a bake is not a compile and reads different
+# directories.
 #
 # `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
 # `names/` is the layer it replaced and may not exist; sscompile skips a missing
@@ -2217,103 +2221,79 @@ test-mock230-poh: $(OBJ_DIR)
 test-poh-servants:
 	@cd $(REPO_ROOT) && python3 tools/check_poh_servants.py
 
-# scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
-# for every cohort creature) that are known-stale against the lane's own pack/
-# (see the mock230-cache-summoning comment above) — pointing sscompile at the
-# whole directory reintroduces that drift into every OTHER lane's symbol table
-# (observed: it shifted QBD's own render state). content_restrict_summoning_
-# serverside is the one declared-but-unpacked symbol scripts actually need, and
-# it already lives in the aggregate all.varbit.compack (not the standalone
-# summoning.varbit, which sscompile's --pack does not read on its own) — so
-# stage only that one file rather than the whole directory.
+# ---------------------------------------------------------------------------
+# The script pack, and which content lanes go into it
+# ---------------------------------------------------------------------------
 #
-# v3 solved the same missing-symbol problem the other way, with
-# `--pack $(SUMMONING_CLIENT_LANE)/configs`. That is the broad form this comment
-# rules out, so the merge kept the stage and dropped it. If a cohort script now
-# wants a symbol the stage does not carry, ss_unresolved.py (test-port) names it
-# — add that symbol, rather than the whole directory.
-SUMMONING_VARBIT_STAGE = $(REPO_ROOT)/build/summoning-varbit-stage
+# One recipe, parameterised by the lane list. It used to be four near-identical
+# ones — default, summoning-on, curses-on, both-on — each repeating seven --pack
+# roots, three --component-roots and a python step that staged a copy of the
+# whole constant tree just to write one `^flag = 0`. A fifth lane meant a fifth
+# copy of all of it, and there was no way to spell "compile without this lane":
+# every recipe passed every lane's symbols and compiled every lane's scripts,
+# with only the flag telling them apart at runtime.
+#
+# Now a lane describes itself, in `<content>/ported/<lane>/lane.ini`, and
+# sscompile reads that (src/serverscript/ssc_lane.h). Nothing below names a lane
+# path, a lane's packs or a lane's components; MOCK230_SCRIPT_LANES names lanes,
+# and a lane not named is genuinely not in the pack.
+#
+# The two --pack defaults sscompile applies with no --pack at all are exactly
+# $(MOCK230_CONTENT_DIR)/pack and /configs, and --constants defaults to --src,
+# which is the real tree rather than a staged copy of it. So the whole command
+# is the source, the output and the lanes.
+MOCK230_SCRIPT_LANES ?=
+MOCK230_SCRIPT_OUT ?= $(MOCK230_CONTENT_DIR)/server/scripts/build
 
-mock230-scripts: sscompile check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
+# Allocate first, then compile: a `.enum` or `.dbtable` block declares a record
+# by name and the compiler needs a number, so tools/ss_allocate.py has to have
+# run before sscompile sees the tree. It only ever appends below its marker, so
+# running it on every build is idempotent.
+# check-crystal-set-contract on every pack, lane build included: it is the one
+# gate that spans the client and server halves at once (docs/CRYSTAL_SET_COMMAND.md),
+# so a lane build that skipped it could ship half a fix. The heavier content
+# contracts hang off mock230-scripts alone — see there.
+mock230-scripts-lanes: sscompile check-crystal-set-contract
+	@mkdir -p $(MOCK230_SCRIPT_OUT)
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
+	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(SUMMONING_CONSTANTS_OFF) --enabled 0
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(SUMMONING_CONSTANTS_OFF)
+		--out $(MOCK230_SCRIPT_OUT) \
+		--content-root $(MOCK230_CONTENT_DIR) \
+		$(foreach lane,$(MOCK230_SCRIPT_LANES),--lane $(lane))
 
-# The feature-on sibling. Sources and symbol packs are identical to the default
-# build; only the generated constant root differs, so the flag cannot drift into
-# a second copy of the gameplay scripts.
-mock230-scripts-summoning: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
+# What lanes this tree declares, and which of them a bare build would compile.
+mock230-lanes: sscompile
+	@./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(SUMMONING_CONSTANTS_ON) --enabled 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(SUMMONING_CONSTANTS_ON)
+		--content-root $(MOCK230_CONTENT_DIR) --list-lanes
 
-# The Ancient Curses feature-on build. Same sources and symbol packs as the
-# default; only the generated constant root differs, so ^curses_enabled cannot
-# drift into the ordinary pack. Summoning stays off here — the two lanes are
-# independent, and a build that turns both on is a third target, not this one.
-CURSES_CONSTANTS_ON = $(REPO_ROOT)/build/curses-constants-on
+# The ordinary pack: the base tree plus the lanes whose descriptors say
+# `default=on` — the additive ones base content already names (the QBD's records,
+# herb tar). The gated lanes are off, and off now means absent rather than
+# present-but-flagged.
+#
+# This is the target every content contract hangs off, so it carries them all;
+# the lane variants below are development builds of the same tree and do not
+# re-run gates the default build has already passed.
+mock230-scripts: check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract
+	@$(MAKE) mock230-scripts-lanes \
+		MOCK230_SCRIPT_LANES= \
+		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build
 
-mock230-scripts-curses: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_curses
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(CURSES_CONSTANTS_ON) --enabled 0 --curses 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_curses \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(CURSES_CONSTANTS_ON)
+# Summoning on. Same sources, same symbol roots; the lane is added rather than
+# unlocked, so nothing about the default pack can drift into this one.
+mock230-scripts-summoning:
+	@$(MAKE) mock230-scripts-lanes \
+		MOCK230_SCRIPT_LANES=scape2009_summoning \
+		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
+
+# Ancient Curses on, Summoning off: the two lanes are independent, and a build
+# that wants both is the target below rather than this one twice.
+mock230-scripts-curses:
+	@$(MAKE) mock230-scripts-lanes \
+		MOCK230_SCRIPT_LANES=rs558_ancient_curses \
+		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_curses
 
 test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py
@@ -2686,29 +2666,13 @@ mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curs
 CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.rs2012-summoning-curses
 
-mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses
-	@mkdir -p $(SUMMONING_VARBIT_STAGE)
-	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
-	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
-	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(REPO_ROOT)/build/all-constants-on --enabled 1 --curses 1
-	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
-		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_VARBIT_STAGE) \
-		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
-		--pack $(CURSES_CLIENT_LANE)/pack \
-		--pack $(HERBLORE_ITEMS_LANE)/pack \
-		--component-root $(SUMMONING_CLIENT_LANE) \
-		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
-		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
-		--constants $(REPO_ROOT)/build/all-constants-on
+# Both gated lanes at once, for manifest_osrs239_torirs.ini. Two names on one
+# line rather than a third recipe: that the combination is expressible at all,
+# without restating either lane's inputs, is the point of the descriptors.
+mock230-scripts-summoning-curses:
+	@$(MAKE) mock230-scripts-lanes \
+		MOCK230_SCRIPT_LANES="scape2009_summoning rs558_ancient_curses" \
+		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses
 
 # The curses overlay on top of the rs2012+Summoning cache. Same recipe as
 # mock230-cache-curses with the base and output moved, which is why the id

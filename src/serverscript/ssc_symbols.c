@@ -426,6 +426,24 @@ SSC_SymbolsLoadPack(
 }
 
 int
+SSC_SymbolsDefineConstant(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const char* text,
+    const char* origin)
+{
+    assert(symbols);
+    assert(name);
+    assert(text);
+    assert(origin);
+
+    if( !SSC_SymbolsAdd(symbols, name, 0, SSC_SYM_CONSTANT, text) )
+        return 0;
+    symbols->entries[symbols->count - 1].origin = strdup(origin);
+    return 1;
+}
+
+int
 SSC_SymbolsLoadConstants(
     struct SSC_Symbols* symbols,
     const char* path)
@@ -618,6 +636,26 @@ ssc_path_is_dir(const char* path)
 {
     struct stat st;
     return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+}
+
+int
+SSC_SymbolsLoadPackFile(
+    struct SSC_Symbols* symbols,
+    const char* path)
+{
+    const char* base;
+    const char* slash;
+
+    assert(symbols);
+    assert(path);
+
+    base = path;
+    for( slash = path; *slash; slash++ )
+    {
+        if( *slash == '/' || *slash == '\\' )
+            base = slash + 1;
+    }
+    return SSC_SymbolsLoadPack(symbols, path, kind_for_pack(base));
 }
 
 int

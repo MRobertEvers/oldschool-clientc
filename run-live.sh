@@ -31,6 +31,12 @@
 # newer than the last compile. TORIRS_FORCE_SCRIPT_BUILD=1 recompiles without
 # asking.
 #
+# WHICH content lanes go into that pack is the manifest's `[content:lanes]`
+# section — `lane=scape2009_summoning`, one per line — and a lane not named is
+# not compiled at all, rather than compiled with its feature flag at 0. The
+# lanes a tree declares are its own (`ported/<lane>/lane.ini`); list them with
+# `make -C src mock230-lanes`.
+#
 # TORIRS_PREPARE_ONLY=1 does both of those and stops, without building or
 # launching a client -- how run-runelite.sh borrows this file's bake policy
 # rather than copying it.
@@ -124,6 +130,30 @@ HOST=$(sed -n 's/^[[:space:]]*host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | he
 GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 RAW_SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 RAW_CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+
+# Which content lanes this profile's script pack is built from — `[content:lanes]`,
+# one `lane=` per line (src/serverscript/ssc_lane.h).
+#
+# Section-scoped, unlike every other read above: `lane` is a plausible key
+# elsewhere, and a manifest-wide sed would pick up a `[revconfig:…]` record that
+# happens to use the word. The keys above are read manifest-wide because each of
+# them appears exactly once and always in the section it belongs to; this one is
+# a repeated key, so it is worth reading properly.
+#
+# This replaces guessing the lane set from the OUTPUT DIRECTORY'S NAME, which is
+# what the build_summoning/build_curses/build_summoning_curses case below used to
+# do. That could only ever recognise lanes the launcher had been taught, so a new
+# lane was not launchable until this file learned its suffix — and a manifest that
+# named a directory the pattern did not match silently got the pristine pack.
+MANIFEST_LANES=$(awk '
+    /^[[:space:]]*\[/ { in_section = ($0 ~ /^[[:space:]]*\[content:/); next }
+    in_section && /^[[:space:]]*lane[[:space:]]*=/ {
+        sub(/^[[:space:]]*lane[[:space:]]*=[[:space:]]*/, "")
+        sub(/[[:space:]]*$/, "")
+        if( $0 != "" ) printf "%s ", $0
+    }
+' "$MANIFEST")
+MANIFEST_LANES=${MANIFEST_LANES% }
 
 # BootManifest_LoadFile resolves cache and script paths against the manifest's
 # directory. The standalone mock must receive the same resolved paths as the
@@ -381,8 +411,7 @@ build_scripts() {
                 --out "$_out" \
                 ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
                 --input src/serverscript --input src/makefile \
-                --input tools/ss_allocate.py \
-                --input tools/stage_summoning_server_constants.py >&2; then
+                --input tools/ss_allocate.py >&2; then
             _stale=0
         else
             _stale=$?
@@ -392,21 +421,23 @@ build_scripts() {
             return 0
         fi
     fi
-    echo "run-live.sh: building the server script pack..." >&2
-    case "$SERVER_SCRIPTS" in
-        *build_summoning_curses)
-            make -C src mock230-scripts-summoning-curses || exit 1
-            ;;
-        *build_summoning)
-            make -C src mock230-scripts-summoning || exit 1
-            ;;
-        *build_curses)
-            make -C src mock230-scripts-curses || exit 1
-            ;;
-        *)
-            make -C src mock230-scripts || exit 1
-            ;;
-    esac
+    if [ -n "$MANIFEST_LANES" ]; then
+        echo "run-live.sh: building the server script pack (lanes: $MANIFEST_LANES)..." >&2
+    else
+        echo "run-live.sh: building the server script pack..." >&2
+    fi
+    # A profile that names lanes gets exactly those, compiled into the directory
+    # it named. A profile that names none is the pristine one, and goes through
+    # `mock230-scripts` — the only target carrying the full set of content
+    # contracts (God Wars, quest combat, agility XP, …). Those gates guard the
+    # base tree, and the base tree is what that build is.
+    if [ -n "$MANIFEST_LANES" ] || [ -n "$RAW_SERVER_SCRIPTS" ]; then
+        make -C src mock230-scripts-lanes \
+            MOCK230_SCRIPT_LANES="$MANIFEST_LANES" \
+            ${_out:+MOCK230_SCRIPT_OUT="$_out"} || exit 1
+    else
+        make -C src mock230-scripts || exit 1
+    fi
 }
 
 # The same argument, one layer down, for the marked lanes.

@@ -5583,6 +5583,35 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `npc_setmovespeed(int $speed)` — 0 walks, 1 runs.
+     *
+     * No reference twin: `Npc.defaultMoveSpeed()` returns WALK for every npc
+     * LostCity has. The Pestilent Bloat's speed is a health band (walk above
+     * 60%, run between 40% and 60%, alternate below 40% on every attack made
+     * against it), and content had no way to say so — `npc_walk` queues a
+     * waypoint and the npc phase drains exactly one tile from it.
+     *
+     * Only the noMode drain in `advance_npcs` reads this. Anything above 0 is
+     * a run rather than "this many tiles": the wire has one two-step op and no
+     * third.
+     */
+    case SS_OP_NPC_SETMOVESPEED:
+    {
+        int32_t speed;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &speed) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setmovespeed with no active npc");
+            return 1;
+        }
+        npc->move_speed = speed > 0 ? 1 : 0;
+        return 1;
+    }
+
     /* ---- players by uid, logging, gendered text --------------------- */
 
     case SS_OP_FINDUID:

@@ -504,10 +504,11 @@
 #define SS_OP_MAP_INSTANCE_FIND_OWNER 11075
 #define SS_OP_MAP_INSTANCE_PLAYERCOUNT 11076
 #define SS_OP_P_OVERHIT 11077
+#define SS_OP_NPC_SETMOVESPEED 11078
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11078
+#define SS_OPCODE_MAX 11079
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 482
+#define SS_OPCODE_COUNT 483
 
 #endif
