@@ -27,7 +27,8 @@ enum
     MOCK230_POH_SERVANT_TYPE_MAX = 8,
     /* Services completed since the last wage; the eighth resets to zero. */
     MOCK230_POH_SERVANT_SERVICE_MAX = 7,
-    MOCK230_POH_SERVANT_TASK_MAX = 5,
+    /* 10..20 encode the eleven bank materials remembered for repeat-task. */
+    MOCK230_POH_SERVANT_TASK_MAX = 20,
     /* https://oldschool.runescape.wiki/w/Treasure_room#Treasure */
     MOCK230_POH_TREASURE_MAX = 100000,
     /* Fifteen cache-backed Boss lair jars, Kraken through Shellbane gryphon. */

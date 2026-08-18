@@ -129,12 +129,12 @@ main(void)
           "a house style absent from revision 239 is rejected");
     check(mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_TYPE, 8) &&
               mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_PAID, 7) &&
-              mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, 5),
-          "the Demon butler and final service/task ordinals round-trip");
+              mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, 20),
+          "the Demon butler and final remembered-material ordinal round-trip");
     check(!mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_TYPE, 2) &&
               !mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_TYPE, 9) &&
               !mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_PAID, 8) &&
-              !mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, 6),
+              !mock230_poh_set(&poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, 21),
           "unknown servants and impossible service counters are rejected");
 
     garden = mock230_poh_room_add(&poh, 100, 4, 3, 1, 0, 1);

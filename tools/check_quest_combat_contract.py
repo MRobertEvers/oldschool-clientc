@@ -102,6 +102,13 @@ CHOMPY_CHEST = CONTENT / "quests/quest_chompybird/scripts/ogre_chest.rs2"
 CHOMPY_TOAD = CONTENT / "quests/quest_chompybird/scripts/swamp_toad.rs2"
 CHOMPY_CAVES = CONTENT / "quests/quest_chompybird/scripts/chompy_caves.rs2"
 OSF_RELAY = CONTENT / "quests/quest_onesmallfavour/scripts/onesmallfavour_relay.rs2"
+OSF_PUZZLES = CONTENT / "quests/quest_onesmallfavour/scripts/onesmallfavour_puzzles.rs2"
+OSF_CONSTANT = CONTENT / "quests/quest_onesmallfavour/configs/onesmallfavour.constant"
+OSF_VARP = CONTENT / "quests/quest_onesmallfavour/configs/onesmallfavour.varp"
+OSF_NPC = CONTENT / "quests/quest_onesmallfavour/configs/onesmallfavour.npc"
+OSF_GENERATED_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
+OSF_DWARF_SPAWN = CONTENT / "areas/world/configs/m46_153.spawn"
+PLAYER_HIT_FUNNEL = CONTENT / "areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2"
 ELEM1_CORE = CONTENT / "quests/quest_elemental_workshop/scripts/quest_elemental_workshop.rs2"
 ELEM1_BOOK = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_workshop_shield_book.rs2"
 ELEM1_DROPS = CONTENT / "quests/quest_elemental_workshop/scripts/elemental_drops.rs2"
@@ -551,6 +558,23 @@ def check_manifest() -> None:
     require({15297463, 15297469, 15297814, 15272821, 15185508,
              14888479, 15297464, 15293864, 14768954} <= revisions,
             "Ghosts Ahoy: pinned Wiki audit set drifted")
+    osf = [row for row in rows if row["id"] == "quest-one-small-favour"]
+    require(len(osf) == 1,
+            "manifest: expected exactly one One Small Favour row")
+    require(osf[0]["implementation_status"] == "implementation-in-progress",
+            "One Small Favour: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(osf[0][key]),
+                f"One Small Favour: empty evidence field {key}")
+    urls = {audit["url"] for audit in osf[0]["source_audits"]}
+    require({
+        "https://oldschool.runescape.wiki/w/One_Small_Favour",
+        "https://oldschool.runescape.wiki/w/One_Small_Favour/Quick_guide",
+        "https://oldschool.runescape.wiki/w/Slagilith",
+        "https://oldschool.runescape.wiki/w/Dwarf_gang_member",
+        "https://oldschool.runescape.wiki/w/Animate_rock_scroll",
+    } <= urls, "One Small Favour: live Wiki audit set drifted")
 
 
 def check_delrith() -> None:
@@ -3808,6 +3832,133 @@ def check_ghosts_ahoy() -> None:
                  "Ghosts Ahoy logout cleanup")
 
 
+def check_one_small_favour() -> None:
+    require_text(
+        OSF_CONSTANT.read_text(),
+        (
+            "^osf_slagilith_fight = 145",
+            "^osf_slagilith_defeated = 150",
+            "^osf_petra_freed = 152",
+            "^osf_gang_dwarf_1_bit = 0",
+            "^osf_gang_dwarf_2_bit = 1",
+            "^osf_gang_dwarf_3_bit = 2",
+            "^osf_gang_complete_mask = 7",
+            "^osf_slagilith_lifetime = 500",
+            "^osf_slagilith_coord = 0_40_153_57_45",
+        ),
+        "One Small Favour exact encounter constants",
+    )
+    require_text(
+        OSF_VARP.read_text(),
+        ("[osf_gang_kills]", "[osf_slagilith_active]", "scope=temp"),
+        "One Small Favour owner and dwarf state",
+    )
+    require(OSF_VARP.read_text().count("scope=temp") == 2,
+            "One Small Favour: both encounter latches must reset on logout")
+    require_text(
+        OSF_NPC.read_text(),
+        (
+            "[slagilith]", "hitpoints=60", "attack=60", "strength=120",
+            "defence=75", "magic=1", "ranged=1",
+            "huntmode=aggressive_melee", "param=attackrate,6",
+            "param=damagetype,2", "param=crushattack,10",
+            "param=strengthbonus,0", "param=stabdefence,50",
+            "param=slashdefence,50", "param=crushdefence,5",
+            "param=magicdefence,5", "param=rangedefence,50",
+            "param=combat_xp_multiplier,4000", "param=death_drop,null",
+        ),
+        "One Small Favour exact Slagilith combat row",
+    )
+    puzzles = OSF_PUZZLES.read_text()
+    require_text(
+        puzzles,
+        (
+            "[oplocu,favour_lady_in_wall]",
+            "if (last_useitem ! favour_animate_rock)",
+            "%onesmallfavour = ^osf_slagilith_fight;",
+            "~osf_spawn_slagilith;",
+            "if (%osf_slagilith_active = 1)",
+            "if (%onesmallfavour = ^osf_slagilith_defeated)",
+            "npc_add(^osf_slagilith_coord, favour_petra, ^osf_petra_lifetime);",
+            "npc_setowner;",
+            "%onesmallfavour = ^osf_petra_freed;",
+        ),
+        "One Small Favour retained-scroll cast, retry and Petra release",
+    )
+    require("inv_del(inv, favour_animate_rock" not in puzzles,
+            "One Small Favour: animate-rock scroll must survive both casts")
+    relay = OSF_RELAY.read_text()
+    require_text(
+        relay,
+        (
+            "%osf_gang_kills = 0;",
+            "[opnpc2,favour_gangster_dwarf]",
+            "[opnpc2,favour_gangster_dwarf_2]",
+            "[opnpc2,favour_gangster_dwarf_3]",
+            "[apnpc2,favour_gangster_dwarf]",
+            "[apnpc2,favour_gangster_dwarf_2]",
+            "[apnpc2,favour_gangster_dwarf_3]",
+            "[proc,osf_record_gang_kill](int $bit)",
+            "%osf_gang_kills = setbit(%osf_gang_kills, $bit);",
+            "if (%osf_gang_kills = ^osf_gang_complete_mask)",
+            "~osf_record_gang_kill(^osf_gang_dwarf_1_bit);",
+            "~osf_record_gang_kill(^osf_gang_dwarf_2_bit);",
+            "~osf_record_gang_kill(^osf_gang_dwarf_3_bit);",
+            "%onesmallfavour = ^osf_hammerspike_done;",
+        ),
+        "One Small Favour distinct all-three dwarf credit",
+    )
+    require_text(
+        OSF_DWARF_SPAWN.read_text(),
+        ("favour_gangster_dwarf", "favour_gangster_dwarf_2",
+         "favour_gangster_dwarf_3"),
+        "One Small Favour cache-authored dwarf gang spawns",
+    )
+    generated = OSF_GENERATED_NPC.read_text()
+    for npc, row in (
+        ("favour_gangster_dwarf", ("hitpoints=40", "attack=40", "strength=40", "defence=35")),
+        ("favour_gangster_dwarf_2", ("hitpoints=25", "attack=80", "strength=30", "defence=25")),
+        ("favour_gangster_dwarf_3", ("hitpoints=25", "attack=30", "strength=60", "defence=57")),
+    ):
+        start = generated.index(f"[{npc}]")
+        block = generated[start:generated.find("\n[", start + 1)]
+        require_text(block, row + ("param=attackrate,5", "param=death_drop,bones"),
+                     f"One Small Favour {npc} exact row")
+    require_text(
+        relay,
+        (
+            "npc_add(^osf_slagilith_coord, slagilith, ^osf_slagilith_lifetime);",
+            "npc_setowner;", "npc_setmode(applayer2);", "hint_npc;",
+            "[opnpc2,slagilith]", "[apnpc2,slagilith]",
+            "[ai_queue3,slagilith]", "npc_findhero", "p_finduid(uid)",
+            "%onesmallfavour = ^osf_slagilith_defeated;",
+            "obj_add_private($drop, adamantite_ore, 1",
+            "obj_add_private($drop, uncut_ruby, 1",
+            "obj_add_private($drop, uncut_diamond, 1",
+            "[timer,osf_slagilith_monitor]", "~osf_cleanup_slagilith;",
+            "[proc,osf_on_death]", "[proc,osf_on_logout]",
+            "[proc,osf_slagilith_prepare_hit]",
+            "oc_category(inv_getobj(worn, ^wearpos_rhand)) = weapon_pickaxe",
+            "return(divide($rolled_damage, 3));",
+        ),
+        "One Small Favour private Slagilith lifecycle, weakness and loot",
+    )
+    require_text(
+        PLAYER_HIT_FUNNEL.read_text(),
+        (
+            "def_boolean $slagilith = false;",
+            "$slagilith_xp_damage = $prepared;",
+            "$prepared = ~osf_slagilith_prepare_hit($prepared, $hit_success);",
+            "$xp_damage = min($slagilith_xp_damage, npc_stat(hitpoints));",
+        ),
+        "One Small Favour shared pre-reduction XP funnel",
+    )
+    require_text(PLAYER_DEATH.read_text(), ("~osf_on_death;",),
+                 "One Small Favour death cleanup")
+    require_text(PLAYER_LOGOUT.read_text(), ("~osf_on_logout;",),
+                 "One Small Favour logout cleanup")
+
+
 def main() -> int:
     try:
         check_manifest()
@@ -3839,10 +3990,11 @@ def main() -> int:
         check_creature_of_fenkenstrain()
         check_roving_elves()
         check_ghosts_ahoy()
+        check_one_small_favour()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves and Ghosts Ahoy (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour (ok)")
     return 0
 
 

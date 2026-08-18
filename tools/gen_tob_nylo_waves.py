@@ -195,8 +195,14 @@ def build() -> tuple[str, str, dict]:
                 # warns. ::tobrun's census caught it here (`big count 0 wanted
                 # 43`); four tables elsewhere in the tree are still written that
                 # way and are silently all-false.
-                rows.append("data=big,%d" % (1 if nylo["big"] else 0))
-                rows.append("data=aggro,%d" % (1 if nylo["aggro"] else 0))
+                # `true`/`false`, never `1`/`0` and never `yes`/`no`. The two
+                # columns are declared `boolean`, and a boolean column parses
+                # only the words: anything else reads back as 0, so every big
+                # and every aggro silently vanishes while the file still looks
+                # right. ::tobrun's census is what catches it - twice now, once
+                # per spelling.
+                rows.append("data=big,%s" % ("true" if nylo["big"] else "false"))
+                rows.append("data=aggro,%s" % ("true" if nylo["aggro"] else "false"))
                 rows.append("data=pillar,%d" % PILLAR[pillar])
                 rows.append("data=style1,%d" % s1)
                 rows.append("data=style2,%d" % s2)

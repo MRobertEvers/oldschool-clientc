@@ -1744,6 +1744,54 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "A real-client multiplayer, every flag/dye, rock result, timeout, safespot, poison/venom, recoil, loot, full-inventory, death/logout and relog smoke is pending.",
         ],
     },
+    "One Small Favour": {
+        "source_audits": [
+            {"url": "https://oldschool.runescape.wiki/w/One_Small_Favour", "revision": 0, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/One_Small_Favour/Quick_guide", "revision": 0, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Slagilith", "revision": 0, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Dwarf_gang_member", "revision": 0, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Animate_rock_scroll", "revision": 0, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Herbal_tincture?oldid=14421460", "revision": 14421460, "retrieved": "2026-08-17"},
+            {"url": "https://oldschool.runescape.wiki/w/Chicken_cage?oldid=14419732", "revision": 14419732, "retrieved": "2026-08-17"},
+        ],
+        "npc_gamevals": [
+            "slagilith: owner-private level-92 quest monster",
+            "favour_gangster_dwarf/favour_gangster_dwarf_2/favour_gangster_dwarf_3: public multicombat levels 44/48/49",
+            "favour_hammerspike_stoutbeard and favour_petra: encounter hand-off actors",
+        ],
+        "item_gamevals": [
+            "favour_animate_rock retained across the failed cast, timeout retries and Petra-release cast",
+            "adamantite_ore/uncut_ruby/uncut_diamond guaranteed owner-private Slagilith drops",
+            "bones as each dwarf's ordinary guaranteed drop",
+            "blunt/sharpened axe, tincture, salts, mattresses, iron oxide, cages, pot/lid, vane pieces, tea, weather report and mahogany log relay items",
+        ],
+        "loc_gamevals": [
+            "favour_lady_in_wall at the Goblin Cave sculpture",
+            "owner-private Slagilith spawn at 2617,9837",
+            "three cache-authored dwarf gang spawns in Hammerspike's multicombat cavern",
+            "osf_weathervane plus cache-authored landing-light loc family",
+        ],
+        "trigger_handlers": [
+            "oplocu:retained-scroll initial cast, timeout retry and post-kill Petra release",
+            "opnpc2/apnpc2/ai_queue3/timer:owner-private Slagilith attack, credit, drops and 500-tick lifecycle",
+            "shared player-hit funnel: pickaxe exemption, one-third ordinary damage and pre-reduction XP",
+            "opnpc2/apnpc2/ai_queue3:stage-gated public dwarf fights and per-player three-bit credited completion",
+            "player death/logout:owned Slagilith and Petra cleanup",
+        ],
+        "loot_contract": "Slagilith has no generic primary table and, once only through quest progress, guarantees one owner-private adamantite ore, uncut ruby and uncut diamond to its credited owner. Each of the three public dwarf gang members retains its ordinary one-bones guaranteed drop; quest progress requires credited defeat of all three distinct records in any order.",
+        "test_ids": [
+            "quest-combat-contract:one-small-favour-slagilith",
+            "quest-combat-contract:one-small-favour-dwarf-gang",
+            "mock230-selftest:npc-owner-visibility",
+        ],
+        "known_gaps": [
+            "The eight-step landing-light take/cut/replace puzzle is still collapsed into one dialogue action.",
+            "The weathervane's search/hammer/search extraction sequence is still collapsed into one interaction, although per-part repair and replacement are real.",
+            "All lost-item purchase/replacement routes and the Feldip glider destination unlock still need their full modern behavior.",
+            "The five-minute Slagilith timer is total encounter lifetime rather than activity-refreshed time because the public Wiki wording does not expose a precise refresh event.",
+            "A real-client multiplayer, timeout/retry, every weapon category, recoil/poison credit, drop, dwarf-order, death/logout and relog smoke is pending.",
+        ],
+    },
 }
 
 # The two inventory rows share one physical encounter and one continuous item/
