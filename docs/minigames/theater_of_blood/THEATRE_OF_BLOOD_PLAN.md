@@ -1460,6 +1460,20 @@ Clock, from blert: **the first spit is 7 ticks after the phase starts, then ever
 - The spit is aimed at a player chosen by **orb order**, lands on one tile, and
   splashes a **3 × 3**. The **first** player's splat chains to the next player in
   order; the rest chain to the next **two**.
+- **The 3 × 3 is the damage area, not nine objects.** What lands is ONE
+  `Acidic miasma` (32744) on the tile the orb hit, rotated by which quadrant of
+  the room it fell in, and everything within one tile of it takes the hit —
+  Near-Reality's `poisonNearbyPlayers` is `withinDistance(splat, 1)` over a
+  single `WorldObject`. Placing a loc on all nine tiles fills the arena with a
+  chequerboard the live game never shows.
+- **The arcs.** The spit leaves his body high and lands ON the floor
+  (start 80 → end 0, 40°, 60 cycles + 5 per tile); a chained splat is thrown from
+  the puddle that just landed, so it starts low and is lobbed harder (10 → 0,
+  60°). The exhumed's heal orb is the mirror image and is **fast**: ground → 80
+  at 60°, 30 cycles plus one per tile — about one tick across the arena, where a
+  flat 8-cycles-per-tile shot took three and read as a bubble drifting sideways.
+  All four are Near-Reality's `Projectile` figures, converted from its degrees to
+  the client's 64-per-right-angle units.
 - If every player is on the same tile, or only one player is present, the splat
   goes to a **random uncovered tile**.
 - A poisoned tile is **permanent for the rest of the fight**. Standing on or
@@ -1525,7 +1539,8 @@ when exhumed_budget hits 0 and the last exhumed has despawned:
     +7    FIRST SPIT.
     then every 4 ticks: SPIT
         +0  seq 8059; pick the target by orb order; launch 1555 at their tile.
-        +n  land: 3x3 splash, ground objects 32744, sound 4005; chain to the next
+        +n  land: ONE ground object 32744 on the locked tile, sound 4005, and
+            the 3x3 around it takes the hit; chain to the next
             player (first target) or the next two (subsequent targets); if all
             players share a tile or only one is present, pick a random uncovered
             tile instead.

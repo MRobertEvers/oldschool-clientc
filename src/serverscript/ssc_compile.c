@@ -2274,6 +2274,48 @@ parse_switch(struct SSC_Compiler* compiler)
     return 1;
 }
 
+/*
+ * Drop what a call left behind when nothing wanted it.
+ *
+ * `npc_finduid($me);` is a STATEMENT, and `npc_finduid` pushes a boolean. The
+ * VM's operand stack is shared across frames — `pop_frame` restores locals and
+ * the pc and nothing else — so a value nobody popped stays there, under
+ * everything the rest of the script pushes.
+ *
+ * It is invisible until something reads by position. A proc call's arguments
+ * are exactly that: the callee pops the top N, so one leaked int inside an
+ * argument shifts every argument to its LEFT by one. The Nylocas room's health
+ * bar is the case that found it —
+ *
+ *     ~tob_hud_push(^tob_hud_type_special, ~tob_nylo_pillar_health, $max)
+ *
+ * — where `~tob_nylo_pillar_health` ends `npc_finduid($me); return($cur);`. The
+ * leaked 1 became `$type`, so the room drew a BOSS bar (type 1) instead of a
+ * special-phase bar (type 2) for its whole wave defence, with the right numbers
+ * on it. `~tob_nset(..., ~tob_xarpus_exhumed_step($rec))` was the same defect
+ * one room over, where it ate the store instead.
+ *
+ * The reference emits these (`POP_INT_DISCARD` / `POP_STRING_DISCARD` are
+ * LostCity opcodes 38/39 and its compiler writes them at exactly this point);
+ * this compiler never did.
+ *
+ * Unknown arity is -1 and stays undiscarded: a runtime-typed command
+ * (`db_getfield`, `enum`, params) chooses its stack from data, and guessing
+ * would corrupt the stack in the other direction. Those are still the old
+ * behaviour, which is why this is a fix rather than a guarantee.
+ */
+static void
+discard_unused_returns(
+    struct SSC_Compiler* compiler,
+    int int_returns,
+    int str_returns)
+{
+    for( int i = 0; i < int_returns; i++ )
+        emit(compiler, SS_OP_POP_INT_DISCARD, 0);
+    for( int i = 0; i < str_returns; i++ )
+        emit(compiler, SS_OP_POP_STRING_DISCARD, 0);
+}
+
 static int
 parse_statement(struct SSC_Compiler* compiler)
 {
@@ -2365,8 +2407,12 @@ parse_statement(struct SSC_Compiler* compiler)
 
         /* Anything else that starts with a name is a command call. */
         SSC_LexNext(lexer);
+        compiler->last_command_int_returns = -1;
+        compiler->last_command_str_returns = -1;
         if( !parse_command(compiler, text, NULL) )
             return 0;
+        discard_unused_returns(compiler, compiler->last_command_int_returns,
+                               compiler->last_command_str_returns);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
@@ -2377,8 +2423,15 @@ parse_statement(struct SSC_Compiler* compiler)
         int is_label = lexer->current.kind == SSC_TOK_LABEL;
 
         SSC_LexNext(lexer);
+        compiler->last_call_int_returns = -1;
+        compiler->last_call_str_returns = -1;
         if( !parse_call(compiler, text, is_label, NULL) )
             return 0;
+        /* A label is a JUMP: it replaces this script rather than returning to
+         * it, so there is nothing of its to drop. */
+        if( !is_label )
+            discard_unused_returns(compiler, compiler->last_call_int_returns,
+                                   compiler->last_call_str_returns);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
