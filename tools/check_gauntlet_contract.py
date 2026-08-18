@@ -20,6 +20,7 @@ CRAFT = (GAUNTLET / "scripts/gauntlet_craft.rs2").read_text()
 GATHER = (GAUNTLET / "scripts/gauntlet_gather.rs2").read_text()
 MONSTERS = (GAUNTLET / "scripts/gauntlet_monsters.rs2").read_text()
 HUNLLEF = (GAUNTLET / "scripts/gauntlet_hunllef.rs2").read_text()
+SELFTEST = (GAUNTLET / "scripts/gauntlet_selftest.rs2").read_text()
 REWARDS = (GAUNTLET / "scripts/gauntlet_rewards.rs2").read_text()
 PROGRESS = (GAUNTLET / "scripts/gauntlet_progress.rs2").read_text()
 LOBBY = (GAUNTLET / "scripts/gauntlet_lobby.rs2").read_text()
@@ -278,6 +279,32 @@ def check_content_contract() -> None:
         "%gauntlet_offpray_hits >= 6", "%gauntlet_hunllef_attacks < 4",
     ):
         require(HUNLLEF, needle, "Hunllef state machine")
+    # The tornado wave is a clock, not a dice roll, and the floor pulses rather
+    # than staying lit. Both were the other way round before the Near-Reality
+    # pass and both are invisible in a short test — a `random(6)` tornado and a
+    # gapless floor still look like a working fight.
+    for needle in (
+        "~gauntlet_tornado_ready", "%gauntlet_tornado_cd <= 0",
+        "%gauntlet_tornado_cd = ^gauntlet_tornado_cooldown;",
+        "[proc,gauntlet_floor_idle_ticks]", "[proc,gauntlet_floor_pattern_count]",
+        "[proc,gauntlet_floor_rect_easy]", "[proc,gauntlet_floor_rect_hard]",
+        "[proc,gauntlet_hunllef_trample]",
+    ):
+        require(HUNLLEF, needle, "Hunllef tornado clock / floor pattern sets")
+    # Seq 8418 is the tornado summon and 8419 is the one projectile animation
+    # the Hunllef plays for BOTH ranged and magic. Using 8418 for the magic
+    # attack made every cast read as an incoming tornado wave.
+    require(HUNLLEF, "npc_anim(hunllef_attack_special, 0);\ndef_int $i = 0;",
+            "the special animation belongs to the tornado summon")
+    assert "npc_anim(hunllef_attack_special" not in proc_body(
+        HUNLLEF, "gauntlet_hunllef_magic_attack"
+    ), "the magic attack must not play the tornado summon animation"
+    for needle in (
+        "[proc,gauntlet_selftest_arena_bounds]",
+        "[proc,gauntlet_selftest_floor_cycle]",
+        "[proc,gauntlet_selftest_floor_rects]",
+    ):
+        require(SELFTEST, needle, "::gauntletrun encounter checks")
     for needle in (
         "[oploc1,gauntlet_scoreboard]", "[oploc1,gauntlet_deposit_box]",
         "if_openmain(gauntlet_recipes)", "%gauntlet_bryn_intro = 1",

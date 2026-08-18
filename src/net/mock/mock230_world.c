@@ -3134,8 +3134,25 @@ npc_take_step(struct Mock230Npc* npc)
     try_dx = 0;
     try_dz = 0;
 
-    /* Diagonal only for 1x1 — PathingEntity.takeStep. */
-    if( size == 1 && dx != 0 && dz != 0 &&
+    /*
+     * Diagonal first, at every size.
+     *
+     * This used to be gated on `size == 1`, which is not what the reference
+     * does: `PathingEntity.takeStep` tries the diagonal, then the X leg, then
+     * the Z leg, and leaves the footprint entirely to `canTravel`. Ours already
+     * had the footprint half — `collision_map_can_travel_typed` carries the
+     * size-2 three-tile diagonal check and a size>=3 corners-plus-mid-edge loop,
+     * both written against StepValidator — so the gate was refusing a step the
+     * collision map was ready to answer.
+     *
+     * What it cost: every npc bigger than 1x1 walked in an L. A Nylocas
+     * Matomenos is size 2, and a crab that should cut the corner of the Maiden's
+     * arena on the diagonal instead walked six tiles west and then six tiles
+     * south — the same total distance, a visibly wrong path, and one that runs
+     * along the rows the other crabs are queued on instead of away from them.
+     * "The nylocas do not path correctly towards Maiden" is this line.
+     */
+    if( dx != 0 && dz != 0 &&
         mock230_scene_can_travel_typed(npc->level, npc->x, npc->z, dx, dz, size, extra,
                                        coll_type) )
     {
@@ -13812,6 +13829,32 @@ selftest_useon(
         for( int t = 0; t < 4; t++ )
             mock230_world_tick(srv);
     }
+    else if( player->active_script )
+    {
+        /*
+         * A recipe that parked on a plain `p_delay` rather than on a make-menu.
+         *
+         * Not every use-on goes through interface 270: a one-off build with a
+         * published craft time — the Tormented Demon uniques are 4 to 7 ticks —
+         * states that time as `p_delay` and produces exactly one item. Such a
+         * recipe parks with NO resume button, so the branch above does not fire
+         * and, before this, the world was never ticked at all: the script sat
+         * suspended, the product never landed, and the probe reported "neither
+         * click order works" for a pair whose dispatch was fine.
+         *
+         * That is the same false negative this whole harness exists to prevent,
+         * one layer down — it just pointed at the harness instead of at the
+         * content. Ticking here cannot change what any menu-driven recipe
+         * reports, because those take the branch above; it can only turn a
+         * silent zero into an answer.
+         *
+         * Bounded, and bounded generously: the longest published craft time in
+         * this family is 7 ticks, and a script still parked after 16 is parked
+         * on something that is not a delay.
+         */
+        for( int t = 0; t < 16 && player->active_script; t++ )
+            mock230_world_tick(srv);
+    }
     player->active_script = NULL;
 }
 
@@ -14083,6 +14126,265 @@ mock230_world_selftest(void)
             selftest_evidence_end("godwars-restart");
             return g_selftest_failures;
         }
+    }
+
+    /*
+     * The Old School Tormented Demon contract, on its own.
+     *
+     * `::tdtest` also runs unconditionally far down this function, which is the
+     * right place for it — it is default-on coverage and belongs in the suite.
+     * This gate exists for the other situation: the monolithic tree is mid-port
+     * somewhere else, an earlier stanza aborts the VM, and the run never
+     * reaches line ~37000 to tell you whether the demon still holds. Answering
+     * "did I break the demon" should not require the rest of the tree to be
+     * green, and before this gate it did.
+     *
+     *   MOCK230_SELFTEST_TD_ONLY=1 ./src/build_opt/mock230 --selftest
+     *
+     * Same shape as MOCK230_SELFTEST_GWD_ONLY below and for the same stated
+     * reason; it runs the real procedures in the VM against the same booted
+     * world, and is not a second source-text contract.
+     */
+    if( getenv("MOCK230_SELFTEST_TD_ONLY") )
+    {
+        static struct Mock230Capture td_only_capture;
+        int td_said_pass = 0;
+        /* Every stanza that runs content loads the pack for itself; this gate
+         * sits above the first of them, so it has to do the same. Both paths
+         * because the suite is run from the repo root and from src/. */
+        int td_loaded = mock230_scripts_load(
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !td_loaded )
+            td_loaded = mock230_scripts_load(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        fprintf(stderr, "mock230 selftest: Tormented Demon focused runtime\n");
+        SELFTEST_CHECK(td_loaded, "the focused Tormented Demon lane loads a compiled script pack");
+        mock230_capture_begin(srv, &td_only_capture);
+        mock230_scripts_run_debugproc(srv, "tdtest");
+        mock230_capture_end(srv);
+        for( int i = mock230_capture_find(&td_only_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+             i = mock230_capture_find(&td_only_capture, 90, i + 1) )
+        {
+            const struct Mock230CapturedPacket* packet = &td_only_capture.packets[i];
+            const char* text;
+
+            if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                continue;
+            text = (const char*)packet->data + 1;
+            if( strstr(text, "tdtest PASS") != NULL )
+                td_said_pass = 1;
+            else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
+                fprintf(stderr, "  %s\n", text);
+        }
+        SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+
+        /*
+         * The two item-on-item recipes, driven through the packet handler.
+         *
+         * `::tdtest` above calls the demon's procs directly, which is the right
+         * shape for arithmetic and the wrong shape for a CLICK: a recipe whose
+         * `[opheldu]` rung is eaten by a competing binding passes every proc
+         * test ever written and does nothing in front of the game. That is not
+         * hypothetical here — bow-wood was already spoken for by bow-stringing,
+         * so the scorching bow's reverse click order is a branch inside
+         * `bows.rs2`'s rung rather than a rung of its own, and only a probe
+         * that asserts the PRODUCT can tell the two apart.
+         *
+         * Levels go to 99 for the duration, and Duradel's notes are granted:
+         * a level gate and a missing gate both answer with the same silence a
+         * dead rung does, and this probe is about dispatch.
+         */
+        if( td_loaded )
+        {
+            int td_stats[2] = { mock230_content_symbol(MOCK230_PACK_STAT, "fletching"),
+                                mock230_content_symbol(MOCK230_PACK_STAT, "smithing") };
+            int td_notes = mock230_world_varp("td_notes_read");
+            int td_saved_notes = td_notes >= 0 ? player->varps[td_notes] : 0;
+            int td_saved_level[2] = { 0, 0 };
+            int td_saved_xp[2] = { 0, 0 };
+            struct Mock230Item td_saved_inv[MOCK230_INV_SLOTS];
+            struct
+            {
+                const char* a;
+                int a_count;
+                const char* b;
+                int b_count;
+                const char* product;
+                int want;
+                const char* what;
+            } td_pairs[] = {
+                /*
+                 * Both orders. `[opheldu,tormented_synapse]` is the rung one
+                 * way; the other way is the branch grafted into `bows.rs2`'s
+                 * own `[opheldu,unstrung_magic_longbow]`, because a trigger may
+                 * be declared once in this tree. A `want` of 3 is what says the
+                 * graft is actually reached.
+                 */
+                { "tormented_synapse", 1, "unstrung_magic_longbow", 1, "scorching_bow", 3,
+                  "winding a scorching bow" },
+
+                /*
+                 * Both objs are the SAME record, so this is the one pair whose
+                 * two "orders" are the same click. It is still run through both
+                 * because the guard that matters — `last_slot ! last_useslot` —
+                 * is about slots and not about objs, and a guard written
+                 * against objs would pass one order and fail the other.
+                 */
+                { "bone_claw", 2, "bone_claw", 2, "bone_claws", 3, "pairing two burning claws" },
+            };
+
+            memcpy(td_saved_inv, player->inv, sizeof(td_saved_inv));
+            SELFTEST_CHECK(td_notes >= 0, "%%td_notes_read should resolve as a varp");
+            if( td_notes >= 0 )
+                player->varps[td_notes] = 1;
+            for( size_t i = 0; i < sizeof(td_stats) / sizeof(td_stats[0]); i++ )
+                if( td_stats[i] >= 0 )
+                {
+                    td_saved_level[i] = player->stat_level[td_stats[i]];
+                    td_saved_xp[i] = player->stat_xp_tenths[td_stats[i]];
+                }
+            for( size_t i = 0; i < sizeof(td_pairs) / sizeof(td_pairs[0]); i++ )
+            {
+                int a = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].a);
+                int b = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].b);
+                int product = mock230_content_symbol(MOCK230_PACK_OBJ, td_pairs[i].product);
+                int got;
+
+                SELFTEST_CHECK(a > 0 && b > 0 && product > 0,
+                               "%s: every obj should resolve by name (%s=%d %s=%d %s=%d)",
+                               td_pairs[i].what, td_pairs[i].a, a, td_pairs[i].b, b,
+                               td_pairs[i].product, product);
+                if( a <= 0 || b <= 0 || product <= 0 )
+                    continue;
+                got = selftest_useon_both(srv, a, td_pairs[i].a_count, b, td_pairs[i].b_count,
+                                          product, td_stats,
+                                          (int)(sizeof(td_stats) / sizeof(td_stats[0])));
+                SELFTEST_CHECK(got == td_pairs[i].want,
+                               "%s should work in both click orders, got %s (%d)",
+                               td_pairs[i].what,
+                               got == 3 ? "both"
+                                        : got == 1 ? "only <a> onto <b>"
+                                                   : got == 2 ? "only <b> onto <a>" : "neither",
+                               got);
+            }
+            for( size_t i = 0; i < sizeof(td_stats) / sizeof(td_stats[0]); i++ )
+                if( td_stats[i] >= 0 )
+                {
+                    mock230_combat_set_level(player, td_stats[i], td_saved_level[i]);
+                    player->stat_xp_tenths[td_stats[i]] = td_saved_xp[i];
+                }
+            if( td_notes >= 0 )
+                player->varps[td_notes] = td_saved_notes;
+            player->active_script = NULL;
+            memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
+        }
+
+        /*
+         * The three smouldering drops, clicked where they lie.
+         *
+         * These are the only objs in the tree that are USED without being
+         * picked up: their cache records replace ground-op slot 3 — the slot
+         * that otherwise reads "Take" — with "Crush" and "Eat-from". So the
+         * whole mechanic rests on `[opobj3,smouldering_gland]` SHADOWING
+         * `[opobj3,_]`, pickup.rs2's catch-all, and if it does not the player
+         * simply picks the gland up and the effect never happens.
+         *
+         * A "did it dispatch" probe therefore has to assert the negative as
+         * well: the item must be gone from the floor AND absent from the
+         * backpack. Asserting only that the script ran would pass on a build
+         * where the catch-all also fired.
+         */
+        if( td_loaded )
+        {
+            static const struct
+            {
+                const char* obj;
+                const char* varp;
+                const char* what;
+            } td_ground[] = {
+                { "smouldering_gland", "td_gland_left", "crushing a smouldering gland" },
+                { "smouldering_heart", "td_heart_hold_left", "crushing a smouldering heart" },
+                /* The flesh has no varp of its own — its counter is the ground
+                 * pile's count — so it is asserted on the pile shrinking. */
+                { "smouldering_pile_of_flesh", NULL, "eating from a pile of flesh" },
+            };
+            struct Mock230Item td_saved_inv[MOCK230_INV_SLOTS];
+            const int td_x = 3222, td_z = 3218;
+
+            memcpy(td_saved_inv, player->inv, sizeof(td_saved_inv));
+            for( size_t i = 0; i < sizeof(td_ground) / sizeof(td_ground[0]); i++ )
+            {
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, td_ground[i].obj);
+                int varp = td_ground[i].varp ? mock230_world_varp(td_ground[i].varp) : -1;
+                int count = strcmp(td_ground[i].obj, "smouldering_pile_of_flesh") == 0 ? 4 : 1;
+                uint8_t payload[6];
+                int in_backpack = 0;
+                int on_floor = 0;
+
+                SELFTEST_CHECK(obj > 0, "%s: %s should resolve as an obj",
+                               td_ground[i].what, td_ground[i].obj);
+                if( obj <= 0 )
+                    continue;
+                SELFTEST_CHECK(td_ground[i].varp == NULL || varp >= 0,
+                               "%s: %%%s should resolve as a varp", td_ground[i].what,
+                               td_ground[i].varp ? td_ground[i].varp : "");
+
+                player->active_script = NULL;
+                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                    inv_set(player, slot, -1, 0);
+                if( varp >= 0 )
+                    player->varps[varp] = 0;
+                selftest_park_player(srv, td_x, td_z);
+                mock230_world_obj_add(srv, obj, count, td_x, td_z, player->level, 1000);
+
+                payload[0] = (uint8_t)(td_x >> 8);
+                payload[1] = (uint8_t)td_x;
+                payload[2] = (uint8_t)(td_z >> 8);
+                payload[3] = (uint8_t)td_z;
+                payload[4] = (uint8_t)(obj >> 8);
+                payload[5] = (uint8_t)obj;
+                mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
+                for( int t = 0; t < 4 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                mock230_world_tick(srv);
+
+                for( int slot = 0; slot < MOCK230_INV_SLOTS; slot++ )
+                    if( player->inv[slot].obj_id == obj )
+                        in_backpack = 1;
+                for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                    if( srv->ground[slot].active && srv->ground[slot].obj_id == obj )
+                        on_floor += srv->ground[slot].count;
+
+                SELFTEST_CHECK(!in_backpack,
+                               "%s must not pick it up — [opobj3,%s] has to shadow "
+                               "pickup.rs2's [opobj3,_], or the option in the cache is a lie",
+                               td_ground[i].what, td_ground[i].obj);
+                if( varp >= 0 )
+                    SELFTEST_CHECK(player->varps[varp] > 0,
+                                   "%s should arm its effect, %%%s = %d",
+                                   td_ground[i].what, td_ground[i].varp, player->varps[varp]);
+                if( count > 1 )
+                    SELFTEST_CHECK(on_floor == count - 1,
+                                   "%s should leave %d bite(s) on the floor, got %d",
+                                   td_ground[i].what, count - 1, on_floor);
+                else
+                    SELFTEST_CHECK(on_floor == 0, "%s should consume it, %d left on the floor",
+                                   td_ground[i].what, on_floor);
+
+                for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                    if( srv->ground[slot].active && srv->ground[slot].obj_id == obj )
+                        mock230_world_ground_take(srv, slot);
+                if( varp >= 0 )
+                    player->varps[varp] = 0;
+            }
+            player->active_script = NULL;
+            memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
+        }
+
+        fprintf(stderr, "mock230 Tormented Demon focused selftest: %d failure(s)\n",
+                g_selftest_failures);
+        return g_selftest_failures;
     }
 
     /*
@@ -37999,6 +38301,8 @@ mock230_world_selftest(void)
         {
             const int k_matomenos = 8366;
             const int k_var_leaks = 5;   /* ^tob_var_leaks */
+            const int k_var_hud = 63;          /* ^tob_var_hud */
+            const int k_tob_hud_if = 28;       /* interface `tob_hud` */
             int saved_hp = player->hitpoints;
             int saved_god = player->godmode;
             int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
@@ -38028,6 +38332,9 @@ mock230_world_selftest(void)
                 int last_gap = -1;
                 int min_gap = 1 << 30;
                 int leaks;
+                int hud;
+                int death_anim_seen = 0;
+                int pool_under_player = 0;
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -38065,6 +38372,30 @@ mock230_world_selftest(void)
                         if( n == boss )
                             continue;
                         spawned++;
+                        /*
+                         * A crab that reaches her dies where it stands, plays
+                         * `elemental_death` and is removed a tick later. That
+                         * animation is the only feedback a leak gives at the
+                         * crab's end - the heal shows on her bar, not on it -
+                         * and it used to be a bare `npc_del`, so a leak looked
+                         * like a crab blinking out of existence.
+                         *
+                         * What is asserted here is the LIFECYCLE, not the
+                         * animation id: `anim_id` is cleared to -1 in phase 11
+                         * with the masks, so a stanza that scans after
+                         * `mock230_world_tick` can never see it - the same trap
+                         * `~tob_dbg_attack` exists to work around. A crab with
+                         * its timer stopped is a crab that has arrived and not
+                         * yet been reaped, which is a state only the new arrive
+                         * path can produce; the bare `npc_del` it replaced left
+                         * no tick in which the crab existed at all.
+                         *
+                         * The animation id itself is verified out of band with
+                         * `TORIRS_ANIM_DEBUG=1`, which prints every `npc_anim`
+                         * as it is issued.
+                         */
+                        if( srv->npcs[n].timer_interval == 0 )
+                            death_anim_seen++;
                         msize = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
                         csize = srv->npcs[n].size > 0 ? srv->npcs[n].size : 1;
                         /* Edge to edge, per axis - the same measure the content
@@ -38089,11 +38420,191 @@ mock230_world_selftest(void)
                         if( gap < min_gap )
                             min_gap = gap;
                     }
+                    /*
+                     * A pool must land where a PLAYER IS STANDING.
+                     *
+                     * "She always throws 1 to where each player is currently
+                     * standing" - that is the primary blood, and it is the one
+                     * a solo player sees or does not. Sampled every tick at the
+                     * player's own tile, because the pool is only there for its
+                     * eleven and the window has to be caught while it is open.
+                     *
+                     * This is the check that would have caught `map_loc`: a
+                     * tile-placement guard that rejects a tile a player is
+                     * standing on can only ever be wrong, and nothing else in
+                     * the suite asks the question from the player's side.
+                     */
+                    {
+                        int slot = mock230_scene_find_loc_exact(
+                            player->x, player->z, player->level, 10);
+                        struct Mock230SceneLoc* l =
+                            slot >= 0 ? mock230_scene_loc(slot) : NULL;
+                        if( l && l->active && l->loc_id == 32984 )
+                            pool_under_player++;
+                    }
+                    if( getenv("MOCK230_TOB_CRABS") )
+                    {
+                        char line[256];
+                        int at = 0;
+                        line[0] = 0;
+                        for( int n = 0; n < MOCK230_NPC_MAX && at < 200; n++ )
+                        {
+                            if( !srv->npcs[n].active ||
+                                srv->npcs[n].type != k_matomenos || n == boss )
+                                continue;
+                            if( mock230_mapinstance_find(srv->npcs[n].x,
+                                                         srv->npcs[n].z) != handle )
+                                continue;
+                            at += snprintf(line + at, sizeof(line) - at, " %d:(%+d,%+d)t%d",
+                                           n, srv->npcs[n].x - srv->npcs[boss].x,
+                                           srv->npcs[n].z - srv->npcs[boss].z,
+                                           srv->npcs[n].timer_interval);
+                        }
+                        fprintf(stderr, "    crabs t=%2d gap=%d%s\n", t, gap, line);
+                    }
                 }
                 leaks = mock230_mapinstance_var_get(handle, k_var_leaks);
-                fprintf(stderr,
-                        "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), leaks %d\n",
-                        spawned, first_gap, last_gap, min_gap, leaks);
+                /*
+                 * NOTHING LANDS ON HER PLATFORM.
+                 *
+                 * She throws blood at least once in this window, and the two
+                 * bonus splats scatter in a 5x5 around the furthest player -
+                 * which, when that player is fighting her, overlaps the dais
+                 * she is standing on. Zenyte guards every throw with
+                 * `canPlaceObjectWithoutCollisions && isFloorFree`; this is the
+                 * assertion that our two guards (`map_blocked` for the map,
+                 * her footprint rectangle for the boss) actually hold.
+                 *
+                 * Scanned off the scene rather than off the content, because
+                 * the content's own answer is the thing under test.
+                 */
+                {
+                    const int k_blood_loc = 32984;
+                    int on_body = 0;
+                    int msize = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+
+                    /*
+                     * Her body AND the scenery around it. The dais is not
+                     * walk-blocked - it is a loc footprint - so "on the
+                     * platform" is "on a tile some scenery already occupies",
+                     * which is the same question `map_loc` answers for the
+                     * content guard. Scanned two tiles wider than her body so
+                     * the steps are inside the window.
+                     */
+                    for( int bx = -2; bx < msize + 2; bx++ )
+                    {
+                        for( int bz = -2; bz < msize + 2; bz++ )
+                        {
+                            int tx = srv->npcs[boss].x + bx;
+                            int tz = srv->npcs[boss].z + bz;
+                            int on_body_tile = bx >= 0 && bx < msize && bz >= 0 && bz < msize;
+                            int slot;
+                            struct Mock230SceneLoc* loc;
+
+                            if( !on_body_tile &&
+                                mock230_scene_find_loc(tx, tz, srv->npcs[boss].level, -1) < 0 )
+                                continue;
+                            slot = mock230_scene_find_loc_exact(
+                                tx, tz, srv->npcs[boss].level, 10 /* centrepiece_straight */);
+                            loc = slot >= 0 ? mock230_scene_loc(slot) : NULL;
+                            if( loc && loc->active && loc->loc_id == k_blood_loc )
+                                on_body++;
+                        }
+                    }
+                    if( getenv("MOCK230_TOB_MAP") )
+                    {
+                        /* What the arena actually looks like around her: '#'
+                         * walk-blocked, 'L' covered by a loc footprint, 'M' her
+                         * own tiles, 'b' a blood pool, '.' free. */
+                        int ox = srv->npcs[boss].x - 10;
+                        int oz = srv->npcs[boss].z - 10;
+                        for( int rz = 25; rz >= 0; rz-- )
+                        {
+                            char line[64];
+                            for( int rx = 0; rx < 26; rx++ )
+                            {
+                                int tx = ox + rx;
+                                int tz = oz + rz;
+                                int lslot = mock230_scene_find_loc_exact(
+                                    tx, tz, srv->npcs[boss].level, 10);
+                                struct Mock230SceneLoc* l =
+                                    lslot >= 0 ? mock230_scene_loc(lslot) : NULL;
+                                char c = '.';
+                                if( mock230_scene_find_loc(tx, tz, srv->npcs[boss].level, -1) >= 0 )
+                                    c = 'L';
+                                /* Blocked outranks loc-covered: a tile can be
+                                 * both, and which one it is decides whether a
+                                 * crab can stand there. */
+                                if( mock230_scene_walk_blocked(srv->npcs[boss].level, tx, tz) )
+                                    c = '#';
+                                if( tx >= srv->npcs[boss].x &&
+                                    tx < srv->npcs[boss].x + msize &&
+                                    tz >= srv->npcs[boss].z &&
+                                    tz < srv->npcs[boss].z + msize )
+                                    c = (c == 'L') ? 'm' : 'M';
+                                /* Blood wins the cell: the whole point of the
+                                 * dump is to see where it landed, including on
+                                 * tiles something else also claims. */
+                                if( l && l->active && l->loc_id == 32984 )
+                                    c = 'b';
+                                line[rx] = c;
+                            }
+                            line[26] = 0;
+                            fprintf(stderr, "    map z=%3d %s\n", oz + rz, line);
+                        }
+                    }
+                    hud = mock230_mapinstance_var_get(handle, k_var_hud);
+                    if( getenv("MOCK230_TOB_HUD_WHY") )
+                        fprintf(stderr,
+                                "    hud-why: boss hp=%d max=%d type=%d  reg57=%d reg77=%d\n",
+                                srv->npcs[boss].hitpoints, srv->npcs[boss].max_hitpoints,
+                                srv->npcs[boss].type,
+                                mock230_mapinstance_var_get(handle, 57),
+                                mock230_mapinstance_var_get(handle, 77));
+                    fprintf(stderr,
+                            "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), "
+                            "leaks %d, blood-on-platform %d, pool-under-player %d, hud %d\n",
+                            spawned, first_gap, last_gap, min_gap, leaks, on_body,
+                            pool_under_player, hud);
+                    SELFTEST_CHECK(on_body == 0,
+                                   "no blood pool may land on the Maiden's platform, "
+                                   "found %d",
+                                   on_body);
+                    SELFTEST_CHECK(pool_under_player > 0,
+                                   "she must throw a blood pool at the player's own "
+                                   "tile, saw it on %d of %d ticks",
+                                   pool_under_player, 60);
+                    /*
+                     * And the top bar is showing her. `^tob_var_hud` packs
+                     * `type * 1001 + permille`, so anything at all above zero
+                     * means a push happened, and dividing recovers the type -
+                     * 1 is `^tob_hud_type_boss`.
+                     */
+                    SELFTEST_CHECK(hud > 0 && hud / 1001 == 1,
+                                   "the raid HUD should be showing a boss bar, packed %d",
+                                   hud);
+                    /*
+                     * ...AND THE OVERLAY IS ACTUALLY MOUNTED.
+                     *
+                     * Two halves, and the register above is only the first: it
+                     * says the room computed a bar and pushed the varbits. It
+                     * says nothing about whether interface 28 was ever put on
+                     * the player's screen, and a bar nobody mounted is a bar
+                     * nobody sees however correct its numbers are.
+                     */
+                    {
+                        int mounted = 0;
+                        for( int m = 0; m < player->interfaces.mount_count; m++ )
+                        {
+                            if( player->interfaces.mounts[m].interface_id == k_tob_hud_if )
+                                mounted = 1;
+                        }
+                        SELFTEST_CHECK(mounted,
+                                       "the raid HUD overlay (interface %d) should be "
+                                       "mounted on the player",
+                                       k_tob_hud_if);
+                    }
+                }
                 SELFTEST_CHECK(spawned > 0,
                                "crossing 70%% should spawn Nylocas Matomenos");
                 SELFTEST_CHECK(first_gap > 0 && min_gap < first_gap,
@@ -38104,9 +38615,486 @@ mock230_world_selftest(void)
                                "a Matomenos that reaches her must raise the leak "
                                "counter, got %d",
                                leaks);
+                SELFTEST_CHECK(death_anim_seen > 0,
+                               "a Matomenos reaching her must linger a tick with "
+                               "its clock stopped (its death animation), saw %d "
+                               "such ticks over %d leaks",
+                               death_anim_seen, leaks);
             }
             mock230_scripts_run_debugproc(srv, "tobout");
 
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            player->dying = saved_dying;
+            mock230_combat_sync_hitpoints(player);
+        }
+
+        /*
+         * ====================================================================
+         * The Nylocas room, from the first wave to Vasilias
+         * ====================================================================
+         *
+         * The cadence block above skips room 3 because the Nylocas room has no
+         * boss for the first four hundred ticks of it, so "how often does the
+         * boss attack" is a question about the last tenth of the fight. What
+         * this room is, for nine tenths of it, is a hundred and twenty npcs
+         * walking somewhere and chewing on something — and NONE OF THAT WAS
+         * TESTED. It was also none of it working: every one of the 120 stood on
+         * its spawn tile for 52 ticks and detonated there, because the three
+         * lanes are floorless (m51_66 marks them blocked at plane 0, which is
+         * how the map keeps players out of the tunnels) and the nylocas records
+         * took the default collision strategy.
+         *
+         * So this stanza runs the whole room once and asserts the chain that
+         * failure broke, in the order it breaks:
+         *
+         *   1. four supports, one per corner;
+         *   2. wave 1 lands on room tick 4, on the lane tiles blert names;
+         *   3. a wave spawn LEAVES its lane — the assertion that would have
+         *      failed, and the only one that needs the collision strategy;
+         *   4. it reaches a support and takes health off it;
+         *   5. a big dies into two smalls on the same tick;
+         *   6. a support at zero collapses, hurts the room and hands its
+         *      chewers to the team;
+         *   7. wave 31 spawns, the room empties, and Vasilias lands in the
+         *      middle of it — on a wave-check tick, ~16 ticks after the last
+         *      nylocas went (M8);
+         *   8. she cycles colour every 10 ticks and never repeats one.
+         *
+         * God mode throughout: the fixture is standing in a room that spends
+         * four hundred ticks throwing things at it, and a dead fixture is a room
+         * with nothing to aggro on — which reads as a broken room and is a dead
+         * player (the same trap the cadence block above documents).
+         */
+        {
+            const int k_nylo_support = 8358;
+            const int k_room_ticks = 520;
+            /* Local tiles, from tob.constant. Written here rather than read from
+             * the content for the reason the cadence table gives: a test that
+             * reads the constant the implementation reads agrees with any value.
+             * These are blert's, converted through region 13122's base. */
+            static const struct { int lx, lz; } k_lanes[] = {
+                { 46, 24 }, { 46, 25 }, { 45, 24 },   /* east, and the big's corner */
+                { 31, 9 },  { 32, 9 },                /* south */
+                { 17, 24 }, { 17, 25 },               /* west */
+            };
+            static const struct { int lx, lz; } k_pillars[] = {
+                { 25, 18 }, { 25, 29 }, { 36, 18 }, { 36, 29 },
+            };
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int saved_dying = player->dying;
+            int handle;
+            int base_x;
+            int base_z;
+            int supports = 0;
+            int wave1_tick = -1;
+            int wave1_on_lane = 0;
+            int wave1_count = 0;
+            int left_lane = 0;
+            int reached_support = 0;
+            int pillar_hp_start = 0;
+            int pillar_hp_low = 1 << 30;
+            int split_seen = 0;
+            int collapse_tick = -1;
+            int standing_after = 4;
+            int retargeted = 0;
+            int boss_slot = -1;
+            int boss_tick = -1;
+            int clear_tick = -1;
+            int forms_seen = 0;
+            int form_repeat = 0;
+            int last_form = -1;
+            int form_gap_first = -1;
+            int form_gap_min = 1 << 30;
+            int form_gap_max = 0;
+            int last_form_tick = -1;
+            int hud_special = 0;
+            int hud_boss = 0;
+            int start_tick;
+
+            fprintf(stderr, "mock230 selftest: the Nylocas room\n");
+            player->dying = 0;
+            player->godmode = 1;
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->hitpoints = 99;
+            mock230_combat_sync_hitpoints(player);
+            mock230_scripts_run_debugproc(srv, "tob 3");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            handle = mock230_mapinstance_find(player->x, player->z);
+            /* The room's local origin, from the one tile whose local coords the
+             * harness knows for certain: `::tobgo` teleports to the fight tile,
+             * which is `^tob_nylo_fight_lx/lz` = (31, 30). */
+            base_x = player->x - 31;
+            base_z = player->z - 30;
+            start_tick = srv->tick;
+
+            for( size_t i = 0; i < sizeof(k_pillars) / sizeof(k_pillars[0]); i++ )
+            {
+                for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    if( srv->npcs[n].active && srv->npcs[n].type == k_nylo_support &&
+                        srv->npcs[n].x == base_x + k_pillars[i].lx &&
+                        srv->npcs[n].z == base_z + k_pillars[i].lz )
+                        supports++;
+            }
+            SELFTEST_CHECK(supports == 4,
+                           "the room opens with a support on each of its four "
+                           "corners, found %d", supports);
+
+            for( int t = 0; t < k_room_ticks; t++ )
+            {
+                int alive = 0;
+                int pillar_hp = 0;
+                int standing = 0;
+                int hud;
+
+                mock230_world_tick(srv);
+                mock230_scripts_run_debugproc(srv, "tobstand");
+
+                for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                {
+                    struct Mock230Npc* npc = &srv->npcs[n];
+                    const char* name;
+                    int lx;
+                    int lz;
+
+                    if( !npc->active )
+                        continue;
+                    if( mock230_mapinstance_find(npc->x, npc->z) != handle )
+                        continue;
+                    if( npc->type == k_nylo_support )
+                    {
+                        standing++;
+                        pillar_hp += npc->hitpoints;
+                        continue;
+                    }
+                    name = mock230_content_symbol_name(MOCK230_PACK_NPC, npc->type);
+                    if( !name )
+                        continue;
+                    lx = npc->x - base_x;
+                    lz = npc->z - base_z;
+                    if( strncmp(name, "nylocas_boss_", 13) == 0 )
+                    {
+                        if( boss_slot < 0 )
+                        {
+                            boss_slot = n;
+                            boss_tick = srv->tick;
+                        }
+                        continue;
+                    }
+                    if( strncmp(name, "tob_nylocas_", 12) != 0 )
+                        continue;
+                    alive++;
+                    /* Wave 1: the first tick anything is in the room at all. */
+                    if( wave1_tick < 0 )
+                        wave1_tick = srv->tick;
+                    if( wave1_tick == srv->tick )
+                    {
+                        /*
+                         * The SPAWN tile, not the tile it is standing on. A
+                         * nylocas whose own `[ai_timer]` happens to sit later in
+                         * the npc array than the support that added it walks its
+                         * first step on the tick it is created, so two of every
+                         * three are already one tile down the lane by the time a
+                         * scan from outside the tick can see them.
+                         */
+                        int sx = srv->npcs[n].spawn_x - base_x;
+                        int sz = srv->npcs[n].spawn_z - base_z;
+
+                        wave1_count++;
+                        for( size_t i = 0; i < sizeof(k_lanes) / sizeof(k_lanes[0]); i++ )
+                            if( sx == k_lanes[i].lx && sz == k_lanes[i].lz )
+                                wave1_on_lane++;
+                    }
+                    /* Out of the lane: inside the arena box, which is the one
+                     * thing the tunnels are not. */
+                    if( lx >= 26 && lx <= 37 && lz >= 19 && lz <= 30 )
+                        left_lane = 1;
+                    /* And at a support. Footprint to footprint, per axis, the
+                     * way the content measures it. */
+                    for( size_t i = 0; i < sizeof(k_pillars) / sizeof(k_pillars[0]); i++ )
+                    {
+                        int dx = 0;
+                        int dz = 0;
+                        int size = npc->size > 0 ? npc->size : 1;
+
+                        if( lx > k_pillars[i].lx + 2 )
+                            dx = lx - (k_pillars[i].lx + 2);
+                        else if( lx + size - 1 < k_pillars[i].lx )
+                            dx = k_pillars[i].lx - (lx + size - 1);
+                        if( lz > k_pillars[i].lz + 2 )
+                            dz = lz - (k_pillars[i].lz + 2);
+                        else if( lz + size - 1 < k_pillars[i].lz )
+                            dz = k_pillars[i].lz - (lz + size - 1);
+                        if( dx <= 1 && dz <= 1 )
+                            reached_support = 1;
+                    }
+                }
+                if( pillar_hp_start == 0 )
+                    pillar_hp_start = pillar_hp;
+                if( pillar_hp > 0 && pillar_hp < pillar_hp_low )
+                    pillar_hp_low = pillar_hp;
+
+                /* Splits: kill the first big the room produces and count what
+                 * is alive either side of the tick. Wave 4 is the first with a
+                 * big in it, so this fires early and once. */
+                if( !split_seen && t > 20 )
+                {
+                    static struct Mock230Capture kill;
+                    int before = alive;
+                    int after = 0;
+                    int found = 0;
+
+                    mock230_capture_begin(srv, &kill);
+                    mock230_scripts_run_debugproc(srv, "tobnylokillbig");
+                    mock230_capture_end(srv);
+                    for( int w = mock230_capture_find(&kill, 90, 0); w >= 0;
+                         w = mock230_capture_find(&kill, 90, w + 1) )
+                    {
+                        const struct Mock230CapturedPacket* pk = &kill.packets[w];
+                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                            continue;
+                        if( strncmp((const char*)pk->data + 1, "tobnylokillbig at", 17) == 0 )
+                            found = 1;
+                    }
+                    if( found )
+                    {
+                        for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                        {
+                            const char* name;
+
+                            if( !srv->npcs[n].active )
+                                continue;
+                            if( mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                                continue;
+                            name = mock230_content_symbol_name(MOCK230_PACK_NPC,
+                                                               srv->npcs[n].type);
+                            if( name && strncmp(name, "tob_nylocas_", 12) == 0 )
+                                after++;
+                        }
+                        /* A big dies into two smalls on the same tick, so the
+                         * room is one npc UP: -1 big, +2 smalls, and the corpse
+                         * is still in the count for another few ticks. */
+                        split_seen = after - before;
+                        fprintf(stderr, "  Nylocas: split at t=%d, %d -> %d alive\n",
+                                t, before, after);
+                        if( getenv("MOCK230_TOB_NYLO_SPLIT") )
+                            for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                            {
+                                const char* name;
+
+                                if( !srv->npcs[n].active )
+                                    continue;
+                                if( mock230_mapinstance_find(srv->npcs[n].x,
+                                                             srv->npcs[n].z) != handle )
+                                    continue;
+                                name = mock230_content_symbol_name(MOCK230_PACK_NPC,
+                                                                   srv->npcs[n].type);
+                                fprintf(stderr, "    after: slot %d %s at %d,%d hp%d\n",
+                                        n, name ? name : "?",
+                                        srv->npcs[n].x - base_x,
+                                        srv->npcs[n].z - base_z,
+                                        srv->npcs[n].hitpoints);
+                            }
+                    }
+                }
+
+                /* The collapse, once the room is running. Broken outright
+                 * rather than chewed down: a nylocas takes 1-2 off 330 every
+                 * third tick, so an honest collapse is most of the room. */
+                if( collapse_tick < 0 && t == 120 )
+                {
+                    int fighting_before = 0;
+                    int fighting_after = 0;
+
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    {
+                        const char* name;
+
+                        if( !srv->npcs[n].active )
+                            continue;
+                        if( mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                            continue;
+                        name = mock230_content_symbol_name(MOCK230_PACK_NPC, srv->npcs[n].type);
+                        if( name && strstr(name, "_fighting_") != NULL )
+                            fighting_before++;
+                    }
+                    mock230_scripts_run_debugproc(srv, "tobnylobreak");
+                    /*
+                     * A death is spent over several ticks and `[ai_queue3]` -
+                     * where the collapse lives - fires inside that sequence, so
+                     * a count taken on the next tick still sees four supports
+                     * standing and nobody retargeted. Give it the sequence.
+                     */
+                    for( int w = 0; w < 8; w++ )
+                    {
+                        mock230_world_tick(srv);
+                        mock230_scripts_run_debugproc(srv, "tobstand");
+                    }
+                    /* `^tob_var_lockout` is the room's own count of supports
+                     * left standing, decremented by the collapse itself. Read
+                     * that rather than counting npcs: a corpse is `active` for
+                     * several ticks after it stops holding the roof up. */
+                    standing_after = mock230_mapinstance_var_get(handle, 14);
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    {
+                        const char* name;
+
+                        if( !srv->npcs[n].active )
+                            continue;
+                        if( mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                            continue;
+                        name = mock230_content_symbol_name(MOCK230_PACK_NPC, srv->npcs[n].type);
+                        if( name && strstr(name, "_fighting_") != NULL )
+                            fighting_after++;
+                    }
+                    retargeted = fighting_after - fighting_before;
+                    collapse_tick = t;
+                    fprintf(stderr,
+                            "  Nylocas: a support collapsed at t=%d, %d left standing, "
+                            "%d chewers handed to the team\n",
+                            t, standing_after, retargeted);
+                }
+
+                /* Vasilias' colour clock, once she is down. */
+                if( boss_slot >= 0 && srv->npcs[boss_slot].active )
+                {
+                    const char* name = mock230_content_symbol_name(
+                        MOCK230_PACK_NPC, srv->npcs[boss_slot].type);
+                    int form = -1;
+
+                    if( name && strstr(name, "_melee") )
+                        form = 0;
+                    else if( name && strstr(name, "_magic") )
+                        form = 1;
+                    else if( name && strstr(name, "_ranged") )
+                        form = 2;
+                    if( form >= 0 && form != last_form )
+                    {
+                        if( last_form >= 0 )
+                        {
+                            int gap = srv->tick - last_form_tick;
+
+                            if( forms_seen == 0 )
+                                form_gap_first = gap;
+                            forms_seen++;
+                            if( gap < form_gap_min )
+                                form_gap_min = gap;
+                            if( gap > form_gap_max )
+                                form_gap_max = gap;
+                        }
+                        last_form = form;
+                        last_form_tick = srv->tick;
+                    }
+                    else if( form >= 0 && form == last_form && last_form_tick == srv->tick )
+                        form_repeat++;
+                }
+                if( clear_tick < 0 && boss_slot < 0 && wave1_tick >= 0 && alive == 0 &&
+                    mock230_mapinstance_var_get(handle, 8) >= 31 )
+                    clear_tick = srv->tick;
+
+                hud = mock230_mapinstance_var_get(handle, 63);
+                if( hud > 0 && hud / 1001 == 2 )
+                    hud_special = 1;
+                if( hud > 0 && hud / 1001 == 1 )
+                    hud_boss = 1;
+                (void)standing;
+            }
+
+            fprintf(stderr,
+                    "  Nylocas: wave 1 on room tick %d (%d spawns, %d on a lane tile), "
+                    "pillars %d -> %d, boss %d ticks later, %d colour changes "
+                    "(first %d, then %d..%d)\n",
+                    wave1_tick - start_tick, wave1_count, wave1_on_lane, pillar_hp_start,
+                    pillar_hp_low, boss_tick - clear_tick, forms_seen, form_gap_first,
+                    form_gap_min, form_gap_max);
+
+            /*
+             * `wave1_tick` counts from the tick after the barrier, so room tick
+             * 4 reads as 4 here: the loop ticks the world before it looks.
+             */
+            SELFTEST_CHECK(wave1_tick - start_tick == 4,
+                           "wave 1 spawns on room tick 4, saw it on %d",
+                           wave1_tick - start_tick);
+            SELFTEST_CHECK(wave1_count > 0 && wave1_on_lane == wave1_count,
+                           "every wave 1 spawn stands on one of blert's lane tiles, "
+                           "%d of %d did", wave1_on_lane, wave1_count);
+            SELFTEST_CHECK(left_lane,
+                           "a wave spawn must reach the arena — the three lanes are "
+                           "floorless, so this is the collision strategy on the "
+                           "nylocas records and nothing else");
+            SELFTEST_CHECK(reached_support,
+                           "and it must reach a support to chew on");
+            SELFTEST_CHECK(pillar_hp_low < pillar_hp_start,
+                           "the supports must lose health to it, %d -> %d",
+                           pillar_hp_start, pillar_hp_low);
+            SELFTEST_CHECK(split_seen == 2,
+                           "a big dies into two smalls on the same tick — the corpse "
+                           "is still in the room, so the count goes up by exactly 2, "
+                           "went %+d", split_seen);
+            SELFTEST_CHECK(standing_after == 3,
+                           "a support at zero leaves three standing, counted %d",
+                           standing_after);
+            SELFTEST_CHECK(retargeted > 0,
+                           "and hands its chewers to the team as `fighting`, "
+                           "%d changed sides", retargeted);
+            SELFTEST_CHECK(boss_slot >= 0,
+                           "Nylocas Vasilias must land once the waves are done");
+            if( boss_slot >= 0 )
+            {
+                int lx = srv->npcs[boss_slot].x - base_x;
+                int lz = srv->npcs[boss_slot].z - base_z;
+
+                SELFTEST_CHECK(lx == 29 && lz == 22,
+                               "she drops in the middle of the room, at (%d, %d)",
+                               lx, lz);
+                /*
+                 * M8: sixteen ticks after the last nylocas despawns, rounded up
+                 * to the next wave-check tick — so 16..19, and always on the
+                 * 4-tick cycle wave 1 started on.
+                 */
+                if( clear_tick >= 0 )
+                {
+                    int delta = boss_tick - clear_tick;
+
+                    SELFTEST_CHECK(delta >= 16 && delta <= 19,
+                                   "and 16..19 ticks after the room emptied, "
+                                   "measured %d", delta);
+                    SELFTEST_CHECK((boss_tick - wave1_tick) % 4 == 0,
+                                   "on the same 4-tick cycle wave 1 landed on, "
+                                   "off by %d", (boss_tick - wave1_tick) % 4);
+                }
+                SELFTEST_CHECK(forms_seen >= 3,
+                               "she changes colour repeatedly, saw %d changes",
+                               forms_seen);
+                /*
+                 * Nine then ten, and the nine is measured from the tick she
+                 * turns MELEE — see `~tob_vasilias_spawn_tick`. The gap that
+                 * used to be eight here was the opening window armed a tick
+                 * early, off the spawning form.
+                 */
+                SELFTEST_CHECK(forms_seen < 3 || form_gap_first == 9,
+                               "her opening melee window is nine ticks, measured %d",
+                               form_gap_first);
+                SELFTEST_CHECK(forms_seen < 3 || form_gap_max == 10,
+                               "and every window after it is ten, measured %d..%d",
+                               form_gap_min, form_gap_max);
+                SELFTEST_CHECK(form_repeat == 0,
+                               "and never twice into the same colour, %d repeats",
+                               form_repeat);
+            }
+            SELFTEST_CHECK(hud_special,
+                           "the wave defence draws a SPECIAL bar (the four supports "
+                           "combined), not a boss one");
+            SELFTEST_CHECK(hud_boss,
+                           "and Vasilias turns it into a boss bar when she lands");
+
+            mock230_scripts_run_debugproc(srv, "tobout");
             player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
             player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
             player->hitpoints = saved_hp;
@@ -38666,6 +39654,335 @@ mock230_world_selftest(void)
             mock230_scripts_run_debugproc(srv, "tobout");
             if( mate )
                 mate->active = 0;
+        }
+
+        fprintf(stderr, "mock230 selftest: a dead boss does not end its room\n");
+        {
+            /*
+             * Killing the boss heals the party and OPENS the way on. It does not
+             * move anybody.
+             *
+             * `~tob_room_cleared` used to call `~tob_build_room(room + 1)`, so
+             * the tick the watchdog noticed the corpse the whole party was
+             * teleported into the next chamber — mid-animation, with the loot
+             * and (after Bloat and Sotetseg) the supply chest behind them. Every
+             * room in this raid is supposed to end with a walk out.
+             *
+             * Three things are asserted and the third is the one that was
+             * broken: healed, still in the room you killed it in, and the room
+             * you are in has not changed. The second and third are not the same
+             * check — a transition that teleported you but left the register
+             * alone would pass one of them.
+             */
+            struct Mock230Player* host = srv->active_player;
+            int boss = -1;
+            int handle_before = 0;
+            int room_before = 0;
+            int saved_god = host->godmode;
+
+            mock230_scripts_run_debugproc(srv, "tobout");
+            mock230_scripts_run_debugproc(srv, "tob 2");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            boss = tob_harness_boss(srv, host);
+            handle_before = mock230_mapinstance_find(host->x, host->z);
+            room_before = mock230_mapinstance_var_get(handle_before, 2 /* ^tob_var_room */);
+            SELFTEST_CHECK(boss >= 0 && handle_before > 0,
+                           "the Bloat room should be live before its boss dies");
+            if( boss >= 0 && handle_before > 0 )
+            {
+                host->godmode = 1;
+                host->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                host->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                host->hitpoints = 40;
+                mock230_combat_sync_hitpoints(host);
+
+                /*
+                 * Let the watchdog SEE it alive first. `~tob_watch_room` will
+                 * not call a boss dead until it has latched `^tob_var_boss_seen`
+                 * — "not found" on the ticks between the room being built and
+                 * the boss being added means "not ready", not "dead", and that
+                 * guard is what stopped the Maiden room tearing itself down
+                 * mid-fight. A test that kills the boss before the first tick
+                 * never gets past it.
+                 */
+                for( int t = 0; t < 3; t++ )
+                    mock230_world_tick(srv);
+
+                /* Kill it the way anything kills it, and give the watchdog the
+                 * two consecutive misses it needs to believe the death. */
+                mock230_world_npc_free(srv, boss);
+                for( int t = 0; t < 6; t++ )
+                    mock230_world_tick(srv);
+
+                SELFTEST_CHECK(host->hitpoints > 40,
+                               "a cleared room heals the party, on %d", host->hitpoints);
+                SELFTEST_CHECK(
+                    mock230_mapinstance_find(host->x, host->z) == handle_before,
+                    "and leaves them standing in the room they cleared (was %d, now %d)",
+                    handle_before, mock230_mapinstance_find(host->x, host->z));
+                SELFTEST_CHECK(
+                    mock230_mapinstance_var_get(handle_before, 2) == room_before,
+                    "and does not advance the room by itself (was %d, now %d)",
+                    room_before,
+                    mock230_mapinstance_var_get(handle_before, 2));
+                SELFTEST_CHECK(
+                    mock230_mapinstance_var_get(handle_before, 78 /* ^tob_var_cleared */) == 1,
+                    "but does mark it cleared, so a door can open");
+
+                host->godmode = saved_god;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+        }
+
+        fprintf(stderr, "mock230 selftest: no Theatre npc runs on engine aggression\n");
+        {
+            /*
+             * The contract, over the whole roster rather than the one boss a
+             * player happened to report.
+             *
+             * `huntmode=aggressive` came from `combat_stats.generated.npc`, so
+             * it is not a thing anybody chose for these npcs — it is a default
+             * a code generator applied to 8 000 monsters, three of which happen
+             * to be in this raid. Every Theatre fight is `defaultmode=none`
+             * plus an `[ai_timer]` that picks its own target with `huntall`, so
+             * an engine-latched `combat_target` is never wanted here: it adds a
+             * facing nothing asked for, an attack clock beside the scripted
+             * one, and — on anything that moves — costs the npc its route,
+             * because `advance_npcs` reads a combat target as "combat owns this
+             * npc's movement".
+             *
+             * Asserted as a LIST rather than per boss because the failure that
+             * prompted it was asymmetric: of Vasilias's three colour records
+             * the generator marked only the melee one, and Vasilias changes
+             * colour by changing type — so it charged the player on melee
+             * phases and pathed correctly on the other two. Anything that only
+             * checked "the boss" would have found that two times in three.
+             *
+             * Regenerating the combat block is what reintroduces this, and
+             * that is exactly when nobody is looking at the Theatre.
+             */
+            static const char* const k_tob_npcs[] = {
+                "tob_maiden_100", "tob_maiden_70", "tob_maiden_50", "tob_maiden_30",
+                "maiden_elemental", "maiden_blood_slug",
+                "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
+                "nylocas_boss_melee", "nylocas_boss_magic", "nylocas_boss_ranged",
+                "nylocas_boss_spawning",
+                "tob_sotetseg_combat", "tob_sotetseg_creeper",
+                "tob_xarpus_combat", "tob_xarpus_static", "tob_xarpus_feeding",
+                "verzik_initial", "verzik_phase1", "verzik_phase2", "verzik_phase3",
+            };
+            int aggressive = 0;
+
+            for( size_t i = 0; i < sizeof(k_tob_npcs) / sizeof(k_tob_npcs[0]); i++ )
+            {
+                int id = mock230_content_symbol(MOCK230_PACK_NPC, k_tob_npcs[i]);
+                const struct Mock230NpcDef* def = id >= 0 ? mock230_content_npc(id) : NULL;
+
+                if( !def )
+                    continue;
+                if( def->huntmode == MOCK230_HUNT_AGGRESSIVE )
+                {
+                    aggressive++;
+                    fprintf(stderr, "    %s is aggressive\n", k_tob_npcs[i]);
+                }
+            }
+            SELFTEST_CHECK(aggressive == 0,
+                           "%d Theatre npc(s) still take a target from engine aggression",
+                           aggressive);
+
+            /*
+             * And the three that MOVE must not be able to take one by
+             * retaliating either — that is the other half of the same latch,
+             * and the half a player triggers by simply attacking the boss.
+             * Only the movers: a rooted boss keeps its facing latch when it is
+             * hit, which is right, and has no route to lose.
+             */
+            {
+                static const char* const k_movers[] = {
+                    "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
+                    "nylocas_boss_melee", "nylocas_boss_magic", "nylocas_boss_ranged",
+                    "verzik_phase3",
+                };
+                int retaliating = 0;
+
+                for( size_t i = 0; i < sizeof(k_movers) / sizeof(k_movers[0]); i++ )
+                {
+                    int id = mock230_content_symbol(MOCK230_PACK_NPC, k_movers[i]);
+                    const struct Mock230NpcDef* def = id >= 0 ? mock230_content_npc(id) : NULL;
+
+                    if( !def )
+                        continue;
+                    if( def->retaliate )
+                    {
+                        retaliating++;
+                        fprintf(stderr, "    %s retaliates\n", k_movers[i]);
+                    }
+                }
+                SELFTEST_CHECK(retaliating == 0,
+                               "%d script-walked Theatre boss(es) lose their route on the "
+                               "first hit", retaliating);
+            }
+        }
+
+        /*
+         * BLOAT PATROLS PAST A PLAYER INSTEAD OF CHARGING THEM.
+         *
+         * Reported from a live client: "the Bloat is immediately turning
+         * towards the player and not pathing correctly". Two separate paths
+         * caused it and both set `combat_target`, which `advance_npcs` reads as
+         * "combat owns this npc's movement" — so the waypoint drain is skipped
+         * and the boss walks at the player instead of round its circuit.
+         *
+         *   * `huntmode=aggressive`, inherited from the generated combat block.
+         *     `maybe_aggress` latches the nearest player inside `huntrange`,
+         *     which is 24 for Bloat because the flies must reach across the
+         *     room — so it took a target on the fight's first tick, untouched.
+         *   * retaliation on the first hit, which `retaliate=no` opts out of.
+         *
+         * Both are now declared away in tob.npc, and this is the test that says
+         * so. It asserts three things, and the third is what the report was
+         * actually about: no target, no facing latch, and IT MOVED.
+         *
+         * "It moved" is the load-bearing one. A boss can have no combat target
+         * and still stand still — that is precisely what the earlier bug looked
+         * like once you stopped it charging — so a test that only checked
+         * `combat_target < 0` would have passed on a Bloat frozen to the spot.
+         */
+        {
+            struct Mock230Player* host = srv->active_player;
+            int boss = -1;
+            int saved_god = host->godmode;
+
+            mock230_scripts_run_debugproc(srv, "tobout");
+            mock230_scripts_run_debugproc(srv, "tob 2");
+            /*
+             * BEFORE the barrier. `::tob 2` builds the room and drops the
+             * player in the corridor; `::tobgo` is the barrier and is
+             * deliberately not run yet.
+             *
+             * "The Bloat will walk around its room in a square as soon as the
+             * party enters the room" — and the party is in the room well before
+             * anybody crosses the barrier, because the barrier is inside it.
+             * Near-Reality starts the circuit in `spawn()` and gates only the
+             * flies on `room.started`. This used to be a boss standing frozen
+             * on its spawn tile until the barrier was crossed, which is the
+             * first thing a player sees of the room.
+             */
+            {
+                int idle = tob_harness_boss(srv, host);
+
+                if( idle >= 0 )
+                {
+                    int sx = srv->npcs[idle].x;
+                    int sz = srv->npcs[idle].z;
+                    int walked = 0;
+
+                    for( int t = 0; t < 6; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( srv->npcs[idle].x != sx || srv->npcs[idle].z != sz )
+                            walked = 1;
+                    }
+                    if( getenv("MOCK230_TOB_WALK") )
+                    {
+                        int bx = 0, bz = 0;
+                        mock230_mapinstance_base(
+                            mock230_mapinstance_find(srv->npcs[idle].x, srv->npcs[idle].z),
+                            &bx, &bz);
+                        fprintf(stderr, "    pre-barrier trail:");
+                        for( int t = 0; t < 24; t++ )
+                        {
+                            mock230_world_tick(srv);
+                            fprintf(stderr, " %d,%d", srv->npcs[idle].x - bx,
+                                    srv->npcs[idle].z - bz);
+                        }
+                        fprintf(stderr, "\n");
+                    }
+                    SELFTEST_CHECK(walked,
+                                   "Bloat patrols before the barrier is crossed, still on "
+                                   "%d,%d after 6 ticks", srv->npcs[idle].x, srv->npcs[idle].z);
+                    /* And the fight has NOT started: no down clock, so it must
+                     * still be walking rather than lying down for free. */
+                    SELFTEST_CHECK(
+                        mock230_mapinstance_var_get(
+                            mock230_mapinstance_find(srv->npcs[idle].x, srv->npcs[idle].z), 10)
+                            == 0,
+                        "and it has not gone down before the fight began");
+                }
+            }
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            boss = tob_harness_boss(srv, host);
+            SELFTEST_CHECK(boss >= 0, "the Bloat room should hold its boss");
+            if( boss >= 0 )
+            {
+                struct Mock230Npc* npc = &srv->npcs[boss];
+                int start_x;
+                int start_z;
+                int moved = 0;
+
+                host->godmode = 1;
+                /* Standing right beside it, which is the whole point: this is
+                 * the arrangement that used to make it turn round. */
+                mock230_scripts_run_debugproc(srv, "tobstand");
+                start_x = npc->x;
+                start_z = npc->z;
+                for( int t = 0; t < 6; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( npc->x != start_x || npc->z != start_z )
+                        moved = 1;
+                }
+                if( getenv("MOCK230_TOB_WALK") )
+                {
+                    int bx = 0, bz = 0;
+                    mock230_mapinstance_base(mock230_mapinstance_find(npc->x, npc->z), &bx, &bz);
+                    fprintf(stderr, "    in-fight trail (corner reg / wp):");
+                    for( int t = 0; t < 24; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        fprintf(stderr, " %d,%d[c%d,w%d]", npc->x - bx, npc->z - bz,
+                                mock230_mapinstance_var_get(
+                                    mock230_mapinstance_find(npc->x, npc->z), 17),
+                                npc->waypoint_index);
+                    }
+                    fprintf(stderr, "\n");
+                }
+                SELFTEST_CHECK(npc->combat_target < 0,
+                               "Bloat must not take a combat target from a nearby player, got %d",
+                               npc->combat_target);
+                SELFTEST_CHECK(npc->face_entity < 0,
+                               "and must not latch a facing onto them, got %d",
+                               npc->face_entity);
+                SELFTEST_CHECK(moved,
+                               "and must walk its circuit, still on %d,%d after 6 ticks",
+                               npc->x, npc->z);
+
+                /*
+                 * And the same after being hit. Retaliation is a separate latch
+                 * from aggression and opting out of one does not opt out of the
+                 * other — `retaliate=no` is what covers this half.
+                 */
+                mock230_combat_hit_npc(srv, boss, 0, 10);
+                start_x = npc->x;
+                start_z = npc->z;
+                moved = 0;
+                for( int t = 0; t < 6; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( npc->x != start_x || npc->z != start_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(npc->combat_target < 0,
+                               "nor after being attacked, got %d", npc->combat_target);
+                SELFTEST_CHECK(moved,
+                               "and it keeps walking while it is being hit, still on %d,%d",
+                               npc->x, npc->z);
+
+                host->godmode = saved_god;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
         }
 
         /*
@@ -39937,6 +41254,23 @@ mock230_world_selftest(void)
                  * since he declares no `wanderrange`) asserts the opposite of
                  * what his content says. */
                 if( npc->mode == MOCK230_NPCMODE_PATROL )
+                    continue;
+                /*
+                 * And neither has an npc in mode NONE. This is the same
+                 * exemption as the patroller's and it was missing because,
+                 * until `defaultmode_stated` landed, `defaultmode=none` did
+                 * nothing and no npc that MOVES was ever in this mode — a
+                 * `nomove` record is mode NONE too and passes trivially.
+                 *
+                 * The Pestilent Bloat is the case: `defaultmode=none` with no
+                 * `moverestrict`, deliberately, because walking its circuit is
+                 * its mechanic. Its circuit is wider than the default five-tile
+                 * radius, so once the mode line started working this fired 200
+                 * times — once per tick — about an npc doing exactly what its
+                 * content says. An npc that is not wandering cannot be measured
+                 * against a wander radius.
+                 */
+                if( npc->mode == MOCK230_NPCMODE_NONE )
                     continue;
                 SELFTEST_CHECK(npc->x - npc->spawn_x <= npc->wander_radius &&
                                    npc->spawn_x - npc->x <= npc->wander_radius,
@@ -49079,6 +50413,72 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::chargesrun should report no failures");
             SELFTEST_CHECK(said_ok, "::chargesrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::gauntletrun\n");
+    {
+        /*
+         * The Hunllef encounter, asserted through its own content
+         * (minigames/minigame_gauntlet/scripts/gauntlet_selftest.rs2), the same
+         * shape `::chargesrun` above uses — on the OK line rather than on the
+         * absence of FAILs, because the debugproc stops at its first broken
+         * check and a script that aborted on line one also prints no FAIL.
+         *
+         * What it covers that nothing else can: the boss's damaging-floor
+         * patterns are rectangles in arena-local space, and `loc_add` ABORTS
+         * the calling script when handed a tile outside the built scene. An
+         * off-by-one in one rectangle of one pattern of one HP phase therefore
+         * does not misdraw a tile, it kills the fight — and only on the roll
+         * that picks that pattern in that phase. Walking every rectangle here
+         * turns that into a build failure.
+         *
+         * Safe to run unconditionally and safe here: it spawns exactly one npc
+         * and deletes it in the same script, restores every varp it writes, and
+         * never ticks the world — so it does not move the shared RNG stream or
+         * the tick counter that later sections measure against.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture gauntletrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &gauntletrun_capture);
+            mock230_scripts_run_debugproc(srv, "gauntletrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&gauntletrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&gauntletrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &gauntletrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "gauntletrun OK", 14) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "gauntletrun FAIL", 16) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::gauntletrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::gauntletrun should reach its OK line");
             mock230_scripts_free(srv);
         }
     }

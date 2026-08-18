@@ -334,6 +334,9 @@ mock230_scene_tile_flags(int level, int x, int z);
 
 /** Absolute tile of scene-local (0, 0). */
 int
+mock230_scene_debug_settings(int level, int x, int z);
+
+int
 mock230_scene_base_x(void);
 int
 mock230_scene_base_z(void);

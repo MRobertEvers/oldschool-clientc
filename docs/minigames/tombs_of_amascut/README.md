@@ -26,3 +26,17 @@ python3 tools/toa_cache_dump.py OSRS-Content/osrs239-content \
 python3 tools/toa_fetch_wiki.py docs/minigames/tombs_of_amascut/sources \
     --combat-achievements
 ```
+
+Check the docs against it — **39 checks**, covering the twelve map squares, the
+invocation table's 600 ceiling and its prerequisites, every npc / loc / obj / seq
+id these documents quote, the twelve music archives, and the Combat Achievement
+id range:
+
+```
+python3 tools/toa_verify_docs.py
+```
+
+It is proven able to fail: changing one quoted npc id to a nonexistent one is
+caught as `npc ids quoted in the docs but absent from the cache dump`, and
+lowering `Insanity` from +50 to +45 in the invocation dump is caught as
+`raid-level ceiling is 595, wiki says 600`.

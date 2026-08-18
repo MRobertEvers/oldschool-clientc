@@ -62,7 +62,7 @@
 ## 0. The three findings that shape the plan
 
 **1. The cache already contains the entire raid.** All twelve map squares, 183
-npcs, 1,357 locs, 86 items, 244 sequences, 946 sound effects, eleven music
+npcs, 1,357 locs, 86 items, 244 sequences, 946 sound effects, twelve music
 tracks, ten interfaces, five inventories and 94 varbits are in `cache.osrs239`
 and verified present. Unlike the RS2012 QBD port or the Summoning lane, **no
 asset authoring, no map building and no interface authoring is required.** This
@@ -71,8 +71,9 @@ is a pure server-content job. [cache]
 **2. The invocation system is cache data too.** All 46 invocations live in
 `all.struct` with their index, category, raid-level modifier, numeric argument,
 prerequisite and description (§ENCOUNTERS §0). Hand-authoring that table would
-be the [exporter-owns-generated-configs](../../../CLAUDE.md) mistake in a new
-place. **Generate it**, the way `tob_nylo.dbrow` is generated. The check that the
+repeat a mistake this tree has already paid for: a config that a tool owns, kept
+by hand, drifts silently. **Generate it**, the way `tob_nylo.dbrow` is generated
+by `tools/gen_tob_nylo_waves.py` and marked "never hand-edit". The check that the
 read is correct is arithmetic: one invocation from each of the four exclusive
 categories plus every non-exclusive toggle sums to exactly **600**, the
 documented ceiling.
@@ -143,9 +144,8 @@ four challenge rooms and back, with each room a private instance.
 Each room is a **whole map square** (§ASSET_INDEX §1), not a sub-rectangle, which
 is simpler than ToB's per-room templates. Three rooms are on **plane 1** — Akkha,
 both Warden squares — so every "which room is this player in" test keys on the
-square **and the plane**, never x/z alone. This is the shape of bug that
-[`bridge-deck-three-level-spaces`](../../../CLAUDE.md) already cost this tree
-once.
+square **and the plane**, never x/z alone. A room identified by x/z alone would put a
+player in Akkha's square and the Het challenge at once.
 
 Tasks:
 
@@ -163,7 +163,7 @@ Tasks:
    before entry.
 4. The teleport crystals: `toa_teleport_crystal_continue` **45137** between rooms
    and `_wardens` **45138** into the vault. [cache]
-5. Music per room from §ENCOUNTERS §12 — eleven `midi_song` calls and the eleven
+5. Music per room from §ENCOUNTERS §12 — twelve `midi_song` calls and the twelve
    unlock varp bits.
 
 **Acceptance:** `::toarun` builds all eleven rooms, teleports through each in

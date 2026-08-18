@@ -9,10 +9,20 @@ four forms: **plugin code**, **practice simulators**, **Discord role guides**, a
 **video guides**. This document names the sources, says what each one is worth, and
 records what this project took from each.
 
-The ranking rule used throughout: **code a competitive player relies on > a
-simulator built from observed data > a written guide > a video > a forum post.**
+The ranking rule used throughout: **a first-party Jagex statement > the game's own
+cache > code a competitive player relies on > a simulator built from observed data >
+a written guide > a video > a forum post.**
 A recorder that mis-times a tick produces a broken parse and gets fixed; a video
 that mis-states a tick gets 40k views.
+
+**Sweep the update newsposts before reading anybody's code.** This rule was learned
+the hard way: four passes of plugin, recorder and server reading treated the Nylocas
+pillar hitpoints as unknowable, while Jagex had published both ends of the curve in a
+patch note two weeks after launch (130 at five players, 330 solo — see
+[`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and `TOB_RESEARCH.md` M7). The same sweep then
+confirmed the supply-chest point bands, the Bloat shadow delay and the boss HP curve. The
+posts are preserved on the wiki under `Update:` titles and are readable with
+`?action=raw`; the runescape.com originals return HTTP 403 to non-browser clients.
 
 ---
 
@@ -210,6 +220,34 @@ that contributed a *number* rather than context:
 Others downloaded for coverage: Patyfatycake, Chriskies, Beleti, Kuji, Lone Gym Rat,
 Okirra, 2tick rick, RS Mina, Abys, YefTalks, Rob, Horselord, Evse, AsukaYen,
 Molgoatkirby.
+
+---
+
+## 5b. Wiki mechanics researchers
+
+### Mc — <https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB>
+
+A wiki editor's working page on ToB mechanics, in the user namespace rather than the
+article namespace, and by some distance the most detailed secondary source found for
+this raid. It carries engine-level statements the articles do not: the cause of
+"scuffed" crabs (Maiden's npc index above the crabs'), the Bloat down window and its
++5 shift, the 16-hand placement algorithm with its rejection rule, the exhumed
+count/heal/cadence tables at all five scales, Sotetseg's death-ball damage formula,
+and Verzik's per-phase transition lengths.
+
+**Worth:** ranks below the cache and below observed recordings, but above every RSPS
+tree and every written guide. In the fourth research pass it independently restated a
+dozen figures this project had already measured — M1, M4, M9, M12–M14, M16, M17, M31 —
+which is the reason to trust it where it is the only source.
+
+**But it is not infallible, and one error is demonstrable.** Its scaling section gives
+the boss hitpoint ladder as 100/80/60 % for 5/4/3-scale. The real ladder is
+100/87.5/75 %, which the wiki itself states with numbers elsewhere (Hard Mode's
+Nylocas Prinkipas at "300/350/400 health"). Its "small nylos are an exception" note is
+a symptom of the same slip — under the correct ladder they are not an exception.
+
+**Used here:** the pillar scaling direction (M7), Xarpus' flat 4-tick cadence (M31),
+Verzik's 7-tick P2→P3 transition (M20), and as a cross-check on M1/M4/M12–M17.
 
 ---
 

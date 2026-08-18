@@ -86,10 +86,21 @@
  * Dynamic-map activities need more than yes/no switches: a house game has a
  * phase, two player uids, turn, scores and a prize balance.  The engine owns
  * only the lifetime and bounds of these registers; RuneScript assigns every
- * slot's meaning.  Sixty-four is intentionally finite and visible so content
+ * slot's meaning.  The count is intentionally finite and visible so content
  * cannot turn an instance into an unbounded key/value heap.
+ *
+ * Raised from 64 to 128 for the Theatre of Blood, which is one activity with
+ * six rooms in it. Sixty-four was enough while each room could have the bank to
+ * itself; it stopped being enough once several rooms carried live state at
+ * once, and the failure mode is the worst kind — `tob.constant`'s own header
+ * warns "do not reuse a slot across rooms: one room's leftover value becomes
+ * the next room's opening state", and two rooms allocated over each other
+ * anyway because the space had run out. Nothing reports that; the next room
+ * simply opens mid-fight.
+ *
+ * The cost is 8 instances x 64 ints = 2 KB.
  */
-#define MOCK230_MAPINSTANCE_VARS 64
+#define MOCK230_MAPINSTANCE_VARS 128
 
 /** Zones per axis in a map square — the granularity the cache's archives, and
  *  therefore the allocator's reservations, come in. */

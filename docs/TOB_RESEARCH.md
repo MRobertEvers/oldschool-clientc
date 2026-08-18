@@ -32,8 +32,10 @@ Sections are in the order the answers arrived, not in M-number order; the
 [provenance audit](#provenance-audit--what-blert-observes-versus-what-blert-asserts)
 records which figures are observations and which are another project's constants.
 
-**Outcome: 16 questions closed, 3 partially closed, and every question still open now names
-the dataset or capture that would close it.**
+**Outcome: 20 questions closed, 3 partially closed. Only M7 (pillar hitpoints) and M6 (stun length)
+are still genuinely open, and both now need a client-side capture rather than another source.**
+Sections are appended by pass; where a later pass overturned an earlier one, the earlier section
+carries a forward pointer.
 
 ### How the measurements below were taken
 
@@ -592,6 +594,10 @@ inside the 39–47 window M17 established.
 
 ### Stun duration: **STILL OPEN**
 
+> **Fourth pass:** two more server lineages were read — Trinity says 3, Ferox/Valinor says 5 — and Mc's
+> mechanics page documents the hands without mentioning a stun. See
+> [that section](#m6--the-bloat-hand-stun-still-open-but-the-field-is-now-3-versus-5).
+
 Neither plugin models it (TobMistakeTracker only needs the tick of the splat to flag the
 mistake, and blert records the hit, not its consequence), and no source found gives a
 tick figure — the Wiki says only *"stun them temporarily"* and secondary guides say
@@ -692,6 +698,10 @@ four of six raids show it never leaving its spawn tile.
 
 ## M11 — Sotetseg maze: verifying the empirical generator. **STILL OPEN, but a corpus is now reachable**
 
+> **Closed in the [fourth pass](#m11--sotetseg-maze-closed-and-both-reconstructions-are-wrong-in-the-same-place)**
+> — the corpus described here was harvested (183 usable mazes) and it settles the structure. Read that
+> section for the result; this one only for the harvesting traps, which were real.
+
 Blert emits `TOB_SOTE_MAZE_PATH` events carrying `activeTiles` — the maze tiles as they
 light up — so real mazes can be harvested from recorded raids. 11 mazes were pulled as a
 trial and the tiles do come through in maze grid coordinates (x 0–13, y 0–14, matching
@@ -752,7 +762,9 @@ where it can):
 
 **So two of the results above must be downgraded, and are corrected here:**
 
-* **M20, Verzik P2 → P3 (+12) is *not* an independent measurement.** It is
+* **M20, Verzik P2 → P3 (+12) is *not* an independent measurement** — though the
+  [fourth pass](#m20--verzik-p2--p3-the-12-survives-from-an-anchor-blert-does-not-own) later corroborated
+  the same tick from a second, independently anchored plugin. It is
   `P3_TICKS_BEFORE_FIRST_ATTACK` echoed back: `startVerzikPhase` seeds
   `nextVerzikAttackTick = tick + 12` and P3 attack events are emitted from that clock. The
   supporting argument is weaker than 29-for-29 looks: had the 12 been wrong, blert's later
@@ -871,33 +883,116 @@ counts, so this needs a small capture plugin, not another API query.
 
 ---
 
-## M7 — Nylocas pillars: damage per swing, and does pillar HP scale with party size? **STILL OPEN**
+## M7 — Nylocas pillars. **HP CLOSED BY JAGEX; damage per swing still open**
 
-What is now certain from the cache (`sources/cache_npc_nylocas.txt`):
+A separate pass ([`NYLO_PILLARS.md`](NYLO_PILLARS.md)) found the source that three passes of
+plugin and server reading had missed: **Jagex published both ends of the pillar HP curve
+themselves**, two weeks after launch, in the same post that cut the first 21 Nylocas waves.
+Verified verbatim against the wiki's preserved copy of the newspost:
+
+> The first 21 waves of the Nylocas encounter have been removed […] Firstly, the pillar
+> health has been reduced. **Players in groups of five will find that the pillar has been
+> reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has
+> been reduced from 350 hitpoints to 330 hitpoints.**
+> — [Theatre of Blood Changes & Deadman Summer Finals](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood_Changes_%26_Deadman_Summer_Finals), 21 June 2018
+
+That one paragraph answers the question this document had left open in three places:
+
+1. **Pillars scale, and they scale *upwards* as the party shrinks** — the opposite direction
+   to every boss in the raid. Solo 330 is 2.5× the five-man 130.
+2. **The cache's `stat4=130` is the five-man figure**, not a flat-for-all-sizes figure. That
+   is the same convention as every other Normal-mode record in the raid, and it retires the
+   worry in this document's earlier M7 section that the cache "cannot distinguish flat from
+   scaled".
+3. Pillars are **not** on the boss 75 % / 87.5 % curve — that curve was announced in a
+   different paragraph of the same post, for bosses.
+
+**The 2-, 3- and 4-man values are an interpolation, not a measurement.** Two published points,
+(1, 330) and (5, 130), fit exactly one line:
 
 ```
-[tob_nylocas_support]        // id 8358   stat4=130
-[tob_nylocas_support_story]  // id 10790  stat4=155
-[tob_nylocas_support_hard]   // id 10811  stat4=150
+hp = 380 − 50 × party        →  330 / 280 / 230 / 180 / 130
 ```
 
-Why this does **not** settle the scaling question: in this cache the Normal-mode boss
-figures are the *5-man* values and the server scales them down for smaller parties (Maiden
-3500 → 3062 → 2625). A single cache figure for the support is therefore equally consistent
-with "130 flat" and with "130 at five players, scaled down below that". The cache cannot
-distinguish them.
+### Why the line is more than curve-fitting
 
-Blert does not track the supports at all — they never appear in the npc stream (the ids
-present in the Nylocas room are only 8342–8357), so the API cannot answer it either.
+Three independent checks were run on it, and all three hold:
 
-**What would close both halves:** a capture of the support's HP varbit (or its death after
-a counted number of nylo swings) in a trio and in a five-man. Damage per swing then falls
-out of the same recording: count swings between HP readings. `^tob_nylo_pillar_hit_max = 2`
-is the plan's disclosed figure and nothing found in this pass contradicts it.
+* **The verification of the quote itself.** Fetched raw from the wiki; the same post also
+  states Vasilias went "from 2000 to 2500", and the cache's `stat4` on `nylocas_boss_*` is
+  **2500** — so the post describes the game as it still is, not a reverted proposal.
+* **The Zenyte family already had this exact line, on the wrong encounter.** Verified in the
+  local tree: `VerzikPillar.java` uses `380 - (partySize * 50)` — the Nylo line — while
+  `PillarSupport.java` (the actual nylo support) uses `380 - (partySize * 20)`, which matches
+  nothing Jagex published. Same intercept, wrong slope, wrong room. A copy that landed on the
+  wrong pillar class explains both files at once.
+* **The Wiki's own mechanics notes say the direction.** [User:Mc/Mechanics/ToB](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB),
+  verified raw: *"Nylo pillars will have more HP in lower scales, and will scale down to 1."*
+  Note "down to 1", against bosses which stop scaling at trio.
+
+### What is still open
+
+* **2 / 3 / 4-man Regular** are interpolated. A hitsplat or health-ratio capture in a trio
+  would confirm or kill the line.
+* **Hard and Entry tables.** The cache gives their five-man anchors (150, 155) and a 2021
+  hotfix says Story pillar HP rose "by 5–10, depending on group size" — not enough for a full
+  table. This tree carries the same −50 step on them, disclosed as an assumption.
+* **Damage per swing** remains the genuinely unsourced half. Zenyte deals a flat `large ? 4 : 2`
+  and nothing contradicts it; the Wiki's 17/24 are the max hits **against players** and cannot
+  be the pillar hitsplat (at 17 a single small would delete a five-man pillar in eight swings,
+  and learners would lose pillars every raid).
+
+### Implemented, and what the engine needed
+
+`^tob_nylo_pillar_hp` now carries the five-man anchor plus a
+`^tob_nylo_pillar_hp_step = 50`, and `~tob_nylo_pillar_hp` takes the party scale. One
+non-obvious consequence, recorded at both ends: **the npc records had to be re-authored from
+the cache's five-man value to the SOLO value** (330 / 350 / 355), because `npc_statheal`
+cannot raise an npc above its config base and `~tob_nylo_set_hp` only ever subtracts. Bosses
+can be authored at their five-man figure and scaled down; pillars are the one npc in the raid
+that scales the other way, so their base must be the top of the line rather than the bottom.
+
+**The engine already supported the scaling itself.** `hitpoints=` on an authored npc block is
+a mapped server-scope field (`content_fields.c`), `mock230_content.c` parses it into
+`def->hitpoints`, and a spawned npc takes `base_hitpoints = def->hitpoints`. So no opcode or
+loader work was required for the curve — only for *proving* it.
+
+**No new opcode, deliberately.** The obvious engine change would be a type-level accessor so
+`~tobrun` could assert the base-vs-solo coupling directly. That is the wrong move here:
+`ss_opcode.h`, `ss_trigger.h` and `ss_meta.gen.h` are **generated from the LostCity reference
+server** and checked in, so a tree-invented `nc_hitpoints` would be silently dropped the next
+time `gen_opcode_meta.py` runs. `nc_param` cannot reach it either — the support's param table
+carries no `hitpoints` row. The invariant therefore lives where this tree already puts
+config facts that scripts cannot express: a **content contract check**,
+`tools/check_tob_pillar_contract.py`, wired into `mock230-scripts` beside the charter, God
+Wars and quest-combat contracts. It pins three things and each was **proved to fail** by
+mutation:
+
+| Mutation | Caught |
+|---|---|
+| npc base back to the cache's 130 | *"hitpoints=130, but the solo figure is 330"* |
+| step 50 → 20 (Zenyte's wrong slope) | *"the curve gives 210 for a solo pillar; Jagex published 330"* |
+| five-man anchor 130 → 140 | *"anchor 140 != cache stat4 130 on npc 8358"* |
+
+**An existing in-game check had pinned the old assumption**, and the engine's own selftest
+caught it: `::tobrooms` asserted `npc_basestat(hitpoints) = ^tob_nylo_pillar_hp`, which was
+correct only while the pillar was one flat number. It now asserts the base against the *solo*
+figure, and — newly meaningful — the **current** hitpoints against the party's figure. That
+second half is the one that could not fail before and can now: it is what proves the
+subtraction landed rather than being swallowed by `~tob_nylo_set_hp`'s `$base <= $hp` guard.
+
+Verified by running `dev_mock230 --selftest` three times: the four pillar failures present
+before the fix are gone and no new failure appeared. (That harness carries ~268 pre-existing
+failures in this tree, and its `::tdtest` line flips between runs on identical content — the
+shared-RNG flakiness already on record — so the comparison is failure-set diffs, not totals.)
 
 ---
 
 ## M37 — which pillar a split attacks. **STILL OPEN, but the survivorship bias is now fixable**
+
+> **Closed in the [fourth pass](#m37--which-pillar-a-split-attacks-closed--essentially-none-of-them-it-is-close-to-a-coin-toss)**
+> — the experiment sketched here was run over 5 652 splits. The answer is that no rule holds: the choice
+> is near-uniform over the four pillars.
 
 The blocker the plan describes — both samples biased toward the near pillar because dead
 pillars redirect their nylos — is removable with the event API, because the stream gives
@@ -1028,6 +1123,11 @@ capture (splat tick → first tick the player can act) to confirm.
 
 ### M7 — Zenyte contradicts the cache, and the cache wins
 
+> **Half of this was wrong, and the [fourth pass](#m7--nylocas-pillars-the-scaling-direction-reverses-and-this-log-owes-zenyte-an-apology)
+> says so.** Mc's mechanics page states the pillars do gain hitpoints as the party shrinks, which is the
+> direction Zenyte implements. Its magnitudes are still unsupported, and the pillar-shuffle criticism
+> below still stands.
+
 ```java
 protected void setStats() {
     final var partySize = getRaid().getParty().getSize();
@@ -1047,6 +1147,10 @@ contradicts — wave spawns are deterministic. Another invention, and a useful w
 taking Zenyte's *rules* rather than just its numbers.
 
 ### M11 — a **second, independent** maze generator, and it disagrees with devqhp's
+
+> **Resolved in the [fourth pass](#m11--sotetseg-maze-closed-and-both-reconstructions-are-wrong-in-the-same-place).**
+> The yes/no question framed below turns out to be unanswerable as posed — a skipped turn lays down the
+> same tiles as a zero-length run — and the measurable version of it has been measured.
 
 Zenyte generates the maze rather than replaying one, so its generator is a rival hypothesis
 to the devqhp trainer's. `ShadowRealmArea.generatePath`:
@@ -1201,6 +1305,10 @@ measurements at four scales out of five.
 
 ### M7 — three sources, three numbers, and why the cache still wins
 
+> **A fourth source arrived.** Mc's page settles the *direction* (upward as the party shrinks) without
+> giving a number, so the cache's 130 survives as the five-man value rather than as a flat one. See the
+> [fourth pass](#m7--nylocas-pillars-the-scaling-direction-reverses-and-this-log-owes-zenyte-an-apology).
+
 | Source | Nylocas support hitpoints |
 |---|---|
 | rev-239 cache `stat4` | **130** (Hard 150, Entry 155) |
@@ -1345,6 +1453,350 @@ going to be needed, because the cache answers it outright.
 
 ---
 
+## Fourth pass — Mc's mechanics page, the client-side attack clocks, and a measured maze corpus
+
+Three source classes that earlier passes never opened, plus the maze corpus M11 asked for.
+
+| Source | Why it is new | What it settled |
+|---|---|---|
+| **[`User:Mc/Mechanics/ToB`](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB)** | A wiki mechanics researcher's working page — engine-level detail that the article namespace does not carry. Independently restates a dozen figures measured in this log. | **M7 (the scaling *direction* reverses)**, M31, M20 (transition length); and it contradicts this log in three places, audited below |
+| **Spoon ToB / ztob / MeteorLite "theatre" plugin family** | The most-installed ToB RuneLite plugins. Each runs its **own** Verzik attack clock, seeded off the phase npc's **id change** — a different anchor from blert's transition animation. | **M20 — the P2 → P3 opening is corroborated from a second anchor** |
+| **`blert-io/plugin` `NylocasDataTracker` + `TobNpc`** | The recorder's npc table and its explicit pillar-ignore set. | M7 (why blert has no pillar data at all, and what it believes about room scaling) |
+| **devqhp's trainer source** (`sotetseg.js`), not a description of it | `path_turns = 8`, and the maze is built by `y % 2 ? horizontal run : single tile`. | M11 (the exact rival hypothesis) |
+| **Trinity (`com.evo`) and Ferox/Valinor server trees** | Two ToB lineages outside the Zenyte family. | M6 (a second, independent **3**; a competing **5**) |
+| **10 340 maze-tile observations from 440 recorded raids** | The corpus M11 named as the thing that would close it. | **M11 — closed** |
+| **5 652 Nylocas splits from 70 recorded raids** | The query M37 named. | **M37 — closed** |
+
+Two sources that look relevant and are **not** evidence, recorded so nobody re-reads them:
+`Popret/popret.github.io`'s maze trainer is a fork of devqhp's (its own About box says so), not a second
+reconstruction; and `ricker312/Sote-Mazerunner` is a *practice* plugin on a generic 10 × 10 grid with a
+random-walk generator — it does not model the real maze at all.
+
+---
+
+### M11 — Sotetseg maze. **CLOSED, and both reconstructions are wrong in the same place**
+
+`TOB_SOTE_MAZE_PATH` was harvested from 440 completed raids across every mode and scale. Two filters
+turn the raw events into mazes, and both matter:
+
+* **Fragments with no odd-row tile are not mazes.** They are a straight line at `x = 6` covering the
+  even rows only, and they appear in 22 of 50 duo raids, 2 of 4 solos, and almost never above that.
+  That is the recorder being *the player sent to the shadow realm*: blert's `MazeTracker` keeps
+  `addUnderworldPoint` and `addPotentialOverworldPoint` in the same event type, so a solo recorder emits
+  their own underworld trail. Mixing these into the corpus would have manufactured exactly the
+  "no lateral movement" shape the question turns on.
+* **Only fragments carrying exactly one tile on each of the eight even rows** are usable — the reveal is
+  sampled, not complete, so a maze with a gap has to be dropped rather than interpolated.
+
+That leaves **183 mazes**. What they show:
+
+| Claim | devqhp | Zenyte | Measured |
+|---|---|---|---|
+| grid | 14 × 15 | 14 × 15 | x 0–13, y 0–14 ✓ |
+| horizontal runs sit on odd rows | yes | yes (`yIndex = 1` start — the earlier reading of this log was wrong) | **367 run-rows, every one odd, none even** |
+| `max_x_change` | 5 | 5 | **max \|dx\| = 5**, and 5 is well populated (135 steps) |
+| start column | `randRange(1, 13)` — never the far west | `random(0, 13)` | **column 0 never starts a maze in 183 mazes**, though it appears mid-maze 50 times and ends 5 of them ⇒ **devqhp** |
+| rows advanced per turn | always 2 | 2 or 4, 50/50 | see below |
+
+**The yes/no question dissolves, and the real answer is a rate.** A "skipped turn" (Zenyte's
+double-height vertical) and a "horizontal run of length zero" (devqhp's draw returning the same column)
+lay down *identical tiles*. Nothing in tile space can separate them. What is measurable is how often a
+2-row step carries no lateral movement:
+
+```
+no-lateral-move steps: 256/1281 = 20.0%   (95% CI 17.8–22.2%)
+devqhp's clamped-uniform draw predicts     11.3%   (200k simulated mazes)
+Zenyte's 50/50 double step predicts        ~45%
+```
+
+Both reconstructions are wrong, and in opposite directions. Read as devqhp's structure plus an
+occasional skipped turn, the implied skip rate is **q ≈ 9.8 % (CI 7.3–12.3 %)** — Zenyte's mechanism at
+a fifth of its rate.
+
+One weak test does separate the two readings. A skipped turn forces exactly **one** zero and can never
+sit next to another forced zero, so the skip model predicts *fewer* adjacent zero pairs than
+independent draws would:
+
+```
+adjacent zero pairs: 34/1098 observed
+                     44 expected if zeros are independent draws (sd ≈ 7)
+                     34 expected under the skipped-turn model
+```
+
+1.4 σ — directional, not conclusive, and stated here so it is not mistaken for proof.
+
+**What to implement:** devqhp's skeleton exactly — 8 single tiles on the even rows, a horizontal run on
+each of the 7 odd rows, `|Δx| ≤ 5` clamped to `[0, 13]`, start column drawn from `[1, 13]` — with the
+lateral draw tuned so that **20 %** of steps produce no movement rather than the 11 % a plain uniform
+draw gives.
+
+Corpus: [`blert_api/sote_maze_paths.csv`](sources/blert_api/sote_maze_paths.csv) (183 mazes as their
+eight even-row columns); scripts `harvest_mazes.py` and `analyze_mazes.py` beside it.
+
+---
+
+### M20 — Verzik P2 → P3. **The +12 survives, from an anchor blert does not own**
+
+The provenance audit was right that blert *asserts* this figure. What it could not know is that a
+second, older, independently authored project asserts the same instant from a different observable.
+
+**Spoon ToB** (and its ztob/MeteorLite siblings — the most-installed ToB plugins) runs its own clock,
+seeded when Verzik's **npc id** changes:
+
+```java
+case VERZIK_VITUR_8370: verzikTicksUntilAttack = 18; break;   // P1
+case VERZIK_VITUR_8372: verzikTicksUntilAttack = 3;  break;   // P2
+case VERZIK_VITUR_8374: verzikTicksUntilAttack = 6;  break;   // P3
+```
+
+blert seeds P2 from the npc spawn (`+3`) but P3 from the **transition animation 8118** (`+12`). The two
+are the same statement only if the id change lands 6 ticks after that animation. Measured over **130
+Verzik rooms**:
+
+| Gap | P2 | P3 |
+|---|---|---|
+| phase event → phase npc id appears | **13**, 130/130 | **6** in 122, **7** in 8 |
+| phase npc id → first attack | **3**, 130/130 | **6** in 122, **5** in 8 |
+| phase event → first attack | **16**, 130/130 | **12**, 130/130 |
+
+So blert's `+12` from the animation and Spoon's `+6` from the id name **the same tick**, and the bridge
+between the anchors is measured, not assumed. Mc's page states the P2 → P3 **"transition takes 7t"**,
+which is that same 6–7 tick npc swap from a third direction. Mc also reconciles the P2 column exactly:
+*"2t after she becomes attackable, she will do her first attack"* — attackable is the tick after the id
+change, so Mc's 2 is blert's and Spoon's 3.
+
+**Verdict:** upgrade from *"a constant blert asserts"* to *"two independently anchored implementations
+and Mc's page agree, and the offset between their anchors is measured at 6 ticks in 122 of 130 raids."*
+It is still not a direct observation of the attack itself — blert's P3 projectile handler only *labels*
+the style of an attack its clock already emitted — so the honest tag is **corroborated, not measured**.
+
+---
+
+### M7 — Nylocas pillars. **The scaling direction reverses, and this log owes Zenyte an apology**
+
+Mc's page, first section:
+
+> HP Scales down according to the number of players, down to trio […]
+> **Nylo pillars will have more HP in lower scales, and will scale down to 1.**
+
+That is Zenyte's direction — *more* pillar hitpoints in a smaller team — which the third pass called
+"invention, and the clearest demonstration in this pass of why an RSPS ranks below the cache". On the
+direction, Zenyte was right and this log was wrong. Its *numbers* (`380 − 20 × party`) still match
+nothing, and Near-Reality's flat 500 still matches nothing.
+
+Read with the cache, the reading becomes: **`stat4 = 130` is the five-man floor**, and the server scales
+*up* from it as the party shrinks, continuing past the trio cut-off that bosses stop at. Design-wise
+that is the obvious rule — four pillars are harder to defend with fewer players.
+
+Four things found in this pass that the question needs:
+
+* **The pillar is a live NPC with a client-visible health bar.** Id **8358** (story 10790, hard 10811) —
+  exactly the cache's three ids. Every ToB plugin reads it: `pillar.getHealthRatio()`.
+* **blert drops it on purpose.** `NylocasDataTracker.onNpcSpawn` matches the three pillar ids, calls
+  `startRoom()` and returns `Optional.empty()`. Its absence from the event stream is a design decision,
+  not evidence about the npc.
+* **No client source carries absolute HP.** Every plugin renders the *ratio*; the wiki's
+  [`Support (Theatre of Blood)`](https://oldschool.runescape.wiki/w/Support_(Theatre_of_Blood)) page is
+  scenery-only (objects 32862–32864) and says merely "a certain amount of hitpoints"; and the HUD bar is
+  the *sum* of all four ("the green health bar at the top is the overall health of all four").
+* **blert believes the room's minions scale**: `new int[] {8, 9, 11}` for smalls and `{16, 19, 22}` for
+  bigs — the boss ladder applied to non-boss npcs. Mc gives 11/9/8 and 22/**18**/16 for the same npcs
+  and calls them an exception.
+
+**Still open**, and now a much cheaper capture than the plan assumed: log `getHealthRatio()` on npc 8358
+across a trio and a five-man. Damage per swing is unchanged — Zenyte's flat `large ? 4 : 2` remains the
+only figure in existence.
+
+---
+
+### M37 — which pillar a split attacks. **CLOSED — essentially none of them; it is close to a coin toss**
+
+The experiment the plan wanted, run as a query. For every nylo, the pillar it *parked* at — its last
+four recorded positions all within 4 tiles of the same pillar, which drops the ones killed in transit.
+
+**The control comes first, because a negative result is worthless without it.** blert's guide states
+each wave-spawned nylo always targets the same pillar. Grouping wave spawns by (wave, style, big, spawn
+tile) and measuring how often a slot lands on its own modal pillar:
+
+```
+121 wave-spawn slots seen >=5 times   ->   pillar purity 88.5%   (25% would be chance)
+```
+
+So the method recovers a deterministic assignment at ~88 %, and blert's determinism claim is now
+quantified rather than quoted. Against that yardstick, **5 652 splits**:
+
+| Hypothesis | Plan's figure | Measured | Chance |
+|---|---|---|---|
+| goes to its parent's pillar | 37 % | **26.7 %** | 25 % |
+| goes to the pillar nearest its spawn | 34 % | **29.4 %** | 25 % |
+| same north/south half of the room as its spawn tile | — | 53.8 % | 50 % |
+| same east/west half | — | 55.1 % | 50 % |
+
+A split does **not** inherit its parent's pillar: if it did, this method would have read ~88 %, not 26.7 %.
+Nor is it slot-deterministic the way wave spawns are — grouping splits by (parent's wave, parent's spawn
+tile, split index) gives 32 % purity against the same 88 % yardstick. What is left is a **near-uniform
+choice among the four pillars, with a ~4-point lean toward the half of the room the split appears in**,
+which is the size of the residual bias the parked-filter cannot remove.
+
+The survivorship worry in the plan also turns out to be the wrong worry: blert's guide says that when a
+pillar dies *"the Nylocas that were attacking it start attacking players instead"* — a dead pillar does
+not redirect its nylos onto another pillar.
+
+Corpus: [`blert_api/nylo_split_pillars.csv`](sources/blert_api/nylo_split_pillars.csv), script
+`analyze_splits.py`.
+
+---
+
+### M6 — the Bloat hand stun. **Still open, but the field is now 3 versus 5**
+
+| Source | Lineage | Figure |
+|---|---|---|
+| Zenyte `member.stun(3)` | Zenyte (and its Near-Reality fork) | **3 ticks** |
+| Trinity `player.setStunDelay(3)` | `com.evo`, unrelated to Zenyte | **3 ticks** |
+| Ferox/Valinor `target.stun(5)` | Ferox | **5 ticks** |
+| Secondary guides ("stunning you for 3 seconds") | — | 3 s = **5 ticks** |
+| Wiki, both the article and Strategies | — | "stun them temporarily" / "a few seconds" |
+| **Mc's page** | — | documents the hands in full — 16 attempts, 12 tiles, the rejection rule — and **never mentions a stun at all** |
+
+Zenyte's 3 is no longer alone: Trinity is an independent tree, and its other ToB stuns are 7, 7 and 2,
+so 3 is not a house default. Against that, the wiki *does* state a stun length elsewhere in the same
+room-set — Verzik's P2 body slam "stuns them for 3 seconds", i.e. **5 ticks** — so a 5-tick stun is the
+established unit in this raid, and the guide blogs' "3 seconds" converts to exactly that.
+
+Nothing here is an observation, and the best source available on ToB mechanics does not carry the
+figure. **The capture stands as the only way to close it**: the splat tick, and the first tick the
+player can act again.
+
+---
+
+### M31 — two more corroborations, one of them verbatim
+
+The third pass closed this from the cache's `attackrate = 4` and dismissed the Xarpus trainer's hint.
+Both halves now have a citation. Mc: *"Xarpus will target a player every four ticks and throw poison at
+their position"* — flat, with no scale term anywhere in the section, while the *exhumed* counts in the
+section immediately above it are explicitly per-scale. And the trainer's own page reads:
+
+> "'Players' setting simulates Xarpus' attack frequency." … "Setting Players to 1 is more accurate for 5-ticking."
+
+Which is the reading this log guessed: with one player every spit comes at *you*, so the knob models how
+often the practising player is targeted, not how fast the boss attacks.
+
+---
+
+### Where Mc's page disagrees with this log, and who wins
+
+Mc's page is the strongest secondary source found in any pass — it independently restates M1 (10 ticks,
+first attack 10 ticks after the barrier — blert's tick 0 is the tick *inside* the room, so 10 there is 9
+here), M4 (and gives the *cause* of scuffed crabs: "Maiden's NPC index is higher than that of the spawned
+crabs"), M9 (10-tick form changes), M12–M14 (7/9/12/15/18 exhumeds, 20/16/12/9/8 healing, 12/8/8/4/4
+spawn cadence — all four columns), M16 (20 ticks, then every 14), M17 (a 34–41 window, shifted +5 if
+Bloat was not attacked during the previous down, giving 39–46 with a forced down after — this log
+measured 39–47 with the spike at 47, and 34–42 later), M18's Athanatos suppression, and M31. That is a
+lot of independent agreement, which is exactly why the three disagreements need adjudicating rather than
+averaging.
+
+**1. The boss HP ladder — this log wins.** Mc opens with "5-scale full HP, 4-scale 80 %, 3-scale 60 %".
+Everything else says 100/87.5/75: the article namespace states it in prose; blert's table encodes it
+(Maiden 3500/3062/2625, Bloat 2000/1750/1500, Sotetseg 4000/3500/3000, Vasilias 2500/2187/1875); the
+community's ToB simulators use it. It is decided by a number the wiki states outright — Hard Mode's
+Nylocas Prinkipas has **"300/350/400 health"**, which is 75 % and 87.5 % of 400 exactly, and is nothing
+like Mc's 240/320/400. The tell is internal, too: the small nylos are only "an exception" under Mc's
+ladder — under 75/87.5 they fall straight out of it (⌊11 × 0.75⌋ = 8, ⌊11 × 0.875⌋ = 9).
+
+**2. The falling-hand cadence gate — this log wins, and Mc's own page suggests why.** Mc puts the 6 → 4
+tick change at "below 60 %"; this log measured it inside **(34 %, 41.3 %]** over 2 283 events. The
+measured bracket brackets **40 %**, which is precisely where Mc's *movement* rule changes ("below 40 %:
+alternating between walking and running"). A 60/40 slip between two adjacent thresholds on the same npc
+is the likeliest reading.
+
+**3. Xarpus exhumed lifetime — unresolved, one tick apart.** Mc: 3 ticks to emerge, then healing for 7.
+This log measured the ground object open for **11** ticks over 391 exhumeds. The two are only reconcilable
+if the emerge and heal windows overlap by a tick, and neither source is precise about the boundary.
+
+One correction this pass forces on its own reading of a *source*: the excerpt of Zenyte's
+`generatePath` quoted in the third pass starts at the `while`, omitting `int yIndex = 1;` above it. Read
+without that line the generator appears to turn on even rows, which the maze corpus would flatly refute.
+It does not — Zenyte turns on odd rows, like devqhp. Parity was never in dispute between the two
+reconstructions; the step height was, and that is what the 20 % figure above addresses.
+
+---
+
+## Fifth pass — Jagex's own newsposts, which outrank everything else here
+
+The M7 breakthrough came from a Jagex newspost, not from code. That is a standing lesson
+about the order this research should have run in, so the remaining ToB posts were swept
+deliberately. Four of them are preserved on the wiki (`?action=raw` on the `Update:` pages);
+the runescape.com originals return HTTP 403 to non-browser clients.
+
+**First-party statements outrank the cache, plugin constants, recordings and servers alike.**
+Nothing else in this document is authored by the people who wrote the encounter.
+
+### What the sweep confirmed or closed
+
+**M6 — the 3-tick shadow→land delay is first-party, and its history explains the number.**
+
+> **\[Added 13/06/18]** We'll also be making the shadows appear **one cycle earlier** at the
+> Bloat encounter. This is to give players more warning over where things will fall […]
+> — [Theatre of Blood: Feedback Tweaks](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood:_Feedback_Tweaks)
+
+> The falling hands during the Pestilent Bloat encounter […] now take **slightly longer to
+> fall**, and their shadows increase in size as they approach the ground.
+> — [Theatre of Blood Changes](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood_Changes_%26_Deadman_Summer_Finals), 21 June 2018
+
+So the delay was deliberately lengthened by **one cycle** in June 2018, which is exactly how
+a 2-tick warning becomes the **3 ticks** measured here and stated by TobMistakeTracker. The
+figure now has a first-party origin story, not just two implementations agreeing.
+(The stun *length* is still unstated — the only "stun duration" Jagex ever printed for this
+raid is Verzik's P2 bounce, below.)
+
+**M22 — the bands are verbatim first-party, and the shop prices came with them.**
+
+> A performance considered to be *above average* will be rewarded with **10-13 points**, an
+> *average performance* will reward **8-11 points**, and a *below average* performance will be
+> met by just **6-9 points**.
+> […] Saradomin brew (4) — **3 points**, Super restore (4) — **3 points**, Prayer potion (4) —
+> **2 points**, Sea turtle — **2 points**, Manta ray — **2 points**.
+> — Theatre of Blood Changes, 21 June 2018
+
+Previously cited here through a search summary; now read from the preserved post. The bands
+and the prices are settled; only the classifier behind them remains unpublished.
+
+**M31 — mode parity, stated outright.** The 2021 New Modes patch notes list, under
+*Xarpus (Story Mode)*: **"Updated Xarpus's attack speed to be the same as regular ToB."**
+Combined with the single `attackrate=4` on `tob_xarpus_combat`, there is now no mode and no
+scale on which his cadence differs.
+
+**The boss curve, first-party.** *"Players in groups of three will find that the bosses have
+**75%** of their original hitpoints. Players in groups of four will find that bosses have
+**87.5%**"* — the plan's scaling table, from the source.
+
+### Two nuances the sweep added
+
+* **M19 — Entry-mode HP tables drift, which is why blert's are stale.** The 2021 notes
+  include *"Increased Story Mode Verzik P3 Health by 200"* and *"Lowered Verzik Phase 2 health
+  by 200"*. Entry values are patched in a way the recorder community never notices, because
+  almost nobody records Entry. Prefer the cache, as this document already concluded, and
+  treat any Entry table older than the last patch as suspect.
+* **The Nylocas room cap is mode-dependent, not scale-dependent.** The same notes say
+  *"Reduced the amount of maximum nylocas that can exist at the same time in story mode"*.
+  That is consistent with the measurement above — 12 pre-wave-20 and 24 after at **every**
+  scale in Regular — and with blert's separate Hard-Mode cap of 15. It is Zenyte's
+  *party-size* reduction that has no basis.
+* **Pillar HP moved again in 2021, for Story only**: *"Nylocas Pillar HP increased by 5-10,
+  depending on group size."* So the Entry anchor (cache 155) already includes that hotfix, and
+  the increment being group-size-dependent is one more sign the pillar curve is real.
+
+### The ranking lesson
+
+`COMMUNITY_SOURCES.md` ranked sources as *code a competitive player relies on > a simulator >
+a guide > a video > a forum post*, with Jagex statements listed separately as "the only
+first-party statements that exist" — and that framing is what let four passes of plugin,
+recorder and server reading go by while the pillar number sat in a patch note. The ranking
+has been corrected to put first-party posts at the top, and the practical rule is: **sweep the
+update posts for a mechanic before reading anybody's code for it.**
+
+---
+
 ## Status summary
 
 | # | Room | Status after this pass | Basis |
@@ -1354,12 +1806,12 @@ going to be needed, because the cache answers it outright.
 | M3 | Maiden | **Closed** — `50 + 15·d` cycles, `+25` for the two bonus splats, 11-tick splat | TobMistakeTracker source |
 | M4 | Maiden | **Closed** — 10-slot table, uniform subset of 2×scale, on the transmog tick | observed, 81 spawns |
 | M5 | Maiden | **Closed — 30 ticks.** Measured 29 over 3 366 runs; Zenyte's `BloodTrail` states 30 with a `resetTimer()` on re-cover, resolving the off-by-one | observed + server source |
-| M6 | Bloat | **2 of 3 closed** — 16 hands per drop, 3-tick shadow→land, cadence 6→4 ticks HP-gated in (34 %, 41.3 %]. Stun length: Zenyte says **3 ticks**, the only figure anywhere, but it may be a copied constant | observed + both source trees |
-| M7 | Nylocas | Open — three sources give three support HPs (cache 130, Zenyte `380−20×party`, Near-Reality flat 500) and the two servers disagree on whether it scales at all; damage per swing gets a first figure from Zenyte (small 2, big 4) | cache + 2 servers |
+| M6 | Bloat | **2 of 3 closed** — 16 hands per drop (Mc: 16 attempts over 12 tiles), 3-tick shadow→land, cadence 6→4 ticks HP-gated in (34 %, 41.3 %]. Stun length still open: **3 ticks** in two independent server trees (Zenyte, Trinity) against **5** in a third (Ferox/Valinor), with the wiki's own 5-tick precedent for Verzik's slam favouring 5; Mc's page documents the hands and gives no stun | observed + four source trees |
+| M7 | Nylocas | **Hitpoints closed by Jagex**: 130 at five players and 330 solo, published 21 Jun 2018, so the curve is `380 − 50 × party` and the cache's `stat4 = 130` is the five-man anchor. Mc's direction was right and Zenyte's inverse slope was right in kind — that tree carries this exact line on *Verzik's* pillars. 2/3/4-man interpolated between the two published points; **damage per swing still open** (Zenyte's flat small 2 / big 4 is the only figure) | **Jagex newspost** + cache + Mc |
 | M8 | Nylocas | **Closed** — first wave-check tick ≥ cleanup+16; 22/22 raids | observed |
 | M9 | Nylocas | **Regular closed**, Entry **resolved on the balance of evidence** — the Entry Mode page says 10 ticks, matching every other source; the "takes longer" line is a numberless comparative on a different page, and the cache shows no per-mode difference | observed + Wiki + cache |
 | M10 | Sotetseg | **Closed** — 1 tick after re-activation, 25/26 mazes | observed |
-| M11 | Sotetseg | Open, but **reduced to one yes/no question**: do real mazes always have exactly 7 horizontal runs? Two independent generators agree on the 14×15 grid and `max_x_change = 5`, and disagree only on whether a turn advances 2 rows or 2-or-4 | two reconstructions |
+| M11 | Sotetseg | **Closed on 183 mazes** — runs only ever on odd rows (367/367), max \|Δx\| = 5, and column 0 never starts a maze (devqhp's rule, not Zenyte's `random(0,13)`). The yes/no question dissolves — a skipped turn and a zero-length run are the same tiles — so the answer is a rate: **20.0 % of steps carry no lateral move** (CI 17.8–22.2) against devqhp's 11.3 % and Zenyte's ~45 % | 440 recorded raids |
 | M12 | Xarpus | **Closed** — 7/9/12/15/18 by scale (HM trio 16) | observed |
 | M13 | Xarpus | **Closed** — scaled: 12t solo, 8t at 2–3, 4t at 4–5 | observed |
 | M14 | Xarpus | **Closed** — a heal orb every tick from spawn+3; 20/16/12/9/8 by scale | observed |
@@ -1368,17 +1820,20 @@ going to be needed, because the cache answers it outright.
 | M17 | Bloat | **Closed** — 39–47, cap spike at 47; later walks 34–42 | 98 445 recorded downs |
 | M18 | Verzik | **Closed** — every 3rd lightning ball, 25 %, suppressed while an Athanatos lives | Wiki/Strategies |
 | M19 | All | **Closed** — Entry scales *up* per player; the Wiki figure is the 4-player value | cache + plugin + Wiki |
-| M20 | All | **Split** — Verzik P1→P2 resets (+16, observed); P2→P3 +12 is blert's constant, not measured; Maiden's clock free-runs through crab spawns | mixed |
+| M20 | All | **Split, with P2→P3 upgraded** — P1→P2 resets (+16, observed, 130/130); P2→P3 is **corroborated, not measured**: blert's +12 from the transition animation and Spoon ToB's +6 from the npc id name the same tick, and the 6-tick gap between those anchors is measured (122/130, 7 in the rest); Maiden's clock free-runs through crab spawns | mixed + 130 Verzik rooms |
 | M21 | Verzik | **Closed** — webs are 10 HP flat; the party scales their *number* | cache |
-| M22 | All | Bands and the death gate documented; formula unpublished, but Near-Reality's reconstruction (+3/encounter, MVP bonuses, −4/death, on the correct varbit 6460) reproduces the documented 6-point floor | Jagex/Wiki + servers |
+| M22 | All | **Bands, prices and the death gate are first-party** (10-13 / 8-11 / 6-9, brew 3, restore 3, prayer 2, turtle 2, manta 2); only the classifier is unpublished, and Near-Reality's reconstruction (+3/encounter, MVP bonuses, −4/death, varbit 6460) reproduces the 6-point floor | **Jagex newspost** + servers |
 | M23–M30 | — | Crab walk-vs-run **closed** (never >1 tile/tick); rest open | observed |
 | M31 | Xarpus | **Closed — flat 4 at every scale.** `tob_xarpus_combat` carries a single `attackrate=4`; blert's constant, the modal splat gap, and the cache all agree, and Near-Reality's 5 is a seconds→ticks slip | cache + observed |
-| M37 | Nylocas | Open — but the bias-free experiment is now a query, not a capture | — |
+| M37 | Nylocas | **Closed on 5 652 splits** — a split's pillar is near-uniform over the four: parent's pillar 26.7 %, nearest-to-spawn 29.4 % against 25 % chance, with a ~4-point same-half lean. The same method reads 88.5 % purity on wave spawns, so it would have seen a rule if there were one | 70 recorded raids |
 | M38 | Nylocas | **Closed** — it moves (up to 4 distinct tiles in one fight) | observed |
 | M39 | All | Not a research item | — |
 
-**Net: 18 questions closed (M31 closed by the cache's `attackrate`), 3 partially closed, and for every one still open there is now a
-named dataset or capture that would close it.**
+**Net: 21 questions closed (M11 and M37 by measurement in the fourth pass; M7's hitpoints by a
+Jagex newspost in the fifth), 3 partially closed. What remains genuinely open is narrower than
+a question: M6's stun length, and the two halves of M7 that Jagex did not print — the 2/3/4-man
+interpolation and the damage one nylocas does per swing. All three need the same thing, a
+client-side capture, not another source.**
 
 ---
 
@@ -1428,10 +1883,19 @@ the scripts. What is committed, in
 | `sote_maze.csv` | 26 mazes: proc, re-activation, first attack after (M10) |
 | `xarpus_exhumeds.csv` | 391 exhumeds: spawn, despawn, lifetime, heal amount, heal ticks (M12–M15) |
 | `verzik_phases.csv` | 87 rows: P1 opening and both phase transitions (M16, M20) |
+| `harvest_mazes.py` | fourth-pass fetcher: maze paths, Verzik phase streams, Nylocas lineage/positions |
+| `analyze_mazes.py` | M11 and M20: maze structure and the phase-event/npc-id/first-attack gaps |
+| `analyze_splits.py` | M37: the parked-at-a-pillar test, with the wave-spawn control |
+| `sote_maze_paths.csv` | 183 mazes as their eight even-row columns (M11) |
+| `nylo_split_pillars.csv` | 5 652 splits: pillar reached, parent's pillar, nearest to spawn (M37) |
 
 Re-run with:
 
 ```sh
 python3 harvest3.py 11 6 10,12,13,14,15   # mode, raids, stages
 python3 extract.py /tmp/blertdata
+
+python3 harvest_mazes.py /tmp/blertmaze   # fourth pass: sote + verzik + nylo streams
+python3 analyze_mazes.py /tmp/blertmaze    # M11, M20
+python3 analyze_splits.py /tmp/blertmaze nylo_split_pillars.csv   # M37
 ```

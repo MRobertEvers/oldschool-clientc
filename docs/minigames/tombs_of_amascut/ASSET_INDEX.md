@@ -257,11 +257,11 @@ in [`ENCOUNTERS.md`](ENCOUNTERS.md) §13. The handful with known attack semantic
 | 5896 | Zebak ranged split | `[nr]` |
 | 6480 | Kephri dung | `[nr]` |
 
-## 7. Music — eleven tracks
+## 7. Music — twelve tracks
 
 Table in [`ENCOUNTERS.md`](ENCOUNTERS.md) §12, sourced from
-`docs/audio/music_tracks_osrs239.tsv` (DBTable 44). Archive ids 730–741 minus
-none; unlock varps 22 bits 28–31 and 23 bits 0–7.
+`docs/audio/music_tracks_osrs239.tsv` (DBTable 44). Archive ids **730–741**, contiguous;
+unlock varps 22 bits 28–31 and 23 bits 0–7.
 
 ## 8. Interfaces, invs and vars
 

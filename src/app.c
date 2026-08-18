@@ -11598,6 +11598,17 @@ app_world_spawn_spotanim_now(
 /* Async spawn driver for the three debug hotkeys: awaits the cache loads the
  * synchronous spawn bodies assume, then runs them. Enqueued on the serial
  * exec pipeline so spawns interleave cleanly with packet exec + mounts. */
+/* Defined with the other world-entity appliers, far below; the LOC_ANIM task
+ * body needs it here. */
+static void
+app_world_scenery_anim_apply(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_shape,
+    int seq_id);
+
 enum AppSpawnKind
 {
     APP_SPAWN_PLAYER = 0,
@@ -11608,6 +11619,7 @@ enum AppSpawnKind
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
     APP_SPAWN_LOC_CHANGE,
+    APP_SPAWN_LOC_ANIM,
 };
 
 struct Task_AppSpawn
@@ -11844,6 +11856,14 @@ Task_AppSpawn_Run(
             self->proj_peak,
             self->proj_arc,
             self->proj_target);
+    }
+    else if( self->kind == APP_SPAWN_LOC_ANIM )
+    {
+        /* Nothing to await: the point of the task is its PLACE IN THE FIFO,
+         * behind any LOC_ADD_CHANGE for the same tile in the same packet. See
+         * App_WorldSceneryAnim. */
+        app_world_scenery_anim_apply(
+            app, self->tile_x, self->tile_z, self->level, self->loc_shape, self->seq_id);
     }
     else if( self->kind == APP_SPAWN_LOC_CHANGE )
     {
@@ -18240,9 +18260,55 @@ App_WorldObjStackDel(
     }
 }
 
-/** LOC_ANIM: attach a sequence to the scenery element on a tile. */
+/*
+ * LOC_ANIM: attach a sequence to the scenery element on a tile.
+ *
+ * ON THE SERIAL EXEC FIFO, BEHIND THE SAME PACKET'S LOC_ADD_CHANGE, and that is
+ * the whole reason this is a task rather than a call.
+ *
+ * The reference applies a zone loc change to the scene the moment it reads it -
+ * it has the whole cache in hand and a loctype's models are built on demand at
+ * draw time - so a LOC_ADD_CHANGE and a LOC_ANIM in one enclosed update work in
+ * the order they were written. This client cannot: a change has to wait for its
+ * loc config and every model it names to become resident (the reference's own
+ * `changeLocAvailable` gate), so `App_WorldLocChange` enqueues an async task.
+ *
+ * Applying the animation synchronously beside that made the two ops race, and
+ * the loser was always the animation: `World_SceneryFindAt` ran before the
+ * pending change had built the scenery, found the OLD loc or nothing at all,
+ * and the sequence was dropped with no error to see. The loc then stood on
+ * whatever frame its `anim=` config left it on - which is what "the loc is
+ * stuck in a frame" is, every time.
+ *
+ * Content should not have to know any of this. The Theatre's acid pools and
+ * exhumeds, the Inferno's collapsing flanks and every door script are all
+ * entitled to add a loc and animate it in the same tick, exactly as the
+ * reference lets them.
+ *
+ * The task awaits nothing itself. `ToriRS_TaskQueue_Run` runs the head task
+ * until it yields and leaves the rest queued in order, so being enqueued after
+ * the change IS the fix; with no change pending it lands in the same pass.
+ */
 void
 App_WorldSceneryAnim(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_shape,
+    int seq_id)
+{
+    struct Task_AppSpawn* task;
+
+    assert(app);
+    task = app_spawn_task_new(app, APP_SPAWN_LOC_ANIM, scene_x, scene_z, level);
+    task->loc_shape = loc_shape;
+    task->seq_id = seq_id;
+    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+}
+
+static void
+app_world_scenery_anim_apply(
     struct App* app,
     int scene_x,
     int scene_z,

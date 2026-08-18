@@ -87,7 +87,7 @@ in [`ASSET_INDEX.md`](ASSET_INDEX.md) §0.
 | `cache_interface_toa.txt` | the ten interface ids |
 | `cache_invocations_toa.tsv` | **all 46 invocations decoded out of `all.struct`** — index, struct id, name, category, raid-level modifier, numeric argument, prerequisite struct, both sprite ids and the in-game description |
 
-The music table is not a separate file: the eleven ToA tracks are already rows in
+The music table is not a separate file: the twelve ToA tracks are already rows in
 `docs/audio/music_tracks_osrs239.tsv` (dumped from DBTable 44), reproduced in
 [`ASSET_INDEX.md`](ASSET_INDEX.md) §7.
 
@@ -176,3 +176,9 @@ python3 tools/toa_cache_dump.py OSRS-Content/osrs239-content \
 
 Both were re-run against the committed files after being written, and both
 reproduce them byte for byte.
+
+And the docs are checked against the extracts:
+
+```
+python3 tools/toa_verify_docs.py
+```

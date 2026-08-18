@@ -589,7 +589,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 test-mock230-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract test-construction-catalog test-poh-quest-status bench-uitree test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 test-mock230-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
@@ -1037,13 +1037,19 @@ define RS2012_REQUIRE_SRC_CACHE
 		echo "  Copy it there, or pass RS2012_SRC_CACHE=<dir>." >&2; exit 1; }
 endef
 
+# A bake is not a compile: it reads the lane's directories directly, so it names
+# its own path here rather than discovering it from lane.ini the way the script
+# compile does. Recursive `=` so MOCK230_CONTENT_DIR (defined further down, and
+# overridable) is expanded when a recipe runs.
+RS2012_QBD_TD_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
+
 # Both the source cache and the tree are usually supplied from outside, and on
 # Windows the usual mistake is a backslash path, which make's shell eats
 # silently -- the bake then reports a missing pack under a mangled name. Check
 # the lane up front and say which variable is wrong.
 define RS2012_REQUIRE_LANE
-	@test -d "$(RS2012_QBD_TD_CLIENT_LANE)" || { \
-		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_CLIENT_LANE)" >&2; \
+	@test -d "$(RS2012_QBD_TD_LANE)" || { \
+		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_LANE)" >&2; \
 		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
 		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
 		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
@@ -2136,9 +2142,9 @@ MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 # Each lane now describes itself in `<content>/ported/<lane>/lane.ini`, which is
 # what makes adding a fifth lane, or leaving one out, a content edit rather than
 # a makefile edit. See the mock230-scripts-lanes recipe below and
-# src/serverscript/ssc_lane.h. The cache bakes still name their own lane paths
-# (SUMMONING_LANE further down): a bake is not a compile and reads different
-# directories.
+# src/serverscript/ssc_lane.h. The cache bakes and the per-lane cs2 tests still
+# name their own lane paths (SUMMONING_LANE, CURSES_LANE, RS2012_QBD_TD_LANE):
+# a bake is not a compile and reads different directories.
 #
 # `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
 # `names/` is the layer it replaced and may not exist; sscompile skips a missing
@@ -2199,6 +2205,16 @@ check-quest-combat-contract:
 
 check-charter-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_charter_contract.py
+
+# The Theatre's Nylocas pillars are the one npc in the raid whose hitpoints go UP
+# as the party shrinks (Jagex published 130 at five players and 330 solo). That
+# inverts the convention every boss here uses, and the failure mode is silent:
+# `npc_statheal` cannot raise an npc above its config base, so a support authored
+# at the five-man 130 would hand every smaller party a five-man pillar with the
+# scaling line still compiling and still running. No script command can read
+# another npc type's base, so `~tobrun` cannot assert this and it lives here.
+check-tob-pillar-contract:
+	@cd $(REPO_ROOT) && python3 tools/check_tob_pillar_contract.py
 
 test-construction-catalog:
 	@cd $(REPO_ROOT) && python3 tools/check_construction_catalog.py --self-test \
@@ -2282,7 +2298,7 @@ mock230-lanes: sscompile
 # This is the target every content contract hangs off, so it carries them all;
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed.
-mock230-scripts: check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract
+mock230-scripts: check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
 	@$(MAKE) mock230-scripts-lanes \
 		MOCK230_SCRIPT_LANES= \
 		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build
@@ -2640,6 +2656,9 @@ test-summoning-byte-identity:
 CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
+# As with SUMMONING_LANE: the cs2 test compiles the lane's own scripts, so it
+# needs the path, not the lane.ini discovery the server-script build uses.
+CURSES_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
 
 mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
@@ -2710,9 +2729,9 @@ test-curses-cs2:
 	@test -d "$(RUNESTAR_CS2_NAMES)" || { \
 		echo "test-curses-cs2: missing RuneStar names: $(RUNESTAR_CS2_NAMES)" >&2; exit 1; }
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
-		expected=$$(find "$(CURSES_CLIENT_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
+		expected=$$(find "$(CURSES_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
-		$(CS2_BIN) compile --src "$(CURSES_CLIENT_LANE)/scripts" \
+		$(CS2_BIN) compile --src "$(CURSES_LANE)/scripts" \
 			--cache "$(MOCK230_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \

@@ -1049,11 +1049,22 @@ south-west anchors, and `~tob_st_pillar_geometry` pins the relationships.
 - A pillar reaching 0 collapses, deals **up to 50** to everyone in the room, and
   the nylocas that were attacking it **switch to attacking players**.
 - All four down = **instant team death**.
-- Pillar hitpoints come from **the cache**, not from a guess: `tob_nylocas_support` carries
-  `stat4=130` (Hard 10811 = 150, Entry 10790 = 155), and `stat4` is hitpoints in every other
-  record in this room — the small nylo's is 11 and the big's is 22, exactly the 5-man figures
-  §18.1 takes from blert. What is still **[MEASURE M7]** is the other half: how much one
-  nylocas takes off a pillar per swing.
+- Pillar hitpoints are **Jagex's own, and they scale the opposite way to the bosses**. The
+  21 June 2018 newspost states both ends: *"Players in groups of five will find that the
+  pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that
+  the pillar has been reduced from 350 hitpoints to 330 hitpoints."* So a **smaller party
+  gets a bigger pillar**, and the cache's `stat4=130` on `tob_nylocas_support` (Hard 10811 =
+  150, Entry 10790 = 155) is the **five-man anchor** — the same convention as every boss,
+  and the same `stat4` that gives the small nylo 11 and the big 22. The two published points
+  fit `hp = 380 − 50 × party` → **330 / 280 / 230 / 180 / 130**; 2/3/4-man are that
+  interpolation. The combined bar is therefore 4 × the per-party figure, so a five-man room
+  opens at 520 and a solo at 1320.
+- Because the curve runs *upwards*, the support npc records are authored at the **solo**
+  figure (330 / 350 / 355) rather than the cache's five-man one: `npc_statheal` cannot raise
+  an npc above its config base, so a base left at 130 would silently give every small party a
+  five-man pillar. Bosses have the opposite problem and are authored at their five-man value.
+- What is still **[MEASURE M7]** is the other half: how much one nylocas takes off a pillar
+  per swing.
 
 #### 8.4.1 Which pillar each nylo attacks — **M24, measured**
 
@@ -1385,9 +1396,15 @@ Region 12612, area (3162, 4379) 17 × 17. Three phases with three different cloc
 
 | | ≤3 | 4 | 5 |
 |---|---:|---:|---:|
-| Normal | 3810 | 4445 | 5080 |
+| Normal | 3750 | 4375 | 5000 |
 | Hard | 4500 | 5250 | 6000 |
-| Entry | 680 (blert) | | |
+| Entry | **520 per player** (cache + Wiki; blert's 680 is stale) | | |
+
+The Normal ladder is the **cache's own `stat4` (5000) and the Wiki's infobox**,
+scaled 0.75 / 0.875 / 1.0 — the same ladder the Hard figures follow off 6000.
+blert says 3810 / 4445 / 5080, which is that ladder off a base of 5080 and is
+not what either the cache or the Wiki carries. Entry is 520 **per player**
+(§M19), not a flat 680.
 
 Level 960. Defence **250** in Normal, lowered to **200** in Hard Mode. Ranged
 defence +160 across the board; **no melee defence** — which is why a scythe is the
@@ -1443,6 +1460,20 @@ Clock, from blert: **the first spit is 7 ticks after the phase starts, then ever
 - The spit is aimed at a player chosen by **orb order**, lands on one tile, and
   splashes a **3 × 3**. The **first** player's splat chains to the next player in
   order; the rest chain to the next **two**.
+- **The 3 × 3 is the damage area, not nine objects.** What lands is ONE
+  `Acidic miasma` (32744) on the tile the orb hit, rotated by which quadrant of
+  the room it fell in, and everything within one tile of it takes the hit —
+  Near-Reality's `poisonNearbyPlayers` is `withinDistance(splat, 1)` over a
+  single `WorldObject`. Placing a loc on all nine tiles fills the arena with a
+  chequerboard the live game never shows.
+- **The arcs.** The spit leaves his body high and lands ON the floor
+  (start 80 → end 0, 40°, 60 cycles + 5 per tile); a chained splat is thrown from
+  the puddle that just landed, so it starts low and is lobbed harder (10 → 0,
+  60°). The exhumed's heal orb is the mirror image and is **fast**: ground → 80
+  at 60°, 30 cycles plus one per tile — about one tick across the arena, where a
+  flat 8-cycles-per-tile shot took three and read as a bubble drifting sideways.
+  All four are Near-Reality's `Projectile` figures, converted from its degrees to
+  the client's 64-per-right-angle units.
 - If every player is on the same tile, or only one player is present, the splat
   goes to a **random uncovered tile**.
 - A poisoned tile is **permanent for the rest of the fight**. Standing on or
@@ -1508,7 +1539,8 @@ when exhumed_budget hits 0 and the last exhumed has despawned:
     +7    FIRST SPIT.
     then every 4 ticks: SPIT
         +0  seq 8059; pick the target by orb order; launch 1555 at their tile.
-        +n  land: 3x3 splash, ground objects 32744, sound 4005; chain to the next
+        +n  land: ONE ground object 32744 on the locked tile, sound 4005, and
+            the 3x3 around it takes the hit; chain to the next
             player (first target) or the next two (subsequent targets); if all
             players share a tile or only one is present, pick a random uncovered
             tile instead.
@@ -1996,8 +2028,8 @@ approximation and tag it in `tob.constant`.
 | M3 | Maiden | **Closed** — stated outright by `TobMistakeTracker`'s `MaidenMistakeDetector`: flight = **50 + 15·d client cycles** (d = tiles from her *hitbox*; 1 tile = 65 cycles), the two bonus splats on the furthest player are **+25 cycles** so they always activate a tick later, and the landed splat lasts **exactly 11 ticks**. `ticks = floor(cycles/30)`. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M4 | Maiden | **Closed.** Ten fixed slots (5 north, 5 south) each with a "scuffed" variant one tile east and one tile outward; table matches blert's constants and 462 recorded spawns. **Scale 5 uses all ten every time**; below that a **fresh uniform subset of 2 × scale** is drawn per spawn (per-slot counts χ² p ≈ 0.92). Spawn is **on the transmog tick itself** — crab spawn tick == Maiden id-change tick in 81 of 81 events. The scuff applies to the whole spawn set at once (2 of 60 events), not per crab. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M5 | Maiden | **Closed — 30 ticks.** Measured 29 ticks of active life per trail tile (80 % of 3 366 recorded runs; longer runs are a spawn re-covering its own trail), and Zenyte's `BloodTrail` states the constant outright — `ticks = 31`, active at 30, removed at 0, with a `resetTimer()` that restarts it on re-cover. Two sources, one off-by-one: **use 30**. The Wiki's "roughly 20–30 seconds" measures the lifetime of a *patch* under a circling spawn, not of a tile. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M6 | Bloat | **Two of three closed, third has a lead.** **16 hands per drop**; **shadow→land is 3 ticks** (stated by TobMistakeTracker, and blert's drop→splat delta is 3 with no exceptions, and Zenyte independently drops on `ticks % 5 == 0` and lands on `% 5 == 3`); the **drop cadence is HP-gated — 6 ticks above the threshold, 4 below**, bracketed to **(34 %, 41.3 %]** and proven by one raid that did both in different walks. Down phase is ~33 ticks (Zenyte `freeze(32)`). **Stun duration:** Zenyte says **3 ticks** (`member.stun(3)`, `Entity.stun(int ticks)`) — the only figure any source gives, but it is suspiciously equal to the shadow delay two lines above it, so implement it tagged and confirm with a splat-tick→first-action capture. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M7 | Nylocas | **Half closed — by the cache; the scaling question is now firmly open.** Pillar hitpoints: `stat4=130` on `tob_nylocas_support` (Hard 150, Entry 155). Three sources give three figures — cache **130**, Zenyte `380 − 20 × party` (360 solo…280 at five), Near-Reality **flat 500** — and the two servers do not even agree on *whether* it scales, which is the clearest sign neither author knew. Keep the cache: on every ToB npc verified in this pass its `stat4` was right (Maiden 3500, small nylo 11, big 22, web 10, and the whole Entry per-player table behind M19). blert never sees the supports (only ids 8342–8357 appear), so the API cannot help; needs a capture of the support's HP varbit in a trio and a five-man. **Damage per swing** now has a first figure: Zenyte deals a flat `large ? 4 : 2`, so the disclosed `^tob_nylo_pillar_hit_max = 2` matches for smalls and **4 for bigs** is a new lead. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M6 | Bloat | **Two of three closed, third has a lead.** **16 hands per drop**; **shadow→land is 3 ticks**, now with a first-party origin: Jagex made the shadows appear *"one cycle earlier"* (13 Jun 2018) and the hands *"take slightly longer to fall"* (21 Jun 2018), which is how a 2-tick warning became 3 — matching TobMistakeTracker's stated 3, blert's drop→splat delta of 3 with no exceptions, and Zenyte's `% 5 == 0` drop / `% 5 == 3` land; the **drop cadence is HP-gated — 6 ticks above the threshold, 4 below**, bracketed to **(34 %, 41.3 %]** and proven by one raid that did both in different walks. Down phase is ~33 ticks (Zenyte `freeze(32)`). **Stun duration:** Zenyte says **3 ticks** (`member.stun(3)`, `Entity.stun(int ticks)`) — the only figure any source gives, but it is suspiciously equal to the shadow delay two lines above it, so implement it tagged and confirm with a splat-tick→first-action capture. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M7 | Nylocas | **Hitpoints closed — by Jagex, not by the cache.** The 21 June 2018 newspost that cut the first 21 waves states both ends outright: *"Players in groups of five will find that the pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has been reduced from 350 hitpoints to 330 hitpoints."* So pillars **scale upwards as the party shrinks** — the only thing in the raid that runs opposite to the bosses — and the cache's `stat4=130` is the **five-man anchor**, exactly as it is for every boss. The two published points fit one line, **`hp = 380 − 50 × party`** → 330 / 280 / 230 / 180 / 130, and 2/3/4-man are that interpolation rather than measurements. Corroboration that the *slope* is real and not fitted: the Zenyte family carries `380 − partySize * 50` — this exact line — on **Verzik's** pillars while giving the nylo supports a `380 − partySize * 20` that matches nothing Jagex said; and [User:Mc/Mechanics/ToB](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB) independently states pillars have *"more HP in lower scales, and will scale down to 1"*. Hard and Entry keep their cache five-man anchors (150 / 155) with the same −50 step carried on, disclosed as an assumption. **Still open: damage per swing** — `^tob_nylo_pillar_hit_max = 2` matches Zenyte's small-nylo figure, its big-nylo 4 is that tree's alone, and the Wiki's 17/24 are max hits against *players* (at 17 one small would delete a five-man pillar in eight swings). Implemented: `^tob_nylo_pillar_hp_step`, a scale-aware `~tob_nylo_pillar_hp`, and support npc bases re-authored to the **solo** figure because `npc_statheal` cannot raise an npc above its config base. The engine needed no new opcode (authored `hitpoints=` already reaches `base_hitpoints`); the base-vs-solo coupling is pinned by `tools/check_tob_pillar_contract.py` in the `mock230-scripts` build, since the opcode table is generated from the reference server and cannot be extended locally. `::tobrooms` had pinned the old flat assumption and now checks base against the solo figure *and* current against the party's figure. See [`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M8 | Nylocas | **Closed.** `boss_spawn = first wave-check tick ≥ cleanup_end + 16`, i.e. four full cycles after the last nylo *despawns*, rounded up to the next cycle-0 tick. Reproduces **22 of 22** recorded raids exactly (observed deltas 16–19), and blert's own guide words it as "the start of the 5th cycle following the despawn". Keyed on despawn, not death — the death→despawn delay is itself a function of size, cause and whether it was walking. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M9 | Nylocas | **Regular closed; Entry resolved on the balance of evidence.** Vasilias always spawns **melee**, first switches **9 ticks** after spawn, then exactly every **10 ticks**, and **never repeats a style** (185 recorded switches; Zenyte independently does `ticks % 10` with `types.remove(type)`). For Entry the Wiki contradicts itself: the [Nylocas Vasilias](https://oldschool.runescape.wiki/w/Nylocas_Vasilias) page says the boss "takes longer to switch colours" with no figure, while [Theatre of Blood/Entry Mode](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Entry_Mode) says it "will change colours after 10 ticks (6 seconds)" and "will never remain in the same form twice in a row". The cache backs the specific number — the `_story` boss records are structurally identical to the regular ones, same `param=attackrate,int,4` — and blert is a dead end (its entire database holds **one** Entry raid, unfinished). **Implement Entry at 10 ticks, tagged**, and soften §8's claim of a longer interval. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M10 | Sotetseg | **Closed — 1 tick.** He flips to his inactive npc id on the maze proc tick and back on maze end; the first post-maze attack is the **very next tick** in 25 of 26 recorded mazes. The gap from his *last pre-maze* attack is 25–51 ticks and is pure noise — it tracks how fast the player ran the maze, which is why this looked open. He can also attack *on* the proc tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
@@ -2093,7 +2125,7 @@ italic values are Wiki prose; anything marked `[Mn]` is unmeasured.
 | Nylocas Prinkipas (size 3, `attackrate` 4) | — | **300 / 350 / 400** | — |
 | Nylocas Vasilias | **1875 / 2187 / 2500** | **1875 / 2187 / 2500** | 360 |
 | Sotetseg | **3000 / 3500 / 4000** | **3000 / 3500 / 4000** | 560 |
-| Xarpus | **3810 / 4445 / 5080** | **4500 / 5250 / 6000** | 680 |
+| Xarpus | **3750 / 4375 / 5000** | **4500 / 5250 / 6000** | 520/player |
 | Verzik P1 | **1500 / 1750 / 2000** | **1500 / 1750 / 2000** | 240 |
 | Verzik P2 / P3 | **2437 / 2843 / 3250** | **2437 / 2843 / 3250** | 320 |
 | Verzik Matomenos | **150 / 175 / 200** | **150 / 175 / 200** | — |

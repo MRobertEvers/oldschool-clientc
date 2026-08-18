@@ -58,11 +58,40 @@ def build_fixture(root: Path, cache_time: float) -> tuple[Path, Path, Path]:
     return tree, base, cache
 
 
+def build_content(tree: Path, cache_time: float) -> None:
+    """The ordinary tree the base bake reads, added to an existing fixture."""
+
+    old = cache_time - 100
+    put(tree / "configs/all.npc", "[maiden]\n", mtime=old)
+    put(tree / "pack/npc.pack", "0=maiden\n", mtime=old)
+    put(tree / "fields/npc.ini", "hitpoints=1\n", mtime=old)
+    put(tree / "models/rs_model_1.ob3", mtime=old)
+    put(tree / "interfaces/161/0.ifb", mtime=old)
+    # A config authored beside the scripts that use it — rank 1 of cachepack's
+    # two config roots — and the .rs2 sources it sits among.
+    put(tree / "server/scripts/minigame_tob/configs/tob.npc", "[maiden]\n",
+        mtime=old)
+    put(tree / "server/scripts/minigame_tob/scripts/tob_maiden.rs2", mtime=old)
+    # sscompile's output, rewritten on every launch.
+    put(tree / "server/scripts/build_summoning/script.dat", mtime=old)
+
+
 def run(tool, tree: Path, cache: Path, base: Path, extra: list[Path] = []) -> int:
     argv = ["--cache", str(cache), "--lane", LANE, "--tree", str(tree),
             "--base", str(base)]
     for path in extra:
         argv += ["--input", str(path)]
+    return invoke(tool, argv)
+
+
+def run_base(tool, tree: Path, cache: Path, base: Path) -> int:
+    """Base-bake mode: the same predicate with no --lane."""
+
+    return invoke(tool, ["--cache", str(cache), "--tree", str(tree),
+                         "--base", str(base)])
+
+
+def invoke(tool, argv: list[str]) -> int:
     saved = os.sys.argv
     os.sys.argv = ["cache_overlay_stale.py"] + argv
     try:
@@ -146,6 +175,74 @@ def main() -> int:
         check("TORIRS_FORCE_CACHE_BAKE=1", run(tool, tree, cache, base),
               tool.STALE, failures)
         del os.environ["TORIRS_FORCE_CACHE_BAKE"]
+
+        # ---- the ordinary content bake (no --lane) ----------------------
+        #
+        # The hole this mode closes: nothing watched the tree proper, so a
+        # launcher answered "up to date" for a cache whose configs, interfaces
+        # and sprites were months behind, and every lane overlay stacked on it
+        # inherited that through its own --base.
+        build_content(tree, now)
+        baked = root / "cache.baked"
+        for name in ("main_file_cache.dat2", "main_file_cache.idx7",
+                     "main_file_cache.idx255"):
+            put(baked / name, mtime=now)
+
+        check("base: untouched tree", run_base(tool, tree, baked, base),
+              tool.FRESH, failures)
+
+        for label, member in (
+            ("exported config", "configs/all.npc"),
+            ("authored config beside its scripts",
+             "server/scripts/minigame_tob/configs/tob.npc"),
+            ("name pack", "pack/npc.pack"),
+            ("field register", "fields/npc.ini"),
+            ("asset payload", "models/rs_model_1.ob3"),
+            ("interface", "interfaces/161/0.ifb"),
+        ):
+            path = tree / member
+            os.utime(path, (now + 10, now + 10))
+            check(f"base: newer {label}", run_base(tool, tree, baked, base),
+                  tool.STALE, failures)
+            os.utime(path, (now - 100, now - 100))
+
+        # The two that must NOT bake, and the reason the config root can be
+        # watched at all. A `.rs2` is not a cache input (pure server work
+        # travels by mock230-scripts + mock230-servpack), and script.dat is
+        # rewritten by every launch — either one, unfiltered, would rebake
+        # 440 MB on every keystroke and never settle.
+        for label, member in (
+            ("server script source",
+             "server/scripts/minigame_tob/scripts/tob_maiden.rs2"),
+            ("compiled script pack",
+             "server/scripts/build_summoning/script.dat"),
+        ):
+            path = tree / member
+            os.utime(path, (now + 10, now + 10))
+            check(f"base: newer {label} does not bake",
+                  run_base(tool, tree, baked, base), tool.FRESH, failures)
+            os.utime(path, (now - 100, now - 100))
+
+        # A lane edit belongs to the lane's own bake. Left in the ordinary walk
+        # it would rebake the base cache too, and only the overlay would carry
+        # the edit.
+        os.utime(tree / "ported" / LANE / "PROVENANCE.md", (now + 10, now + 10))
+        check("base: newer lane is not the base bake's business",
+              run_base(tool, tree, baked, base), tool.FRESH, failures)
+        os.utime(tree / "ported" / LANE / "PROVENANCE.md", (now - 100, now - 100))
+
+        # A re-unpacked pristine cache moves every record the tree does not
+        # state, exactly as in lane mode.
+        os.utime(base / "main_file_cache.idx7", (now + 10, now + 10))
+        check("base: newer pristine cache", run_base(tool, tree, baked, base),
+              tool.STALE, failures)
+        os.utime(base / "main_file_cache.idx7", (now - 100, now - 100))
+
+        # A --tree that is not a content tree cannot be answered, and "nothing
+        # changed" is the one answer that must never be invented.
+        check("base: no content tree",
+              run_base(tool, root / "nowhere", baked, base), tool.ERROR,
+              failures)
 
         # A misspelled lane is not "nothing changed" — the caller must bake (or
         # fail) rather than silently skip forever.
