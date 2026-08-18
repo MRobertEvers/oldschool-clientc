@@ -170,21 +170,21 @@
  */
 #define CS2_OP_JOIN_STRING 37
 /* POP_INT_DISCARD — Discard int.
- * operand: repeat count
+ * operand: unused (a byte, like RETURN's; NOT a repeat count)
  * int stack in:   value
  * str stack in:   -
  * int stack out:  -
  * str stack out:  -
- * notes: discards operand times
+ * notes: discards exactly one value
  */
 #define CS2_OP_POP_INT_DISCARD 38
 /* POP_STRING_DISCARD — Discard string.
- * operand: repeat count
+ * operand: unused (a byte, like RETURN's; NOT a repeat count)
  * int stack in:   -
  * str stack in:   value
  * int stack out:  -
  * str stack out:  -
- * notes: discards operand times
+ * notes: discards exactly one value
  */
 #define CS2_OP_POP_STRING_DISCARD 39
 /* GOSUB_WITH_PARAMS — Call script.

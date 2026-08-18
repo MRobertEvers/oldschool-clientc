@@ -31,6 +31,25 @@
 > tiles inside the room; `~tob_nylo_lane_coord` had each lane's two slots the
 > wrong way round; and wave 30's second south spawn was melee, which is C9.
 >
+> **17 August 2026, three defects found from a "Maiden is walking" report:**
+>
+> 1. **Every ToB boss chased.** Nothing stated `moverestrict`, so each one
+>    arrived from `combat_stats.generated.npc` with `huntmode=aggressive` and
+>    walked. Pinned in the new `configs/tob.npc` overlay (§8.7), decided by the
+>    cache's own tell - an npc whose `walkanim` is its `readyanim` has no walk.
+> 2. **The wrong hitsplat.** `p_overhit(uid, amount, HITSPLAT, lethal)` was
+>    called with `0` as the splat, and hitsplat 0 is `hitsplat_purple_star`, so
+>    every Maiden blackstorm drew a purple star. Four `damage()` calls had the
+>    same shape with the arguments transposed - splat and amount swapped - which
+>    also meant they dealt **zero damage**: the nylocas wrong-style reflect,
+>    both Sotetseg maze penalties and the Verzik P3 tornado.
+> 3. **A generated-config landmine.** `tools/gen_npc_stats.py` skips any npc
+>    that has an authored block anywhere, a rule written when the loader was
+>    first-match-wins. It now merges overlays, so that skip *deletes* the stats
+>    of any npc someone overlays. 55 npcs were already in that state - the four
+>    God Wars avatars, the Troll Stronghold bosses - one `--write` from losing
+>    `hitpoints=`. The tool now refuses to drop a block it already emits.
+>
 > Known-approximate, each tagged in the file that owns it: which pillar a SPLIT
 > attacks (M37 - rolled flat and latched), Bloat's near-side line
 > of sight and fly spread (M33),
@@ -1042,6 +1061,39 @@ the sample. The room therefore rolls a pillar per split and **latches it**; a
 re-roll each tick would leave splits pacing rather than crossing. Narrowing
 uniform vs slightly-biased is **[MEASURE M37]**.
 
+### 8.4.2 The bosses that do not walk
+
+`configs/tob.npc` is an authored **overlay**: the content loader reads
+`*.generated.npc` first and authored `.npc` files second, seeding a def once and
+applying every later block to the same record, so a block there adds fields to
+the generated one rather than replacing it. It states one thing —
+`moverestrict=nomove`, the only `MoveRestrict` the mover enforces, which also
+zeroes the wander radius at spawn.
+
+Which bosses, decided by the cache rather than by opinion: **an npc whose
+`walkanim` is its `readyanim` has no walking animation**, which is how the cache
+says it never moves (§3.2 already reads the Maiden that way).
+
+| npc | readyanim / walkanim | |
+|---|---|---|
+| `tob_maiden_*` (all six bodies) | `maiden_idle` / `maiden_idle` | pinned |
+| `tob_xarpus_static` / `_feeding` | `tob_xarpus_absorb` / same | pinned |
+| `tob_xarpus_combat` | `tob_xarpus_idle` / same | pinned |
+| `verzik_initial`, `verzik_phase1` | `verzik_phase1_idle` / *none* | pinned |
+| `verzik_phase2` | `verzik_phase2_idle` / same | pinned |
+| `tob_sotetseg_combat` / `_noncombat` | `tob_sotetseg_idle` / `tob_sotetseg_walk` | pinned **against** the tell |
+| `verzik_phase3` | `verzik_phase3_idle` / `verzik_phase3_walk` | moves |
+| `tob_bloat` | `tob_bloat_ready` / `tob_bloat_walk` | moves |
+| `tob_nylocas_*`, `nylocas_boss_*` | `top_spider_*_idle` / `top_spider_*_walk` | moves |
+
+Sotetseg is the one entry where the tell and the sources disagree: he has a real
+walk animation, but the Wiki page and §9 both say he "stands immobile in the
+north" of the arena. Two sources beat an unused animation.
+
+Nylocas Vasilias is left mobile: it shares the small nylocas animation set, so
+the tell says nothing about it, and no source in `sources/` states whether the
+boss walks — **[MEASURE M38]** rather than a guess.
+
 ### 8.5 Nylocas Vasilias
 
 `nylocas_boss_spawning` 8354 → `nylocas_boss_melee` 8355 / `_magic` 8356 /
@@ -1880,6 +1932,8 @@ approximation and tag it in `tob.constant`.
 | M21 | Verzik | Web hitpoints by party size ("depends on the amount of team members"; the Wiki's Web page says 10). |
 | M22 | All | The supply-chest point formula behind "above average / average / below average". |
 | M24 | Nylocas | **Done.** The spawn→pillar assignment, measured over 199 recorded raids; see §8.4.1 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
+| M39 | All | `tools/gen_npc_stats.py` skips any npc with an authored block anywhere in the tree — a rule from when the loader was first-match-wins. It now merges overlays, so the skip should be narrowed to blocks that actually declare stats. 394 of 754 authored blocks are overlay-only, so narrowing would emit generated stats for ~352 npcs at once: worth doing, worth its own diff. The tool currently just refuses to drop a block it already emits. |
+| M38 | Nylocas | Does **Nylocas Vasilias** walk? It shares the small nylocas animation set, so the readyanim/walkanim tell that settles every other ToB boss says nothing about it, and no source in `sources/` states it. Left mobile in `tob.npc` rather than guessed. |
 | M37 | Nylocas | Which pillar a **split** attacks. Measured as near-uniform over the four (parent's pillar 37 %, nearest 34 %, baseline 25 %), but both samples are survivorship-biased toward the near pillar. Correct for that, or watch splits in a room where nothing dies, and decide whether the roll is flat. The room currently rolls flat and latches. |
 | M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). They cover crab walk-vs-run, the underworld maze origin, whether "one tick before" means the click or the move, the Xarpus turn/fire alignment, the Verzik scan frame, projectile flight times, and whether Xarpus' cadence varies with party size. |
 

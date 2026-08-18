@@ -317,6 +317,42 @@ def find_scripted_ai(content_dir: str, exclude_path: str) -> set[str]:
     return out
 
 
+# The keys that make a block a stat DECLARATION rather than an overlay on one.
+# Any of them means the block is this npc's own combat record and this file has
+# nothing to add; none of them means it is adding a field to somebody else's.
+STAT_DECLARING_KEYS = {"hitpoints", "attack", "strength", "defence", "magic", "ranged"}
+
+
+def block_keys(content_dir: str, exclude_paths: set[str]) -> dict[str, set[str]]:
+    """gameval -> every `key` it states across the authored `.npc` files.
+
+    Same walk as `find_existing_blocks`, kept separate so that function's
+    contract (which file claims this npc) stays a one-liner.
+    """
+    out: dict[str, set[str]] = {}
+    root = os.path.join(content_dir, "server", "scripts")
+    exclude = {os.path.abspath(p) for p in exclude_paths}
+    for dirpath, _dirs, files in os.walk(root):
+        for fn in files:
+            if not fn.endswith(".npc"):
+                continue
+            full = os.path.join(dirpath, fn)
+            if os.path.abspath(full) in exclude:
+                continue
+            current = None
+            with open(full, encoding="latin-1") as f:
+                for line in f:
+                    line = line.strip()
+                    m = BLOCK_RE.match(line)
+                    if m:
+                        current = m.group(1)
+                        out.setdefault(current, set())
+                        continue
+                    if current is not None and "=" in line and not line.startswith("//"):
+                        out[current].add(line.split("=", 1)[0].strip())
+    return out
+
+
 def find_existing_blocks(content_dir: str, exclude_paths: set[str]) -> dict[str, str]:
     """gameval -> the file that already declares a `[gameval]` block for it,
     anywhere in the tree.
@@ -557,6 +593,47 @@ def main() -> None:
     npc_anims_extra = load_npc_anims_extra_lines(NPC_ANIMS_PATH)
     scripted_ai = find_scripted_ai(CONTENT, AI_OUT)
 
+    # An OVERLAY is not a replacement, and skipping an npc for one DELETES the
+    # stats this file is the only source of.
+    #
+    # `find_existing_blocks` was written when `mock230_content_npc()` resolved
+    # an npc to the FIRST `[gameval]` block in the tree, so any other block
+    # meant this file's could never be reached and emitting it was pointless.
+    # The loader no longer works that way: it reads `*.generated.npc` first and
+    # authored `.npc` files second, seeds a def ONCE and applies every later
+    # block to the same record (mock230_content.c, load_npc_generated_config /
+    # load_npc_authored_config). Authored files are overlays on top of this one
+    # now, not competitors with it, so a block carrying only
+    # `moverestrict=nomove` still wants the stats it is overlaying.
+    #
+    # The conservative reading of that: never remove a block this file already
+    # emits just because something overlays it. It adds nothing new — an npc
+    # with no block here still gets none — and it stops a silent deletion. 55
+    # npcs are in exactly that position today (the four God Wars avatars and
+    # their bodyguards, the Troll Stronghold bosses, and the Theatre of Blood
+    # bosses), every one of which would have lost `hitpoints=` on the next
+    # `--write` by an author who never touched them.
+    #
+    # Narrowing the skip to stat-bearing blocks outright is the fuller fix and
+    # is deliberately NOT made here: 394 of the tree's 754 authored blocks are
+    # overlay-only, so it would start emitting generated stats for ~352 npcs in
+    # one go. That deserves its own change and its own diff to read.
+    previously_emitted = set()
+    if os.path.exists(CONFIG_OUT):
+        with open(CONFIG_OUT, encoding="latin-1") as fh:
+            for line in fh:
+                m = BLOCK_RE.match(line.strip())
+                if m:
+                    previously_emitted.add(m.group(1))
+    authored_keys = block_keys(CONTENT, {CONFIG_OUT, NPC_ANIMS_PATH})
+
+    def overlay_only_on_existing(gameval: str) -> bool:
+        """This npc is overlaid, but by a block that states no stats of its own,
+        and this file already carries its stats. Keep emitting."""
+        if gameval not in previously_emitted:
+            return False
+        return not (authored_keys.get(gameval, set()) & STAT_DECLARING_KEYS)
+
     status_tally: dict[str, int] = {}
     combat_mismatches = []
     size_mismatches = []
@@ -575,7 +652,7 @@ def main() -> None:
         cache_combat_level = int(row["combat_level"])
         cache_size = int(row["size"])
 
-        if gameval in authored:
+        if gameval in authored and not overlay_only_on_existing(gameval):
             status_tally["authored_elsewhere"] = status_tally.get("authored_elsewhere", 0) + 1
             if args.write:
                 write_ledger(gameval, npc_id, display_name, cache_combat_level,

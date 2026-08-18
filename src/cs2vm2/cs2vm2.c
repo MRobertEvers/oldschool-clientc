@@ -5825,14 +5825,26 @@ CS2VM2_Op_PopIntDiscard(
     assert(vm);
     assert(frame);
     (void)frame;
+    /* One value, and the operand byte is NOT a count.
+     *
+     * 38/39 are two of the three opcodes (with RETURN) the loader reads a
+     * single BYTE operand for rather than an int, and the reference
+     * interpreter's whole body for them is `--isp` / `--ssp`. Reading that byte
+     * as a repeat count made the op a no-op on every call site in every cache
+     * here — all 1,588 discards in cache.osrs239, all 172 in cache.osrs184,
+     * carry operand 0 — so every proc whose return values a caller discarded
+     * leaked them. The generated stack table has said (1 int in, 0 out) all
+     * along; this is the handler catching up to it.
+     *
+     * It surfaces as a *full* operand stack far from the leak: the skill guide's
+     * Overview builds one text widget per word (script 9187) and discards two
+     * ints per word, so ~500 words of the Crafting page filled all 1024 slots
+     * and the next push failed inside script 8303.
+     */
+    (void)operand;
 
-    for( int i = 0; i < operand; i++ )
-    {
-        int intpop;
-        if( CS2VM2_PopInt(vm, &intpop) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-    }
-    return CS2VM_EXECNO_OK;
+    int intpop;
+    return CS2VM2_PopInt(vm, &intpop);
 }
 
 int
@@ -5844,14 +5856,12 @@ CS2VM2_Op_PopStrDiscard(
     assert(vm);
     assert(frame);
     (void)frame;
+    /* One value; see CS2VM2_Op_PopIntDiscard for why the operand is not a
+     * count. */
+    (void)operand;
 
-    for( int i = 0; i < operand; i++ )
-    {
-        char* strpop;
-        if( CS2VM2_PopStr(vm, &strpop) != CS2VM_EXECNO_OK )
-            return CS2VM_EXECNO_ERROR;
-    }
-    return CS2VM_EXECNO_OK;
+    char* strpop;
+    return CS2VM2_PopStr(vm, &strpop);
 }
 
 int

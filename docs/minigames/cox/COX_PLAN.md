@@ -1954,8 +1954,10 @@ The lesson F0 carries beyond CoX: a `[ai_timer]` hook that is never armed fails
 
 ### 11.6 The fix pass — what changed, 2026-08-17
 
-19 of the 22 findings are fixed. `tools/cox_verify.sh` compiles the package and
-runs 34 in-game checks green; `tools/cox_check_timers.py` is a new static gate.
+19 of the 22 findings are fixed, and the tick loop in §12 later added six more
+(F23-F28) that only a running raid could reveal. `tools/cox_verify.sh` compiles
+the package and runs 34 in-game checks green; `tools/cox_check_timers.py` is a
+new static gate; `tools/cox_sim.sh` is the running one.
 Both were mutation-tested: reverting `^cox_thieving_grubs_solo` to 20 turns check
 28 red, reverting the mystic table turns 27 red, and stripping every
 `npc_settimer` turns the timer gate red. A gate that cannot fail is not a gate.
@@ -1985,6 +1987,13 @@ Both were mutation-tested: reverting `^cox_thieving_grubs_solo` to 20 turns chec
 | F20 | CM limits stopped at 5 players | ✅ fixed | Full table + the 5,000-point bonus, check 30 |
 | F21 | Points coefficient invented | ❌ open | Still unpublished; the mini-boss decay and the penultimate-hand exclusion are also still missing |
 | F22 | **New** — enraged Tekton read as CM | ✅ fixed | He was healing 300 → 450 on enrage; max hit 78 → 59 |
+| F23 | **New** — every swing on `[ai_applayer2]`, which the engine never fires | ✅ fixed | §12.3; nothing in the raid could land a hit through engine combat |
+| F24 | **New** — `maxrange` defaulted to 7 in a 32-tile room | ✅ fixed | §12.3; 28 records now state it |
+| F25 | **New** — `npc_findhero` used as a proximity test | ✅ fixed | §12.3; it is neither a distance test nor a way to make a player active |
+| F26 | **New** — nothing put the player on Olm's floor | ✅ fixed | §12.3; every standard attack skipped, forever |
+| F27 | **New** — Tekton spawned in the room's corner wall | ✅ fixed | §12.3; now beside his anvil |
+| F28 | **New** — `[ai_spawn,olm_head]` never runs | 📋 documented | §12.3; he inherits the timer through `npc_changetype` |
+| F29 | **New** — Olm's chamber was never stamped into the instance | ✅ fixed | §12.5; the boss floor was void, and no timing assertion can see that |
 
 **F22 was found by the fix, not by the audit.** Building the stat table for F7
 meant reading Tekton's infobox version by version, and it has four:
@@ -2016,3 +2025,212 @@ on a number nobody publishes, so it stays flagged; the penultimate phase's hand
 *recovery* (the bar, the ~30 s refill, the no-points-on-a-recovered-hand rule) is
 the largest remaining piece of Olm; and none of this has been played — 34 green
 checks and a compiling package are not a raid anybody has cleared.
+
+---
+
+## 12. The tick loop — running the raid against the guide
+
+§11 read the sources and §11.6 fixed what they contradicted. Both are *static*:
+they compare code against text. Neither can answer the question that actually
+matters, which is whether the raid, running, does what the guide says — and the
+gap between those two questions is where F0 lived for weeks behind 25 green
+arithmetic checks.
+
+This section is the loop that closes it.
+
+### 12.1 What it is
+
+```sh
+tools/cox_sim.sh                 # 64 ticks per encounter, assert against the guide
+tools/cox_sim.sh 128 --trace     # longer, and print the per-tick table
+tools/cox_sim.sh --selftest      # prove the harness can fail
+```
+
+`tools/cox_sim.sh` compiles the package, enters the raid, makes the player
+unkillable, runs world ticks, and asserts the strategy guide's timings against a
+tick-by-tick trace of what the encounters actually did. The assertions live in
+[`src/net/mock/mock230_cox_sim.c`](../../../src/net/mock/mock230_cox_sim.c),
+in its own translation unit so a few hundred lines of encounter assertions do not
+grow inside a selftest file three sessions edit at once.
+
+**The trace channel.** Content writes `%cox_trace_action` + `%cox_trace_serial`
+on every decision (`~cox_trace`, codes in `cox.constant`); the harness samples
+both once per tick. The *serial* is what makes it a channel rather than a
+snapshot — sampling the action code alone cannot tell "the same attack twice in
+a row" from "one attack and a tick of silence", and telling those apart is the
+entire question a 4-tick clock asks.
+
+**Immortality is a hitpoint pool, not `::god`.** This is the one design decision
+worth arguing with, because `::god` is the obvious lever and it is wrong: it
+zeroes `amount` in the one player damage funnel, which is the exact number the
+harness exists to read. Under `::god` a boss that hits for 30 and a boss that
+does not attack at all are indistinguishable. `player->hitmark_count` is not a
+way round it either — the hitmark list describes one tick and is cleared at the
+end of every one, so sampling it after `mock230_world_tick` returns 0 forever.
+The first version of the harness asserted on exactly that column and reported
+"Olm never landed a hitsplat" against a boss landing them correctly. So the
+player is held at 99 and topped back up after each tick, with the drop recorded
+first: unkillable **and** measurable.
+
+### 12.2 What the trace looks like
+
+The whole point is that it is readable. Olm, mid-fight:
+
+```
+  4 olm.basic            hurt=24  p@6432,44  7551@6429,45/800
+  8 olm.empty            hurt=0   ...
+ 12 olm.basic            hurt=11  ...
+ 16 olm.CRYSTAL_BURST    hurt=0   ...
+```
+
+Actions on a 4-tick grid, the empty event where the guide says it is, the special
+slot firing at step 4 — and `hurt=` proving it reached a player. Tekton:
+
+```
+ 12 tekton.swing  hurt=4    15 tekton.swing  hurt=34    18 tekton.swing  hurt=13
+ 21 tekton.swing  hurt=35   24 tekton.swing  hurt=43    27 tekton.swing  hurt=29
+```
+
+Ticks 12, 15, 18, 21, 24, 27 — the guide's three-tick cycle, which it states
+outright and recommends a metronome for.
+
+### 12.3 What the loop found on its first runs
+
+Every one of these was invisible to both the arithmetic suite and the source
+audit, and each was found by watching a trace rather than by reading code.
+
+**F23 — every encounter's attack was on a trigger the engine never fires.**
+The engine's npc combat tick fires **`[ai_opplayer2]`** for the swing and gates
+it on `attack_clock`, advanced by the record's `param=attackrate`
+(`mock230_combat.c`). `applayer2` is the *approach* action, consumed by the mode
+phase before the clock-owned swing. Every CoX encounter — Tekton, Vasa, the
+Guardians, the shamans, the mystics, the Muttadiles, the ice demon — had its
+damage hook on `[ai_applayer2]`. **Nothing in the raid could land a hit through
+the engine's own combat.**
+
+Two wrong fixes were tried against the symptom first, and both are worth naming
+because each looked right and the trace killed each in one run:
+
+- `npc_setmode(applayer2)` once on arrival → Tekton swung **exactly once**, then
+  stood there. The mode is consumed by the dispatch; the target survives it.
+- re-asserting that mode every tick → Tekton swung **every tick**, because the
+  mode dispatch runs *before* the clock and bypasses `attackrate` entirely.
+
+The trace made both unmistakable: one `tekton.swing` on tick 12 and 51 silent
+ticks, then a solid run on 12, 13, 14, 15… against a guide that says 3. With the
+hook on the right trigger the correct amount of script is: set the target, and
+let the engine own the cadence.
+
+**F24 — `maxrange` defaults to 7, and a CoX room is 32 tiles.** The engine
+leashes a chase to `maxrange` measured from the npc's **spawn tile**. Every
+pursuer in the raid therefore gave up before crossing a third of its own room,
+silently and totally: take a target, cannot legally approach it, stand still
+forever. Tekton did that for 64 consecutive ticks with his position unchanged on
+all of them. `maxrange=32` is now stated on all 28 pursuing records; the three
+that deliberately do not chase (Guardians, ranged Vanguard, Olm) carry
+`givechase=no` instead, which is what makes the rule visible.
+
+**F25 — `npc_findhero` is not a proximity test and does not make a player
+active.** It reports the active player unconditionally — no distance, no plane —
+so `if (npc_findhero = false) return;` is true the instant a room loads and false
+never. Worse, it does not *make* a player active, and `npc_attackplayer` aborts
+the script outright without one. Tekton's wake was written as
+findhero-then-attackplayer, so he transformed and then died mid-script, standing
+in his fighting form with no target. `huntall`/`huntnext` is the distance-aware
+question **and** the thing that makes a player active, so everything needing a
+player now happens inside its loop.
+
+**F26 — Olm's chamber is a plane of its own, and nothing put the player on it.**
+`~cox_olm_zone_occupied` is plane-aware, so with the player two floors up it
+answered false on every action: Olm skipped every standard attack, banked the
+catch-up debt, and swerved his head forever. The trace was 16 consecutive
+`olm.skip` on a *perfect* 4-tick grid — a boss whose clock is right and whose
+fight does not exist. `~cox_olm_enter` now teleports onto the boss floor and
+seeds the facing from where the player arrives.
+
+**F27 — Tekton spawned in a wall.** `~cox_room_coord(0, 0)` is the room's
+south-west corner. He belongs at his anvil — "Tekton is seen working with his
+magnetic anvil" — and the corner is ~18 tiles from the tile a player enters on,
+outside any honest notice range. He now spawns four tiles south of the surveyed
+anvil position.
+
+**F28 — `[ai_spawn,olm_head]` never runs.** Olm is added as `olm_head_spawning`
+and reaches `olm_head` by `npc_changetype`, which does not re-dispatch spawn; the
+timer interval carries across the transform, so the head inherits its clock from
+the form it grew out of. The block is kept as belt and braces, but it is not what
+arms him — and setting it to 0 changes nothing, which is a trap for anybody
+testing this. It cost one round of the harness's own selftest, which mutated
+exactly that no-op line, compiled cleanly, and concluded the gate was worthless.
+
+### 12.4 The gates, and why each can fail
+
+Three gates now cover CoX, and none of them is trusted without a demonstration
+that it goes red:
+
+| Gate | Question | Its own failure proof |
+|---|---|---|
+| `tools/cox_verify.sh` | is the arithmetic right? | mutate a constant → check 28 red |
+| `tools/cox_check_timers.py --selftest` | is every `[ai_timer]` armed? | strip every `npc_settimer` → red |
+| `tools/cox_sim.sh --selftest` | does the running raid match the guide? | `npc_settimer(0)` on Olm's spawning form → red |
+
+The third one's proof needed two attempts and both failures are instructive. It
+first mutated `npc_anim(null, 0)`, which did not compile — and because the
+rebuild was unchecked, the harness ran against the **previous** pack, passed, and
+reported that the gate proved nothing. The gate was fine; the mutation never
+reached the server. Then it mutated `[ai_spawn,olm_head]`, which is F28's no-op.
+Both are now closed: the rebuild is checked, and the mutation targets the block
+that actually arms him.
+
+### 12.5 Sprite sheets — the half no assertion covers
+
+```sh
+tools/cox_sprite_sheets.sh          # every encounter
+tools/cox_sprite_sheets.sh olm      # just one
+```
+
+Output lands in `build/cox_sprites/<encounter>.png`, plus `all.png`.
+
+An npc can be on a perfect 3-tick clock and be invisible, mis-animated, or
+standing inside a wall — the tick harness cannot see any of that, and neither can
+a diff against the wiki. This runs the real 239 embed client under
+`SDL_VIDEODRIVER=dummy`, driven by `TORIRS_NET_CHEAT` (which sends `::` commands
+over the wire exactly as a player would type them), writes a numbered BMP series,
+and composes each into a labelled sheet.
+
+Two traps, both hit on the first run:
+
+- **Use the embedded manifest.** `manifest_osrs239_net.ini` expects a separately
+  launched mock230 on port 43596; without it the client fails with "Connection
+  refused" and then renders a perfectly good *empty* world. The sheets come out
+  looking like a raid with no monsters in it rather than like an error.
+  `manifest_osrs239.ini` is `transport=embed` and needs no second process.
+- **Put the player where the encounter is.** The room spawn procs place npcs at
+  the room origin and the player stands where they entered, so the first sweep
+  produced eight frames of an empty room with one pillar — which reads as
+  "nothing spawned" and is really "you are looking the wrong way from sixteen
+  tiles away". The `::cox*` debug commands now teleport the player to the spawn.
+
+And one trap that bit the harness rather than the raid: **do not edit the script
+while a run of it is in flight.** `sh` reads a script incrementally, so an edit
+mid-sweep splices the new text into the running instance. That produced sheets
+named `1;cox;coxolm.png` — the residue of a word-splitting bug in the old text
+being executed after the fix had already landed.
+
+**F29 — the Olm chamber had no geometry, found here and nowhere else.**
+`~cox_build_instance` stamped one room on plane 0 and nothing on plane 2, so
+`::coxolm` teleported the player onto a floor made of nothing. The tick harness
+cannot see this: none of Olm's mechanics need geometry — his zones are arithmetic
+on coordinates and his attacks are queued damage — so a boss in a void passes
+every timing assertion there is, and did. `~cox_place_olm_chamber` now stamps the
+measured 8×8-zone square (the chamber is a full 64-tile map square, not a room on
+the 32-tile grid, so it cannot go through `~cox_place_room`).
+
+**What these sheets do NOT show yet: the npcs.** The raid geometry, lighting and
+the player all render correctly; the monsters do not appear in any frame. That is
+the rev-239 wire, not CoX — `manifest_osrs239_net.ini`'s own header lists
+`NPC_INFO` among the packets "whose layout moved" that the 239 client
+deliberately refuses rather than decoding with the 230 layout
+(docs/RSPROT_OSRS239_PORT.md §6). A rev-230 twin manifest against the same cache
+was tried and does not build a world at all. So the sheets are, for now, a
+geometry and camera check — real and useful, and honestly less than the name
+promises. Closing it is a 239 NPC_INFO port, tracked there rather than here.

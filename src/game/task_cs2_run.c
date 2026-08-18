@@ -1056,6 +1056,28 @@ Task_CS2Run_Run(
                 thread->last_error_pc,
                 self->script_id,
                 (unsigned)self->active_component_id);
+            /* Operand-stack depth and the call chain. A push that fails is a
+             * FULL stack, not a bad operand, and the leak is always in a caller
+             * — without these two lines the report names the innocent script
+             * that happened to need one more slot. */
+            fprintf(
+                stderr,
+                "  stack: ints=%d/%d strs=%d/%d frames=%d\n",
+                thread->ints_stack_top,
+                CS2VM_STACK_MAX,
+                thread->strs_stack_top,
+                CS2VM_STACK_MAX,
+                thread->frame_sp);
+            for( int fi = thread->frame_sp - 1; fi >= 0; fi-- )
+            {
+                struct CS2VM2_Frame* fr = thread->frames[fi];
+                fprintf(
+                    stderr,
+                    "  frame[%d]: script %d pc %d\n",
+                    fi,
+                    (fr && fr->script) ? fr->script->script_id : -1,
+                    fr ? fr->pc : -1);
+            }
             /* Bytecode window around the failing pc — unknown/mis-stubbed
              * opcodes only surface as underflows a few ops later. */
             {

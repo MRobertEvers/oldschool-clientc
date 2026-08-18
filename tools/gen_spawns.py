@@ -147,7 +147,21 @@ INSTANCED_SQUARES = {
     (49, 67),   # Verzik
     (50, 67),   # loot room
     (50, 69),   # corridor
+
+    # The same bug, found by auditing every `map_instance_from_square` caller
+    # against its square. All three squares hold ONLY the encounter's actors,
+    # so the exclusion costs no public npc:
+    (37, 79),   # Fight Cave  - a world-spawned TzTok-Jad, copied per instance
+    (35, 83),   # Inferno     - THREE `inferno_jad_finalwave`, ditto
+    (28, 80),   # Dream Mentor - The Inadequacy
 }
+
+# Worth stating why this is fixed here rather than in each encounter: the
+# Inferno already survives it, by deleting every npc inside its fresh instance
+# on build (`npc_findallany` + `npc_del` in inferno.rs2). That is a workaround
+# for this bug, and it works, which is exactly why the bug went unnoticed for
+# so long - the arena looked right while the square underneath it was wrong.
+# The Theatre had no such sweep, so its Maiden simply appeared twice.
 
 NPC_SPAWN_EXCLUSIONS = {
     ("arena_scorpion", 2608, 3159, 0),

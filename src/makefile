@@ -472,6 +472,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 MOCK230_CORE_SRCS = net/mock/mock230_world.c \
+	net/mock/mock230_cox_sim.c \
 	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
 	net/mock/mock230_interface_state.c \
 	net/mock/mock230_poh.c \
@@ -970,6 +971,14 @@ test-cs2-resume-countdialog: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_resume_countdialog_test \
 		cs2vm2/test/resume_countdialog_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_resume_countdialog_test
+
+# POP_INT_DISCARD / POP_STRING_DISCARD (38/39) — the operand is not a count.
+# Own .PHONY line for the same reason as the target above it.
+.PHONY: test-cs2-discard
+test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_discard_ops_test \
+		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_discard_ops_test
 
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test — it
 # names the unported operation blocking the most textures, which is the number to work

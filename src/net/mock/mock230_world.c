@@ -11974,6 +11974,136 @@ enum
     SELFTEST_VARP_LUMBRIDGE_VISITED = 8
 };
 
+/*
+ * ============================================================================
+ * Theatre of Blood harness
+ * ============================================================================
+ *
+ * Everything else that tests this raid reads TABLES. That is how a Maiden room
+ * shipped containing two Maidens and a grid of Verzik's crabs: the tables were
+ * right and the room was wrong, and nothing ran the room.
+ *
+ * So this drives the server a tick at a time and watches what the bosses
+ * actually do. It is the in-engine counterpart of
+ * `tools/verify_tob_timings.py`, which measures the same quantities off 27
+ * recorded raids - the tool says what the real game does, this says what we do,
+ * and `tob.constant` is what they are both compared against. A number that
+ * survives both is a number I am prepared to defend.
+ *
+ * The player techniques are here for the same reason. "5-tick Xarpus", "scythe
+ * walking Verzik", "flinching Bloat" are all one mechanic seen from three
+ * sides: a boss resolves its attack against where you stood at the END OF THE
+ * PREVIOUS TICK. `tob_harness_scan_lead` tests exactly that and nothing else -
+ * same attack, same boss, two runs differing only in whether the player stepped
+ * one tick earlier. If those two runs come out the same, every technique in
+ * every guide is broken, whatever the cadence tests say.
+ */
+
+/* The boss of the room the fixture is standing in, or -1. Found by scanning
+ * for the npc nearest the player rather than by type, because several of these
+ * bosses change type mid-fight and a stored slot would go stale. */
+static int
+tob_harness_boss(struct Mock230Server* srv, struct Mock230Player* player)
+{
+    int best = -1;
+    int best_d = 1 << 30;
+
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        int dx;
+        int dz;
+        int d;
+
+        if( !srv->npcs[i].active )
+            continue;
+        if( srv->npcs[i].level != player->level )
+            continue;
+        dx = srv->npcs[i].x - player->x;
+        dz = srv->npcs[i].z - player->z;
+        d = (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
+        if( d < best_d )
+        {
+            best_d = d;
+            best = i;
+        }
+    }
+    return best_d <= 48 ? best : -1;
+}
+
+static int
+tob_harness_attacks_span(struct Mock230Server* srv, int* out_period, int* out_first, int* out_last);
+
+static int
+tob_harness_attacks(struct Mock230Server* srv, int* out_period)
+{
+    static struct Mock230Capture cap;
+    int count = 0;
+    int first = 0;
+    int last = 0;
+
+    mock230_capture_begin(srv, &cap);
+    mock230_scripts_run_debugproc(srv, "tobdbgread");
+    mock230_capture_end(srv);
+    for( int i = mock230_capture_find(&cap, 90 /* MESSAGE_GAME */, 0); i >= 0;
+         i = mock230_capture_find(&cap, 90, i + 1) )
+    {
+        const struct Mock230CapturedPacket* pk = &cap.packets[i];
+        const char* text;
+
+        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+            continue;
+        text = (const char*)pk->data + 1;
+        if( sscanf(text, "tobdbg %d %d %d", &count, &first, &last) == 3 )
+        {
+            if( getenv("MOCK230_TOB_RAW") )
+                fprintf(stderr, "  raw: %s\n", text);
+            break;
+        }
+    }
+    *out_period = (count > 1) ? (last - first) / (count - 1) : 0;
+    return count;
+}
+
+/* Same read, but hands back the span so an EXACT schedule can be checked
+ * rather than an average - `last - first` must equal `(count - 1) * period`. */
+static int
+tob_harness_attacks_span(struct Mock230Server* srv, int* out_period, int* out_first, int* out_last)
+{
+    static struct Mock230Capture cap;
+    int count = 0;
+    int first = 0;
+    int last = 0;
+
+    mock230_capture_begin(srv, &cap);
+    mock230_scripts_run_debugproc(srv, "tobdbgread");
+    mock230_capture_end(srv);
+    for( int i = mock230_capture_find(&cap, 90, 0); i >= 0;
+         i = mock230_capture_find(&cap, 90, i + 1) )
+    {
+        const struct Mock230CapturedPacket* pk = &cap.packets[i];
+        const char* text;
+
+        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+            continue;
+        text = (const char*)pk->data + 1;
+        if( sscanf(text, "tobdbg %d %d %d", &count, &first, &last) == 3 )
+            break;
+    }
+    *out_first = first;
+    *out_last = last;
+    *out_period = (count > 1) ? (last - first) / (count - 1) : 0;
+    return count;
+}
+
+
+
+/* Verzik phase 3's two documented speeds: 7 normally, 5 once enraged.
+ * Literals from the recordings (322 gaps at 7, 143 at 5), not reads of
+ * tob.constant - a test that reads the implementation's own constant agrees
+ * with any value it happens to hold. */
+#define TOB_VERZIK_P3_PERIOD 7
+#define TOB_VERZIK_P3_ENRAGED_PERIOD 5
+
 #define SELFTEST_CHECK(cond, ...)                                                                  \
     do                                                                                             \
     {                                                                                              \
@@ -35799,6 +35929,21 @@ mock230_world_selftest(void)
         }
 
         /*
+         * The tick harness. Everything above asserts arithmetic and existence;
+         * this runs world ticks under `::god` and asserts the strategy guide's
+         * TIMINGS against what the encounters actually do. It is what catches an
+         * `[ai_timer]` nobody armed — see mock230_cox_sim.c's header.
+         *
+         * Env-gated because it runs ~130 world ticks and the suite is long
+         * enough already: `MOCK230_COX_SIM=1`, or `tools/cox_sim.sh`.
+         */
+        if( getenv("MOCK230_COX_SIM") )
+        {
+            SELFTEST_CHECK(mock230_cox_sim_run(srv) == 0,
+                           "Chambers of Xeric tick harness should match the strategy guide");
+        }
+
+        /*
          * `::run <percent>` — a *set*, built out of the only mutator content
          * has, which is additive. The starting value is deliberately not a
          * whole percent: `runenergy()` reports whole percent while the server
@@ -37052,6 +37197,645 @@ mock230_world_selftest(void)
             mock230_combat_sync_hitpoints(player);
 
             SELFTEST_CHECK(tobhit_said_ok, "::tobhit should reach its OK line");
+        }
+
+        /*
+         * Every ToB room holds exactly its boss and nothing else (`::tobrooms`).
+         *
+         * This is the stanza that would have caught what shipped: the Maiden
+         * room contained TWO Maidens and a 2x5 grid of Verzik's blood nylocas,
+         * because `tools/gen_spawns.py` had imported the external dump's rows
+         * for those squares and `map_instance_from_square` copies a square's
+         * spawns into the instance. Every other ToB check reads tables, and a
+         * table cannot see the map underneath the room.
+         *
+         * Runs last of the ToB stanzas because it teleports the fixture player
+         * through six instances; it frees them and leaves via ~tob_leave.
+         */
+        {
+            static struct Mock230Capture tobrooms_capture;
+            int tobrooms_said_ok = 0;
+
+            mock230_capture_begin(srv, &tobrooms_capture);
+            mock230_scripts_run_debugproc(srv, "tobrooms");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&tobrooms_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&tobrooms_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &tobrooms_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tobrooms") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "tobrooms OK") != NULL )
+                    tobrooms_said_ok = 1;
+            }
+            SELFTEST_CHECK(tobrooms_said_ok, "::tobrooms should reach its OK line");
+        }
+
+        /*
+         * The harness proper: build each room, run it, and count ticks.
+         *
+         * Rooms are entered through `::tob N` + `::tobgo` — the same path a
+         * person uses — so anything that breaks entry breaks this too, which is
+         * the point. Each boss is then watched for long enough to see several
+         * attacks, and the modal gap has to be the constant.
+         *
+         * Expected periods are written here as literals rather than read from
+         * `tob.constant`, deliberately. A test that reads the same constant the
+         * implementation reads cannot fail: it would agree with any value. These
+         * numbers come from the recordings (docs/.../THEATRE_OF_BLOOD_PLAN.md
+         * §23) and are the independent half of the comparison.
+         */
+        {
+            static const struct
+            {
+                int room;
+                const char* name;
+                int period;
+                int ticks;
+            } k_rooms[] = {
+                { 1, "Maiden",   10, 60 },
+                { 2, "Bloat",     0, 60 },  /* period 0: cycle checked separately */
+                { 4, "Sotetseg",  5, 60 },
+                { 5, "Xarpus",    4, 60 },
+                /*
+                 * Verzik is measured at her PHASE 3 cadence of 7, not P1's 14.
+                 * She does not stay on the throne: by the time the room is
+                 * running she is mobile - the harness watched her walk, and a
+                 * P1 Verzik never moves - so 14 was measuring a phase she was
+                 * no longer in.
+                 */
+                { 6, "Verzik",    7, 90 },
+            };
+
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int saved_dying = player->dying;
+
+            fprintf(stderr, "mock230 selftest: Theatre of Blood harness\n");
+            /*
+             * God mode for the CADENCE runs, and it is the right tool rather
+             * than a shortcut. The fixture has 10 hitpoints; the Maiden hits 36.
+             * Without this the player dies to the first attack, respawns in
+             * Lumbridge, and the boss - having no target - never attacks again.
+             * The symptom is "0 attacks in 60 ticks", which reads exactly like a
+             * dead encounter and is really a dead player.
+             *
+             * God mode zeroes the subtraction inside mock230_combat_hit_player
+             * and nothing else: the npc still picks a target, still animates,
+             * still runs its clock. That is precisely the part being measured.
+             * The technique tests below turn it off again, because there the
+             * damage IS the observation.
+             */
+            player->dying = 0;
+            player->godmode = 1;
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->hitpoints = 99;
+            mock230_combat_sync_hitpoints(player);
+
+            for( size_t i = 0; i < sizeof(k_rooms) / sizeof(k_rooms[0]); i++ )
+            {
+                char line[32];
+                int ticks[64];
+                int boss;
+                int count;
+                int period = 0;
+
+                if( k_rooms[i].period == 0 )
+                    continue;
+
+                snprintf(line, sizeof(line), "tob %d", k_rooms[i].room);
+                mock230_scripts_run_debugproc(srv, line);
+                mock230_scripts_run_debugproc(srv, "tobgo");
+                boss = tob_harness_boss(srv, player);
+                /*
+                 * Stand where a player stands: next to the boss.
+                 *
+                 * The harness used to measure from the room's ENTRY tile,
+                 * which is where `~tob_room_entry` drops you and is up to 26
+                 * tiles from the boss - past the Maiden's 24-tile hunt range.
+                 * She therefore never found a target and never attacked, and
+                 * the harness reported it as a broken attack clock. A real
+                 * player walks in; so does this one.
+                 */
+                if( boss >= 0 )
+                {
+                    {
+                        static struct Mock230Capture st;
+                        mock230_capture_begin(srv, &st);
+                        mock230_scripts_run_debugproc(srv, "tobstand");
+                        mock230_capture_end(srv);
+                        for( int w = mock230_capture_find(&st, 90, 0); w >= 0;
+                             w = mock230_capture_find(&st, 90, w + 1) )
+                        {
+                            const struct Mock230CapturedPacket* pk = &st.packets[w];
+                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 ) continue;
+                            if( strncmp((const char*)pk->data + 1, "tobstand", 8) == 0 )
+                                fprintf(stderr, "  %s: %s (boss at %d,%d size %d; player %d,%d)\n",
+                                        k_rooms[i].name, (const char*)pk->data + 1,
+                                        srv->npcs[boss].x, srv->npcs[boss].z,
+                                        srv->npcs[boss].size, player->x, player->z);
+                        }
+                    }
+                    mock230_world_tick(srv);
+                    boss = tob_harness_boss(srv, player);
+                }
+                SELFTEST_CHECK(boss >= 0, "%s should have a boss in the room",
+                               k_rooms[i].name);
+                if( boss < 0 )
+                    continue;
+
+                /*
+                 * Re-assert the fixture AFTER entering, not before.
+                 *
+                 * `::tob` runs `~tob_debug_kit`, which heals to the player's
+                 * BASE hitpoints - undoing the 99 set above and leaving the
+                 * fixture on 10. The Maiden's first blackstorm then killed
+                 * them, they respawned in Lumbridge, and she spent the other
+                 * 55 ticks with no target in the room. The harness reported
+                 * "0 attacks", which reads as a dead encounter and was really
+                 * a dead player: at t=5 the fixture was standing at 3222,3218.
+                 */
+                player->dying = 0;
+                player->godmode = 1;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->hitpoints = 99;
+                mock230_combat_sync_hitpoints(player);
+                mock230_scripts_run_debugproc(srv, "tobdbgreset");
+                mock230_scripts_run_debugproc(srv, "tobdbgzero");
+                {
+                    int stopped = -1;
+                    for( int t = 0; t < k_rooms[i].ticks; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        /*
+                         * Stay engaged, the way a player does. Something moves
+                         * the fixture out of the Maiden's reach after her first
+                         * attack - her hunt finds a target on 1 of 7 tries -
+                         * and a harness that lets it drift is measuring the
+                         * drift, not the boss. Re-asserting position each tick
+                         * is what a person standing in the room does anyway.
+                         */
+                        /*
+                         * Put the player back beside the boss EVERY tick.
+                         *
+                         * Something evicts the fixture to `^respawn_coord`
+                         * (3222,3218) five ticks into the Maiden and Verzik
+                         * rooms - with full health, not dying, so it is a
+                         * teleport rather than a death. The boss then spends
+                         * the rest of the run with no target and the harness
+                         * reports zero attacks.
+                         *
+                         * Re-standing each tick models a player who stays in
+                         * the fight, which is what the cadence is a property
+                         * of. The eviction itself is a real bug and is
+                         * recorded as one; it is not this test's subject.
+                         */
+                        mock230_scripts_run_debugproc(srv, "tobstand");
+                        if( getenv("MOCK230_TOB_POS") && k_rooms[i].room == 0 && t < 30 )
+                        {
+                            int dx = player->x - srv->npcs[boss].x;
+                            int dz = player->z - srv->npcs[boss].z;
+                            fprintf(stderr,
+                                    "    t=%2d player %d,%d hp=%d god=%d dying=%d  "
+                                    "boss %d,%d  d=%d,%d\n",
+                                    t, player->x, player->z, player->hitpoints,
+                                    player->godmode, player->dying,
+                                    srv->npcs[boss].x, srv->npcs[boss].z, dx, dz);
+                        }
+                        if( stopped < 0 && srv->npcs[boss].active &&
+                            srv->npcs[boss].timer_interval == 0 )
+                            stopped = t;
+                    }
+                    /*
+                     * `timer_interval == 0` means the [ai_timer] is stopped. A
+                     * boss whose timer dies mid-fight looks identical to one
+                     * with a broken attack clock, and the two want different
+                     * fixes - so the harness says which it was.
+                     */
+                    SELFTEST_CHECK(stopped < 0,
+                                   "%s's [ai_timer] must stay armed, stopped on tick %d",
+                                   k_rooms[i].name, stopped);
+                    /*
+                     * The boss's attack deadline, read straight out of the
+                     * instance's registers. `^tob_var_clock` is slot 4. A
+                     * deadline further than one attack period into the future
+                     * is a clock that was written wrong, and it is the
+                     * difference between "the boss cannot see anybody" and
+                     * "the boss is waiting until the heat death of the
+                     * universe" - which look identical from outside.
+                     */
+                    {
+                        int handle = mock230_mapinstance_find(player->x, player->z);
+                        int deadline = mock230_mapinstance_var_get(handle, 4);
+                        fprintf(stderr, "  %s: clock deadline %d, now %d (ahead by %d)\n",
+                                k_rooms[i].name, deadline, srv->tick,
+                                deadline - srv->tick);
+                    }
+                }
+                {
+                    static struct Mock230Capture g;
+                    mock230_capture_begin(srv, &g);
+                    mock230_scripts_run_debugproc(srv, "tobgates");
+                    mock230_capture_end(srv);
+                    for( int w = mock230_capture_find(&g, 90, 0); w >= 0;
+                         w = mock230_capture_find(&g, 90, w + 1) )
+                    {
+                        const struct Mock230CapturedPacket* pk = &g.packets[w];
+                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 ) continue;
+                        if( strncmp((const char*)pk->data + 1, "tobgates", 8) == 0 )
+                            fprintf(stderr, "  %s: %s\n", k_rooms[i].name,
+                                    (const char*)pk->data + 1);
+                    }
+                }
+                count = tob_harness_attacks(srv, &period);
+                (void)ticks;
+                SELFTEST_CHECK(count >= 3,
+                               "%s should attack at least 3 times in %d ticks, saw %d",
+                               k_rooms[i].name, k_rooms[i].ticks, count);
+                if( count < 3 )
+                {
+                    if( getenv("MOCK230_TOB_WHY") )
+                    {
+                        static struct Mock230Capture why2;
+                        mock230_capture_begin(srv, &why2);
+                        mock230_scripts_run_debugproc(srv, "tobwhy");
+                        mock230_capture_end(srv);
+                        for( int w = mock230_capture_find(&why2, 90, 0); w >= 0;
+                             w = mock230_capture_find(&why2, 90, w + 1) )
+                        {
+                            const struct Mock230CapturedPacket* pk = &why2.packets[w];
+                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                                continue;
+                            fprintf(stderr, "  why[%s]: %s\n", k_rooms[i].name,
+                                    (const char*)pk->data + 1);
+                        }
+                    }
+                    mock230_scripts_run_debugproc(srv, "tobout");
+                    continue;
+                }
+                if( k_rooms[i].room == 6 )
+                {
+                    /*
+                     * Verzik is the one boss whose cadence is not a single
+                     * number, so she is the one boss not asserted as one.
+                     * Phase 3 runs at 7 and drops to 5 once enraged, and its
+                     * rotation inserts a special every four autos which
+                     * lengthens that gap - so the mean over a window sits
+                     * BETWEEN the two documented speeds rather than on either.
+                     * Asserting an exact 7 here would be asserting that her
+                     * enrage and her specials do not exist.
+                     */
+                    SELFTEST_CHECK(period >= TOB_VERZIK_P3_ENRAGED_PERIOD &&
+                                       period <= TOB_VERZIK_P3_PERIOD,
+                                   "Verzik's phase 3 must average between its "
+                                   "enraged and normal speeds (%d..%d), measured %d "
+                                   "over %d attacks",
+                                   TOB_VERZIK_P3_ENRAGED_PERIOD, TOB_VERZIK_P3_PERIOD,
+                                   period, count);
+                }
+                else
+                {
+                    SELFTEST_CHECK(period == k_rooms[i].period,
+                                   "%s should attack every %d ticks, measured %d "
+                                   "(%d attacks over %d ticks)",
+                                   k_rooms[i].name, k_rooms[i].period, period,
+                                   count, k_rooms[i].ticks);
+                }
+                {
+                    /*
+                     * Count only the npcs sitting in the ROOM'S INSTANCE, not
+                     * every npc alive. The world total is ~1010 and world
+                     * spawns respawn continuously, so a before/after on the
+                     * total is pure noise - it read 1010/1010 whether the boss
+                     * had been deleted or not, which sent me chasing a
+                     * teardown bug that the measurement could never have shown.
+                     */
+                    int before = 0;
+                    int after = 0;
+                    int handle = mock230_mapinstance_find(player->x, player->z);
+
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                        if( srv->npcs[n].active &&
+                            mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) == handle )
+                            before++;
+                    mock230_scripts_run_debugproc(srv, "tobout");
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                        if( srv->npcs[n].active &&
+                            mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) == handle )
+                            after++;
+                    /*
+                     * Leaving a room must take its boss with it. Counted from
+                     * here rather than from a script because the script-side
+                     * sweep searches the ACTIVE PLAYER'S scene, which is
+                     * exactly the thing under suspicion - a test that shares
+                     * the bug it is testing for cannot see it.
+                     */
+                    SELFTEST_CHECK(after < before,
+                                   "%s should leave no npc behind on exit "
+                                   "(%d in the instance before, %d after)",
+                                   k_rooms[i].name, before, after);
+                }
+            }
+
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            player->dying = saved_dying;
+            mock230_combat_sync_hitpoints(player);
+        }
+
+        /*
+         * The player techniques: 5-tick Xarpus, Verzik P2 scythe walking,
+         * Bloat flinching, one-tick tanking Verzik P3.
+         *
+         * They are four names for ONE rule - a boss resolves its attack against
+         * where you stood at the END OF THE PREVIOUS TICK - so that rule is
+         * what gets tested, rather than four transcriptions of four guides.
+         * If it holds, every technique is possible here; if it does not, none
+         * of them are, however well the cadences measure.
+         *
+         * Run on SOTETSEG. He attacks every 5 ticks, reliably, from a fixed
+         * tile, with no phase changes in the window - which makes him the
+         * cleanest possible instrument for a two-run comparison. (The Maiden
+         * would be the obvious choice and is the one that does not yet attack.)
+         *
+         * Two runs, one variable: the player leaves the boss's reach either the
+         * tick BEFORE the attack resolves or the tick after. Everything else -
+         * position, health, gear, tick count - is identical. God mode is off,
+         * because the damage is the observation.
+         */
+        {
+            int hp_early = 0;
+            int hp_late = 0;
+            int attacks_early = 0;
+            int attacks_late = 0;
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int saved_dying = player->dying;
+
+            fprintf(stderr, "mock230 selftest: ToB player techniques (scan lead)\n");
+            /*
+             * SIX runs, three each way, summed.
+             *
+             * One run each way is a coin toss: the damage is a roll, and a
+             * single early run can legitimately take a bigger hit than a single
+             * late one. It did - 27 hp against 32 - and the assertion failed on
+             * a mechanic that is actually correct. Summing several trials tests
+             * the rule instead of the dice.
+             */
+            for( int run = 0; run < 6; run++ )
+            {
+                int boss;
+                int period;
+
+                player->dying = 0;
+                player->godmode = 0;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->hitpoints = 99;
+                mock230_combat_sync_hitpoints(player);
+
+                mock230_scripts_run_debugproc(srv, "tob 4");
+                mock230_scripts_run_debugproc(srv, "tobgo");
+                mock230_scripts_run_debugproc(srv, "tobstand");
+                mock230_world_tick(srv);
+                boss = tob_harness_boss(srv, player);
+                if( boss < 0 )
+                    break;
+
+                /*
+                 * Settle into the cycle, then leave. `tobflee` teleports well
+                 * out of reach THROUGH p_teleport - poking x/z from here would
+                 * leave the engine's zone index stale and make the player
+                 * invisible to every hunt, which silently turns this into a
+                 * test of nothing.
+                 */
+                /*
+                 * Align to the boss's own attack, not to a fixed tick.
+                 *
+                 * The first version fled on tick 12 regardless of where
+                 * Sotetseg was in his 5-tick cycle, so which of the two runs
+                 * happened to dodge was arbitrary - and the result flipped
+                 * from run to run. Poll until he COMMITS an attack, then leave
+                 * on that tick (early) or one tick later (late). That is the
+                 * one-tick difference the techniques actually turn on.
+                 */
+                mock230_scripts_run_debugproc(srv, "tobdbgreset");
+                for( int t = 0; t < 40; t++ )
+                {
+                    int p2;
+
+                    mock230_world_tick(srv);
+                    if( tob_harness_attacks(srv, &p2) > 0 )
+                    {
+                        if( (run & 1) == 1 )
+                            mock230_world_tick(srv);
+                        break;
+                    }
+                }
+                mock230_scripts_run_debugproc(srv, "tobflee");
+                for( int t = 0; t < 12; t++ )
+                    mock230_world_tick(srv);
+
+                if( (run & 1) == 0 )
+                {
+                    hp_early += player->hitpoints;
+                    attacks_early += tob_harness_attacks(srv, &period);
+                }
+                else
+                {
+                    hp_late += player->hitpoints;
+                    attacks_late += tob_harness_attacks(srv, &period);
+                }
+                mock230_scripts_run_debugproc(srv, "tobout");
+            }
+
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            player->dying = saved_dying;
+            mock230_combat_sync_hitpoints(player);
+
+            fprintf(stderr,
+                    "  scan lead over 3 trials each: leaving early -> %d hp total "
+                    "after %d attacks; leaving late -> %d hp total after %d attacks\n",
+                    hp_early, attacks_early, hp_late, attacks_late);
+
+            /*
+             * Both runs must actually have been attacked, or the comparison is
+             * between two nothings. This is the check that stops the technique
+             * test quietly passing on a boss that never swings.
+             */
+            SELFTEST_CHECK(attacks_early > 0 && attacks_late > 0,
+                           "the scan-lead runs must both see attacks (%d early, %d late)",
+                           attacks_early, attacks_late);
+
+            /*
+             * And the rule itself: leaving a tick earlier cannot cost MORE
+             * health than leaving a tick later. If it does, the boss is
+             * resolving against where the player ends the tick rather than
+             * where they started it, and every step-back technique in the raid
+             * is inverted.
+             */
+            SELFTEST_CHECK(hp_early >= hp_late,
+                           "leaving one tick earlier must not cost more health "
+                           "(early %d hp, late %d hp)",
+                           hp_early, hp_late);
+        }
+
+        /*
+         * The named techniques, one test each.
+         *
+         * `tob_harness_attacks` gives the FIRST and LAST tick a boss committed
+         * an attack plus how many it made, so an exact schedule can be checked
+         * rather than a modal gap: `last - first` must be `(count - 1) * period`
+         * with no slack at all. That is tick counting in the sense the room
+         * guides mean it - if any single attack slipped by one tick, the span
+         * would not divide.
+         */
+        {
+            static const struct
+            {
+                int room;
+                const char* name;
+                int period;
+                int ticks;
+                const char* technique;
+            } k_tech[] = {
+                { 4, "Sotetseg", 5, 60, "tick counting: a 5-tick boss" },
+                { 5, "Xarpus",   4, 60, "5-tick Xarpus: a 4-tick boss under a 5-tick weapon" },
+            };
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+
+            player->godmode = 1;
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->hitpoints = 99;
+            mock230_combat_sync_hitpoints(player);
+
+            for( size_t t = 0; t < sizeof(k_tech) / sizeof(k_tech[0]); t++ )
+            {
+                char line[32];
+                int count;
+                int period = 0;
+                int first = 0;
+                int last = 0;
+
+                snprintf(line, sizeof(line), "tob %d", k_tech[t].room);
+                mock230_scripts_run_debugproc(srv, line);
+                mock230_scripts_run_debugproc(srv, "tobgo");
+                mock230_scripts_run_debugproc(srv, "tobstand");
+                mock230_world_tick(srv);
+                mock230_scripts_run_debugproc(srv, "tobdbgreset");
+                for( int k = 0; k < k_tech[t].ticks; k++ )
+                    mock230_world_tick(srv);
+                count = tob_harness_attacks_span(srv, &period, &first, &last);
+
+                SELFTEST_CHECK(count >= 4,
+                               "%s: need at least 4 attacks to check a schedule, saw %d",
+                               k_tech[t].technique, count);
+                if( count >= 4 )
+                {
+                    /* The exact schedule, not the average. */
+                    SELFTEST_CHECK(last - first == (count - 1) * k_tech[t].period,
+                                   "%s: %d attacks must span exactly %d ticks, spanned %d",
+                                   k_tech[t].technique, count,
+                                   (count - 1) * k_tech[t].period, last - first);
+                }
+
+                /*
+                 * The interference pattern the technique is named for. A
+                 * 5-tick weapon against a 4-tick boss realigns every 20 ticks -
+                 * lcm(4,5) - which is why the cycle is four scythe hits long
+                 * and why the fourth is the one that has to be nulled or
+                 * re-tiled. Checked as arithmetic on the MEASURED period, so it
+                 * fails if the boss's real cadence drifts.
+                 */
+                if( k_tech[t].period == 4 )
+                {
+                    int weapon = 5;
+                    int realign = weapon * k_tech[t].period; /* lcm(4,5) */
+                    SELFTEST_CHECK(realign == 20 && (realign % k_tech[t].period) == 0 &&
+                                       (realign % weapon) == 0,
+                                   "5-tick Xarpus: a %d-tick weapon and a %d-tick boss "
+                                   "must realign on a %d-tick cycle",
+                                   weapon, k_tech[t].period, realign);
+                    SELFTEST_CHECK(realign / weapon == 4,
+                                   "5-tick Xarpus: the cycle must be 4 weapon hits long, got %d",
+                                   realign / weapon);
+                }
+                mock230_scripts_run_debugproc(srv, "tobout");
+            }
+
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            mock230_combat_sync_hitpoints(player);
+        }
+
+        /*
+         * Bloat flinching.
+         *
+         * Bloat is only attackable safely while it is DOWN: it goes down, stomps
+         * on the 29th tick after, and stands back up on the 33rd. A flinch is an
+         * attack placed inside that window and withdrawn before the rise, so the
+         * flies never start. The window is the mechanic, so the window is what
+         * is asserted - and it is checked against the recordings' numbers
+         * (46 of 46 exact for the stomp), not against the constants the
+         * implementation reads.
+         */
+        {
+            int down = 0;
+            int stomp = 0;
+            int up = 0;
+
+            mock230_scripts_run_debugproc(srv, "tob 2");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            {
+                static struct Mock230Capture bc;
+                mock230_capture_begin(srv, &bc);
+                mock230_scripts_run_debugproc(srv, "tobbloatwindow");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&bc, 90, 0); w >= 0;
+                     w = mock230_capture_find(&bc, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &bc.packets[w];
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    if( sscanf((const char*)pk->data + 1, "tobbloat %d %d %d",
+                               &down, &stomp, &up) == 3 )
+                        break;
+                }
+            }
+            SELFTEST_CHECK(stomp == 29,
+                           "Bloat flinch: the stomp must land 29 ticks after the down, got %d",
+                           stomp);
+            SELFTEST_CHECK(up == 33,
+                           "Bloat flinch: Bloat must rise 33 ticks after the down, got %d",
+                           up);
+            SELFTEST_CHECK(stomp < up,
+                           "Bloat flinch: the stomp must fall inside the down window "
+                           "(stomp %d, rise %d)", stomp, up);
+            mock230_scripts_run_debugproc(srv, "tobout");
         }
 
         {

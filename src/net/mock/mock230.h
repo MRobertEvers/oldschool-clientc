@@ -4145,6 +4145,18 @@ mock230_world_reset(struct Mock230Server* srv);
 void
 mock230_world_tick(struct Mock230Server* srv);
 
+/*
+ * Chambers of Xeric tick harness (mock230_cox_sim.c). Enters the raid under
+ * `::god`, runs world ticks, and asserts the strategy guide's tick-level
+ * timings against a live trace. Returns the number of failed assertions.
+ *
+ * Lives in its own translation unit because it is a few hundred lines of
+ * encounter-specific assertions that have no business growing inside the shared
+ * selftest, and because that file is edited by several sessions at once.
+ */
+int
+mock230_cox_sim_run(struct Mock230Server* srv);
+
 /**
  * Route one decoded client packet into the game state.
  *
