@@ -14086,6 +14086,52 @@ mock230_world_selftest(void)
     }
 
     /*
+     * The Old School Tormented Demon contract, on its own.
+     *
+     * `::tdtest` also runs unconditionally far down this function, which is the
+     * right place for it — it is default-on coverage and belongs in the suite.
+     * This gate exists for the other situation: the monolithic tree is mid-port
+     * somewhere else, an earlier stanza aborts the VM, and the run never
+     * reaches line ~37000 to tell you whether the demon still holds. Answering
+     * "did I break the demon" should not require the rest of the tree to be
+     * green, and before this gate it did.
+     *
+     *   MOCK230_SELFTEST_TD_ONLY=1 ./src/build_opt/mock230 --selftest
+     *
+     * Same shape as MOCK230_SELFTEST_GWD_ONLY below and for the same stated
+     * reason; it runs the real procedures in the VM against the same booted
+     * world, and is not a second source-text contract.
+     */
+    if( getenv("MOCK230_SELFTEST_TD_ONLY") )
+    {
+        static struct Mock230Capture td_only_capture;
+        int td_said_pass = 0;
+
+        fprintf(stderr, "mock230 selftest: Tormented Demon focused runtime\n");
+        mock230_capture_begin(srv, &td_only_capture);
+        mock230_scripts_run_debugproc(srv, "tdtest");
+        mock230_capture_end(srv);
+        for( int i = mock230_capture_find(&td_only_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+             i = mock230_capture_find(&td_only_capture, 90, i + 1) )
+        {
+            const struct Mock230CapturedPacket* packet = &td_only_capture.packets[i];
+            const char* text;
+
+            if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                continue;
+            text = (const char*)packet->data + 1;
+            if( strstr(text, "tdtest PASS") != NULL )
+                td_said_pass = 1;
+            else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
+                fprintf(stderr, "  %s\n", text);
+        }
+        SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+        fprintf(stderr, "mock230 Tormented Demon focused selftest: %d failure(s)\n",
+                g_selftest_failures);
+        return g_selftest_failures;
+    }
+
+    /*
      * A focused God Wars lane can run against an isolated script pack even
      * while unrelated content elsewhere in the monolithic tree is being
      * ported. This executes the real procedures in the VM; it is deliberately

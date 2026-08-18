@@ -9,10 +9,20 @@ four forms: **plugin code**, **practice simulators**, **Discord role guides**, a
 **video guides**. This document names the sources, says what each one is worth, and
 records what this project took from each.
 
-The ranking rule used throughout: **code a competitive player relies on > a
-simulator built from observed data > a written guide > a video > a forum post.**
+The ranking rule used throughout: **a first-party Jagex statement > the game's own
+cache > code a competitive player relies on > a simulator built from observed data >
+a written guide > a video > a forum post.**
 A recorder that mis-times a tick produces a broken parse and gets fixed; a video
 that mis-states a tick gets 40k views.
+
+**Sweep the update newsposts before reading anybody's code.** This rule was learned
+the hard way: four passes of plugin, recorder and server reading treated the Nylocas
+pillar hitpoints as unknowable, while Jagex had published both ends of the curve in a
+patch note two weeks after launch (130 at five players, 330 solo — see
+[`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and `TOB_RESEARCH.md` M7). The same sweep then
+confirmed the supply-chest point bands, the Bloat shadow delay and the boss HP curve. The
+posts are preserved on the wiki under `Update:` titles and are readable with
+`?action=raw`; the runescape.com originals return HTTP 403 to non-browser clients.
 
 ---
 

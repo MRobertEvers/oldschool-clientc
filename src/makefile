@@ -1037,13 +1037,19 @@ define RS2012_REQUIRE_SRC_CACHE
 		echo "  Copy it there, or pass RS2012_SRC_CACHE=<dir>." >&2; exit 1; }
 endef
 
+# A bake is not a compile: it reads the lane's directories directly, so it names
+# its own path here rather than discovering it from lane.ini the way the script
+# compile does. Recursive `=` so MOCK230_CONTENT_DIR (defined further down, and
+# overridable) is expanded when a recipe runs.
+RS2012_QBD_TD_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
+
 # Both the source cache and the tree are usually supplied from outside, and on
 # Windows the usual mistake is a backslash path, which make's shell eats
 # silently -- the bake then reports a missing pack under a mangled name. Check
 # the lane up front and say which variable is wrong.
 define RS2012_REQUIRE_LANE
-	@test -d "$(RS2012_QBD_TD_CLIENT_LANE)" || { \
-		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_CLIENT_LANE)" >&2; \
+	@test -d "$(RS2012_QBD_TD_LANE)" || { \
+		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_LANE)" >&2; \
 		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
 		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
 		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
@@ -2136,9 +2142,9 @@ MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 # Each lane now describes itself in `<content>/ported/<lane>/lane.ini`, which is
 # what makes adding a fifth lane, or leaving one out, a content edit rather than
 # a makefile edit. See the mock230-scripts-lanes recipe below and
-# src/serverscript/ssc_lane.h. The cache bakes still name their own lane paths
-# (SUMMONING_LANE further down): a bake is not a compile and reads different
-# directories.
+# src/serverscript/ssc_lane.h. The cache bakes and the per-lane cs2 tests still
+# name their own lane paths (SUMMONING_LANE, CURSES_LANE, RS2012_QBD_TD_LANE):
+# a bake is not a compile and reads different directories.
 #
 # `pack/` is the one symbol file per namespace (docs/CONTENT_PACK_PLAN.md §3).
 # `names/` is the layer it replaced and may not exist; sscompile skips a missing
@@ -2640,6 +2646,9 @@ test-summoning-byte-identity:
 CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
+# As with SUMMONING_LANE: the cs2 test compiles the lane's own scripts, so it
+# needs the path, not the lane.ini discovery the server-script build uses.
+CURSES_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
 
 mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
@@ -2710,9 +2719,9 @@ test-curses-cs2:
 	@test -d "$(RUNESTAR_CS2_NAMES)" || { \
 		echo "test-curses-cs2: missing RuneStar names: $(RUNESTAR_CS2_NAMES)" >&2; exit 1; }
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
-		expected=$$(find "$(CURSES_CLIENT_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
+		expected=$$(find "$(CURSES_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
-		$(CS2_BIN) compile --src "$(CURSES_CLIENT_LANE)/scripts" \
+		$(CS2_BIN) compile --src "$(CURSES_LANE)/scripts" \
 			--cache "$(MOCK230_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \

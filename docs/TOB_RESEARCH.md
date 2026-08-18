@@ -1687,6 +1687,82 @@ reconstructions; the step height was, and that is what the 20 % figure above add
 
 ---
 
+## Fifth pass — Jagex's own newsposts, which outrank everything else here
+
+The M7 breakthrough came from a Jagex newspost, not from code. That is a standing lesson
+about the order this research should have run in, so the remaining ToB posts were swept
+deliberately. Four of them are preserved on the wiki (`?action=raw` on the `Update:` pages);
+the runescape.com originals return HTTP 403 to non-browser clients.
+
+**First-party statements outrank the cache, plugin constants, recordings and servers alike.**
+Nothing else in this document is authored by the people who wrote the encounter.
+
+### What the sweep confirmed or closed
+
+**M6 — the 3-tick shadow→land delay is first-party, and its history explains the number.**
+
+> **\[Added 13/06/18]** We'll also be making the shadows appear **one cycle earlier** at the
+> Bloat encounter. This is to give players more warning over where things will fall […]
+> — [Theatre of Blood: Feedback Tweaks](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood:_Feedback_Tweaks)
+
+> The falling hands during the Pestilent Bloat encounter […] now take **slightly longer to
+> fall**, and their shadows increase in size as they approach the ground.
+> — [Theatre of Blood Changes](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood_Changes_%26_Deadman_Summer_Finals), 21 June 2018
+
+So the delay was deliberately lengthened by **one cycle** in June 2018, which is exactly how
+a 2-tick warning becomes the **3 ticks** measured here and stated by TobMistakeTracker. The
+figure now has a first-party origin story, not just two implementations agreeing.
+(The stun *length* is still unstated — the only "stun duration" Jagex ever printed for this
+raid is Verzik's P2 bounce, below.)
+
+**M22 — the bands are verbatim first-party, and the shop prices came with them.**
+
+> A performance considered to be *above average* will be rewarded with **10-13 points**, an
+> *average performance* will reward **8-11 points**, and a *below average* performance will be
+> met by just **6-9 points**.
+> […] Saradomin brew (4) — **3 points**, Super restore (4) — **3 points**, Prayer potion (4) —
+> **2 points**, Sea turtle — **2 points**, Manta ray — **2 points**.
+> — Theatre of Blood Changes, 21 June 2018
+
+Previously cited here through a search summary; now read from the preserved post. The bands
+and the prices are settled; only the classifier behind them remains unpublished.
+
+**M31 — mode parity, stated outright.** The 2021 New Modes patch notes list, under
+*Xarpus (Story Mode)*: **"Updated Xarpus's attack speed to be the same as regular ToB."**
+Combined with the single `attackrate=4` on `tob_xarpus_combat`, there is now no mode and no
+scale on which his cadence differs.
+
+**The boss curve, first-party.** *"Players in groups of three will find that the bosses have
+**75%** of their original hitpoints. Players in groups of four will find that bosses have
+**87.5%**"* — the plan's scaling table, from the source.
+
+### Two nuances the sweep added
+
+* **M19 — Entry-mode HP tables drift, which is why blert's are stale.** The 2021 notes
+  include *"Increased Story Mode Verzik P3 Health by 200"* and *"Lowered Verzik Phase 2 health
+  by 200"*. Entry values are patched in a way the recorder community never notices, because
+  almost nobody records Entry. Prefer the cache, as this document already concluded, and
+  treat any Entry table older than the last patch as suspect.
+* **The Nylocas room cap is mode-dependent, not scale-dependent.** The same notes say
+  *"Reduced the amount of maximum nylocas that can exist at the same time in story mode"*.
+  That is consistent with the measurement above — 12 pre-wave-20 and 24 after at **every**
+  scale in Regular — and with blert's separate Hard-Mode cap of 15. It is Zenyte's
+  *party-size* reduction that has no basis.
+* **Pillar HP moved again in 2021, for Story only**: *"Nylocas Pillar HP increased by 5-10,
+  depending on group size."* So the Entry anchor (cache 155) already includes that hotfix, and
+  the increment being group-size-dependent is one more sign the pillar curve is real.
+
+### The ranking lesson
+
+`COMMUNITY_SOURCES.md` ranked sources as *code a competitive player relies on > a simulator >
+a guide > a video > a forum post*, with Jagex statements listed separately as "the only
+first-party statements that exist" — and that framing is what let four passes of plugin,
+recorder and server reading go by while the pillar number sat in a patch note. The ranking
+has been corrected to put first-party posts at the top, and the practical rule is: **sweep the
+update posts for a mechanic before reading anybody's code for it.**
+
+---
+
 ## Status summary
 
 | # | Room | Status after this pass | Basis |
@@ -1712,7 +1788,7 @@ reconstructions; the step height was, and that is what the 20 % figure above add
 | M19 | All | **Closed** — Entry scales *up* per player; the Wiki figure is the 4-player value | cache + plugin + Wiki |
 | M20 | All | **Split, with P2→P3 upgraded** — P1→P2 resets (+16, observed, 130/130); P2→P3 is **corroborated, not measured**: blert's +12 from the transition animation and Spoon ToB's +6 from the npc id name the same tick, and the 6-tick gap between those anchors is measured (122/130, 7 in the rest); Maiden's clock free-runs through crab spawns | mixed + 130 Verzik rooms |
 | M21 | Verzik | **Closed** — webs are 10 HP flat; the party scales their *number* | cache |
-| M22 | All | Bands and the death gate documented; formula unpublished, but Near-Reality's reconstruction (+3/encounter, MVP bonuses, −4/death, on the correct varbit 6460) reproduces the documented 6-point floor | Jagex/Wiki + servers |
+| M22 | All | **Bands, prices and the death gate are first-party** (10-13 / 8-11 / 6-9, brew 3, restore 3, prayer 2, turtle 2, manta 2); only the classifier is unpublished, and Near-Reality's reconstruction (+3/encounter, MVP bonuses, −4/death, varbit 6460) reproduces the 6-point floor | **Jagex newspost** + servers |
 | M23–M30 | — | Crab walk-vs-run **closed** (never >1 tile/tick); rest open | observed |
 | M31 | Xarpus | **Closed — flat 4 at every scale.** `tob_xarpus_combat` carries a single `attackrate=4`; blert's constant, the modal splat gap, and the cache all agree, and Near-Reality's 5 is a seconds→ticks slip | cache + observed |
 | M37 | Nylocas | **Closed on 5 652 splits** — a split's pillar is near-uniform over the four: parent's pillar 26.7 %, nearest-to-spawn 29.4 % against 25 % chance, with a ~4-point same-half lean. The same method reads 88.5 % purity on wave spawns, so it would have seen a rule if there were one | 70 recorded raids |
