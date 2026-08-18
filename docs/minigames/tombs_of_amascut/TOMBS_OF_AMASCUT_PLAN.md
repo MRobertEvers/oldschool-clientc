@@ -23,11 +23,16 @@
 >
 > **Three things fell out of building it**, all recorded in §12:
 >
-> 1. **`map_blocked` does not answer inside an instance** — engine gap `[E1]`,
->    found by `::toaprobe` with a control rather than assumed. The Lumbridge
->    respawn reads open; every tile within six of every ToA entry, in eleven
->    rooms on both planes, reads blocked. It is the Theatre's problem too and
->    has never surfaced there because nothing in it asks.
+> 1. **A script cannot ask `map_blocked` about a tile it teleported to in the
+>    same script** — `[E1]`. Every tile within six of every ToA entry, in eleven
+>    rooms on both planes, reads blocked, which looked like instances having no
+>    collision. `::toaprobe`'s third control settles it the other way: standing
+>    inside a freshly built room, the tile underfoot reads blocked and the
+>    Lumbridge tile the player just left still reads **open**. The scene has not
+>    moved. `mock230_scene_walk_blocked` answers "blocked" for anything outside
+>    the one currently-built scene, and the scene is rebuilt on the tick
+>    boundary rather than inside `p_teleport`. Nothing to do with instances, and
+>    it decides how every room here has to be written.
 > 2. **The 55% unique ceiling is unreachable on one player's points.** A solo
 >    raider caps at 64,000 reward points, which at raid level 400 is 17.2%. The
 >    cap binds only on a group's summed points.
@@ -391,7 +396,7 @@ phantoms reuse the path bosses' behaviour and invocations.
 | Tag | What is unknown | Where |
 |---|---|---|
 | `[D1]` | **decided** — the Nexus plus one room at a time. A party split across two paths is not modelled and `~toa_enter_room` says so | §2 |
-| `[E1]` | **engine gap.** `map_blocked` reports every instance tile as blocked; the collision map is not populated for instance coordinates. Blocks any room mechanic that needs pathing or a walkability test — crocodile aggro, baboon waves, rolling boulders, the Crondis tile-skip. Confirm a fix with `::toaprobe` | §2 |
+| `[E1]` | **content constraint, not an engine defect.** `map_blocked` answers about the one currently-built scene, which is rebuilt on the tick boundary — so a walkability test in the same script as the teleport that arrived there always reads "blocked". Any mechanic that needs one (crocodile aggro, baboon waves, rolling boulders, the Crondis tile-skip) must run a tick later than the arrival. `::toaprobe`'s three controls are what establish this; re-run them before assuming otherwise | §2 |
 | `[M1]` | puzzle-room completion point awards; only plugin estimates exist | §ENCOUNTERS §0 |
 | `[M2]` | Spitting Scarab range: 8 or 10 tiles | §6 |
 | `[M3]` | Akkha Memory Blast iteration count by path level | §6 |
