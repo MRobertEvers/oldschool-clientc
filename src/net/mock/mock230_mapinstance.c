@@ -440,6 +440,36 @@ mock230_mapinstance_find_owner(
     return 0;
 }
 
+/*
+ * The first live reservation carrying every requested flag, whoever owns it.
+ *
+ * Sibling of `mock230_mapinstance_find_owner` above and deliberately NOT the
+ * same question. That one refuses `player_uid <= 0` because "an instance I
+ * own" needs an owner; this one exists for the player who wants to join an
+ * instance somebody ELSE owns and has no way to name them. A zero mask is
+ * refused rather than matching everything: "any instance at all" is not a
+ * question content should be able to ask, because the answer would include
+ * every unrelated house, raid and minigame in the pool.
+ *
+ * Lowest handle first, so the answer is stable across calls in one tick.
+ */
+int
+mock230_mapinstance_find_flagged(int required_flags)
+{
+    uint32_t required = (uint32_t)required_flags;
+
+    if( required_flags <= 0 )
+        return 0;
+    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    {
+        const struct Mock230MapInstance* inst = &g_instances[i];
+
+        if( inst->active && (inst->flags & required) == required )
+            return i + 1;
+    }
+    return 0;
+}
+
 int
 mock230_mapinstance_flag_get(
     int handle,

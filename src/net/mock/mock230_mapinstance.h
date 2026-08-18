@@ -172,6 +172,15 @@ mock230_mapinstance_find_owner(
     int required_flags);
 
 /**
+ * The first live reservation carrying every flag in `required_flags`, whoever
+ * owns it, or 0. The join side of `mock230_mapinstance_find_owner`: a player
+ * entering somebody else's instance cannot name its owner. A zero or negative
+ * mask matches nothing.
+ */
+int
+mock230_mapinstance_find_flagged(int required_flags);
+
+/**
  * Read or write a content-owned, session-local flag on a live instance.
  *
  * This is deliberately a generic bitset rather than POH state: challenge mode

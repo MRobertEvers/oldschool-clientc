@@ -4282,6 +4282,22 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `name` — the ACTIVE player's display name, which is not the same player
+     * as the one the script started on: inside a `huntall`/`huntnext` loop it
+     * is whoever the hunt reached, and that is the only reason content needs
+     * it. A message that has to say *whose* it is ("<name> has discovered a
+     * large ball of energy coming their way...") cannot be written any other
+     * way, because the string is composed on the sender's side and read on
+     * everybody's.
+     *
+     * `display_name` rather than the base-37 key: the key is what social state
+     * is filed under, the display name is what a human is called.
+     */
+    case SS_OP_NAME:
+        SSVM_PushStr(state, player->display_name);
+        return 1;
+
     case SS_OP_NPC_TYPE:
     {
         struct Mock230Npc* npc = active_npc(state);
@@ -8906,6 +8922,26 @@ mock230_script_command(
             return 1;
         SSVM_PushInt(
             state, mock230_mapinstance_find_owner(owner_uid, required_flags));
+        return 1;
+    }
+
+    /*
+     * `map_instance_findflag(int $required_flags)(int)` — the join side.
+     *
+     * `map_instance_find_owner` beside it needs the owner's uid, which is
+     * precisely what a player trying to enter somebody else's instance does
+     * not have. Without this every Theatre of Blood entrant allocated a
+     * private copy of the room, so a five-man party was five solo raids and
+     * every mechanic about a second player — Bloat's fly spread, its near-side
+     * line of sight past a pillar — was unreachable code.
+     */
+    case SS_OP_MAP_INSTANCE_FINDFLAG:
+    {
+        int32_t required_flags;
+
+        if( !SSVM_PopInt(state, &required_flags) )
+            return 1;
+        SSVM_PushInt(state, mock230_mapinstance_find_flagged(required_flags));
         return 1;
     }
 

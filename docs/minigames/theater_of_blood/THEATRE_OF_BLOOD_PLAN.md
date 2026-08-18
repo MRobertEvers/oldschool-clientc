@@ -14,8 +14,8 @@
 > | 6 Bloat | **done** - 32-tick down, stomp at +29, rise at +33, walk clock with the unattacked bonus, turn cooldown, per-tick flies, falling hands, half damage while walking |
 > | 7 supply chests | **done** - points by performance, carried between the two chests, the eight-item list, and the onion for a player who died in both preceding rooms |
 > | 8 Nylocas | **done** - 4-tick cycle over the 120-row table, the measured spawn→pillar assignment, cap stalls, pillars and the wipe condition, 52-tick self-destruct, nulling and reflect |
-> | 9-10 Sotetseg | **done** - 5-tick, +1-tick melee hitsplat, death ball on the 10th magic, maze generator, shadow realm as a second instance, rag damage |
-> | 11 Xarpus | **done** - exhumed budget, first spit +7 then every 4, screech, 8-tick stare |
+> | 9-10 Sotetseg | **done** - 5-tick clock; +1-tick melee hitsplat halved by Protect from Melee; the magic ball, its two-style ricochet and the 5-tick protection-prayer disable, all resolved at IMPACT; the death ball on the 10th magic attack, party-scaled and split across the 3x3; and the whole maze - a second instance on plane 3, the lit path, the one-tile overworld mirror, the tornado, rag damage to nearby players, the 4-tick despawn cycle that makes "off on 3" work, and Defence restored to full after each one |
+> | 11 Xarpus | **done** - all three phases. P1 is the recovery phase proper: he wakes into `tob_xarpus_feeding` at 75% health, exhumed rise on the spawn cadence as ground objects, each fires heal orbs until it closes or somebody stands on it, and the fraction that got through permanently scales P2's poison and P3's retaliation. P2 spits on orb order at +7 then every 4, the splat is a permanent 3x3 that chains to the next player (or the next two), and standing underneath him interrupts it. P3 screeches at 25% (22.5% Entry), turns every 8 ticks and never twice to the same quadrant, and retaliates 50-75 **per hitsplat** against a hit thrown from the quadrant he faces. Hard mode poisons the outer two rings on entry, drops his Defence to 200 and faces the last quadrant it was hit from; death drops the Dawnbringer by the exit |
 > | 12 Verzik | **done** - 14/4/7->5, reds at 35%, the four-special rotation, webs, yellows, tornadoes, the P1 shield cap with the Dawnbringer exemption |
 > | 13 vault and drops | **done** - unique roll by mode, weighted table, three common rolls |
 > | 14 performance board | **done** - deaths, challenge time and overall time, kept apart because the records use one and the Hard Mode reward threshold uses the other |
@@ -23,6 +23,51 @@
 > | 16 Entry/Hard deltas | **threaded** - mode reaches every room; several deltas live, not all |
 > | 17 `::tobrun` | **done** - 19 checks, wired into `mock230 --selftest` |
 >
+> **18 August 2026, Sotetseg:** the room was a fight with a generator bolted to
+> the side of it - the maze rolled its seeds and then nothing read them. The
+> whole of §9.3 is live now, and four things fell out of building it:
+>
+> 1. **M25 is closed and it needed no measurement.** Neither maze is ever built
+>    by the server: both squares already ship their grid as ground decorations,
+>    and counting them answers the question outright. `m51_67` holds exactly
+>    **210** `tob_sotetseg_darktile` at x 9..22, z 22..36 plane 0; `m52_67` holds
+>    exactly 210 of the same at x 26..39, z 23..37 **plane 3**. 210 is 14 x 15, to
+>    the tile. So the underworld origin is local (26, 23) - blert's figure - and
+>    tob-qol's (42, 31) corresponds to nothing in that square. The maze is
+>    therefore **lit, never placed**: a path tile is a `loc_change` to
+>    `tob_sotetseg_lighttile`, whose own `anim=tob_sotetseg_tile_glow` is the red
+>    glow the team follows.
+> 2. **Both origins are the south-west corner, so the maze runs south to north**
+>    - and the community trainer draws its grid the other way up. Its `y = 14` is
+>    the START row. The generator that was here counted rows from the trainer's
+>    top, which put `seed[0]`'s "never the far-west column" rule on the PORTAL end
+>    and seed 7 on the row the runner starts on. Still a contiguous maze, still
+>    plausible on screen, and wrong.
+> 3. **`%tob_handle` does not change during the maze.** The realm is a second
+>    reservation whose handle rides on the player (`%tob_sote_under`); the arena
+>    goes on being the instance every register, the watchdog and the teardown
+>    address. Swapping the handle instead - which is what was here - meant the
+>    runner's own room state, clocks and progression all silently addressed a
+>    map with nothing in it.
+> 4. **The despawn cycle belongs to the NPC, not to the players.** A tick runs
+>    client input -> NPC turns -> player turns, so only in the NPC phase is every
+>    player's position already settled. "Off on 3" is exactly that frame: step off
+>    during tick 3's player phase and the cycle-0 check on tick 4 finds the grid
+>    empty. Driven from the players instead, whether the maze despawned would
+>    depend on which raider's queue ran first.
+>
+> One engine opcode landed with it: **`name`** (SS_OP_NAME), declared since the
+> port and never implemented. The death ball's message is *"[name] has discovered
+> a large ball of energy coming their way..."* and it is composed on the sender's
+> side inside a hunt loop, so there is no other way to write it.
+>
+> Two deltas are disclosed rather than faked. Hard Mode sends **all but one**
+> player into the realm, but "the maze divided among them" is not modelled - one
+> realm holds one path, so every runner walks the same one. And three numbers no
+> source states are tagged in `tob.constant` as **M44** (the ball's party
+> scaling), **M45** (the tornado's damage) and **M46** (how far a wrong tile
+> reaches).
+
 > **17 August 2026, Nylocas:** M24 is closed. The spawn→pillar assignment is
 > measured over 199 recorded raids and now ships as a `pillar` column in
 > `tob_nylo_spawn` (§8.4.1). Three further defects fell out of the same
@@ -1004,7 +1049,11 @@ south-west anchors, and `~tob_st_pillar_geometry` pins the relationships.
 - A pillar reaching 0 collapses, deals **up to 50** to everyone in the room, and
   the nylocas that were attacking it **switch to attacking players**.
 - All four down = **instant team death**.
-- Pillar hitpoints are **[MEASURE M7]** — no source in this folder states them.
+- Pillar hitpoints come from **the cache**, not from a guess: `tob_nylocas_support` carries
+  `stat4=130` (Hard 10811 = 150, Entry 10790 = 155), and `stat4` is hitpoints in every other
+  record in this room — the small nylo's is 11 and the big's is 22, exactly the 5-man figures
+  §18.1 takes from blert. What is still **[MEASURE M7]** is the other half: how much one
+  nylocas takes off a pillar per swing.
 
 #### 8.4.1 Which pillar each nylo attacks — **M24, measured**
 
@@ -1915,7 +1964,7 @@ approximation and tag it in `tob.constant`.
 | M4 | Maiden | Exact spawn-tile selection for <10 crabs, and whether spawn is on the transmog tick or the next. |
 | M5 | Maiden | Blood **spawn trail** lifetime in ticks (Wiki: "roughly 20–30 seconds"). The Maiden's own blood **splat** is settled at 11 ticks. |
 | M6 | Bloat | Falling-flesh spawn rate, shadow→land delay, and stun duration. |
-| M7 | Nylocas | **Pillar hitpoints** (per pillar, per scale, per mode). No source states them. |
+| M7 | Nylocas | **Half closed — by the cache.** Pillar hitpoints are stated after all: `stat4=130` on `tob_nylocas_support` (Hard 150, Entry 155), read the same way as the small nylo's 11 and the big's 22. `tob.constant` uses those and no longer guesses 200. Still open: the damage one nylocas does to a pillar per swing (`^tob_nylo_pillar_hit_max = 2`, disclosed), and whether pillar hitpoints scale with party size — the cache states one figure per mode. |
 | M8 | Nylocas | Delay from the last wave-31 nylo dying to Vasilias landing. |
 | M9 | Nylocas | Entry Mode's Vasilias colour-switch interval ("takes longer" — how long?). |
 | M10 | Sotetseg | Tick gap between maze end and his first post-maze attack. |
@@ -1924,6 +1973,7 @@ approximation and tag it in `tob.constant`.
 | M13 | Xarpus | Exhumed spawn cadence in ticks; fixed or scaled? |
 | M14 | Xarpus | Ticks between an uncovered exhumed's heal orbs, and the heal amount. |
 | M15 | Xarpus | How long an exhumed stays open (OpenOSRS models 11 ticks; a dead comment says 18). |
+| M40 | Xarpus | The **pebble stomp**: how much damage standing underneath him costs per tick. §10.3 says "light damage" and names no figure, and no plugin models the stomp at all, so `tob.constant` encodes 1-5 and tags it. Its other half - that the stomp *interrupts the spit* - is stated and is implemented. |
 | M16 | Verzik | The exact P1 opening offset before her first attack. |
 | M17 | Bloat | First-walk length: 38–46 or 39–47 (see C2). |
 | M18 | Verzik | Athanatos spawn rule: floor + roll, or floor only (see C5). |
@@ -1932,10 +1982,13 @@ approximation and tag it in `tob.constant`.
 | M21 | Verzik | Web hitpoints by party size ("depends on the amount of team members"; the Wiki's Web page says 10). |
 | M22 | All | The supply-chest point formula behind "above average / average / below average". |
 | M24 | Nylocas | **Done.** The spawn→pillar assignment, measured over 199 recorded raids; see §8.4.1 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
+| M44 | Sotetseg | **The death ball's party scaling.** The Wiki gives one figure — *"up to 188 damage (scaling with party size)"* — and one datum about the scaling: with two or more players alive and nobody sharing the 3 × 3 it is *"a guaranteed kill (121+)"*. So 188 is the 5-scale ceiling and 121 is a floor that already holds at scale 2; everything between is invented. `tob.constant` tabulates **121 / 155 / 188** for {≤3, 4, 5} and says so. Measure a solo, a trio and a five-man ball into an unshared target. |
+| M45 | Sotetseg | **The maze tornado's damage.** *"players in the arena will also be chased by a red vortex that will deal damage to the whole party if intercepted"* — no number, in the Wiki, blert, tob-qol or TobMistakeTracker; §9.3 says only "heavy damage". `^tob_sote_tornado_max` is set at 94, half the death ball's ceiling, entirely as a disclosed guess. |
+| M46 | Sotetseg | **How far a wrong maze tile reaches.** The Wiki words the rag as damage to *"the player"*; §9.3 and [`ENCOUNTER_TIMING.md` §5.3](ENCOUNTER_TIMING.md) both word it as damage to *"nearby players"*, which is what makes the maze a team mechanic rather than one person's problem. Nothing states the radius. `^tob_sote_rag_range` is 1 — the 3 × 3 around the tile stepped on, the smallest thing that can mean "nearby". |
 | M39 | All | `tools/gen_npc_stats.py` skips any npc with an authored block anywhere in the tree — a rule from when the loader was first-match-wins. It now merges overlays, so the skip should be narrowed to blocks that actually declare stats. 394 of 754 authored blocks are overlay-only, so narrowing would emit generated stats for ~352 npcs at once: worth doing, worth its own diff. The tool currently just refuses to drop a block it already emits. |
 | M38 | Nylocas | Does **Nylocas Vasilias** walk? It shares the small nylocas animation set, so the readyanim/walkanim tell that settles every other ToB boss says nothing about it, and no source in `sources/` states it. Left mobile in `tob.npc` rather than guessed. |
 | M37 | Nylocas | Which pillar a **split** attacks. Measured as near-uniform over the four (parent's pillar 37 %, nearest 34 %, baseline 25 %), but both samples are survivorship-biased toward the near pillar. Correct for that, or watch splits in a room where nothing dies, and decide whether the roll is flat. The room currently rolls flat and latches. |
-| M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). They cover crab walk-vs-run, the underworld maze origin, whether "one tick before" means the click or the move, the Xarpus turn/fire alignment, the Verzik scan frame, projectile flight times, and whether Xarpus' cadence varies with party size. |
+| M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). They cover crab walk-vs-run, the underworld maze origin (**M25 is closed** — the cache's own 210 ground decorations per square settle it in blert's favour), whether "one tick before" means the click or the move, the Xarpus turn/fire alignment, the Verzik scan frame, projectile flight times, and whether Xarpus' cadence varies with party size. |
 
 ---
 
@@ -2110,8 +2163,8 @@ italic values are Wiki prose; anything marked `[Mn]` is unmeasured.
 | 8 | Nylocas: every wave's composition matches `nylocas_waves.md` slot for slot, including size, aggro npc id and flicker chain. |
 | 9 | Nylocas: with the cap forced to 12, assert a stall is emitted and the wave spawns 4 ticks later. |
 | 10 | Vasilias: 30 form changes, all exactly 10 ticks apart, never repeating a style. |
-| 11 | Sotetseg: 50 attacks exactly 5 ticks apart; the death ball fires on the 10th magic attack and the counter resets. |
-| 12 | Sotetseg: a generated maze is 14×15, the path is contiguous, and the overworld mirror tile tracks the underworld player every tick. |
+| 11 | Sotetseg: 50 attacks exactly 5 ticks apart; the death ball fires on the 10th magic attack and the counter resets. **In `::tobrun`** as `~tob_st_sote_clock`. It pins 5 and 10 as *literals* before replaying the clock — replaying it against the constant that drives it would agree with itself whatever that constant held. Proven able to fail: 5 → 4 reports `Sotetseg's attack speed is 4 wanted 5`. |
+| 12 | Sotetseg: a generated maze is 14×15, the path is contiguous, and the overworld mirror tile tracks the underworld player every tick. The generator half is **`::tobmaze`**, its own debugproc and its own selftest stanza — a script gets 500,000 instructions, `::tobrun` has very nearly spent them on the Nylocas tables, and walking even one maze's 210 cells pushed it over. Sixteen mazes, each asked for a tile on every row, an overlap between consecutive rows, a start column that is never the far-west one, and no seed moving further than `max_x_change`. Proven able to fail: changing the row→seed map from `(row+1)/2` to `row/2` — an off-by-one that still lights a plausible pattern of red tiles — reports `maze rows 1 and 2 do not join`. The seed packing is separately pinned in `::tobrun` (`~tob_st_sote_seed_pack`); widening the maze to 20 reports `maze is 20 wide, seed field holds 16`. **The mirror half still needs a room** and arrives with the live-room tests. |
 | 13 | Xarpus: first spit at phase-tick 7, then 4-tick spacing; on screech the turn clock becomes 8 and no quadrant repeats. |
 | 14 | Verzik: P1 attacks 14 apart; P2 first at +3 then 4 apart; P3 first at +12 then 7 apart, 5 after enrage. |
 | 15 | Verzik: over 3 full cycles the special order is exactly CRABS, WEBS, YELLOWS, BALL with 4 autos between. |

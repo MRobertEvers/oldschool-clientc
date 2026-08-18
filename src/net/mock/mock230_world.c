@@ -37648,6 +37648,187 @@ mock230_world_selftest(void)
 
         /*
          * ====================================================================
+         * Sotetseg's shadow maze, opened for real
+         * ====================================================================
+         *
+         * The cadence block above never takes any boss below its first
+         * threshold, so nothing in the suite had ever seen the half of this
+         * room that is not a fight. That half is where all of its risk is: a
+         * SECOND live instance on plane 3, one path generated once and read
+         * from both of them, a mirror tile in the arena driven off a player
+         * standing somewhere else, and a despawn cycle that has to run in the
+         * NPC phase or "off on 3" stops working.
+         *
+         * None of that is checkable as arithmetic - `::tobmaze` covers the
+         * generator and stops exactly where the instances begin. So this
+         * stanza opens one: drop him to a hitpoint under 66.6 %, let his timer
+         * fire, and read the state out of both worlds.
+         *
+         * The things asserted are the ways it can be wrong while still looking
+         * like a maze from inside:
+         *
+         *   1. the realm is a DIFFERENT instance from the arena - if the second
+         *      allocation silently failed, the runner is standing in the room
+         *      they never left and every tile test answers about the wrong map;
+         *   2. the runner lands on the path's own start column, which is what
+         *      says the generator's row 0 is the SOUTH edge and not the portal
+         *      end (the trainer draws it the other way up, and reading its rows
+         *      literally puts seed 7 under the player's feet);
+         *   3. the arena's mirror lights - one tile, tracking a player in
+         *      another instance, which is the only thing the team can see;
+         *   4. stepping off the grid ends it within one 4-tick cycle, and he
+         *      comes back as the combat form with his Defence whole.
+         */
+        {
+            static struct Mock230Capture maze;
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int arena_handle = -1;
+            int realm_handle = -1;
+            int active = -1;
+            int mine = 0;
+            int mirror = -999;
+            int plane = -1;
+            int col = -2;
+            int seed0 = -3;
+            int ended = -1;
+            int defence_back = 0;
+            int maze_form_ok = 0;
+            char form[32] = "?";
+
+            fprintf(stderr, "mock230 selftest: Sotetseg's shadow maze\n");
+            player->godmode = 1;
+            mock230_scripts_run_debugproc(srv, "tob 4");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            arena_handle = mock230_mapinstance_find(player->x, player->z);
+            mock230_scripts_run_debugproc(srv, "tobmazearm");
+            /*
+             * Three ticks, not one: the threshold is noticed on his next
+             * [ai_timer], and the arena's mirror is written by the runner's own
+             * watchdog on the tick after they arrive.
+             */
+            for( int t = 0; t < 3; t++ )
+                mock230_world_tick(srv);
+
+            mock230_capture_begin(srv, &maze);
+            mock230_scripts_run_debugproc(srv, "tobmazestate");
+            mock230_capture_end(srv);
+            for( int w = mock230_capture_find(&maze, 90, 0); w >= 0;
+                 w = mock230_capture_find(&maze, 90, w + 1) )
+            {
+                const struct Mock230CapturedPacket* pk = &maze.packets[w];
+                const char* text;
+
+                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    continue;
+                text = (const char*)pk->data + 1;
+                if( strncmp(text, "tobmazestate", 12) != 0 )
+                    continue;
+                fprintf(stderr, "  Sotetseg: %s\n", text);
+                sscanf(text,
+                       "tobmazestate active=%d under=%d mine=%d mirror=%d "
+                       "plane=%d col=%d row=%*d seed0=%d",
+                       &active, &realm_handle, &mine, &mirror, &plane, &col,
+                       &seed0);
+            }
+            /*
+             * His form while the maze runs, read from the npc table rather than
+             * from `::tobsotestate`. The script probe cannot answer it: it runs
+             * as the RUNNER, who is on plane 3, and `npc_find` filters on plane
+             * before it measures anything — so from inside the realm he is not
+             * merely far away, he is invisible.
+             */
+            {
+                int noncombat =
+                    mock230_content_symbol(MOCK230_PACK_NPC, "tob_sotetseg_noncombat");
+
+                for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    if( srv->npcs[n].active && srv->npcs[n].type == noncombat &&
+                        mock230_mapinstance_find(srv->npcs[n].x, srv->npcs[n].z) ==
+                            arena_handle )
+                        maze_form_ok = 1;
+                SELFTEST_CHECK(maze_form_ok,
+                               "Sotetseg must wear the noncombat form for the "
+                               "duration of the maze — it is what stops him "
+                               "dealing damage and it is the only form whose "
+                               "[ai_timer] runs the despawn cycle");
+            }
+
+            SELFTEST_CHECK(active == 1,
+                           "crossing 66.6%% should open Sotetseg's maze, active=%d",
+                           active);
+            SELFTEST_CHECK(realm_handle > 0 && realm_handle != arena_handle,
+                           "the shadow realm must be a second instance "
+                           "(realm=%d arena=%d)",
+                           realm_handle, arena_handle);
+            SELFTEST_CHECK(mine == realm_handle,
+                           "the chosen player must be holding the realm's handle "
+                           "(mine=%d realm=%d)",
+                           mine, realm_handle);
+            SELFTEST_CHECK(plane == 3,
+                           "the shadow realm is on plane 3, the runner is on %d",
+                           plane);
+            SELFTEST_CHECK(col == seed0,
+                           "the runner must land on the path's start column "
+                           "(col=%d seed0=%d) - if these differ the generator's "
+                           "row 0 is the portal end rather than the south edge",
+                           col, seed0);
+            SELFTEST_CHECK(mirror >= 0,
+                           "the arena must be showing the runner's tile, mirror=%d",
+                           mirror);
+
+            /* Off the grid, and the room's own 4-tick cycle must notice. */
+            mock230_scripts_run_debugproc(srv, "tobmazeout");
+            for( int t = 0; t < 6; t++ )
+                mock230_world_tick(srv);
+            mock230_capture_begin(srv, &maze);
+            mock230_scripts_run_debugproc(srv, "tobmazestate");
+            mock230_scripts_run_debugproc(srv, "tobsotestate");
+            mock230_capture_end(srv);
+            for( int w = mock230_capture_find(&maze, 90, 0); w >= 0;
+                 w = mock230_capture_find(&maze, 90, w + 1) )
+            {
+                const struct Mock230CapturedPacket* pk = &maze.packets[w];
+                const char* text;
+                int def_now = 0;
+                int def_base = 0;
+
+                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    continue;
+                text = (const char*)pk->data + 1;
+                if( strncmp(text, "tobmazestate", 12) == 0 )
+                {
+                    fprintf(stderr, "  Sotetseg: %s\n", text);
+                    sscanf(text, "tobmazestate active=%d", &ended);
+                }
+                else if( strncmp(text, "tobsotestate", 12) == 0 )
+                {
+                    fprintf(stderr, "  Sotetseg: %s\n", text);
+                    if( sscanf(text, "tobsotestate form=%31s def=%d of %d", form,
+                               &def_now, &def_base) == 3 )
+                        defence_back = (def_base > 0 && def_now == def_base);
+                }
+            }
+            SELFTEST_CHECK(ended == 0,
+                           "stepping off the grid must end the maze within one "
+                           "4-tick cycle, active=%d",
+                           ended);
+            SELFTEST_CHECK(strcmp(form, "combat") == 0,
+                           "Sotetseg must come back as the combat form, got %s",
+                           form);
+            SELFTEST_CHECK(defence_back,
+                           "Sotetseg's Defence must be restored to full after a maze");
+
+            mock230_scripts_run_debugproc(srv, "tobout");
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            mock230_combat_sync_hitpoints(player);
+        }
+
+
+        /*
+         * ====================================================================
          * The Maiden's Nylocas Matomenos actually walk at her
          * ====================================================================
          *

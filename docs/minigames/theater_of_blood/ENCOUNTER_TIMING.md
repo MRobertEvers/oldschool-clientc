@@ -512,8 +512,23 @@ animation, and the eat window is on the second attack animation
 
 The overworld numbers agree exactly across two sources: region 13123 has base
 (3264, 4288), and `(3264+9, 4288+22) = (3273, 4310)` — tob-qol's scene offset and
-blert's world point are the same tile. The underworld pair does **not** reconcile
-the same way and is flagged `[M25]`.
+blert's world point are the same tile.
+
+The underworld pair did not reconcile the same way and was flagged `[M25]`. **It
+is settled now, by the cache itself.** Neither maze is ever built by the server:
+both squares already ship their grid as ground decorations, and counting them
+answers the question outright — `m51_67` holds exactly 210 `tob_sotetseg_darktile`
+(33034) at x 9..22, z 22..36 on plane 0, and `m52_67` holds exactly 210 of the
+same at x 26..39, z 23..37 on plane 3. 210 is 14 × 15. So the underworld origin is
+local **(26, 23)** — blert's figure — and tob-qol's (42, 31) corresponds to
+nothing in that square.
+
+Both origins are the grid's **south-west** corner, which fixes a second thing the
+sources leave implicit: the maze runs **south to north**, the party enters from
+the south (Sotetseg stands in the north), and the trainer below draws its grid the
+other way up — its `y = 14` is the start row, so its `y` and a server-side row
+index counted from the start are `14 - each other`. The seed order follows the
+*start*, not the drawing.
 
 Ground objects: **33033** disabled (overworld), **33034** inactive,
 **33035** active/red (plus 41750–41753 in newer content), portal **33037**,
@@ -936,7 +951,7 @@ New tasks raised by this pass, continuing the plan's numbering:
 |---|---|---|
 | M23 | Maiden | Do Nylocas Matomenos **walk or run** to the boss? The published freeze timings only reproduce under one of the two. |
 | ~~M24~~ | Nylocas | **Measured.** The fixed **spawn → pillar assignment**, over 199 recorded raids: all 120 slots resolve, no row conflicts, Regular and Hard Mode identical. See §4.4 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
-| M25 | Sotetseg | Reconcile the underworld maze origin: tob-qol scene (42, 31) vs blert world (3354, 4311, 3). |
+| M25 | Sotetseg | **Done, and blert is right** — settled by the cache rather than by either source. `maps/m52_67.jl2` places exactly 210 `tob_sotetseg_darktile` (33034) ground decorations, 14 × 15 to the tile, spanning x 26..39, z 23..37 on plane 3 — local **(26, 23)**. The overworld square is the same measurement and lands on 210 tiles at x 9..22, z 22..36, local (9, 22), which is the figure §5.2 already carries. Both are the **south-west** corner: the maze runs south to north, so the trainer's drawing (its `y = 14` is the start row) is flipped relative to the server's `z`. (42, 31) corresponds to nothing in that square. |
 | M26 | All | Does a step-back **click** on tick `T−1` complete in time, or must the click be on `T−2`? Decides whether the guides' "one tick before" means the click or the move. |
 | M27 | Xarpus | Confirm the turn and the spit share a tick (this document's reading) rather than the turn leading by 1–4 ticks. Watch orientation and projectile-spawn ticks side by side. |
 | M28 | Verzik | Do the P2/P3 scan windows use the tank's tile at end-of-`T−1`, or their tile at the *start* of `T` before movement? Equivalent in practice, different to implement. |

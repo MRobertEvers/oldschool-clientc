@@ -663,6 +663,29 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # which speed stays content policy, in tob_bloat.rs2.
     "NPC_SETMOVESPEED": (11078, 1, 0, 0, 0),
 
+    # map_instance_findflag(int $required_flags)(int)
+    #
+    # The first live reservation carrying every requested content-owned flag,
+    # whoever owns it, or 0. The join-side counterpart to
+    # `map_instance_find_owner`, which answers a different question and
+    # deliberately refuses `player_uid <= 0`: it finds an instance you already
+    # own, and a player trying to JOIN one does not know whose it is.
+    #
+    # That is not a hypothetical shortfall. The Theatre of Blood's second
+    # player has no way to reach the first player's raid: every entrant ran
+    # `map_instance_from_square` and got a private copy of the room with a
+    # private boss, so a "party" was five simultaneous solo raids. The
+    # Pestilent Bloat's flies "spread to other players in the raid", and its
+    # line of sight is a custom near-side test whose whole purpose is the
+    # pillar a teammate hides behind -- both of those are mechanics about a
+    # SECOND PLAYER, and neither could ever fire.
+    #
+    # The engine supplies only "a live instance carries this bitmask". Which
+    # mask means "a raid", whether a joiner is admitted, party size, mode
+    # agreement and orb order all stay content policy, exactly as the flag
+    # bitset's own contract says.
+    "MAP_INSTANCE_FINDFLAG": (11079, 1, 0, 1, 0),
+
     # inv_transmit_from(player_uid $owner, inv $inventory, component $component)(boolean)
     #
     # Paint a live owner's private inventory on the active viewer's component.
