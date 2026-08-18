@@ -32,9 +32,102 @@ static int anim_step_active(struct WorldEntityFacet_AnimationStep const* step);
 static int cycle_seq_preanim_move(struct World* world, int seq_id);
 static int cycle_seq_postanim_move(struct World* world, int seq_id);
 
+/*
+ * Route-step speed, in draw units per 20ms client cycle.
+ *
+ * rev-239 class105.method3520 / method3611 -- both movers select the speed
+ * with this identical block, which is why it is one function here.
+ *
+ *   4          walking
+ *   2          while still turning toward the step, but only for an entity
+ *              free to turn: one locked onto a face target keeps full speed
+ *   6 / 8      the queue has run 3 / 4 deep -- the entity is BEHIND where the
+ *              server says it stands and closes the gap
+ *   8          catching up the cycles a DELAYMOVE seq held it still for
+ *   x2         the step arrived as a run step
+ *
+ * The 6/8 rungs are not decoration and must not be capped back to walking
+ * speed: 30 cycles at speed 4 covers 120 of a tile's 128 units, so an entity
+ * walking without pause falls 8 units further behind every server tick. The
+ * reference lets the queue depth pull it back; a cap leaves it drifting until
+ * the queue overflows, which is what read as the player "stuttering" behind a
+ * moving target.
+ *
+ * rev-239 also halves the speed for a CRAWL step (class174.field2475) and
+ * gives NPCs whose record carries config opcode 109 the lower 6/8 thresholds
+ * (>1 / >2 rather than >2 / >3). Neither is reachable here: no revision this
+ * tree speaks emits a crawl step, and the opcode is not decoded.
+ */
+static int
+World_MoverStepSpeed(
+    struct World_MoverInfo const* info,
+    int route_length,
+    bool consume_delay_move)
+{
+    int move_speed = 4;
+
+    if( info->orientation->yaw != info->orientation->dst_yaw &&
+        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
+        move_speed = 2;
+    if( route_length > 2 )
+        move_speed = 6;
+    if( route_length > 3 )
+        move_speed = 8;
+    if( info->animation->anim_delay_move > 0 && route_length > 1 )
+    {
+        move_speed = 8;
+        /* method3520 consumes a held cycle; method3611 reads the same counter
+         * without spending it, because the two run at different rates. */
+        if( consume_delay_move )
+            info->animation->anim_delay_move--;
+    }
+    if( info->pathing->route_run[route_length - 1] )
+        move_speed <<= 1;
+
+    return move_speed;
+}
+
+/*
+ * The DELAYMOVE hold -- rev-239 method3520/method3611 both open with it.
+ *
+ * A primary seq that forbids movement freezes the route where it is and banks
+ * a cycle in anim_delay_move for the speed-8 catch-up above.
+ */
+static bool
+World_MoverHeldByAnim(struct World_MoverInfo* info, bool bank_held_cycle)
+{
+    int seq;
+
+    if( !anim_step_active(&info->animation->primary) || info->animation->primary.delay != 0 )
+        return false;
+
+    seq = info->animation->primary.anim_id;
+    if( info->animation->preanim_route_length > 0 &&
+        cycle_seq_preanim_move(info->world, seq) == 0 )
+    {
+        if( bank_held_cycle )
+            info->animation->anim_delay_move++;
+        return true;
+    }
+    if( info->animation->preanim_route_length == 0 &&
+        cycle_seq_postanim_move(info->world, seq) == 0 )
+    {
+        if( bank_held_cycle )
+            info->animation->anim_delay_move++;
+        return true;
+    }
+    return false;
+}
+
 /**
- * Advances pathing draw position one tick and returns the secondary sequence id
- * to use (-1 means clear secondary).
+ * Per client cycle (20ms): rev-239 class105.method3520.
+ *
+ * Chooses the facing and the walk/run sequence for the step in progress, and
+ * hands back the secondary seq id (-1 = clear). It deliberately does NOT move
+ * the entity -- that is World_MoversAdvance, which runs per render frame. The
+ * split is the reference's, and it is the whole of "smooth": movement is
+ * integrated against real elapsed time, while the decisions that only change
+ * once per cycle stay on the cycle clock.
  */
 static int
 World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
@@ -47,37 +140,36 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
         goto yaw_turn;
     }
 
-    /* PreanimMove/PostanimMove.DELAYMOVE: hold the route still while a
-     * non-merge primary action plays (Client.ts routeMove 3813-3823). */
-    if( anim_step_active(&info->animation->primary) && info->animation->primary.delay == 0 )
-    {
-        int seq = info->animation->primary.anim_id;
-        if( info->animation->preanim_route_length > 0 &&
-            cycle_seq_preanim_move(info->world, seq) == 0 )
-        {
-            info->animation->anim_delay_move++;
-            return seqId;
-        }
-        if( info->animation->preanim_route_length == 0 &&
-            cycle_seq_postanim_move(info->world, seq) == 0 )
-        {
-            info->animation->anim_delay_move++;
-            return seqId;
-        }
-    }
+    if( World_MoverHeldByAnim(info, /*bank_held_cycle=*/true) )
+        return seqId;
 
     int x = (int)info->draw_position->x;
     int z = (int)info->draw_position->z;
     int dstX = info->pathing->route_x[route_length - 1] * 128 + info->size_x * 64;
     int dstZ = info->pathing->route_z[route_length - 1] * 128 + info->size_z * 64;
 
-    if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
+    /*
+     * Too far to walk: put the entity there.
+     *
+     * 288 draw units (2.25 tiles) is the rev-239 constant, measured as a
+     * Chebyshev distance from the *float* position. The 2004 client tested
+     * 256 per axis, which is a tile short of covering a two-tile run step
+     * taken from a fractional position -- under the frame-paced mover below
+     * that is an ordinary state, and snapping there is a teleport the player
+     * sees.
+     */
     {
-        info->draw_position->x = (uint32_t)dstX;
-        info->draw_position->z = (uint32_t)dstZ;
-        info->grid_position->x = info->pathing->route_x[route_length - 1];
-        info->grid_position->z = info->pathing->route_z[route_length - 1];
-        return -1;
+        float dx = (float)dstX - info->draw_position->fx;
+        float dz = (float)dstZ - info->draw_position->fz;
+        float far = fabsf(dx) > fabsf(dz) ? fabsf(dx) : fabsf(dz);
+
+        if( far > 288.0f )
+        {
+            World_DrawPositionSet(info->draw_position, dstX, dstZ);
+            info->grid_position->x = info->pathing->route_x[route_length - 1];
+            info->grid_position->z = info->pathing->route_z[route_length - 1];
+            return -1;
+        }
     }
 
     if( x < dstX )
@@ -118,61 +210,18 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     if( seqId == -1 )
         seqId = info->idle->walkanim;
 
-    int moveSpeed = 4;
-    /* The turning slow-down only applies to an entity that is actually free
-     * to turn: a locked-on target or turnspeed 0 keeps full speed
-     * (Client-TS routeMove, `e.faceEntity === -1 && e.turnspeed !== 0`). */
-    if( info->orientation->yaw != info->orientation->dst_yaw &&
-        info->facing->entity_id == WORLD_FACING_ENTITY_NONE && info->facing->turn_speed != 0 )
-        moveSpeed = 2;
-    if( route_length > 2 )
-        moveSpeed = 6;
-    if( route_length > 3 )
-        moveSpeed = 8;
-
-    if( !info->pathing->route_run[route_length - 1] && moveSpeed > 4 )
-        moveSpeed = 4;
-    /* Catch up after a DELAYMOVE hold: force walk-speed 8 for as many cycles
-     * as were spent held (Client.ts 3889-3892). After the non-run clamp so a
-     * held walk is not re-capped back to 4. */
-    if( info->animation->anim_delay_move > 0 && route_length > 1 )
-    {
-        moveSpeed = 8;
-        info->animation->anim_delay_move--;
-    }
-    if( info->pathing->route_run[route_length - 1] )
-        moveSpeed <<= 1;
-
-    if( info->pathing->route_run[route_length - 1] && moveSpeed >= 8 &&
+    /* Speed only decides the animation here; the distance it implies is
+     * covered by the frame mover. Speed 8 is a run whatever queued the step:
+     * an entity closing a queue backlog runs, which is how the reference
+     * shows a walk that has fallen behind (method3520's `var20 >= 8` remap). */
+    if( World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/true) >= 8 &&
         seqId == info->idle->walkanim && info->idle->runanim != -1 )
         seqId = info->idle->runanim;
 
-    if( x < dstX )
-    {
-        info->draw_position->x += (uint32_t)moveSpeed;
-        if( (int)info->draw_position->x > dstX )
-            info->draw_position->x = (uint32_t)dstX;
-    }
-    else if( x > dstX )
-    {
-        info->draw_position->x -= (uint32_t)moveSpeed;
-        if( (int)info->draw_position->x < dstX )
-            info->draw_position->x = (uint32_t)dstX;
-    }
-    if( z < dstZ )
-    {
-        info->draw_position->z += (uint32_t)moveSpeed;
-        if( (int)info->draw_position->z > dstZ )
-            info->draw_position->z = (uint32_t)dstZ;
-    }
-    else if( z > dstZ )
-    {
-        info->draw_position->z -= (uint32_t)moveSpeed;
-        if( (int)info->draw_position->z < dstZ )
-            info->draw_position->z = (uint32_t)dstZ;
-    }
-
-    if( (int)info->draw_position->x == dstX && (int)info->draw_position->z == dstZ )
+    /* The frame mover retires a step the moment it lands on it, so ordinarily
+     * there is nothing to retire here. This covers the entity that was already
+     * standing exactly on its next tile when the step arrived. */
+    if( x == dstX && z == dstZ )
     {
         info->pathing->route_length--;
         if( info->pathing->route_length < 0 )
@@ -183,6 +232,97 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
 
 yaw_turn:;
     return seqId;
+}
+
+/*
+ * Per render frame: rev-239 class105.method3611, driven by client.method2324
+ * with `elapsed_ns / 2.0e7` -- elapsed time expressed in 20ms client cycles,
+ * fractional.
+ *
+ * The loop is the reference's: walk toward the next queued tile, and when the
+ * frame's budget carries the entity *past* it, retire that tile and spend the
+ * remainder on the one behind it. That carry is what keeps a route continuous
+ * across a frame boundary instead of quantising every step to a whole cycle.
+ */
+static void
+World_MoverAdvance(
+    struct World_MoverInfo* info,
+    float cycles)
+{
+    /* Held once, before the loop, exactly as method3611 does: the seq gates the
+     * whole frame, not each tile of it. The cycle mover is what banks the held
+     * cycle for the catch-up; doing it here as well would bank once per frame. */
+    if( World_MoverHeldByAnim(info, /*bank_held_cycle=*/false) )
+        return;
+
+    while( info->pathing->route_length > 0 && cycles > 0.0f )
+    {
+        int route_length = info->pathing->route_length;
+        float fx = info->draw_position->fx;
+        float fz = info->draw_position->fz;
+        int dstX = info->pathing->route_x[route_length - 1] * 128 + info->size_x * 64;
+        int dstZ = info->pathing->route_z[route_length - 1] * 128 + info->size_z * 64;
+        int move_speed = World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/false);
+        float step = (float)move_speed * cycles;
+        float leftover = 0.0f;
+
+        if( fx < (float)dstX )
+        {
+            info->draw_position->fx += step;
+            if( info->draw_position->fx > (float)dstX )
+            {
+                leftover = (info->draw_position->fx - (float)dstX) / (float)move_speed;
+                info->draw_position->fx = (float)dstX;
+            }
+        }
+        else if( fx > (float)dstX )
+        {
+            info->draw_position->fx -= step;
+            if( info->draw_position->fx < (float)dstX )
+            {
+                leftover = ((float)dstX - info->draw_position->fx) / (float)move_speed;
+                info->draw_position->fx = (float)dstX;
+            }
+        }
+        if( fz < (float)dstZ )
+        {
+            info->draw_position->fz += step;
+            if( info->draw_position->fz > (float)dstZ )
+            {
+                float slack = (info->draw_position->fz - (float)dstZ) / (float)move_speed;
+                leftover = leftover > slack ? leftover : slack;
+                info->draw_position->fz = (float)dstZ;
+            }
+        }
+        else if( fz > (float)dstZ )
+        {
+            info->draw_position->fz -= step;
+            if( info->draw_position->fz < (float)dstZ )
+            {
+                float slack = ((float)dstZ - info->draw_position->fz) / (float)move_speed;
+                leftover = leftover > slack ? leftover : slack;
+                info->draw_position->fz = (float)dstZ;
+            }
+        }
+
+        cycles = leftover;
+        info->draw_position->x = (uint32_t)(int)info->draw_position->fx;
+        info->draw_position->z = (uint32_t)(int)info->draw_position->fz;
+
+        if( (int)info->draw_position->x == dstX && (int)info->draw_position->z == dstZ )
+        {
+            info->pathing->route_length--;
+            info->grid_position->x = info->pathing->route_x[0];
+            info->grid_position->z = info->pathing->route_z[0];
+            if( info->animation->preanim_route_length > 0 )
+                info->animation->preanim_route_length--;
+        }
+        else
+        {
+            /* Did not arrive, so the budget is spent. */
+            break;
+        }
+    }
 }
 
 /* Reference entity-facing update, run once per entity per cycle right after
@@ -539,6 +679,19 @@ World_StepEntityAnimation(
     }
 }
 
+/* Is a server-forced exact move still placing this entity? While one is, it
+ * owns the draw position and the route mover must keep off (rev-239
+ * method3611's `field1471 >= cycle || field1521 >= cycle` early-out). */
+static int
+World_ExactMoveActive(
+    struct World const* world,
+    struct WorldEntityFacet_ExactMove const* exact)
+{
+    if( exact->move_end == 0 && exact->move_start == 0 )
+        return 0;
+    return exact->move_start >= world->cycle;
+}
+
 /* Reference exactMove1/exactMove2 (Client.ts 3757-3803): server-forced
  * interpolation overriding route movement while the window is active.
  * Returns 1 while active (route movement must be skipped). */
@@ -553,11 +706,9 @@ World_UpdateExactMove(
 {
     static const uint16_t k_facing_yaw[4] = { 1024, 1536, 0, 512 };
 
-    if( exact->move_end == 0 && exact->move_start == 0 )
-        return 0;
-    if( exact->move_start < world->cycle )
+    if( !World_ExactMoveActive(world, exact) )
     {
-        /* Window passed. */
+        /* Window passed (or never armed). */
         exact->move_end = 0;
         exact->move_start = 0;
         return 0;
@@ -572,8 +723,9 @@ World_UpdateExactMove(
         int delta = exact->move_end - world->cycle;
         int dst_x = exact->start_x * 128 + size * 64;
         int dst_z = exact->start_z * 128 + size * 64;
-        draw_position->x = (uint32_t)((int)draw_position->x + (dst_x - (int)draw_position->x) / delta);
-        draw_position->z = (uint32_t)((int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
+        World_DrawPositionSet(
+            draw_position, (int)draw_position->x + (dst_x - (int)draw_position->x) / delta,
+            (int)draw_position->z + (dst_z - (int)draw_position->z) / delta);
         orientation->dst_yaw = exact->facing_is_yaw
                                    ? (uint16_t)(exact->facing & 0x7ff)
                                    : k_facing_yaw[exact->facing & 3];
@@ -597,8 +749,9 @@ World_UpdateExactMove(
             int dz1 = exact->end_z * 128 + size * 64;
             if( duration > 0 )
             {
-                draw_position->x = (uint32_t)((dx0 * (duration - delta) + dx1 * delta) / duration);
-                draw_position->z = (uint32_t)((dz0 * (duration - delta) + dz1 * delta) / duration);
+                World_DrawPositionSet(
+                    draw_position, (dx0 * (duration - delta) + dx1 * delta) / duration,
+                    (dz0 * (duration - delta) + dz1 * delta) / duration);
             }
         }
         orientation->dst_yaw = exact->facing_is_yaw
@@ -1303,6 +1456,89 @@ World_CycleRegisterPainterDynamics(struct World* world)
             1,
             1,
             (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id) : 0));
+    }
+}
+
+/*
+ * Move every actor by `cycles` worth of route -- rev-239 client.method1894,
+ * called from method2324 once per rendered frame with the wall-clock delta
+ * expressed in 20ms client cycles.
+ *
+ * Separate from World_Cycle on purpose. The cycle clock is a 20ms grid and a
+ * frame almost never lands on it; integrating movement on the grid throws away
+ * the remainder every frame, which the frame pacer's own comment in app.c
+ * already describes as "a visible hitch even though no frame was late". Here
+ * the remainder is the whole point.
+ *
+ * An entity inside an exact-move window is skipped: the server is placing it
+ * explicitly and World_UpdateExactMove owns its position (method3611's
+ * `field1471 >= cycle || field1521 >= cycle` early-out).
+ */
+void
+World_MoversAdvance(
+    struct World* world,
+    float cycles)
+{
+    assert(world);
+    if( !world->load_complete || cycles <= 0.0f )
+        return;
+
+    {
+        struct World_EntityPool* pool = &world->entities.player;
+        for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+             pi = World_EntityPoolNext(pool, pi) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+            if( !player || player->element_id < 0 )
+                continue;
+            if( World_ExactMoveActive(world, &player->exact_move) )
+                continue;
+            {
+                struct World_MoverInfo info = {
+                    .world = world,
+                    .pathing = &player->pathing,
+                    .draw_position = &player->draw_position,
+                    .grid_position = &player->grid_position,
+                    .orientation = &player->orientation,
+                    .idle = &player->idle_animations,
+                    .animation = &player->animation,
+                    .facing = &player->facing,
+                    .size_x = 1,
+                    .size_z = 1,
+                };
+                World_MoverAdvance(&info, cycles);
+            }
+        }
+    }
+
+    {
+        struct World_EntityPool* pool = &world->entities.npc;
+        for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+             ni = World_EntityPoolNext(pool, ni) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+            int size;
+            if( !npc || npc->element_id < 0 )
+                continue;
+            if( World_ExactMoveActive(world, &npc->exact_move) )
+                continue;
+            size = npc->size > 0 ? npc->size : 1;
+            {
+                struct World_MoverInfo info = {
+                    .world = world,
+                    .pathing = &npc->pathing,
+                    .draw_position = &npc->draw_position,
+                    .grid_position = &npc->grid_position,
+                    .orientation = &npc->orientation,
+                    .idle = &npc->idle_animations,
+                    .animation = &npc->animation,
+                    .facing = &npc->facing,
+                    .size_x = size,
+                    .size_z = size,
+                };
+                World_MoverAdvance(&info, cycles);
+            }
+        }
     }
 }
 

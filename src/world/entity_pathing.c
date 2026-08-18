@@ -304,6 +304,6 @@ World_EntityDrawPositionSetToTile(
     int size_x,
     int size_z)
 {
-    draw_position->x = (uint32_t)(tile_x * 128 + size_x * 64);
-    draw_position->z = (uint32_t)(tile_z * 128 + size_z * 64);
+    World_DrawPositionSet(
+        draw_position, tile_x * 128 + size_x * 64, tile_z * 128 + size_z * 64);
 }

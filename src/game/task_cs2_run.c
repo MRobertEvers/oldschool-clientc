@@ -1722,6 +1722,31 @@ Task_CS2VarTransmitDispatch_Run(
          self->hook_index++ )
     {
         hook = &self->host->var_transmit_hooks[self->hook_index];
+        /* TORIRS_VAR_HOOK_DEBUG=1: one line per registered hook per dispatch,
+         * with its trigger list and the varps that actually changed. A hook
+         * that never fires and a hook that fires and paints nothing look
+         * identical from outside, and this is the line that separates them. */
+        if( getenv("TORIRS_VAR_HOOK_DEBUG") )
+        {
+            int t;
+            fprintf(
+                stderr,
+                "VARHOOK com=0x%08x script=%d unhide_only=%d triggers=%d[",
+                (unsigned)hook->component_id,
+                hook->script_id,
+                self->unhide_only,
+                hook->trigger_count);
+            for( t = 0; t < hook->trigger_count; t++ )
+                fprintf(stderr, "%s%d", t ? "," : "", hook->trigger_ids[t]);
+            fprintf(stderr, "] changed=%d[", self->var_count);
+            for( t = 0; t < self->var_count; t++ )
+                fprintf(stderr, "%s%d", t ? "," : "", self->var_ids[t]);
+            fprintf(
+                stderr,
+                "] match=%d hidden=%d\n",
+                RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count),
+                UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id));
+        }
         if( self->unhide_only
                 ? !hook->pending_unhide
                 : !RS_CS2_VarTransmitTriggersMatch(hook, self->var_ids, self->var_count) )

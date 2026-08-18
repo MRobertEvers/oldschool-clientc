@@ -980,7 +980,7 @@ test_route_coordinate_coincidence(void)
     int spanned_both = 0;
     for( int i = 0; i < 128 && player->pathing.route_length > 0; i++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( player->pathing.route_length == 0 )
             break;
         TEST_ASSERT(
@@ -1033,7 +1033,7 @@ test_route_coordinate_coincidence(void)
 
         for( int cycle = 0; cycle < 64 && corner->pathing.route_length == 2; cycle++ )
         {
-            World_Cycle(world, 1);
+            World_TestCycle(world, 1);
             TEST_ASSERT((int)corner->draw_position.x == start_x,
                         "corner rendering does not move diagonally through the blocker");
         }
@@ -1116,7 +1116,7 @@ test_tile_stack_dedup(void)
 
         World_NpcSpawn(world, 102, 500, 0, 25, 25, 1, idle);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         int count = painter_tile_scenery_count(world->painter, 25, 25, 0, &first);
@@ -1138,7 +1138,7 @@ test_tile_stack_dedup(void)
         struct WorldEntity_NPC* aot = World_EntityPoolGet(&world->entities.npc, nn);
         aot->alwaysontop = true;
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         int count = painter_tile_scenery_count(world->painter, 30, 30, 0, &first);
@@ -1163,7 +1163,7 @@ test_tile_stack_dedup(void)
         moving->server_pid = 8;
         World_PlayerPathPushStep(world, mp, WORLD_PATHSTEP_WALK, 4); /* east */
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         TEST_ASSERT((moving->draw_position.x & 0x7f) != 64, "mover is off tile-centre mid-walk");
         int count = painter_tile_scenery_count(world->painter, 34, 35, 0, NULL);
@@ -1199,7 +1199,7 @@ test_minusedlevel_entity_draw(void)
 
         World_NpcSpawn(world, 202, 500, 1, 42, 40, 1, idle);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         TEST_ASSERT(
@@ -1243,7 +1243,7 @@ test_minusedlevel_entity_draw(void)
             world, 215, 0, same_sx, same_sz, same_sx + 128, same_sz, 100, 40, 0, 60, 45, 0,
             WORLD_PROJECTILE_TARGET_NONE);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         TEST_ASSERT(
             painter_tile_scenery_count(world->painter, 45, 45, 0, NULL) == 0 &&

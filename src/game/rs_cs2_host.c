@@ -4817,6 +4817,22 @@ exec_set_on_var_transmit(
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
+    /* TORIRS_VAR_HOOK_DEBUG=1: what the VM actually asked for. A hook that is
+     * never registered and a hook that is registered and then reclaimed look
+     * the same in the dispatch trace; this is the other end of that pair. */
+    if( getenv("TORIRS_VAR_HOOK_DEBUG") )
+    {
+        int t;
+        fprintf(
+            stderr,
+            "VARHOOKSET com=0x%08x script=%d triggers=%d[",
+            (unsigned)request->component_id,
+            request->script_id,
+            request->trigger_count);
+        for( t = 0; t < request->trigger_count && t < 32; t++ )
+            fprintf(stderr, "%s%d", t ? "," : "", request->trigger_ids[t]);
+        fprintf(stderr, "]\n");
+    }
     hook = rs_cs2_acquire_var_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;

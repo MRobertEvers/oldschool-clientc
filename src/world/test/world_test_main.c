@@ -21,6 +21,7 @@ main(void)
     test_bridge_levels();
     test_cycle_movers();
     test_delaymove_gate();
+    test_walk_keeps_up();
     test_entity_face();
     test_try_route();
     test_try_route_nearest_models();

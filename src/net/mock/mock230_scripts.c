@@ -10505,7 +10505,11 @@ mock230_script_command(
             return 1;
         /* A varbit the cache does not place has no varp to write, so the write
          * would vanish. Loud, like every other unresolvable id here. */
-        if( mock230_varbit_set(srv, varbit_id, (int)value) < 0 )
+        /* On the SCRIPT's active player, which `SS_OP_PUSH_VARBIT` above has
+         * always read from. Writing through `srv->active_player` instead meant
+         * a script that hunted a set and wrote a varbit to each read one player
+         * and wrote another - see `mock230_varbit_set_on`. */
+        if( mock230_varbit_set_on(srv, player, varbit_id, (int)value) < 0 )
             SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;
     }

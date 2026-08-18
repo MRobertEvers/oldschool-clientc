@@ -809,6 +809,11 @@ struct App
     int locedit_hover_x;
     int locedit_hover_z;
     uint64_t last_logic_ms;
+    /* Wall clock of the previous rendered frame, for the per-frame actor mover
+     * (World_MoversAdvance). Distinct from last_logic_ms, which is snapped to
+     * the 20ms grid and so cannot measure a frame, and from last_frame_ms,
+     * which App_RunOnce overwrites with `now` before the world runs. */
+    uint64_t last_mover_ms;
     /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
      *  frame because the minimenu action path has no LibToriRS_Input in hand,
      *  and the reference reads it inside tryMove — i.e. for ground, minimap AND

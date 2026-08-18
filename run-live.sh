@@ -182,7 +182,26 @@ manifest_path() {
             ;;
     esac
 }
+# ONE ABSOLUTE PATH, resolved once, used by the build and by the server.
+#
+# The server is handed this value (`MOCK230_SCRIPTS`, below) and the script pack
+# is compiled to it. They must be the same location, and the only reliable way
+# to guarantee that is for them to be the same STRING - a relative path means
+# "wherever the caller happens to stand", and the two callers do not stand in
+# the same place: the server runs from the repo root, the compile runs through
+# `make -C src`.
+#
+# That divergence was live: a manifest `scripts=OSRS-Content/.../build_x` had the
+# server loading the real pack from the root while sscompile wrote to
+# `src/OSRS-Content/.../build_x`. A phantom content tree grew under src/, every
+# compile reported success, the staleness predicate honestly said "stale" on
+# every run because the real pack never moved, and the client ran packs that were
+# hours old. Absolute here, and there is no caller-relative path left to differ.
 SERVER_SCRIPTS=$(manifest_path "$RAW_SERVER_SCRIPTS")
+case "$SERVER_SCRIPTS" in
+    '' | /*) ;;
+    *) SERVER_SCRIPTS="$PWD/$SERVER_SCRIPTS" ;;
+esac
 CACHE_DIR=$(manifest_path "$RAW_CACHE_DIR")
 
 # Every embedded run compiles the server scripts, and mock230-scripts feeds both
@@ -412,6 +431,12 @@ build_scripts() {
     # and this predicate failing the same way is the right answer.
     _out="$SERVER_SCRIPTS"
     [ -z "$_out" ] && [ -n "${MOCK230_CONTENT_DIR:-}" ] && _out="$MOCK230_CONTENT_DIR/server/scripts/build"
+    # `SERVER_SCRIPTS` is already absolute (see where it is set, and why). The
+    # fallback below is not, and `make -C src` would resolve it against src/.
+    case "$_out" in
+        '' | /*) ;;
+        *) _out="$PWD/$_out" ;;
+    esac
     if [ -n "$_out" ]; then
         # --tree: the script's own default is the OSRS-Content submodule, and
         # the tree in use is often a build/ checkout instead. Left to the
@@ -447,6 +472,29 @@ build_scripts() {
             ${_out:+MOCK230_SCRIPT_OUT="$_out"} || exit 1
     else
         make -C src mock230-scripts || exit 1
+    fi
+    # AND PROVE IT LANDED. A compile that reports success having written
+    # somewhere else is the failure this whole comment block is about, and it is
+    # invisible from its own output — sscompile prints the path it was given,
+    # which is exactly the path that was wrong.
+    #
+    # So ask the predicate again. It was "stale" a moment ago by construction;
+    # if it is still stale after a successful build, the bytes did not reach the
+    # pack the server is about to load, and running on would mean running the
+    # old one. That is never what the caller wanted.
+    if [ -n "$_out" ]; then
+        if python3 tools/server_scripts_stale.py \
+                --out "$_out" \
+                ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
+                --input tools/ss_allocate.py >/dev/null 2>&1; then
+            :
+        elif [ $? = 1 ]; then
+            return 0
+        fi
+        echo "run-live.sh: the script pack at $_out is STILL stale after a" >&2
+        echo "  successful compile -- the output did not land where the server" >&2
+        echo "  reads it. Refusing to launch on a stale pack." >&2
+        exit 1
     fi
 }
 

@@ -319,6 +319,35 @@ mock230_varbit_set(
     int varbit_id,
     int value)
 {
+    return mock230_varbit_set_on(srv, srv->active_player, varbit_id, value);
+}
+
+/*
+ * The same write, aimed at a NAMED player rather than at whoever's turn it is.
+ *
+ * `srv->active_player` is "whose turn is the server taking"; a script's active
+ * player is whoever `huntnext` (or `p_finduid`) last selected, and inside an
+ * `[ai_timer]` those are not the same thing — the npc phase has no player turn
+ * at all. `SS_OP_PUSH_VARBIT` has always read from the SCRIPT's player and
+ * `SS_OP_POP_VARBIT` wrote through the server's, so a script that walked a hunt
+ * and wrote a varbit to each player read from one and wrote to another.
+ *
+ * That is a boss broadcasting anything to its room. The Theatre's health bar is
+ * the case that found it: `~tob_hud_broadcast` hunts every player in the room
+ * and sets three varbits on each, from the Maiden's own timer — and not one
+ * VARP packet reached any client, because every write landed on whatever
+ * `srv->active_player` happened to be (and on nobody at all when it was null).
+ * The register said the bar had been pushed, the interface was mounted, the
+ * client's `if_setonvartransmit` dispatch was in perfect order, and the wire
+ * was empty.
+ */
+int
+mock230_varbit_set_on(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int varbit_id,
+    int value)
+{
     const struct VarbitRange* range = varbit_range(varbit_id);
     int width;
     uint32_t mask;
@@ -331,7 +360,9 @@ mock230_varbit_set(
         return -1;
     mask = width >= 32 ? 0xffffffffu : ((1u << width) - 1u);
 
-    current = (uint32_t)srv->active_player->varps[range->basevar];
+    if( !player )
+        return -1;
+    current = (uint32_t)player->varps[range->basevar];
     current &= ~(mask << range->startbit);
     current |= ((uint32_t)value & mask) << range->startbit;
     /* Through the ordinary varp write, so the transmit gate and the
@@ -342,7 +373,7 @@ mock230_varbit_set(
      * *correct* way to touch a shared container. Without it the one path that
      * must write a carrier would be the only thing the check ever saw. */
     g_patching++;
-    mock230_world_set_varp(srv, range->basevar, (int)current);
+    mock230_world_set_varp_on(srv, player, range->basevar, (int)current);
     g_patching--;
     return range->basevar;
 }

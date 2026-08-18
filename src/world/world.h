@@ -1106,6 +1106,20 @@ World_Cycle(
     struct World* world,
     int cycles_elapsed);
 
+/**
+ * Move every actor along its route by `cycles` worth of travel, where one
+ * cycle is 20ms of client time -- rev-239 client.method1894/method3611.
+ *
+ * Call once per rendered FRAME with the real elapsed time, fractional:
+ * `(now_ms - last_frame_ms) / 20.0f`. World_Cycle only picks facings and
+ * animations; this is what actually moves anything, and keeping it off the
+ * 20ms grid is what stops a walk quantising into a lurch.
+ */
+void
+World_MoversAdvance(
+    struct World* world,
+    float cycles);
+
 /* Shared with world_cycle.c */
 void
 World_EmitEvent(

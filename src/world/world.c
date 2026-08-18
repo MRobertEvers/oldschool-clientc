@@ -597,7 +597,9 @@ World_PlayerSpawn(
         .element_id = element_id,
         .grid_position = { .x = scene_x, .z = scene_z, .level = level },
         .draw_position = { .x = (uint32_t)(scene_x * 128 + 64),
-                           .z = (uint32_t)(scene_z * 128 + 64) },
+                           .z = (uint32_t)(scene_z * 128 + 64),
+                           .fx = (float)(scene_x * 128 + 64),
+                           .fz = (float)(scene_z * 128 + 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
                      .route_x = { (uint8_t)scene_x },
@@ -660,7 +662,9 @@ World_NpcSpawn(
         .element_id = element_id,
         .grid_position = { .x = scene_x, .z = scene_z, .level = level },
         .draw_position = { .x = (uint32_t)(scene_x * 128 + size * 64),
-                           .z = (uint32_t)(scene_z * 128 + size * 64) },
+                           .z = (uint32_t)(scene_z * 128 + size * 64),
+                           .fx = (float)(scene_x * 128 + size * 64),
+                           .fz = (float)(scene_z * 128 + size * 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
                      .route_x = { (uint8_t)scene_x },
@@ -792,7 +796,11 @@ World_SpotanimSpawn(
     *s = (struct WorldEntity_Spotanim){
         .element_id = element_id,
         .level = level,
-        .draw_position = { .x = (uint32_t)scene_x, .z = (uint32_t)scene_z, .y = (uint32_t)y },
+        .draw_position = { .x = (uint32_t)scene_x,
+                           .z = (uint32_t)scene_z,
+                           .y = (uint32_t)y,
+                           .fx = (float)scene_x,
+                           .fz = (float)scene_z },
         .orientation = { .yaw = (uint16_t)orientation, .dst_yaw = (uint16_t)orientation },
         .idle_cycles = idle_delay,
         .active_cycle = 0,
@@ -976,8 +984,9 @@ World_ShiftEntities(
          * also owns the element reposition); park them at 255 like movers. */
         stack->grid_position.x = (sx < 0 || sx > 255) ? 255 : sx;
         stack->grid_position.z = (sz < 0 || sz > 255) ? 255 : sz;
-        stack->draw_position.x = (uint32_t)(stack->grid_position.x * 128 + 64);
-        stack->draw_position.z = (uint32_t)(stack->grid_position.z * 128 + 64);
+        World_DrawPositionSet(
+            &stack->draw_position, stack->grid_position.x * 128 + 64,
+            stack->grid_position.z * 128 + 64);
     }
 
     /* Loc-change list (Client-TS locChanges / deob field1353): shift and
@@ -2121,8 +2130,7 @@ World_ObjStackAdd(
     stack->grid_position.x = scene_x;
     stack->grid_position.z = scene_z;
     stack->grid_position.level = level;
-    stack->draw_position.x = (uint32_t)(scene_x * 128 + 64);
-    stack->draw_position.z = (uint32_t)(scene_z * 128 + 64);
+    World_DrawPositionSet(&stack->draw_position, scene_x * 128 + 64, scene_z * 128 + 64);
     stack->obj_id = obj_id;
     stack->count = count;
     if( name )

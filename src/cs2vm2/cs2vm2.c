@@ -4698,6 +4698,12 @@ cs2vm2_op_if_set_on_transmit(
 
     if( CS2VM2_PopInt(vm, &script_id) != CS2VM_EXECNO_OK )
     {
+        if( getenv("TORIRS_VAR_HOOK_DEBUG") )
+            fprintf(
+                stderr,
+                "VARHOOKOP kind=%d com=0x%08x bail=script_id\n",
+                (int)kind,
+                (unsigned)widget_uid);
         free(trigger_ids);
         return CS2VM_EXECNO_ERROR;
     }

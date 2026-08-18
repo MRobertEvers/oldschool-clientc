@@ -17,6 +17,27 @@ extern int g_failures;
         }                                                                                          \
     } while( 0 )
 
+/*
+ * One whole client cycle of world time.
+ *
+ * rev-239 splits the actor update across two clocks -- World_Cycle (per 20ms
+ * cycle: facings, walk/run sequence choice, route retirement) and
+ * World_MoversAdvance (per rendered frame: the ground actually covered). A
+ * test has no frame pacing, so it runs them lockstep at one cycle each, which
+ * is exactly what a client rendering at 50fps does.
+ */
+static inline void
+World_TestCycle(
+    struct World* world,
+    int cycles)
+{
+    for( int i = 0; i < cycles; i++ )
+    {
+        World_MoversAdvance(world, 1.0f);
+        World_Cycle(world, 1);
+    }
+}
+
 static inline struct WorldEntityFacet_IdleAnimations
 World_TestDefaultIdle(void)
 {
@@ -91,6 +112,7 @@ void test_scenery(void);
 void test_bridge_levels(void);
 void test_cycle_movers(void);
 void test_delaymove_gate(void);
+void test_walk_keeps_up(void);
 void test_entity_face(void);
 void test_try_route(void);
 void test_try_route_nearest_models(void);

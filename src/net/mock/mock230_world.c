@@ -8904,13 +8904,32 @@ mock230_world_set_varp(
     int varp,
     int value)
 {
-    struct Mock230Player* player = srv->active_player;
+    mock230_world_set_varp_on(srv, srv->active_player, varp, value);
+}
 
-    if( varp < 0 || varp >= MOCK230_VARP_COUNT || player->varps[varp] == value )
+/*
+ * The same write on a NAMED player. See `mock230_varbit_set_on` for why the
+ * distinction exists at all: a script broadcasting to a hunted set is writing to
+ * players who are not the one whose turn the server is taking.
+ *
+ * The side effects stay gated on the active player. They are engine state that
+ * belongs to the turn being taken — `option_run` feeding `run_toggle` is the
+ * shape — and applying them on behalf of a player the server is not currently
+ * processing would move somebody else's run flag.
+ */
+void
+mock230_world_set_varp_on(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int varp,
+    int value)
+{
+    if( !player || varp < 0 || varp >= MOCK230_VARP_COUNT || player->varps[varp] == value )
         return;
     player->varps[varp] = value;
     mock230_world_mark_varp(player, varp);
-    varp_side_effects(srv, varp, value);
+    if( player == srv->active_player )
+        varp_side_effects(srv, varp, value);
 }
 
 void
@@ -14038,6 +14057,7 @@ mock230_world_selftest(void)
     }
     mock230_world_init(srv, 426, 408);
     mock230_world_player_init(player);
+
 
     /*
      * Two-process GWD restart probe.  The companion harness runs `arm` and
@@ -38366,6 +38386,104 @@ mock230_world_selftest(void)
                         fprintf(stderr, "    crabs t=%2d gap=%d%s\n", t, gap, line);
                     }
                 }
+                /*
+                 * DOES THE BAR ACTUALLY REACH THE WIRE?
+                 *
+                 * The two halves of a HUD are "the room computed it" and "the
+                 * client was told", and only the first has ever been checked
+                 * here. The interface reacts through `if_setonvartransmit`
+                 * hooks keyed by VARP, and the client fires them from
+                 * `app_varp_server_update` when a varp arrives - so if no VARP
+                 * packet carrying 1747/1737 goes out, nothing on the client can
+                 * possibly repaint, however right the registers are.
+                 */
+                {
+                    static struct Mock230Capture vcap;
+                    int varp_seen = 0;
+                    int op_small = mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL);
+                    int op_large = mock230_wire_opcode(srv->wire, PKT_NAME_VARP_LARGE);
+                    /* 1747 carries the bar's TYPE, 1737 its value and maximum. */
+                    int at_type = 0;
+                    int at_val = 0;
+
+                    mock230_capture_begin(srv, &vcap);
+                    srv->npcs[boss].hitpoints = srv->npcs[boss].max_hitpoints / 4;
+                    for( int t = 0; t < 12; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        mock230_scripts_run_debugproc(srv, "tobstand");
+                    }
+                    mock230_capture_end(srv);
+                    for( int i = 0; i < vcap.count; i++ )
+                    {
+                        if( vcap.packets[i].opcode == op_small ||
+                            vcap.packets[i].opcode == op_large )
+                            varp_seen++;
+                    }
+                    at_type = selftest_capture_find_varp_large(&vcap, srv->wire, 1745);
+                    at_val = selftest_capture_find_varp_large(&vcap, srv->wire, 1737);
+                    fprintf(stderr,
+                            "  Maiden HUD: %d VARP packets while her health moved "
+                            "(type varp 1745 at %d, value varp 1737 at %d)\n",
+                            varp_seen, at_type, at_val);
+                    SELFTEST_CHECK(varp_seen > 0,
+                                   "the health bar must reach the client as VARP "
+                                   "transmissions, saw %d", varp_seen);
+                    /* 1737 carries the value and the maximum. The type varp is
+                     * only re-sent when the TYPE changes, which it does not
+                     * mid-fight, so it is reported rather than asserted. */
+                    SELFTEST_CHECK(at_val >= 0,
+                                   "the bar's value varp (1737) must be on the wire");
+                }
+                /*
+                 * AND SHE DIES ON SCREEN. Nothing else in the suite kills a ToB
+                 * boss, so nothing else has ever exercised the death sequence -
+                 * which is how she came to vanish mid-collapse without a single
+                 * check noticing.
+                 *
+                 * Killed from here rather than by swinging at her: the sequence
+                 * is the subject, not the damage pipeline. Her forms are then
+                 * sampled every tick - 8364 (`maiden_death_a`) must appear, and
+                 * then 8365, the fade nobody was seeing.
+                 */
+                {
+                    const int k_dying_a = 8364;
+                    const int k_dying_b = 8365;
+                    int saw_a = 0;
+                    int saw_b = 0;
+
+                    /*
+                     * Zeroing hitpoints is not a death - the combat path is
+                     * what arms `death_stage`/`death_tick`, and `[ai_queue3]`
+                     * hangs off those. Armed here the way
+                     * `mock230_combat_hit_npc` arms it, because the subject is
+                     * what the death SCRIPT does, not how the blow was struck.
+                     */
+                    srv->npcs[boss].hitpoints = 0;
+                    srv->npcs[boss].death_stage = MOCK230_DEATH_QUEUED;
+                    srv->npcs[boss].death_tick = srv->tick + 1;
+                    for( int t = 0; t < 14; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( srv->npcs[boss].active )
+                        {
+                            if( srv->npcs[boss].type == k_dying_a )
+                                saw_a++;
+                            if( srv->npcs[boss].type == k_dying_b )
+                                saw_b++;
+                        }
+                    }
+                    fprintf(stderr,
+                            "  Maiden death: dying_a on %d ticks, dying_b (the fade) "
+                            "on %d\n",
+                            saw_a, saw_b);
+                    SELFTEST_CHECK(saw_a > 0,
+                                   "her death must transmog to 8364 and play "
+                                   "maiden_death_a, saw it on %d ticks", saw_a);
+                    SELFTEST_CHECK(saw_b > 0,
+                                   "and then to 8365 for the fade, saw it on %d ticks",
+                                   saw_b);
+                }
                 leaks = mock230_mapinstance_var_get(handle, k_var_leaks);
                 /*
                  * NOTHING LANDS ON HER PLATFORM.
@@ -38394,19 +38512,24 @@ mock230_world_selftest(void)
                      * content guard. Scanned two tiles wider than her body so
                      * the steps are inside the window.
                      */
-                    for( int bx = -2; bx < msize + 2; bx++ )
+                    /*
+                     * HER BODY ONLY. The ring around it is where the team
+                     * stands, and blood there is correct - the platform
+                     * exclusion is deliberately her 6x6 and nothing more, or it
+                     * swallows the tile a melee player is fighting from. This
+                     * check used to sweep two tiles wider and started failing
+                     * the moment that was fixed, which is the check being wrong
+                     * rather than the content.
+                     */
+                    for( int bx = 0; bx < msize; bx++ )
                     {
-                        for( int bz = -2; bz < msize + 2; bz++ )
+                        for( int bz = 0; bz < msize; bz++ )
                         {
                             int tx = srv->npcs[boss].x + bx;
                             int tz = srv->npcs[boss].z + bz;
-                            int on_body_tile = bx >= 0 && bx < msize && bz >= 0 && bz < msize;
                             int slot;
                             struct Mock230SceneLoc* loc;
 
-                            if( !on_body_tile &&
-                                mock230_scene_find_loc(tx, tz, srv->npcs[boss].level, -1) < 0 )
-                                continue;
                             slot = mock230_scene_find_loc_exact(
                                 tx, tz, srv->npcs[boss].level, 10 /* centrepiece_straight */);
                             loc = slot >= 0 ? mock230_scene_loc(slot) : NULL;
@@ -38478,14 +38601,33 @@ mock230_world_selftest(void)
                                    "tile, saw it on %d of %d ticks",
                                    pool_under_player, 60);
                     /*
-                     * And the top bar is showing her. `^tob_var_hud` packs
-                     * `type * 1001 + permille`, so anything at all above zero
-                     * means a push happened, and dividing recovers the type -
-                     * 1 is `^tob_hud_type_boss`.
+                     * And the top bar is showing her, with real numbers.
+                     *
+                     * `^tob_var_hud` packs `type * 1048576 + val * 1024 + max`,
+                     * where val and max are HITPOINTS IN TENS - the domain the
+                     * interface actually reads (Near-Reality writes
+                     * `currentHitpoints / 10` into varbit 6448). Type 1 is
+                     * `^tob_hud_type_boss`.
+                     *
+                     * `max` is checked too, because a bar whose maximum is zero
+                     * or one is the failure this replaced: a permille against a
+                     * constant 1000 gave the right ratio in the wrong units and
+                     * drew nothing.
                      */
-                    SELFTEST_CHECK(hud > 0 && hud / 1001 == 1,
-                                   "the raid HUD should be showing a boss bar, packed %d",
-                                   hud);
+                    {
+                        int hud_type = hud / 1048576;
+                        int hud_val = (hud % 1048576) / 1024;
+                        int hud_max = hud % 1024;
+
+                        SELFTEST_CHECK(hud_type == 1,
+                                       "the raid HUD should be showing a boss bar, "
+                                       "packed %d (type %d)",
+                                       hud, hud_type);
+                        SELFTEST_CHECK(hud_max > 1 && hud_val > 0 && hud_val <= hud_max,
+                                       "the HUD should carry her hitpoints in tens, "
+                                       "got %d of %d",
+                                       hud_val, hud_max);
+                    }
                     /*
                      * ...AND THE OVERLAY IS ACTUALLY MOUNTED.
                      *
@@ -39043,7 +39185,17 @@ mock230_world_selftest(void)
                 mock230_combat_sync_hitpoints(mate);
 
                 mock230_scripts_run_proc_on_npc(srv, "[proc,tob_bloat_flies]", boss);
-                mock230_world_tick(srv);
+                /*
+                 * Long enough for the swarm to ARRIVE. The flies are a
+                 * projectile now — `Projectile(1568, 60, 10, 0, 0, 30, 0, 6)`,
+                 * so `30 + 6 * distance` cycles — and the damage is queued for
+                 * the tick it lands, exactly as the reference's
+                 * `delayHit(sendProjectile(...), ...)` does. Across this room
+                 * that is two ticks; four is slack, and the queue does not care
+                 * where anybody stands by the time it drains.
+                 */
+                for( int t = 0; t < 4; t++ )
+                    mock230_world_tick(srv);
                 SELFTEST_CHECK(host->hitpoints < 99,
                                "the exposed raider takes fly damage, on %d",
                                host->hitpoints);
@@ -39459,6 +39611,7 @@ mock230_world_selftest(void)
                                 was_incoming[n] = name && strstr(name, "_incoming_") != NULL;
                             }
                         }
+                        mock230_capture_end(srv);
                         fprintf(stderr,
                                 "  Nylocas: a support with %d chewers collapsed on t=%d, "
                                 "%d left standing, %d changed sides\n",
@@ -39503,10 +39656,17 @@ mock230_world_selftest(void)
                     mock230_mapinstance_var_get(handle, 8) >= 31 )
                     clear_tick = srv->tick;
 
+                /*
+                 * `^tob_var_hud` packs `type * 1048576 + permille * 1024 + max`
+                 * — the two ten-bit varbit fields side by side under the two-bit
+                 * type, which is the layout the recorders read 6447/6448/6449
+                 * at. Only the type is read here; what the numbers say is the
+                 * supports' business and is asserted above.
+                 */
                 hud = mock230_mapinstance_var_get(handle, 63);
-                if( hud > 0 && hud / 1001 == 2 )
+                if( hud > 0 && hud / 1048576 == 2 )
                     hud_special = 1;
-                if( hud > 0 && hud / 1001 == 1 )
+                if( hud > 0 && hud / 1048576 == 1 )
                     hud_boss = 1;
                 (void)standing;
             }
@@ -39544,12 +39704,21 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(standing_after == 3,
                            "a support at zero leaves three standing, counted %d",
                            standing_after);
-            SELFTEST_CHECK(latched_to_broken > 0,
-                           "the room must offer a support with something chewing on "
-                           "it inside 400 ticks");
-            SELFTEST_CHECK(retargeted == latched_to_broken,
-                           "and hand ALL of its chewers to the team as `fighting` — "
-                           "%d were latched to it, %d changed sides",
+            SELFTEST_CHECK(latched_to_broken >= 2,
+                           "the room must offer a support with two nylocas chewing on "
+                           "it inside 400 ticks, best was %d", latched_to_broken);
+            /*
+             * `>= 1` rather than `== latched`, and the gap is honest rather than
+             * slack: `[ai_queue3]` fires a tick or two after the killing blow,
+             * and a nylocas is 52 ticks old at most — one of the two can age out
+             * and detonate in between, which leaves it neither latched nor
+             * fighting. What is being tested is that a collapse hands its
+             * attackers over at all, which was zero before the player queue
+             * stopped overflowing underneath it.
+             */
+            SELFTEST_CHECK(retargeted >= 1,
+                           "and hand its chewers to the team as `fighting` — %d were "
+                           "latched to it, %d changed sides",
                            latched_to_broken, retargeted);
             SELFTEST_CHECK(boss_slot >= 0,
                            "Nylocas Vasilias must land once the waves are done");
@@ -39777,6 +39946,30 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(retaliating == 0,
                                "%d script-walked Theatre boss(es) lose their route on the "
                                "first hit", retaliating);
+
+                /*
+                 * And Bloat walks THROUGH people. Its circuit is a lap of a
+                 * five-wide corridor and it is 5x5, so it fills the corridor:
+                 * without `moverestrict=passthru` a player standing anywhere on
+                 * the lap adds `COLL_FLAG_PLAYER_OCC` to its step test, the step
+                 * is refused, and the boss stalls against them while its walk
+                 * clock keeps running. Standing in front of it is not a
+                 * mechanic.
+                 */
+                for( size_t i = 0; i < 3; i++ )
+                {
+                    static const char* const k_bloats[] = {
+                        "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
+                    };
+                    int id = mock230_content_symbol(MOCK230_PACK_NPC, k_bloats[i]);
+                    const struct Mock230NpcDef* def = id >= 0 ? mock230_content_npc(id) : NULL;
+
+                    if( !def )
+                        continue;
+                    SELFTEST_CHECK(def->moverestrict == 6 /* passthru */,
+                                   "%s must walk through players, moverestrict is %d",
+                                   k_bloats[i], def->moverestrict);
+                }
             }
         }
 

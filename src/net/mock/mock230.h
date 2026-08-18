@@ -3955,6 +3955,25 @@ mock230_varbit_set(
     int varbit_id,
     int value);
 
+/** The same write aimed at a NAMED player — what a script broadcasting to a
+ *  hunted set needs, since `srv->active_player` is whose turn it is and not who
+ *  the script selected. See the definition for the bug this fixes. */
+int
+mock230_varbit_set_on(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int varbit_id,
+    int value);
+
+/** `mock230_world_set_varp` on a named player; side effects stay gated on the
+ *  active one. */
+void
+mock230_world_set_varp_on(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int varp,
+    int value);
+
 /**
  * How many varbits are based on this varp — 0 means writing it whole is safe.
  *

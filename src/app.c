@@ -13962,7 +13962,8 @@ App_WorldDrainEntityRemoved(struct App* app)
 static void
 app_world_frame(
     struct App* app,
-    int cycles)
+    int cycles,
+    float frame_cycles)
 {
     struct World* world = app->world;
 
@@ -13973,6 +13974,19 @@ app_world_frame(
      * local player first (reference addPlayers(true) precedence). */
     world->local_pid = app->esync.local_pid;
 
+    /*
+     * Movement, then the cycle work -- rev-239's steady-state order, where a
+     * rendered frame runs client.method2324 -> method1894 and the logic loop
+     * then runs method3606 -> method3520 for the cycles that elapsed.
+     *
+     * Movement is integrated here rather than inside World_Cycle because one
+     * call of this covers however much of a 20ms cycle the frame actually
+     * took. Advancing per whole cycle instead rounds every frame's travel down,
+     * which is what made a player following a moving NPC drift back and then
+     * lurch forward. Ahead of World_Cycle so the painter dynamics it publishes
+     * describe where the actors are now, not where they were a frame ago.
+     */
+    World_MoversAdvance(world, frame_cycles);
     World_Cycle(world, cycles);
     World_LocChangesTick(world, cycles, app_loc_change_apply_cb, app);
     App_WorldDrainEntityRemoved(app);
@@ -16412,8 +16426,23 @@ App_RunOnce(
             ticks = 0;
         }
 
-        /* World sim cycles == client 20ms ticks (v1 world_cycle cadence). */
-        app_world_frame(app, ticks);
+        /* World sim cycles == client 20ms ticks (v1 world_cycle cadence); the
+         * movers get the frame's real elapsed time in the same unit. Clamped
+         * to the logic catch-up budget so a stalled frame does not fling
+         * every actor down its route in one step. */
+        {
+            uint64_t frame_ms =
+                now_ms > app->last_mover_ms ? now_ms - app->last_mover_ms : 0;
+            float frame_cycles;
+
+            if( app->last_mover_ms == 0 )
+                frame_ms = 0; /* first frame has no elapsed time to spend */
+            else if( frame_ms > APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS )
+                frame_ms = APP_MAX_CATCHUP_TICKS * APP_LOGIC_TICK_MS;
+            app->last_mover_ms = now_ms;
+            frame_cycles = (float)frame_ms / (float)APP_LOGIC_TICK_MS;
+            app_world_frame(app, ticks, frame_cycles);
+        }
     }
 
     /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue

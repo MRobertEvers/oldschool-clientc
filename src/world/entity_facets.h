@@ -93,13 +93,42 @@ struct WorldEntityFacet_GridPosition
     int level : 4;
 };
 
-/* Sub-tile position (128 units per tile). */
+/*
+ * Sub-tile position (128 units per tile).
+ *
+ * `x`/`z` are the integer position every consumer reads -- rev-239
+ * class105.field1474 / field1475. `fx`/`fz` are the same position carried at
+ * full precision (field1517 / field1465), and they are what the per-FRAME
+ * mover integrates: a render frame is not a whole 20ms client cycle, so the
+ * distance walked in one is fractional. Rounding that away per frame is what
+ * an integer-only mover does, and it is why the old cycle-quantised port
+ * lurched -- see World_MoversAdvance.
+ *
+ * Invariant: x == (uint32_t)fx and z == (uint32_t)fz. Anything that moves an
+ * entity outright (spawn, teleport, scene rebase) must write both, which is
+ * what World_DrawPositionSet is for.
+ */
 struct WorldEntityFacet_DrawPosition
 {
     uint32_t x;
     uint32_t z;
     uint32_t y;
+    float fx;
+    float fz;
 };
+
+/** Set both halves of a draw position at once (see the invariant above). */
+static inline void
+World_DrawPositionSet(
+    struct WorldEntityFacet_DrawPosition* draw_position,
+    int x,
+    int z)
+{
+    draw_position->x = (uint32_t)x;
+    draw_position->z = (uint32_t)z;
+    draw_position->fx = (float)x;
+    draw_position->fz = (float)z;
+}
 
 struct WorldEntityFacet_OrientationPYR
 {
