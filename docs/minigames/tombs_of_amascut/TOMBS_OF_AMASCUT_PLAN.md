@@ -1,6 +1,58 @@
 # Tombs of Amascut — full implementation plan
 
-> **Status, 18 August 2026: research complete, nothing built.**
+> **Status, 18 August 2026: steps 1-3 built and gated; steps 4-7 not started.**
+>
+> | Step | State |
+> |---|---|
+> | 1 instancing and geometry | **done** — all twelve squares, the three plane-1 rooms, Nexus-plus-one-room instancing, room/path/tile/music tables. `::toarooms` builds every one of them for real |
+> | 2 invocations and scaling | **done** — the 44-row table generated out of the cache's own structs, the exclusive-category and prerequisite rules, and the raid/path/team factors. The generator and `::toarun` independently reconstruct the 600 ceiling |
+> | 3 points and rewards | **done** as arithmetic — the ledger, the multiplier table with its three-down cap, the death penalty, the scaled raid level and the unique curve. Not yet wired to a chest |
+> | 4 challenge rooms | **done** — Het's beam and mining window, Scabaras's five puzzle rule sets, Crondis's water and crocodile priority, Apmeken's eight waves and sight layer |
+> | 5 path bosses | **done** — Zebak, Ba-Ba, Kephri and Akkha, each with its clock, thresholds and specials, spawned at the ceiling and healed down |
+> | 6 the Wardens | **done** — all three phases, including the phase-1 inversion that decides which Warden survives |
+> | 7 Combat Achievements | **done** — 51 tasks through `~ca_task_complete`, with the Perfect flags cleared by damage and double-gated on the room being implemented |
+> | 8 `::toarun` | **49 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` (12 rooms plus the config ceilings) and `::toaprobe` |
+>
+> Also done: the loot table (uniques with their raid-level-shifting weights,
+> three common rolls, both bad-luck mitigations), the vault, and `toa.npc`,
+> which authors every boss at the raid's ceiling because `npc_statheal` cannot
+> exceed the config base and this raid scales **up**.
+>
+> **The selftest is proven able to fail**, four times now. Changing one invocation's raid-level modifier from +50 to +45 was
+> caught by two independent checks — `invocation 12 raid level 45` and
+> `raid level ceiling is 585, wanted 600`. Adopting the reference
+> implementation's team scaling (+90% for every extra member) was caught as
+> `team factor 4-man is 370, wanted 340` and `Zebak 8-man is 4234, wanted 3364`,
+> which are exactly the reference's own numbers. Reversing one baboon's counter
+> style was caught as `thrower counter is 3, wanted 1`. And editing one
+> `hitpoints=` line in `toa.npc` from 15211 to 15200 passed `::toarun` and
+> failed `::toarooms` with `config hitpoints 15200 wanted 15211` — which is the
+> split that matters: `::toarun` checks the arithmetic and only something that
+> spawns an npc can check the file. That gap was real when the arithmetic check
+> was first written, and the comment claiming otherwise was corrected by adding
+> the missing check rather than by softening the claim.
+>
+> **Three things fell out of building it**, all recorded in §12:
+>
+> 1. **A script cannot ask `map_blocked` about a tile it teleported to in the
+>    same script** — `[E1]`. Every tile within six of every ToA entry, in eleven
+>    rooms on both planes, reads blocked, which looked like instances having no
+>    collision. `::toaprobe`'s third control settles it the other way: standing
+>    inside a freshly built room, the tile underfoot reads blocked and the
+>    Lumbridge tile the player just left still reads **open**. The scene has not
+>    moved. `mock230_scene_walk_blocked` answers "blocked" for anything outside
+>    the one currently-built scene, and the scene is rebuilt on the tick
+>    boundary rather than inside `p_teleport`. Nothing to do with instances, and
+>    it decides how every room here has to be written.
+> 2. **The 55% unique ceiling is unreachable on one player's points.** A solo
+>    raider caps at 64,000 reward points, which at raid level 400 is 17.2%. The
+>    cap binds only on a group's summed points.
+> 3. **The Wiki's pickaxe table and Mod Ash's statement of the same rule
+>    disagree at exactly Mining 99.** Ash wins — he is describing the code — so
+>    an unboosted 99 takes the middle band.
+>
+> Original status line, kept because the plan below is still the plan:
+> **research complete, nothing built.**
 > This document is the plan; the evidence behind it is
 > [`ENCOUNTERS.md`](ENCOUNTERS.md) (mechanics), [`ASSET_INDEX.md`](ASSET_INDEX.md)
 > (every cache id) and [`SOURCES.md`](SOURCES.md) (where all of it came from,
@@ -354,7 +406,8 @@ phantoms reuse the path bosses' behaviour and invocations.
 
 | Tag | What is unknown | Where |
 |---|---|---|
-| `[D1]` | instance lifetime policy — one room live, or one per path in progress | §2 |
+| `[D1]` | **decided** — the Nexus plus one room at a time. A party split across two paths is not modelled and `~toa_enter_room` says so | §2 |
+| `[E1]` | **content constraint, not an engine defect.** `map_blocked` answers about the one currently-built scene, which is rebuilt on the tick boundary — so a walkability test in the same script as the teleport that arrived there always reads "blocked". Any mechanic that needs one (crocodile aggro, baboon waves, rolling boulders, the Crondis tile-skip) must run a tick later than the arrival. `::toaprobe`'s three controls are what establish this; re-run them before assuming otherwise | §2 |
 | `[M1]` | puzzle-room completion point awards; only plugin estimates exist | §ENCOUNTERS §0 |
 | `[M2]` | Spitting Scarab range: 8 or 10 tiles | §6 |
 | `[M3]` | Akkha Memory Blast iteration count by path level | §6 |
@@ -365,7 +418,8 @@ phantoms reuse the path bosses' behaviour and invocations.
 | `[M8]` | the varbit the invocation state is actually stored in | §ASSET_INDEX §8 |
 | `[M9]` | Het mirror/beam **layout generator** | §5.1 |
 | `[M10]` | Crondis trap cycle period | §5.3 |
-| `[M11]` | Zebak Great Roar rock/jug placement patterns | §6 |
+| `[M11]` | Zebak Great Roar rock/jug placement patterns. The clock is built and checked; the specials announce and resolve without geometry rather than placing rocks on invented tiles | §6 |
+| `[M16]` | Zebak's attack-style distribution. Rolled flat across the three; no source states a pattern and the guides describe reacting to the animation | §6 |
 | `[M12]` | Kephri shield charge per swarm | §6 |
 | `[M13]` | Ba-Ba Rock Throw damage, solo vs group | §6 |
 | `[M14]` | Energy Siphon time limit | §7 |
