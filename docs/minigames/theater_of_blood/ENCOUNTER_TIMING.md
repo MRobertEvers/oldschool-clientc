@@ -434,8 +434,11 @@ are ever stood on, which caps it at four attackers. Loc **32862** intact → **3
 `tob_nylocas_support` **8358** (10790 entry / 10811 hard) carries the health.
 
 Collapse: up to 50 to the whole room, and **every nylo that was attacking it
-retargets a player**. All four → instant team death. Per-pillar hitpoints remain
-`[M7]`.
+retargets a player**. All four → instant team death. Per-pillar hitpoints are no
+longer `[M7]`: Jagex published **130 at five players and 330 solo**
+([21 June 2018](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood_Changes_%26_Deadman_Summer_Finals)),
+so the curve is `380 − 50 × party` and pillars get *bigger* as the party shrinks.
+`[M7]` now covers only the damage one nylocas does per swing.
 
 ### 4.6 Nylocas Prinkipas — correction
 

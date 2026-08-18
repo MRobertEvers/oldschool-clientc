@@ -48986,6 +48986,72 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::gauntletrun\n");
+    {
+        /*
+         * The Hunllef encounter, asserted through its own content
+         * (minigames/minigame_gauntlet/scripts/gauntlet_selftest.rs2), the same
+         * shape `::chargesrun` above uses — on the OK line rather than on the
+         * absence of FAILs, because the debugproc stops at its first broken
+         * check and a script that aborted on line one also prints no FAIL.
+         *
+         * What it covers that nothing else can: the boss's damaging-floor
+         * patterns are rectangles in arena-local space, and `loc_add` ABORTS
+         * the calling script when handed a tile outside the built scene. An
+         * off-by-one in one rectangle of one pattern of one HP phase therefore
+         * does not misdraw a tile, it kills the fight — and only on the roll
+         * that picks that pattern in that phase. Walking every rectangle here
+         * turns that into a build failure.
+         *
+         * Safe to run unconditionally and safe here: it spawns exactly one npc
+         * and deletes it in the same script, restores every varp it writes, and
+         * never ticks the world — so it does not move the shared RNG stream or
+         * the tick counter that later sections measure against.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture gauntletrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &gauntletrun_capture);
+            mock230_scripts_run_debugproc(srv, "gauntletrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&gauntletrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&gauntletrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &gauntletrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "gauntletrun OK", 14) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "gauntletrun FAIL", 16) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::gauntletrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::gauntletrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::hunterrun\n");
     {
         /*

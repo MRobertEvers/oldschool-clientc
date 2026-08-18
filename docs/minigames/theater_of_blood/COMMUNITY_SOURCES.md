@@ -213,6 +213,34 @@ Molgoatkirby.
 
 ---
 
+## 5b. Wiki mechanics researchers
+
+### Mc — <https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB>
+
+A wiki editor's working page on ToB mechanics, in the user namespace rather than the
+article namespace, and by some distance the most detailed secondary source found for
+this raid. It carries engine-level statements the articles do not: the cause of
+"scuffed" crabs (Maiden's npc index above the crabs'), the Bloat down window and its
++5 shift, the 16-hand placement algorithm with its rejection rule, the exhumed
+count/heal/cadence tables at all five scales, Sotetseg's death-ball damage formula,
+and Verzik's per-phase transition lengths.
+
+**Worth:** ranks below the cache and below observed recordings, but above every RSPS
+tree and every written guide. In the fourth research pass it independently restated a
+dozen figures this project had already measured — M1, M4, M9, M12–M14, M16, M17, M31 —
+which is the reason to trust it where it is the only source.
+
+**But it is not infallible, and one error is demonstrable.** Its scaling section gives
+the boss hitpoint ladder as 100/80/60 % for 5/4/3-scale. The real ladder is
+100/87.5/75 %, which the wiki itself states with numbers elsewhere (Hard Mode's
+Nylocas Prinkipas at "300/350/400 health"). Its "small nylos are an exception" note is
+a symptom of the same slip — under the correct ladder they are not an exception.
+
+**Used here:** the pillar scaling direction (M7), Xarpus' flat 4-tick cadence (M31),
+Verzik's 7-tick P2→P3 transition (M20), and as a cross-check on M1/M4/M12–M17.
+
+---
+
 ## 6. Jagex sources
 
 Not community, but the only first-party statements that exist. All are Mod Ash or
