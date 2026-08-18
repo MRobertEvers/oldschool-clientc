@@ -2004,3 +2004,38 @@ Zulrah selftest was validated.
 *Plan compiled 17 August 2026. Sources downloaded to [`sources/`](sources/) and
 indexed by [`sources/README.md`](sources/README.md); the full Nylocas wave table is
 [`nylocas_waves.md`](nylocas_waves.md).*
+
+## 20. The approximations, resolved
+
+Written after going back through the community documentation for each one. The
+headline: **of the seven, exactly one needed an engine change.** The rest were
+either already expressible with primitives the tree had, or — in one case — an
+assumption I had written down as though it were sourced.
+
+| Task | Verdict | What the sources actually say |
+|---|---|---|
+| **M32** over-hit | **engine change: `p_overhit`** | The Wiki on the Maiden: she *"will over-hit the player beyond their current health when damage is calculated; this makes it so you cannot tick-eat the maiden boss's magic attacks."* Ordinary `damage` subtracts from what the target has *now*, which is precisely what tick-eating exploits. New opcode `SS_OP_P_OVERHIT` (11077) takes the verdict — content decides `$lethal` at launch, where it can see the target's hitpoints; the engine only honours it. Same mechanism/policy split as `npc_freeze`. |
+| **M28** Verzik melee predicate | **closed, no engine change** | The Wiki: *"she will not melee if they are out of range **or under her**."* `npc_range` is a Chebyshev distance from the npc's **footprint**, so it already answers 0 for "under her" and 1 for "beside her" — exactly TobMistakeTracker's `!intersectsWith && distanceTo == 1`. One line. |
+| **M33** Bloat line of sight + spread | **closed, no engine change** | Mod Ash, cited by the Wiki: *"The developer appears to have tried writing a manual check to see if any tile on the NPC's nearest side has line-of-sight to the target. The standard line-of-sight checks apparently aren't reliable for this for large NPCs."* Implemented literally with the existing `lineofsight`, walking whichever side of the 5×5 faces the player. The spread (*"This will spread to other players in the raid also"*) is a second pass seeded from whoever the first admitted. |
+| **M34** Sotetseg ricochet | **closed, no engine change** | The Wiki: *"these projectiles will split into two other similar projectiles, both of which will ricochet towards other players as one grey and one red projectile."* Two ricochets from the impact tile, at *other* players, one ranged and one magic. A 2023 change note adds that the two can no longer land on the same player on the same tick. |
+| **M36** Verzik safespots | **closed, no engine change** | The Wiki: *"Each 'safespot' only works for one player, so they cannot stand on the same tile to protect themselves"*, and in hard mode *"her charged shot attack now hits three times per player, creating three 'safespots'."* No tile-occupancy query was needed — the pools are this script's own, so it simply remembers where it put them. |
+| **M24** nylo → pillar | **open, but now precisely** | blert states the rule exists — *"Each wave-spawned Nylocas always targets the same pillar in every encounter"* — and **nobody publishes the table**: not blert, not the Wiki's wave chart, not the community chart every raider memorises, not tob-qol. That is a genuine hole in the community's documentation rather than a hole in the search. Modelled from the room's own symmetry (each lane has two slots, the room has four pillars in two rows, so the slot picks the row), latched per spawn so splits inherit. Falsified the moment a wave-1 nylo crosses to the far side. |
+| **M35** Verzik "hard npc" | **withdrawn — it was never real** | I had written that she becomes invulnerable and hard during webs, that players are pushed out, and that this needed engine support. **Nothing states any of it** — not the Wiki, not blert, not tob-qol, not TobMistakeTracker. It was an assumption recorded as though it were sourced, which is the exact failure the provenance tags in `tob.constant` exist to prevent. The documented mechanic is only the binding, the 10-hitpoint web, and the timeout. |
+
+### The new opcode, and how it is known to work
+
+`::tobhit` delivers **the same 10 damage twice, differing only in the flag**,
+and requires two different outcomes. An implementation that dropped `$lethal`
+would leave the player alive both times.
+
+Verified by mutation: `if( 0 && values[3] )` in `mock230_scripts.c` produces
+
+```
+tobhit FAIL: over-hit left the player alive on 10
+FAIL ::tobhit should reach its OK line
+```
+
+and the engine was restored. The C stanza owns the hitpoint bar and forces god
+mode **off** first — god mode zeroes `amount` inside
+`mock230_combat_hit_player`, which would leave both halves alive and turn a
+real regression into a green run.

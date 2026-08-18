@@ -36989,6 +36989,71 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(tob_said_ok, "::tobrun should reach its OK line");
         }
 
+        /*
+         * The over-hit primitive (`::tobhit`, p_overhit / SS_OP_P_OVERHIT).
+         *
+         * Separate stanza from ::tobrun because it damages the player. What it
+         * proves is the only thing worth proving about a new opcode: the same
+         * 10 damage delivered twice, differing only in the `lethal` flag, has
+         * to produce two different outcomes. An implementation that dropped
+         * the flag on the floor would leave the player alive both times and
+         * this would fail — which is exactly the mutation that would otherwise
+         * ship silently, because the Maiden would simply become tick-eatable.
+         */
+        {
+            static struct Mock230Capture tobhit_capture;
+            int tobhit_said_ok = 0;
+            struct Mock230Player* player = srv->active_player;
+            int saved_hp = player->hitpoints;
+            int saved_dying = player->dying;
+            int saved_god = player->godmode;
+            int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+
+            /*
+             * This stanza owns the bar, for the same reason the god-mode one
+             * above does: whatever ran before leaves the fixture on whatever
+             * hitpoints it ended on, and a 10-damage control hit has to be
+             * survivable. God mode has to be off too — it zeroes `amount` in
+             * mock230_combat_hit_player, which would make BOTH halves of the
+             * test leave the player alive and turn a real regression into a
+             * green run.
+             */
+            player->dying = 0;
+            player->godmode = 0;
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 20;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 20;
+            player->hitpoints = 20;
+            mock230_combat_sync_hitpoints(player);
+
+            mock230_capture_begin(srv, &tobhit_capture);
+            mock230_scripts_run_debugproc(srv, "tobhit");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&tobhit_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&tobhit_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &tobhit_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tobhit") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "tobhit OK") != NULL )
+                    tobhit_said_ok = 1;
+            }
+            player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            player->hitpoints = saved_hp;
+            player->dying = saved_dying;
+            player->godmode = saved_god;
+            mock230_combat_sync_hitpoints(player);
+
+            SELFTEST_CHECK(tobhit_said_ok, "::tobhit should reach its OK line");
+        }
+
         {
             static struct Mock230Capture gearrun_capture;
             int said_ok = 0;

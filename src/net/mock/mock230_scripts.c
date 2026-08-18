@@ -8115,6 +8115,61 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * p_overhit(uid, amount, type, lethal) — a hit whose verdict was settled
+     * when it was rolled.
+     *
+     * Ordinary `damage` subtracts from whatever the target has NOW, which is
+     * what makes tick-eating work: heal between the launch and the landing and
+     * the same number no longer kills. A few attacks in this game are not
+     * supposed to be survivable that way — the Theatre's Maiden and the
+     * Inferno's Zuk both "over-hit ... beyond their current health when damage
+     * is calculated" — and this is that.
+     *
+     * The engine does not decide `lethal`. It cannot: the question is about
+     * the target's hitpoints at a tick that has already passed, and only the
+     * caller was there. Content answers it at launch and this honours it, the
+     * same mechanism/policy split `npc_freeze` is written around.
+     */
+    case SS_OP_P_OVERHIT:
+    {
+        int32_t values[4];
+        struct Mock230Player* target_player;
+        struct Mock230Player* saved_player;
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        target_player = player_by_uid(srv, values[0]);
+        if( !target_player )
+        {
+            SSVM_Abort(state, "p_overhit: player uid %d is not a live player",
+                       (int)values[0]);
+            return 1;
+        }
+        saved_player = srv->active_player;
+        mock230_world_set_active(srv, target_player);
+        if( values[3] )
+        {
+            /*
+             * Lethal when rolled. Send the hit the target's remaining health
+             * so the splat reads as the killing blow rather than as a number
+             * larger than the bar, then let the ordinary path run: it is the
+             * one place hitpoints reach zero and the only one that starts the
+             * death sequence.
+             */
+            mock230_combat_hit_player(srv, values[2], target_player->hitpoints);
+        }
+        else
+        {
+            mock230_combat_hit_player(srv, values[2], values[1]);
+        }
+        mock230_world_set_active(srv, saved_player);
+        return 1;
+    }
+
     case SS_OP_HITMARK:
     {
         int32_t values[3];

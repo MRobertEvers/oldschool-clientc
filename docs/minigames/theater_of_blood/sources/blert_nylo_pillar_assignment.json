@@ -1,0 +1,2387 @@
+{
+  "source": "https://blert.io/api/v1/raids/tob/<uuid>/events?stage=12",
+  "method": "tools/derive_tob_nylo_pillars.py",
+  "raids": 199,
+  "raidUuids": [
+    "00323ab1-0156-49c0-804e-065da13fe376",
+    "020937f9-a0a0-4fe1-99e7-6a030eb2fb29",
+    "02e9d7d9-1108-4059-9d78-0f88919ba883",
+    "06a34307-0d03-4e54-8d87-e9914a206670",
+    "06c673f5-f2de-4bdc-ac37-0f1ac80db34e",
+    "07539fb5-bd50-4a7e-9888-8c2f489f25d2",
+    "07f82f0b-687a-4ed8-b368-0a244c71755c",
+    "08a0495c-4aa8-4a68-9d5a-48c9ebe35fcd",
+    "0c5abdad-21f2-422a-b814-28d3fcfa8def",
+    "0e563542-5d70-418c-9d74-afaaabc0951c",
+    "0f538581-3af2-481e-acf0-bb0a51091088",
+    "10241d4e-a29f-4740-90c6-e2c79fcfb498",
+    "10ad9cfe-aca3-4df5-b57e-54721b9ea711",
+    "150fce90-9357-4ce4-9e12-3a6a390c8d16",
+    "15f95815-adc2-492e-985a-7167c4516d22",
+    "168367ad-50b6-456f-8896-849aabc712c2",
+    "1b42d762-7de9-488b-8c85-eb8e1d9a530c",
+    "1c4de22b-5754-41de-a0b6-481765042894",
+    "1ddc0a93-adba-4f88-a782-73bef754088a",
+    "1edc2892-d310-4f74-be19-8d748261758f",
+    "203c7709-bcd5-4fbd-9e70-53abf086e0a3",
+    "21915c96-2a2e-458a-aced-180fd8fbacb4",
+    "22121773-6bf7-4dc0-9534-df2eea1101c3",
+    "228393ec-752a-47be-a64b-66547312f24c",
+    "250f2110-a779-4274-9dd5-e4379d56479c",
+    "274572b5-996d-45ea-83f8-27e0d0769e21",
+    "27e0127c-03b7-4fd4-b9ff-f690112a20cd",
+    "28fdc1ca-f84c-4d20-bde3-3bc04e9c6b71",
+    "29d1570a-5c4d-4d3e-a35a-1ab5dc61c85e",
+    "2b2e677a-3ba1-4102-b9cd-55cb84627b33",
+    "2b6b424f-7417-4afc-8fb9-d63fe812f28a",
+    "2d968a0e-94b7-4719-beb1-7342626c6d03",
+    "2dca4f7a-cb07-4a0e-8de4-0c8cd82108d2",
+    "2e8764b9-27c1-4533-86e7-03d646e8aace",
+    "2f1d2127-914c-4113-8a59-198eb14e7e4a",
+    "2f527ac0-1f93-4802-923e-a39cafe4ab22",
+    "2fab7910-dd64-41a2-a868-792808a23569",
+    "3087fdfe-3a92-45c5-b66e-54c164a2ddcf",
+    "314d6e9f-91e1-44e0-8c15-73a712ca38c4",
+    "323171b2-c3db-4639-9f6f-17f88d0bef97",
+    "34917e2c-076e-47db-bfe3-025fc2c41630",
+    "353b980e-3832-4dcc-bb86-7499c34ccce3",
+    "355581db-c7f2-4f60-95ca-4e228ee6daef",
+    "35c558a8-a346-4a1b-bb43-d1667b081175",
+    "3a4f206f-ccde-48f9-bbbe-d345da1efd73",
+    "3b26a55e-f726-49ed-88e3-69a65c3777d1",
+    "3d65e373-82b3-4079-9781-3e8838f19b95",
+    "3dba47a2-8f82-4314-84cc-1174fe188c83",
+    "41ddc007-cf06-4a51-ab32-0da94238dd89",
+    "423766ad-903c-49c5-b64b-0ede221617bd",
+    "42b148bf-cdcc-4cbf-9ef8-2bd95e6c9fa1",
+    "43b66009-da26-4e88-a477-e6853a4f854b",
+    "461154f7-f942-43ba-8342-6ffee92d6d7c",
+    "49841faf-11f5-4f48-a210-8af4d7cf0399",
+    "49d17ae5-e823-4522-ba8f-f693493a0ed6",
+    "4a2a69d2-0e88-4b84-8981-76808f375d08",
+    "4be2592e-4e51-42a9-b205-9ab2a19aba52",
+    "4c8470e2-d8a8-4e1e-8e26-82278337a591",
+    "4c8d5395-a8e0-486d-88ab-5d4a0d1cf2fa",
+    "4df5a604-9dea-45fa-851b-81a8b5c3b1bd",
+    "4ffa49d2-6eca-420f-8d28-971633d33eda",
+    "50cc371e-c49f-4908-8791-152227f9082e",
+    "527e031f-49d9-4849-a476-202260a82705",
+    "5559f9b0-c2e4-4971-9429-b3e7c37209aa",
+    "55e71949-6f3a-4534-865e-13f6ec88ec4c",
+    "5630f761-d461-4468-b230-74eed11daeb0",
+    "5677af2f-213d-48cb-b83e-3d3b34cccefb",
+    "568f5f0c-0e3e-404f-90f6-2fe95737a294",
+    "569424dd-030b-4c58-ac47-e5c76768373a",
+    "5716a7f5-3bf3-4edb-a308-dd865f420bb6",
+    "57c26b76-a6cd-4a2c-978b-ee4e15e672f8",
+    "5961afe9-d538-4c9a-9160-b1bed20b7743",
+    "59c18d7a-5cab-4075-9c24-19dd04515d78",
+    "5ba1efc8-d4c0-422a-96c7-4b293eb9b4cd",
+    "5bc554d5-2e0f-46b1-8298-b14e58bfda69",
+    "5d1ec00f-f701-4d5c-a462-fd021af3ad7c",
+    "5f5bdca4-42e7-40d1-8156-37292ef93133",
+    "5f5f6039-e045-478e-a968-159c32a57dee",
+    "609c10bd-2ada-4b52-9b1f-db4518ff4e87",
+    "61142907-23fb-483a-be6d-3959621ffd6b",
+    "627a9cc7-d767-4e12-b6cd-cee2eeaa6527",
+    "635ed2a8-dd1c-42b4-8a99-04c6cd742393",
+    "6529c671-14ba-471e-8214-e60eee5794f7",
+    "658b5f80-ac3d-4ea9-88f2-c8be51f1a26c",
+    "65fa6108-affb-43d5-a9af-afc57836678d",
+    "683bf1d4-4658-4e25-bb53-f1ad62ca1d61",
+    "69236e19-5806-437c-8cfe-641fec9d1647",
+    "692eae85-eac1-475c-b52d-afaa68e319f7",
+    "694879ef-55c0-4e36-8873-bedc56b0a75f",
+    "6a2d2b3a-7157-4bfd-8bce-3ec97611afa0",
+    "6bb19a33-9172-4cdd-a7fa-49068cf27d69",
+    "7171dc04-5092-4951-ad77-ab70f67f2f5c",
+    "739e9a90-999a-4d82-8244-ec3b4451f126",
+    "758b9832-fd0d-446b-a72b-483571729bb3",
+    "76338b99-dec7-4f3f-a505-6b1299c2a2dd",
+    "769301a8-dea8-45bb-8d88-afd6020e062e",
+    "77907a42-8271-4464-9dd9-abd3c4534717",
+    "78fc6e0a-cea3-4084-8ac2-ae15dd9766d9",
+    "79c70abb-900e-4f97-83be-a6370c09a0a7",
+    "79e10ea5-1b29-4d50-a744-35399a3f6be6",
+    "7f379570-b1ca-461c-ab8d-486e699be183",
+    "7f45178c-26d3-42bd-a4e6-caac6f8fb10e",
+    "7f9e3cda-d410-4189-abfc-7fd9bdabe60a",
+    "816fa3aa-8e27-44fc-bd4b-edee946c9384",
+    "82436a6f-f450-4e10-9bd2-3312dad1e39d",
+    "82e20540-81aa-4e5b-91cc-65ce239d741a",
+    "832b463b-32a0-41e8-a894-7cb1a0e33606",
+    "8439143f-83fa-45f0-8ce8-19c913198130",
+    "84727794-eae1-4edd-aacb-12ff66eea666",
+    "862eaefa-b8e3-40bf-87a6-193bee7c0a79",
+    "8804d7d0-b1f8-4d96-b388-3b6b4209f8f5",
+    "88679760-ed88-46d0-a476-8cb653f4406b",
+    "8920b7ef-d613-46be-ba73-6e628374e787",
+    "895c84bb-4e4f-421d-a476-229accfce64e",
+    "8a6f03b3-1382-4b4a-ba92-c0162de2a9e5",
+    "8c977ea9-e56b-46f9-83d2-4b55317acb72",
+    "8da98c84-3d45-4aa2-a327-1de2383982b1",
+    "90dc5f33-b787-4024-b8a0-3cf85c325cdb",
+    "913e0309-be32-43fb-8e68-0b65c2bad3c6",
+    "967724a5-164b-4e3d-b401-a7d3fc3d2a7a",
+    "968f0c11-91c0-42d0-81c9-afe4fabefc82",
+    "98eb4ef0-c09f-441f-9004-4bb987e98379",
+    "9b643e56-f075-4d02-9621-6757d5ca61de",
+    "9d39a2d8-2699-46e1-a841-213a28548668",
+    "9fcb5c25-5122-4784-9841-690e737b8904",
+    "a1368620-9548-4d64-887d-8ea32ce8dd56",
+    "a29fb87d-adc5-4e69-95ba-d809201c2c6e",
+    "a6ea3f09-c935-4dad-872e-b92a112cba29",
+    "a817f4a0-e758-4ad7-a822-f391ae7e3a90",
+    "a83dd573-4eb4-414b-bf44-f88855102746",
+    "a931402f-ea2f-4267-8a82-88efe78bc8c3",
+    "a9941eae-3580-480b-9022-9f645b384a4a",
+    "aa37b2ec-6705-47d7-af39-37aabc3d72d9",
+    "aa3f2235-fd5c-4c8c-a0cf-d462c2bd69b7",
+    "aaaca12c-d97a-485d-988a-fdab770141f2",
+    "abc5947c-6819-4e33-bb99-645d798c2c78",
+    "aeb3561f-8430-4a6e-89e2-ca3f934ae332",
+    "b0901727-55cc-4bf2-98d1-f49076e95ca6",
+    "b0c23a46-4932-4636-9b99-9f55fd1d9942",
+    "b4e932b9-72af-4a52-a04d-cdd3b46c5839",
+    "b53e999a-db5d-4f54-985c-3c81b6818371",
+    "b5567f7b-4816-4247-8ce7-ab15635e8501",
+    "b6707450-1b2c-4f51-8976-47dfb30c3d93",
+    "b7539a97-9ec9-4861-b639-3db3acac8426",
+    "b7c6dafd-c67e-453a-b55b-23d08534aa54",
+    "b930e3b4-6c7a-4228-8ec6-61b178419152",
+    "ba4fc953-0f33-4e52-93c1-f7ee3bfff18b",
+    "bb5b81f3-730a-4fc0-9ff2-b435f9706574",
+    "bdb7069e-e161-4dac-aa8f-b6a607e036e1",
+    "be669421-0b0e-468d-ae77-454e7d74ab37",
+    "c0e6be1d-0753-45fb-87f7-71e3a8c4848c",
+    "c0ef1706-9186-4ca6-825e-9008e3a2b98c",
+    "c128a3d3-e8d8-4bd5-a35b-bd6a81e6b227",
+    "c2f41bed-6593-422e-aac2-814f462b26fc",
+    "c3a9edbb-cd05-43fc-b143-fd2d23191db3",
+    "c417c5bb-ab18-49c5-8c36-51b178558f18",
+    "c5fa50c3-9a6c-420f-86cc-cdd5d7ce3b2f",
+    "c8e4d9db-58c6-45b7-b64e-e35a103f5636",
+    "c9d40695-9530-4783-8a33-9ee7b848c8c0",
+    "cbd44b62-9614-4a8c-9f9a-1e7359838b96",
+    "ce56410a-aa8f-4617-9a20-a85578312d94",
+    "ced01040-7bb4-409b-82b1-a2189347b024",
+    "cf23ff92-13a1-4de2-9995-6795b8889553",
+    "d0288cb7-5007-46f8-b7e5-7eafebb1f963",
+    "d0453c5e-724d-44a2-9f76-bcc4b21bd89d",
+    "d0c04877-503c-4d69-b84e-2cb0cfc2bbee",
+    "d3f93023-f149-462a-adbc-dd658a29ef4b",
+    "d6845e25-8102-4a6c-90ee-ecc6944f8463",
+    "d7b4f9cd-da11-4056-bc27-9044cc42f074",
+    "da4cfefe-f630-428f-ba84-e4e39db8d52d",
+    "dadb9b8f-5e62-4fab-b4be-f885a53c023c",
+    "db1ca998-e2a5-4b5c-b7e1-4b751c81b08d",
+    "dd395120-4366-4a70-a5f6-70f181acb4ca",
+    "de6be8ad-6d90-4483-a513-94e801ca2609",
+    "dfef66ce-f23e-422e-a913-26813e96051f",
+    "e1452fbf-1974-4b9f-95bc-1aef336a050f",
+    "e1ec697e-b234-42ef-9874-88b1a54a7ec5",
+    "e2aa1990-f29f-4a56-ac5e-e6396e1f7367",
+    "e37cf7ee-830f-43af-963a-df3535ba4b82",
+    "e5691fc5-c52d-4660-b392-bfc95c1d5f0c",
+    "e77603e8-989e-4432-92d5-043c4376d2fe",
+    "e7eb603f-602a-47ce-b0b7-e21970c582ce",
+    "e934d0e8-684b-4a47-80af-91d3416d1920",
+    "eea06d30-1b4f-40ed-b99d-f4803cbc3495",
+    "eff65f37-5636-4407-8cc0-72df7fe1fd9e",
+    "f241ae78-efcd-4fc3-ad5b-7d1ecb475b15",
+    "f32d4ca3-9e37-4869-9b5c-36dbaa6b086d",
+    "f3d7057d-1f70-4333-aede-8ebb60c0f2dd",
+    "f42aa2f2-4f89-42af-b818-d9484a26eeb2",
+    "f49ed069-2971-4a45-b990-383b59d46ff0",
+    "f4eb2b5e-a16f-45a4-9aac-f8beaa854917",
+    "f7a9d653-00a7-4928-914e-eddb7b4c4288",
+    "f8e9e397-b104-48fa-9c9c-d58ecc2d3fe0",
+    "faf13521-90e1-4c1f-8433-f0a8cf78b405",
+    "fb44ac4d-1d93-4110-a650-52111d2ce24c",
+    "fc6845e3-8d9f-41f5-bf7f-4a66039a896e",
+    "fc76fc9c-b4e3-40f2-b14d-98deec7e095e",
+    "fcfcd4a1-50e8-434f-aaf4-b5980026de8d",
+    "fdcb47f2-9220-490a-9608-81ba322e9c4a"
+  ],
+  "dwellTicks": 8,
+  "pillars": {
+    "NW": [
+      3290,
+      4253
+    ],
+    "NE": [
+      3300,
+      4253
+    ],
+    "SW": [
+      3290,
+      4243
+    ],
+    "SE": [
+      3300,
+      4243
+    ]
+  },
+  "spawns": [
+    {
+      "wave": 1,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 60,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 1,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 10,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 1,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 34,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 2,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 20,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 2,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 148,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 2,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 37,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 3,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 59,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 3,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 24,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 3,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 83,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 4,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 49,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 4,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 24,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 4,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 10,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 5,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 25,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 5,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 17,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 5,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 25,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 6,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 83,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 6,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 4,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 6,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 4,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 7,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 31,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 7,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 4,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 7,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 58,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 8,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 36,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 8,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 30,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 8,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 44,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 9,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 25,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 9,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 41,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 9,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 99,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 134,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 112,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 49,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 42,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 31,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 10,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 94,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 11,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 49,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 11,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 30,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 11,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 36,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 11,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 29,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 11,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 119,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 12,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 191,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 12,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 50,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 12,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 145,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 12,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 66,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 12,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 190,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 13,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 187,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 13,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 29,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 13,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 92,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 13,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 21,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 13,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 129,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 14,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 186,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 14,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 52,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 14,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 26,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 14,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 34,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 14,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 189,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 15,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 113,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 15,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 27,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 15,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 139,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 15,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 49,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 15,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 172,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 16,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 36,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 16,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 48,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 16,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 50,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 17,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 135,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 17,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 172,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 17,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 160,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 18,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 134,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 18,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 169,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 18,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 133,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 19,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 137,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 19,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 154,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 19,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 108,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 20,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 160,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 20,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 105,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 20,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 116,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 40,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 126,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 105,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 195,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 49,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 21,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 48,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 22,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 136,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 22,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 72,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 22,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 87,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 22,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 119,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 23,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 122,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 23,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 98,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 23,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 103,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 23,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 59,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 24,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 183,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 24,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 89,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 24,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 109,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 25,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 133,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 25,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 79,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 25,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 171,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 26,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 165,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 26,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 132,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 26,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 123,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 27,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3309,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 177,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 27,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 191,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 27,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 111,
+      "raidsTurningAggro": 0,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 141,
+      "raidsTurningAggro": 2,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 157,
+      "raidsTurningAggro": 3,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 116,
+      "raidsTurningAggro": 3,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 68,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 141,
+      "raidsTurningAggro": 2,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 28,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 197,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 29,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 142,
+      "raidsTurningAggro": 4,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 29,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 196,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 29,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": true,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 108,
+      "raidsTurningAggro": 3,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 29,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 121,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 29,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 198,
+      "raidsReachingAPillar": 57,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 30,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": true,
+      "style": "magic",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 197,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 143,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 30,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 197,
+      "raidsReachingAPillar": 92,
+      "raidsTurningAggro": 5,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 30,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 197,
+      "raidsReachingAPillar": 89,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 30,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 197,
+      "raidsReachingAPillar": 92,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "east",
+      "slot": 0,
+      "spawnTile": [
+        3310,
+        4249
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "NE",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 78,
+      "raidsTurningAggro": 7,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "east",
+      "slot": 1,
+      "spawnTile": [
+        3310,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 111,
+      "raidsTurningAggro": 6,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "south",
+      "slot": 0,
+      "spawnTile": [
+        3296,
+        4233
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "SE",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 61,
+      "raidsTurningAggro": 5,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "south",
+      "slot": 1,
+      "spawnTile": [
+        3295,
+        4233
+      ],
+      "big": false,
+      "style": "magic",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 50,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4249
+      ],
+      "big": false,
+      "style": "melee",
+      "pillar": "NW",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 86,
+      "raidsTurningAggro": 2,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 31,
+      "lane": "west",
+      "slot": 1,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": false,
+      "style": "ranged",
+      "pillar": "SW",
+      "aggro": false,
+      "raidsObserved": 196,
+      "raidsReachingAPillar": 63,
+      "raidsTurningAggro": 1,
+      "disagreeing": {},
+      "ambiguous": 0
+    }
+  ]
+}

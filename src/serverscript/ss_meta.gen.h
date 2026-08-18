@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11077] = {
+static const char* const g_ss_opcode_names[11078] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -488,6 +488,7 @@ static const char* const g_ss_opcode_names[11077] = {
     [11074] = "P_ISFRIEND",
     [11075] = "MAP_INSTANCE_FIND_OWNER",
     [11076] = "MAP_INSTANCE_PLAYERCOUNT",
+    [11077] = "P_OVERHIT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -497,7 +498,7 @@ static const char* const g_ss_opcode_names[11077] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11077] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11078] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -979,6 +980,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11077] = {
     [11074] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* P_ISFRIEND */
     [11075] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FIND_OWNER */
     [11076] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_PLAYERCOUNT */
+    [11077] = { 4, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* P_OVERHIT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

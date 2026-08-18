@@ -623,6 +623,25 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # admission, fee and capacity policy in RuneScript.
     "P_FINDMUTUALFRIEND": (11071, 0, 1, 1, 0),
 
+    # p_overhit(player_uid $uid, int $amount, int $type, boolean $lethal)
+    #
+    # Damage a player with a hit that was already decided. `$lethal` is the
+    # caller's answer to "was this enough to kill them WHEN IT WAS ROLLED", and
+    # when it is true the player dies however much they healed in between.
+    #
+    # This is the Theatre of Blood's "over-hit", and the Inferno's: the OSRS
+    # Wiki says of the Maiden that she "will over-hit the player beyond their
+    # current health when damage is calculated; this makes it so you cannot
+    # tick-eat the maiden boss's magic attacks", and TzKal-Zuk does the same.
+    #
+    # It is a separate opcode rather than a flag on `damage` because the two
+    # are different questions. `damage` asks "subtract this much"; a projectile
+    # that has already been rolled asks "did this kill you", and the answer was
+    # settled on the tick it launched. Content computes `$lethal` there, where
+    # it knows the target's hitpoints; the engine only honours it. Same split
+    # as npc_freeze above - engine takes the mechanism, content keeps the policy.
+    "P_OVERHIT": (11077, 4, 0, 0, 0),
+
     # inv_transmit_from(player_uid $owner, inv $inventory, component $component)(boolean)
     #
     # Paint a live owner's private inventory on the active viewer's component.
@@ -1026,6 +1045,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "P_NAMEDIALOG": (1 << POINTER_BITS["p_active_player"], 0),
     "LAST_STRING": (0, 0),
     "P_FINDMUTUALFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_OVERHIT": (0, 0),
     "INV_TRANSMIT_FROM": (1 << POINTER_BITS["p_active_player"], 0),
     "P_FINDVISIBLEPLAYER": (1 << POINTER_BITS["p_active_player"], 0),
     "P_ISFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
