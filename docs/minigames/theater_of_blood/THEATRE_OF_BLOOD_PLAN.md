@@ -2077,7 +2077,7 @@ assumption I had written down as though it were sourced.
 | **M33** Bloat line of sight + spread | **closed, no engine change** | Mod Ash, cited by the Wiki: *"The developer appears to have tried writing a manual check to see if any tile on the NPC's nearest side has line-of-sight to the target. The standard line-of-sight checks apparently aren't reliable for this for large NPCs."* Implemented literally with the existing `lineofsight`, walking whichever side of the 5×5 faces the player. The spread (*"This will spread to other players in the raid also"*) is a second pass seeded from whoever the first admitted. |
 | **M34** Sotetseg ricochet | **closed, no engine change** | The Wiki: *"these projectiles will split into two other similar projectiles, both of which will ricochet towards other players as one grey and one red projectile."* Two ricochets from the impact tile, at *other* players, one ranged and one magic. A 2023 change note adds that the two can no longer land on the same player on the same tick. |
 | **M36** Verzik safespots | **closed, no engine change** | The Wiki: *"Each 'safespot' only works for one player, so they cannot stand on the same tile to protect themselves"*, and in hard mode *"her charged shot attack now hits three times per player, creating three 'safespots'."* No tile-occupancy query was needed — the pools are this script's own, so it simply remembers where it put them. |
-| **M24** nylo → pillar | **open, but now precisely** | blert states the rule exists — *"Each wave-spawned Nylocas always targets the same pillar in every encounter"* — and **nobody publishes the table**: not blert, not the Wiki's wave chart, not the community chart every raider memorises, not tob-qol. That is a genuine hole in the community's documentation rather than a hole in the search. Modelled from the room's own symmetry (each lane has two slots, the room has four pillars in two rows, so the slot picks the row), latched per spawn so splits inherit. Falsified the moment a wave-1 nylo crosses to the far side. |
+| **M24** nylo → pillar | **closed — measured, not modelled** | blert states the rule exists — *"Each wave-spawned Nylocas always targets the same pillar in every encounter"* — and **nobody publishes the table**: not blert, not the Wiki's wave chart, not the community chart every raider memorises, not tob-qol. A genuine hole in the community's documentation rather than in the search. So it was **measured**: `tools/derive_tob_nylo_pillars.py` reads 199 recorded raids off blert's event API and recovers a verdict for all 120 spawns (SW 23, SE 21, NW 19, NE 22, plus 35 aggros). The join is required to be total and to agree with blert's own `aggro` flag, so a disagreement between the two datasets is a build failure rather than a silent guess. See §8.4.1. |
 | **M35** Verzik "hard npc" | **withdrawn — it was never real** | I had written that she becomes invulnerable and hard during webs, that players are pushed out, and that this needed engine support. **Nothing states any of it** — not the Wiki, not blert, not tob-qol, not TobMistakeTracker. It was an assumption recorded as though it were sourced, which is the exact failure the provenance tags in `tob.constant` exist to prevent. The documented mechanic is only the binding, the 10-hitpoint web, and the timeout. |
 
 ### The new opcode, and how it is known to work
@@ -2150,3 +2150,53 @@ ten minutes so the check is not merely measuring a fixed-width string.
 The MVP check is verified by mutation: replacing the penalty with `0` in
 `tob_board_score` yields `tobrun FAIL: a death must lower the MVP score`. The
 implementation was restored and all 17 pass.
+
+## 22. Where this leaves the raid
+
+Complete against §17, steps 1–17.
+
+```
+minigame_tob/   4 configs, 15 scripts
+tree            26,399 scripts compile
+::tobrun        OK - 17 checks passed
+::tobhit        OK - p_overhit honours its verdict
+```
+
+Both suites are proven falsifiable by mutation rather than merely observed to
+pass — `if( 0 && values[3] )` in the over-hit opcode, and a zeroed penalty in
+`tob_board_score`, each produce the specific failure they should.
+
+### What the engine gained
+
+One opcode. `SS_OP_P_OVERHIT` (11077) delivers a hit whose verdict was settled
+when it was rolled, so healing inside the projectile's flight cannot undo it.
+Content computes `$lethal` at launch, where it can see the target's hitpoints;
+the engine only honours it. That split is deliberate and matches `npc_freeze`:
+the engine takes the mechanism, content keeps the policy.
+
+Everything else the plan had listed as an engine gap turned out not to be one.
+Three were already present and simply unmeasured — `map_instance_var_set/get`
+for shared room state, an 8-instance pool for the shadow realm, `%frozen` plus
+`walktrigger(magic_frozen)` for binding a player. Two more dissolved on
+inspection: `npc_range` is Chebyshev **from the footprint**, which is exactly
+Verzik's melee predicate, and `lineofsight` is enough to build Bloat's
+near-side check by hand, which is precisely what Mod Ash says Jagex did.
+
+### What is still approximate
+
+Nothing silently. Every remaining softness is tagged in the file that owns it
+and listed in §16, and the two worth naming are the MVP's death weighting (the
+Wiki gives the inputs but not the formula) and per-hitsplat damage-source
+tagging, which is what the six `Perfect ...` Combat Achievements would need to
+be falsifiable by the thing they are actually about rather than by a flag this
+content sets. The perfect flags are cleared **by the damage** rather than set by
+its absence, so an unimplemented mechanic cannot quietly award a task.
+
+### The one lesson worth carrying out of this
+
+The sources folder holds **evidence, not specification**. Downloaded files are
+never edited in place; where a source is wrong, the override lives in the tool
+with its reason attached — `CORRECTIONS` in `gen_tob_nylo_waves.py` is the only
+such entry, and it exists because blert's wave 30 disagrees with both the Wiki
+and with 197 of 197 recorded raids. Left alone it would have taught players to
+null a spawn they should be attacking.

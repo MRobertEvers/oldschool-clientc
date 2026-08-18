@@ -1,9 +1,17 @@
 # Chambers of Xeric — implementation plan
 
-Status: **planning**. What exists today is a 56-line stub that teleports you to a
-staging tile and spawns one Tekton
-([`cox.rs2`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/cox.rs2)).
-Everything below is unbuilt.
+Status: **partially built, not yet running.**
+[`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/)
+is ~3,400 lines across 18 scripts and three config files: Tekton, Olm, Vasa,
+Vespula, the Vanguards, the Guardians, the minion packs, the crab and thieving
+puzzles, points, scaling and rewards all have code. None of it ticks — see
+**§11.3 F0**: 21 `[ai_timer]` hooks and no `npc_settimer` anywhere, so every
+heartbeat in the raid is unarmed.
+
+> ⏱️ **§11 is the tick-level audit** (2026-08-17): what measures CoX and what
+> does not (Blert does **not** cover it yet), every published tick constant with
+> its Jagex quote, and 22 findings ranked against the implementation. Read §11.3
+> before touching an encounter — several constants below lost their argument.
 
 This document is the room-by-room specification, the reference index, and the
 build order. It is meant to be read alongside two sources, both linked from
@@ -1221,8 +1229,10 @@ Goal: all 17 rooms, linear, fixed. No layout generation, no Olm.
 now implements the parts the research pinned down exactly
 ([`COX_MECHANICS.md` §2](COX_MECHANICS.md)):
 
-- ✅ **4-tick action clock**, driven from a single writer (`[ai_timer,olm_head]`)
-  so the hands cannot race the rotation
+- ⚠️ **4-tick action clock**, driven from a single writer (`[ai_timer,olm_head]`)
+  so the hands cannot race the rotation — correct as written and **never armed**:
+  nothing calls `npc_settimer`, so the head has no timer and the trigger cannot
+  fire (§11.3 F0)
 - ✅ **The 12-step rotation** — steps 4/8/12 special, 2/6/10 empty, rest standard.
   The empty step is a real step and is commented as such: deleting it would
   shorten the cycle from 12 to 9
@@ -1324,28 +1334,46 @@ block correction are in §0.3;
 [`tools/data/cox_templates.json`](../../../tools/data/cox_templates.json).
 This also closed engine gaps E1 and E2 — see §1.1.
 
-### R3 — Missing formulas
-Not on any page fetched:
-- damage → points coefficient
-- per-monster HP/stat scaling by party size (only the Guardians' formula
-  surfaced, and it transcribed badly)
-- cavern grubs required to fill the scavenger, by team size
-- room-count / floor-composition rules for normal-mode generation
+### R3 — Missing formulas — ⚠️ **mostly CLOSED**, see §11.2
+Re-fetched every page as raw wikitext (`?action=raw`), which is where the
+`{{CiteTwitter}}` / `{{CiteDiscord}}` quotes survive. That closed four of the six:
 
-Sources to try: the wiki's per-monster infoboxes directly, `Chambers of
-Xeric/Strategies`, and open-source server implementations.
+- ✅ **cavern grubs by team size** — 16 × players, or 30 solo; and
+  `MaxGrubs = ⌈max(4500, ⌊ΣThieving/6⌋ × 150) / 115⌉` for the points ceiling.
+- ✅ **Guardian HP** — `H = 151 × (1 + ⌊T × ½⌋) + ⌊M̄⌋ × T`, transcribed
+  cleanly this time, alongside the damage multiplier already implemented.
+- ✅ **Ice demon kindling / firemaking / tree depletion** — three separate Ash
+  quotes, all in §11.2.
+- ✅ **Shaman and mystic spawn counts** — full tables, not bounds.
+- ❌ **damage → points coefficient** — still unpublished. Searched the wiki, its
+  talk page, `Ancient chest`, and open-source servers; even the *cap* is
+  unpublished (Mod Ash, 3 June 2024, on the Guardians' cap: "the exact formula
+  is not currently known").
+- ❌ **per-monster HP/stat scaling by party size**, except the Guardians.
+- ❌ **room-count / floor-composition rules** for normal-mode generation.
 
-### R4 — Numbers where two pages disagree
-Collected from §2–§5; each needs one page re-read before it becomes a constant:
-- Overload boost: `⌊lvl × 13/100⌋ + 5` vs "4 + 10%"
-- Vespula grounding threshold: 20% vs 23%
-- Muttadile meat-tree heal: 40% vs 50%
-- Shaman count: 2–5 vs 2–4
-- Falling crystals damage: "15–20" vs "16–25 direct / 10–16 indirect"
-- Ice demon prayer reaction — confirm the direction isn't inverted
-- CM unique table denominators
-- Common-loot quantity ranges (the 65,535 figures are serialisation ceilings)
-- Skeletal mystics: "cannot be safespotted" vs "corner safespot forces melee"
+### R4 — Numbers where two pages disagree — ⚠️ **mostly CLOSED**, see §11
+- ✅ **Muttadile meat-tree heal: 50%.** Settled by the changelog itself —
+  29 November 2023: "Both muttadiles will attempt to heal at the meat tree when
+  reduced below 50% HP (**up from 40%**)." The 40% figure is a stale page.
+- ✅ **Shaman count: 2–5**, per the exact table (1-4 → 2 … 15+ → 5). The "2–4"
+  page is out of date.
+- ✅ **Ice demon prayer reaction is NOT inverted, but it is counter-intuitive:**
+  it uses the style you are praying *against*. "If Protect from Magic is used, it
+  will only focus on Ice Burst, while if Protect from Missiles is used, it will
+  simply throw snowballs instead." Protect from Missiles is recommended only
+  because the boulder is easier to see coming.
+- ✅ **CM unique table denominator: 56**, with dexterous and arcane scrolls at
+  12/56 and every other weight unchanged (news, 12 August 2026).
+- ✅ **Skeletal mystics** — both statements are true and not in conflict: the npc
+  has attack range 10 and "cannot be safespotted"; the corner trick does not
+  break line of sight, it *forces melee* and then strands the walk.
+- ❌ **Vespula grounding threshold: 20% vs 23%** — still two pages, still no
+  tiebreak. Keeping 20.
+- ❌ **Falling crystals damage** — three published ranges across two pages; they
+  may describe two different attacks (transition crystals vs the crystal power).
+- ❌ **Overload boost** and **common-loot quantity ranges** — not revisited this
+  pass; neither is tick-level.
 
 ### R5 — Undocumented cache assets — partly answered
 Enumerating the loc namespace for §0.4 turned up a lot the wiki pages never
@@ -1406,9 +1434,515 @@ yt-dlp --skip-download --write-auto-subs --sub-langs "en.*" --sub-format vtt \
        -o cox https://www.youtube.com/watch?v=klhBxOH8reQ
 ```
 
+**Measurement sources** — surveyed and rated in §11.1; fetch the corpus with
+[`tools/fetch_cox_wiki.sh`](../../../tools/fetch_cox_wiki.sh)
+
+- [Blert](https://blert.io) — per-tick PvM logs. **Does not cover CoX**: the
+  stage enum exists, the recorder does not ("Coming Soon!"). Repos:
+  [blert](https://github.com/blert-io/blert) · [plugin](https://github.com/blert-io/plugin)
+- [weirdgloop `osrs-dps-calc` `monsters.json`](https://github.com/weirdgloop/osrs-dps-calc/blob/main/cdn/json/monsters.json)
+  — attack speed in ticks, size, HP and stats for every CoX npc
+- [Perfect Olm (Solo)](https://oldschool.runescape.wiki/w/Perfect_Olm_(Solo)) —
+  the CA page, which pins where a phase's rotation starts
+- [`sources/runelite/CoxPlugin.java`](sources/runelite/CoxPlugin.java) — Olm
+  action clock, `crippleTimer`, Tekton timers · [`sources/de0/`](sources/de0/) — room splits
+- Mod Ash quote archive: [reldo.runescape.wiki](https://reldo.runescape.wiki) —
+  every `{{CiteTwitter}}` / `{{CiteDiscord}}` in §11.2 resolves here
+
 **In-tree**
 
 - [`minigame_gauntlet/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/) — the architectural precedent
 - [`minigame_inferno/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/) — tick-scripted multi-wave boss, ground effects
 - [`mock230_mapinstance.h`](../../../src/net/mock/mock230_mapinstance.h) — instance limits and the rotation contract
 - [`docs/GAUNTLET.md`](../../GAUNTLET.md), [`docs/minigames/FIGHT_CAVES.md`](../FIGHT_CAVES.md)
+
+---
+
+## 11. Tick-level verification audit — 2026-08-17
+
+The question this section answers: **is the implementation tick-perfect?** The
+answer is no, and this records exactly where, with the source text for each
+divergence so the next pass argues with a quote rather than with a memory.
+
+Everything below was fetched as raw wikitext (`?action=raw`, not the rendered
+page) so the citation templates — which is where Jagex's own tick numbers live —
+survive. Re-fetch with [`tools/fetch_cox_wiki.sh`](../../../tools/fetch_cox_wiki.sh).
+
+### 11.1 Is there a blert.io for CoX? — not yet, and that matters
+
+[Blert](https://blert.io) is the closest thing PvM has to Warcraft Logs: a
+RuneLite plugin, a data pipeline and a site that stores **per-tick** event
+streams for a challenge and replays them. It would be the ideal oracle. It does
+not cover Chambers of Xeric.
+
+Its own CoX page, verbatim
+([`web/app/(challenges)/raids/cox/page.tsx`](https://github.com/blert-io/blert/blob/main/web/app/(challenges)/raids/cox/page.tsx)):
+
+> **Coming Soon!**
+> We are adding raid recording support for the Chambers of Xeric raid soon! Stay
+> tuned for updates.
+
+The *schema* is already there, which is why the site's front page lists CoX —
+`Challenge.COX("Chambers of Xeric", 2)` in
+[`plugin/src/main/java/io/blert/core/Challenge.java`](https://github.com/blert-io/plugin/blob/main/src/main/java/io/blert/core/Challenge.java),
+and thirteen stages in
+[`common/challenge.ts`](https://github.com/blert-io/blert/blob/main/common/challenge.ts):
+`COX_TEKTON, COX_CRABS, COX_ICE_DEMON, COX_SHAMANS, COX_VANGUARDS, COX_THIEVING,
+COX_VESPULA, COX_TIGHTROPE, COX_GUARDIANS, COX_VASA, COX_MYSTICS, COX_MUTTADILE,
+COX_OLM`. Nothing records into them. Treat "Blert supports CoX" claims from
+search summaries as false until that page changes.
+
+**What does exist, and what each is actually good for:**
+
+| Source | What it measures | Tick-level? | Authority |
+|---|---|---|---|
+| [OSRS Wiki](https://oldschool.runescape.wiki/w/Chambers_of_Xeric) `{{CiteTwitter}}` / `{{CiteDiscord}}` refs | Jagex staff (Mod Ash) quoting the server's own numbers | **Yes** — regen rates, stun ranges, heal cadence, shuffle windows | Highest available. This is Jagex, quoted verbatim, archived |
+| [weirdgloop `osrs-dps-calc` `monsters.json`](https://raw.githubusercontent.com/weirdgloop/osrs-dps-calc/main/cdn/json/monsters.json) | `speed` (attack rate in ticks), size, HP, offensive/defensive stats for every CoX npc | **Yes**, for attack speed | High — wiki+cache derived, machine-readable, one row per npc version |
+| [RuneLite / OpenOSRS CoX plugins](sources/runelite/CoxPlugin.java) (in tree) | Olm action clock, Tekton/guardian attack timers, cripple timer | **Yes**, but *observed*, not authoritative | Medium — a working client that had to match the server |
+| [de0 CoX Timers](sources/de0/CoxTimersPlugin.java) (in tree) | Room and Olm **phase splits**, wall-clock | Second resolution | Medium |
+| [Blert](https://blert.io) | Per-tick replays for ToB / ToA / Inferno / Colosseum / Doom | Yes — **but not CoX** | Would be highest, if it covered CoX |
+| CalcOSRS, Oldschool.gg raids simulator, loot trackers | Points → purple chance, loot distributions | No | Loot maths only |
+| [Synq's 2026 solo guide](sources/../synq_transcript.md) | Method-level tick counts (4:1, 3:0, 12:0, 8:1) | Player-facing | Medium — describes the fight from the outside |
+
+Conclusion for the plan: **there is no CoX log corpus to diff against.** The
+substitute is the Ash-quote corpus in §11.2 plus the dps-calc attack-speed table,
+and that is what the acceptance tests must encode.
+
+### 11.2 The tick corpus — every published tick constant
+
+Verbatim quotes. Each row is a number the implementation is allowed to assert.
+
+**Attack speeds** — from `monsters.json` (`speed`, in ticks). Cross-checked against
+the wiki infoboxes' `attack speed`, which agree everywhere they exist:
+
+| NPC | id | Speed | Size | HP (max-scaled) |
+|---|---|---|---|---|
+| Great Olm (head) | 7551 | **4** | 5 | 800 |
+| Great Olm (left/right claw) | 7552 / 7550 | — (do not attack) | 5 | 600 |
+| Tekton (normal / enraged) | 7540 / 7543 | **3** | 4 | 300 |
+| Vasa Nistirio | 7566 | **3** | 5 | 300 |
+| Glowing crystal | 7568 | 4 | 4 | 120 |
+| Vespula | 7530 | **3** | 5 | 200 |
+| Abyssal portal | 7533 | **2** | 4 | 250 |
+| Vespine soldier | 7538 | 4 | 3 | 100 |
+| Muttadile (large / small) | 7561 / 7562 | 4 | 5 / 3 | 250 |
+| Vanguard (melee/ranged/magic) | 7527/7528/7529 | 4 | 3 | 180 |
+| Guardian | 7569 | **4** | — | 250 |
+| Lizardman shaman (CoX) | 7573 | 4 | 3 | 190 |
+| Skeletal Mystic | 7604 | 4 | 2 | 160 |
+| Ice demon | 7584 | **3** | 2 | 140 |
+| Deathly ranger / mage | 7559 / 7560 | 4 | 1 | 120 |
+| Scavenger beast | 7548 | 4 | 2 | 30 |
+
+The abyssal portal's `speed 2` is independently corroborated by the prose —
+"drains the prayer points of players standing in range by three points every two
+ticks" — which is the same 2-tick clock. That agreement is why the table is
+trustworthy.
+
+**Stat regeneration** — Mod Ash, Discord, 9 July 2026
+([archived](https://reldo.runescape.wiki/i/27964246#chat-messages-434286997360738305-1524701424460628080)),
+answering "would you per chance be able to say the regen time (in ticks) for mobs
+in chambers?":
+
+> Stone guardians - 8 · Muttadiles - 15 · Vasa Nistirio - 10 · Vasa's crystal - 9 ·
+> Tekton - 15 · LizardShamans - 20 · Skeletal mystics - 25 · Jewelled Crabs - 1 ·
+> Vespula - 10 · Vespula's portal - 45 · Vespula's grubs - 10000 (i.e. never) ·
+> Vespine soldier (flying) - 16 · Vespine soldier (walking) - 10000
+> Otherwise default should be 100, as for outside CoX.
+
+That is one tick number per npc that no other source publishes, and it is the
+single largest block of new fact this pass found. Note the two 10000 entries are
+"never" expressed as a rate, not an error.
+
+**Jewelled Crab stun** — Mod Ash, 4 March 2020
+([archived](https://reldo.runescape.wiki/i/99812)):
+
+> 1 player: 50-60 ticks; 2-3 players: 30-40 ticks; 4-5 players: 20-30 ticks;
+> 6+ playerss: 10-20 ticks
+
+**Vasa's siphon** — Mod Ash, 19 May 2020
+([archived](https://reldo.runescape.wiki/i/98628)):
+
+> Every 2 ticks, it heals 1% HP and (10% + 1) Defence.
+
+with the wiki adding the window: "When Vasa reaches a Glowing crystal for the
+first time, a 40 second, **66- or 67-tick** timer begins. This timer only counts
+down while the glowing crystal is active."
+
+**Vanguard shuffle** — Mod Ash, 14 September 2021
+([archived](https://web.archive.org/web/20210915112056/https://twitter.com/JagexAsh/status/1437925375535984642)):
+
+> [How long do the vanguards stay attacking until they go back down to rotate,
+> excluding the effects of healing which makes them go down instantly?]
+> 20 - 36 ticks, I think.
+
+**Icefiend brazier drain** — Mod Ash, Discord, 13 July 2026
+([archived](https://reldo.runescape.wiki/i/27964245#chat-messages-434286997360738305-1526211486844715088)):
+
+> Regardless of whether the fiend decided to wait 3 ticks or 4 ticks before it
+> next executed its action, the action contains a 1/6 deduction chance. It's like
+> having a weapon with an attack rate that's either 3 or 4, randomly, and that has
+> a 1/6 chance of succeeding when it attacks.
+
+**Tekton's cycle** — [Strategies](https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies):
+
+> Tekton attacks on a **three-tick cycle**, and it is possible for the animation
+> to not appear while using this method, so a metronome is recommended for tick
+> counting.
+
+**Olm style switch** — Mod Ash, 27 July 2020:
+
+> it looks to me like the head has a **1/5 chance of switching**, each time it
+> performs an attack from the head.
+
+**Olm phase-specific attack rate** — Mod Ash, 6 September 2021:
+
+> As it can depend on whether the Olm's doing a cool-down from a previous one,
+> I'm not sure the probability is so helpful here (...) but it'd be **1/3
+> normally, or 1/2 when the Olm's on its final phase**.
+
+and Mod Ash, 23 August 2022, on how the choice is made:
+
+> It'd decide to do a phase attack, then look at which was available and roll for
+> its choice. (...) It tries to remember which it already did, so as not to do
+> that one again in the phase.
+
+**Olm hand clench** — [Strategies](https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies):
+
+> During all phases but the penultimate phase, Olm's left hand will clench if it
+> takes a hit equal to or more than **5% of its maximum health within 8 ticks,
+> specifically the eight ticks between null and special**. If this occurs, the
+> hand will become invulnerable for **roughly 30 seconds**. This will also prevent
+> Olm from using its generic special attacks, though power-specific attacks will
+> still be used. This mechanic is **removed for the phase once the mage hand is
+> incapacitated**.
+
+RuneLite's `CoxPlugin` models that invulnerability as `crippleTimer = 45` ticks —
+27 seconds, consistent with "roughly 30".
+
+**Olm head turn** — [Strategies](https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies):
+
+> Olm will always attempt to face the **quadrant that contains the most players**;
+> if no players are present in that quadrant, it will turn towards the quadrant
+> with the most players and skip an attack in the process. **If the right hand is
+> damaged within 4 ticks and Olm does not scan a player, it will always turn its
+> head to the right**, and vice-versa for the left. This factors in all damage,
+> such as thralls and burns.
+
+**Olm penultimate-phase heal window**:
+
+> [the left hand's heal-from-damage] is used **two attacks after the teleport
+> attack**, and will last for **two of Olm's attacks** before it is lifted.
+
+**Olm phase transition**: "After **7-8** of these targeting crystals have fallen,
+he will appear on the other side and start using a new power."
+
+**Olm life siphon** (final phase): the marked tiles "must be stood on within **6
+seconds** of the attack being used"; damage "up to **18** damage per player, and
+Olm will heal for **five times** the amount of this damage."
+
+**Olm teleport damage** is a distance ladder, not a per-tile constant:
+
+> No damage is incurred if directly on top of each other, **5 if adjacent, 10 if
+> two tiles away**. The damage scales the further the targets are and can deal up
+> to **50 damage** if as far away as possible.
+
+with solo picking "a random tile in the arena, **up to ten tiles** from the
+player's current position".
+
+**Where the phase starts** — [Perfect Olm (Solo)](https://oldschool.runescape.wiki/w/Perfect_Olm_(Solo)):
+
+> Olm starts off each phase beginning with **two auto-attacks** before performing
+> its first special attack, Crystal Burst.
+
+That settles an ambiguity the two wiki pages create on their own: the
+[Great Olm](https://oldschool.runescape.wiki/w/Great_Olm) page lists the rotation
+starting `standard, empty, standard, Crystal Burst`, while
+[Strategies](https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies)
+lists it starting `empty, standard, Crystal Burst, standard`. They are the same
+12-step cycle read from different origins; the CA page says the *phase* begins at
+the Great Olm page's origin, which is what `%cox_olm_step = 1` already does. **No
+change needed — but the reason is now recorded rather than assumed.**
+
+**Non-tick formulas that were open questions (R3) and are now published:**
+
+- **Thieving grubs** — [CoX](https://oldschool.runescape.wiki/w/Chambers_of_Xeric):
+  `MaxPoints = max(4500, ⌊totalThievingLevel / 6⌋ × 150)`,
+  `MaxGrubs = ⌈MaxPoints / 115⌉`, and "the minimum number of grubs required to
+  complete the room is equal to **16 times the number of players** in the raid,
+  **or 30 in a solo raid**."
+- **Guardian HP** — `H = 151 × (1 + ⌊T × ½⌋) + ⌊M̄⌋ × T` where `M̄` is the party's
+  average Mining level and `T` the team size. Damage multiplier
+  `D = (50 + Mining + pickaxeReq) / 150`, capped so no pickaxe beats dragon.
+- **Ice demon kindling** — Mod Ash, 17 June 2021: "the max is your visible
+  Woodcutting level divided by 12. (Boosts are respected.) At level 96 that'd be
+  8. The game picks a random number **0-max inclusive**, with equal chance of each
+  integer. **If it rolls 0, it treats it as 1.**"
+- **Brazier lighting** — Mod Ash, Discord, 16 July 2026: "it's a normal skill-roll,
+  using **8% success at level 1 and scaling up linearly to 78% at level 99**."
+- **Tree depletion** — Mod Ash, 28 June 2020: "The depletion chance normally is
+  1/X where X is: 3, or Party size x 2 whichever is higher. **In the Ice Demon
+  room, X is multiplied by 5** to make depletion rarer."
+- **Tightrope requirement** — Mod Ash, 29 December 2020: the Agility level needed
+  is "between 80% and 100% of the average agility level of the team, scaled
+  randomly."
+- **Shaman count** — 1-4 → 2, 5-9 → 3, 10-14 → 4, 15+ → 5.
+- **Mystic count** — 1-2 → 3, 3-5 → 4, 6-8 → 5, 9-11 → 6, 12-14 → 7, 15-17 → 8,
+  18-20 → 9, 21-23 → 10, 24-26 → 11, 27+ → 12.
+- **CM unique table** — denominator **56**, dexterous and arcane scrolls **12/56**
+  each, every other weight unchanged from normal mode (news, 12 August 2026).
+- **CM time limits** — 1 → 70 min, 2 → 65, 3 → 50, 4 → 45, **5-10 → 42, 11-15 → 45,
+  16-23 → 60, 24+ → 80**. Beating the limit also awards **+5,000 points per
+  player**.
+
+### 11.3 Findings — the implementation against that corpus
+
+Ordered by how far the fight drifts from the real one. File references are to
+[`minigame_cox/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/).
+
+**F0 — nothing in the raid is on a clock: 21 `[ai_timer]` hooks, zero
+`npc_settimer` calls.** Found while checking F8. The engine gates the trigger on
+an interval the npc does not have by default
+([`mock230_world.c:3872`](../../../src/net/mock/mock230_world.c#L3872)):
+
+```c
+if( npc->active && npc->timer_interval > 0 )
+{
+    if( ++npc->timer_clock >= npc->timer_interval )
+    {
+        npc->timer_clock = 0;
+        mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
+    }
+}
+```
+
+`timer_interval` starts at 0, and the raid never sets it — `grep -c npc_settimer`
+over `minigame_cox/scripts/` is **0**, and there is no `[ai_spawn]` block either.
+The precedents both arm theirs on spawn: `gauntlet_monsters.rs2:35` and
+`inferno_jad.rs2:295` are `npc_settimer(1)`. Phase 4's own header says so
+outright — "without it `[ai_timer]` can never fire for an npc no script has
+touched".
+
+So today: Olm's action clock never advances, Tekton never wakes out of
+`raids_tekton_waiting`, Vasa's 67-tick crystal window never counts down, the
+Vanguards never shuffle, Vespula never stings a grub, the icefiends never snuff a
+brazier. **Every finding below about a wrong interval is currently masked by
+there being no interval at all**, which is also why the tick bugs in F8 and F16
+have never been observed. One `[ai_spawn,<npc>] npc_settimer(1)` per timer-driven
+record is the fix, and it must land before any of the rest can be tested.
+
+**F1 — Olm's special slot is gated by a probability that belongs to a different
+mechanic.** `scripts/cox_olm.rs2:201` rolls `^cox_olm_spec_chance` (1/3, 1/2 final)
+before firing Crystal Burst / Lightning / Teleport, and advances the rotation
+whether or not it fires. Ash's 1/3 is the chance that a **standard attack** is
+replaced by a *phase-specific* attack (acid / flame / crystal). The specials at
+steps 4, 8 and 12 are unconditional — that is precisely why suppressing them by
+positioning is a *skill*, and why the wiki can say "a well-timed skip by the
+player can completely prevent a special attack from occurring at all." As
+written, two thirds of specials silently vanish. **Highest-impact single bug in
+the raid.**
+
+**F2 — powers are missing entirely.** "Each phase will only feature one power;
+Olm will not switch powers during a phase, this is communicated to the player
+through the chatbox. Ex: *The Great Olm rises with the power of Acid!*" Acid
+spray/drip, deep burn, fire wall, falling crystals and crystal bombs are the
+content of every non-final phase; none exist. Their entry point is the 1/3 roll
+F1 frees up. The chat lines are also what RuneLite keys its phase detection on,
+so implementing them is what makes third-party tooling work against this server.
+
+**F3 — spheres are missing.** They are part of the standard attack, not a
+special: red/green/purple, "damaged approximately 50% of their current
+Hitpoints" if unprotected, and if the matching protection prayer *was* up when
+the sphere launched it is "disabled and the player's Prayer is reduced by 50%".
+Without them Olm has no prayer pressure at all.
+
+**F4 — the final phase still runs the wrong specials.** `~cox_olm_advance_spec`
+keeps cycling crystals → lightning → teleport → heal in the last phase. The wiki:
+"the forced teleport, lightning strikes and crystal burst are **removed**"; the CA
+page agrees ("During phase 4, the teleport attack and crystal bombs are no longer
+used"). The final phase should be life siphon + constant falling crystals +
+powers + spheres, nothing else.
+
+**F5 — clench has a threshold but no clock.** `~cox_olm_check_clench`
+(`cox_olm.rs2:335`) tests 5% of base HP correctly and then sets
+`%cox_olm_left_clenched`, which **nothing reads**. Missing: the 8-tick window
+("the eight ticks between null and special"), the ~30 s / 45-tick invulnerability,
+the suppression of generic specials while clenched, and the rule that the whole
+mechanic switches off for the phase once the right hand is down. Every solo hand
+order in the guides is chosen around this.
+
+**F6 — head turning ignores player counts and the damage tiebreak.**
+`~cox_olm_turn_head` (`cox_olm.rs2:186`) takes the first npc-hunted player's zone.
+It must pick the zone holding the **most** players, and when no player is scanned
+it must fall to the side whose hand was damaged **within the last 4 ticks**
+(thralls and burns counting). Solo hides F6 — every team method depends on it.
+
+**F7 — no npc stat blocks for anything except Tekton.** `configs/cox.npc` is 62
+lines and covers the six Tekton transforms only. As the file's own header warns,
+"an npc that says nothing here silently gets `npc_default.npc`'s
+`hitpoints=10`". So Olm's head, both claws, Vasa, Vespula, the portal, the
+Muttadiles, Vanguards, Guardians, shamans, mystics, the ice demon and the crabs
+all have 10 HP and the default attack rate. Every HP constant in `cox.constant`
+is currently decorative. The §11.2 speed/HP table is exactly the block that has
+to be written.
+
+**F8 — the abyssal portal will drain every tick instead of every two.**
+`cox_vespula.rs2:118` hangs the drain straight off `[ai_timer]` with no counter,
+so once F0 arms the timer at interval 1 it drains at double rate. Both the prose
+("three points every two ticks") and `monsters.json` (`speed: 2`) say two — so
+either `npc_settimer(2)` or an explicit tick counter, and the former is the
+honest encoding since it *is* the npc's attack rate.
+
+**F9 — Vasa heals twice, and by a rule that was removed in 2023.**
+`cox_vasa.rs2:72` heals 1% every 2 ticks *during* the siphon and then
+`~cox_vasa_crystal_expired` heals him to **full** on top. The 29 November 2023
+update: "Vasa's healing has been adjusted — he will only heal if he **fully
+siphons** from the crystal, rather than healing over time." The 2020 Ash quote our
+constant cites is pre-change; the wiki flags that whole section `{{Obsolete}}`.
+Correct behaviour: accumulate 1%-per-2-ticks as *pending*, apply it only if the
+66-67 tick window expires with the crystal alive, discard it if the crystal dies.
+
+**F10 — Guardian HP is a flat 250 and the published scaling formula is unused.**
+`H = 151 × (1 + ⌊T/2⌋) + ⌊M̄⌋ × T`. The damage side is already right
+(`~cox_guardian_damage`, cap 61) — this is the other half of the same wiki
+paragraph.
+
+**F11 — minion counts don't match their tables.** `~cox_shaman_count` is
+`2 + party/2` (party 4 → 4; table says 2) and `~cox_mystic_count` is
+`3 + 2×(party-1)` (party 3 → 7; table says 4). Both tables are now known in full,
+so both should be exact:
+`shamans = min(5, 2 + ⌈max(0, party-4) / 5⌉)`,
+`mystics = min(12, 3 + ⌈max(0, party-2) / 3⌉)`.
+
+**F12 — no stat regeneration anywhere.** The 9 July 2026 Ash table above gives a
+per-npc regen tick for thirteen npcs, several of them aggressive (Guardians every
+8 ticks, Vasa's crystal every 9, Tekton every 15). Nothing in the tree regenerates.
+On a slow kill this is a visible difficulty difference, and on the crystal it is
+the difference between a clearable and an unclearable window.
+
+**F13 — teleport damage uses the wrong curve.** `cox_olm.rs2:269` is
+`distance × 3`, uncapped, measured from Olm. The published ladder is 0 on the
+tile / 5 adjacent / 10 at two tiles, rising to a **cap of 50**, measured between
+the *teleported targets* (solo: the marked tile, up to ten tiles away).
+
+**F14 — life siphon max hit is 20; the wiki says 18.** `^cox_olm_siphon_maxhit`.
+The ×5 heal is right; the 6-second window before the drain is not modelled.
+
+**F15 — Tekton's disputed attack speed is settled, and the constant that lost is
+still in the file.** `configs/cox.npc` says `param=attackrate,3` — correct, and
+matching both the infobox and "Tekton attacks on a three-tick cycle".
+`^cox_tekton_attack_ticks = 4` / `_fast = 3` in `cox.constant` are dead (no script
+reads them) but their comment argues for the wrong number. Delete them, or the
+next reader re-litigates it. Same for `^cox_guardian_attack_ticks = 5`: the wiki
+and `monsters.json` both say **4**, and the plugin's 5 was an animation
+observation, not the server's rate.
+
+**F16 — the ice demon's fire multiplier is half what it should be.**
+`^cox_icedemon_fire_pct = 150` applied as `damage × 150/100`. The wiki:
+"All damage dealt to the demon is reduced by 67%, except for fire spells (which
+deal **250%** damage)" — the Strategies page phrases the same number as "fire
+spells deal 150% *more* damage". 250 is the multiplier. The 67% reduction (33%
+kept) and the 1/6 icefiend odds are right; the icefiend's 3-4 tick action interval
+is not modelled at all, so once F0 arms the timer the braziers snuff ~3.5× too
+fast. Ash's wording is the implementation note — "It's like having a weapon with
+an attack rate that's either 3 or 4, randomly" — so re-roll the interval each
+time rather than averaging it to a fixed 3 or 4.
+
+**F17 — thieving's grub requirement is a placeholder that a published formula
+replaces.** `^cox_thieving_base_grubs = 20` ("OURS"). Solo is **30**; teams are
+**16 × players**. The points side (115/grub, 4500 floor) is already right, and the
+max-grub formula `⌈max(4500, ⌊ΣThieving/6⌋ × 150) / 115⌉` is now known.
+
+**F18 — elite clues roll at the wrong time.** `cox_rewards.rs2:90` rolls the 1/12
+clue unconditionally. The chest page: "The elite clue scroll is only rolled when
+the player does **not** get a broadcasted unique reward." The pet's 1/53 is
+correctly gated the other way (uniques only).
+
+**F19 — the unique roll cannot exceed one purple.** `random(100) < ~cox_unique_percent`
+tops out at a single item; the real chest carries surplus points into a second
+roll ("a team which possesses 855,000 points in total has a 65.7% chance to
+receive a unique loot, and then a 32.85% chance to obtain a second"), up to six per
+raid. Also unimplemented: the per-player weighting of *who* receives it.
+
+**F20 — CM time limits stop at five players, and the +5,000 bonus is missing.**
+`~cox_challenge_time_limit` returns 42 minutes for every party of 5 or more; the
+table rises again above 10 (45 / 60 / 80 min). And "completion of a Challenge Mode
+raid within the required time will also yield an additional 5,000 points per
+player" — nothing awards it.
+
+**F21 — points still hang on an invented coefficient.**
+`^cox_points_per_damage = 5` is flagged "OURS" in the file, correctly. Two
+documented modifiers are also absent: "when players battle mini-bosses, a *decay*
+point multiplier is put into effect", and no points at all for damage to Olm's
+hands "anytime it regains control of its hands" in the penultimate phase.
+
+**What is already tick-correct** — worth stating so it does not get "fixed":
+the 12-step rotation and its `%step % 4` classification; the 4-tick action clock;
+the 1/5 style switch; the catch-up rule including the one-step bound; the 5%
+clench threshold; Vasa's 67-tick window, 2-tick heal cadence and `currentHP − 5`
+special; the Vanguard 20-36 tick shuffle and the 40% / 33.3% spread thresholds;
+the crab stun ladder (`cox_crabs.rs2:62`) which matches Ash's four bands exactly;
+the Guardian damage multiplier and its dragon-pickaxe cap; Muttadile's 50% heal
+trigger, three meals, 1/3 submerged targeting, three-attack style lock and the
+25-tick (≈15 s) give-up; the firemaking 8→78 ladder; the normal-mode unique table
+weights; and the tertiary rates 1/12, 1/53, 1/75, 1/400.
+
+### 11.4 Verdict
+
+Not tick-perfect. F0 makes the stronger statement: **there is currently no tick
+behaviour to verify** — every heartbeat in the raid is unarmed, so Olm does not
+act, Tekton does not wake, and no interval in this document has ever run. Below
+that, F1 removes two thirds of Olm's special attacks and F2/F3 leave a phase
+consisting of nothing but a ranged/magic auto.
+
+What *is* right is the arithmetic: the 12-step rotation and its classification,
+the 4-tick action clock, the 1/5 style switch, the one-step catch-up bound, the
+5% clench threshold, the crab stun ladder, the Guardian damage multiplier. Those
+are the parts that are hardest to get right and that every solo method depends
+on, and they now have their sources recorded next to them. The gap is breadth and
+wiring, not foundations.
+
+Ranking for the next pass: **F0 first and alone** — until the timers are armed,
+none of the rest can be observed, and any fix to them is unverifiable. Then
+**F7** (one config file; gives every npc its HP and attack rate, and `npc_settimer`
+has somewhere to live) → **F1, F5, F6** (they change the fight's shape and are
+small edits) → **F2, F3, F4** (the actual content of a phase) → the rest.
+
+The lesson F0 carries beyond CoX: a `[ai_timer]` hook that is never armed fails
+*silently and completely*, and it reads as finished code. `cox_selftest.rs2` has
+495 lines and did not catch it, because it tests the procs — `~cox_olm_step_kind`,
+`~cox_guardian_damage` — and never asserts that a spawned npc has a non-zero
+`timer_interval`. That assertion is the one to add first.
+
+### 11.5 What is still unmeasured after this pass
+
+- **Damage → points coefficient.** Searched the wiki, its talk page, the Ancient
+  chest page, and open-source implementations; nobody publishes it. Even the *cap*
+  is unpublished: the wiki says the Guardians' point cap "is currently believed to
+  scale non-linearly with the number of players in the raid, but the exact formula
+  is not currently known" (Mod Ash, 3 June 2024). `^cox_points_per_damage` stays
+  flagged.
+- **Per-monster HP/stat scaling by party size**, except the Guardians, whose
+  formula is now in §11.2.
+- **Room-count and floor-composition rules** for normal-mode generation, beyond
+  "7 or 8 rooms per floor" and the room-class counts already in §0.
+- **Olm's left/right forced-turn spot labels.** [Strategies](https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies)
+  and [Perfect Olm (Solo)](https://oldschool.runescape.wiki/w/Perfect_Olm_(Solo))
+  give the same eight safespots with **left and right swapped** (player-facing vs
+  Olm-facing, presumably). The *rule* is unambiguous; only the labelling is. Pick
+  one convention, state it at the top of `cox_olm.rs2`, and do not trust a
+  screenshot to disambiguate it.
+- **Vespula's sting cadence** (`^cox_vespula_sting_interval = 25`, "OURS"). What
+  *is* published: grubs have 125 HP, a Medivaemia blossom heals 30, a hatched
+  soldier explodes 20 seconds after landing, and the grubs never regenerate
+  (regen 10000). Those four constrain it but do not give it.
+- **Vespula's grounding threshold** remains 20% ([Vespula](https://oldschool.runescape.wiki/w/Vespula):
+  "Upon reaching 20% of her health, Vespula will land") vs 23%
+  ([Abyssal portal](https://oldschool.runescape.wiki/w/Abyssal_portal): "she will
+  stop flying once she reaches 23% of her Hitpoints"). Two pages, still no
+  tiebreak. Keep 20 and keep the note.
+- **Falling-crystal damage** has two published ranges: 16-25 direct / 10-16
+  indirect ([Great Olm](https://oldschool.runescape.wiki/w/Great_Olm)) against
+  20-25 direct / 12-16 indirect (Strategies, phase transition). Same for the
+  targeted-crystal power: "up to 15-20" vs "16-20". Unresolved; they may genuinely
+  differ between the transition crystals and the power.
