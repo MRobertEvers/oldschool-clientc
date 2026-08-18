@@ -104,6 +104,22 @@ The complete 31-wave dataset: per wave, the natural stall in ticks and, for each
 the three lanes' two slots, the nylo's size, aggro flag and full flicker rotation.
 Rendered into [`../nylocas_waves.md`](../nylocas_waves.md).
 
+### `blert_nylo_pillar_assignment.json` — **derived here, not downloaded**
+
+The one file in this folder that this project authored, and the exception to the
+"evidence, not specification" rule above — because for the spawn→pillar assignment
+there was no evidence to download. It is the output of
+[`../../../../tools/derive_tob_nylo_pillars.py`](../../../../tools/derive_tob_nylo_pillars.py)
+over 199 raid recordings pulled from blert's public event API
+(`/api/v1/raids/tob/<uuid>/events?stage=12`), each nylo followed from its spawn
+tile to the tile it stops on.
+
+One record per spawn slot: wave, lane, slot, spawn tile, size, style, the pillar it
+attacks, and the raid counts behind that call — including `disagreeing`, which is
+empty on every row. The 199 uuids are listed in `raidUuids` so the measurement can
+be re-fetched; the raw dumps themselves are ~300 kB each and are not committed.
+Rendered into [`../nylocas_waves.md`](../nylocas_waves.md#which-pillar-each-spawn-attacks).
+
 ### `blert_guides/` — [blert-io/blert](https://github.com/blert-io/blert) `web/app/guides/tob/`
 
 `tob_nylocas_mechanics_page.tsx` is the prose behind

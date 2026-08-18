@@ -262,7 +262,7 @@
     {
       "wave": 1,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -280,7 +280,7 @@
     {
       "wave": 2,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3310,
         4248
@@ -298,7 +298,7 @@
     {
       "wave": 2,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -370,7 +370,7 @@
     {
       "wave": 3,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -388,7 +388,7 @@
     {
       "wave": 4,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3310,
         4248
@@ -406,7 +406,7 @@
     {
       "wave": 4,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -478,7 +478,7 @@
     {
       "wave": 5,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -496,7 +496,7 @@
     {
       "wave": 6,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -514,7 +514,7 @@
     {
       "wave": 6,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -604,7 +604,7 @@
     {
       "wave": 8,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3310,
         4248
@@ -622,7 +622,7 @@
     {
       "wave": 8,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -640,7 +640,7 @@
     {
       "wave": 8,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -676,6 +676,24 @@
     {
       "wave": 9,
       "lane": "west",
+      "slot": 0,
+      "spawnTile": [
+        3281,
+        4248
+      ],
+      "big": true,
+      "style": "ranged",
+      "pillar": null,
+      "aggro": true,
+      "raidsObserved": 199,
+      "raidsReachingAPillar": 0,
+      "raidsTurningAggro": 99,
+      "disagreeing": {},
+      "ambiguous": 0
+    },
+    {
+      "wave": 9,
+      "lane": "west",
       "slot": 1,
       "spawnTile": [
         3281,
@@ -688,24 +706,6 @@
       "raidsObserved": 199,
       "raidsReachingAPillar": 41,
       "raidsTurningAggro": 0,
-      "disagreeing": {},
-      "ambiguous": 0
-    },
-    {
-      "wave": 9,
-      "lane": "west",
-      "slot": 1,
-      "spawnTile": [
-        3281,
-        4248
-      ],
-      "big": true,
-      "style": "ranged",
-      "pillar": null,
-      "aggro": true,
-      "raidsObserved": 199,
-      "raidsReachingAPillar": 0,
-      "raidsTurningAggro": 99,
       "disagreeing": {},
       "ambiguous": 0
     },
@@ -892,7 +892,7 @@
     {
       "wave": 11,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -946,7 +946,7 @@
     {
       "wave": 12,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1000,7 +1000,7 @@
     {
       "wave": 13,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1090,7 +1090,7 @@
     {
       "wave": 14,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1216,7 +1216,7 @@
     {
       "wave": 15,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1270,7 +1270,7 @@
     {
       "wave": 16,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3310,
         4248
@@ -1288,7 +1288,7 @@
     {
       "wave": 16,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1324,7 +1324,7 @@
     {
       "wave": 17,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1342,7 +1342,7 @@
     {
       "wave": 17,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1360,7 +1360,7 @@
     {
       "wave": 17,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1378,7 +1378,7 @@
     {
       "wave": 18,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1396,7 +1396,7 @@
     {
       "wave": 18,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1414,7 +1414,7 @@
     {
       "wave": 18,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1432,7 +1432,7 @@
     {
       "wave": 19,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1450,7 +1450,7 @@
     {
       "wave": 19,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1468,7 +1468,7 @@
     {
       "wave": 19,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1486,7 +1486,7 @@
     {
       "wave": 20,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1504,7 +1504,7 @@
     {
       "wave": 20,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1522,7 +1522,7 @@
     {
       "wave": 20,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1648,7 +1648,7 @@
     {
       "wave": 22,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1702,7 +1702,7 @@
     {
       "wave": 22,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1720,7 +1720,7 @@
     {
       "wave": 23,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1738,7 +1738,7 @@
     {
       "wave": 23,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1792,7 +1792,7 @@
     {
       "wave": 24,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1810,7 +1810,7 @@
     {
       "wave": 24,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1828,7 +1828,7 @@
     {
       "wave": 24,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1846,7 +1846,7 @@
     {
       "wave": 25,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1864,7 +1864,7 @@
     {
       "wave": 25,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1882,7 +1882,7 @@
     {
       "wave": 25,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1900,7 +1900,7 @@
     {
       "wave": 26,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1918,7 +1918,7 @@
     {
       "wave": 26,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1936,7 +1936,7 @@
     {
       "wave": 26,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -1954,7 +1954,7 @@
     {
       "wave": 27,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3309,
         4248
@@ -1972,7 +1972,7 @@
     {
       "wave": 27,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -1990,7 +1990,7 @@
     {
       "wave": 27,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248
@@ -2152,7 +2152,7 @@
     {
       "wave": 29,
       "lane": "south",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3295,
         4233
@@ -2206,7 +2206,7 @@
     {
       "wave": 30,
       "lane": "east",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3310,
         4248
@@ -2260,7 +2260,7 @@
     {
       "wave": 30,
       "lane": "west",
-      "slot": 1,
+      "slot": 0,
       "spawnTile": [
         3281,
         4248

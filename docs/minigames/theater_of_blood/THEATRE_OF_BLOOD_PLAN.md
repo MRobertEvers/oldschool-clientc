@@ -8,7 +8,7 @@
 > |---|---|
 > | 1 stat/combat blocks | generated blocks already existed for the six bosses |
 > | 2 `tob.constant` | **done** - every id, tile, tick, threshold, each with a provenance tag or an `[Mn]` |
-> | 3 party | **model done** - ordered 5-slot list in instance registers, orb order, mode choice, Hard Mode gate. The lobby *board* (invites, ready check) is interface work and is not built |
+> | 3 party | **done** - ordered 5-slot list in instance registers, orb order, mode choice, Hard Mode gate, and the notice board that explains orb order and shows the player's record. Invites/ready-check remain "walk in together" |
 > | 4 instancing | **done** - one room instance at a time, plus a second for the shadow realm; progression by watchdog |
 > | 5 Maiden | **done** - 10-tick clock, 70/50/30 thresholds, uniform random crab subset, leak counter, blood splats (11 ticks), blood spawns and trails |
 > | 6 Bloat | **done** - 32-tick down, stomp at +29, rise at +33, walk clock with the unattacked bonus, turn cooldown, per-tick flies, falling hands, half damage while walking |
@@ -23,8 +23,8 @@
 > | 16 Entry/Hard deltas | **threaded** - mode reaches every room; several deltas live, not all |
 > | 17 `::tobrun` | **done** - 14 checks, wired into `mock230 --selftest` |
 >
-> Known-approximate, each tagged in the file that owns it: the nylo->pillar
-> assignment (M24), Bloat's near-side line of sight and fly spread (M33),
+> Known-approximate, each tagged in the file that owns it: Bloat's near-side line
+> of sight and fly spread (M33),
 > Sotetseg's projectile split (M34), Verzik's melee-chance predicate (M28) and
 > hard-NPC webs (M35), the yellow-pool occupancy test (M36), and true over-hit
 > damage (M32).
@@ -937,6 +937,9 @@ west-north]`, which is the ordering used in `nylocas_waves.md`.
 - **Pillar-bound vs aggro** is a separate npc id, not a flag: `tob_nylocas_incoming_*`
   walks to a pillar, `tob_nylocas_fighting_*` walks at the players. Aggro
   assignment is **fixed per wave** and is in the wave table. Splits are never aggros.
+  The swap happens **mid-lane**, not at spawn: an aggro spawns as `incoming` and
+  becomes `fighting` on the way in, and a pillar-bound nylo makes the same swap
+  later if its own pillar collapses (§8.4.1).
 - **Flickers** start at wave 16. A flicker spawns as style *a*, switches to *b*
   after passing the lane's halfway point, holds *b* for exactly **2 ticks**, then
   settles on *c* (which may equal *a*). A hit that lands the tick before a switch
@@ -947,14 +950,67 @@ west-north]`, which is the ordering used in `nylocas_waves.md`.
 ### 8.4 The pillars
 
 Four supports, loc **32862** intact → **32863** breaking → **32864** broken, npc
-`tob_nylocas_support` **8358**. Corner tiles (3291, 4244), (3291, 4254),
-(3301, 4244), (3301, 4254).
+`tob_nylocas_support` **8358**. Each is **2×2** and impassable:
+
+| Pillar | Footprint | Nylos attack it from |
+|---|---|---|
+| NW | (3290–3291, 4253–4254) | (3292, 4253–4254) and (3290–3291, 4252) |
+| NE | (3300–3301, 4253–4254) | (3299, 4253–4254) and (3300–3301, 4252) |
+| SW | (3290–3291, 4243–4244) | (3292, 4243–4244) and (3290–3291, 4245) |
+| SE | (3300–3301, 4243–4244) | (3299, 4243–4244) and (3300–3301, 4245) |
+
+The Wiki's map pins name one corner of each; the full footprints above were fixed
+by occupancy — across 199 recorded raids no player or npc ever stood on those
+eight tiles. Only the two room-facing sides are ever stood on, which caps a pillar
+at four attackers.
 
 - The top health bar during the wave phase is the **combined** health of all four.
 - A pillar reaching 0 collapses, deals **up to 50** to everyone in the room, and
   the nylocas that were attacking it **switch to attacking players**.
 - All four down = **instant team death**.
 - Pillar hitpoints are **[MEASURE M7]** — no source in this folder states them.
+
+#### 8.4.1 Which pillar each nylo attacks — **M24, measured**
+
+Every source agrees that a wave-spawned nylo always attacks the *same* pillar in
+every encounter, and none of them says which. It is now measured, and the answer
+is the table in
+[`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks).
+
+**Method.** blert.io serves its raid recordings publicly
+(`GET /api/v1/raids/tob/<uuid>/events?stage=12`). Each Nylocas-room stream carries
+every npc's tile on every tick plus, at spawn, blert's wave/lane/size/style record
+— enough to follow each nylo from its spawn tile to the tile it stops on. A nylo
+counts as attacking pillar *P* when it stands beside *P*'s footprint for ≥ 8 ticks,
+with its walk cut at the tick its npc id changes into the `fighting` range so that
+neither aggros nor post-collapse retargets can be miscounted.
+[`tools/derive_tob_nylo_pillars.py`](../../../tools/derive_tob_nylo_pillars.py)
+does this; the result, including the 199 raid uuids behind it, is
+[`sources/blert_nylo_pillar_assignment.json`](sources/blert_nylo_pillar_assignment.json).
+
+**Result over 199 raids** (169 Regular, 30 Hard Mode):
+
+- All **120** spawn slots resolve. **85** are pillar-bound and **35** never touch a
+  pillar — and those 35 are exactly the 35 that blert's wave table flags as aggro.
+  Two unrelated signals, same set: that is the classification checking itself.
+- **Zero conflicting rows.** Every raid in which a given spawn reached a pillar
+  reached the *same* pillar — a median of 61 raids behind each of the 85 rows, and
+  177 behind the deepest.
+- **Regular and Hard Mode are identical**, row for row.
+- The answer does not depend on the threshold: sweeping the dwell requirement from
+  4 to 12 ticks changes no row.
+- Three rows rest on 4 raids each (waves 6 south, 6 west, 7 south) because those
+  nylos are almost always killed in the lane. They are consistent, and they are
+  marked `?` in the table rather than presented as settled.
+
+**Implement it as data.** The assignment is not derivable:
+
+- not from the spawn tile — west (3281, 4249) attacks NE on wave 2 and NW on wave 4;
+- not from the lane — east (3310, 4249) attacks the **NW** pillar on wave 1, and
+  west (3281, 4248) attacks **NE** on waves 3, 9 and 19;
+- not from proximity, and not from a rotation. It belongs in `tob_nylo_spawn` as a
+  `pillar` column beside `lane` and `slot`, generated the same way the rest of that
+  table is.
 
 ### 8.5 Nylocas Vasilias
 
@@ -1759,6 +1815,7 @@ shipping; do not silently pick one.
 | C6 | **Entry Mode hitpoints** | Wiki infoboxes give per-boss Entry HP (Maiden 2000) and say it scales to 20 % solo | blert gives flat, much lower Entry numbers (Maiden 500) | blert's numbers look like the solo (20 %) figures: 2000 × 0.25 = 500. Treat the Wiki value as the 5-scale base and derive. **[MEASURE M19]** |
 | C7 | **Wave 7 east lane** | Strategies/Nylocas table: big MELEE east | blert JSON and OpenOSRS: small melee east | **Use blert/OpenOSRS** — two independent code sources agree against one Wiki table cell. |
 | C8 | **Xarpus P3 threshold** | Xarpus page and Strategies: 25 % | Entry Mode page: 22.5 % | Both, mode-dependent: 25 % Normal/Hard, 22.5 % Entry. |
+| C9 | **Wave 30 south, second spawn** | blert JSON: `melee → ranged → melee`, so `tob_nylo_spawn` currently spawns it **melee** | Strategies/Nylocas table: `mag → rng → mel`; and the game spawns npc **8344** `tob_nylocas_incoming_magic` on that tile in **197 of 197** recorded raids | **Use magic.** Measured, not argued — see §8.4.1 for the method. This is the one cell of 120 where blert's dataset is wrong, and it matters: the tree nulls the wrong style on it. Fix it in `blert_nylocas-waves.json` (with the correction noted) and re-run `tools/gen_tob_nylo_waves.py`. |
 
 ---
 
@@ -1792,7 +1849,8 @@ approximation and tag it in `tob.constant`.
 | M20 | All | Boss attack clocks across a room transition — does the clock reset on phase change or free-run? |
 | M21 | Verzik | Web hitpoints by party size ("depends on the amount of team members"; the Wiki's Web page says 10). |
 | M22 | All | The supply-chest point formula behind "above average / average / below average". |
-| M23–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). They cover crab walk-vs-run, the nylo→pillar assignment, the underworld maze origin, whether "one tick before" means the click or the move, the Xarpus turn/fire alignment, the Verzik scan frame, projectile flight times, and whether Xarpus' cadence varies with party size. |
+| M24 | Nylocas | **Done.** The spawn→pillar assignment, measured over 199 recorded raids; see §8.4.1 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
+| M23, M25–M31 | — | Raised by the timing pass; listed in [`ENCOUNTER_TIMING.md` §9](ENCOUNTER_TIMING.md#9-what-is-still-unmeasured). They cover crab walk-vs-run, the underworld maze origin, whether "one tick before" means the click or the move, the Xarpus turn/fire alignment, the Verzik scan frame, projectile flight times, and whether Xarpus' cadence varies with party size. |
 
 ---
 
@@ -2039,3 +2097,56 @@ and the engine was restored. The C stanza owns the hitpoint bar and forces god
 mode **off** first — god mode zeroes `amount` inside
 `mock230_combat_hit_player`, which would leave both halves alive and turn a
 real regression into a green run.
+
+## 21. Closing the last three steps
+
+**Step 7, the supply chests.** `tob_chest.rs2` already had the shop; what was
+missing was checked against the Wiki's `Chest (Theatre of Blood)` page and the
+three details there that are easy to miss are all now modelled: points **carry
+over** between the two chests (so a player who buys nothing at Bloat has double
+the budget at Sotetseg), only **one stamina potion per chest** (a 2021 change
+made *"to discourage players from obtaining an excessive amount"*), and the
+**onion** given in place of everything if the player died in *both* of the two
+rooms that chest follows. Entry Mode replaces the shop with 10 bandages.
+
+**Step 14, the performance board.** The Wiki: *"players may view the death
+counts of each team member, the total deaths in the performance, as well as the
+time spent in each wave. The Most Valuable Player (MVP) is listed on the top of
+the interface, and is determined based on the performance of the individual
+player, such as damage dealt and the number of deaths."*
+
+Two things follow from that sentence and both are implemented rather than
+approximated. **Per-room splits** need one register per room — a running
+challenge-time total, which is what existed, cannot answer *which room was
+slow*, and that is the only question anyone reads this table to ask. And the
+**MVP** takes damage *and* deaths, so it is hooked onto the damage funnel every
+player-to-npc hit already passes through, **after** the caps: a Verzik P1 hit
+capped from 40 to 10 contributes 10, because that is what actually landed.
+
+The death penalty's weighting is the one number the Wiki does not give, so it is
+disclosed as chosen rather than sourced.
+
+**The party board.** Orb order was the thing worth surfacing: it decides who the
+Maiden targets on a tie, who Xarpus chains to, and who takes the Dawnbringer,
+and nothing else in the raid ever tells the player it exists.
+
+All three are dialogue rather than component trees. The live game paints them as
+panels and this tree has no Theatre panel; text states the same facts and can be
+read by the same person. That is a deliberate choice, not a deferral — a
+performance table nobody can read is not a performance table.
+
+### Three more checks, and what they cost to write
+
+`::tobrun` is now 17. The three added are the chest's price/band sanity, the
+`m:ss` renderer, and the MVP's death penalty.
+
+The time check is worth recording as written, because the obvious version does
+not work: **this dialect has no string equality**, and `~tob_format_ticks(100) !
+"1:00"` compiles and then underflows the int stack at runtime
+(`op BRANCH_EQUALS`). It asserts on `string_length` instead — four characters for
+`1:00`, still four for `3:04` (the leading-zero bug prints three), and five past
+ten minutes so the check is not merely measuring a fixed-width string.
+
+The MVP check is verified by mutation: replacing the penalty with `0` in
+`tob_board_score` yields `tobrun FAIL: a death must lower the MVP score`. The
+implementation was restored and all 17 pass.

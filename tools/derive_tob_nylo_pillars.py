@@ -77,15 +77,54 @@ FIGHTING = set(range(8348, 8354)) | set(range(10780, 10786)) | set(range(10797, 
 LANES = {1: "west", 2: "south", 3: "east"}
 STYLES = {0: "melee", 1: "ranged", 2: "magic"}
 
-# blert's per-lane slot index, resolved against the spawn tile by matching
-# size+style in the 25 lanes where the two spawns differ; the four lanes where
-# they do not (10 south, 11 south, 21 west, 30 south) follow the same order.
-# A big occupies both tiles of its lane and is reported on the lower one.
+# Tile order within a lane, matching blert's slot order. A big is 2x2, covers
+# both tiles of its lane, and is reported on the lower-coordinate one -- so the
+# tile alone cannot separate a big from the small sharing that tile (wave 9
+# west). Slots are therefore resolved against the wave table by size and style,
+# with this order breaking ties between two spawns that are alike in both
+# (10 south, 11 south, 21 west, 30 south).
 SLOT_TILES = {
     "west": [(3281, 4249), (3281, 4248)],
     "south": [(3296, 4233), (3295, 4233)],
     "east": [(3310, 4249), (3310, 4248)],
 }
+
+WAVE_TABLE = os.path.join(SRC_DIR, "blert_nylocas-waves.json")
+
+
+def wave_table_slots() -> dict:
+    """(wave, lane) -> [(slot index, big, style)], in blert's own slot order."""
+    out = collections.defaultdict(list)
+    with open(WAVE_TABLE, encoding="utf-8") as fh:
+        for wave in json.load(fh):
+            for lane in ("west", "south", "east"):
+                for slot, spawn in enumerate(wave[lane]):
+                    if spawn:
+                        out[(wave["num"], lane)].append(
+                            (slot, spawn["big"], spawn["rotation"][0]))
+    return out
+
+
+def assign_slots(rows: list[dict], slots: dict) -> None:
+    """Give every measured spawn blert's slot index, in place."""
+    for row in rows:
+        row["slot"] = None
+    grouped = collections.defaultdict(list)
+    for row in rows:
+        grouped[(row["wave"], row["lane"])].append(row)
+    for key, lane_rows in grouped.items():
+        candidates = slots.get(key, [])
+        lane_rows.sort(key=lambda r: SLOT_TILES[r["lane"]].index(tuple(r["spawnTile"]))
+                       if tuple(r["spawnTile"]) in SLOT_TILES[r["lane"]] else 1)
+        for row in lane_rows:
+            match = [c for c in candidates
+                     if c[1] == row["big"] and c[2] == row["style"]]
+            if not match:                       # size/style disagree: fall back
+                match = [c for c in candidates]
+            if match:
+                row["slot"] = match[0][0]
+                candidates.remove(match[0])
+        assert len({r["slot"] for r in lane_rows}) == len(lane_rows), key
 
 
 def get(url: str, retries: int = 6) -> object:
@@ -216,11 +255,10 @@ def derive(events_dir: str, dwell: int) -> dict:
     for key in sorted(observed, key=lambda k: (k[0], k[1], -k[2], -k[3])):
         wave, lane, sx, sy, big, style = key
         votes = {p: n for p, n in pillar_votes[key].most_common() if p != "AMBIG"}
-        slot = SLOT_TILES[lane].index((sx, sy)) if (sx, sy) in SLOT_TILES[lane] else 1
         rows.append({
             "wave": wave,
             "lane": lane,
-            "slot": slot,
+            "slot": None,
             "spawnTile": [sx, sy],
             "big": big,
             "style": style,
@@ -232,6 +270,8 @@ def derive(events_dir: str, dwell: int) -> dict:
             "disagreeing": {p: n for p, n in list(votes.items())[1:]},
             "ambiguous": pillar_votes[key]["AMBIG"],
         })
+    assign_slots(rows, wave_table_slots())
+    rows.sort(key=lambda r: (r["wave"], r["lane"], r["slot"]))
     return {
         "source": "https://blert.io/api/v1/raids/tob/<uuid>/events?stage=12",
         "method": "tools/derive_tob_nylo_pillars.py",

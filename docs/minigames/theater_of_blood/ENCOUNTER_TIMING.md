@@ -403,9 +403,14 @@ Each split's style is **random** and independent. Splits are **never aggros**.
 ### 4.4 Movement, targeting and flicker
 
 - Every wave-spawned nylo **always targets the same pillar in every encounter** —
-  the assignment is fixed data, not a nearest-pillar computation. **The
-  spawn→pillar mapping is `[M24]`**: no source in `sources/` publishes it, and it
-  cannot be derived from the wave table.
+  the assignment is fixed data, not a nearest-pillar computation. **`[M24]` is now
+  measured**: no source in `sources/` publishes the mapping, so it was derived from
+  199 recorded raids and is tabulated in
+  [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks)
+  (method: `tools/derive_tob_nylo_pillars.py`, result:
+  `sources/blert_nylo_pillar_assignment.json`). It is genuinely arbitrary — the
+  same spawn tile feeds different pillars in different waves, and nylos cross the
+  room to reach the far side — so it has to be carried as data.
 - **Aggros** (`tob_nylocas_fighting_*`) walk at the players instead and stop
   slightly short before attacking. Fixed per wave; see the wave table.
 - **Flickers** start at wave 16: spawn as *a*, switch to *b* **after passing the
@@ -419,10 +424,13 @@ Each split's style is **random** and independent. Splits are **never aggros**.
 
 ### 4.5 Pillars
 
-Four supports at the corners of a 10×10 box: **(3291, 4244), (3291, 4254),
-(3301, 4244), (3301, 4254)**
-([Support (Theatre of Blood)](https://oldschool.runescape.wiki/w/Support_(Theatre_of_Blood)?oldid=15201834)
-map data). Loc **32862** intact → **32863** breaking → **32864** broken; npc
+Four **2×2** supports at the corners of a 10×10 box, footprints
+**(3290–3291, 4243–4244)**, **(3290–3291, 4253–4254)**,
+**(3300–3301, 4243–4244)** and **(3300–3301, 4253–4254)**. The
+[Support (Theatre of Blood)](https://oldschool.runescape.wiki/w/Support_(Theatre_of_Blood)?oldid=15201834)
+map data pins one corner of each; the full footprints come from the occupancy
+measurement in `nylocas_waves.md`, and only the two room-facing sides of a pillar
+are ever stood on, which caps it at four attackers. Loc **32862** intact → **32863** breaking → **32864** broken; npc
 `tob_nylocas_support` **8358** (10790 entry / 10811 hard) carries the health.
 
 Collapse: up to 50 to the whole room, and **every nylo that was attacking it
@@ -927,7 +935,7 @@ New tasks raised by this pass, continuing the plan's numbering:
 | # | Room | Question |
 |---|---|---|
 | M23 | Maiden | Do Nylocas Matomenos **walk or run** to the boss? The published freeze timings only reproduce under one of the two. |
-| M24 | Nylocas | The fixed **spawn → pillar assignment**. Known to be constant per spawn; not published anywhere in `sources/`. |
+| ~~M24~~ | Nylocas | **Measured.** The fixed **spawn → pillar assignment**, over 199 recorded raids: all 120 slots resolve, no row conflicts, Regular and Hard Mode identical. See §4.4 and [`nylocas_waves.md`](nylocas_waves.md#which-pillar-each-spawn-attacks). |
 | M25 | Sotetseg | Reconcile the underworld maze origin: tob-qol scene (42, 31) vs blert world (3354, 4311, 3). |
 | M26 | All | Does a step-back **click** on tick `T−1` complete in time, or must the click be on `T−2`? Decides whether the guides' "one tick before" means the click or the move. |
 | M27 | Xarpus | Confirm the turn and the spit share a tick (this document's reading) rather than the turn leading by 1–4 ticks. Watch orientation and projectile-spawn ticks side by side. |
