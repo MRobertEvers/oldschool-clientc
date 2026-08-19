@@ -471,6 +471,29 @@ tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
     --orient 3 --out /tmp/scythe
 ```
 
+`--tile <dx> <dz>` switches it from a player-attached graphic (`spotanim_pl`) to
+a **tile** one (`spotanim_map`), which is what the scythe of vitur actually
+plays. A tile graphic is world-fixed and never enters the player's model, so it
+is reproduced inside the merge the only way one thing can hold still while
+another turns: the graphic is pre-turned by the inverse of `--yaw` and offset by
+the tile, and the renderer's own turn by that yaw puts it back where the world
+says it stands. The inverse turn goes in **before** the lighting bake, next to
+`--orient`, because RS lighting is per face from the geometry's orientation.
+
+`--csv <file>` writes one row per client cycle — the blade and the lit graphic,
+in the player's local space *and* rotated into world space by `--yaw`, so several
+facings concatenate into one sheet. `--facing <name>` labels that sheet's first
+column.
+
+The measured points are marked on the top-down sheet at **every** facing now.
+They used to be drawn only at yaw 0 and dropped elsewhere, which left the three
+sheets that most needed a check — does the arc still lie along the swing when the
+player is turned? — with nothing on them to check against.
+
+`tools/scythe_animation.sh` drives all of this: eight facings, sheets, CSVs and a
+falsifiable snap check, into `docs/scythe_animation/`. See that directory's
+README, which is also the worked example for the whole harness.
+
 Defaults are the scythe of vitur's, as `scythe_of_vitur.rs2` ships them. What it
 reports:
 
@@ -500,14 +523,16 @@ For a **spritesheet** rather than a diagnosis: `--rows 0` gives one cell per
 client cycle with no sampling (the default caps at four rows and samples, which
 is right for a quick look and wrong for a record of the animation),
 `--no-markers` leaves the crosses off, and `--yaw` picks the facing — 0 south,
-512 west, 1024 north, 1536 east, `world_cycle.c`'s own numbers. The measurements
-are taken in the player's local space and do not change with the facing; only the
-pictures do. Markers are dropped, and said to be dropped, at any yaw but 0, since
-the projection that places them is solved for yaw 0 only.
+512 west, 1024 north, 1536 east, `world_cycle.c`'s own numbers. For an *attached*
+graphic the measurements are taken in the player's local space and do not change
+with the facing; only the pictures do. With `--tile` they do change, because a
+tile graphic really is somewhere different relative to a player who has turned.
 
-`docs/scythe_of_vitur_charged/` is a worked example: the scythe's swing from each
-of the four facings, plus the top-down comparison that shows which of the
-graphic's four compass copies is the right one.
+`docs/scythe_animation/` is the worked example: the scythe's swing from eight
+facings, before and after, with the per-cycle sheets and the check that the
+diagonals snap where they should. `docs/scythe_of_vitur_charged/` is the earlier
+pass over the same weapon, kept because its measurements of the *attached* case
+still describe `pvm_dragon_halberd.rs2`.
 
 ## Two kinds of rig
 

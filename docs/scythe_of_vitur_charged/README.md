@@ -1,3 +1,21 @@
+> **SUPERSEDED — read `docs/scythe_animation/README.md` instead.**
+>
+> This page diagnosed the scythe's arc while it was played as a **player-
+> attached** graphic (`spotanim_pl`), and its recommendation — attach
+> `dragon_halberd_special_south_red` instead of `_west_red`, and shift the
+> asset — was the best fix *within that mechanism*.
+>
+> The mechanism itself was the defect. Near-Reality's `ScytheOfViturCombat`
+> draws the sweep as a **tile** graphic (`spotanim_map`) on the tile a step
+> toward the target, choosing the compass copy that matches, and
+> `scythe_of_vitur.rs2` does that now. The `-64` shift this page's sibling notes
+> describe has been reverted; the four copies must be identical up to rotation
+> for a tile graphic, and an asset edit is no longer a lever anyone should pull.
+>
+> What stays true here, and is why the page is kept: the measurements of the
+> **attached** case. `specs/pvm_dragon_halberd.rs2` still plays `_west_red` that
+> way and still has every defect described below.
+
 # Scythe of vitur (charged) — the swing, from each direction
 
 Spritesheets of `scythe_of_vitur_attack` (sequence 8056) on a player wearing the

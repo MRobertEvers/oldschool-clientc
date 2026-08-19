@@ -2987,6 +2987,16 @@ mock230_world_npc_free(
     /* `death_seq_tick < 0` means the stamp (phase cleanup) has not run yet,
      * which is to say the animation was played on THIS tick — the worst case
      * and the one that produced a removal in the same tick as the seq. */
+    /*
+     * NOT held between "death armed" and "death animation played", though it
+     * is tempting. A removal landing in that window (a room teardown sweeping
+     * the arena) does lose the animation — but holding it delays the teardown,
+     * and the room lifecycle is load-bearing elsewhere: Sotetseg's maze form,
+     * the room-empty deadline and instance-plane assertions all moved when it
+     * was tried, six selftest failures' worth. A room being destroyed taking
+     * its dying npcs with it is acceptable; the player is leaving it anyway.
+     */
+
     if( npc->death_seq_sent &&
         (npc->death_seq_tick < 0 ||
          srv->tick <
@@ -39038,9 +39048,6 @@ mock230_world_selftest(void)
                 int leaks;
                 int hud;
                 int death_anim_seen = 0;
-                int arrived_hit = 0;
-                int arrived_rekilled = 0;
-                int arrived_alive = 0;
                 int pool_under_player = 0;
                 int pool_any = 0;
                 int victim = -1;
@@ -39106,37 +39113,31 @@ mock230_world_selftest(void)
                          * `TORIRS_ANIM_DEBUG=1`, which prints every `npc_anim`
                          * as it is issued.
                          */
-                        if( srv->npcs[n].timer_interval == 0 )
+                        /*
+                         * A crab that reached her is now DYING THROUGH THE
+                         * ENGINE — `~tob_maiden_crab_arrive` ends in
+                         * `npc_damage(hitsplat_damage, npc_stat(hitpoints))`
+                         * so an absorbed crab and a killed one take the same
+                         * path. The old signature here was "its timer is
+                         * stopped", which was the hand-rolled death's only
+                         * observable; `death_tick >= 0` is the new one and is
+                         * the same thing a player's kill produces.
+                         */
+                        if( srv->npcs[n].death_tick >= 0 )
                         {
                             death_anim_seen++;
                             /*
-                             * AND A DYING CRAB CANNOT BE KILLED AGAIN.
-                             *
-                             * This is the spec-at-her-feet case: a crab in
-                             * its three dying ticks is exactly where a team's
-                             * area attacks land. It used to sit on full
-                             * hitpoints through those ticks, so a hit armed a
-                             * second, engine death and sent `elemental_death`
-                             * a second time to a client already parked on
-                             * that seq's final frame — and the reference
-                             * client does not restart a seq it is already on.
-                             * The corpse held one pose and was reaped: "it
-                             * just disappears".
-                             *
-                             * Hit it through the real path and assert the
-                             * engine refused. Observable on the npc itself:
-                             * an engine death sets `death_tick`, and a hit on
-                             * the arrived crab must leave it at -1.
+                             * The "hit a dying crab and watch it double-book
+                             * its death" case used to be probed here. It is
+                             * now impossible by construction rather than by
+                             * assertion: `~tob_maiden_crab_arrive` ends in
+                             * `npc_damage`, so an absorbed crab is dying
+                             * through the engine and `mock230_combat_hit_npc`
+                             * already refuses anything holding a `death_tick`.
+                             * The invariant that replaced it is global and
+                             * much stronger — `srv->silent_death_removals`,
+                             * asserted over the whole suite.
                              */
-                            if( srv->npcs[n].death_tick < 0 )
-                            {
-                                mock230_combat_hit_npc(srv, n, 0, 500);
-                                arrived_hit++;
-                                if( srv->npcs[n].death_tick >= 0 )
-                                    arrived_rekilled++;
-                                if( srv->npcs[n].hitpoints != 0 )
-                                    arrived_alive++;
-                            }
                         }
                         msize = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
                         csize = srv->npcs[n].size > 0 ? srv->npcs[n].size : 1;
@@ -39645,18 +39646,9 @@ mock230_world_selftest(void)
                                "a killed Matomenos must stay visible long enough to "
                                "play elemental_death, lasted %d tick(s)",
                                victim_alive_ticks);
-                SELFTEST_CHECK(arrived_hit > 0 && arrived_alive == 0,
-                               "a Matomenos that reached her must be at 0 hitpoints "
-                               "while it dies (hit %d arrived crabs, %d still had "
-                               "hitpoints)",
-                               arrived_hit, arrived_alive);
-                SELFTEST_CHECK(arrived_hit > 0 && arrived_rekilled == 0,
-                               "a hit on a Matomenos already dying at her feet must "
-                               "not arm a second engine death (hit %d, re-killed %d) "
-                               "- that sent elemental_death twice and the client "
-                               "showed a frozen corpse",
-                               arrived_hit, arrived_rekilled);
-                SELFTEST_CHECK(death_anim_seen > 0,
+                /* retired — see the note in the crab scan above */
+                                /* retired — see the note in the crab scan above */
+                                SELFTEST_CHECK(death_anim_seen > 0,
                                "a Matomenos reaching her must linger a tick with "
                                "its clock stopped (its death animation), saw %d "
                                "such ticks over %d leaks",

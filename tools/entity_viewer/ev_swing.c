@@ -25,15 +25,25 @@
  *
  *     make -C tools/entity_viewer ev_swing
  *     tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
- *         --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_west_red.model \
- *         --out /tmp/scythe
+ *         --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_south_red.model \
+ *         --tile 0 -1 --out /tmp/scythe
  *
  * Defaults are the scythe of vitur's: obj 22325 in the right hand, sequence 8056
- * (`scythe_of_vitur_attack`), spotanim 1231 (`dragon_halberd_special_west_red`),
- * height 100, delay 16 — the values `scythe_of_vitur.rs2` actually ships.
+ * (`scythe_of_vitur_attack`), spotanim 1891
+ * (`dragon_halberd_special_south_darkred`), height 96, delay 0 — the values
+ * `scythe_of_vitur.rs2` actually ships, for the south facing.
+ *
+ * TWO KINDS OF GRAPHIC, and which one is being measured is `--tile`:
+ *
+ *   without it   `spotanim_pl` — the graphic is merged into the player's own
+ *                model and turns with them. One copy is correct at every facing.
+ *   with it      `spotanim_map` — the graphic stands on a TILE in world space
+ *                and does not turn at all. This is what the scythe plays, and
+ *                what Near-Reality plays; the copy and the tile are both chosen
+ *                per direction. See docs/scythe_animation/README.md.
  *
  * Nothing here is scythe-specific below the defaults: any weapon, any attack
- * sequence, any player-attached graphic.
+ * sequence, either kind of graphic.
  */
 
 #include "ev_build.h"
@@ -56,9 +66,9 @@
 
 #define DEF_WEAPON_OBJ 22325 /* scythe_of_vitur */
 #define DEF_ATTACK_SEQ 8056  /* scythe_of_vitur_attack */
-#define DEF_SPOTANIM 1231    /* dragon_halberd_special_west_red */
-#define DEF_HEIGHT 100
-#define DEF_DELAY 16
+#define DEF_SPOTANIM 1891    /* dragon_halberd_special_south_darkred */
+#define DEF_HEIGHT 96
+#define DEF_DELAY 0
 
 /*
  * Which face alphas count as drawn.
