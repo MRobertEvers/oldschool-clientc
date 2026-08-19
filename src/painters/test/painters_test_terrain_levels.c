@@ -697,7 +697,12 @@ test_bucket_emits_one_globally_distance_ordered_sweep(void)
  * ground running up over the platform.
  *
  * What makes the wait unnecessary: the blocking loc reaches CLOSER to the eye
- * than the tile being held, so it is drawn nearer than that tile regardless.
+ * than the tile being held, so it is drawn nearer than that tile regardless —
+ * and it lies BESIDE the seam column's line of sight, not behind it (the
+ * lateral gate, bucket_gate_blocks). The two floor tiles diagonally in front
+ * of each loc's near corner, (13,7) and (19,7), are a different case: the loc
+ * is behind them along the view ray, so the reference order (loc first, then
+ * their floor) is the right one, and the sweep is allowed to dip there.
  */
 static void
 test_seam_between_two_large_locs_keeps_the_sweep(void)
@@ -710,10 +715,9 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
     const int west_loc = 1300;
     const int east_loc = 1301;
     int east_i = -1;
-    int prev = -1;
-    int runs = 1;
     int emitted = 0;
-    int worst_after_east = -1;
+    int seam_after_east = 0;
+    int late_beside_or_behind = 0;
     int x, z;
 
     printf("a floor column on the seam of two large locs still sweeps farthest-first\n");
@@ -743,27 +747,32 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
         tx = (int)buf->commands[i]._terrain._bf_terrain_x;
         tz = (int)buf->commands[i]._terrain._bf_terrain_z;
         d = abs(tx - SEAM_CAM_X) + abs(tz - SEAM_CAM_Z);
-        if( prev >= 0 && d > prev )
-            runs++;
-        prev = d;
         emitted++;
-        if( east_i >= 0 && i > east_i && d > 5 && getenv("SEAM_DEBUG") )
-            printf("       late floor (%d,%d) d=%d at cmd %d (east loc at %d)\n", tx, tz, d, i, east_i);
-        if( east_i >= 0 && i > east_i && d > worst_after_east )
-            worst_after_east = d;
+        if( east_i < 0 || i < east_i )
+            continue;
+        /* The defect: the seam column's own floor, under the west loc and
+         * farther out than the east loc's release ring (5), emitted after
+         * it. The two seam tiles at rings 4 and 5 are nearer than or level
+         * with the loc and rightly follow it. */
+        if( tx == SEAM_CAM_X && tz >= 8 && tz <= 23 && d > 5 )
+            seam_after_east++;
+        /* Anything farther than the east loc's release ring (5) that is
+         * beside or behind the locs' rows. Rows south of the locs (tz < 8)
+         * are in front of them along the view ray and may legitimately wait. */
+        if( d > 5 && tz >= 8 )
+        {
+            late_beside_or_behind++;
+            printf("       (floor (%d,%d) d=%d emitted after the east loc)\n", tx, tz, d);
+        }
     }
 
     expect(emitted > 0, "the box emitted terrain at all");
-    expect(runs == 1, "terrain distance never increases across the seam");
-    if( runs != 1 )
-        printf("       (%d monotone runs over %d tiles: the seam column ran late)\n",
-               runs, emitted);
-    /* The east loc's nearest footprint tile is (17,8), five rings out. Nothing
-     * farther than that may still be waiting when it is drawn. */
-    expect(worst_after_east <= 5,
-           "no floor farther than the east loc's own ring is emitted after it");
-    if( worst_after_east > 5 )
-        printf("       (floor at distance %d emitted after the east loc)\n", worst_after_east);
+    expect(east_i >= 0, "the east loc is emitted");
+    expect(seam_after_east == 0, "the seam column's floor all precedes the east loc");
+    if( seam_after_east )
+        printf("       (%d seam tiles ran late)\n", seam_after_east);
+    expect(late_beside_or_behind == 0,
+           "no floor beside or behind the locs, farther than the east loc's ring, follows it");
 
     free(buf->commands);
     free(buf);
@@ -858,11 +867,7 @@ main(void)
     test_stack_base_does_not_defer_static_locs();
     test_ready_batch_sorts_by_far_corner();
     test_bucket_emits_one_globally_distance_ordered_sweep();
-#ifdef PAINTERS_BUCKET_SEAM_EXCEPTION
-    /* Only the seam-exception build keeps the QBD sweep; the default build
-     * runs the plain reference gate and waits, as painter_paint_world3d does. */
     test_seam_between_two_large_locs_keeps_the_sweep();
-#endif
     test_loc_behind_a_tile_in_depth_is_emitted_first();
 
     if( g_failures )

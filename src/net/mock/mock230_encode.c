@@ -4448,6 +4448,18 @@ put_npc_extended_v5(
         int width = mock230_healthbar_width(headbar);
         int fill = (npc->hitpoints * width) / npc->max_hitpoints;
 
+        /* Which bar an npc got, and why. The three inputs (type, footprint,
+         * chosen record) and the two outputs (width, fill) on one line, because
+         * "the bar is the wrong size" has five candidate causes and reading the
+         * pixels tells you which only by elimination. Shares MOCK230_SPLAT_DEBUG
+         * with the hitmark line above -- a headbar only ever rides one. */
+        if( getenv("MOCK230_SPLAT_DEBUG") )
+            fprintf(stderr,
+                    "  HEADBAR npc type=%d size=%d -> healthbar=%d width=%d "
+                    "fill=%d (hp %d/%d)\n",
+                    npc->type, npc->size, headbar, width, fill, npc->hitpoints,
+                    npc->max_hitpoints);
+
         /* NpcHeadbarEncoder differs from the player only in the count and
          * target-fill byte transform -- alt1 and alt2 here against the
          * player's alt2 and alt3. See the matching decoder's V5 block. */
@@ -4640,6 +4652,46 @@ put_npc_extended(
     }
 }
 
+/*
+ * This observer's npc view radius, and the tick's update to it.
+ *
+ * Split from the encoder body so the three view tests and the zone query all
+ * read ONE value: they used to name the constant separately, and a radius that
+ * moves has to be read once per tick or the keep test and the add test can
+ * disagree — which adds an npc and removes it on alternate ticks forever.
+ */
+static int
+npc_view_radius(const struct Mock230Player* player)
+{
+    int r = player->npc_view_tiles;
+
+    if( r < MOCK230_NPC_VIEW_TILES )
+        r = MOCK230_NPC_VIEW_TILES;
+    if( r > MOCK230_NPC_VIEW_TILES_MAX )
+        r = MOCK230_NPC_VIEW_TILES_MAX;
+    return r;
+}
+
+/*
+ * Grow by a tile a tick while the list is short; snap back to the resting
+ * radius the moment it is not. Called with the count this tick actually wrote,
+ * so the change lands on the NEXT tick's tests — the alternative is a radius
+ * that changes half way through building the list it is bounding.
+ */
+static void
+npc_view_radius_update(
+    struct Mock230Player* player,
+    int tracked_count)
+{
+    int r = npc_view_radius(player);
+
+    if( tracked_count >= MOCK230_NPC_VIEW_CROWD )
+        r = MOCK230_NPC_VIEW_TILES;
+    else if( r < MOCK230_NPC_VIEW_TILES_MAX )
+        r++;
+    player->npc_view_tiles = r;
+}
+
 void
 mock230_send_npc_info(struct Mock230Player* player)
 {
@@ -4693,8 +4745,52 @@ mock230_send_npc_info(struct Mock230Player* player)
      * end of the low-resolution loop for why it is only correct once extended
      * info follows it.
      */
+    /*
+     * AN ANIMATION THAT NO OBSERVER IS TOLD ABOUT.
+     *
+     * `npc_anim` sets `anim_id` + the ANIM mask and phase 12 clears them again,
+     * so an npc that is not in THIS client's tracked list on the tick it
+     * animates loses that animation outright — there is no retry and the mask
+     * is gone. It is silent at every layer: the script ran, the engine applied
+     * it, `TORIRS_ANIM_DEBUG` prints it, and nothing on the wire carries it.
+     *
+     * The case that found this: a Nylocas Matomenos dying at the Maiden's feet
+     * while the player stands on the room's designated fight tile. That tile is
+     * 17 tiles from her footprint and `MOCK230_NPC_VIEW_TILES` is 15, so the
+     * crab walks OUT of npc view on its way in and its death animation is
+     * played to nobody. From the player's side the crab simply vanishes.
+     *
+     * Printed rather than fixed here because the fix is a policy choice (widen
+     * the radius, or hold the mask until an observer has been told) and this
+     * says which npcs are paying for the current one.
+     */
+    if( getenv("MOCK230_ANIM_LOST") )
+    {
+        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int view_dx;
+            int view_dz;
+
+            if( !npc->active || !(npc->masks & MOCK230_NMASK_ANIM) )
+                continue;
+            if( player->npc_tracked[slot] )
+                continue;
+            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            fprintf(stderr,
+                    "anim-lost: npc slot %d type %d seq %d is animating but is NOT "
+                    "tracked by pid %d (footprint gap %d,%d vs view %d)\n",
+                    slot, npc->type, npc->anim_id, player->pid, view_dx, view_dz,
+                    MOCK230_NPC_VIEW_TILES);
+        }
+    }
+
     if( wire_is_v5(player) )
     {
+        /* Read ONCE for the whole packet: the keep test, the candidate query
+         * and the add test have to agree or an npc is added and removed on
+         * alternate ticks. */
+        int const view_tiles = npc_view_radius(player);
         uint8_t extended_data[4096];
         struct RSAreaBuf extended_buf;
         int adds[MOCK230_TRACKED_NPC_MAX];
@@ -4753,7 +4849,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             in_range = npc->active && mock230_world_npc_visible_to(srv, npc, player) &&
                        npc->level == player->level &&
                        npc->generation == player->tracked_generation[i] &&
-                       view_dx <= MOCK230_NPC_VIEW_TILES && view_dz <= MOCK230_NPC_VIEW_TILES;
+                       view_dx <= view_tiles && view_dz <= view_tiles;
 
             if( !in_range || npc->tele )
             {
@@ -4827,7 +4923,7 @@ mock230_send_npc_info(struct Mock230Player* player)
          * mock230_zone_npcs_active: a raw box reaches outside the build area
          * near its edge, and an npc the client has no scene for is placed at a
          * coordinate that does not exist for it. */
-        nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
+        nearby_count = mock230_playerzonemap_npcs(player, view_tiles, nearby,
                                          MOCK230_TRACKED_NPC_MAX);
         for( int i = 0; i < nearby_count; i++ )
         {
@@ -4857,7 +4953,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * streams, which are single-plane, filter at the point of use. */
             if( npc->level != player->level )
                 continue;
-            if( view_dx > MOCK230_NPC_VIEW_TILES || view_dz > MOCK230_NPC_VIEW_TILES )
+            if( view_dx > view_tiles || view_dz > view_tiles )
                 continue;
             /*
              * And what the record can actually say. The deltas written below are
@@ -4999,6 +5095,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             kept_generation,
             sizeof(int) * (size_t)kept_count);
         player->tracked_count = kept_count;
+        npc_view_radius_update(player, kept_count);
         return;
     }
     open_packet(&buf, 8192);

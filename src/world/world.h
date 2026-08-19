@@ -90,6 +90,27 @@ struct World_SeqSource
     int (*spotanim_seq)(void* userdata, int spotanim_id);
 };
 
+/*
+ * Where an entity animation's per-frame sounds go.
+ *
+ * The reference emits these from *inside* the cycle loop that steps the frames
+ * (deob Statics.method5261/method4366 call the listener once per frame crossed,
+ * on the movement track and the action track alike), so a frame carrying a
+ * sound is never passed over -- not when several cycles elapse between two
+ * rendered frames, and not when an action animation is drawn on top of a
+ * looping readyanim. Sampling the frame the renderer happens to see instead is
+ * what silently swallowed half of Xarpus' wing flaps.
+ *
+ * `world_x`/`world_z` are the emitter's draw position in world units
+ * (tiles << 7). A NULL `frame` (the default) means nobody is listening and the
+ * stepping does no extra work.
+ */
+struct World_AnimSoundSink
+{
+    void* userdata;
+    void (*frame)(void* userdata, int seq_id, int frame, int world_x, int world_z);
+};
+
 #define WORLD_MAPFUNC_MAX 1000
 
 struct World_MapFunctionIcon
@@ -205,6 +226,8 @@ struct World
     int cycle;
 
     struct World_SeqSource seq_source;
+
+    struct World_AnimSoundSink anim_sound_sink;
 
     /**
      * The era this world is drawing, from src/features -- read by the mover to
@@ -831,6 +854,12 @@ void
 World_SetSeqSource(
     struct World* world,
     struct World_SeqSource const* source);
+
+/* Install (or, with NULL, remove) the frame-sound listener described above. */
+void
+World_SetAnimSoundSink(
+    struct World* world,
+    struct World_AnimSoundSink const* sink);
 
 /* Server-driven primary (transient) animation with reference semantics:
  * same-seq RestartMode RESET zeroes frame/cycle/loop, RESETLOOP zeroes the

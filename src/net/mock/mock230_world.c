@@ -37794,6 +37794,198 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Every ToB room can be WALKED out of (`::tobexit`, once per room).
+         *
+         * A cleared room is left on foot: through the barrier into the corridor
+         * beyond it, down that corridor, and out through the passage at the end
+         * of it — `tob_dungeon_walkway_exit_clickbox` ("Formidable passage"),
+         * or Xarpus's door, which carries the same two ops. That passage is the
+         * ONLY thing that builds the next chamber, so a room whose copy of it
+         * is missing dead-ends the raid while every fight in ::tobrun still
+         * tests green: the boss dies, the room announces the way onward, and
+         * there is nothing to click.
+         *
+         * It is a real risk rather than a hypothetical one. The passage is not
+         * placed by content — it is read out of the template square, and it
+         * lands one plane BELOW the plane the map file writes it at, because
+         * every ToB corridor is a LINK_BELOW deck and `record_loc_at` shifts a
+         * loc on such a column down a level. Four of the five are authored at
+         * plane 1 and reached at plane 0; Xarpus's arena is plane 1 itself and
+         * its door is not shifted at all. An off-by-one there is invisible.
+         *
+         * THE TICK BETWEEN THE TWO COMMANDS IS THE WHOLE REASON THIS IS A
+         * STANZA rather than another line in ::tobrooms. `loc_find` reads the
+         * one currently-built scene, and the scene is rebuilt on the tick
+         * boundary by mock230_world_scene_rebuild, not inside `p_teleport` —
+         * so asking in the same script that built the room reads the scene the
+         * player has not moved into yet, and answers "missing" for all five.
+         * ::tobrooms cannot borrow this trick: `p_delay` inside a debugproc
+         * parks the script and never resumes under --selftest.
+         */
+        {
+            static struct Mock230Capture tobexit_capture;
+            int tobexit_rooms_ok = 0;
+
+            for( int room = 1; room <= 5; room++ )
+            {
+                char command[32];
+                int said_ok = 0;
+
+                snprintf(command, sizeof(command), "tob %d", room);
+                mock230_scripts_run_debugproc(srv, command);
+                mock230_world_tick(srv);
+
+                mock230_capture_begin(srv, &tobexit_capture);
+                mock230_scripts_run_debugproc(srv, "tobexit");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&tobexit_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                     i = mock230_capture_find(&tobexit_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &tobexit_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "tobexit") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "tobexit OK") != NULL )
+                        said_ok = 1;
+                }
+                if( said_ok )
+                    tobexit_rooms_ok++;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            SELFTEST_CHECK(tobexit_rooms_ok == 5,
+                           "every ToB room before Verzik should carry its exit passage");
+        }
+
+        /*
+         * ...and walking out of a cleared room is what builds the next one.
+         *
+         * The stanza above proves the passage EXISTS; this one proves it is the
+         * transition. Per room: build it, step inside the arena, declare it won
+         * (`::tobclear` calls the same `~tob_room_cleared` the boss watchdog
+         * does), then click the passage the way a player clicks it — an OPLOC1
+         * at its tile — and let the walk run.
+         *
+         * The walk is half the point. The click is answered from wherever the
+         * player is standing, so a passage that is unreachable on foot from
+         * inside the arena resolves as "never arrived" and `selftest_settle`
+         * returns -1: this asserts the corridor is walkable end to end, which
+         * nothing else in the suite does.
+         *
+         * The other half is that the room advances AT THE PASSAGE and not at
+         * the gate. It used to advance in `[oploc1,tob_arena_barrier]`, so the
+         * click meant to open the gate teleported the party to the next boss —
+         * the corridors, and everything standing in them, were never seen. A
+         * regression to that would leave this stanza's OPLOC1 firing at a
+         * passage that no longer means anything, and room N+1 never built.
+         */
+        {
+            /* `tob_dungeon_walkway_exit_clickbox` and, for Xarpus alone,
+             * `tob_dungeon_xarpus_arena_door_exit` — cache ids, stable. */
+            const int k_passage_loc = 33113;
+            const int k_xarpus_exit_loc = 32751;
+            int walked_out = 0;
+
+            for( int room = 1; room <= 5; room++ )
+            {
+                static struct Mock230Capture walk_capture;
+                char command[32];
+                uint8_t payload[6];
+                int tile_x = -1;
+                int tile_z = -1;
+                int landed = 0;
+                int loc_id = room == 5 ? k_xarpus_exit_loc : k_passage_loc;
+
+                snprintf(command, sizeof(command), "tob %d", room);
+                mock230_scripts_run_debugproc(srv, command);
+                mock230_world_tick(srv);
+                /* Inside the arena, and cleared: the exit corridor is on the
+                 * far side of the barrier, so a player still in the entry
+                 * corridor cannot path to it at all. */
+                mock230_scripts_run_debugproc(srv, "tobgo");
+                mock230_scripts_run_debugproc(srv, "tobclear");
+                mock230_world_tick(srv);
+
+                mock230_capture_begin(srv, &walk_capture);
+                mock230_scripts_run_debugproc(srv, "tobexit");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&walk_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                     i = mock230_capture_find(&walk_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &walk_capture.packets[i];
+                    const char* text;
+                    const char* at;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    at = strstr(text, "want x=");
+                    if( !at )
+                        continue;
+                    sscanf(at, "want x=%d z=%d", &tile_x, &tile_z);
+                }
+                if( tile_x < 0 || tile_z < 0 )
+                    continue;
+
+                payload[0] = (uint8_t)(tile_x >> 8);
+                payload[1] = (uint8_t)(tile_x & 0xff);
+                payload[2] = (uint8_t)(tile_z >> 8);
+                payload[3] = (uint8_t)(tile_z & 0xff);
+                payload[4] = (uint8_t)(loc_id >> 8);
+                payload[5] = (uint8_t)(loc_id & 0xff);
+                mock230_capture_begin(srv, &walk_capture);
+                mock230_world_handle(srv->active_player, PKTOUT_NAME_OPLOC1, payload, 6);
+                int settled = selftest_settle(srv, 120);
+                mock230_capture_end(srv);
+                fprintf(stderr, "  tobwalk room %d: click %d,%d loc=%d settled=%d\n", room, tile_x, tile_z, loc_id, settled);
+                for( int i = mock230_capture_find(&walk_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&walk_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &walk_capture.packets[i];
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    fprintf(stderr, "    say: %s\n", (const char*)packet->data + 1);
+                }
+                if( settled < 0 )
+                {
+                    fprintf(stderr, "  tobwalk room %d: never reached its exit passage\n", room);
+                    continue;
+                }
+
+                mock230_capture_begin(srv, &walk_capture);
+                mock230_scripts_run_debugproc(srv, "tobwhere");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&walk_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&walk_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &walk_capture.packets[i];
+                    const char* text;
+                    int now = -1;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( sscanf(text, "tobwhere room=%d", &now) != 1 )
+                        continue;
+                    fprintf(stderr, "  tobwalk room %d -> %s\n", room, text);
+                    if( now == room + 1 )
+                        landed = 1;
+                }
+                if( landed )
+                    walked_out++;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            SELFTEST_CHECK(walked_out == 5,
+                           "walking out through the exit passage should open the next chamber");
+        }
+
+        /*
          * Every ToA room builds, and builds on its own plane (`::toarooms`).
          *
          * The sibling of ::tobrooms, and here for the same reason: every other
@@ -44903,6 +45095,17 @@ mock230_world_selftest(void)
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
+            /*
+             * AT REST, and stated rather than assumed.
+             *
+             * The radius is no longer a constant — it grows a tile a tick while
+             * the client is holding few npcs (MOCK230_NPC_VIEW_TILES_MAX), and
+             * every `mock230_send_npc_info` above has already grown it. Without
+             * this reset the far case is measured at whatever radius the rest of
+             * the suite happened to leave behind, which is the check silently
+             * stopping to measure in a new way.
+             */
+            player->npc_view_tiles = MOCK230_NPC_VIEW_TILES;
             mock230_zone_sync_npcs(srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
@@ -44911,6 +45114,40 @@ mock230_world_selftest(void)
                            "and the same npc with its nearest tile %d away should not be, "
                            "or the range test has stopped measuring",
                            -far_origin_dx - (size - 1));
+
+            /*
+             * ...AND IT COMES INTO VIEW WHEN THE ROOM STAYS EMPTY.
+             *
+             * The other half of the same rule, and the half the ToB Maiden's
+             * Nylocas needed: 15 is the RESTING radius, not a ceiling. While
+             * this client is holding fewer than MOCK230_NPC_VIEW_CROWD npcs the
+             * radius grows a tile a tick to MOCK230_NPC_VIEW_TILES_MAX, so an
+             * npc parked one tile outside it is picked up within a few ticks
+             * rather than never.
+             *
+             * Checked by ticking the stream and not by reading the field: the
+             * field moving proves the counter works, and what the encounter
+             * actually needs is the npc appearing in `npc_tracked`. Nine calls
+             * for a one-tile gap is deliberate slack — the assertion is "it
+             * arrives", not "it arrives on tick two".
+             *
+             * This is the check that makes the fix non-vacuous. Its absence is
+             * how the radius stayed flat: an npc outside it is not merely
+             * undrawn, it is absent from the client's list, so an animation
+             * played on the tick it dies is written to nobody and cleared in
+             * phase 12 with no retry. Half of every Matomenos wave died
+             * off-list and read as a crab vanishing instead of dying.
+             */
+            for( int t = 0; t < 9 && !player->npc_tracked[slot]; t++ )
+            {
+                mock230_zone_sync_npcs(srv);
+                mock230_playerzonemap_move(player);
+                mock230_send_npc_info(player);
+            }
+            SELFTEST_CHECK(player->npc_tracked[slot],
+                           "and an empty client's view should grow past %d to reach it, "
+                           "stalled at %d",
+                           MOCK230_NPC_VIEW_TILES, player->npc_view_tiles);
 
             /*
              * And the classic stream keeps the corner, on purpose.

@@ -52,7 +52,38 @@ neighbour must already be in `PAINT_STEP_GROUND` or later before this tile may p
 unless the tile has an active span flag in that direction (meaning it is the "outer" tile of
 the object and the span exception applies).
 
-### The seam exception (bucket only)
+### The seam exception (bucket only) — narrowed 2026-08-19
+
+The first version relaxed the gate on *either* axis and misordered ToB: a large loc
+also straddles rings in depth, so Xarpus' 6x5 ledge at `x[43,48] z[67,71]` seen from
+`(50,43)` (near corner ring 26) let the floor directly in front of its z=67 row —
+`(44..46,66)`, rings 27–29 — paint first, and the ledge's tall far part landed on top
+of it; same for the Maiden stair landing (`32804`, 4x1) over the steps.
+
+The rule now has two halves, both required (each was mutation-checked against the
+other's test in `test-painters-terrain-levels`):
+
+1. relax only the **lateral** gate — the neighbour beside the eye→tile ray, i.e. the
+   W/E gates when `|dz| > |dx|`, the N/S gates when `|dx| > |dz|`, neither on a tie. A
+   seam column on the camera column has `dx == 0`, so its x gates relax; the
+   Xarpus/Maiden tiles gate on the depth axis and wait;
+2. a relaxed tile gets only its **ground**: `TilePaint.seam_relaxed` holds its scenery
+   and completion until the reference gate passes (`bucket_far_neighbours_pending`).
+   Without this the Xarpus barrier `(49,51)` drew before the 6x5 ledge beside it whose
+   far row abuts the barrier, and the ledge covered the barrier's edge. Without (1),
+   (2) alone still lets one floor tile in front of the ledge through in the flat-scene
+   test.
+
+Measured: pixel-identical to `painter_paint_world3d` in 64 ToB views (Maiden, Bloat,
+Nylocas, Sotetseg, Xarpus, Verzik; 8 yaws × 2 zooms where swept) and 16 QBD arena
+views, using `TORIRS_PAINTER_ALT=1` same-frame A/B — frames, cameras and the
+before/after defect shots are in [painter_sweeps/](painter_sweeps/README.md). The QBD arena itself no longer
+exercises the exception — its floor locs are now `63040` 13x18 `x[37,49]` and `63043`
+12x19 `x[49,60]`, overlapping on column 49, so the reference span exception covers the
+seam and even the plain gate emits no seam floor late. The exception remains for the
+general abutting-locs topology, pinned by `test_seam_between_two_large_locs_keeps_the_sweep`.
+
+Original rationale, kept for the record:
 
 The span exception above is keyed on **this** tile's spans, so it cannot fire when the
 neighbour is held by a loc that does not cover this tile. `painter_paint_bucket` adds a

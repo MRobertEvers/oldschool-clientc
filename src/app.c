@@ -562,6 +562,13 @@ app_world_bind_pending_seqs(struct App* app);
 static void
 app_world_sync_entity_animations(struct App* app);
 static void
+app_world_anim_frame_sound(
+    void* userdata,
+    int seq_id,
+    int frame,
+    int world_x,
+    int world_z);
+static void
 app_world_sync_entity_spotanims(struct App* app);
 static void
 app_entity_spotanim_drop(
@@ -4196,11 +4203,13 @@ app_loc_editor_refresh_labels(struct App* app)
         int const cache_level = app->locedit_terrain_level;
 
         World_TileSettingsText(
-            app->world, app->locedit_scene_x, app->locedit_scene_z, settings,
+            app->world,
+            app->locedit_scene_x,
+            app->locedit_scene_z,
+            settings,
             (int)sizeof(settings));
         World_TerrainMeshLevelsText(
-            app->world, app->locedit_scene_x, app->locedit_scene_z, meshes,
-            (int)sizeof(meshes));
+            app->world, app->locedit_scene_x, app->locedit_scene_z, meshes, (int)sizeof(meshes));
 
         snprintf(text, sizeof(text), "terrain tile, mesh on level %d", cache_level);
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
@@ -5794,6 +5803,13 @@ App_WorldLoadFinish(struct App* app)
                 .spotanim_seq = app_spotanim_seq,
             };
             World_SetSeqSource(app->world, &seq_source);
+        }
+        {
+            struct World_AnimSoundSink anim_sound_sink = {
+                .userdata = app,
+                .frame = app_world_anim_frame_sound,
+            };
+            World_SetAnimSoundSink(app->world, &anim_sound_sink);
         }
         if( !server_driven )
         {
@@ -8752,6 +8768,32 @@ app_play_frame_sounds(
         RS_Audio_Synth(&app->audio, sound->id, sound->loops, 0);
 }
 
+/*
+ * World_AnimSoundSink: one entity animation frame, as the world steps onto it.
+ *
+ * The world knows nothing about the animation registry, so resolving the seq is
+ * this side's job -- and a seq whose async load has not landed yet is an
+ * ordinary runtime state, not a caller bug: the entity holds frame 0 of it and
+ * simply makes no sound until it arrives.
+ */
+static void
+app_world_anim_frame_sound(
+    void* userdata,
+    int seq_id,
+    int frame,
+    int world_x,
+    int world_z)
+{
+    struct App* app = userdata;
+    struct ToriDraw_Animation* anim;
+
+    assert(app);
+    anim = ToriDraw_SceneAnimationGet(app->scene, seq_id);
+    if( !anim )
+        return;
+    app_play_frame_sounds(app, anim, frame, world_x, world_z);
+}
+
 /* One client tick of scene-element animation frames. UITreeAnim only advances
  * UI model widgets; world scene elements (scenery + entities) advance here
  * (v1 GameRunescape_TickAnimations, both classic and skeletal branches). */
@@ -9567,7 +9609,7 @@ app_world_paint(struct App* app)
      * bug is either in the traversal or in the geometry it orders, and this is
      * what separates the two: same scene, same frame, the other painter. Pair
      * it with TORIRS_PIXOWNER to name what changed hands. */
-    else if( !getenv("TORIRS_PAINTER_BUCKET") && !g_torirs_painter_bucket )
+    else if( !getenv("TORIRS_PAINTER_BUCKET") && false )
         painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
@@ -18345,7 +18387,6 @@ app_world_apply_entity_anim_tracks(
     struct ToriDraw_SceneElement* el;
     int primary_active = anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0;
     int secondary_active = anim->secondary.anim_id != (uint16_t)-1 && anim->secondary.anim_id != 0;
-    int old_seq_id, old_frame;
 
     if( element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return;
@@ -18353,15 +18394,14 @@ app_world_apply_entity_anim_tracks(
     if( !el )
         return;
 
-    /* Entities are world-sim driven (anim_external), so the naive per-element
-     * modulo tick in app_world_tick_animations never sees them and never
-     * fires their frame sounds. World_Cycle already steps anim->primary.frame
-     * authoritatively (world_cycle.c) each world tick; this is the one place
-     * that state is bound onto the renderable element, so it is also the one
-     * place a transition into a new (seq, frame) pair can be detected without
-     * duplicating the world's own frame-stepping logic here. */
-    old_seq_id = el->anim_seq_id;
-    old_frame = el->anim_frame;
+    /* Frame sounds are NOT emitted from here. Entities are world-sim driven
+     * (anim_external), and this runs once per rendered frame on whichever
+     * single track ends up bound — so a sound was heard only when a render
+     * happened to land on the frame carrying it, and the readyanim's sounds
+     * went missing entirely for as long as an action animation covered it.
+     * World_StepEntityAnimation announces every frame it crosses on both
+     * tracks instead (app_world_anim_frame_sound is the listener), which is
+     * where the reference emits them too. */
 
     if( primary_active )
         app_request_entity_seq(app, anim->primary.anim_id);
@@ -18380,9 +18420,6 @@ app_world_apply_entity_anim_tracks(
             app_element_set_anim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
-            if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
-                app_play_frame_sounds(
-                    app, pa, el->anim_frame, el->world_position.x, el->world_position.z);
             /* The walkmerge blend is a frame-animator operation (it masks
              * transform groups), so a skeletal primary never takes a secondary. */
             if( !pa->skeletal && secondary_active && idle &&
@@ -18416,9 +18453,6 @@ app_world_apply_entity_anim_tracks(
             app_element_set_anim(el, sa);
             el->anim_seq_id = anim->secondary.anim_id;
             el->anim_frame = anim->secondary.frame < sa->frame_count ? anim->secondary.frame : 0;
-            if( el->anim_seq_id != old_seq_id || el->anim_frame != old_frame )
-                app_play_frame_sounds(
-                    app, sa, el->anim_frame, el->world_position.x, el->world_position.z);
             return;
         }
     }

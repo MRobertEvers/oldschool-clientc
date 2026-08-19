@@ -51,6 +51,10 @@ struct TilePaint
      * re-running the four-corner test.
      */
     uint8_t occlusion;
+    /** Bucket painter: the ground pass was let through by the seam exception
+     *  while a far neighbour was still pending. The tile's scenery and completion then wait for the plain
+     *  reference gate (see painter_paint_bucket). Cleared in the classify pass. */
+    uint8_t seam_relaxed;
 };
 
 struct ElementPaint

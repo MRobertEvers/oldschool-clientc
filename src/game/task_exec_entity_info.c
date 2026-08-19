@@ -1678,6 +1678,11 @@ Task_ExecNpcInfo_Run(
                     if( world_idx >= 0 )
                         World_NpcSetPrimaryAnimation(
                             app->world, world_idx, self->pending_seq, self->pending_delay);
+                    else if( getenv("TORIRS_ANIM_DEBUG") )
+                        fprintf(stderr,
+                                "anim: npc seq %d DROPPED - slot %d no longer resolves "
+                                "(reaped while the sequence load was awaiting)\n",
+                                self->pending_seq, self->cur_slot);
                 }
             }
         }

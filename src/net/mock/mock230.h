@@ -354,6 +354,40 @@ enum
     MOCK230_NPC_VIEW_TILES = 15,
 
     /*
+     * ...AND HOW FAR IT GROWS WHEN THE ROOM IS EMPTY.
+     *
+     * 15 is the reference's RESTING radius, not a fixed one. OSRS' npc stream
+     * carries a per-observer view distance that starts at 15 and expands a tile
+     * per tick while the client is holding few npcs, snapping back to 15 the
+     * moment it is holding many — cheap in a crowded city, and the reason a
+     * boss at the far end of an otherwise empty room is drawn at all.
+     *
+     * Without it this server's radius was flat, and the failure is silent in a
+     * way worth spelling out: an npc outside the radius is not merely undrawn,
+     * it is not in the client's list, so a `npc_anim` played on the tick it
+     * dies is written to nobody and CLEARED in phase 12. There is no retry. A
+     * ToB Nylocas Matomenos walking from its spawn to the Maiden crosses 15
+     * tiles from a player standing where that room is fought from, so half of
+     * every wave died off-list — measured 7 of 14 death animations lost, and
+     * from the player's side a crab that simply vanishes instead of dying.
+     *
+     * The ceiling is the wire's, not a preference: the v5 add writes 6-bit
+     * signed deltas from the ORIGIN, so the furthest expressible origin is 31
+     * and a footprint at `view` puts its origin at `view + MOCK230_NPC_SIZE_MAX
+     * - 1`. 24 + 7 = 31 exactly.
+     */
+    MOCK230_NPC_VIEW_TILES_MAX = 24,
+
+    /*
+     * The crowd that stops the growth. The reference compares against its
+     * preferred npc count and this list is 255 long, so a quarter of it is the
+     * same shape of rule: below this the radius grows, at or above it the
+     * radius returns to its resting 15 rather than decaying, because a client
+     * that has just walked into a crowd wants the cheap radius THIS tick.
+     */
+    MOCK230_NPC_VIEW_CROWD = 64,
+
+    /*
      * The biggest npc footprint the view test reaches out for, and a real
      * limit rather than a description: the zone pre-reject in `area_entities`
      * pads by it, so an npc bigger than this can be dropped from the candidate
@@ -3078,6 +3112,10 @@ struct Mock230Player
      *  spliced onto whatever this client still thinks the slot is. */
     int tracked_generation[MOCK230_TRACKED_NPC_MAX];
     int tracked_count;
+    /* This observer's current npc view radius — see MOCK230_NPC_VIEW_TILES_MAX.
+     * Zero means "not yet initialised"; `npc_view_radius` resolves that to the
+     * resting 15 so a player struct that predates this field still works. */
+    int npc_view_tiles;
     uint8_t npc_tracked[MOCK230_NPC_MAX];
 
     /** The same pair for other players. `tracked_players` holds pool indices

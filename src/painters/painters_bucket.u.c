@@ -134,9 +134,7 @@ bucket_ctx_free(struct Painter* painter)
 }
 
 /*
- * The seam exception to the reference adjacency gate — COMPILED OUT by
- * default (PAINTERS_BUCKET_SEAM_EXCEPTION), so the bucket painter runs the
- * plain reference gate and orders exactly as painter_paint_world3d.
+ * The seam exception to the reference adjacency gate.
  *
  * The reference rule is "a tile may not draw its ground until the neighbour
  * between it and the far edge has fully retired", with one escape: if the two
@@ -171,6 +169,18 @@ bucket_ctx_free(struct Painter* painter)
  * the Xarpus/Maiden cases gate on the depth axis and now wait, as the
  * reference does. Ties (|dx| == |dz|) are treated as depth — strict.
  *
+ * And the exception frees only the tile's GROUND. A relaxed tile is flagged
+ * (TilePaint.seam_relaxed) and holds its scenery and completion until the
+ * plain reference gate passes: a tall loc beside the tile whose far row abuts
+ * it (the Xarpus barrier next to a 6x5 ledge) must still go down first, as
+ * it does in painter_paint_world3d. With both halves the bucket painter is
+ * pixel-identical to world3d across every ToB room and camera tried
+ * (2026-08-19, 64 views), and still keeps the seam sweep the reference gate
+ * loses (test_seam_between_two_large_locs_keeps_the_sweep).
+ *
+ * Note the QBD arena itself no longer exercises this: its floor locs now
+ * overlap on column 49, so the reference span exception covers the seam.
+ *
  * Walls still disqualify the neighbour — a far tile's near wall must precede
  * a nearer tile's ground — and so does any pending element whose footprint
  * does not reach past this ring.
@@ -185,7 +195,6 @@ bucket_neighbour_holds_only_nearer_scenery(
     int dist,
     int lateral_gate)
 {
-#ifdef PAINTERS_BUCKET_SEAM_EXCEPTION
     int pending = 0;
 
     if( !lateral_gate )
@@ -209,22 +218,33 @@ bucket_neighbour_holds_only_nearer_scenery(
         pending = 1;
     }
     return pending;
-#else
-    (void)painter;
-    (void)other_tile;
-    (void)other_paint;
-    (void)camera_sx;
-    (void)camera_sz;
-    (void)dist;
-    (void)lateral_gate;
-    return 0;
-#endif
 }
 
-/* One direction of the adjacency gate. Non-zero = this tile must wait.
- * `span_flag` names the direction; the W/E gates are lateral when the tile
- * sits more ahead of the eye than beside it (|dz| > |dx|), the N/S gates when
- * the reverse holds. */
+/* One direction of the reference adjacency gate. Non-zero = this tile must
+ * wait. The neighbour must be DONE, or share a loc with this tile and have
+ * its ground down. */
+static inline int
+bucket_reference_gate_blocks(
+    struct Painter* painter,
+    const struct PaintersTile* tile,
+    int neighbour_idx,
+    unsigned span_flag)
+{
+    const struct TilePaint* other = &painter->tile_paints[neighbour_idx];
+
+    if( other->step == PAINT_STEP_DONE )
+        return 0;
+    if( other->step != PAINT_STEP_READY && (tile->spans & span_flag) != 0 )
+        return 0; /* reference span exception: the two share a loc */
+    return 1;
+}
+
+/* The ground-pass gate: the reference gate plus the seam exception. Non-zero =
+ * this tile must wait. `span_flag` names the direction; the W/E gates are
+ * lateral when the tile sits more ahead of the eye than beside it
+ * (|dz| > |dx|), the N/S gates when the reverse holds. When the exception is
+ * what lets the tile through, `*relaxed` is set so the tile's scenery and
+ * completion can still wait for the reference gate. */
 static inline int
 bucket_gate_blocks(
     struct Painter* painter,
@@ -233,15 +253,14 @@ bucket_gate_blocks(
     unsigned span_flag,
     int camera_sx,
     int camera_sz,
-    int dist)
+    int dist,
+    int* relaxed)
 {
     const struct PaintersTile* other_tile = &painter->tiles[neighbour_idx];
     const struct TilePaint* other = &painter->tile_paints[neighbour_idx];
 
-    if( other->step == PAINT_STEP_DONE )
+    if( !bucket_reference_gate_blocks(painter, tile, neighbour_idx, span_flag) )
         return 0;
-    if( other->step != PAINT_STEP_READY && (tile->spans & span_flag) != 0 )
-        return 0; /* reference span exception: the two share a loc */
     {
         int adx = abs((int)tile->sx - camera_sx);
         int adz = abs((int)tile->sz - camera_sz);
@@ -250,9 +269,45 @@ bucket_gate_blocks(
                                : (adx > adz);
         if( bucket_neighbour_holds_only_nearer_scenery(
                 painter, other_tile, other, camera_sx, camera_sz, dist, lateral_gate) )
+        {
+            *relaxed = 1;
             return 0;
+        }
     }
     return 1;
+}
+
+/* The reference gate over every far neighbour of `tile`. Non-zero = some far
+ * neighbour is still pending. What a seam-relaxed tile re-checks before it
+ * draws its own scenery or completes — the exception only ever frees the
+ * GROUND; a tall loc beside the tile whose far part abuts it must still go
+ * down first, as it does in painter_paint_world3d. */
+static inline int
+bucket_far_neighbours_pending(
+    struct Painter* painter,
+    const struct PaintersTile* tile,
+    int tile_idx,
+    int camera_sx,
+    int camera_sz,
+    int min_draw_x,
+    int max_draw_x,
+    int min_draw_z,
+    int max_draw_z)
+{
+    int width = painter->width;
+    if( tile_is_west_inbounds(tile->sx, camera_sx, min_draw_x) &&
+        bucket_reference_gate_blocks(painter, tile, tile_idx - 1, SPAN_FLAG_WEST) )
+        return 1;
+    if( tile_is_east_inbounds(tile->sx, camera_sx, max_draw_x) &&
+        bucket_reference_gate_blocks(painter, tile, tile_idx + 1, SPAN_FLAG_EAST) )
+        return 1;
+    if( tile_is_south_inbounds(tile->sz, camera_sz, min_draw_z) &&
+        bucket_reference_gate_blocks(painter, tile, tile_idx - width, SPAN_FLAG_SOUTH) )
+        return 1;
+    if( tile_is_north_inbounds(tile->sz, camera_sz, max_draw_z) &&
+        bucket_reference_gate_blocks(painter, tile, tile_idx + width, SPAN_FLAG_NORTH) )
+        return 1;
+    return 0;
 }
 
 static inline void
@@ -461,6 +516,7 @@ painter_paint_bucket(
                 tp->in_queue = 0;
                 tp->occlusion = TILE_OCCLUSION_UNKNOWN;
                 tp->scenery_sorted = 0;
+                tp->seam_relaxed = 0;
 
                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
                 if( tile_excluded_by_bridge_or_draw_mask(
@@ -654,10 +710,11 @@ painter_paint_bucket(
 
                 /* Match painter_paint_world3d draw_front adjacent deps, plus
                  * the seam exception (bucket_gate_blocks). */
+                int relaxed = 0;
                 if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile - 1, SPAN_FLAG_WEST, camera_sx, camera_sz,
-                        tile_dist) )
+                        tile_dist, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -665,7 +722,7 @@ painter_paint_bucket(
                 if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile + 1, SPAN_FLAG_EAST, camera_sx, camera_sz,
-                        tile_dist) )
+                        tile_dist, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -673,7 +730,7 @@ painter_paint_bucket(
                 if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile - width, SPAN_FLAG_SOUTH, camera_sx, camera_sz,
-                        tile_dist) )
+                        tile_dist, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -681,11 +738,12 @@ painter_paint_bucket(
                 if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile + width, SPAN_FLAG_NORTH, camera_sx, camera_sz,
-                        tile_dist) )
+                        tile_dist, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
                 }
+                tile_paint->seam_relaxed = (uint8_t)relaxed;
             }
             else
             {
@@ -957,6 +1015,21 @@ painter_paint_bucket(
         int visit_sc[64];
         int n_visit = 0;
         int blocked_undrawn = 0;
+
+        /* A tile the seam exception let through paints nothing but its ground
+         * until the reference gate passes; the neighbour's completion pushes
+         * this tile back into the queue (its inward neighbour). */
+        if( tile_paint->seam_relaxed )
+        {
+            if( bucket_far_neighbours_pending(
+                    painter, tile, e_tile, camera_sx, camera_sz, min_draw_x, max_draw_x,
+                    min_draw_z, max_draw_z) )
+            {
+                BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                continue;
+            }
+            tile_paint->seam_relaxed = 0;
+        }
 
         /* Reference emission order (class112.java:1030-1058 + method3971),
          * paid ONCE per tile per paint: the chain is relinked farthest-corner

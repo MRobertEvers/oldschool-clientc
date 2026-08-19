@@ -575,6 +575,33 @@ anim_step_active(struct WorldEntityFacet_AnimationStep const* step)
     return step->anim_id != (uint16_t)-1 && step->anim_id != 0;
 }
 
+/*
+ * One frame crossed -> one frame sound, emitted here rather than sampled by the
+ * renderer.
+ *
+ * The reference notifies its listener from inside this loop (deob
+ * Statics.method5261, and method4366 for the frame-length branch), which is why
+ * a sound survives both a slow frame -- several cycles stepped at once, every
+ * frame in between still announced -- and an action animation covering the
+ * looping readyanim underneath it, whose sounds keep playing.
+ */
+static void
+World_EmitAnimFrameSound(
+    struct World* world,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int seq_id,
+    int frame)
+{
+    if( !world->anim_sound_sink.frame )
+        return;
+    world->anim_sound_sink.frame(
+        world->anim_sound_sink.userdata,
+        seq_id,
+        frame,
+        (int)draw_position->x,
+        (int)draw_position->z);
+}
+
 /* One client cycle of frame stepping for an entity's animation tracks +
  * attached graphic (exact port of Client.ts entityAnim, 4000-4075). */
 static void
@@ -582,7 +609,8 @@ World_StepEntityAnimation(
     struct World* world,
     struct WorldEntityFacet_Animation* anim,
     struct WorldEntityFacet_EntitySpotanim* spot,
-    struct WorldEntityFacet_Pathing const* pathing)
+    struct WorldEntityFacet_Pathing const* pathing,
+    struct WorldEntityFacet_DrawPosition const* draw_position)
 {
     /* Reference entityAnim clears this at the top every cycle; only an active,
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
@@ -601,11 +629,18 @@ World_StepEntityAnimation(
             {
                 anim->secondary.cycle = 0;
                 anim->secondary.frame++;
+                if( anim->secondary.frame < count )
+                    World_EmitAnimFrameSound(world, draw_position, seq, anim->secondary.frame);
             }
             if( anim->secondary.frame >= count )
             {
                 anim->secondary.frame = 0;
                 anim->secondary.cycle = 0;
+                /* The wrap lands on frame 0, and the reference announces that
+                 * frame too -- Xarpus' first wing flap is on frame 1 of a
+                 * looping readyanim, so a loop that emitted nothing on its way
+                 * round would drop one flap in three. */
+                World_EmitAnimFrameSound(world, draw_position, seq, 0);
             }
         }
     }
@@ -681,6 +716,9 @@ World_StepEntityAnimation(
                         anim->primary.cycle -
                         cycle_seq_frame_duration(world, seq, anim->primary.frame));
                     anim->primary.frame++;
+                    if( anim->primary.frame < count )
+                        World_EmitAnimFrameSound(
+                            world, draw_position, seq, anim->primary.frame);
 
                     if( anim->primary.frame >= count )
                     {
@@ -713,6 +751,10 @@ World_StepEntityAnimation(
                             break;
                         }
                         anim->primary.frame = (uint16_t)stepped;
+                        /* Looped rather than finished: the frame it looped back
+                         * onto sounds, exactly as the frames before it did. */
+                        World_EmitAnimFrameSound(
+                            world, draw_position, seq, anim->primary.frame);
                     }
                 }
             }
@@ -892,7 +934,11 @@ World_CycleUpdatePlayers(
                     World_ApplySecondaryAnim(&player->animation, face_seq);
             }
             World_StepEntityAnimation(
-                world, &player->animation, &player->spotanim, &player->pathing);
+                world,
+                &player->animation,
+                &player->spotanim,
+                &player->pathing,
+                &player->draw_position);
             /* Overhead chat expiry (reference Client.ts:3161). */
             if( player->chat.timer > 0 && --player->chat.timer == 0 )
                 player->chat.message[0] = '\0';
@@ -955,7 +1001,8 @@ World_CycleUpdateNpcs(
                 if( face_seq != -1 )
                     World_ApplySecondaryAnim(&npc->animation, face_seq);
             }
-            World_StepEntityAnimation(world, &npc->animation, &npc->spotanim, &npc->pathing);
+            World_StepEntityAnimation(
+                world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position);
             /* Overhead chat expiry (reference Client.ts:3174). */
             if( npc->chat.timer > 0 && --npc->chat.timer == 0 )
                 npc->chat.message[0] = '\0';

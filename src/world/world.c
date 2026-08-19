@@ -1711,6 +1711,18 @@ World_SetSeqSource(
         memset(&world->seq_source, 0, sizeof(world->seq_source));
 }
 
+void
+World_SetAnimSoundSink(
+    struct World* world,
+    struct World_AnimSoundSink const* sink)
+{
+    assert(world);
+    if( sink )
+        world->anim_sound_sink = *sink;
+    else
+        memset(&world->anim_sound_sink, 0, sizeof(world->anim_sound_sink));
+}
+
 /* Seq-source getters with the documented defaults for a NULL source. */
 static int
 world_seq_priority(
