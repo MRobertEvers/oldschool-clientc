@@ -791,10 +791,19 @@ P3 retaliation (base 50–75, × `1 + 0.4 × stat uplift`).
 ### 7.1 Phase 1 — opens on 18, then 14 ticks, pillar-aware
 
 ```
-+18   WIND-UP   seq verzik_phase1_attack_magic 8109 (6 ticks long; its
-                tob_verzik_human_magic_attack sound is on frame 7, i.e. one
-                tick in, which is where the bolt leaves her hands).
-+19   SCAN+FIRE  ** the dangerous tick. **
++18   WIND-UP   seq verzik_phase1_attack_magic 8109, 41 frames / 180 client
+                cycles / 6 ticks. The ANIMATION starts here and is not moved
+                by anything below.
++21   SCAN+FIRE  ** the dangerous tick. ** three ticks into the wind-up, on
+                8109's own throw: frames 17-19 are 3 cycles each and are the
+                only 3-cycle frames in the sequence, running cycles 78-86 =
+                tick 2.60-2.87. (This block used to say +19, reasoned from the
+                `sound=7` row - `tob_verzik_human_magic_attack` at cycle 26-30.
+                That is the wrong frame to read: frame 3 already carries
+                `tob_verzik_spark_1`, so the two rows are a charge-up and a
+                cast and neither is the release. The motion is, and it is two
+                ticks later - reported from watching the fight as "the
+                projectile fires two ticks too early".)
                 for each pillar that is hiding >=1 player, target that PILLAR;
                 for each player not behind a pillar, target the PLAYER.
                 Cover, Protect from Magic and the damage roll are ALL settled
@@ -802,16 +811,37 @@ P3 retaliation (base 50–75, × `1 + 0.4 × stat uplift`).
                 pillar before the attack is launched" and "having Protect from
                 Magic active before the projectile is launched".
                 Projectile 1580, delay 20 + duration 90 client cycles.
-+21   IMPACT  pillar: exactly ONE hit however many players hid behind it.
++25   IMPACT  pillar: exactly ONE hit however many players hid behind it.
               player: up to 137, halved to 68 by Protect from Magic,
-                      NOT tick-eatable - the number was fixed at +19.
-then  wind-up every 14: 32, 46, 60 ... firing on 33, 47, 61 ...
+                      NOT tick-eatable - the number was fixed at +21.
+then  wind-up every 14: 32, 46, 60 ... firing on 35, 49, 63 ...
 ```
+
+**Impact is launch+4, and it used to be launch+2 - transport, not mechanics.** This block used
+to say +21, taken from Zenyte's `Projectile.getTime` (`duration / 30 - 1`). That
+expression is calibrated against Zenyte's own client clock and does not survive
+being moved: on this engine the zone event is written in the launch tick's update
+and the client starts the bolt's clock when it processes that update, one tick
+later, so 110 cycles of flight land inside T+4 measured from the launch tick -
+`duration / 30 + 1`, which is the arrival rule `~pvm_spell_success`,
+`[label,player_powered_staff_attack]` and every other player-side projectile in
+the tree already use. `~tob_verzik_flight_ticks` carried the Zenyte form until
+2026-08-19 and resolved BOTH halves of the phase two ticks early: the player's
+splat, and the pillar's splat, sound and impact graphic, which visibly fired
+while the bolt was still crossing the room.
+
+That is a separate number from the launch, and separate from the launch fix
+above: cover, Protect from Magic and the damage roll are all settled on the
+launch tick whenever that is, and this only moves when the settled number is
+*shown*.
 
 **The opening is 18, not one attack period.** [M16] Blert's streams for 29
 completed Verzik rooms put the first auto on room tick 19 (12 rooms) or 20 (17),
 then a flat 14; blert reports a P1 auto one tick *after* seq 8109
-(`nextVerzikAttackTick = tick + 1`), so the wind-up is 18 and the bolt is 19.
+(`nextVerzikAttackTick = tick + 1`), so the wind-up is 18. Blert's `+1` is its
+own bookkeeping convention for "an auto happened", not a sighting of the bolt —
+where the bolt actually leaves is the animation's business and is measured
+above.
 spoontob arms its P1 counter at **18** the tick it first sees npc 8370 and
 re-arms it to 14 on 8109, reaching zero on the wind-up from the other direction.
 Room tick 0 is the first tick she is 8370 — she is already transformed in the

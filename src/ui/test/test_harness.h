@@ -43,6 +43,15 @@ struct TestHostState
     /** When set, GET_DEBUG_OVERLAY hands back its display list. NULL = the
      * normal case, no overlay, and the pass emits nothing. */
     struct ToriDbgUI const* debug_overlay;
+    /** When set, GET_ENTITY_OVERLAYS hands back this list and reports the
+     * world rect below as the scene clip. NULL = no entity overlays, and the
+     * builtin emits nothing. */
+    struct UITreeEntityOverlay const* entity_overlays;
+    int entity_overlay_count;
+    int entity_overlay_clip_x;
+    int entity_overlay_clip_y;
+    int entity_overlay_clip_w;
+    int entity_overlay_clip_h;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -90,6 +99,15 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         *req->u.get_debug_overlay.out_prims = prims;
         return count;
     }
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
+        if( !st->entity_overlays || !req->u.get_entity_overlays.out_items )
+            return 0;
+        *req->u.get_entity_overlays.out_items = st->entity_overlays;
+        *req->u.get_entity_overlays.out_clip_x = st->entity_overlay_clip_x;
+        *req->u.get_entity_overlays.out_clip_y = st->entity_overlay_clip_y;
+        *req->u.get_entity_overlays.out_clip_w = st->entity_overlay_clip_w;
+        *req->u.get_entity_overlays.out_clip_h = st->entity_overlay_clip_h;
+        return st->entity_overlay_count;
     case UITREE_HOST_IS_ACTIVE:
         return 0;
     case UITREE_HOST_SET_SELECTED_TAB:
@@ -187,5 +205,6 @@ void test_clear_hooks_preserves_sibling_on_op(void);
 void test_chatmodal_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
+void test_entity_overlay_draw_order(void);
 
 #endif

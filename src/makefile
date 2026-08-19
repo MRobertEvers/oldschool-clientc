@@ -1719,7 +1719,8 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_minimenu.c ui/test/uitree_test_keys.c \
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
-		ui/test/uitree_test_debug_overlay.c
+		ui/test/uitree_test_debug_overlay.c \
+		ui/test/uitree_test_entity_overlay_order.c
 	./$(OBJ_DIR)/uitree_test
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a

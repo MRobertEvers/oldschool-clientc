@@ -37,6 +37,7 @@ main(void)
     test_chatmodal_reclaim_no_shadow_text();
     test_live_node_sets();
     test_debug_overlay();
+    test_entity_overlay_draw_order();
 
     if( g_failures )
     {

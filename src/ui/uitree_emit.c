@@ -2391,6 +2391,60 @@ emit_debug_overlay_pass(
     emit_debug_overlay_in(tree, host, out, tree->root_index);
 }
 
+/*
+ * Entity overlays belong to the SCENE pass, not to their place in the tree.
+ *
+ * The reference draws health bars and hitsplats inside drawEntities, which is
+ * part of the 3D pass -- so every interface painted afterwards covers them.
+ * Ours is a root-level builtin listed after the gameframe, which is the right
+ * place to READ it from (it is projected against the world rect the
+ * gameframe's viewport reports) and the wrong place to DRAW it: at a
+ * resizable layout the viewport is the whole canvas and the chatbox floats
+ * over it, so a bar or a hitsplat above an entity standing behind the chat
+ * drew on top of the chat text.
+ *
+ * Clipping cannot express that -- the chat is INSIDE the world rect, so the
+ * scene clip the overlay already carries is no help. Z-order is the fix: the
+ * descs move to directly after the world they were projected against, which
+ * leaves the interfaces, drag ghosts and screen chrome (cross, hovertext,
+ * minimenu) above them, exactly as the reference orders them.
+ */
+static void
+emit_hoist_entity_overlays(struct UITreeEmitBuffer* out)
+{
+    int world = -1;
+    int write;
+
+    assert(out);
+    /* The last one: a tree can only draw one world, and the app latches the
+     * last WORLD desc as the viewport for the same reason. */
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return;
+
+    write = world + 1;
+    for( int i = write; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc moved;
+        if( out->cmds[i].kind != UITREE_EMIT_ENTITY_OVERLAY )
+            continue;
+        if( i != write )
+        {
+            /* Stable rotate: the overlay lands at `write` and everything it
+             * jumped over keeps its own relative order. */
+            moved = out->cmds[i];
+            memmove(
+                &out->cmds[write + 1],
+                &out->cmds[write],
+                (size_t)(i - write) * sizeof(*out->cmds));
+            out->cmds[write] = moved;
+        }
+        write++;
+    }
+}
+
 void
 UITree_EmitWalk(
     struct UITree const* tree,
@@ -2427,6 +2481,7 @@ UITree_EmitWalk(
         emit_walk_pass(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
+    emit_hoist_entity_overlays(out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 }

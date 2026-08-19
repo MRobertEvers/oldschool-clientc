@@ -252,7 +252,18 @@ ToriRS_PickHitsClassify(
                 /* Scenery/NPCs/obj stacks on a level other than the player's are
                  * unreachable — never surface them in the minimenu. */
                 if( player_level >= 0 && tile_level != player_level )
+                {
+                    if( getenv("TORIRS_PICK_DEBUG") )
+                    {
+                        struct WorldEntity_Scenery* dsc =
+                            World_SceneryGetByElementId(world, hit->element_id);
+                        fprintf(stderr,
+                                "pick-drop: el=%d type=%d tile=(%d,%d) lvl=%d player=%d loc=%d\n",
+                                hit->element_id, (int)type, tile_x, tile_z,
+                                tile_level, player_level, dsc ? dsc->loc_id : -1);
+                    }
                     continue;
+                }
                 World_PickSetAdd(out_pickset, hit->element_id, type, tile_x, tile_z, tile_level);
             }
         }

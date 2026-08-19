@@ -8221,9 +8221,34 @@ app_logic_tick(struct App* app)
     /* Sound queue on the client tick: the server's play delays are in ticks and
      * the reference runs its queue from the same clock (soundsDoQueue). */
     /*
-     * The listener is the camera's tile, not the player's: the camera is what
-     * the stereo field is built around, and in an orbit view they can be
-     * several tiles apart. Falls back to the origin before a world exists.
+     * THE LISTENER IS THE PLAYER, NOT THE EYE.
+     *
+     * This used to read `app->world_camera_pos`, on the reasoning that the
+     * camera is what the stereo field is built around. The reference disagrees,
+     * and the difference is not cosmetic. Its queued-effect drain measures
+     *
+     *     var24 = abs(sound_x - method7247())      // client.field1052
+     *     var25 = abs(sound_z - client.field872)
+     *     var26 = max(var24 + var25 - 128, 0)
+     *
+     * and `field1052`/`field872` are the camera's TARGET -- the local player's
+     * position, the pair that `Statics.field2354`/`field1208` (the eye) lerp
+     * toward one sixteenth at a time. The eye is the target pushed back along
+     * the yaw by the zoom distance, and in this client that is about nine tiles
+     * in a default follow view.
+     *
+     * Nine tiles of error is fatal rather than sloppy, because a sequence frame
+     * sound carries its own audible radius in the seq's `location` field and
+     * those radii are small: all four of Xarpus' are 7. Measured from the eye,
+     * a boss the player is standing next to is sixteen tiles from the listener,
+     * `falloff_volume` returns 0, and `play_entry` drops the voice as out of
+     * earshot -- silently, and for every positional sound in the game at once.
+     * Measured here: 23 of Xarpus' spit and wing sounds queued in one P2, and
+     * not one of them ever became a voice, while every non-positional
+     * `sound_synth` in the same run played.
+     *
+     * Falls back to the eye when there is no local player -- a cutscene camera
+     * with nobody to follow -- and to the origin before a world exists.
      */
     {
         int listener_x = 0;
@@ -8232,8 +8257,17 @@ app_logic_tick(struct App* app)
         if( app->world )
         {
             /* World units are tiles << 7 (the reference's coord scale). */
-            listener_x = app->world_camera_pos.x >> 7;
-            listener_z = app->world_camera_pos.z >> 7;
+            struct WorldEntity_Player* local = app_local_player(app);
+            if( local )
+            {
+                listener_x = (int)local->draw_position.x >> 7;
+                listener_z = (int)local->draw_position.z >> 7;
+            }
+            else
+            {
+                listener_x = app->world_camera_pos.x >> 7;
+                listener_z = app->world_camera_pos.z >> 7;
+            }
             listener_level = app_cinema_level(app);
         }
         RS_Audio_Tick(

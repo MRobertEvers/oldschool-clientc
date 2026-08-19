@@ -1862,6 +1862,35 @@ resolution and is treated as uniform, as the finding recommends.
 
 ---
 
+## Applied to the tree — Sotetseg
+
+The findings above reached the constants file on **19 August 2026**; three of them had been
+closed in this log for a while and never carried across. What each one changed:
+
+| # | Finding | Was | Is | Pinned by |
+|---|---|---|---|---|
+| M10 | First post-maze attack is **1 tick** after re-activation | `~tob_sote_end_maze` armed a full 5-tick period, tagged in-comment as "unmeasured" — four free ticks handed to the team on both mazes of every kill | `^tob_sote_post_maze_ticks = 1`, a separate constant from the cadence because the two answer different questions (the same shape as M1's `^tob_maiden_first_attack_ticks`) | `~tob_st_sote_research` — asserts 1 *and* that it differs from `^tob_sote_attack_ticks` |
+| M10 | He can attack **on the maze proc tick** | `~tob_sote_check_maze` ran *before* the attack, so the threshold-crossing tick swallowed its own attack | the attack resolves first, the threshold check second | `~tob_st_sote_research` |
+| M10 | …and the hit already in the air must still be nulled | nothing checked; a melee splat is +1 tick and a ball is several | `~tob_sote_maze_nulls_hit`, Near-Reality's `shouldAttack()` predicate, on all three delayed-hit queues | — |
+| M11 | **20.0 %** of turns carry no lateral move (183 mazes) | the clamped-uniform draw alone: **11.3 %** over 200k simulated mazes | `^tob_sote_maze_skip_permille = 98` — an explicit skip in front of the uniform draw, `0.098 + 0.902 × 0.113 = 0.200` | `~tob_st_sote_maze_skip` — 20 000 simulated turns, CI 17.8–22.2 % |
+| M11 | devqhp's skeleton is right everywhere else | already correct | 8 seeds, runs on odd rows only, `\|Δx\| ≤ 5`, start column `[1, 13]` — all unchanged, all corroborated by the corpus | `~tob_st_sote_maze` (pre-existing) |
+| M19 | Entry scales **up** per player | `^tob_sote_hp_entry = 560` passed flat through `~tob_scale_hp_at`: an Entry Sotetseg had 560 hitpoints at *every* party size, so a four-man killed him in a quarter of the intended time and never reached the second maze | multiplied by scale at the call site, exactly as the Maiden and Bloat already were | `~tob_st_sote_research` — `4 × unit` must equal the Wiki's 2240 |
+| M45 | Tornado damage | 94, a disclosed guess at half the death ball's ceiling | 35–45, Near-Reality's `RedStorm` — the only number in any source | `~tob_st_sote_tornado_damage` |
+
+All mutation-proved. `~tob_scale_hp` (the build-time seed) already multiplied Entry by scale;
+only `~tob_scale_hp_at` (the barrier-cross re-statement, which is the one that sticks) did not,
+which is why a wrong Entry pool survived a table check of the constant.
+
+**Not applied, and why:** M11's *mechanism* stays devqhp's plus a skip rather than Zenyte's
+double-height vertical, because a skipped turn and a zero-length run lay down identical tiles —
+the corpus can measure the rate and cannot distinguish the cause (the adjacent-zero-pairs test
+is 1.4 σ, directional only). M44's death-ball table and the `6.67 % + 15` rag stay as they are;
+Near-Reality states different figures for both and the Wiki outranks it. `^tob_sote_defence_floor`
+is still not enforced — every drain in the tree calls `npc_statsub` from its own spec script and
+there is no shared seam to clamp in; the constant now says so.
+
+---
+
 ## Evidence stored in this repo
 
 Raw event streams (~30 MB) were deliberately **not** committed; they are reproducible from
