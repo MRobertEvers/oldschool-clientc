@@ -36278,6 +36278,20 @@ mock230_world_selftest(void)
         {
             int saved_cox = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
 
+            /*
+             * Announce the section BEFORE running it, so a harness that greps
+             * for CoX failures can also tell whether the block ran at all.
+             *
+             * Without this marker the two states are indistinguishable in the
+             * log: `tools/cox_verify.sh` reported "CoX selftest passed" for a
+             * run that segfaulted in the collision section, hundreds of lines
+             * earlier, because its only test was that no CoX failure line
+             * appeared -- and none had, since nothing CoX had executed. It
+             * stayed green through a deliberate mutation of
+             * ^cox_points_per_damage, the exact mutation the comment below
+             * says used to catch it.
+             */
+            fprintf(stderr, "mock230 selftest: Chambers of Xeric\n");
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
             SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "coxrun") ==
                                MOCK230_TRIGGER_RAN,

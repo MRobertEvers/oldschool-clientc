@@ -357,6 +357,38 @@ def main():
     maps_dir = os.path.join(CONTENT, "maps")
     names = read_names(os.path.join(CONTENT, "configs", "all.loc.compack"))
 
+    if "--find" in sys.argv:
+        # Where, exactly, is a named loc placed inside its template cell?
+        #
+        # The survey above answers "which cell holds a Tekton anvil". This
+        # answers "at which tile", which is the number an encounter script needs
+        # and the only way to check a coordinate decoded from another server
+        # against this cache. A position ported from Zenyte that this tool
+        # cannot corroborate is a position to distrust: their map is a different
+        # revision of the same rooms, and the rooms have been edited since.
+        wanted = sys.argv[sys.argv.index("--find") + 1]
+        pitch = 32
+        found = 0
+        for name in sorted(os.listdir(maps_dir)):
+            match = re.match(r"^m(-?\d+)_(-?\d+)\.jl2$", name)
+            if not match:
+                continue
+            map_x, map_z = int(match.group(1)), int(match.group(2))
+            if map_x not in BLOCK_X or map_z not in BLOCK_Z:
+                continue
+            for plane, lx, lz, loc_id in read_jl2(os.path.join(maps_dir, name)):
+                loc_name = names.get(loc_id, "")
+                if wanted not in loc_name:
+                    continue
+                found += 1
+                print("m%d_%d cell %d/%d plane %d  room-local (%2d,%2d)  %s"
+                      % (map_x, map_z, lx // pitch, lz // pitch, plane,
+                         lx % pitch, lz % pitch, loc_name))
+        if not found:
+            print("no loc matching %r in the template block" % wanted)
+            return 1
+        return 0
+
     if "--sweep" in sys.argv:
         hits = sweep(maps_dir, names)
         print("map squares placing raids_* locs:")
