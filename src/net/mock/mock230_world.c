@@ -38411,6 +38411,8 @@ mock230_world_selftest(void)
                 int victim_seq = 0;
                 int victim_corpse = 0;
                 int victim_alive_ticks = 0;
+                int face_ticks = 0;
+                int face_other = -2;
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -38566,6 +38568,34 @@ mock230_world_selftest(void)
                         if( srv->npcs[victim].active )
                             victim_alive_ticks++;
                     }
+                    /*
+                     * SHE LOOKS AT THE PLAYER SHE IS SHOOTING, ALL THE TIME.
+                     *
+                     * `~tob_maiden_face_latch` is `npc_setmode(playerface)`,
+                     * and a mode is only as durable as `npc_mode_target_valid`
+                     * lets it be: that ends `from_spawn <= maxrange + 1`,
+                     * measured from the npc's SPAWN TILE, with `maxrange`
+                     * defaulting to 7. Her arena is 24 tiles deep, so every
+                     * player standing where this fight is actually fought was
+                     * "out of range" - the mode was reset to `none` on the tick
+                     * after it was set and the FACE_ENTITY latch kept pointing
+                     * wherever it happened to be aimed when she last threw.
+                     *
+                     * From outside that is exactly the report: she does not
+                     * turn towards the player she is attacking until something
+                     * else makes her (a hit, which re-aims through the combat
+                     * path). `maxrange=24` on all four of her bodies is the
+                     * fix, and this is what says so - the latch is checked on
+                     * every tick of a 60-tick fight, not once.
+                     */
+                    if( srv->npcs[boss].face_entity !=
+                        MOCK230_FACE_PLAYER_BASE + player->pid )
+                    {
+                        if( face_other == -2 )
+                            face_other = srv->npcs[boss].face_entity;
+                    }
+                    else
+                        face_ticks++;
                     if( getenv("MOCK230_TOB_CRABS") )
                     {
                         char line[256];
@@ -38867,6 +38897,13 @@ mock230_world_selftest(void)
                         "  Maiden crab killed short: death_seq %d, reached corpse %d, "
                         "visible for %d ticks after the blow\n",
                         victim_seq, victim_corpse, victim_alive_ticks);
+                SELFTEST_CHECK(face_ticks >= 50,
+                               "the Maiden must hold a FACE_ENTITY latch on the "
+                               "player she is fighting for the whole fight, held "
+                               "it on %d of 60 ticks (first miss faced %d, wanted "
+                               "%d)",
+                               face_ticks, face_other,
+                               MOCK230_FACE_PLAYER_BASE + player->pid);
                 SELFTEST_CHECK(victim_seq > 0,
                                "a Matomenos must carry elemental_death, got %d",
                                victim_seq);

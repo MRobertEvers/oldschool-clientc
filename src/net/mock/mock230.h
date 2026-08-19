@@ -4599,6 +4599,23 @@ mock230_combat_hitmark_player(
     struct Mock230Server* srv,
     int type,
     int amount);
+/**
+ * Display an NPC hitsplat, and the overhead health bar that rides with it,
+ * without mutating Hitpoints or provoking retaliation.
+ *
+ * The cosmetic twin of `mock230_combat_hit_npc`, for a splat whose health
+ * effect the caller owns separately -- Xarpus absorbing an exhumed's orb shows
+ * the heal as a splat and does the healing with `npc_statheal`. Zero is a real
+ * amount here and stays the caller's chosen type rather than becoming a block
+ * splat: a heal for nothing is still a heal, and the damage path's
+ * zero-means-block rule is about a swing that missed.
+ */
+void
+mock230_combat_hitmark_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int type,
+    int amount);
 void
 mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot);
 

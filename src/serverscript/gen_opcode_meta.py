@@ -782,6 +782,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # not fake the effect by adding and subtracting real Hitpoints.
     "HITMARK": (11061, 3, 0, 0, 0),
 
+    # npc_hitmark(hitsplat, amount) — the active NPC's cosmetic hitsplat, and
+    # the overhead health bar that rides with it. Changes no hitpoints and
+    # provokes no retaliation.
+    #
+    # `hitmark` above is the player-side twin and cannot serve: it resolves its
+    # uid through `player_by_uid` and aborts on anything else. `npc_damage` is
+    # not it either — that one subtracts hitpoints and starts a fight, which is
+    # the wrong direction for the case this exists for.
+    #
+    # That case is a splat the server wants SEEN without an HP change it owns
+    # separately: Xarpus absorbing an exhumed's orb shows a purple heal splat
+    # over him for the amount, and the heal itself is `npc_statheal`. Without a
+    # splat there is no NPC_INFO hitmark block, and without that block the
+    # encoder sends no HEADBAR either — so his overhead bar stayed dark for the
+    # whole of phase one while the raid HUD tracked him correctly.
+    "NPC_HITMARK": (11080, 2, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1102,6 +1119,13 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "LOC_ADD_OP": (0, 0),
     "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
     "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
+    # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries
+    # `active_npc | active_npc2` for the same reason, so this is transcription
+    # from its reference twin rather than a new judgement.
+    "NPC_HITMARK": (
+        1 << POINTER_BITS["active_npc"],
+        1 << POINTER_BITS["active_npc2"],
+    ),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means
@@ -1461,8 +1485,17 @@ def main() -> int:
             return 1
 
     opcodes = parse_opcodes(script_dir / "ScriptOpcode.ts")
+    # Both halves of the collision, because the tables are keyed by NAME and
+    # emitted by ID: a duplicate id passes the name check, then silently
+    # overwrites the earlier opcode's row in every generated array. The C
+    # compiler catches it only if both cases are in one switch, and only then.
+    taken = {opcode_id: name for name, opcode_id in opcodes.items()}
     for extra_name, extra_row in EXTRA_OPCODES.items():
         assert extra_name not in opcodes, f"{extra_name} collides with a reference opcode"
+        assert extra_row[0] not in taken, (
+            f"{extra_name} id {extra_row[0]} is already {taken[extra_row[0]]}"
+        )
+        taken[extra_row[0]] = extra_name
         opcodes[extra_name] = extra_row[0]
     triggers = parse_triggers(script_dir / "ServerTriggerType.ts")
     for extra_trigger, extra_id in EXTRA_TRIGGERS.items():

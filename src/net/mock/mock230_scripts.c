@@ -8188,6 +8188,33 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * npc_hitmark(hitsplat, amount) — the active npc's cosmetic splat.
+     *
+     * Deliberately NOT routed through `mock230_combat_hit_npc`: that one
+     * subtracts hitpoints and starts a fight. This is for a splat whose health
+     * effect the caller applies itself, and for the overhead health bar the
+     * hitmark mask is the only carrier of.
+     */
+    case SS_OP_NPC_HITMARK:
+    {
+        int32_t values[2];
+        int slot = (int)state->host_tag - 1;
+
+        for( int i = 1; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_hitmark with no active npc");
+            return 1;
+        }
+        mock230_combat_hitmark_npc(srv, slot, values[0], values[1]);
+        return 1;
+    }
+
     case SS_OP_NPC_POISON:
     {
         int32_t severity;

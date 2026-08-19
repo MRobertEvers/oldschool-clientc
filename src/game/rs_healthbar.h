@@ -3,13 +3,17 @@
 
 /*
  * Healthbar types: how an entity's overhead bar is sized, filled and faded.
- *
- * The client used to draw every bar as a 30x5 green/red rectangle and take the
- * *fill value the server sent* as the bar's pixel width. That is two mistakes
- * stacked: the fill is a fraction of `width`, not a pixel count, and the pixel
- * count is the front sprite's, which runs from 30 up to 160 across the 85
- * records in cache.osrs239. A boss bar came out as a screen-wide sliver with a
- * green stub at the left, because a fill byte that decoded to 158 became a
+ *SC=/private/tmp/claude-501/-Users-matthewevers-Documents-git-repos-3draster/bb62e08d-71d6-4b3e-a75a-36486c9400c2/scratchpad;
+ *for cam in "6464,-3000,4400,180,0" "6464,-4200,5400,300,0" "5200,-2600,5400,160,1600"; do n=$(echo
+ *$cam | tr ',' '_'); SDL_VIDEODRIVER=dummy MOCK230_ALLOW_STALE_SCRIPTS=1 MOCK230_SAVES=$SC/saves2
+ *TORIRS_SIM_CMD="200,tob 5;280,tobgo" TORIRS_WEDGE_CAM="$cam" TORIRS_MAX_FRAMES=460
+ *TORIRS_EXIT_BMP=$SC/xc_$n.bmp ./src/torirs --manifest manifest_osrs239_torirs.ini --user probe1
+ *--pass test > /dev/null 2>&1; sips -s format png $SC/xc_$n.bmp --out $SC/xc_$n.png >/dev/null
+ *2>&1; done; ls $SC/xc_*.png The client used to draw every bar as a 30x5 green/red rectangle and
+ *take the *fill value the server sent* as the bar's pixel width. That is two mistakes stacked: the
+ *fill is a fraction of `width`, not a pixel count, and the pixel count is the front sprite's, which
+ *runs from 30 up to 160 across the 85 records in cache.osrs239. A boss bar came out as a
+ *screen-wide sliver with a green stub at the left, because a fill byte that decoded to 158 became a
  * 158-pixel bar.
  *
  * What the reference does (`class381`, and the health-bar block of

@@ -117,6 +117,7 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_DAMAGE_TEST,
     APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
     APP_DEBUG_HOTKEY_LOC_EDITOR,
+    APP_DEBUG_HOTKEY_HOVER_FOOTPRINT,
     APP_DEBUG_HOTKEY_COUNT
 };
 
@@ -819,6 +820,14 @@ struct App
      * moved onto the panel, which invalidates the live hover. -1 = none yet. */
     int locedit_hover_x;
     int locedit_hover_z;
+    /** Footprint outline (app_overlay_build_hover_footprint): the live mode —
+     * 0 off, 1 the hovered loc, >1 every instance of that loc id — and the
+     * non-zero mode the toggle restores. Seeded from TORIRS_HOVER_FOOTPRINT so
+     * the env var still selects the mode; the hotkey only turns it on and off,
+     * which is what keeps an id-mode headless run togglable without losing the
+     * id it was given. */
+    int hover_footprint;
+    int hover_footprint_mode;
     uint64_t last_logic_ms;
     /* Wall clock of the previous rendered frame, for the per-frame actor mover
      * (World_MoversAdvance). Distinct from last_logic_ms, which is snapped to

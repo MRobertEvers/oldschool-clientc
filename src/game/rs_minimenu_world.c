@@ -252,15 +252,23 @@ scenery_debug_name(
         return name;
     assert(world);
 
+    /* The footprint rides here, not only on the detail row: the painter orders
+     * scenery by its width x depth, so "which tiles does the client think this
+     * loc covers" is the first question of every placement or draw-order bug,
+     * and this is the one string that reaches the hover line. `draw_size_*` is
+     * the placed footprint (orientation applied), which is the one the painter
+     * used — the config's own size is on the detail row beside it. */
     snprintf(
         buf,
         cap,
-        "%s @whi@sc(%d,%d) abs(%d,%d)",
+        "%s @whi@sc(%d,%d) abs(%d,%d) %dx%d",
         name,
         scenery->grid_position.x,
         scenery->grid_position.z,
         world->_base_tile_x + scenery->grid_position.x,
-        world->_base_tile_z + scenery->grid_position.z);
+        world->_base_tile_z + scenery->grid_position.z,
+        scenery->debug.draw_size_x,
+        scenery->debug.draw_size_z);
     return buf;
 }
 
@@ -867,6 +875,86 @@ add_player_stack_rows(
     add_player_rows(menu, ctx, world, player, picked);
 }
 
+/*
+ * TORIRS_LOC_DEBUG tile readout: the land settings of the hovered column, one
+ * group per cache level, as `[L0|L1|L2|L3]`.
+ *
+ * Letters are the RSCache_FloorFlags in bit order — B block, L link-below,
+ * R remove-roof, V vis-below, H force-high-detail — and `-` is a level whose
+ * byte is zero. Spelled rather than hex because the two that move a floor off
+ * its own plane are L and V, and "0x0a" does not say that at a glance.
+ *
+ * The whole column, not just the hovered level: LINK_BELOW is a property of the
+ * column read at cache level 1 and applies to every plane of it, so a readout
+ * showing only the level under the cursor cannot explain the level the tile
+ * draws at.
+ */
+static void
+tile_settings_text(
+    struct World* world,
+    int tile_x,
+    int tile_z,
+    char* out,
+    int cap)
+{
+    static char const letters[5] = { 'B', 'L', 'R', 'V', 'H' };
+    int used = 0;
+
+    assert(world);
+    assert(out);
+    if( cap > 0 )
+        out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+    {
+        unsigned flags = (unsigned)World_TileFlagGet(world, tile_x, tile_z, level);
+        int any = 0;
+
+        if( level > 0 && used < cap - 1 )
+            out[used++] = '|';
+        for( int bit = 0; bit < 5 && used < cap - 1; bit++ )
+            if( flags & (1u << bit) )
+            {
+                out[used++] = letters[bit];
+                any = 1;
+            }
+        if( !any && used < cap - 1 )
+            out[used++] = '-';
+    }
+    if( used < cap )
+        out[used] = '\0';
+}
+
+/*
+ * Which cache levels of the hovered column actually carry a terrain mesh.
+ *
+ * "The tile has no floor here" and "the floor is on a plane you did not expect"
+ * are the two states a blank or unclickable patch of ground is in, and they
+ * look identical from the viewport. A ToB corridor answers `1` while the player
+ * stands on level 0 — the deck — and a genuinely floorless tile answers `-`.
+ */
+static void
+tile_mesh_levels_text(
+    struct World* world,
+    int tile_x,
+    int tile_z,
+    char* out,
+    int cap)
+{
+    int used = 0;
+
+    assert(world);
+    assert(out);
+    if( cap > 0 )
+        out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+        if( World_TerrainElementAt(world, tile_x, tile_z, level) >= 0 )
+            out[used++] = (char)('0' + level);
+    if( used == 0 && used < cap - 1 )
+        out[used++] = '-';
+    if( used < cap )
+        out[used] = '\0';
+}
+
 void
 RS_Minimenu_AddWorldRows(
     struct RS_MinimenuBuildCtx const* ctx,
@@ -902,21 +990,42 @@ RS_Minimenu_AddWorldRows(
             /* TORIRS_LOC_DEBUG: name the tile the pointer is actually over,
              * so a loc's slot can be read against the ground under it — and
              * the local player's own tile, which is what the minimap centres
-             * on. */
+             * on.
+             *
+             * `l` is the picked mesh level and `d` the level that mesh actually
+             * draws and picks against; they differ on exactly the columns where
+             * ground behaves surprisingly (a bridge deck reads l1 d0), so the
+             * pair is worth more than either alone. `s` is the column's land
+             * settings and `m` the levels carrying a floor — see the two
+             * helpers above. The local player's fine position stays last
+             * because it is the field most often read against a loc's own
+             * draw position on the row below. */
             if( WorldEntity_SceneryDebugEnabled() )
             {
                 struct WorldEntity_Player* lp =
                     World_PlayerGetByServerPid(ctx->world, ctx->world->local_pid);
                 char text[UITREE_MINIMENU_OPTION_LEN];
+                char settings[4 * 6 + 1];
+                char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
+
+                tile_settings_text(
+                    ctx->world, terrain->tile_x, terrain->tile_z, settings, (int)sizeof(settings));
+                tile_mesh_levels_text(
+                    ctx->world, terrain->tile_x, terrain->tile_z, meshes, (int)sizeof(meshes));
                 snprintf(
                     text,
                     sizeof(text),
-                    "Walk here @whi@sc(%d,%d) abs(%d,%d) l%d | you sc(%d,%d) f(%d,%d)",
+                    "Walk here @whi@sc(%d,%d) abs(%d,%d) l%d d%d s[%s] m[%s] | you sc(%d,%d) "
+                    "f(%d,%d)",
                     terrain->tile_x,
                     terrain->tile_z,
                     ctx->world->_base_tile_x + terrain->tile_x,
                     ctx->world->_base_tile_z + terrain->tile_z,
                     terrain->tile_level,
+                    World_TerrainDrawLevel(
+                        ctx->world, terrain->tile_x, terrain->tile_z, terrain->tile_level),
+                    settings,
+                    meshes,
                     lp ? lp->grid_position.x : -1,
                     lp ? lp->grid_position.z : -1,
                     lp ? (int)lp->draw_position.x : -1,

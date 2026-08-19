@@ -111,7 +111,8 @@
  *                 camera_forward/back/left/right/up/down, camera_unlock,
  *                 world_reload, paint_toggle/more/less/more_100/less_100,
  *                 spawn_player/npc/obj/projectile/spotanim, entity_spotanim,
- *                 damage_test, and debug_overlay. `a=` is retained verbatim
+ *                 damage_test, debug_overlay, loc_editor_toggle and
+ *                 hover_footprint. `a=` is retained verbatim
  *                 and uses target-specific comma-separated named arguments.
  *                 Spawn targets accept `id=<n>` (npc/obj),
  *                 `id=<n>,height=<n>,delay=<n>` (spotanim/entity_spotanim),

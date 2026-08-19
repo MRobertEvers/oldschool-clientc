@@ -1085,6 +1085,46 @@ mock230_combat_hitmark_player(
 }
 
 void
+mock230_combat_hitmark_npc(
+    struct Mock230Server* srv,
+    int slot,
+    int type,
+    int amount)
+{
+    struct Mock230Npc* npc;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+    if( amount < 0 )
+        amount = 0;
+
+    /*
+     * Everything `mock230_combat_hit_npc` does to make the splat visible, and
+     * none of what it does to the fight: no hitpoints move, no `combat_target`
+     * is set, no `npc_action_delay` is charged. The caller owns the health
+     * change, if there is one at all.
+     *
+     * The mask is what matters beyond the number. `put_npc_extended_v5` offers
+     * a HEADBAR only alongside a hitmark, so this is also the one way content
+     * can put the overhead health bar over an npc whose health is moving
+     * without anybody hitting it.
+     */
+    mock230_hitmark_add(npc->hitmarks, &npc->hitmark_count, amount, type);
+    npc->damage = npc->hitmarks[0].damage;
+    npc->damage_type = npc->hitmarks[0].type;
+    npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
+    npc->masks |= MOCK230_NMASK_DAMAGE;
+    /* The classic (rev-230) mask has room for exactly two splats; the v5 block
+     * reads `hitmark_count` and ignores this bit. Same split as the damage
+     * path -- see the note there. */
+    if( npc->hitmark_count >= 2 )
+        npc->masks |= MOCK230_NMASK_DAMAGE2;
+}
+
+void
 mock230_combat_hit_player(
     struct Mock230Server* srv,
     int type,

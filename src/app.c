@@ -5,21 +5,20 @@
 #include "platform/web_cache_boot.h"
 #endif
 
+#include "bmp.h"
 #include "bootmanifest/bootmanifest.h"
-
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
-#include "engine/entity_model_build.h"
-#include "engine/task_obj_model_load.h"
-#include "net/jbase37.h"
-#include "net/rev/packets/pkt_player_appearance.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
+#include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
+#include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/torirs_model_inst_cache.h"
+#include "engine/torirs_worldmap_from_rscache.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_cmd_render.h"
 #include "engine/world_builder/task_world_load.h"
@@ -29,19 +28,20 @@
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "game/rs_minimenu_cross.h"
+#include "game/rs_worldmap.h"
+#include "game/rs_worldmap_render.h"
+#include "game/task_cs1_run.h"
+#include "game/task_cs2_run.h"
 #include "game/task_exec_entity_info.h"
 #include "game/task_gameproto_exec.h"
+#include "input/torirs_input_cmd.h"
+#include "input/torirs_keymap.h"
+#include "net/jbase37.h"
 #include "net/net.h"
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
-#include "game/rs_worldmap.h"
-#include "engine/torirs_worldmap_from_rscache.h"
-#include "game/rs_worldmap_render.h"
-#include "game/rs_minimenu_cross.h"
-#include "game/task_cs1_run.h"
-#include "game/task_cs2_run.h"
-#include "input/torirs_input_cmd.h"
-#include "input/torirs_keymap.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "painters/painters.h"
 #include "painters/painters_cull_project.h"
 #include "painters/scene_occluders.h"
@@ -51,12 +51,10 @@
 #include "render/torirs_pick.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
-#include "ui/uitree_layout.h"
 #include "ui/uitree_iface_stats.h"
+#include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
 #include "world/world.h"
-
-#include "bmp.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -196,7 +194,10 @@ app_chat_region(
 /* True when a canvas-space point lands inside the chat region's bounds. Used to
  * decide chat input focus on a left click. */
 static int
-app_point_in_chat(struct App const* app, int x, int y)
+app_point_in_chat(
+    struct App const* app,
+    int x,
+    int y)
 {
     struct UITreeComponent const* node;
     int bx = 0, by = 0, bw = 0, bh = 0;
@@ -285,7 +286,10 @@ app_if_events_override_get(
  * knowing what an App is. Uses the node-aware lookup so a dynamic child
  * inherits its parent's IF_SETEVENTS range (popout:buttons, bank items, …). */
 static int
-app_minimenu_events_for_component(void* user, int com_id, int sub_id)
+app_minimenu_events_for_component(
+    void* user,
+    int com_id,
+    int sub_id)
 {
     if( sub_id >= 0 )
         return App_IfEventsGetAt((struct App const*)user, com_id, sub_id);
@@ -299,7 +303,10 @@ app_minimenu_events_for_component(void* user, int com_id, int sub_id)
  * generation on the node — shifting a dat1 mask like a dat2 events word would
  * turn a real answer into noise. */
 static int
-app_cs2_events_override_for_component(void* user, int com_id, int* out_events)
+app_cs2_events_override_for_component(
+    void* user,
+    int com_id,
+    int* out_events)
 {
     unsigned events = 0;
     if( !app_if_events_override_get((struct App const*)user, com_id, -1, &events) )
@@ -414,8 +421,8 @@ App_IfEventsGetAt(
     assert(app);
     for( int i = 0; i < app->if_event_count; i++ )
     {
-        if( app->if_events[i].com_id == com_id &&
-            app->if_events[i].from <= sub_id && app->if_events[i].to >= sub_id )
+        if( app->if_events[i].com_id == com_id && app->if_events[i].from <= sub_id &&
+            app->if_events[i].to >= sub_id )
             return app->if_events[i].events;
     }
     return 0;
@@ -431,8 +438,8 @@ app_if_events_override_get(
     assert(app);
     for( int i = 0; i < app->if_event_count; i++ )
     {
-        if( app->if_events[i].com_id == com_id &&
-            app->if_events[i].from <= sub_id && app->if_events[i].to >= sub_id )
+        if( app->if_events[i].com_id == com_id && app->if_events[i].from <= sub_id &&
+            app->if_events[i].to >= sub_id )
         {
             if( out_events )
                 *out_events = (unsigned)app->if_events[i].events;
@@ -538,9 +545,13 @@ app_if_events_for_node(
 }
 
 static void
-app_send_if_button(void* user, int com_id);
+app_send_if_button(
+    void* user,
+    int com_id);
 static void
-app_send_resume_pausebutton(void* user, int com_id);
+app_send_resume_pausebutton(
+    void* user,
+    int com_id);
 static void
 app_send_close_modal(void* user);
 static void
@@ -550,28 +561,36 @@ app_world_sync_entity_animations(struct App* app);
 static void
 app_world_sync_entity_spotanims(struct App* app);
 static void
-app_entity_spotanim_drop(struct App* app, int body_element_id);
+app_entity_spotanim_drop(
+    struct App* app,
+    int body_element_id);
 static struct AppEntitySpotanim*
-app_entity_spotanim_find(struct App* app, int body_element_id, int owner_entity_id);
+app_entity_spotanim_find(
+    struct App* app,
+    int body_element_id,
+    int owner_entity_id);
 static void
-app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, bool restore);
+app_entity_spotanim_detach(
+    struct App* app,
+    struct AppEntitySpotanim* entry,
+    bool restore);
 
 /* Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
  * bytes then queue to the socket via the subsystem's SEND_DATA ring. */
-#define APP_NET_SEND(app, builder_call)                                                          \
-    do                                                                                           \
-    {                                                                                            \
-        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                 \
-        {                                                                                        \
-            uint8_t _nsbuf[512];                                                                 \
-            int _nslen = builder_call;                                                           \
-            if( _nslen > 0 )                                                                     \
-            {                                                                                    \
-                ToriRS_Network_SendRaw((app)->net, _nsbuf, _nslen);                              \
-                (app)->net_last_send_ms = (app)->last_frame_ms;                                  \
-            }                                                                                    \
-        }                                                                                        \
+#define APP_NET_SEND(app, builder_call)                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                   \
+        {                                                                                          \
+            uint8_t _nsbuf[512];                                                                   \
+            int _nslen = builder_call;                                                             \
+            if( _nslen > 0 )                                                                       \
+            {                                                                                      \
+                ToriRS_Network_SendRaw((app)->net, _nsbuf, _nslen);                                \
+                (app)->net_last_send_ms = (app)->last_frame_ms;                                    \
+            }                                                                                      \
+        }                                                                                          \
     } while( 0 )
 
 /* Server-synced local player entity (esync pid), or NULL (offline / not yet
@@ -608,8 +627,7 @@ app_minimap_push_dot(
     int w = 4, h = 4;
     struct UITreeMinimapDot* dot;
 
-    if( app->minimap_dot_count >=
-        (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count >= (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
         return;
     if( dx * dx + dy * dy > 6400 )
         return;
@@ -845,8 +863,8 @@ app_worldmap_push_icon(
     tile = &app->worldmap_tiles[app->worldmap_tile_count++];
     tile->scene_id = scene_id;
     tile->atlas_index = 0;
-    tile->w = sprite->frames[0].crop_width > 0 ? sprite->frames[0].crop_width
-                                               : sprite->frames[0].width;
+    tile->w =
+        sprite->frames[0].crop_width > 0 ? sprite->frames[0].crop_width : sprite->frames[0].width;
     tile->h = sprite->frames[0].crop_height > 0 ? sprite->frames[0].crop_height
                                                 : sprite->frames[0].height;
     tile->scaled = 0;
@@ -1002,8 +1020,7 @@ app_worldmap_build_tiles(
                 if( end && *end == ',' )
                     at_frame = strtol(end + 1, NULL, 0);
             }
-            RS_WorldMap_SetZoom(
-                map, (int)(app->worldmap_debug_frame < at_frame ? first : second));
+            RS_WorldMap_SetZoom(map, (int)(app->worldmap_debug_frame < at_frame ? first : second));
         }
     }
 
@@ -1119,12 +1136,11 @@ app_worldmap_build_tiles(
             tile = &app->worldmap_tiles[app->worldmap_tile_count++];
             tile->scene_id = scene_id;
             tile->atlas_index = 0;
-            tile->x = centre_x +
-                      (region_x * WORLD_MAP_TERRAIN_X - display_x) * region_px /
-                          WORLD_MAP_TERRAIN_X;
-            tile->y = centre_y -
-                      ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
-                          region_px / WORLD_MAP_TERRAIN_Z;
+            tile->x = centre_x + (region_x * WORLD_MAP_TERRAIN_X - display_x) * region_px /
+                                     WORLD_MAP_TERRAIN_X;
+            tile->y =
+                centre_y - ((region_y * WORLD_MAP_TERRAIN_Z + WORLD_MAP_TERRAIN_Z) - display_y) *
+                               region_px / WORLD_MAP_TERRAIN_Z;
             /* The box is a region at the *live* zoom either way — that is what
              * makes both the stand-in bake and a bake at another zoom step line
              * up with their neighbours while the transition runs. */
@@ -1155,7 +1171,9 @@ app_worldmap_build_tiles(
                 NULL,
                 NULL);
             int icon_count =
-                scene_id < 0 ? 0 : RS_WorldMapRender_RegionIcons(app->worldmap_render, scene_id, &icons);
+                scene_id < 0
+                    ? 0
+                    : RS_WorldMapRender_RegionIcons(app->worldmap_render, scene_id, &icons);
 
             for( int i = 0; i < icon_count; i++ )
                 app_worldmap_push_icon(
@@ -1186,9 +1204,17 @@ app_worldmap_build_tiles(
             stderr,
             "worldmap frame: display=%d,%d zoom=%d bake_scale=%d region_px=%d "
             "regions x=%d..%d y=%d..%d blits=%d queued_tasks=%d\n",
-            display_x, display_y, RS_WorldMap_Zoom(map), bake_scale, region_px,
-            min_region_x, max_region_x, min_region_y, max_region_y,
-            app->worldmap_tile_count, queued);
+            display_x,
+            display_y,
+            RS_WorldMap_Zoom(map),
+            bake_scale,
+            region_px,
+            min_region_x,
+            max_region_x,
+            min_region_y,
+            max_region_y,
+            app->worldmap_tile_count,
+            queued);
     }
 
     return app->worldmap_tile_count;
@@ -1383,8 +1409,8 @@ app_worldmap_click(
     map_y = display_y - (mouse_y - (app->worldmap_box_y + app->worldmap_box_h / 2)) *
                             RS_WORLDMAP_ZOOM_SCALE_ONE / scale_fp;
 
-    source = RS_WorldMap_DisplayToSource(
-        app->host.worldmap, ToriRS_WorldMapPackCoord(0, map_x, map_y));
+    source =
+        RS_WorldMap_DisplayToSource(app->host.worldmap, ToriRS_WorldMapPackCoord(0, map_x, map_y));
     if( source < 0 )
         return;
     ToriRS_WorldMapUnpackCoord(source, &plane, &abs_x, &abs_z);
@@ -1425,8 +1451,7 @@ app_worldmap_surface_live(struct App* app)
     idx = tree->worldmap_index;
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return 0;
-    if( tree->components[idx].freed ||
-        tree->components[idx].type != UIELEM_BUILTIN_WORLDMAP )
+    if( tree->components[idx].freed || tree->components[idx].type != UIELEM_BUILTIN_WORLDMAP )
         return 0;
     for( ;; )
     {
@@ -1492,8 +1517,7 @@ app_worldmap_drag_tick(
      * closing the map also teleported the player to whatever tile the X was
      * drawn over.
      */
-    if( !app->worldmap_drag_active && !pointer_consumed &&
-        !app->interact.minimenu.visible &&
+    if( !app->worldmap_drag_active && !pointer_consumed && !app->interact.minimenu.visible &&
         app->hover_com_id < 0 && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
         mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
         mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
@@ -1612,11 +1636,7 @@ App_MinimapBuildDots(
             if( scene_id <= 0 )
                 continue;
             app_minimap_push_dot(
-                app,
-                icon->x * 128 + 64 - px,
-                icon->z * 128 + 64 - pz,
-                scene_id,
-                0);
+                app, icon->x * 128 + 64 - px, icon->z * 128 + 64 - pz, scene_id, 0);
         }
     }
 
@@ -1648,11 +1668,7 @@ App_MinimapBuildDots(
                 npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
-                app,
-                (int)npc->draw_position.x - px,
-                (int)npc->draw_position.z - pz,
-                dots_scene,
-                1);
+                app, (int)npc->draw_position.x - px, (int)npc->draw_position.z - pz, dots_scene, 1);
         }
         pool = &world->entities.player;
         for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -1680,8 +1696,7 @@ App_MinimapBuildDots(
             0);
 
     /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
-    if( app->minimap_dot_count <
-        (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
+    if( app->minimap_dot_count < (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
     {
         struct UITreeMinimapDot* dot = &app->minimap_dots[app->minimap_dot_count++];
         dot->dx = -1;
@@ -1701,7 +1716,11 @@ App_MinimapBuildDots(
 
 /* Defined with the other cache/scene helpers further down. */
 static int
-app_world_height(void* userdata, int world_x, int world_z, int level);
+app_world_height(
+    void* userdata,
+    int world_x,
+    int world_z,
+    int level);
 static int
 app_cinema_level(struct App* app);
 static int
@@ -1804,8 +1823,7 @@ app_world_project(
             level = local->grid_position.level;
     }
     ground_y = app_world_height(app, fine_x, fine_z, level);
-    return app_world_project_at(
-        app, fine_x, fine_z, ground_y - height_above_ground, out_x, out_y);
+    return app_world_project_at(app, fine_x, fine_z, ground_y - height_above_ground, out_x, out_y);
 }
 
 /* Reference ClientEntity.height = model.minY, which Client-TS accumulates as
@@ -1900,7 +1918,10 @@ app_overlay_push(
  * palette entries (< 6) map straight through; flashing/rainbow effects (6-11)
  * animate off the scene cycle / remaining timer (reference Client.ts:4962). */
 static uint32_t
-app_overlay_chat_colour(struct App* app, int chat_colour, int timer)
+app_overlay_chat_colour(
+    struct App* app,
+    int chat_colour,
+    int timer)
 {
     static const int CHAT_COLOURS[6] = {
         0xffff00, /* YELLOW */
@@ -2015,12 +2036,7 @@ app_overlay_build_player_headicons(
     if( headicons == 0 || headicons_scene <= 0 )
         return;
     if( !app_world_project(
-            app,
-            (int)draw_position->x,
-            (int)draw_position->z,
-            height + 15,
-            &screen_x,
-            &screen_y) )
+            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
         return;
 
     for( int icon = 0; icon < 31; icon++ )
@@ -2093,12 +2109,7 @@ app_overlay_build_npc_headicon(
         return;
     height = app_entity_model_height(app, element_id);
     if( !app_world_project(
-            app,
-            (int)draw_position->x,
-            (int)draw_position->z,
-            height + 15,
-            &screen_x,
-            &screen_y) )
+            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
         return;
 
     {
@@ -2178,15 +2189,24 @@ app_overlay_outline_scenery(
         for( int tx = base_x; tx < base_x + size_x; tx++ )
         {
             /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
-            static const int corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+            static const int corner[4][2] = {
+                { 0, 0 },
+                { 1, 0 },
+                { 1, 1 },
+                { 0, 1 }
+            };
             int px[4];
             int py[4];
             int visible = 1;
 
             for( int c = 0; c < 4 && visible; c++ )
                 visible = app_world_project_at(
-                    app, (tx + corner[c][0]) * 128, (tz + corner[c][1]) * 128, plane_y,
-                    &px[c], &py[c]);
+                    app,
+                    (tx + corner[c][0]) * 128,
+                    (tz + corner[c][1]) * 128,
+                    plane_y,
+                    &px[c],
+                    &py[c]);
             if( !visible )
                 continue;
             for( int c = 0; c < 4; c++ )
@@ -2203,16 +2223,14 @@ app_overlay_build_hover_footprint(struct App* app)
 {
     /* 0 = off; 1 = the hovered loc; >1 = every instance of that LOC ID.
      * The id form exists for headless runs: TORIRS_SIM_HOVER parks the mouse
-     * before the frame loop, so an exit screenshot has no hover to read. */
-    static int mode = -1;
+     * before the frame loop, so an exit screenshot has no hover to read.
+     *
+     * The live mode is App state rather than a static resolved once, because
+     * the hover_footprint hotkey turns it on and off during a session. The env
+     * var still chooses WHICH mode, and app_hover_footprint_toggle restores it
+     * — see App::hover_footprint_mode. */
+    int mode = app->hover_footprint;
 
-    if( mode < 0 )
-    {
-        char const* env = getenv("TORIRS_HOVER_FOOTPRINT");
-        mode = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
-        if( mode < 0 )
-            mode = 0;
-    }
     if( !mode || !app->world )
         return;
 
@@ -2448,24 +2466,15 @@ app_overlay_build_entity(
      */
     if( combat->healthbar_type >= 0 && combat->healthbar_end_cycle > cycle &&
         app_world_project(
-            app,
-            (int)draw_position->x,
-            (int)draw_position->z,
-            height + 15,
-            &screen_x,
-            &screen_y) )
+            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
     {
         app_overlay_build_healthbar(app, combat, screen_x, screen_y);
     }
-    else if( combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
-             combat->total_health > 0 &&
-             app_world_project(
-                 app,
-                 (int)draw_position->x,
-                 (int)draw_position->z,
-                 height + 15,
-                 &screen_x,
-                 &screen_y) )
+    else if(
+        combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
+        combat->total_health > 0 &&
+        app_world_project(
+            app, (int)draw_position->x, (int)draw_position->z, height + 15, &screen_x, &screen_y) )
     {
         int bar_width = RS_HEALTHBAR_DEFAULT_WIDTH;
         int filled = (combat->health * bar_width) / combat->total_health;
@@ -2534,8 +2543,7 @@ app_overlay_build_entity(
          * always.
          */
         {
-            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats,
-                                                      combat->damage_types[i]);
+            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, combat->damage_types[i]);
             int splat_scene = -1;
             int splat_frame = 0;
 
@@ -2627,10 +2635,19 @@ app_build_entity_overlays(
          * equivalent of (Actor.getLogicalHeight is unconditional there). */
         npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         app_overlay_build_entity(
-            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene,
+            app,
+            npc->element_id,
+            &npc->combat,
+            &npc->draw_position,
+            font_id,
+            hitmarks_scene,
             npctype ? npctype->height : -1);
         app_overlay_build_npc_headicon(
-            app, npc->element_id, npctype, &npc->draw_position, headicons_scene,
+            app,
+            npc->element_id,
+            npctype,
+            &npc->draw_position,
+            headicons_scene,
             APP_HEADICONS_PRAYER_GROUP);
     }
 
@@ -2642,8 +2659,13 @@ app_build_entity_overlays(
         if( !player || player->element_id < 0 )
             continue;
         app_overlay_build_entity(
-            app, player->element_id, &player->combat, &player->draw_position, font_id,
-            hitmarks_scene, -1);
+            app,
+            player->element_id,
+            &player->combat,
+            &player->draw_position,
+            font_id,
+            hitmarks_scene,
+            -1);
         app_overlay_build_player_headicons(
             app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }
@@ -2722,8 +2744,10 @@ app_build_entity_overlays(
 
 /* Forward decls: UITREE_HOST_GET_INV_DRAG asks whether the armed press is
  * ghosting; the definitions live beside app_inv_drag_tick. */
-static int app_inv_drag_promoted(struct App const* app);
-static int app_inv_drag_ghosting(struct App const* app);
+static int
+app_inv_drag_promoted(struct App const* app);
+static int
+app_inv_drag_ghosting(struct App const* app);
 
 static int
 app_host_request(
@@ -2788,10 +2812,8 @@ app_host_request(
          * anchors at player.x/32), not the orbit eye; free-cam (offline)
          * keeps the eye anchor. */
         struct WorldEntity_Player* local_player = app_local_player(app);
-        int anchor_x = local_player ? (int)local_player->draw_position.x
-                                    : app->world_camera_pos.x;
-        int anchor_z = local_player ? (int)local_player->draw_position.z
-                                    : app->world_camera_pos.z;
+        int anchor_x = local_player ? (int)local_player->draw_position.x : app->world_camera_pos.x;
+        int anchor_z = local_player ? (int)local_player->draw_position.z : app->world_camera_pos.z;
         if( app->world_map_scene_id <= 0 || !app->world || !app->world->minimap )
             return -1;
         minimap_compute_camera_src_anchor(
@@ -3420,8 +3442,7 @@ Task_NpcMultiResolve_Run(
     self->current_npc_id = self->base_npc_id;
     *self->out_npc_id = self->base_npc_id;
 
-    for( self->depth = 0;
-         self->depth <= TORIRS_NPC_MULTI_MAX_DEPTH && self->current_npc_id >= 0;
+    for( self->depth = 0; self->depth <= TORIRS_NPC_MULTI_MAX_DEPTH && self->current_npc_id >= 0;
          self->depth++ )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->current_npc_id));
@@ -3443,8 +3464,7 @@ Task_NpcMultiResolve_Run(
                 self->current_npc_id = -1;
                 break;
             }
-            if( next == self->current_npc_id ||
-                self->depth == TORIRS_NPC_MULTI_MAX_DEPTH )
+            if( next == self->current_npc_id || self->depth == TORIRS_NPC_MULTI_MAX_DEPTH )
                 break;
             self->current_npc_id = next;
         }
@@ -3538,11 +3558,8 @@ Task_NpcMultiLoad_Run(
             if( npctype )
             {
                 int seqs[5] = {
-                    npctype->readyanim,
-                    npctype->walkanim,
-                    npctype->walkanim_b,
-                    npctype->walkanim_r,
-                    npctype->walkanim_l,
+                    npctype->readyanim,  npctype->walkanim,   npctype->walkanim_b,
+                    npctype->walkanim_r, npctype->walkanim_l,
                 };
                 seq_id = seqs[self->seq_i];
             }
@@ -3643,8 +3660,7 @@ Task_AppNpcTransform_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
-    PT_TASK_AWAITSELF_IF(
-        CreateTask_NpcMultiLoad(app, self->base_npc_id, &self->resolved_npc_id));
+    PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->base_npc_id, &self->resolved_npc_id));
     {
         int world_idx = self->world_idx;
         int element_id = self->element_id;
@@ -3653,14 +3669,11 @@ Task_AppNpcTransform_Run(
         if( self->server_slot >= 0 &&
             !RS_EntitySync_FindNpc(&app->esync, self->server_slot, &world_idx, &element_id) )
             world_idx = -1;
-        npc = world_idx >= 0
-                  ? World_EntityPoolGet(&app->world->entities.npc, world_idx)
-                  : NULL;
+        npc = world_idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, world_idx) : NULL;
         /* Asset IO can yield for several frames. Revalidate the exact entity
          * and wrapper so a despawn/slot reuse or server CHANGE_TYPE cannot be
          * overwritten by this older local-var refresh. */
-        if( npc && npc->element_id == self->element_id &&
-            npc->base_npc_id == self->base_npc_id )
+        if( npc && npc->element_id == self->element_id && npc->base_npc_id == self->base_npc_id )
         {
             int hidden = self->resolved_npc_id < 0;
             int effective = hidden ? self->base_npc_id : self->resolved_npc_id;
@@ -3701,8 +3714,7 @@ app_varp_refresh_npc_transforms(
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
         struct Task_AppNpcTransform* task;
 
-        if( !npc ||
-            !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
+        if( !npc || !app_npc_transform_depends_on_varp(app, npc->base_npc_id, varp_id) )
             continue;
         task = calloc(1, sizeof(*task));
         assert(task);
@@ -3815,8 +3827,13 @@ app_varp_refresh_loc_transforms(
 
     for( int i = 0; i < n; i++ )
         App_WorldLocChange(
-            app, pending[i].x, pending[i].z, pending[i].level, pending[i].loc_id,
-            pending[i].shape, pending[i].angle);
+            app,
+            pending[i].x,
+            pending[i].z,
+            pending[i].level,
+            pending[i].loc_id,
+            pending[i].shape,
+            pending[i].angle);
 }
 
 /*
@@ -3825,7 +3842,9 @@ app_varp_refresh_loc_transforms(
  * the CS2 var-transmit ring (that is app_varp_server_update only).
  */
 static void
-app_varp_change(void* userdata, int varp_id)
+app_varp_change(
+    void* userdata,
+    int varp_id)
 {
     struct App* app = (struct App*)userdata;
 
@@ -3861,7 +3880,9 @@ app_varp_change(void* userdata, int varp_id)
  * actually changes), so this path only adds CS2 transmit + clientcode audio.
  */
 static void
-app_varp_server_update(void* userdata, int varp_id)
+app_varp_server_update(
+    void* userdata,
+    int varp_id)
 {
     struct App* app = (struct App*)userdata;
 
@@ -3968,8 +3989,8 @@ app_debug_overlay_init(struct App* app)
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
     app->dbg_frame_count = 0;
-    app->dbg_panel = ToriDbgUI_PanelAdd(
-        &app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
+    app->dbg_panel =
+        ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
     app->dbg_frame_row = ToriDbgUI_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
     ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
 
@@ -3986,15 +4007,18 @@ app_debug_overlay_init(struct App* app)
      * a message box eating them. Still clickable too -- the key is the fast
      * path, the click is the discoverable one. */
     app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
-    app->locedit_item_xminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
+    app->locedit_item_xminus =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
     app->locedit_item_zplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
-    app->locedit_item_zminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
+    app->locedit_item_zminus =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
     app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
-    app->locedit_item_reselect = ToriDbgUI_MenuItem(
-        &app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
+    app->locedit_item_reselect =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
     app->locedit_item_deselect =
         ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect  [Backspace]");
-    app->locedit_item_close = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
+    app->locedit_item_close =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
     ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
     app->locedit_loc_id = -1;
@@ -4009,6 +4033,20 @@ app_debug_overlay_init(struct App* app)
     app->locedit_level = 0;
     app->locedit_hover_x = -1;
     app->locedit_hover_z = -1;
+
+    /* Footprint outline: the env var picks the mode AND the starting state, so
+     * an existing `TORIRS_HOVER_FOOTPRINT=1` run is unchanged and the hotkey
+     * merely gains the ability to turn it off. Unset means off but armed at
+     * mode 1, which is what the hotkey turns on. A negative or unparsable value
+     * is off with nothing to restore. */
+    {
+        char const* env = getenv("TORIRS_HOVER_FOOTPRINT");
+        int mode = (env && env[0]) ? (int)strtol(env, NULL, 0) : 0;
+        if( mode < 0 )
+            mode = 0;
+        app->hover_footprint = mode;
+        app->hover_footprint_mode = mode > 0 ? mode : 1;
+    }
 }
 
 void
@@ -4042,8 +4080,7 @@ App_SendCommand(
         return false;
     APP_NET_SEND(
         app,
-        net_out_client_cheat(
-            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text));
+        net_out_client_cheat(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text));
     return true;
 }
 
@@ -4143,8 +4180,7 @@ app_loc_editor_refresh_labels(struct App* app)
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, "");
         return;
     }
-    snprintf(
-        text, sizeof(text), "loc %d shape %d", app->locedit_loc_id, app->locedit_shape);
+    snprintf(text, sizeof(text), "loc %d shape %d", app->locedit_loc_id, app->locedit_shape);
     ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
     snprintf(
         text,
@@ -4168,7 +4204,10 @@ app_loc_editor_refresh_labels(struct App* app)
      * than print a blank row. */
     if( app->locedit_name[0] )
         snprintf(
-            text, sizeof(text), "\"%s\" interactive=%d", app->locedit_name,
+            text,
+            sizeof(text),
+            "\"%s\" interactive=%d",
+            app->locedit_name,
             app->locedit_interactive);
     else
         snprintf(text, sizeof(text), "interactive=%d", app->locedit_interactive);
@@ -4244,7 +4283,9 @@ app_loc_editor_deselect(struct App* app)
  * with a wall AND a wall-decor AND a ground loc on it exactly the way a
  * player reading the right-click menu would. */
 static void
-app_loc_editor_select_element(struct App* app, int element_id)
+app_loc_editor_select_element(
+    struct App* app,
+    int element_id)
 {
     struct WorldEntity_Scenery* scenery;
 
@@ -4270,18 +4311,31 @@ app_loc_editor_select_element(struct App* app, int element_id)
  * go through App_WorldLocChange so this is exactly what a zone LOC_DEL +
  * LOC_ADD_CHANGE pair would produce, just without a server round trip. */
 static void
-app_loc_editor_nudge(struct App* app, int dx, int dz)
+app_loc_editor_nudge(
+    struct App* app,
+    int dx,
+    int dz)
 {
     if( app->locedit_loc_id < 0 )
         return;
     App_WorldLocChange(
-        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level, -1,
-        app->locedit_shape, app->locedit_angle);
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        -1,
+        app->locedit_shape,
+        app->locedit_angle);
     app->locedit_scene_x += dx;
     app->locedit_scene_z += dz;
     App_WorldLocChange(
-        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level,
-        app->locedit_loc_id, app->locedit_shape, app->locedit_angle);
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle);
     app_loc_editor_refresh_labels(app);
 }
 
@@ -4295,8 +4349,13 @@ app_loc_editor_rotate(struct App* app)
         return;
     app->locedit_angle = (app->locedit_angle + 1) % 4;
     App_WorldLocChange(
-        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level,
-        app->locedit_loc_id, app->locedit_shape, app->locedit_angle);
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle);
     app_loc_editor_refresh_labels(app);
 }
 
@@ -4319,6 +4378,19 @@ app_loc_editor_tick(
          * with Reselect stays active across a close/reopen. */
         app->locedit_visible = !app->locedit_visible;
         ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, app->locedit_visible);
+    }
+
+    /* Footprint outline, toggled here rather than in its own tick because it
+     * is the same loc-inspection tool and wants the same chat suppression.
+     * Restores the configured mode instead of a literal 1, so a run started
+     * with TORIRS_HOVER_FOOTPRINT=<loc id> keeps outlining that id after an
+     * off/on rather than silently downgrading to "the hovered loc". */
+    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_HOVER_FOOTPRINT) )
+    {
+        app->hover_footprint = app->hover_footprint ? 0 : app->hover_footprint_mode;
+        app->need_redraw = 1;
+        fprintf(stderr, "hover_footprint: %d\n", app->hover_footprint);
     }
 
     /* Remember the world tile under the cursor whenever the cursor is NOT
@@ -4533,8 +4605,7 @@ App_Init(
                 char xtea_path[1024];
                 snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
                 if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-                    fprintf(
-                        stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
+                    fprintf(stderr, "app: no xtea keys at %s (world maps may fail)\n", xtea_path);
             }
             else
             {
@@ -4619,7 +4690,8 @@ App_Init(
      * edge representation (+/-32,768 px). Lowering it moves the largest models
      * into overflow range -- see the note at the near clip in
      * graphics/projection.u.c before changing it or TORIRS_NEAR_PLANE. */
-    app->world_camera.near_plane_z = (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
+    app->world_camera.near_plane_z =
+        (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
     app->orbit_pitch = 128; /* reference orbitCameraPitch default */
@@ -4681,8 +4753,7 @@ App_Init(
      */
     RS_Audio_SetMasterVolume(
         &app->audio,
-        (RS_CS2Host_GetOption(
-             &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) *
+        (RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) *
              TORIRS_AUDIO_VOLUME_MAX +
          50) /
             100,
@@ -4738,8 +4809,8 @@ App_Init(
         /* Audio behaviour is era-dependent too: monophonic effects are a 2004
          * client property, not a general one. */
         if( !app->features )
-            app->features = ToriRS_Features_ForCache(
-                cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
+            app->features =
+                ToriRS_Features_ForCache(cfg->cache_game, cfg->cache_epoch, cfg->cache_revision);
         assert(app->features);
 
         /*
@@ -4762,10 +4833,11 @@ App_Init(
             {
                 int from_env = ToriRS_Features_NearestModelByName(env);
                 if( from_env < 0 )
-                    fprintf(stderr,
-                            "app: TORIRS_GROUND_CLICK_NEAREST must be "
-                            "ring3|box10_rect|none, got '%s'\n",
-                            env);
+                    fprintf(
+                        stderr,
+                        "app: TORIRS_GROUND_CLICK_NEAREST must be "
+                        "ring3|box10_rect|none, got '%s'\n",
+                        env);
                 else
                     model = from_env;
             }
@@ -4790,8 +4862,7 @@ App_Init(
                 app->features_storage.ground_click_offmap_nearest = env[0] != '0';
         }
         if( cfg->features_painter_draw_distance_set )
-            app->features_storage.painter_draw_distance =
-                cfg->features_painter_draw_distance;
+            app->features_storage.painter_draw_distance = cfg->features_painter_draw_distance;
 
         /*
          * The mover model, on top of the era.
@@ -4816,10 +4887,11 @@ App_Init(
                 {
                     int from_env = ToriRS_Features_MoverModelByName(env);
                     if( from_env < 0 )
-                        fprintf(stderr,
-                                "app: unknown TORIRS_MOVER_MODEL '%s' "
-                                "(cycle|frame)\n",
-                                env);
+                        fprintf(
+                            stderr,
+                            "app: unknown TORIRS_MOVER_MODEL '%s' "
+                            "(cycle|frame)\n",
+                            env);
                     else
                         model = from_env;
                 }
@@ -4829,15 +4901,15 @@ App_Init(
         }
 
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr,
-                    "app: features era=%s ground_click_nearest=%s "
-                    "unbounded=%d offmap=%d painter_draw_distance=%d\n",
-                    app->features->name,
-                    ToriRS_Features_NearestModelName(
-                        app->features->ground_click_nearest_model),
-                    app->features->ground_click_nearest_unbounded,
-                    app->features->ground_click_offmap_nearest,
-                    ToriRS_Features_PainterDrawDistance(app->features));
+            fprintf(
+                stderr,
+                "app: features era=%s ground_click_nearest=%s "
+                "unbounded=%d offmap=%d painter_draw_distance=%d\n",
+                app->features->name,
+                ToriRS_Features_NearestModelName(app->features->ground_click_nearest_model),
+                app->features->ground_click_nearest_unbounded,
+                app->features->ground_click_offmap_nearest,
+                ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
         /* And the world sim: the actor mover is era-dependent too (rev-239
          * integrates movement per rendered frame, the 2004 client per 20ms
@@ -4846,8 +4918,10 @@ App_Init(
          * after the overrides above for the same reason. */
         World_SetFeatures(app->world, app->features);
         if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "app: world mover=%s\n",
-                    ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
+            fprintf(
+                stderr,
+                "app: world mover=%s\n",
+                ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
          * divergences, then [render:light] overrides, then push the regimes
@@ -4923,9 +4997,8 @@ App_Init(
         if( !rsa_e )
             rsa_e = "81f390b2cf8ca7039ee507975951d5a0b15a87bf8b3f99c966834118c50fd94d";
         if( !rsa_n )
-            rsa_n =
-                "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468"
-                "6813739768ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
+            rsa_n = "88c38748a58228f7261cdc340b5691d7d0975dee0ecdb717609e6bf971eb3fe723ef9d130e468"
+                    "6813739768ad9472eb46d8bfcc042c1a5fcb05e931f632eea5d";
 
         char const* rev_name = cfg->rev_name;
         if( !rev_name || !rev_name[0] )
@@ -5220,14 +5293,19 @@ app_seq_anim(
 }
 
 static int
-app_seq_frame_count(void* userdata, int seq_id)
+app_seq_frame_count(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->frame_count : 0;
 }
 
 static int
-app_seq_frame_duration(void* userdata, int seq_id, int frame)
+app_seq_frame_duration(
+    void* userdata,
+    int seq_id,
+    int frame)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     /* Skeletal seqs carry no per-frame lengths — their curves are sampled one
@@ -5238,49 +5316,63 @@ app_seq_frame_duration(void* userdata, int seq_id, int frame)
 }
 
 static int
-app_seq_frame_step(void* userdata, int seq_id)
+app_seq_frame_step(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->frame_step : 0;
 }
 
 static int
-app_seq_max_loops(void* userdata, int seq_id)
+app_seq_max_loops(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim && anim->max_loops > 0 ? anim->max_loops : 99;
 }
 
 static int
-app_seq_priority(void* userdata, int seq_id)
+app_seq_priority(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->priority : 5;
 }
 
 static int
-app_seq_duplicate_behavior(void* userdata, int seq_id)
+app_seq_duplicate_behavior(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->duplicate_behavior : -1;
 }
 
 static int
-app_seq_preanim_move(void* userdata, int seq_id)
+app_seq_preanim_move(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->preanim_move : 0;
 }
 
 static int
-app_seq_postanim_move(void* userdata, int seq_id)
+app_seq_postanim_move(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->postanim_move : 0;
 }
 
 static int
-app_seq_stretches(void* userdata, int seq_id)
+app_seq_stretches(
+    void* userdata,
+    int seq_id)
 {
     struct ToriDraw_Animation* anim = app_seq_anim(userdata, seq_id);
     return anim ? anim->stretches : 0;
@@ -5290,7 +5382,9 @@ app_seq_stretches(void* userdata, int seq_id)
  * the world can step an entity's attached-graphic frame. -1 when the id is
  * invalid or the spotanimtype is not yet resident (the world then waits). */
 static int
-app_spotanim_seq(void* userdata, int spotanim_id)
+app_spotanim_seq(
+    void* userdata,
+    int spotanim_id)
 {
     struct App* app = (struct App*)userdata;
     struct ToriRS_Spotanimtype* spot =
@@ -5318,8 +5412,7 @@ app_plot_mapscene_sprite(
     int loc_l)
 {
     int base_x = sx * 4 + (loc_w * 4 - spr->width) / 2 + spr->crop_x;
-    int base_y =
-        (map_height - sz - (loc_l - 1)) * 4 + (loc_l * 4 - spr->height) / 2 + spr->crop_y;
+    int base_y = (map_height - sz - (loc_l - 1)) * 4 + (loc_l * 4 - spr->height) / 2 + spr->crop_y;
 
     for( int y = 0; y < spr->height; y++ )
     {
@@ -5349,7 +5442,12 @@ app_plot_mapscene_sprite(
  * tile is a hole onto the level below, and an icon one level up draws where that
  * tile is VisBelow (balcony/overhang showing the floor beneath). */
 static void
-app_bake_mapscenes(struct App* app, uint32_t* argb, int pw, int ph, int level)
+app_bake_mapscenes(
+    struct App* app,
+    uint32_t* argb,
+    int pw,
+    int ph,
+    int level)
 {
     struct World* world = app->world;
     int mapscene_scene;
@@ -5387,19 +5485,18 @@ app_bake_mapscenes(struct App* app, uint32_t* argb, int pw, int ph, int level)
 
         idx = icon->x + icon->z * scene_size;
         if( icon->level == level &&
-            (!flags ||
-             (flags[idx + level * plane] &
-              (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0) )
+            (!flags || (flags[idx + level * plane] &
+                        (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0) )
             draw = 1;
-        else if( flags && icon->level == level + 1 && level + 1 < world->minimap->levels &&
-                 (flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
+        else if(
+            flags && icon->level == level + 1 && level + 1 < world->minimap->levels &&
+            (flags[idx + (level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0 )
             draw = 1;
         if( !draw )
             continue;
 
         app_plot_mapscene_sprite(
-            argb, pw, ph, spr, icon->x, icon->z, world->minimap->height, icon->width,
-            icon->length);
+            argb, pw, ph, spr, icon->x, icon->z, world->minimap->height, icon->width, icon->length);
     }
 }
 
@@ -5410,7 +5507,9 @@ app_bake_mapscenes(struct App* app, uint32_t* argb, int pw, int ph, int level)
  * The bake is per level (reference minimapBuildBuffer(minusedlevel)), so it has
  * to be redone whenever the local player changes floor — app_world_map_poll. */
 static void
-app_rebuild_world_map(struct App* app, int level)
+app_rebuild_world_map(
+    struct App* app,
+    int level)
 {
     int pixel_w = 0;
     int pixel_h = 0;
@@ -5424,8 +5523,8 @@ app_rebuild_world_map(struct App* app, int level)
     if( !app->world->minimap )
         return;
 
-    argb = minimap_bake_argb(
-        app->world->minimap, level, app->world->tile_flags, &pixel_w, &pixel_h);
+    argb =
+        minimap_bake_argb(app->world->minimap, level, app->world->tile_flags, &pixel_w, &pixel_h);
     if( !argb )
         return;
 
@@ -5488,7 +5587,6 @@ app_world_map_poll(struct App* app)
     app_rebuild_world_map(app, local->grid_position.level);
     app->need_redraw = 1;
 }
-
 
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
 static void
@@ -5562,8 +5660,15 @@ app_world_load_begin(
     app->world_load_inflight = 1;
     App_WorldDrainEntityRemoved(app);
     task = CreateTask_WorldLoad(
-        app->provider, app->world_builder, chunks_xz, chunk_pair_count,
-        -1, -1, NULL, app_world_load_finish_cb, app);
+        app->provider,
+        app->world_builder,
+        chunks_xz,
+        chunk_pair_count,
+        -1,
+        -1,
+        NULL,
+        app_world_load_finish_cb,
+        app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
     app->need_redraw = 1;
 }
@@ -5695,10 +5800,8 @@ app_debug_log_position(struct App* app)
             (int)local->draw_position.z,
             local->grid_position.level),
         (unsigned)World_TileFlagGet(
-            app->world, local->grid_position.x, local->grid_position.z,
-            local->grid_position.level),
-        (unsigned)World_TileFlagGet(
-            app->world, local->grid_position.x, local->grid_position.z, 1),
+            app->world, local->grid_position.x, local->grid_position.z, local->grid_position.level),
+        (unsigned)World_TileFlagGet(app->world, local->grid_position.x, local->grid_position.z, 1),
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z,
@@ -5734,8 +5837,7 @@ app_debug_height_profile(struct App* app)
     {
         fprintf(stderr, "hprof L%d z=%3d:", lvl, z);
         for( int x = x0; x <= x1; x++ )
-            fprintf(stderr, " %5d",
-                    app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
+            fprintf(stderr, " %5d", app_world_height(app, x * 128 + 64, z * 128 + 64, lvl));
         fprintf(stderr, "\n");
     }
 }
@@ -5764,12 +5866,21 @@ app_debug_tile_flags(struct App* app)
             for( int x = x0; x <= x1; x++ )
             {
                 unsigned f = (unsigned)World_TileFlagGet(app->world, x, z, lv);
-                if( f & RSCACHE_FLOFLAG_VIS_BELOW ) { n_vis++;
+                if( f & RSCACHE_FLOFLAG_VIS_BELOW )
+                {
+                    n_vis++;
                     if( n_vis <= 400 )
-                        fprintf(stderr,
-                                "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
-                                lv, x, z, f, World_TerrainElementAt(app->world, x, z, lv)); }
-                if( f & RSCACHE_FLOFLAG_LINK_BELOW ) n_link++;
+                        fprintf(
+                            stderr,
+                            "tflags L%d tile=%d,%d VIS_BELOW (0x%02x) terrain_element=%d\n",
+                            lv,
+                            x,
+                            z,
+                            f,
+                            World_TerrainElementAt(app->world, x, z, lv));
+                }
+                if( f & RSCACHE_FLOFLAG_LINK_BELOW )
+                    n_link++;
             }
         fprintf(stderr, "tflags L%d: vis_below=%d link_below=%d\n", lv, n_vis, n_link);
     }
@@ -5940,8 +6051,7 @@ app_apply_wedge_scale(struct App* app)
                     stderr,
                     "wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
                     fov_override,
-                    toridraw_proj_scale_from_cot16(
-                        toridraw_proj_cot16_from_fov(fov_override)));
+                    toridraw_proj_scale_from_cot16(toridraw_proj_cot16_from_fov(fov_override)));
             }
         }
         return;
@@ -6007,7 +6117,12 @@ app_apply_wedge_scale(struct App* app)
                 stderr,
                 "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
                 "realised=%d\n",
-                mode, vp_h, near_zoom, far_zoom, zoom, scale,
+                mode,
+                vp_h,
+                near_zoom,
+                far_zoom,
+                zoom,
+                scale,
                 toridraw_proj_scale_from_cot16(toridraw_proj_cot16(
                     app->world_camera.proj_mode,
                     app->world_camera.proj_scale,
@@ -6032,7 +6147,11 @@ app_update_world_viewport(struct App* app)
         for( int i = 0; i < app->emit.count; i++ )
             if( app->emit.cmds[i].kind >= 0 && app->emit.cmds[i].kind < 24 )
                 kinds[app->emit.cmds[i].kind]++;
-        fprintf(stderr, "worldview: node_index=%d emit_count=%d kinds:", App_WorldNodeIndex(app), app->emit.count);
+        fprintf(
+            stderr,
+            "worldview: node_index=%d emit_count=%d kinds:",
+            App_WorldNodeIndex(app),
+            app->emit.count);
         for( int k = 0; k < 24; k++ )
             if( kinds[k] )
                 fprintf(stderr, " %d:%d", k, kinds[k]);
@@ -6040,8 +6159,11 @@ app_update_world_viewport(struct App* app)
         for( int i = 0; i < app->emit.count; i++ )
             if( app->emit.cmds[i].kind == UITREE_EMIT_WORLD )
             {
-                wx = app->emit.cmds[i].x; wy = app->emit.cmds[i].y;
-                ww = app->emit.cmds[i].w; wh = app->emit.cmds[i].h; widx = i;
+                wx = app->emit.cmds[i].x;
+                wy = app->emit.cmds[i].y;
+                ww = app->emit.cmds[i].w;
+                wh = app->emit.cmds[i].h;
+                widx = i;
             }
         fprintf(stderr, " WORLDRECT=%d,%d %dx%d idx=%d\n", wx, wy, ww, wh, widx);
         /* Anything drawn after the world that covers a meaningful slice of it. */
@@ -6057,8 +6179,16 @@ app_update_world_viewport(struct App* app)
                     stderr,
                     "  occluder idx=%d kind=%d comp=%d node=%d rect=%d,%d %dx%d trans=%d "
                     "overlap=%d%%\n",
-                    i, d->kind, d->component_id, d->node_index, d->x, d->y, d->w, d->h,
-                    d->trans, area * 100 / (ww * wh));
+                    i,
+                    d->kind,
+                    d->component_id,
+                    d->node_index,
+                    d->x,
+                    d->y,
+                    d->w,
+                    d->h,
+                    d->trans,
+                    area * 100 / (ww * wh));
         }
     }
     for( int i = 0; i < app->emit.count; i++ )
@@ -6248,17 +6378,21 @@ Task_AppBoot_Run(
     if( !app->boot_config_ready )
     {
         VarPManager_SetVarpOptimistic(
-            &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+            &app->varps,
+            RS_CS2_VARP_MASTER_VOLUME,
             RS_CS2Host_GetOption(
                 &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
         VarPManager_SetVarpOptimistic(
-            &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+            &app->varps,
+            RS_CS2_VARP_MUSIC_VOLUME,
             RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
         VarPManager_SetVarpOptimistic(
-            &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+            &app->varps,
+            RS_CS2_VARP_SOUND_VOLUME,
             RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
         VarPManager_SetVarpOptimistic(
-            &app->varps, RS_CS2_VARP_AREA_VOLUME,
+            &app->varps,
+            RS_CS2_VARP_AREA_VOLUME,
             RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
     }
 
@@ -6302,8 +6436,7 @@ Task_AppBoot_Run(
      * all three for the reasons stated above the volumes.
      */
     if( !app->boot_config_ready && app->features->varbit_interface_resizing > 0 )
-        VarPManager_SetVarbitOptimistic(
-            &app->varps, app->features->varbit_interface_resizing, 1);
+        VarPManager_SetVarbitOptimistic(&app->varps, app->features->varbit_interface_resizing, 1);
 
     /* End of the once-per-session half. A remount from here down rebuilds the
      * tree against the var state the session already has. */
@@ -6550,8 +6683,7 @@ Task_OpenSubRefresh_Run(
      * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
      * mounts in one burst. */
     TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
-    if( self->interface_id > 0 &&
-        UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
+    if( self->interface_id > 0 && UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
         fprintf(
             stderr,
@@ -6606,12 +6738,10 @@ Task_OpenSubRefresh_Run(
                 }
                 else
                 {
-                    struct UITreeNodeSet const* gset =
-                        UITree_GroupNodes(app->tree, old_group);
+                    struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
                     int gi;
                     TORIRS_PERF_COUNT(
-                        TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES,
-                        gset ? (int64_t)gset->count : 0);
+                        TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
                     if( gset )
                     {
                         for( gi = 0; gi < gset->count; gi++ )
@@ -6623,8 +6753,8 @@ Task_OpenSubRefresh_Run(
                             if( c->freed || c->component_id < 0 )
                                 continue;
                             if( c->parent >= 0 &&
-                                ((app->tree->components[c->parent].component_id >> 16) &
-                                 0xffff) == old_group )
+                                ((app->tree->components[c->parent].component_id >> 16) & 0xffff) ==
+                                    old_group )
                                 continue;
                             if( !c->behavior.hide )
                                 c->behavior.hide_unmounted = 1;
@@ -6636,9 +6766,8 @@ Task_OpenSubRefresh_Run(
             }
             UITree_InterfaceParentClear(app->tree, self->target_uid);
             clock_gettime(CLOCK_MONOTONIC, &close_t1);
-            close_ns =
-                (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
-                (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
+            close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
+                       (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE_NS, (int64_t)close_ns);
         }
         /*
@@ -6769,8 +6898,7 @@ app_dispatch_clientscript(
      * COMPACTED — see `pkt_runclientscript_compact_strings` for which is which
      * and for what handing over the sparse array did.
      */
-    int str_count =
-        pkt_runclientscript_compact_strings(request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
+    int str_count = pkt_runclientscript_compact_strings(request, strp, PKT_RUNCLIENTSCRIPT_ARG_MAX);
 
     RS_CS2_RunScript(
         &app->host,
@@ -6875,15 +7003,7 @@ App_LootNotifyKill(
         char const* str_args[1] = { source_name };
         uint64_t str_mask = 1u << 2;
 
-        RS_CS2_RunScript(
-            &app->host,
-            &app->runner,
-            7159,
-            intv,
-            3,
-            str_mask,
-            str_args,
-            1);
+        RS_CS2_RunScript(&app->host, &app->runner, 7159, intv, 3, str_mask, str_args, 1);
     }
 }
 
@@ -7062,8 +7182,7 @@ app_cs2_enqueue_followups(struct App* app)
              * real op. Clicking it ran the script and sent nothing.
              */
             if( trig.op_index >= 1 && trig.op_index <= 10 &&
-                (app_if_events_for_node(app, trig.component_id) &
-                 (1u << trig.op_index)) )
+                (app_if_events_for_node(app, trig.component_id) & (1u << trig.op_index)) )
             {
                 int target = trig.component_id;
                 int sub = -1;
@@ -7073,14 +7192,25 @@ app_cs2_enqueue_followups(struct App* app)
                     APP_NET_SEND(
                         app,
                         net_out_if_button_obj_op(
-                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                            trig.op_index, target, sub, obj_id));
+                            app->net->rev,
+                            app->net->random_out,
+                            _nsbuf,
+                            sizeof(_nsbuf),
+                            trig.op_index,
+                            target,
+                            sub,
+                            obj_id));
                 else
                     APP_NET_SEND(
                         app,
                         net_out_if_button_op(
-                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                            trig.op_index, target, sub));
+                            app->net->rev,
+                            app->net->random_out,
+                            _nsbuf,
+                            sizeof(_nsbuf),
+                            trig.op_index,
+                            target,
+                            sub));
             }
             queued = 1;
         }
@@ -7133,8 +7263,7 @@ app_settle_cs2_frame(struct App* app)
 static int
 app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
 {
-    if( packet_type >= PKT_NAME_IF_OPENCHAT &&
-        packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
+    if( packet_type >= PKT_NAME_IF_OPENCHAT && packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
         return 1;
 
     switch( packet_type )
@@ -7305,8 +7434,10 @@ app_net_link_watch(
     /* Re-established: the handshake reached the game stream again. */
     if( app->net->state == TORIRS_NET_GAME )
     {
-        fprintf(stderr, "net: session re-established after %d attempt(s)\n",
-                app->net_reconnect_attempts);
+        fprintf(
+            stderr,
+            "net: session re-established after %d attempt(s)\n",
+            app->net_reconnect_attempts);
         app->net_lost = 0;
         app->net_reconnect_attempts = 0;
         app->net_last_recv_ms = now_ms;
@@ -7324,8 +7455,8 @@ app_net_link_watch(
         return;
     if( app->net_reconnect_attempts >= APP_NET_RECONNECT_MAX_ATTEMPTS )
     {
-        fprintf(stderr, "net: giving up after %d reconnect attempts\n",
-                app->net_reconnect_attempts);
+        fprintf(
+            stderr, "net: giving up after %d reconnect attempts\n", app->net_reconnect_attempts);
         app->net_reconnect_failed = 1;
         app->need_redraw = 1;
         return;
@@ -7393,13 +7524,16 @@ app_xpdrop_debug_tick(struct App* app)
         struct UITreeRuntimeScriptHook const* t =
             uni >= 0 ? &UITree_Hooks(&app->tree->components[uni])->on_timer : NULL;
         n += snprintf(
-            line + n, sizeof(line) - (size_t)n, "uni{timer=%d deadline=%d} ",
+            line + n,
+            sizeof(line) - (size_t)n,
+            "uni{timer=%d deadline=%d} ",
             t ? t->script_id : -1,
             (t && t->argc > 0) ? UITree_HookArg(t, t->argc - 1) : -1);
     }
 
     n += snprintf(
-        line + n, sizeof(line) - (size_t)n,
+        line + n,
+        sizeof(line) - (size_t)n,
         "vc70=%d vc71=%d vc76=%d serial=%u hook{%s seen=%u args=%d hid=%d} "
         "c17hid=%d timers=%d",
         VarCManager_GetInt(&app->varcs, 70),
@@ -7429,8 +7563,13 @@ app_xpdrop_debug_tick(struct App* app)
             hid = UITree_ComponentOrAncestorHidden(app->tree, com) ? 1 : 0;
         }
         n += snprintf(
-            line + n, sizeof(line) - (size_t)n, " r%d=%s/%d/%d/%d", r,
-            idx < 0 ? "gone" : (hid ? "hid" : "vis"), kids, timer,
+            line + n,
+            sizeof(line) - (size_t)n,
+            " r%d=%s/%d/%d/%d",
+            r,
+            idx < 0 ? "gone" : (hid ? "hid" : "vis"),
+            kids,
+            timer,
             idx >= 0 ? app->tree->components[idx].behavior.hide : -1);
         if( n >= (int)sizeof(line) )
             break;
@@ -7444,8 +7583,7 @@ app_xpdrop_debug_tick(struct App* app)
     snprintf(last, sizeof(last), "%s", line);
     last_print_cycle = (int)app->logic_cycle;
     fprintf(
-        stderr, "xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle,
-        app->host.client_clock, line);
+        stderr, "xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle, app->host.client_clock, line);
 }
 
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
@@ -7542,8 +7680,7 @@ app_logic_tick(struct App* app)
                  * retain only packets that participate in an atomic UI/CS2
                  * transaction. World feedback is valid between those ticks.
                  * SERVER_TICK_END clears this after its exec task has run. */
-                if( app->server_tick_fence_seen &&
-                    app_packet_may_mutate_ui(packet.packet_type) &&
+                if( app->server_tick_fence_seen && app_packet_may_mutate_ui(packet.packet_type) &&
                     packet.packet_type != PKT_NAME_SERVER_TICK_END )
                 {
                     if( !app->server_tick_open )
@@ -7570,9 +7707,8 @@ app_logic_tick(struct App* app)
          * so a tick cut short by a disconnect cannot strand a script forever.
          */
         if( drained && app->pending_clientscript_count &&
-            (!app->server_tick_fence_seen ||
-             app->logic_cycle - app->pending_clientscript_cycle >=
-                 APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
+            (!app->server_tick_fence_seen || app->logic_cycle - app->pending_clientscript_cycle >=
+                                                 APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
         {
             App_FlushPendingClientScripts(app);
             /* Same recovery fence for a connection whose tick was cut short:
@@ -7581,9 +7717,9 @@ app_logic_tick(struct App* app)
             app->server_tick_open = 0;
             redraw = 1;
         }
-        else if( drained && app->server_tick_open &&
-                 app->logic_cycle - app->server_tick_open_cycle >=
-                     APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
+        else if(
+            drained && app->server_tick_open &&
+            app->logic_cycle - app->server_tick_open_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
         {
             /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
              * same bounded disconnect recovery must release the visual latch
@@ -7596,8 +7732,7 @@ app_logic_tick(struct App* app)
     /* No widget hook may observe a half-applied packet/interface transaction.
      * The next logic tick resumes the serial runner; the shell keeps presenting
      * the preceding committed framebuffer in the meantime. */
-    if( app->exec_runner_had_work || app->server_tick_open ||
-        app->pending_clientscript_count > 0 )
+    if( app->exec_runner_had_work || app->server_tick_open || app->pending_clientscript_count > 0 )
         return redraw;
 
     /* Rasterize inventory item icons that the server's inv packets left
@@ -7616,7 +7751,9 @@ app_logic_tick(struct App* app)
          * sends in a 10s trace of the web client, for 586 bytes total. */
         if( app->net->state == TORIRS_NET_GAME &&
             app->last_frame_ms - app->net_last_send_ms >= APP_NET_KEEPALIVE_MS )
-            APP_NET_SEND(app, net_out_no_timeout(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+            APP_NET_SEND(
+                app,
+                net_out_no_timeout(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 
         /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::
          * commands (';'-separated) right after login — headless harness hook
@@ -7789,8 +7926,8 @@ app_logic_tick(struct App* app)
             enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
             if( ToriRS_Music_TakeLoadRequest(&app->audio.music, &song_id, &source) )
             {
-                struct ToriRS_Task* task = CreateTask_MusicLoad(
-                    app->provider, &app->audio.music, song_id, (int)source);
+                struct ToriRS_Task* task =
+                    CreateTask_MusicLoad(app->provider, &app->audio.music, song_id, (int)source);
                 if( task )
                     ToriRS_TaskQueue_Add(app->runner.queue, task);
                 else
@@ -7908,30 +8045,51 @@ app_logic_tick(struct App* app)
             switch( send.kind )
             {
             case RS_CS2_SOCIAL_SEND_FRIEND_ADD:
-                APP_NET_SEND(app, net_out_friendlist_add(app->net->rev, app->net->random_out,
-                                                         _nsbuf, sizeof(_nsbuf), name37));
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
                 break;
             case RS_CS2_SOCIAL_SEND_FRIEND_DEL:
-                APP_NET_SEND(app, net_out_friendlist_del(app->net->rev, app->net->random_out,
-                                                         _nsbuf, sizeof(_nsbuf), name37));
+                APP_NET_SEND(
+                    app,
+                    net_out_friendlist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
                 break;
             case RS_CS2_SOCIAL_SEND_IGNORE_ADD:
-                APP_NET_SEND(app, net_out_ignorelist_add(app->net->rev, app->net->random_out,
-                                                         _nsbuf, sizeof(_nsbuf), name37));
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_add(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
                 break;
             case RS_CS2_SOCIAL_SEND_IGNORE_DEL:
-                APP_NET_SEND(app, net_out_ignorelist_del(app->net->rev, app->net->random_out,
-                                                         _nsbuf, sizeof(_nsbuf), name37));
+                APP_NET_SEND(
+                    app,
+                    net_out_ignorelist_del(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
                 break;
             case RS_CS2_SOCIAL_SEND_CHAT_SETMODE:
-                APP_NET_SEND(app, net_out_chat_setmode(app->net->rev, app->net->random_out,
-                                                       _nsbuf, sizeof(_nsbuf), send.modes[0],
-                                                       send.modes[1], send.modes[2]));
+                APP_NET_SEND(
+                    app,
+                    net_out_chat_setmode(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.modes[0],
+                        send.modes[1],
+                        send.modes[2]));
                 break;
             case RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE:
-                APP_NET_SEND(app, net_out_message_private(app->net->rev, app->net->random_out,
-                                                          _nsbuf, sizeof(_nsbuf), name37,
-                                                          send.text));
+                APP_NET_SEND(
+                    app,
+                    net_out_message_private(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        name37,
+                        send.text));
                 /*
                  * Local echo of the sent line, the reference's own behaviour
                  * (Client.ts socialInputType 3): the "To Bob: ..." row appears
@@ -7942,8 +8100,7 @@ app_logic_tick(struct App* app)
                     char shown[RS_SOCIAL_NAME_LEN];
 
                     RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
-                    RS_Chat_AddMessage(
-                        &app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
+                    RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
                 }
                 app->need_redraw = 1;
                 break;
@@ -7961,17 +8118,24 @@ app_logic_tick(struct App* app)
                     }
                     break;
                 }
-                APP_NET_SEND(app, net_out_client_cheat(app->net->rev, app->net->random_out,
-                                                        _nsbuf, sizeof(_nsbuf), send.text));
+                APP_NET_SEND(
+                    app,
+                    net_out_client_cheat(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
                 break;
             /* resume_countdialog(text) from a CS2 script — the bank PIN
              * keypad's fourth digit. Same packet the chatbox's own "Enter
              * amount" prompt sends below, and the same atol: the opcode pops
              * a string, the wire carries an int. */
             case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG:
-                APP_NET_SEND(app, net_out_resume_countdialog(app->net->rev, app->net->random_out,
-                                                             _nsbuf, sizeof(_nsbuf),
-                                                             (int)atol(send.text)));
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_countdialog(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        (int)atol(send.text)));
                 break;
             default:
                 break;
@@ -8063,12 +8227,9 @@ app_logic_tick(struct App* app)
                     sounds * master / TORIRS_AUDIO_VOLUME_MAX,
                     area * master / TORIRS_AUDIO_VOLUME_MAX);
             RS_Audio_SetMasterVolume(&app->audio, master, &app->audio_out);
-            RS_Audio_SetBusVolume(
-                &app->audio, TORIRS_AUDIO_BUS_MUSIC, music, &app->audio_out);
-            RS_Audio_SetBusVolume(
-                &app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
-            RS_Audio_SetBusVolume(
-                &app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
+            RS_Audio_SetBusVolume(&app->audio, TORIRS_AUDIO_BUS_MUSIC, music, &app->audio_out);
+            RS_Audio_SetBusVolume(&app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
+            RS_Audio_SetBusVolume(&app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
         }
     }
 
@@ -8088,8 +8249,9 @@ app_logic_tick(struct App* app)
     {
         if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
             app->prefs_dirty_cycle = app->logic_cycle;
-        else if( app->prefs_dirty_cycle &&
-                 app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        else if(
+            app->prefs_dirty_cycle &&
+            app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
         {
             /* Queued, not written here: the write is the platform's, and this
              * is the middle of a frame. */
@@ -8122,11 +8284,7 @@ app_logic_tick(struct App* app)
                 break;
             case RS_CS2_SOUND_SONG:
                 App_PlaySong(
-                    app,
-                    sound.id,
-                    true,
-                    sound.fade_out_speed * 20,
-                    sound.fade_in_speed * 20);
+                    app, sound.id, true, sound.fade_out_speed * 20, sound.fade_in_speed * 20);
                 break;
             case RS_CS2_SOUND_JINGLE:
                 App_PlayJingle(app, sound.id, sound.delay * 20);
@@ -8215,8 +8373,7 @@ app_logic_tick(struct App* app)
                     TORIRS_PERF_CTR_BRIDGE_MODEL_MAP, (int64_t)app->bridge.model_map->size);
             if( app->bridge.obj_icon_map )
                 TORIRS_PERF_COUNT_SET(
-                    TORIRS_PERF_CTR_BRIDGE_OBJ_ICON_MAP,
-                    (int64_t)app->bridge.obj_icon_map->size);
+                    TORIRS_PERF_CTR_BRIDGE_OBJ_ICON_MAP, (int64_t)app->bridge.obj_icon_map->size);
             if( app->provider && app->provider->clientscript_cache )
                 TORIRS_PERF_COUNT_SET(
                     TORIRS_PERF_CTR_CACHE_CLIENTSCRIPT_SIZE,
@@ -8479,9 +8636,8 @@ app_play_frame_sounds(
          * weighted run could never be picked.
          */
         for( int i = first; i <= last; i++ )
-            total_weight += anim->frame_sounds.sounds[i].weight > 0
-                                ? anim->frame_sounds.sounds[i].weight
-                                : 1;
+            total_weight +=
+                anim->frame_sounds.sounds[i].weight > 0 ? anim->frame_sounds.sounds[i].weight : 1;
         roll = (int)(app_next_random(app) % (uint32_t)(total_weight > 0 ? total_weight : 1));
         for( int i = first; i <= last; i++ )
         {
@@ -8529,8 +8685,7 @@ app_world_tick_animations(struct App* app)
             app->provider->model_cache ? (int64_t)app->provider->model_cache->size : 0);
         TORIRS_PERF_COUNT_SET(
             TORIRS_PERF_CTR_CACHE_SPRITE_SIZE,
-            app->provider->sprite_cache ? (int64_t)app->provider->sprite_cache->size
-                                        : 0);
+            app->provider->sprite_cache ? (int64_t)app->provider->sprite_cache->size : 0);
     }
     for( int k = 0; k < anim_count; k++ )
     {
@@ -8716,10 +8871,8 @@ app_draw_viewport_message(
     if( line2_nullable )
         cy -= 8;
     /* Shadow then white — matches deob black+white centreString pair. */
-    (void)ToriDraw2D_DrawString(
-        font, &vp, cx + 1, cy + 1, line1, 0x000000, true, false, pixels);
-    (void)ToriDraw2D_DrawString(
-        font, &vp, cx, cy, line1, 0xffffff, true, false, pixels);
+    (void)ToriDraw2D_DrawString(font, &vp, cx + 1, cy + 1, line1, 0x000000, true, false, pixels);
+    (void)ToriDraw2D_DrawString(font, &vp, cx, cy, line1, 0xffffff, true, false, pixels);
     if( line2_nullable )
     {
         (void)ToriDraw2D_DrawString(
@@ -8969,8 +9122,7 @@ app_update_painter_cull(
 
     level = 0;
     {
-        struct WorldEntity_Player* player =
-            World_PlayerGetByServerPid(world, world->local_pid);
+        struct WorldEntity_Player* player = World_PlayerGetByServerPid(world, world->local_pid);
         if( player )
             level = player->grid_position.level;
     }
@@ -9032,8 +9184,8 @@ app_update_painter_cull(
         if( !cm )
             return;
 
-        bake_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                  (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        bake_ns =
+            (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
 
         slice_n = painters_cullmap_slice_visible_count(
             cm, app->world_camera.pitch, app->world_camera.yaw);
@@ -9198,8 +9350,7 @@ app_world_paint(struct App* app)
             continue;
         spread = app->cam_script.shake_jitter[axis];
         jitter = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (spread * 2 + 1)) - spread;
-        jitter += (int)(sin(
-                            (double)app->cam_script.shake_cycle[axis] *
+        jitter += (int)(sin((double)app->cam_script.shake_cycle[axis] *
                             ((double)app->cam_script.shake_speed[axis] / 100.0)) *
                         app->cam_script.shake_amplitude[axis]);
         switch( axis )
@@ -9320,30 +9471,16 @@ app_world_paint(struct App* app)
 
     if( app->world_render_mode == TORIRS_WORLD_DEPTH )
         painter_collect_visible_depth(
-            app->world->painter,
-            app->painter_buffer,
-            cam_sx,
-            cam_sz,
-            cam_slevel);
+            app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     /* TORIRS_PAINTER_W3D=1 runs the reference cascade (painter_paint_world3d)
      * in the live client instead of the distance-bucket drain. A draw-order
      * bug is either in the traversal or in the geometry it orders, and this is
      * what separates the two: same scene, same frame, the other painter. Pair
      * it with TORIRS_PIXOWNER to name what changed hands. */
-    else if( getenv("TORIRS_PAINTER_W3D") )
-        painter_paint_world3d(
-            app->world->painter,
-            app->painter_buffer,
-            cam_sx,
-            cam_sz,
-            cam_slevel);
+    else if( getenv("TORIRS_PAINTER_W3D") || true )
+        painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
-        painter_paint_bucket(
-            app->world->painter,
-            app->painter_buffer,
-            cam_sx,
-            cam_sz,
-            cam_slevel);
+        painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
 
     app->world_camera_pos.x = shake_x;
     app->world_camera_pos.y = shake_y;
@@ -9435,11 +9572,15 @@ app_world_paint(struct App* app)
                                 order = i;
                             order_count++;
                         }
-                        fprintf(stderr, "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
-                                x, z, lv,
-                                (unsigned)World_TileFlagGet(app->world, x, z, lv),
-                                World_TerrainElementAt(app->world, x, z, lv),
-                                painter_tile_get_terrain_levels(app->world->painter, x, z, lv));
+                        fprintf(
+                            stderr,
+                            "%3d,%-3d  L%d  0x%02x %5d 0x%x ",
+                            x,
+                            z,
+                            lv,
+                            (unsigned)World_TileFlagGet(app->world, x, z, lv),
+                            World_TerrainElementAt(app->world, x, z, lv),
+                            painter_tile_get_terrain_levels(app->world->painter, x, z, lv));
                         if( order < 0 )
                             fprintf(stderr, "-\n");
                         else if( order_count > 1 )
@@ -9465,9 +9606,16 @@ app_world_paint(struct App* app)
                 if( sc->grid_position.x < x0 - 8 || sc->grid_position.x > x1 + 8 ||
                     sc->grid_position.z < z0 - 8 || sc->grid_position.z > z1 + 8 )
                     continue;
-                fprintf(stderr, "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n", i,
-                        sc->loc_id, sc->grid_position.x, sc->grid_position.z,
-                        sc->grid_position.level, sc->debug.draw_size_x, sc->debug.draw_size_z);
+                fprintf(
+                    stderr,
+                    "  order %5d loc=%-6d slot=%d,%d L%d size=%dx%d\n",
+                    i,
+                    sc->loc_id,
+                    sc->grid_position.x,
+                    sc->grid_position.z,
+                    sc->grid_position.level,
+                    sc->debug.draw_size_x,
+                    sc->debug.draw_size_z);
             }
         }
     }
@@ -9514,8 +9662,7 @@ app_world_mouse_gate(
         return 0;
     /* Clickable UI wins over the world; pass-through layers with hover scripts
      * do not. */
-    if( app->tree &&
-        UITree_HitTestInteractive(app->tree, &app->ui_host, mouse_x, mouse_y) >= 0 )
+    if( app->tree && UITree_HitTestInteractive(app->tree, &app->ui_host, mouse_x, mouse_y) >= 0 )
         return 0;
     /* Gate on the world WIDGET rect, not just its clip: an unclipped world
      * node inherits a full-canvas clip, which let sidebar/chat clicks count
@@ -9715,7 +9862,14 @@ app_try_move(
                 fprintf(
                     stderr,
                     "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
-                    dst_x, dst_z, clamped_x, clamped_z, px, pz, over, clamp);
+                    dst_x,
+                    dst_z,
+                    clamped_x,
+                    clamped_z,
+                    px,
+                    pz,
+                    over,
+                    clamp);
             dst_x = clamped_x;
             dst_z = clamped_z;
         }
@@ -9742,8 +9896,7 @@ app_try_move(
     {
         struct CollisionNearestOpts nearest_opts;
 
-        collision_nearest_opts_from_model(
-            app->features->ground_click_nearest_model, &nearest_opts);
+        collision_nearest_opts_from_model(app->features->ground_click_nearest_model, &nearest_opts);
         /* Ground/minimap clicks only — see the field. */
         nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
         route_len = collision_map_try_route(
@@ -9939,7 +10092,10 @@ app_try_move_op(
  * *inside* a large NPC — hence the era switch.
  */
 static int
-app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_held)
+app_try_move_npc(
+    struct App* app,
+    struct WorldEntity_NPC const* npc,
+    int ctrl_held)
 {
     struct CollisionApproach approach = { 0 };
     int size;
@@ -9963,7 +10119,10 @@ app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_he
  * always a literal 1×1 at routeX[0]/routeZ[0] (PATHING_INTERACTION_PARITY D6).
  * Modern era: exclusive rectangle (shape -2). */
 static int
-app_try_move_player(struct App* app, struct WorldEntity_Player const* player, int ctrl_held)
+app_try_move_player(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    int ctrl_held)
 {
     struct CollisionApproach approach = { 0 };
 
@@ -9996,7 +10155,9 @@ app_try_move_player(struct App* app, struct WorldEntity_Player const* player, in
  * that used to live here was deleted — see docs/OSRS_PATHING_LOS.md §1.1.
  */
 static struct CollisionApproach
-app_scenery_approach(struct App const* app, struct WorldEntity_Scenery const* scenery)
+app_scenery_approach(
+    struct App const* app,
+    struct WorldEntity_Scenery const* scenery)
 {
     struct CollisionApproach approach = { 0 };
     int shape = scenery->shape;
@@ -10044,10 +10205,14 @@ app_scenery_approach(struct App const* app, struct WorldEntity_Scenery const* sc
  * reachable).
  */
 static int
-app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z, int ctrl_held)
+app_try_move_loc(
+    struct App* app,
+    int element_id,
+    int tile_x,
+    int tile_z,
+    int ctrl_held)
 {
-    struct WorldEntity_Scenery const* scenery =
-        World_SceneryGetByElementId(app->world, element_id);
+    struct WorldEntity_Scenery const* scenery = World_SceneryGetByElementId(app->world, element_id);
     struct CollisionApproach approach;
 
     if( !scenery )
@@ -10062,7 +10227,11 @@ app_try_move_loc(struct App* app, int element_id, int tile_x, int tile_z, int ct
  * 1x1 approach so an adjacent tile still arrives, then emit MOVE_OPCLICK.
  * Best-effort — the caller sends the OP packet regardless of the route. */
 static void
-app_try_move_obj(struct App* app, int tile_x, int tile_z, int ctrl_held)
+app_try_move_obj(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int ctrl_held)
 {
     struct CollisionApproach exact = { .kind = COLL_APPROACH_EXACT, .mover_size = 1 };
     if( !app_try_move_op(app, tile_x, tile_z, &exact, ctrl_held) )
@@ -10183,7 +10352,8 @@ app_world_pick_finish(
                 World_SceneryGetByElementId(app->world, app->world_pickset.items[i].element_id);
             fprintf(
                 stderr,
-                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d origin=%d,%d,%d '%s'\n",
+                "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
+                "origin=%d,%d,%d '%s'\n",
                 i,
                 app->world_pickset.items[i].element_id,
                 (int)app->world_pickset.items[i].type,
@@ -10436,8 +10606,7 @@ app_ui_hotkeys(
             continue;
         if( !input->osrs_key_pressed[binding->osrs_key] )
             continue;
-        if( binding->node_index < 0 ||
-            (uint32_t)binding->node_index >= app->tree->component_count )
+        if( binding->node_index < 0 || (uint32_t)binding->node_index >= app->tree->component_count )
             continue;
 
         node = &app->tree->components[binding->node_index];
@@ -10576,8 +10745,7 @@ app_world_camera_mouse(
                     /* The key path eases through a velocity; a drag is already
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
-                    app->orbit_yaw =
-                        (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
+                    app->orbit_yaw = (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
                     app->orbit_pitch += dy * APP_WORLD_MMB_PITCH_PER_PX;
                     if( app->orbit_pitch < 128 )
                         app->orbit_pitch = 128;
@@ -10588,10 +10756,10 @@ app_world_camera_mouse(
                 }
                 else
                 {
-                    app->world_camera.yaw = ToriDraw_AddAngle(
-                        app->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
-                    app->world_camera.pitch = ToriDraw_AddAngle(
-                        app->world_camera.pitch, dy * APP_WORLD_MMB_PITCH_PER_PX);
+                    app->world_camera.yaw =
+                        ToriDraw_AddAngle(app->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
+                    app->world_camera.pitch =
+                        ToriDraw_AddAngle(app->world_camera.pitch, dy * APP_WORLD_MMB_PITCH_PER_PX);
                 }
                 app_debug_log_camera(app, "rotate", follow_cam);
                 app->need_redraw = 1;
@@ -10624,8 +10792,7 @@ app_world_camera_mouse(
         }
         else
         {
-            app_camera_move_forward(
-                app, input->curr.mouse_wheel_y * APP_WORLD_ZOOM_FREECAM_STEP);
+            app_camera_move_forward(app, input->curr.mouse_wheel_y * APP_WORLD_ZOOM_FREECAM_STEP);
         }
         app_debug_log_camera(app, "zoom", follow_cam);
         app->need_redraw = 1;
@@ -10807,8 +10974,7 @@ app_world_try_bind_seq(
         if( el )
             app_element_set_anim(el, anim);
         if( app->world )
-            app_world_catch_up_object_seq(
-                app, element_id, anim, app->world->cycle - start_cycle);
+            app_world_catch_up_object_seq(app, element_id, anim, app->world->cycle - start_cycle);
         if( getenv("TORIRS_ANIM_DEBUG") )
         {
             /* The rig, not just the binding. A seq binds to any element, but
@@ -10839,8 +11005,12 @@ app_world_try_bind_seq(
     }
     else if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
-            stderr, "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n", element_id,
-            seq_id, (void*)anim, anim ? anim->frame_count : -1);
+            stderr,
+            "seq_bind: element=%d seq=%d UNBINDABLE (anim=%p frames=%d)\n",
+            element_id,
+            seq_id,
+            (void*)anim,
+            anim ? anim->frame_count : -1);
     return 1;
 }
 
@@ -10863,8 +11033,8 @@ app_world_apply_seq(
 
     if( app_world_try_bind_seq(app, element_id, seq_id, start_cycle) )
         return;
-    if( app->seq_bind_pending_count < (int)(sizeof(app->seq_bind_pending) /
-                                            sizeof(app->seq_bind_pending[0])) )
+    if( app->seq_bind_pending_count <
+        (int)(sizeof(app->seq_bind_pending) / sizeof(app->seq_bind_pending[0])) )
     {
         app->seq_bind_pending[app->seq_bind_pending_count].element_id = element_id;
         app->seq_bind_pending[app->seq_bind_pending_count].seq_id = seq_id;
@@ -10885,7 +11055,9 @@ app_world_apply_seq(
  * class of bug as AppEntitySpotanim::owner_entity_id; see that note.
  */
 static void
-app_seq_bind_pending_drop(struct App* app, int element_id)
+app_seq_bind_pending_drop(
+    struct App* app,
+    int element_id)
 {
     int kept = 0;
     for( int i = 0; i < app->seq_bind_pending_count; i++ )
@@ -10907,8 +11079,7 @@ app_world_bind_pending_seqs(struct App* app)
         struct AppSeqBindPending* pend = &app->seq_bind_pending[i];
         if( !ToriDraw_SceneElementIsLive(app->scene, pend->element_id) )
             continue; /* element despawned while loading */
-        if( app_world_try_bind_seq(
-                app, pend->element_id, pend->seq_id, pend->start_cycle) )
+        if( app_world_try_bind_seq(app, pend->element_id, pend->seq_id, pend->start_cycle) )
         {
             app->need_redraw = 1;
             continue;
@@ -10951,7 +11122,6 @@ enum
     APP_LIGHT_ACTOR = 1,
 };
 
-
 /**
  * Which npcs were imported from a z-buffered client.
  *
@@ -10980,7 +11150,9 @@ enum
  * a pixel, and a priority would win.
  */
 static bool
-app_npc_wants_zbuffer(int npc_id, struct ToriRS_Npctype const* npctype)
+app_npc_wants_zbuffer(
+    int npc_id,
+    struct ToriRS_Npctype const* npctype)
 {
     char const* list = getenv("TORIRS_ZBUFFER_NPCS");
     if( !list )
@@ -11031,7 +11203,9 @@ app_model_zbuffer_kernels_enabled(void)
  * stamped under a different npc id.
  */
 static void
-app_model_apply_import_render_flags(struct ToriDraw_Model* model, bool imported)
+app_model_apply_import_render_flags(
+    struct ToriDraw_Model* model,
+    bool imported)
 {
     uint8_t const both =
         (uint8_t)(TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY);
@@ -11089,7 +11263,8 @@ app_world_build_model(
         for( int i = 0; i < recolors->recolor_count; i++ )
             ToriDraw_ModelRecolor(model, recolors->recolors_from[i], recolors->recolors_to[i]);
         for( int i = 0; i < recolors->retexture_count; i++ )
-            ToriDraw_ModelRetexture(model, recolors->retextures_from[i], recolors->retextures_to[i]);
+            ToriDraw_ModelRetexture(
+                model, recolors->retextures_from[i], recolors->retextures_to[i]);
         /* Swapped-in ids are new to the loader's registry — see
          * ToriDraw_ModelNoteTextureWants. */
         if( recolors->retexture_count > 0 )
@@ -11199,7 +11374,9 @@ app_world_build_npc_model(
  * transforms are baked here. SYNCHRONOUS — the model must already be resident.
  * Returns an owned model or NULL. */
 static struct ToriDraw_Model*
-app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype* spot)
+app_world_build_spotanim_model(
+    struct App* app,
+    const struct ToriRS_Spotanimtype* spot)
 {
     struct ToriDraw_Model* cached;
     struct ToriDraw_Model* model;
@@ -11210,8 +11387,7 @@ app_world_build_spotanim_model(struct App* app, const struct ToriRS_Spotanimtype
     /* Key by spotanim id — transforms are baked into the cached base, matching
      * Client-TS SpotType.modelCache keyed on spot id. */
     key = (int64_t)spot->id;
-    cached = TorirsModelInstCache_CopyGet(
-        &app->model_inst_cache, TORIRS_MODEL_INST_SPOT, key);
+    cached = TorirsModelInstCache_CopyGet(&app->model_inst_cache, TORIRS_MODEL_INST_SPOT, key);
     if( cached )
         return cached;
 
@@ -11783,7 +11959,9 @@ app_world_spawn_projectile_spot_now(
  *
  * `delay <= 0` counts as 1 because the advance treats it that way. */
 static int
-app_seq_total_duration(struct App* app, int seq_id)
+app_seq_total_duration(
+    struct App* app,
+    int seq_id)
 {
     int frames = app_seq_frame_count(app, seq_id);
     int total = 1;
@@ -11991,8 +12169,7 @@ app_loc_change_apply_ops(
     assert(self);
     if( self->loc_id < 0 )
         return; /* a pure delete has no placement to describe */
-    idx = World_SceneryFindAt(app->world, self->tile_x, self->tile_z, self->level,
-                              self->loc_shape);
+    idx = World_SceneryFindAt(app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
     if( idx < 0 )
         return; /* the spawn was refused (unknown loc, off-scene) — nothing to dress */
     sc = World_EntityPoolGet(&app->world->entities.scenery, idx);
@@ -12025,7 +12202,8 @@ Task_AppSpawn_Run(
     if( self->kind == APP_SPAWN_PLAYER )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        PT_TASK_AWAITSELF_IF(
+            CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_NPC )
@@ -12036,8 +12214,8 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(app, self->npc_id, &self->model_id));
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
-            int idx = app_world_spawn_npc_now(
-                app, effective, self->tile_x, self->tile_z, self->level);
+            int idx =
+                app_world_spawn_npc_now(app, effective, self->tile_x, self->tile_z, self->level);
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
             if( npc )
@@ -12079,8 +12257,7 @@ Task_AppSpawn_Run(
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_world_spawn_spotanim_now(
             app,
             self->spotanim_id,
@@ -12109,8 +12286,7 @@ Task_AppSpawn_Run(
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app->need_redraw = 1;
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
@@ -12129,8 +12305,7 @@ Task_AppSpawn_Run(
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_world_spawn_projectile_spot_now(
             app,
             self->spotanim_id,
@@ -12336,8 +12511,7 @@ Task_AppIfHead_Run(
          * Resolve it under this client's vars before asking for chathead
          * models. The resolver also makes every selected config
          * resident, so a cold child cannot be mistaken for a terminal shell. */
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_NpcMultiResolve(app, self->npc_id, &self->resolved_npc_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiResolve(app, self->npc_id, &self->resolved_npc_id));
         if( self->resolved_npc_id < 0 )
             PT_EXIT(&self->pt); /* positional -1: intentionally hidden */
         /* Load each head model (re-derived from persistent model_i; -1 slots
@@ -12352,8 +12526,7 @@ Task_AppIfHead_Run(
                 continue;
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
         }
-        scene_id =
-            UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->resolved_npc_id);
+        scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->resolved_npc_id);
     }
     else if( self->kind == APP_IFHEAD_OBJ )
     {
@@ -12363,8 +12536,7 @@ Task_AppIfHead_Run(
         {
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->npc_id);
             if( obj && obj->inventory_model_id > 0 )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
         }
         scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, self->npc_id);
     }
@@ -12389,18 +12561,21 @@ Task_AppIfHead_Run(
             struct WorldEntity_Player* lp = app_local_player(app);
             int slot = lp ? lp->appearance.slots[self->slot_i] : 0;
             if( Appearance_SlotKind(slot) == APPEARANCE_SLOT_OBJ )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
+                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
         }
         {
             struct WorldEntity_Player* lp = app_local_player(app);
             self->head_count = lp ? PlayerHeadModel_CollectHeadModelIds(
-                                        app->provider, lp->appearance.slots, lp->gender,
-                                        self->head_ids, APP_IFHEAD_MAX_HEADS)
+                                        app->provider,
+                                        lp->appearance.slots,
+                                        lp->gender,
+                                        self->head_ids,
+                                        APP_IFHEAD_MAX_HEADS)
                                   : 0;
         }
         for( self->model_i = 0; self->model_i < self->head_count; self->model_i++ )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
         {
             struct WorldEntity_Player* lp = app_local_player(app);
             if( lp )
@@ -12622,8 +12797,7 @@ Task_AppIfPlayerModel_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
 
     {
-        struct AppIfPlayerModel* model =
-            app_if_player_model_get(app, self->component_id);
+        struct AppIfPlayerModel* model = app_if_player_model_get(app, self->component_id);
         struct WorldEntity_Player* lp = app_local_player(app);
         if( !model || !lp )
             PT_EXIT(&self->pt);
@@ -12673,8 +12847,7 @@ Task_AppIfPlayerModel_Run(
         }
         else
         {
-            struct ToriRS_Objtype* obj =
-                CacheProvider_ObjtypeGet(app->provider, self->arg0);
+            struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->arg0);
             if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
             {
                 model->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
@@ -12701,31 +12874,22 @@ Task_AppIfPlayerModel_Run(
     for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
     {
         if( Appearance_SlotKind(self->slots[self->cfg_i]) == APPEARANCE_SLOT_OBJ )
-            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(
-                app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_ObjLoad(app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
     }
     self->model_count = PlayerModel_CollectAppearanceModelIds(
-        app->provider,
-        self->slots,
-        self->gender,
-        self->model_ids,
-        APP_IFPLAYER_MAX_MODELS);
+        app->provider, self->slots, self->gender, self->model_ids, APP_IFPLAYER_MAX_MODELS);
     for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
         PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
 
     {
-        struct AppIfPlayerModel* model =
-            app_if_player_model_find(app, self->component_id);
+        struct AppIfPlayerModel* model = app_if_player_model_find(app, self->component_id);
         /* A stale build must never overwrite a newer composition. This is
          * mostly defensive—the packet queue is serial—but also makes direct
          * harness calls deterministic. */
         if( model && model->version == self->version &&
             UITreeSceneBridge_BuildInterfacePlayerModel(
-                &app->bridge,
-                model->scene_id,
-                self->slots,
-                self->colors,
-                self->gender) >= 0 )
+                &app->bridge, model->scene_id, self->slots, self->colors, self->gender) >= 0 )
         {
             model->built_version = self->version;
             model->applied_gen = 0;
@@ -12798,8 +12962,7 @@ App_SetInterfacePlayerModelSelf(
     int copy_objs)
 {
     assert(app);
-    app_if_player_model_enqueue(
-        app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
+    app_if_player_model_enqueue(app, APP_IFPLAYER_SELF, component_id, copy_objs != 0, 0);
 }
 
 void
@@ -12810,8 +12973,7 @@ App_SetInterfacePlayerModelBaseColour(
     int colour)
 {
     assert(app);
-    app_if_player_model_enqueue(
-        app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
+    app_if_player_model_enqueue(app, APP_IFPLAYER_BASECOLOUR, component_id, index, colour);
 }
 
 void
@@ -12821,8 +12983,7 @@ App_SetInterfacePlayerModelBodyType(
     int body_type)
 {
     assert(app);
-    app_if_player_model_enqueue(
-        app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
+    app_if_player_model_enqueue(app, APP_IFPLAYER_BODYTYPE, component_id, body_type, 0);
 }
 
 void
@@ -12900,9 +13061,10 @@ app_if_head_poll(struct App* app)
         if( head->kind == APP_IFHEAD_PLAYER )
         {
             struct WorldEntity_Player* lp = app_local_player(app);
-            scene_id = lp ? UITreeSceneBridge_EnsurePlayerHead(
-                                &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender)
-                          : -1;
+            scene_id =
+                lp ? UITreeSceneBridge_EnsurePlayerHead(
+                         &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender)
+                   : -1;
         }
         else if( head->kind == APP_IFHEAD_OBJ )
         {
@@ -12920,8 +13082,7 @@ app_if_head_poll(struct App* app)
             int resolved_npc_id = App_NpctypeResolveMultiId(app, head->npc_id);
             scene_id = resolved_npc_id < 0
                            ? -1
-                           : UITreeSceneBridge_EnsureNpcHead(
-                                 &app->bridge, resolved_npc_id);
+                           : UITreeSceneBridge_EnsureNpcHead(&app->bridge, resolved_npc_id);
         }
         if( scene_id < 0 )
             continue; /* assets not composited yet — retry next frame */
@@ -12943,8 +13104,7 @@ app_if_head_poll(struct App* app)
              * = zoom2d * 100 / wire zoom (Client.ts:6342). */
             if( head->kind == APP_IFHEAD_OBJ )
             {
-                struct ToriRS_Objtype* obj =
-                    CacheProvider_ObjtypeGet(app->provider, head->npc_id);
+                struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, head->npc_id);
                 if( obj && head->zoom > 0 )
                     UITree_ApplyModelAngle(
                         app->tree,
@@ -13052,15 +13212,12 @@ app_player_model_poll(struct App* app)
     if( !lp )
         return; /* offline / not spawned yet — the baked default avatar stands */
 
-    changed = !app->player_model.built || app->player_model.gender != lp->gender ||
-              memcmp(
-                  app->player_model.slots,
-                  lp->appearance.slots,
-                  sizeof(app->player_model.slots)) != 0 ||
-              memcmp(
-                  app->player_model.colors,
-                  lp->appearance.colors,
-                  sizeof(app->player_model.colors)) != 0;
+    changed =
+        !app->player_model.built || app->player_model.gender != lp->gender ||
+        memcmp(app->player_model.slots, lp->appearance.slots, sizeof(app->player_model.slots)) !=
+            0 ||
+        memcmp(app->player_model.colors, lp->appearance.colors, sizeof(app->player_model.colors)) !=
+            0;
 
     if( changed )
     {
@@ -13083,8 +13240,7 @@ app_player_model_poll(struct App* app)
     /* The entity's movement track — the one the walk/run/idle seqs live on, and
      * the one the viewport model is playing. Its readyanim is the fallback for
      * the window between spawn and the first cycle that stamps the track. */
-    if( lp->animation.secondary.anim_id != (uint16_t)-1 &&
-        lp->animation.secondary.anim_id != 0 )
+    if( lp->animation.secondary.anim_id != (uint16_t)-1 && lp->animation.secondary.anim_id != 0 )
     {
         seq_id = lp->animation.secondary.anim_id;
         seq_frame = lp->animation.secondary.frame;
@@ -13110,10 +13266,9 @@ app_player_model_poll(struct App* app)
             continue;
         if( node->behavior.client_code != UITREE_CLIENT_CODE_LOCAL_PLAYER_MODEL )
             continue;
-        if( node->u.rs_model.gamecache_model_id != scene_id ||
-            node->u.rs_model.xan != 150 || node->u.rs_model.yan != yan ||
-            node->u.rs_model.zan != 0 || node->u.rs_model.anim_frame != seq_frame ||
-            node->u.rs_model.anim_seq_id != seq_id )
+        if( node->u.rs_model.gamecache_model_id != scene_id || node->u.rs_model.xan != 150 ||
+            node->u.rs_model.yan != yan || node->u.rs_model.zan != 0 ||
+            node->u.rs_model.anim_frame != seq_frame || node->u.rs_model.anim_seq_id != seq_id )
         {
             UITree_MarkNodeDirty(app->tree, i);
             app->need_redraw = 1;
@@ -13210,7 +13365,11 @@ app_world_spawn_player(
 /* Read one non-negative integer from an action's comma-separated `a=` payload
  * (`id=…`, `height=…`, and so on). Malformed/absent values keep the default. */
 static int
-app_spawn_arg(int builtin, char const* args, char const* arg_name, char const* env_name)
+app_spawn_arg(
+    int builtin,
+    char const* args,
+    char const* arg_name,
+    char const* env_name)
 {
     char const* env;
     int value = builtin;
@@ -13222,13 +13381,11 @@ app_spawn_arg(int builtin, char const* args, char const* arg_name, char const* e
     {
         char const* end = strchr(args, ',');
         size_t len = end ? (size_t)(end - args) : strlen(args);
-        if( len > name_len + 1 && strncmp(args, arg_name, name_len) == 0 &&
-            args[name_len] == '=' )
+        if( len > name_len + 1 && strncmp(args, arg_name, name_len) == 0 && args[name_len] == '=' )
         {
             char* parsed_end = NULL;
             long parsed = strtol(args + name_len + 1, &parsed_end, 0);
-            if( parsed_end != args + name_len + 1 && parsed >= 0 &&
-                parsed_end == args + len )
+            if( parsed_end != args + name_len + 1 && parsed >= 0 && parsed_end == args + len )
                 value = (int)parsed;
         }
         args = end ? end + 1 : NULL;
@@ -13417,8 +13574,7 @@ App_WorldLocMerge(
     idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, shape);
     if( idx >= 0 )
     {
-        struct WorldEntity_Scenery* old =
-            World_EntityPoolGet(&app->world->entities.scenery, idx);
+        struct WorldEntity_Scenery* old = World_EntityPoolGet(&app->world->entities.scenery, idx);
         if( old )
         {
             old_type = old->loc_id;
@@ -13564,9 +13720,8 @@ app_world_damage_test(struct App* app)
     /* Rev 239 does not use the legacy type-0/type-1 convention: its canonical
      * red damage splat is type 28 (sprite 1359). Keep type 0 only as the
      * supported fallback for older cache families with no rev-239 record. */
-    int hitsplat_type = app->hitsplats.count > RS_HITSPLAT_OSRS239_DAMAGE
-                            ? RS_HITSPLAT_OSRS239_DAMAGE
-                            : 0;
+    int hitsplat_type =
+        app->hitsplats.count > RS_HITSPLAT_OSRS239_DAMAGE ? RS_HITSPLAT_OSRS239_DAMAGE : 0;
 
     if( !app->world )
         return;
@@ -13597,7 +13752,9 @@ app_world_damage_test(struct App* app)
  * entity-spotanim companion-element path headlessly. TORIRS_SPAWN_SPOTANIM /
  * _HEIGHT / _DELAY reuse the free-standing overrides. */
 static void
-app_world_entity_spotanim_test(struct App* app, char const* args)
+app_world_entity_spotanim_test(
+    struct App* app,
+    char const* args)
 {
     struct World_EntityPool* pool;
     int spotanim_id = app_spawn_arg(74, args, "id", "TORIRS_SPAWN_SPOTANIM");
@@ -13630,8 +13787,7 @@ app_debug_world_key(
         int vk = -1;
         int osrs_key;
 
-        if( app->cfg.debug_hotkeys[i].target != target ||
-            !LibToriRS_Input_IsKeyDown(input, key) )
+        if( app->cfg.debug_hotkeys[i].target != target || !LibToriRS_Input_IsKeyDown(input, key) )
             continue;
         if( key >= TORIRSK_A && key <= TORIRSK_Z )
             vk = 65 + (key - TORIRSK_A);
@@ -13640,25 +13796,53 @@ app_debug_world_key(
         else
             switch( key )
             {
-            case TORIRSK_ESCAPE: vk = TORIRS_VK_ESCAPE; break;
-            case TORIRSK_RETURN: vk = TORIRS_VK_ENTER; break;
-            case TORIRSK_BACKSPACE: vk = TORIRS_VK_BACKSPACE; break;
-            case TORIRSK_DELETE: vk = TORIRS_VK_DELETE; break;
-            case TORIRSK_SHIFT: vk = TORIRS_VK_SHIFT; break;
-            case TORIRSK_CTRL: vk = TORIRS_VK_CTRL; break;
-            case TORIRSK_TAB: vk = TORIRS_VK_TAB; break;
-            case TORIRSK_SPACE: vk = TORIRS_VK_SPACE; break;
-            case TORIRSK_LEFT: vk = 37; break;
-            case TORIRSK_UP: vk = 38; break;
-            case TORIRSK_RIGHT: vk = 39; break;
-            case TORIRSK_DOWN: vk = 40; break;
-            case TORIRSK_PAGE_UP: vk = 33; break;
-            case TORIRSK_PAGE_DOWN: vk = 34; break;
-            default: break;
+            case TORIRSK_ESCAPE:
+                vk = TORIRS_VK_ESCAPE;
+                break;
+            case TORIRSK_RETURN:
+                vk = TORIRS_VK_ENTER;
+                break;
+            case TORIRSK_BACKSPACE:
+                vk = TORIRS_VK_BACKSPACE;
+                break;
+            case TORIRSK_DELETE:
+                vk = TORIRS_VK_DELETE;
+                break;
+            case TORIRSK_SHIFT:
+                vk = TORIRS_VK_SHIFT;
+                break;
+            case TORIRSK_CTRL:
+                vk = TORIRS_VK_CTRL;
+                break;
+            case TORIRSK_TAB:
+                vk = TORIRS_VK_TAB;
+                break;
+            case TORIRSK_SPACE:
+                vk = TORIRS_VK_SPACE;
+                break;
+            case TORIRSK_LEFT:
+                vk = 37;
+                break;
+            case TORIRSK_UP:
+                vk = 38;
+                break;
+            case TORIRSK_RIGHT:
+                vk = 39;
+                break;
+            case TORIRSK_DOWN:
+                vk = 40;
+                break;
+            case TORIRSK_PAGE_UP:
+                vk = 33;
+                break;
+            case TORIRSK_PAGE_DOWN:
+                vk = 34;
+                break;
+            default:
+                break;
             }
         osrs_key = LibToriRS_OsrsKeyFromVk(vk);
-        if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT ||
-            !app->hotkey_consumed[osrs_key] )
+        if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT || !app->hotkey_consumed[osrs_key] )
             return &app->cfg.debug_hotkeys[i];
     }
     return NULL;
@@ -13690,24 +13874,36 @@ app_world_hotkeys(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_NPC)) )
         app_world_spawn_npc(
-            app, app->world_hover_tile_x, app->world_hover_tile_z,
-            app->world_hover_tile_level, binding->args);
+            app,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z,
+            app->world_hover_tile_level,
+            binding->args);
     if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_DAMAGE_TEST) )
         app_world_damage_test(app);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_ENTITY_SPOTANIM)) )
         app_world_entity_spotanim_test(app, binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_SPOTANIM)) )
         app_world_spawn_spotanim(
-            app, app->world_hover_tile_x, app->world_hover_tile_z,
-            app->world_hover_tile_level, binding->args);
+            app,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z,
+            app->world_hover_tile_level,
+            binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_OBJ)) )
         app_world_spawn_obj(
-            app, app->world_hover_tile_x, app->world_hover_tile_z,
-            app->world_hover_tile_level, binding->args);
+            app,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z,
+            app->world_hover_tile_level,
+            binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PROJECTILE)) )
         app_world_spawn_projectile(
-            app, app->world_hover_tile_x, app->world_hover_tile_z,
-            app->world_hover_tile_level, binding->args);
+            app,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z,
+            app->world_hover_tile_level,
+            binding->args);
 }
 
 /* Per-frame world step: sim cycles, event drain (entity removals -> scene),
@@ -14001,8 +14197,7 @@ app_world_camera_follow(struct App* app)
             {
                 cam_pitch = -1;
                 cam_zoom = -1;
-                have = sscanf(spec, "%d,%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom,
-                              &cam_spin) >= 1;
+                have = sscanf(spec, "%d,%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom, &cam_spin) >= 1;
             }
         }
         /* A fourth field spins the camera by that many yaw units per frame.
@@ -14222,8 +14417,7 @@ App_WorldDrainEntityRemoved(struct App* app)
             if( app->scene )
                 ToriDraw_SceneElementRemove(app->scene, ev->element_id);
         }
-        else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 &&
-                 app->scene )
+        else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 && app->scene )
         {
             /* The delayed map spotanim parked in app_world_spawn_spotanim_now
              * is drawing for the first time this cycle: rewind to frame 0 and
@@ -14236,8 +14430,7 @@ App_WorldDrainEntityRemoved(struct App* app)
              * wrong origin and can land it mid-sequence or past the end. Frame
              * 0 here is what makes the start independent of when the seq
              * happened to load. */
-            struct ToriDraw_SceneElement* el =
-                ToriDraw_SceneElementGet(app->scene, ev->element_id);
+            struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, ev->element_id);
             if( el && el->anim_external )
             {
                 el->anim_frame = 0;
@@ -14341,7 +14534,9 @@ app_world_frame(
                         stderr,
                         "element_alias: element=%d claimed by TWO live entities "
                         "(kinds %d and %d) -- position/model/anim will fight\n",
-                        el, seen_kind[el], k);
+                        el,
+                        seen_kind[el],
+                        k);
                 seen_element[el] = stamp;
                 seen_kind[el] = k;
             }
@@ -14447,8 +14642,7 @@ app_hover_text_update(
     }
     else
     {
-        click_in_world =
-            app_world_mouse_gate(app, mouse_x, mouse_y) && app_world_drawable(app);
+        click_in_world = app_world_mouse_gate(app, mouse_x, mouse_y) && app_world_drawable(app);
         {
             struct RS_MinimenuBuildCtx mctx = {
                 .tree = app->tree,
@@ -14457,8 +14651,8 @@ app_hover_text_update(
                 .runner = &app->runner,
                 .invs = &app->invs,
                 .chat = &app->chat_source,
-        .events_for_component = app_minimenu_events_for_component,
-        .events_user = app,
+                .events_for_component = app_minimenu_events_for_component,
+                .events_user = app,
                 .selection = app_minimenu_selection(app),
                 .player_ops = (char const(*)[40])app->player_ops,
                 .player_ops_primary = app->player_ops_primary,
@@ -14583,8 +14777,7 @@ app_minimenu_open(
          * comparison against THIS number does. */
         {
             struct WorldEntity_Player* lp =
-                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid)
-                           : NULL;
+                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid) : NULL;
             fprintf(
                 stderr,
                 "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
@@ -14726,13 +14919,11 @@ app_targetsel_dispatch_hook(
         return;
     hook = entering ? UITree_Hooks(&app->tree->components[idx])->on_target_enter
                     : UITree_Hooks(&app->tree->components[idx])->on_target_leave;
-    RS_CS2_DispatchHook(
-        &app->host, &app->runner, app->targetsel.component_id, &hook);
+    RS_CS2_DispatchHook(&app->host, &app->runner, app->targetsel.component_id, &hook);
 }
 
 static void
-app_targetsel_clear(
-    struct App* app)
+app_targetsel_clear(struct App* app)
 {
     assert(app);
     if( !app->targetsel.active )
@@ -14752,8 +14943,7 @@ app_targetsel_clear(
  * armed mode added later cannot be forgotten at one of them. Returns nonzero
  * when something was actually armed. */
 static int
-app_selection_clear(
-    struct App* app)
+app_selection_clear(struct App* app)
 {
     int was_armed;
 
@@ -14765,8 +14955,7 @@ app_selection_clear(
      * "Use was never armed" produce the same screen, and the outline is script
      * -painted, so the state itself has to say so. */
     if( getenv("TORIRS_CLICK_DEBUG") )
-        fprintf(stderr, "selclear: obj=%d tgt=%d\n", app->objsel.active,
-                app->targetsel.active);
+        fprintf(stderr, "selclear: obj=%d tgt=%d\n", app->objsel.active, app->targetsel.active);
     app->objsel.active = 0;
     app_targetsel_clear(app);
     app->need_redraw = 1;
@@ -14814,8 +15003,15 @@ app_minimenu_inv_action(
         APP_NET_SEND(
             app,
             net_out_opheldu(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                obj_id,
+                slot,
+                com_id,
+                app->objsel.obj_id,
+                app->objsel.slot,
                 app->objsel.component_id));
         app_selection_clear(app);
         return 1;
@@ -14826,8 +15022,14 @@ app_minimenu_inv_action(
         APP_NET_SEND(
             app,
             net_out_opheldt(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                obj_id, slot, com_id, app->targetsel.component_id));
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                obj_id,
+                slot,
+                com_id,
+                app->targetsel.component_id));
         app_selection_clear(app);
         return 1;
     }
@@ -14842,8 +15044,14 @@ app_minimenu_inv_action(
         APP_NET_SEND(
             app,
             net_out_opheld(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                opt->action_index + 1, obj_id, slot, com_id));
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                opt->action_index + 1,
+                obj_id,
+                slot,
+                com_id));
         /* selectedArea / cc_settrans_temporarily — not for Use (below). */
         app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
@@ -14855,8 +15063,14 @@ app_minimenu_inv_action(
         APP_NET_SEND(
             app,
             net_out_inv_button(
-                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                opt->action_index + 1, obj_id, slot, com_id));
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                opt->action_index + 1,
+                obj_id,
+                slot,
+                com_id));
         app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_IF_BUTTON:
@@ -14877,8 +15091,14 @@ app_minimenu_inv_action(
                 APP_NET_SEND(
                     app,
                     net_out_if_button_obj_op(
-                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                        op_num, com_id, slot, obj_id));
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        op_num,
+                        com_id,
+                        slot,
+                        obj_id));
             }
         }
         app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
@@ -14896,12 +15116,14 @@ app_minimenu_inv_action(
         /* Precision caps the copy at sizeof(objsel.name)-1 so this is
          * provably in-bounds regardless of obj->name's declared size, rather
          * than relying on snprintf's implicit (GCC-unprovable) truncation. */
-        snprintf(app->objsel.name, sizeof(app->objsel.name), "%.*s",
-                 (int)sizeof(app->objsel.name) - 1,
-                 obj && obj->name[0] ? obj->name : "item");
+        snprintf(
+            app->objsel.name,
+            sizeof(app->objsel.name),
+            "%.*s",
+            (int)sizeof(app->objsel.name) - 1,
+            obj && obj->name[0] ? obj->name : "item");
         if( getenv("TORIRS_CLICK_DEBUG") )
-            fprintf(stderr, "selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot,
-                    com_id);
+            fprintf(stderr, "selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot, com_id);
         app->need_redraw = 1;
         return 1;
     }
@@ -14958,8 +15180,7 @@ app_obj_cell_at(
     }
     /* IF_SETEVENTS is the rev-230 authority for drag / drop / Use-target bits
      * (deob method5697). Without this, CS2 cells kept a hardcoded can_drag=1. */
-    UITree_ObjCellApplyEvents(
-        out, App_IfEventsGetAt(app, out->component_id, out->slot));
+    UITree_ObjCellApplyEvents(out, App_IfEventsGetAt(app, out->component_id, out->slot));
     return true;
 }
 
@@ -14982,7 +15203,10 @@ app_minimenu_use_option(
  * pickset): used by the inventory slot machine below, where the click is by
  * construction over a component. */
 static void
-app_run_default_ui_row(struct App* app, int click_x, int click_y)
+app_run_default_ui_row(
+    struct App* app,
+    int click_x,
+    int click_y)
 {
     struct RS_MinimenuBuildCtx mctx = {
         .tree = app->tree,
@@ -15023,12 +15247,22 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
      */
     if( getenv("TORIRS_CLICK_DEBUG") )
     {
-        fprintf(stderr, "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
-                click_x, click_y, scratch.option_count, default_idx,
-                (int)mctx.selection.mode, (unsigned)mctx.selection.target_mask);
+        fprintf(
+            stderr,
+            "invclick: at %d,%d rows=%d default=%d selmode=%d mask=0x%x\n",
+            click_x,
+            click_y,
+            scratch.option_count,
+            default_idx,
+            (int)mctx.selection.mode,
+            (unsigned)mctx.selection.target_mask);
         for( int i = 0; i < scratch.option_count; i++ )
-            fprintf(stderr, "  row[%d] '%s' action=%d\n", i, scratch.options[i].text,
-                    scratch.options[i].action);
+            fprintf(
+                stderr,
+                "  row[%d] '%s' action=%d\n",
+                i,
+                scratch.options[i].text,
+                scratch.options[i].action);
     }
     if( default_idx >= 0 )
     {
@@ -15244,8 +15478,7 @@ app_inv_drag_drop(
         parent_idx = UITree_FindByComponentId(app->tree, app->inv_drag_com_id);
         if( parent_idx >= 0 )
         {
-            UITree_LayoutGetBounds(
-                &app->tree->components[parent_idx].position, &bx, &by, &bw, &bh);
+            UITree_LayoutGetBounds(&app->tree->components[parent_idx].position, &bx, &by, &bw, &bh);
             UITree_AccumScrollOffset(app->tree, parent_idx, &offx, &offy);
         }
 
@@ -15263,8 +15496,7 @@ app_inv_drag_drop(
             if( dst_node >= 0 )
                 target_id = app->tree->components[dst_node].component_id;
             RS_CS2_SetEventOp(&app->host, 1, 0);
-            RS_CS2_SetEventMouse(
-                &app->host, mouse_x - (bx - offx), mouse_y - (by - offy));
+            RS_CS2_SetEventMouse(&app->host, mouse_x - (bx - offx), mouse_y - (by - offy));
             RS_CS2_SetEventDragTarget(&app->host, app->tree, target_id);
             RS_CS2_DispatchHook(&app->host, &drag_runner, hook_com, &hook_copy);
             TaskRunner_Drain(&drag_runner);
@@ -15297,8 +15529,7 @@ static int
 app_inv_drag_promoted(struct App const* app)
 {
     int dead_time = app->inv_drag_dead_time > 0 ? app->inv_drag_dead_time : 5;
-    return app->inv_drag_can_drag && app->inv_drag_threshold &&
-           app->inv_drag_cycles >= dead_time;
+    return app->inv_drag_can_drag && app->inv_drag_threshold && app->inv_drag_cycles >= dead_time;
 }
 
 /*
@@ -15356,8 +15587,7 @@ app_inv_drag_tick(
 
     /* Never arm while the right-click popup is open: its option rows overlap
      * the grid and the reference routes those clicks through the menu first. */
-    if( app->inv_drag_com_id < 0 && !pointer_consumed &&
-        !app->interact.minimenu.visible &&
+    if( app->inv_drag_com_id < 0 && !pointer_consumed && !app->interact.minimenu.visible &&
         LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
@@ -15425,7 +15655,7 @@ app_inv_drag_tick(
             dy = 0;
         }
         if( dx != app->inv_drag_dx || dy != app->inv_drag_dy ||
-            ( !was_promoted && app_inv_drag_promoted(app) ) )
+            (!was_promoted && app_inv_drag_promoted(app)) )
         {
             app->inv_drag_dx = dx;
             app->inv_drag_dy = dy;
@@ -15533,8 +15763,7 @@ app_minimenu_run_option(
                 World_ObjStackGetByElementId(app->world, opt.pick.id);
             if( stack )
             {
-                struct ToriRS_Objtype* obj =
-                    CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
+                struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
                 if( obj && obj->desc[0] )
                     desc = obj->desc;
                 if( stack->name[0] )
@@ -15609,13 +15838,25 @@ app_minimenu_run_option(
                     if( prefix_len > 20 )
                         prefix_len = 20;
                     snprintf(
-                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s%.*s",
-                        prefix_len, verb, 20, base, 20, space);
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s %.*s%.*s",
+                        prefix_len,
+                        verb,
+                        20,
+                        base,
+                        20,
+                        space);
                 }
                 else
                     snprintf(
-                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s",
-                        31, verb, 31, base);
+                        app->targetsel.op,
+                        sizeof(app->targetsel.op),
+                        "%.*s %.*s",
+                        31,
+                        verb,
+                        31,
+                        base);
             }
             else
             {
@@ -15627,15 +15868,22 @@ app_minimenu_run_option(
                  * one string here because that is the shape the world/inventory
                  * row builders append the target's name to. */
                 snprintf(
-                    app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s ->",
-                    29, UITree_MenuOptions(node)->target_verb,
-                    29, UITree_MenuOptions(node)->option);
+                    app->targetsel.op,
+                    sizeof(app->targetsel.op),
+                    "%.*s %.*s ->",
+                    29,
+                    UITree_MenuOptions(node)->target_verb,
+                    29,
+                    UITree_MenuOptions(node)->option);
             }
         }
         if( getenv("TORIRS_CLICK_DEBUG") )
-            fprintf(stderr, "selarm: tgt com=0x%x mask=0x%x op='%s'\n",
-                    app->targetsel.component_id, (unsigned)app->targetsel.mask,
-                    app->targetsel.op);
+            fprintf(
+                stderr,
+                "selarm: tgt com=0x%x mask=0x%x op='%s'\n",
+                app->targetsel.component_id,
+                (unsigned)app->targetsel.mask,
+                app->targetsel.op);
         app_targetsel_dispatch_hook(app, 1);
         app->need_redraw = 1;
         return 1;
@@ -15651,8 +15899,7 @@ app_minimenu_run_option(
          opt.action == REVCONFIG_MINIMENU_USEHELD_ONOBJ ||
          opt.action == REVCONFIG_MINIMENU_USEHELD_ONPLAYER ||
          opt.action == REVCONFIG_MINIMENU_TGT_LOC || opt.action == REVCONFIG_MINIMENU_TGT_NPC ||
-         opt.action == REVCONFIG_MINIMENU_TGT_OBJ ||
-         opt.action == REVCONFIG_MINIMENU_TGT_PLAYER) )
+         opt.action == REVCONFIG_MINIMENU_TGT_OBJ || opt.action == REVCONFIG_MINIMENU_TGT_PLAYER) )
     {
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
@@ -15662,97 +15909,149 @@ app_minimenu_run_option(
             /* Reference interactWithLoc returns before sending anything when
              * the placed loc cannot be resolved (typecode2 == -1). */
             if( !app_try_move_loc(
-                    app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id,
+                    app,
+                    opt.pick.id,
+                    opt.pick.tertiary_id,
+                    opt.pick.quaternary_id,
                     app->ctrl_held) )
                 break;
             APP_NET_SEND(
-                app, net_out_oplocu(
-                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
-                         opt.pick.secondary_id, app->objsel.obj_id, app->objsel.slot,
-                         app->objsel.component_id));
+                app,
+                net_out_oplocu(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    opt.pick.secondary_id,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
+                    app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_LOC:
             if( !app_try_move_loc(
-                    app, opt.pick.id, opt.pick.tertiary_id, opt.pick.quaternary_id,
+                    app,
+                    opt.pick.id,
+                    opt.pick.tertiary_id,
+                    opt.pick.quaternary_id,
                     app->ctrl_held) )
                 break;
             APP_NET_SEND(
-                app, net_out_oploct(
-                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
-                         opt.pick.secondary_id, app->targetsel.component_id));
+                app,
+                net_out_oploct(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    opt.pick.secondary_id,
+                    app->targetsel.component_id));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONOBJ:
             app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
             APP_NET_SEND(
-                app, net_out_opobju(
-                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
-                         opt.pick.secondary_id, app->objsel.obj_id, app->objsel.slot,
-                         app->objsel.component_id));
+                app,
+                net_out_opobju(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    opt.pick.secondary_id,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
+                    app->objsel.component_id));
             break;
         case REVCONFIG_MINIMENU_TGT_OBJ:
             app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
             APP_NET_SEND(
-                app, net_out_opobjt(
-                         app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), abs_x, abs_z,
-                         opt.pick.secondary_id, app->targetsel.component_id));
+                app,
+                net_out_opobjt(
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    opt.pick.secondary_id,
+                    app->targetsel.component_id));
             break;
         case REVCONFIG_MINIMENU_USEHELD_ONNPC:
         {
-            struct WorldEntity_NPC* npc =
-                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
                 app_try_move_npc(app, npc, app->ctrl_held);
                 APP_NET_SEND(
-                    app, net_out_opnpcu(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                             npc->server_slot, app->objsel.obj_id, app->objsel.slot,
-                             app->objsel.component_id));
+                    app,
+                    net_out_opnpcu(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        npc->server_slot,
+                        app->objsel.obj_id,
+                        app->objsel.slot,
+                        app->objsel.component_id));
             }
             break;
         }
         case REVCONFIG_MINIMENU_TGT_NPC:
         {
-            struct WorldEntity_NPC* npc =
-                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt.pick.id, NULL);
             if( npc && npc->server_slot >= 0 )
             {
                 app_try_move_npc(app, npc, app->ctrl_held);
                 APP_NET_SEND(
-                    app, net_out_opnpct(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                             npc->server_slot, app->targetsel.component_id));
+                    app,
+                    net_out_opnpct(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        npc->server_slot,
+                        app->targetsel.component_id));
             }
             break;
         }
         case REVCONFIG_MINIMENU_USEHELD_ONPLAYER:
         {
-            struct WorldEntity_Player* player =
-                World_PlayerGetByElementId(app->world, opt.pick.id);
-            if( player && player->server_pid >= 0 &&
-                player->server_pid != app->world->local_pid )
+            struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
+            if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
                 app_try_move_player(app, player, app->ctrl_held);
                 APP_NET_SEND(
-                    app, net_out_opplayeru(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                             player->server_pid, app->objsel.obj_id, app->objsel.slot,
-                             app->objsel.component_id));
+                    app,
+                    net_out_opplayeru(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        player->server_pid,
+                        app->objsel.obj_id,
+                        app->objsel.slot,
+                        app->objsel.component_id));
             }
             break;
         }
         case REVCONFIG_MINIMENU_TGT_PLAYER:
         {
-            struct WorldEntity_Player* player =
-                World_PlayerGetByElementId(app->world, opt.pick.id);
-            if( player && player->server_pid >= 0 &&
-                player->server_pid != app->world->local_pid )
+            struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
+            if( player && player->server_pid >= 0 && player->server_pid != app->world->local_pid )
             {
                 app_try_move_player(app, player, app->ctrl_held);
                 APP_NET_SEND(
-                    app, net_out_opplayert(
-                             app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                             player->server_pid, app->targetsel.component_id));
+                    app,
+                    net_out_opplayert(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        player->server_pid,
+                        app->targetsel.component_id));
             }
             break;
         }
@@ -15826,13 +16125,23 @@ app_minimenu_run_option(
 
                     app_if_button_target(app, opt.pick.id, &target, &sub);
                     if( getenv("TORIRS_CLICK_DEBUG") )
-                        fprintf(stderr, "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
-                                op_num, target, sub, app->net ? (int)app->net->state : -1);
+                        fprintf(
+                            stderr,
+                            "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
+                            op_num,
+                            target,
+                            sub,
+                            app->net ? (int)app->net->state : -1);
                     APP_NET_SEND(
                         app,
                         net_out_if_button_op(
-                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_num,
-                            target, sub));
+                            app->net->rev,
+                            app->net->random_out,
+                            _nsbuf,
+                            sizeof(_nsbuf),
+                            op_num,
+                            target,
+                            sub));
                     if_button_sent = 1;
                 }
                 else if(
@@ -15861,8 +16170,13 @@ app_minimenu_run_option(
                         APP_NET_SEND(
                             app,
                             net_out_if_button_op(
-                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1,
-                                target, sub));
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                1,
+                                target,
+                                sub));
                         if_button_sent = 1;
                     }
                 }
@@ -15931,8 +16245,13 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opnpcu(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    npc->server_slot, app->objsel.obj_id, app->objsel.slot,
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    npc->server_slot,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
                     app->objsel.component_id));
             app_selection_clear(app);
         }
@@ -15941,18 +16260,20 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opnpc(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    opt.action_index + 1, npc->server_slot));
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt.action_index + 1,
+                    npc->server_slot));
         }
         return 0;
     }
     case UI_MINIMENU_PICK_PLAYER:
     {
-        struct WorldEntity_Player* player =
-            World_PlayerGetByElementId(app->world, opt.pick.id);
+        struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt.pick.id);
         /* Menu never emits local-player rows; refuse if one slips through. */
-        if( !player || player->server_pid < 0 ||
-            player->server_pid == app->world->local_pid )
+        if( !player || player->server_pid < 0 || player->server_pid == app->world->local_pid )
             return 0;
         app_try_move_player(app, player, app->ctrl_held);
         if( app->objsel.active )
@@ -15960,8 +16281,13 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opplayeru(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    player->server_pid, app->objsel.obj_id, app->objsel.slot,
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    player->server_pid,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
                     app->objsel.component_id));
             app_selection_clear(app);
         }
@@ -15970,8 +16296,12 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opplayer(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    opt.action_index + 1, player->server_pid));
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt.action_index + 1,
+                    player->server_pid));
         }
         return 0;
     }
@@ -15991,8 +16321,15 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_oplocu(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    abs_x, abs_z, loc_id, app->objsel.obj_id, app->objsel.slot,
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    loc_id,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
                     app->objsel.component_id));
             app_selection_clear(app);
         }
@@ -16001,8 +16338,14 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_oploc(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    opt.action_index + 1, abs_x, abs_z, loc_id));
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt.action_index + 1,
+                    abs_x,
+                    abs_z,
+                    loc_id));
         }
         return 0;
     }
@@ -16022,8 +16365,15 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opobju(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    abs_x, abs_z, obj_id, app->objsel.obj_id, app->objsel.slot,
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    abs_x,
+                    abs_z,
+                    obj_id,
+                    app->objsel.obj_id,
+                    app->objsel.slot,
                     app->objsel.component_id));
             app_selection_clear(app);
         }
@@ -16032,8 +16382,14 @@ app_minimenu_run_option(
             APP_NET_SEND(
                 app,
                 net_out_opobj(
-                    app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
-                    opt.action_index + 1, abs_x, abs_z, obj_id));
+                    app->net->rev,
+                    app->net->random_out,
+                    _nsbuf,
+                    sizeof(_nsbuf),
+                    opt.action_index + 1,
+                    abs_x,
+                    abs_z,
+                    obj_id));
         }
         return 0;
     }
@@ -16072,8 +16428,7 @@ app_minimenu_use_option(
 
     result = app_minimenu_run_option(app, option_index, click_x, click_y);
 
-    if( action != REVCONFIG_MINIMENU_OPHELDT_START &&
-        action != REVCONFIG_MINIMENU_TGT_BUTTON )
+    if( action != REVCONFIG_MINIMENU_OPHELDT_START && action != REVCONFIG_MINIMENU_TGT_BUTTON )
         app_selection_clear(app);
     return result;
 }
@@ -16139,8 +16494,7 @@ App_PlaySongWithSecondary(
     int fade_in_ms)
 {
     assert(app);
-    RS_Audio_SongWithSecondary(
-        &app->audio, primary_id, secondary_id, fade_out_ms, fade_in_ms);
+    RS_Audio_SongWithSecondary(&app->audio, primary_id, secondary_id, fade_out_ms, fade_in_ms);
 }
 
 void
@@ -16255,13 +16609,11 @@ App_SetCanvasSize(
          * already invalidated layout. method3791 snapshots its old computed
          * fields immediately before recomputing; normalising pending changes
          * against the old canvas here would incorrectly erase a real resize. */
-        resize_before_count = UITree_SnapshotResizeHooks(
-            app->tree, resize_before, APP_RESIZE_HOOK_MAX);
+        resize_before_count =
+            UITree_SnapshotResizeHooks(app->tree, resize_before, APP_RESIZE_HOOK_MAX);
         if( app->tree->resize_hooks.count > APP_RESIZE_HOOK_MAX )
             fprintf(
-                stderr,
-                "resize: more than %d onResize hooks; truncating\n",
-                APP_RESIZE_HOOK_MAX);
+                stderr, "resize: more than %d onResize hooks; truncating\n", APP_RESIZE_HOOK_MAX);
     }
 
     UITree_LayoutSetRootSize(width, height);
@@ -16280,12 +16632,7 @@ App_SetCanvasSize(
          * can mutate the tree, but cannot retroactively change events already
          * queued by the completed layout pass. */
         changed_count = UITree_CollectResizedHookIds(
-            app->tree,
-            resize_before,
-            resize_before_count,
-            1,
-            changed_ids,
-            APP_RESIZE_HOOK_MAX);
+            app->tree, resize_before, resize_before_count, 1, changed_ids, APP_RESIZE_HOOK_MAX);
         app_dispatch_resize_hook_ids(app, changed_ids, changed_count);
         /* And again after: the listeners are all if_setsize/if_setposition. */
         UITree_LayoutInvalidate(app->tree);
@@ -16360,10 +16707,8 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
             continue;
         w = c->position.abs_w;
-        if( w <= 0 || c->position.abs_x <= 0 ||
-            c->position.width_mode != 0 ||
-            c->position.height_mode != 1 ||
-            c->position.x_mode != 2 )
+        if( w <= 0 || c->position.abs_x <= 0 || c->position.width_mode != 0 ||
+            c->position.height_mode != 1 || c->position.x_mode != 2 )
             continue;
         /* Near full canvas height: the strip, not a minimap orb or tab icon. */
         if( c->position.abs_h < canvas_h - 2 )
@@ -16432,8 +16777,7 @@ App_SyncUiScale(struct App* app)
 }
 
 int
-App_WindowMode(
-    struct App const* app)
+App_WindowMode(struct App const* app)
 {
     assert(app);
     return app->host.window_mode;
@@ -16529,9 +16873,7 @@ App_DrainCommands(
                 app->window_h = cmd->height;
                 app->host.ui_scale_dirty = false;
                 App_SetCanvasSize(
-                    app,
-                    app_ui_scaled_axis(app, cmd->width),
-                    app_ui_scaled_axis(app, cmd->height));
+                    app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
             }
             break;
         default:
@@ -16585,8 +16927,7 @@ App_RunOnce(
         int budget = booting ? 512 : 32;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
         int steps = 0;
-        int settling_cs2 =
-            !booting && (app->runner_had_work || app->runner.frame_settle_pending);
+        int settling_cs2 = !booting && (app->runner_had_work || app->runner.frame_settle_pending);
 
         if( settling_cs2 )
         {
@@ -16667,10 +17008,8 @@ App_RunOnce(
          * subtraction must not be done in unsigned -- it would wrap to ~2^64
          * and clamp straight to APP_MAX_CATCHUP_TICKS every frame.
          */
-        uint64_t elapsed_ms =
-            now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
-        int ticks =
-            (int)((elapsed_ms + APP_LOGIC_TICK_MS / 2) / APP_LOGIC_TICK_MS);
+        uint64_t elapsed_ms = now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
+        int ticks = (int)((elapsed_ms + APP_LOGIC_TICK_MS / 2) / APP_LOGIC_TICK_MS);
         if( ticks > 0 )
         {
             app->last_logic_ms += (uint64_t)ticks * APP_LOGIC_TICK_MS;
@@ -16722,8 +17061,7 @@ App_RunOnce(
          * to the logic catch-up budget so a stalled frame does not fling
          * every actor down its route in one step. */
         {
-            uint64_t frame_ms =
-                now_ms > app->last_mover_ms ? now_ms - app->last_mover_ms : 0;
+            uint64_t frame_ms = now_ms > app->last_mover_ms ? now_ms - app->last_mover_ms : 0;
             float frame_cycles;
 
             if( app->last_mover_ms == 0 )
@@ -16830,8 +17168,7 @@ App_RunOnce(
     {
         /* The menu ctx reads app->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
-        int click_in_world =
-            app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
+        int click_in_world = app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
         if( !click_in_world || !app_world_drawable(app) )
             World_PickSetReset(&app->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
@@ -16879,8 +17216,8 @@ App_RunOnce(
             .runner = &app->runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
-        .events_for_component = app_minimenu_events_for_component,
-        .events_user = app,
+            .events_for_component = app_minimenu_events_for_component,
+            .events_user = app,
             .player_ops = (char const(*)[40])app->player_ops,
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
@@ -16913,13 +17250,22 @@ App_RunOnce(
          */
         if( getenv("TORIRS_CLICK_DEBUG") )
         {
-            fprintf(stderr, "clickdbg: com=0x%x rows=%d default=%d\n", out.clicked_com_id,
-                    scratch.option_count, default_idx);
+            fprintf(
+                stderr,
+                "clickdbg: com=0x%x rows=%d default=%d\n",
+                out.clicked_com_id,
+                scratch.option_count,
+                default_idx);
             for( int i = 0; i < scratch.option_count; i++ )
-                fprintf(stderr, "  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n", i,
-                        scratch.options[i].text, scratch.options[i].action,
-                        scratch.options[i].action_index, (int)scratch.options[i].pick.kind,
-                        scratch.options[i].pick.id);
+                fprintf(
+                    stderr,
+                    "  row[%d] '%s' action=%d idx=%d pick=%d id=0x%x\n",
+                    i,
+                    scratch.options[i].text,
+                    scratch.options[i].action,
+                    scratch.options[i].action_index,
+                    (int)scratch.options[i].pick.kind,
+                    scratch.options[i].pick.id);
         }
         if( default_idx >= 0 )
         {
@@ -16973,11 +17319,9 @@ App_RunOnce(
             out.left_click_miss_x,
             out.left_click_miss_y,
             out.clicked_com_id,
-            out.left_click_miss ? app_world_mouse_gate(
-                                      app,
-                                      out.left_click_miss_x,
-                                      out.left_click_miss_y)
-                                : -1,
+            out.left_click_miss
+                ? app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y)
+                : -1,
             app_world_drawable(app),
             app->world_pickset.count);
     if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
@@ -16992,8 +17336,8 @@ App_RunOnce(
             .runner = &app->runner,
             .invs = &app->invs,
             .chat = &app->chat_source,
-        .events_for_component = app_minimenu_events_for_component,
-        .events_user = app,
+            .events_for_component = app_minimenu_events_for_component,
+            .events_user = app,
             .player_ops = (char const(*)[40])app->player_ops,
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
@@ -17014,8 +17358,7 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
-        app_minimenu_ctx_ground_fallback(
-            app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
+        app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
@@ -17051,8 +17394,7 @@ App_RunOnce(
      * and already cleared; a filled slot is owned by the drag machine.) */
     if( app->inv_drag_com_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 && (app->objsel.active || app->targetsel.active) &&
-        !(app_world_mouse_gate(
-              app, out.left_click_miss_x, out.left_click_miss_y) &&
+        !(app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
           app_world_drawable(app)) )
     {
         app_selection_clear(app);
@@ -17124,10 +17466,7 @@ App_RunOnce(
                 dest = &drag_runner;
             }
             RS_CS2_DispatchHook(
-                &app->host,
-                dest,
-                intent->component_id,
-                intent->hook ? &hook_copies[i] : NULL);
+                &app->host, dest, intent->component_id, intent->hook ? &hook_copies[i] : NULL);
             ran_cs2 = 1;
         }
 
@@ -17239,13 +17578,12 @@ App_RunOnce(
          * the chat line -- otherwise they are left for the debug camera/world
          * hotkeys. Modal prompts (add-friend name, amount dialog) always
          * capture regardless of focus. */
-        if( !out.minimenu_consumed_pointer &&
-            LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        if( !out.minimenu_consumed_pointer && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
             app->chat_input_active =
                 app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
 
-        int chat_captures = app->chat_input_active || app->chat.social_input_open ||
-                            app->chat.dialog_input_open;
+        int chat_captures =
+            app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
 
         /* Straight from the input queue: out.key_events only fills when some
          * component carries an onKey hook, but chat typing must work without
@@ -17267,8 +17605,7 @@ App_RunOnce(
                 if( app->chat_input_active )
                 {
                     app->chat_input_active = 0;
-                    chat_captures =
-                        app->chat.social_input_open || app->chat.dialog_input_open;
+                    chat_captures = app->chat.social_input_open || app->chat.dialog_input_open;
                 }
                 app->host.close_modal_requested = true;
                 app->need_redraw = 1;
@@ -17276,8 +17613,7 @@ App_RunOnce(
             }
             /* Enter with the line unfocused grabs focus instead of submitting,
              * so the keyboard alone can start a message. */
-            if( !chat_captures &&
-                input->key_events[e].key_typed == TORIRS_OSRSKEY_ENTER )
+            if( !chat_captures && input->key_events[e].key_typed == TORIRS_OSRSKEY_ENTER )
             {
                 app->chat_input_active = 1;
                 chat_captures = 1;
@@ -17314,7 +17650,10 @@ App_RunOnce(
                     APP_NET_SEND(
                         app,
                         net_out_resume_countdialog(
-                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            app->net->rev,
+                            app->net->random_out,
+                            _nsbuf,
+                            sizeof(_nsbuf),
                             (int)atol(dialog_copy)));
                 /* Social prompt submitted: the local store op already ran in
                  * HandleKey; also notify the friend server. */
@@ -17324,16 +17663,44 @@ App_RunOnce(
                     switch( social_type )
                     {
                     case RS_CHAT_SOCIAL_ADD_FRIEND:
-                        APP_NET_SEND(app, net_out_friendlist_add(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        APP_NET_SEND(
+                            app,
+                            net_out_friendlist_add(
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                name37));
                         break;
                     case RS_CHAT_SOCIAL_DEL_FRIEND:
-                        APP_NET_SEND(app, net_out_friendlist_del(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        APP_NET_SEND(
+                            app,
+                            net_out_friendlist_del(
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                name37));
                         break;
                     case RS_CHAT_SOCIAL_ADD_IGNORE:
-                        APP_NET_SEND(app, net_out_ignorelist_add(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        APP_NET_SEND(
+                            app,
+                            net_out_ignorelist_add(
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                name37));
                         break;
                     case RS_CHAT_SOCIAL_DEL_IGNORE:
-                        APP_NET_SEND(app, net_out_ignorelist_del(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), name37));
+                        APP_NET_SEND(
+                            app,
+                            net_out_ignorelist_del(
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
+                                name37));
                         break;
                     default:
                         break;
@@ -17356,15 +17723,22 @@ App_RunOnce(
                         APP_NET_SEND(
                             app,
                             net_out_client_cheat(
-                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
                                 input_copy + 2));
-                    else if( app->chat.message_count > 0 &&
-                             app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
+                    else if(
+                        app->chat.message_count > 0 &&
+                        app->chat.messages[0].type == RS_CHAT_TYPE_PUBLIC )
                     {
                         APP_NET_SEND(
                             app,
                             net_out_message_public(
-                                app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                                app->net->rev,
+                                app->net->random_out,
+                                _nsbuf,
+                                sizeof(_nsbuf),
                                 app->chat.messages[0].text));
 
                         /* Reference sets localPlayer.chatMessage on submit
@@ -17395,8 +17769,7 @@ App_RunOnce(
             int rx = 0;
             int ry = 0;
             int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
-            if( left_held && !out.minimenu_consumed_pointer &&
-                app->slots.chat_com_id == -1 &&
+            if( left_held && !out.minimenu_consumed_pointer && app->slots.chat_com_id == -1 &&
                 app_chat_region(app, &rx, &ry, NULL) )
             {
                 struct RS_ChatFilters filters = app_chat_filters(app);
@@ -17423,8 +17796,7 @@ App_RunOnce(
             int ry = 0;
             if( app_chat_region(app, &rx, &ry, NULL) )
             {
-                struct UITreeComponent const* node =
-                    &app->tree->components[app->slots.chat_index];
+                struct UITreeComponent const* node = &app->tree->components[app->slots.chat_index];
                 int bx = 0, by = 0, bw = 0, bh = 0;
                 UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
                 if( input->curr.mouse_x >= bx && input->curr.mouse_x < bx + bw &&
@@ -17654,8 +18026,18 @@ App_SendIdkDesign(
             stderr,
             "idk_savedesign: gender=%d kits=[%d,%d,%d,%d,%d,%d,%d] colours=[%d,%d,%d,%d,%d]\n",
             gender,
-            kits[0], kits[1], kits[2], kits[3], kits[4], kits[5], kits[6],
-            colours[0], colours[1], colours[2], colours[3], colours[4]);
+            kits[0],
+            kits[1],
+            kits[2],
+            kits[3],
+            kits[4],
+            kits[5],
+            kits[6],
+            colours[0],
+            colours[1],
+            colours[2],
+            colours[3],
+            colours[4]);
     APP_NET_SEND(
         app,
         net_out_idk_savedesign(
@@ -17734,7 +18116,9 @@ App_IfHideSet(
 }
 
 static void
-app_send_if_button(void* user, int com_id)
+app_send_if_button(
+    void* user,
+    int com_id)
 {
     struct App* app = (struct App*)user;
     int target;
@@ -17755,11 +18139,15 @@ app_send_if_button(void* user, int com_id)
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, target, sub));
         return;
     }
-    APP_NET_SEND(app, net_out_if_button(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
+    APP_NET_SEND(
+        app,
+        net_out_if_button(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), com_id));
 }
 
 static void
-app_send_resume_pausebutton(void* user, int com_id)
+app_send_resume_pausebutton(
+    void* user,
+    int com_id)
 {
     struct App* app = (struct App*)user;
     int target;
@@ -17774,19 +18162,15 @@ app_send_resume_pausebutton(void* user, int com_id)
     APP_NET_SEND(
         app,
         net_out_resume_pausebutton(
-            app->net->rev,
-            app->net->random_out,
-            _nsbuf,
-            sizeof(_nsbuf),
-            target,
-            sub));
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), target, sub));
 }
 
 static void
 app_send_close_modal(void* user)
 {
     struct App* app = (struct App*)user;
-    APP_NET_SEND(app, net_out_close_modal(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+    APP_NET_SEND(
+        app, net_out_close_modal(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 }
 
 /* Server ack after a REBUILD_NORMAL-driven world load finishes. */
@@ -17794,7 +18178,8 @@ void
 App_SendMapBuildComplete(struct App* app)
 {
     APP_NET_SEND(
-        app, net_out_map_build_complete(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+        app,
+        net_out_map_build_complete(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 }
 
 /* Request a sequence load once (deduped through the entity seq tracker).
@@ -17960,7 +18345,9 @@ app_set_player_element_model(
     int gender);
 
 static void
-app_world_apply_player_held_items(struct App* app, struct WorldEntity_Player* player)
+app_world_apply_player_held_items(
+    struct App* app,
+    struct WorldEntity_Player* player)
 {
     struct WorldEntityFacet_Animation const* anim = &player->animation;
     int want_left = -1;
@@ -18052,7 +18439,10 @@ app_world_sync_entity_animations(struct App* app)
  * WITHOUT restoring -- restoring would move the dead entity's body model onto
  * the new occupant. See the note on AppEntitySpotanim::owner_entity_id. */
 static struct AppEntitySpotanim*
-app_entity_spotanim_find(struct App* app, int body_element_id, int owner_entity_id)
+app_entity_spotanim_find(
+    struct App* app,
+    int body_element_id,
+    int owner_entity_id)
 {
     int count = (int)(sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]));
     for( int i = 0; i < count; i++ )
@@ -18075,10 +18465,12 @@ app_entity_spotanim_find(struct App* app, int body_element_id, int owner_entity_
  * body snapshot moves back to the element) and free the spot base. `restore`
  * is false when the body element is already gone (despawn/scene teardown). */
 static void
-app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, bool restore)
+app_entity_spotanim_detach(
+    struct App* app,
+    struct AppEntitySpotanim* entry,
+    bool restore)
 {
-    if( restore && entry->body &&
-        ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
+    if( restore && entry->body && ToriDraw_SceneElementIsLive(app->scene, entry->body_element_id) )
     {
         struct ToriDraw_ModelHandle hnd;
         memset(&hnd, 0, sizeof(hnd));
@@ -18100,7 +18492,9 @@ app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, boo
 /* EntityRemoved drain hook: the entity element (and with it the combined
  * model) is going away — free the snapshots without touching the element. */
 static void
-app_entity_spotanim_drop(struct App* app, int body_element_id)
+app_entity_spotanim_drop(
+    struct App* app,
+    int body_element_id)
 {
     struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id, 0);
     if( entry )
@@ -18115,8 +18509,7 @@ app_world_sync_one_entity_spotanim(
     int owner_entity_id)
 {
     struct World* world = app->world;
-    struct AppEntitySpotanim* entry =
-        app_entity_spotanim_find(app, element_id, owner_entity_id);
+    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, element_id, owner_entity_id);
     struct ToriRS_Spotanimtype* type;
     struct ToriDraw_Animation* anim;
     struct ToriDraw_SceneElement* el;
@@ -18278,7 +18671,9 @@ app_world_sync_entity_spotanims(struct App* app)
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( player && player->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
-                app, &player->spotanim, player->element_id,
+                app,
+                &player->spotanim,
+                player->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid));
     }
 
@@ -18289,14 +18684,15 @@ app_world_sync_entity_spotanims(struct App* app)
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( npc && npc->multinpc_hidden && npc->element_id >= 0 )
         {
-            struct AppEntitySpotanim* entry =
-                app_entity_spotanim_find(app, npc->element_id, 0);
+            struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, npc->element_id, 0);
             if( entry )
                 app_entity_spotanim_detach(app, entry, false);
         }
         else if( npc && npc->element_id >= 0 )
             app_world_sync_one_entity_spotanim(
-                app, &npc->spotanim, npc->element_id,
+                app,
+                &npc->spotanim,
+                npc->element_id,
                 WORLD_ENTITY_ID(WORLD_ENTITY_KIND_NPC, npc->server_slot));
     }
 }
@@ -18427,15 +18823,7 @@ App_WorldObjStackAdd(
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
         return World_ObjStackAdd(
-            app->world,
-            element_id,
-            scene_x,
-            scene_z,
-            level,
-            obj_id,
-            count,
-            obj->name,
-            actions32);
+            app->world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
     }
 }
 
@@ -18480,12 +18868,7 @@ App_WorldRebuildShift(
                 int world_y = app_world_height(app, world_x, world_z, level) -
                               World_ObjRaiseGet(world, scene_x, scene_z, level);
                 ToriDraw_SceneElementSetPosition(
-                    app->scene,
-                    stack->element_id,
-                    world_x,
-                    world_y,
-                    world_z,
-                    0);
+                    app->scene, stack->element_id, world_x, world_y, world_z, 0);
             }
         }
         i = next;
@@ -18497,8 +18880,7 @@ App_WorldRebuildShift(
         app->minimap_flag_x -= base_dx;
         app->minimap_flag_z -= base_dz;
         if( app->minimap_flag_x < 0 || app->minimap_flag_z < 0 ||
-            app->minimap_flag_x >= world->_scene_size ||
-            app->minimap_flag_z >= world->_scene_size )
+            app->minimap_flag_x >= world->_scene_size || app->minimap_flag_z >= world->_scene_size )
         {
             app->minimap_flag_x = -1;
             app->minimap_flag_z = -1;
@@ -18671,8 +19053,7 @@ app_world_scenery_anim_apply(
                  loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL) )
             {
                 int const angle = scenery->angle & 3;
-                int const base_yaw =
-                    loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ? 256 : 0;
+                int const base_yaw = loc_shape == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL ? 256 : 0;
                 int const wanted_yaw = base_yaw + angle * 512;
 
                 if( angle != 0 && element->world_position.yaw == base_yaw )
@@ -18800,9 +19181,8 @@ App_WorldApplyNpcType(
          * regular entity sync will take over with the new idle/walk state on
          * the next world tick, just as it does after a normal spawn.
          */
-        int const primary_live =
-            npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
-            npc->animation.primary.anim_id != 0;
+        int const primary_live = npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
+                                 npc->animation.primary.anim_id != 0;
 
         if( model && !primary_live && element_id >= 0 &&
             ToriDraw_SceneElementIsLive(app->scene, element_id) )
@@ -18957,10 +19337,7 @@ App_WorldApplyPlayerAppearance(
                     NULL) &&
                 local_idx == world_idx )
             {
-                strncpy(
-                    app->chat.username,
-                    appearance->name,
-                    sizeof(app->chat.username) - 1);
+                strncpy(app->chat.username, appearance->name, sizeof(app->chat.username) - 1);
                 /* Same string to the CS2 host, which answers CHAT_PLAYERNAME
                  * with it — clientscript 223 builds the chatbox input line
                  * from that op, so the two spellings have one source. */

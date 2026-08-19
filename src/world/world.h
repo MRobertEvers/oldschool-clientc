@@ -371,6 +371,18 @@ World_LocPaintLevel(
     int z,
     int cache_level);
 
+/** The level a terrain mesh authored on `mesh_level` is culled and picked
+ *  against: VIS_BELOW answers 0, a LinkBelow column's upper planes answer one
+ *  lower, everything else answers the mesh level. The same value the world
+ *  builder baked into the painter tile's draw level — reference
+ *  class112.method4161 / Client-TS getVisBelowLevel. */
+int
+World_TerrainDrawLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level);
+
 /** Wire (walked) level -> cache level, the trip a zone loc packet has to make
  *  before it can name the loc the map placed. Mirrors app_world_height's own
  *  +1 for heights (Client.ts getAvH), including its `level < 3` guard. */
