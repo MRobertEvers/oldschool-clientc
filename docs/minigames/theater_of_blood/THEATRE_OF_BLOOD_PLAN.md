@@ -1392,6 +1392,84 @@ overworld player passes row 3 first; **two** death balls per cast.
 **Entry Mode**: the death ball deals 15 solo and ~80 in a group; rag damage is
 `6.67 % + 11`.
 
+### 9.7 Near-Reality parity pass — 19 August 2026
+
+Reference:
+`RSPS-NEAR-REALITY/near-reality-server-main/plugins/excluded/theatreofblood/.../room/sotetseg`
+— `SotetsegRoom.kt`, `ShadowRealmRoom.kt`, `npc/Sotetseg.kt`, `npc/BallAttack.kt`,
+`npc/RedStorm.kt`, `npc/ShadowRealmPhase.kt`, `object/Portal.kt`. It is the only
+complete Sotetseg implementation in the sources, maze included, and it is
+secondary to the Wiki everywhere the two state the same fact.
+
+**Seven divergences fixed.** Every one of them left the fight *running*, which is
+why none had been noticed.
+
+1. **His target was the lowest player slot, all fight, every fight.** `huntall`
+   fills its result in player-slot order and nothing shuffles it, so
+   "act on the first thing the hunt returns" is not a random target — it is a
+   fixed one. Near-Reality re-rolls with
+   `Utils.getRandomCollectionElement(room.validTargets)` on every `processNPC`.
+   Both the auto and the death ball now pick by roll (`~tob_sote_target_count`
+   then an index; Hard Mode's two balls walk a ring so they cannot collide).
+2. **Melee was forced at range 1**, so a team standing on him could not be
+   balled and therefore never saw a death ball. It is a coin flip — see §9.2.
+3. **The ricochet excluded the victim's TILE rather than the victim.** Testing
+   `coord ! $impact` also excluded everyone standing *on* the victim, and a
+   stacked team is the ordinary shape of this room because stacking is what the
+   death ball is answered with. Three people on one tile took no ricochet at all
+   between them. Near-Reality's exclusion is `if (m == target) continue`.
+4. **The two ricochets went to fixed players** for the same slot-order reason —
+   the style roll was already random, the recipient roll was not, so two of a
+   five-man could go a whole fight without ever being ricocheted at.
+5. **The maze thresholds measured `npc_basestat`**, which is the five-man 4000 at
+   every scale. A three-man Sotetseg is 3000 current *below* a 4000 base
+   (`~tob_rescale_boss`), so 66.6 % of the base is 88.8 % of that team's fight
+   and 33.3 % is 44.4 %. Both mazes fired early at every scale under five and in
+   Entry Mode, where the gap is 560 against 4000. Near-Reality reads
+   `hitpointsAsPercentage`, which is against the real maximum. **`::tobmazearm`
+   had the same bug**, which is why the harness had always opened a maze and
+   stopped the moment the implementation was fixed — a probe that agrees with
+   the defect it exists to catch.
+6. **The room pushed no boss health bar at all.** Every other room in this raid
+   pushes one every tick; through the whole Sotetseg fight the HUD went on
+   showing whatever the Nylocas room had left in `^tob_var_hud`. `~tob_sote_hud`
+   pushes it, and pushes the *disabled* style while the maze runs —
+   Near-Reality's `healthBarType get() = if (isMazePhase) DISABLED else REGULAR`,
+   the same style Xarpus already uses for his feeding phase. Readable on
+   `::tobsotestate` as `hud=`.
+7. **The tornado's damage and the realm's chip graphic** — 35–45 (M45 above) and
+   spotanim 1608 `tob_sotetseg_drain`, which Near-Reality plays on the runner
+   every time the chip lands. He also now faces south for the maze
+   (`faceDirection(Direction.SOUTH)`), re-asserted after the `npc_changetype`
+   that would otherwise drop it.
+
+**Five things deliberately NOT taken from it**, because the Wiki or a
+measurement outranks a reference server:
+
+- **The maze generator's row step.** Near-Reality advances 2 *or* 4 rows per
+  turn; the devqhp trainer, reconstructed from real player-shared mazes,
+  advances 2 always. This is M11 and it is still open — but ours is the
+  empirical reconstruction, so it stays. The two agree on everything else
+  (14 × 15, `max_x_change = 5`, horizontal runs joined by straight verticals,
+  advance-only).
+- **The death ball's damage.** Near-Reality makes it
+  `70 + 12 × (alive − in-range)`, split among the in-range; the Wiki gives
+  "up to 188 (scaling with party size)" and "a guaranteed kill (121 +)"
+  unshared. M44's table is kept.
+- **The rag damage.** Near-Reality: `Utils.random(10, 25)`. Wiki:
+  `6.67 % of current + 15`. Wiki kept; its radius is corroborated (M46).
+- **No maze below two players.** `ShadowRealmPhase.shouldInitiate` returns false
+  for `validTargets.size < 2` under a `// TODO handle solo`. Solo Sotetseg has a
+  maze.
+- **Its tornado is shadow-realm-only, and cannot hit the runner** — `RedStorm`
+  skips `room.player`, who is the only player in that realm, so the storm is
+  inert there. §9.3's rule is the Wiki's: it chases the *arena* team, and
+  reaches the runner only in a solo or in Hard Mode.
+
+Gates: `::tobrun` (`~tob_st_sote_tornado_damage`, `~tob_st_sote_ball_ring`, both
+proven to fail by mutation) and the `mock230 --selftest` shadow-maze stanza,
+which now exercises the corrected threshold.
+
 ---
 
 ## 10. Room 5 — Xarpus

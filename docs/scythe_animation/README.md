@@ -30,7 +30,7 @@ leaves it front-to-back through the player at every facing.
 | graphic's axis | **RADIAL** — through the player | **TANGENT** — across the swing |
 | where it sits | straddling the player's own tile | centred 133 units ahead, on the next tile |
 | colour | red (luminance 64) | dark red (luminance 28) |
-| height / delay | 100 / 16 | 96 / 0 — NR's own `Graphics(id, 0, 96)` |
+| height / delay | 100 / 16 | 96 / **30** — NR's height, and NR's one-tick lag |
 
 `before/south_top.png` and `fixed/south_top.png` are the same swing, one cell
 per client cycle, straight down. The before sheet has a bright red crescent
@@ -117,9 +117,11 @@ inherits the revert. Its arc has the same quarter-turn defect the scythe's had �
 ## The harness
 
 ```sh
-tools/scythe_animation.sh fixed 96 0 darkred      # what ships
-tools/scythe_animation.sh nr    96 0 red          # NR's colour, same mechanism
+tools/scythe_animation.sh fixed 96 30 darkred     # what ships
 ```
+
+The fourth argument takes `red` instead of `darkred` to draw NR's own colour
+through the same mechanism, if a side-by-side is ever wanted.
 
 One run per player facing — the four cardinals **and the four diagonals**,
 because a player fighting anything bigger than one tile faces its centre and the
@@ -183,16 +185,35 @@ runs through toridraw's 16.16 integer sin/cos and truncates per vertex, costing
 about 1.6 units at 45° and nothing at 0° and 90°. The snap check's tolerance is 3
 units out of the 128 in a tile for that reason, and for no other.
 
-## Timing
+## Timing: the sweep is one tick behind the swing
 
-`spotanim_map(gfx, tile, 96, 0)` — NR's `new Graphics(id, 0, 96)` is
-`Graphics(id, delay, height)`, so height 96 and delay 0, on the same tick as the
-animation.
+`spotanim_map(gfx, tile, 96, ^scythe_of_vitur_sweep_delay)`, and that constant is
+**30 client cycles — one server tick**, not zero.
 
-The old 100/16 does not carry over. 16 was tuned against a graphic merged into
-the player's model, and the merge is gone. For the record, at delay 0 the arc is
-lit over cycles **10–58** of the 77-cycle swing, fully lit at 24, against a
-strike at cycle 31 — `report_south.txt` has the frame table.
+NR's literal is `new Graphics(506, 0, 96)`, i.e. delay 0, and shipping that fired
+the sweep a tick early. The delay argument is not where NR's timing lives. In
+`ScytheOfViturCombat.processAfterMovement`, `animate()` is called **inline**
+while the graphic is wrapped in `WorldTasksManager.schedule(...)` — and
+`WorldThread`'s tick runs `WorldTasksManager.processTasks()` (line 111) **before**
+`player.processEntity()` (line 147). A task queued during player processing sits
+in `pending` until the *next* tick's drain. NR's graphic is one tick behind its
+animation by construction.
+
+NR's own code corroborates it rather than leaving it to a reading of the tick
+order: the hits scheduled inside that same task go out as
+`delayHit(t, -1, hit)`, and that `-1` exists purely to cancel the task's tick and
+put them back where `delayHit(0, hit)` would have landed. The graphic gets no
+such compensation. Our hits already land on the swing tick — matching NR's
+compensated `-1` — so only the graphic moved.
+
+Measured, from `report_south.txt`, over the 77-cycle swing:
+
+| | arc lit over | closest approach to the blade |
+|---|---|---|
+| delay 0 (NR's literal) | cycles 10–58 | 20 units |
+| **delay 30 (one tick)** | cycles **40–76** | **4 units** |
+
+The strike — the largest pose change in the swing — is at cycle 31.
 
 ## Checks
 

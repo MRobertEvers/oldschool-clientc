@@ -352,6 +352,103 @@ mock230_scripts_load(
 
     srv->scripts_ok = 1;
     fprintf(stderr, "mock230: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
+
+    /*
+     * ── RESERVED QUEUE SLOTS ─────────────────────────────────────────────
+     *
+     * `[ai_queue1,_]` is the engine-wide RETALIATION rung — `~npc_retaliate`
+     * arms `npc_queue(1, …)` on the tick a player's hitsplat lands on any npc,
+     * and the default body is `npc_setmode(opplayer2)`. Trigger dispatch is
+     * exact-type-first, so `[ai_queue1,<type>]` does not ADD an ending to that
+     * npc: it REPLACES what happens when that npc is hit.
+     *
+     * A binding there that deletes the npc therefore deletes it on the first
+     * hitsplat — before `npc_death_step` can reach DEATH_ARRIVE, so its death
+     * animation is never played and never sent. That is a monster that
+     * vanishes the instant you attack it, and it cost days to find on the
+     * Theatre's Nylocas Matomenos (and again on Verzik's phase-2 reds) because
+     * every symptom points at the animation pipeline and none of it points
+     * here. The twelve legitimate `[ai_queue1,<type>]` bindings in this tree
+     * are all `npc_setmode(applayer2)` — retaliation OVERRIDES, which is what
+     * the slot is for.
+     *
+     * Checked mechanically because the reasoning is not discoverable from the
+     * symptom: an encounter that wants its own delayed step has nine other
+     * queue slots and must use one of them.
+     */
+    {
+        int bad = 0;
+
+        for( int i = 0; i < srv->scripts->count; i++ )
+        {
+            const struct SSVM_Script* sc = &srv->scripts->scripts[i];
+            int trigger;
+            int subject;
+
+            if( sc->op_count <= 0 || sc->lookup_key < 0 )
+                continue;
+            trigger = sc->lookup_key & 0xff;
+            /* `subject` is the type/category half of the key; `_` (the default
+             * rung) encodes as no subject and is exactly the binding that is
+             * SUPPOSED to live here. */
+            subject = sc->lookup_key >> 10;
+            if( trigger != SS_TRIGGER_AI_QUEUE1 || subject == 0 )
+                continue;
+            for( int pc = 0; pc < sc->op_count; pc++ )
+            {
+                char type_name[128];
+                const char* comma;
+                int npc_type;
+
+                if( sc->opcodes[pc] != SS_OP_NPC_DEL )
+                    continue;
+                /*
+                 * Only for an npc a player can ATTACK. Queue 1 fires off a
+                 * hitsplat, so an npc with no Attack option can never reach
+                 * this binding by being hit — a corpse form, a fading rubble
+                 * marker, a death bat. Ninety-five of these exist and every one
+                 * of them is fine; the two that were not (`maiden_elemental`,
+                 * Verzik's phase-2 reds) are exactly the two the team fights.
+                 * `mock230_combat_attackable` is the client's own minimenu
+                 * test, so this cannot disagree with what is clickable.
+                 */
+                comma = sc->name ? strchr(sc->name, ',') : NULL;
+                if( !comma )
+                    break;
+                snprintf(type_name, sizeof(type_name), "%s", comma + 1);
+                {
+                    char* close = strchr(type_name, ']');
+                    if( close )
+                        *close = '\0';
+                }
+                npc_type = mock230_content_symbol(MOCK230_PACK_NPC, type_name);
+                if( npc_type < 0 || !mock230_combat_attackable(npc_type) )
+                    break;
+                fprintf(stderr,
+                        "mock230: RESERVED QUEUE SLOT: %s calls npc_del, and %s is "
+                        "ATTACKABLE. Queue 1 is the retaliation rung "
+                        "(`[ai_queue1,_]`), armed when a player HITS this npc — so "
+                        "this deletes it on the first hitsplat, before its death "
+                        "animation can play. It will vanish when attacked instead "
+                        "of dying. Use another queue slot.\n",
+                        sc->name ? sc->name : "?", type_name);
+                bad++;
+                break;
+            }
+        }
+        if( bad )
+        {
+            fprintf(stderr,
+                    "mock230: ============================================================\n"
+                    "mock230: %d script(s) bind npc_del to the retaliation queue.\n"
+                    "mock230: Every npc they name vanishes when attacked instead of\n"
+                    "mock230: dying. Refusing to run — this is not survivable content.\n"
+                    "mock230: ============================================================\n",
+                    bad);
+            mock230_scripts_free(srv);
+            return 0;
+        }
+    }
     {
         char newer[1024] = { 0 };
         long delta = 0;
