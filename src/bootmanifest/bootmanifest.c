@@ -779,6 +779,19 @@ bm_set_kv(
                 bm->features_ground_click_offmap = on ? 1 : 0;
             return;
         }
+        if( strcmp(key, "mover") == 0 )
+        {
+            int model = ToriRS_Features_MoverModelByName(value);
+            if( model < 0 )
+            {
+                fprintf(stderr,
+                        "bootmanifest: [features] mover must be cycle|frame, got '%s'\n",
+                        value);
+                return;
+            }
+            bm->features_mover_model = model;
+            return;
+        }
         if( strcmp(key, "painter_draw_distance") == 0 )
         {
             int distance;
@@ -903,6 +916,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     /* -1 = "not stated": 0 is TORIRS_NEAREST_RING3_STEPS, a real model, so a
      * zeroed struct must not read as an override to it. */
     bm->features_ground_click_nearest = -1;
+    bm->features_mover_model = -1;
     bm->features_ground_click_unbounded = -1;
     bm->features_ground_click_offmap = -1;
     bm->spawn_x = -1;
@@ -1106,6 +1120,11 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->features_ground_click_unbounded = bm->features_ground_click_unbounded;
     if( bm->features_ground_click_offmap >= 0 )
         cfg->features_ground_click_offmap = bm->features_ground_click_offmap;
+    if( bm->features_mover_model >= 0 )
+    {
+        cfg->features_mover_model = bm->features_mover_model;
+        cfg->features_mover_model_set = 1;
+    }
     if( bm->features_painter_draw_distance > 0 )
     {
         cfg->features_painter_draw_distance = bm->features_painter_draw_distance;

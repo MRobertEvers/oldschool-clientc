@@ -1419,12 +1419,17 @@ visit_healthbar(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigHealthbarDecodeInplace(&second, encoded, (int)written);
-    if( first.sprite_id_a == second.sprite_id_a && first.sprite_id_b == second.sprite_id_b &&
-        first.has_opcode_2 == second.has_opcode_2 && first.opcode_2 == second.opcode_2 &&
-        first.has_opcode_3 == second.has_opcode_3 && first.opcode_3 == second.opcode_3 &&
-        first.has_opcode_5 == second.has_opcode_5 && first.opcode_5 == second.opcode_5 &&
-        first.has_opcode_11 == second.has_opcode_11 && first.opcode_11 == second.opcode_11 &&
-        first.has_opcode_14 == second.has_opcode_14 && first.opcode_14 == second.opcode_14 )
+    if( first.front_sprite_id == second.front_sprite_id &&
+        first.back_sprite_id == second.back_sprite_id &&
+        first.has_draw_order == second.has_draw_order &&
+        first.draw_order == second.draw_order &&
+        first.has_evict_priority == second.has_evict_priority &&
+        first.evict_priority == second.evict_priority &&
+        first.has_persist_cycles == second.has_persist_cycles &&
+        first.persist_cycles == second.persist_cycles &&
+        first.has_fade_threshold == second.has_fade_threshold &&
+        first.fade_threshold == second.fade_threshold &&
+        first.has_width == second.has_width && first.width == second.width )
         tally->semantic_ok++;
     (void)profile;
 }

@@ -33,6 +33,7 @@
 #include "mock230_ids.h"
 #include "mock230_scene.h"
 #include "mock230_session.h"
+#include "mock230_shop.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -356,16 +357,51 @@ mock230_scripts_load(
         long delta = 0;
 
         if( scripts_newer_than_pack(dir, newer, sizeof(newer), &delta) )
+        {
             fprintf(stderr,
                     "mock230: ============================================================\n"
                     "mock230: STALE SCRIPT PACK — the tree is newer than script.dat\n"
                     "mock230:   %s\n"
                     "mock230:   is %ld second(s) newer than the compiled pack.\n"
-                    "mock230: This server is running content that does NOT match the tree.\n"
-                    "mock230: A script you just edited is not the one about to run.\n"
-                    "mock230: Rebuild it:  make -C src mock230-scripts\n"
+                    "mock230:   pack: %s\n"
+                    "mock230: This server would be running content that does NOT match\n"
+                    "mock230: the tree. A script you just edited is not the one that\n"
+                    "mock230: would run.\n"
+                    "mock230: Rebuild it:  ./tools/tob_build_packs.sh\n"
+                    "mock230:          or: make -C src mock230-scripts\n"
+                    "mock230: Deliberately testing an old pack against new C?\n"
+                    "mock230:   MOCK230_ALLOW_STALE_SCRIPTS=1\n"
                     "mock230: ============================================================\n",
-                    newer, delta);
+                    newer, delta, dir);
+            /*
+             * A REFUSAL, not a warning.
+             *
+             * This was a warning for exactly the reason the comment on
+             * `scripts_newer_than_pack` gives — someone testing an old pack
+             * against new C should be able to — and that reason is still
+             * honoured, by an env var, because it is a deliberate act and
+             * should have to be spelled.
+             *
+             * What it cannot be is the default. A banner in a wall of boot
+             * output is not a guarantee; it is something to scroll past, and it
+             * was scrolled past for an entire session while every symptom was
+             * blamed on the content it was announcing was not loaded. The whole
+             * cost of that mistake is paid at boot, once, by a `stat` walk that
+             * stops at the first hit.
+             *
+             * Every consumer is covered by putting it here rather than in the
+             * launchers: `mock230`, `mock230 --selftest`, the embedded server
+             * inside the client, and anything else that ever loads a pack.
+             */
+            if( !getenv("MOCK230_ALLOW_STALE_SCRIPTS") )
+            {
+                fprintf(stderr,
+                        "mock230: refusing to run on a stale script pack.\n");
+                exit(1);
+            }
+            fprintf(stderr,
+                    "mock230: MOCK230_ALLOW_STALE_SCRIPTS=1 — continuing anyway.\n");
+        }
     }
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
@@ -4033,6 +4069,39 @@ npc_changetype_rehydrate(
     npc->attack_sound = def->attack_sound;
     npc->block_sound = def->defend_sound;
     npc->death_sound = def->death_sound;
+
+    /*
+     * AND THE FOOTPRINT, which this used to leave on whatever the SPAWN type
+     * had.
+     *
+     * `size` comes off the cache record, not the content def, and it is not
+     * cosmetic on the server side: it is the box `npc_range` measures from
+     * (Xarpus' "are you standing underneath me" stomp), the box the collision
+     * grid reserves, and the box NPC_INFO measures view range against. A
+     * transform that changes size and does not move this leaves the server
+     * arguing with its own client — which draws the NEW type's size, because
+     * that is all the wire carries.
+     *
+     * Xarpus is the case that found it: `tob_xarpus_feeding` is 3 and
+     * `tob_xarpus_combat` is 5, so for the whole fight the server thought his
+     * body was a 3x3 in the corner of the 5x5 the player could see. Verzik and
+     * the Nylocas boss change size too.
+     *
+     * The occupancy is released at the old size and retaken at the new one, in
+     * that order: `npc_set_occupancy` derives the rectangle from `npc->size`,
+     * so writing the field first would release a rectangle that was never
+     * taken and leave the old one reserved forever.
+     */
+    {
+        const struct Mock230NpcInfo* info = mock230_npcinfo_record(type);
+        int size = (info && info->size > 0) ? info->size : 1;
+        if( size != npc->size )
+        {
+            mock230_world_npc_occupancy(npc, 0);
+            npc->size = size;
+            mock230_world_npc_occupancy(npc, 1);
+        }
+    }
 }
 
 /*
@@ -10071,6 +10140,7 @@ mock230_script_command(
     case SS_OP_INV_SIZE:
     {
         int32_t inv_id;
+        int size;
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
@@ -10082,7 +10152,39 @@ mock230_script_command(
          * return 0 for 1,023 of the cache's 1,026 invs while
          * `mock230_bank_inv_size` sat beside it answering every one.
          */
-        SSVM_PushInt(state, mock230_bank_inv_size((int)inv_id));
+        size = mock230_bank_inv_size((int)inv_id);
+        /*
+         * The cache is not the only place a type size can live, and answering
+         * only the first source is what made this op lie.
+         *
+         * A `pack/inv.alloc` id has no config group 5 record at all, so the
+         * lookup above answers 0 for it -- while the container the same inv
+         * hands out is sized from the `size=` its `.inv` declared. That is the
+         * two-source chain `mock230_container_resolve` already walks, and
+         * walking only half of it put `inv_size` and `inv_freespace` in
+         * disagreement about one container. Content cannot see that: it reads
+         * as an inv with no slots, and every loop bounded by it silently does
+         * nothing.
+         *
+         * `~gauntlet_login` is what that cost. Its "is anything being held"
+         * guard is `inv_freespace(x) = inv_size(x)`; on
+         * `gauntlet_holding_worn` that was `14 = 0`, false for every player on
+         * every login, so the proc fell through to `p_teleport` and put every
+         * account in the Gauntlet lobby. `~gauntlet_restore_gear`'s
+         * `while ($slot < inv_size(gauntlet_holding_worn))` was
+         * `while ($slot < 0)` in the same breath, so the gear it was meant to
+         * hand back never moved.
+         */
+        if( size <= 0 )
+            size = mock230_shop_content_size(inv_id);
+        /*
+         * Neither source knows this inv: content named an id that is in no
+         * cache record and no `.inv`. There is no size to answer with, and
+         * pushing 0 -- a perfectly ordinary-looking number that reads as "no
+         * slots" -- is precisely the silence that hid the above for two weeks.
+         */
+        assert(size > 0);
+        SSVM_PushInt(state, size);
         return 1;
     }
 

@@ -1008,7 +1008,11 @@ void
 painter_reset_to_static(struct Painter* painter)
 {
     struct PaintersTile* tile = NULL;
-    for( int i = painter->static_element_count; i < painter->element_count; i++ )
+    /* Newest first. The single-slot kinds below hand a tile back to whatever
+     * they displaced, and two dynamics can chain on one tile within a frame
+     * (B displaced A, A displaced the baked one). Unwinding oldest-first would
+     * restore A — an element this same loop is about to throw away. */
+    for( int i = painter->element_count - 1; i >= painter->static_element_count; i-- )
     {
         /* Dynamic walls (runtime-spawned locs re-registered per frame): free
          * the exclusive tile slot so next frame's painter_add_wall re-claims
@@ -1025,6 +1029,23 @@ painter_reset_to_static(struct Painter* painter)
                 tile->wall_a = -1;
             if( painter->elements[i].kind == PNTRELEM_WALL_B && tile->wall_b == i )
                 tile->wall_b = -1;
+            continue;
+        }
+
+        /* Dynamic ground decor: hand the tile back to whatever the add
+         * displaced — usually -1, but a runtime spawn can land on a tile that
+         * baked its own floor decor, and truncating the element without
+         * restoring would leave tile->ground_decor naming a slot this reset is
+         * about to give away. */
+        if( painter->elements[i].kind == PNTRELEM_GROUND_DECOR )
+        {
+            tile = painter_tile_at(
+                painter,
+                painter->elements[i].sx,
+                painter->elements[i].sz,
+                painter->elements[i].source_level);
+            if( tile->ground_decor == i )
+                tile->ground_decor = painter->elements[i]._ground_decor.prev_slot;
             continue;
         }
 
@@ -1237,7 +1258,39 @@ painter_add_ground_decor(
         .sx = sx,
         .sz = sz,
         .source_level = slevel,
-        ._ground_decor = { .entity = entity },
+        ._ground_decor = { .entity = entity, .prev_slot = -1 },
+    };
+    return element;
+}
+
+int
+painter_add_ground_decor_dynamic(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
+{
+    struct PaintersTile* tile;
+    int element;
+    int prev;
+
+    /* No suppress_slot_registration test here on purpose. That flag is set
+     * around WorldBuilder_ApplyLocChange so the build path does not touch the
+     * baked slots; this entry point is the per-frame re-registration that runs
+     * afterwards, and its whole job is to claim the slot. */
+    tile = painter_tile_at(painter, sx, sz, slevel);
+    element = painter_push_element(painter);
+
+    prev = tile->ground_decor;
+    tile->ground_decor = element;
+
+    painter->elements[element] = (struct PaintersElement){
+        .kind = PNTRELEM_GROUND_DECOR,
+        .sx = sx,
+        .sz = sz,
+        .source_level = slevel,
+        ._ground_decor = { .entity = entity, .prev_slot = prev },
     };
     return element;
 }

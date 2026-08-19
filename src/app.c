@@ -2243,6 +2243,183 @@ app_overlay_build_hover_footprint(struct App* app)
     }
 }
 
+/**
+ * Pixel size of a sprite already resident in the scene.
+ *
+ * The scene is the only place a decoded sprite's dimensions exist -- the
+ * healthbar config names an id, not a size -- and this runs inside the
+ * per-frame overlay build, where there is nowhere to yield to a load. The boot
+ * preload in task_dat2_healthbar_load.c is what makes the answer available;
+ * false here means it is not, and the caller falls back to the declared width.
+ */
+static bool
+app_scene_sprite_size(
+    struct App* app,
+    int scene_id,
+    int* out_w,
+    int* out_h)
+{
+    struct ToriDraw_Sprite** sprites;
+    int count = 0;
+
+    assert(app);
+    assert(out_w);
+    assert(out_h);
+    if( scene_id <= 0 )
+        return false;
+    sprites = ToriDraw_SceneSpriteGet(app->scene, scene_id, &count);
+    if( !sprites || count <= 0 || !sprites[0] )
+        return false;
+    *out_w = sprites[0]->width;
+    *out_h = sprites[0]->height;
+    return true;
+}
+
+/*
+ * The overhead health bar, as the rev-239 client draws it.
+ *
+ * Three things the old two-rectangle version got wrong, all of them the same
+ * mistake -- treating the server's fill byte as a pixel count:
+ *
+ *   - The bar's span is the FRONT SPRITE's width, minus the type's padding at
+ *     both ends. It runs 30..160 across cache.osrs239's 85 records. Only a
+ *     type naming no sprites falls back to `width` pixels.
+ *   - `width` (opcode 14) is the denominator the fill arrives as a fraction of,
+ *     which is a different number from the span for `healthbar_9` and equal to
+ *     it for the other 84.
+ *   - A block carries a start fill, an end fill and a duration; the bar
+ *     travels between them and then fades, rather than snapping to one value.
+ *
+ * Reference: the health-bar block of drawEntities, class381 and class66.
+ */
+static void
+app_overlay_build_healthbar(
+    struct App* app,
+    struct WorldEntityFacet_Combat const* combat,
+    int screen_x,
+    int screen_y)
+{
+    struct RS_HealthbarType const* type =
+        RS_Healthbars_TypeFor(&app->healthbars, combat->healthbar_type);
+    int cycle = app->world->cycle;
+    /* -1 is the common "this type has no sprites" state, and EnsureSprite
+     * answers -1 for it as well -- so the pair is resolved unconditionally and
+     * only the resulting scene ids are tested. */
+    int front_scene = UITreeSceneBridge_EnsureSprite(&app->bridge, type->front_sprite);
+    int back_scene = UITreeSceneBridge_EnsureSprite(&app->bridge, type->back_sprite);
+    int front_w = 0;
+    int front_h = 0;
+    int back_w = 0;
+    int back_h = 0;
+    bool sprites = app_scene_sprite_size(app, front_scene, &front_w, &front_h) &&
+                   app_scene_sprite_size(app, back_scene, &back_w, &back_h);
+    int padding = 0;
+    int span;
+    int elapsed = cycle - combat->healthbar_start_cycle;
+    int end_span;
+    int drawn;
+    int alpha = 255;
+    int bar_x;
+
+    /* Denominator, so a type that somehow declares 0 would divide by zero. The
+     * reference has no such guard because its constructor cannot produce one;
+     * ours reads a cache, so it can. */
+    assert(type->width > 0);
+
+    if( sprites )
+    {
+        /* The reference only accepts the padding when it fits inside the
+         * sprite -- an oversized one would invert the span. */
+        if( type->padding < front_w )
+            padding = type->padding;
+        span = front_w - padding * 2;
+    }
+    else
+    {
+        span = type->width;
+    }
+
+    end_span = combat->healthbar_end_fill * span / type->width;
+    if( combat->healthbar_duration > elapsed )
+    {
+        int start_span = combat->healthbar_start_fill * span / type->width;
+        drawn = (end_span - start_span) * elapsed / combat->healthbar_duration + start_span;
+    }
+    else
+    {
+        drawn = end_span;
+        /* Past the travel, the bar fades over the tail of its persist window.
+         * -1 (the constructor default, and what most records keep) never
+         * fades, which is why this is not a plain subtraction. */
+        if( type->fade_threshold >= 0 && type->persist_cycles > type->fade_threshold )
+        {
+            int remaining = combat->healthbar_duration + type->persist_cycles - elapsed;
+            alpha = (remaining << 8) / (type->persist_cycles - type->fade_threshold);
+        }
+    }
+    /* A living entity never renders as empty: any non-zero fill keeps a pixel. */
+    if( combat->healthbar_end_fill > 0 && drawn < 1 )
+        drawn = 1;
+    if( drawn > span )
+        drawn = span;
+    if( drawn < 0 )
+        drawn = 0;
+
+    bar_x = screen_x - (span >> 1);
+
+    if( !sprites )
+    {
+        struct UITreeEntityOverlay bar = {
+            .kind = UITREE_ENTITY_OVERLAY_RECT,
+            .x = bar_x,
+            .y = screen_y - 3,
+            .w = drawn,
+            .h = RS_HEALTHBAR_FALLBACK_HEIGHT,
+            .color = 0xFF00FF00u, /* Colour.GREEN */
+        };
+        app_overlay_push(app, &bar);
+        bar.x = bar_x + drawn;
+        bar.w = span - drawn;
+        bar.color = 0xFFFF0000u; /* Colour.RED */
+        app_overlay_push(app, &bar);
+        return;
+    }
+
+    {
+        /* Both halves are blitted at the same origin; the filled one is cut
+         * off at the current fill. The full bar gets both paddings back
+         * because its right edge is the sprite's own, not a cut. */
+        int clip_w = (drawn == span) ? padding * 2 + drawn : padding + drawn;
+        int x = bar_x - padding;
+        /* Centred on the same row the rectangle path uses, so switching
+         * between the two does not move the bar. */
+        int y = screen_y - back_h / 2;
+        int trans = (alpha >= 0 && alpha < 255) ? 255 - alpha : 0;
+        struct UITreeEntityOverlay back = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = x,
+            .y = y,
+            .scene_id = back_scene,
+            .trans = trans,
+        };
+        struct UITreeEntityOverlay front = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = x,
+            .y = y,
+            .scene_id = front_scene,
+            .trans = trans,
+            .clip_x = x,
+            .clip_y = y,
+            .clip_w = clip_w,
+            .clip_h = front_h,
+        };
+
+        app_overlay_push(app, &back);
+        if( clip_w > 0 )
+            app_overlay_push(app, &front);
+    }
+}
+
 static void
 app_overlay_build_entity(
     struct App* app,
@@ -2257,10 +2434,19 @@ app_overlay_build_entity(
     int height = app_entity_overlay_height(app, element_id, type_height);
     int screen_x, screen_y;
 
-    /* Health bar: 30px wide, green/red split, 15px above the model top.
-     * `combatCycle > loopCycle + 100` is the reference's "recently in combat"
-     * window (set to loopCycle + 400 on every hit). */
-    if( combat->combat_cycle > cycle + 100 && combat->total_health > 0 &&
+    /*
+     * Health bar, 15px above the model top. Two sources, and they are not
+     * alternatives so much as two eras:
+     *
+     *   - A HEADBAR block (dat2/OldSchool) names a healthbar type and carries
+     *     fills relative to it. Everything about how it draws is the type's.
+     *   - A legacy dat1 hitsplat block carries raw hitpoints and no type at
+     *     all, so it keeps the client's own 30-wide rectangle and the
+     *     `combatCycle > loopCycle + 100` window (combat_cycle is set to
+     *     loopCycle + 400 on every hit -- the same 300 cycles the standard
+     *     healthbar type spells as its persist window).
+     */
+    if( combat->healthbar_type >= 0 && combat->healthbar_end_cycle > cycle &&
         app_world_project(
             app,
             (int)draw_position->x,
@@ -2269,7 +2455,19 @@ app_overlay_build_entity(
             &screen_x,
             &screen_y) )
     {
-        int bar_width = combat->healthbar_width > 0 ? combat->healthbar_width : 30;
+        app_overlay_build_healthbar(app, combat, screen_x, screen_y);
+    }
+    else if( combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
+             combat->total_health > 0 &&
+             app_world_project(
+                 app,
+                 (int)draw_position->x,
+                 (int)draw_position->z,
+                 height + 15,
+                 &screen_x,
+                 &screen_y) )
+    {
+        int bar_width = RS_HEALTHBAR_DEFAULT_WIDTH;
         int filled = (combat->health * bar_width) / combat->total_health;
         if( filled > bar_width )
             filled = bar_width;
@@ -2280,7 +2478,7 @@ app_overlay_build_entity(
             .x = screen_x - (bar_width >> 1),
             .y = screen_y - 3,
             .w = filled,
-            .h = 5,
+            .h = RS_HEALTHBAR_FALLBACK_HEIGHT,
             .color = 0xFF00FF00u, /* Colour.GREEN */
         };
         app_overlay_push(app, &bar);
@@ -2497,15 +2695,25 @@ app_build_entity_overlays(
         for( int i = 0; i < app->entity_overlay_count; i++ )
         {
             struct UITreeEntityOverlay const* item = &app->entity_overlays[i];
+            /* scene/clip/trans are printed because a SPRITE primitive carries
+             * no w/h -- it blits at the sprite's own size -- so without them a
+             * health bar's line says nothing about how wide it came out. */
             fprintf(
                 stderr,
-                "  overlay[%d] kind=%d at %d,%d %dx%d \"%s\"\n",
+                "  overlay[%d] kind=%d at %d,%d %dx%d scene=%d clip=%d,%d %dx%d "
+                "trans=%d \"%s\"\n",
                 i,
                 item->kind,
                 item->x,
                 item->y,
                 item->w,
                 item->h,
+                item->scene_id,
+                item->clip_x,
+                item->clip_y,
+                item->clip_w,
+                item->clip_h,
+                item->trans,
                 item->text);
         }
     }
@@ -4585,6 +4793,41 @@ App_Init(
             app->features_storage.painter_draw_distance =
                 cfg->features_painter_draw_distance;
 
+        /*
+         * The mover model, on top of the era.
+         *
+         * It needs an override where the other era fields do not, because
+         * ToriRS_Features_ForCache decides the era from cache *lineage* and has
+         * exactly one table for everything that is not dat2+oldschool -- so a
+         * rev-377 or rev-634 boot lands on the lostcity table and inherits its
+         * 2004 per-cycle mover. Those lanes are not reproducing the 2004
+         * client, and `[features:boot] mover=frame` in their manifests is how
+         * they say so. TORIRS_MOVER_MODEL is the same switch for an A/B without
+         * editing a manifest.
+         */
+        {
+            int model = -1;
+
+            if( cfg->features_mover_model_set )
+                model = cfg->features_mover_model;
+            {
+                char const* env = getenv("TORIRS_MOVER_MODEL");
+                if( env && env[0] )
+                {
+                    int from_env = ToriRS_Features_MoverModelByName(env);
+                    if( from_env < 0 )
+                        fprintf(stderr,
+                                "app: unknown TORIRS_MOVER_MODEL '%s' "
+                                "(cycle|frame)\n",
+                                env);
+                    else
+                        model = from_env;
+                }
+            }
+            if( model >= 0 )
+                app->features_storage.mover_model = model;
+        }
+
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr,
                     "app: features era=%s ground_click_nearest=%s "
@@ -4596,6 +4839,15 @@ App_Init(
                     app->features->ground_click_offmap_nearest,
                     ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
+        /* And the world sim: the actor mover is era-dependent too (rev-239
+         * integrates movement per rendered frame, the 2004 client per 20ms
+         * cycle -- enum ToriRS_MoverModel). Pointed at app->features_storage
+         * rather than the singleton so a manifest override reaches it, and set
+         * after the overrides above for the same reason. */
+        World_SetFeatures(app->world, app->features);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(stderr, "app: world mover=%s\n",
+                    ToriRS_Features_MoverModelName(World_MoverModel(app->world)));
 
         /* Model lighting: era defaults for the two xrsps-vs-Client-TS
          * divergences, then [render:light] overrides, then push the regimes
@@ -4777,6 +5029,7 @@ App_Shutdown(struct App* app)
     /* The bed holds borrowed pointers into this table, so it has to outlive the
      * audio layer's teardown. */
     RS_Soundscapes_Free(&app->soundscapes);
+    RS_Healthbars_Free(&app->healthbars);
     RS_EntitySync_Free(&app->esync);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
@@ -5917,6 +6170,13 @@ Task_AppBoot_Run(
      * binds — so this is a dat2-only load and an absent group is not an error. */
     if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
+
+    /* Healthbar types. dat2 only for the same reason as hitsplats -- dat1 has
+     * no such config group, and the table's defaults are the reference's own
+     * constructor, so an absent group draws exactly what the hardcoded 30-wide
+     * bar used to. */
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2HealthbarLoad(app->provider, &app->healthbars));
 
     /*
      * Ambient soundscapes. dat2 only, and OldSchool 231+ within that -- an
@@ -7537,6 +7797,37 @@ app_logic_tick(struct App* app)
                     ToriRS_Music_LoadFailed(&app->audio.music, song_id);
             }
         }
+    }
+
+    /* Where the player is standing, for the scripts that branch on it. Packed
+     * as the cache's coord is - plane<<28 | x<<14 | z - from the local player's
+     * scene tile plus the scene's base, because a script compares it against
+     * absolute world regions. Refreshed here, once a frame, beside the clock
+     * for the same reason: both are things the VM reads and neither belongs to
+     * any one script's call. */
+    {
+        /* -1, not 0, when there is no local player: the reference's opcode 3308
+         * pushes -1 when its coord source is absent or invalid. */
+        int coord = -1;
+        if( app->world && app->world->load_complete )
+        {
+            struct WorldEntity_Player* self =
+                World_PlayerGetByServerPid(app->world, app->world->local_pid);
+            if( self )
+            {
+                int const x = app->world->_base_tile_x + self->grid_position.x;
+                int const z = app->world->_base_tile_z + self->grid_position.z;
+                int const level = self->grid_position.level & 3;
+                /* `Statics.method6754(plane, x, z) = plane << 28 | x << 14 | z`,
+                 * over ABSOLUTE coords - the reference stores the player's
+                 * absolute tile and subtracts the scene base where it wants a
+                 * local one, so this is the same number its scripts read. In a
+                 * dynamic instance that is the instance's own tile, exactly as
+                 * the reference reports it there; no template translation. */
+                coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
+            }
+        }
+        app->host.local_coord = coord;
     }
 
     RS_CS2Host_Tick(&app->host);

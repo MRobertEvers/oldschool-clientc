@@ -301,6 +301,12 @@ struct Wall
 struct GroundDecor
 {
     int entity;
+    /** Slot occupant this element displaced, or -1. Only a *dynamic* add
+     *  (painter_add_ground_decor_dynamic) ever displaces anything: a baked
+     *  static decor keeps the tile until painter_reset_to_static hands it
+     *  back, which is what this field is for. Static adds leave it -1 and it
+     *  is never read for them. */
+    int prev_slot;
 };
 
 enum ThroughWallFlags
@@ -826,6 +832,30 @@ painter_add_wall_decor(
 
 int
 painter_add_ground_decor(
+    struct Painter* painter, //
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
+/** Ground decor for a loc spawned at RUNTIME (a zone LOC_ADD_CHANGE), which
+ *  world_cycle re-registers every frame after painter_reset_to_static has
+ *  truncated the previous frame's copy.
+ *
+ *  Two differences from painter_add_ground_decor, both from that lifetime: it
+ *  claims an occupied tile slot instead of asserting on one (a spawn can land
+ *  on a tile that baked its own floor decor), and it records what it displaced
+ *  so the reset can put it back.
+ *
+ *  Registering these as ordinary scenery -- which is what the per-frame pass
+ *  did before this existed -- is not just a category error. Ground decor is
+ *  emitted in a tile's BASE step, which is ahead of every scenery element whose
+ *  footprint covers that tile; scenery is emitted after the base step and is
+ *  ordered against the other scenery on the tile. So a puddle spawned under a
+ *  big NPC drew *over* the NPC whenever its own tile sorted nearer than the
+ *  NPC's anchor (Xarpus' acid). As decor it is underneath by construction. */
+int
+painter_add_ground_decor_dynamic(
     struct Painter* painter, //
     int sx,
     int sz,

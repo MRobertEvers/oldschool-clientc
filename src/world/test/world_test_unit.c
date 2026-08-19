@@ -949,11 +949,10 @@ test_delaymove_gate(void)
  * step in World_MoverStepSpeed (the clamp this port carried until 2026-08-18)
  * and the queue climbs past 4 within a dozen ticks.
  */
-void
-test_walk_keeps_up(void)
+static void
+walk_keeps_up_for(struct ToriRS_FeatureTable const* features)
 {
-    printf("TEST: an unbroken walk does not fall behind\n");
-    struct World* world = World_TestMakeReady(104);
+    struct World* world = World_TestMakeReadyEra(104, features);
     struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
     int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
     struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
@@ -989,6 +988,133 @@ test_walk_keeps_up(void)
     TEST_ASSERT(player->pathing.route_x[0] == 70, "the walk ends where the steps ended");
 
     World_Free(world);
+}
+
+void
+test_walk_keeps_up(void)
+{
+    printf("TEST: an unbroken walk does not fall behind\n");
+    /* Both movers, because the debt and the rungs that repay it are the same
+     * arithmetic on either clock -- the clamp broke the 2004 model exactly as
+     * badly as the rev-239 one, and neither reference has it. */
+    walk_keeps_up_for(ToriRS_Features_LostCity());
+    walk_keeps_up_for(ToriRS_Features_OSRS());
+}
+
+/*
+ * The era flag actually selects a mover.
+ *
+ * Under LostCity the distance is spent inside World_Cycle and
+ * World_MoversAdvance is inert; under OSRS it is the other way round. Asserting
+ * each mover is *dead* on the other era is the half that matters: a flag that
+ * left both live would move every actor at double speed, and a walk at double
+ * speed still looks like a walk until you measure it.
+ */
+/*
+ * What a stopped walker does next -- the "boss is going down but still moving"
+ * shape.
+ *
+ * When the server parks an actor (ToB's Bloat issues `npc_walk(npc_coord)` and
+ * a sleep animation on the same tick) the client does not stop with it: the
+ * animation is applied the tick it arrives, while the route queue still holds
+ * whatever the model had not walked off yet. It glides through the first ticks
+ * of the down.
+ *
+ * That residue is not a defect on its own -- it is the reference's own
+ * equilibrium, and the arithmetic is fixed: 30 cycles at speed 4 covers 120 of
+ * a tile's 128 units, so a walker that never pauses settles a little over a
+ * tile behind and needs that tile back after it stops. What this pins is the
+ * SIZE of it, because the clamp this port used to carry let the debt grow
+ * without bound and turned a one-tile glide into a four-tile one.
+ *
+ * Identical under both movers by construction: the rungs that set the
+ * equilibrium are the same on either clock.
+ */
+void
+test_stop_settles_promptly(void)
+{
+    printf("TEST: a stopped walker settles within a tick or two\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_LostCity(),
+                                                 ToriRS_Features_OSRS() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+        struct WorldEntity_Player* p = World_EntityPoolGet(&world->entities.player, pi);
+        int settle = 0;
+        int told;
+        int lag;
+
+        for( int t = 0; t < 40; t++ )
+        {
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+            World_TestCycle(world, 30);
+        }
+        told = p->pathing.route_x[0];
+        lag = told * 128 + 64 - (int)p->draw_position.x;
+
+        /* Server has stopped issuing steps; count the ticks the model keeps
+         * moving anyway. */
+        for( int t = 0; t < 20; t++ )
+        {
+            int before = (int)p->draw_position.x;
+            World_TestCycle(world, 30);
+            if( (int)p->draw_position.x == before )
+                break;
+            settle++;
+        }
+
+        TEST_ASSERT(lag < 192, "a long walk leaves at most a tile and a half of debt");
+        TEST_ASSERT(settle <= 2, "and it is paid off within two ticks of stopping");
+        World_Free(world);
+    }
+}
+
+void
+test_mover_model_flag(void)
+{
+    printf("TEST: the era flag picks the mover\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int classic_step = 0;
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_LostCity());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "classic: the frame mover moves nothing");
+        World_Cycle(world, 1);
+        classic_step = (int)player->draw_position.x - start_x;
+        TEST_ASSERT(classic_step > 0, "classic: the cycle mover is what walks");
+        World_Free(world);
+    }
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_Cycle(world, 1);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "modern: the cycle mover moves nothing");
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step,
+                    "modern: a whole cycle of frame time covers exactly what a cycle did");
+        /* And a fraction of one covers a fraction of it, which is the whole
+         * point of the era: a frame is not a cycle. */
+        World_MoversAdvance(world, 0.5f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step + classic_step / 2,
+                    "modern: half a cycle of frame time is half a step");
+        World_Free(world);
+    }
 }
 
 /* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved

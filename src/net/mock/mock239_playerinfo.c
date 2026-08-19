@@ -380,15 +380,20 @@ mock239_playerinfo_write(
         }
         if( has_headbar )
         {
-            /* PlayerHeadbarEncoder: p1Alt1 count, smart type/duration/delay,
-             * then start fill p1Alt1 and target fill p1Alt2. */
-            rsab_p1_alt1(buf, 1);
+            /* PlayerHeadbarEncoder: p1Alt2 count, smart type/duration/delay,
+             * then start fill p1Alt1 and target fill p1Alt3.
+             *
+             * Count and target fill are NOT the npc encoder's transforms --
+             * that one writes them alt1 and alt2. The two blocks carry the
+             * same six fields and disagree on two of the three byte
+             * transforms; see the matching decoder. */
+            rsab_p1_alt2(buf, 1);
             ext_psmart1or2(buf, ext->headbar_type);
             ext_psmart1or2(buf, ext->headbar_duration);
             ext_psmart1or2(buf, ext->headbar_start_delay);
             rsab_p1_alt1(buf, ext->headbar_start_fill);
             if( ext->headbar_duration > 0 )
-                rsab_p1_alt2(buf, ext->headbar_end_fill);
+                rsab_p1_alt3(buf, ext->headbar_end_fill);
         }
         if( has_seq )
         {

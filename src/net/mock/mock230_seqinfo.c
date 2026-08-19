@@ -127,6 +127,22 @@ mock230_seqinfo_load(const char* cache_dir)
 
         if( !seq )
             continue;
+        if( getenv("MOCK230_SEQ_DUMP") )
+        {
+            int want = atoi(getenv("MOCK230_SEQ_DUMP"));
+            int id = archive->file_ids[i];
+
+            if( want > 0 && id >= want && id <= want + 9 )
+            {
+                int total = 0;
+                for( int f = 0; f < seq->frame_count; f++ )
+                    total += seq->frame_lengths ? seq->frame_lengths[f] : 0;
+                fprintf(stderr,
+                        "seqdump %d frames=%d cycles=%d ticks=%d loops=%d name=%s\n",
+                        id, seq->frame_count, total, total / 30, seq->max_loops,
+                        seq->debug_name ? seq->debug_name : "-");
+            }
+        }
         if( seq->debug_name && seq->debug_name[0] )
         {
             g_seqs[loaded].name = strdup(seq->debug_name);

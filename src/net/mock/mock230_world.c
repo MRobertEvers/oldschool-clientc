@@ -24795,12 +24795,44 @@ mock230_world_selftest(void)
 
             /* [login,_] should run in phase 7, not during the login burst. */
             player->login_pending = 1;
+            int login_x = player->x;
+            int login_z = player->z;
+            int login_level = player->level;
             mock230_capture_begin(srv, &capture);
             mock230_world_tick(srv);
             mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
                            "[login] should produce a game message");
             SELFTEST_CHECK(player->login_pending == 0, "the login latch should be drained");
+
+            /*
+             * [login] MUST NOT MOVE THE PLAYER.
+             *
+             * Logging in is not an event that relocates anybody. Where a
+             * character stands is the save's fact, or the home tile for a new
+             * one; the ~40 procs `player/login.rs2` dispatches are there to
+             * arm interfaces and restore session state, and any one of them
+             * calling `p_teleport` reaches every account on the server.
+             *
+             * `~gauntlet_login` did exactly that, for two weeks, and nothing
+             * here noticed. Its "is anything being held" guard reads
+             * `inv_freespace(x) = inv_size(x)`, and `inv_size` on the
+             * content-allocated `gauntlet_holding_worn` answered 0 against a
+             * container of 14 -- false for every player, forever -- so the
+             * proc fell through to `p_teleport(^gauntlet_lobby_land)` and put
+             * every login in the Gauntlet lobby. The op is fixed
+             * (`SS_OP_INV_SIZE` in mock230_scripts.c), but the reason this was
+             * invisible is that the whole suite asserted what [login] *gives*
+             * you and never once where it *leaves* you.
+             *
+             * So this is the invariant, not the bug: no coordinate is named
+             * here, because naming one would only pin this fixture's tile.
+             * What is checked is that the tick did not change it.
+             */
+            SELFTEST_CHECK(player->x == login_x && player->z == login_z &&
+                               player->level == login_level,
+                           "[login] must not move the player: was %d,%d,%d -- now %d,%d,%d",
+                           login_x, login_z, login_level, player->x, player->z, player->level);
 
             /*
              * The opening fixture, which [login] seeds through
@@ -36764,7 +36796,11 @@ mock230_world_selftest(void)
          * The two are checked apart because `stat_base` and `stat` answer
          * differently after each, and that difference is the point of having
          * both: `::maxstats` leaves an account a real player could hold, `::jas`
-         * pushes the boosted level to the byte ceiling.
+         * pushes the boosted level to the byte ceiling and grants no experience
+         * at all. The experience snapshot across `::jas` is the half that pins
+         * that second property — a `stat_advance` creeping back into the shared
+         * proc would leave every boosted level at 255 and pass a boost-only
+         * check.
          *
          * Same restore obligation as `::~crystal_set` above — a 99-everything
          * player does not aggress low-level npcs, and later sections depend on
@@ -36777,8 +36813,11 @@ mock230_world_selftest(void)
             int level_before[MOCK230_STAT_COUNT];
             int boosted_before[MOCK230_STAT_COUNT];
             int xp_before[MOCK230_STAT_COUNT];
+            int level_pre_jas[MOCK230_STAT_COUNT];
+            int xp_pre_jas[MOCK230_STAT_COUNT];
             int unmaxed = -1;
             int unboosted = -1;
+            int granted = -1;
 
             memcpy(level_before, who->stat_level, sizeof(level_before));
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
@@ -36799,20 +36838,33 @@ mock230_world_selftest(void)
                            unmaxed < 0 ? 99 : who->stat_boosted[unmaxed],
                            unmaxed < 0 ? 99 : who->stat_level[unmaxed]);
 
+            memcpy(level_pre_jas, who->stat_level, sizeof(level_pre_jas));
+            memcpy(xp_pre_jas, who->stat_xp_tenths, sizeof(xp_pre_jas));
             handle_cheat(srv, cmd_jas, (int)sizeof(cmd_jas) - 1);
             for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
             {
                 if( i == MOCK230_STAT_SAILING )
                     continue;
-                if( who->stat_level[i] != 99 || who->stat_boosted[i] != 255 )
+                if( who->stat_boosted[i] != 255 )
                     unboosted = i;
+                if( who->stat_level[i] != level_pre_jas[i] ||
+                    who->stat_xp_tenths[i] != xp_pre_jas[i] )
+                    granted = i;
             }
             SELFTEST_CHECK(unboosted < 0,
-                           "::~jas boosts the same list to the 255 byte ceiling over a "
-                           "base 99; stat %d is %d/%d",
+                           "::~jas boosts the same list to the 255 byte ceiling; "
+                           "stat %d is %d/%d",
                            unboosted,
                            unboosted < 0 ? 255 : who->stat_boosted[unboosted],
                            unboosted < 0 ? 99 : who->stat_level[unboosted]);
+            SELFTEST_CHECK(granted < 0,
+                           "::~jas writes the boosted level only and grants no "
+                           "experience; stat %d moved %d/%d xp to %d/%d xp",
+                           granted,
+                           granted < 0 ? 99 : level_pre_jas[granted],
+                           granted < 0 ? 0 : xp_pre_jas[granted],
+                           granted < 0 ? 99 : who->stat_level[granted],
+                           granted < 0 ? 0 : who->stat_xp_tenths[granted]);
 
             memcpy(who->stat_level, level_before, sizeof(level_before));
             memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
@@ -38355,6 +38407,10 @@ mock230_world_selftest(void)
                 int hud;
                 int death_anim_seen = 0;
                 int pool_under_player = 0;
+                int victim = -1;
+                int victim_seq = 0;
+                int victim_corpse = 0;
+                int victim_alive_ticks = 0;
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -38462,6 +38518,54 @@ mock230_world_selftest(void)
                         if( l && l->active && l->loc_id == 32984 )
                             pool_under_player++;
                     }
+                    /*
+                     * A CRAB KILLED SHORT OF HER STILL PLAYS ITS DEATH
+                     * ANIMATION.
+                     *
+                     * Two ways a Matomenos ends: it reaches the boss (scripted,
+                     * checked by `leaks` above) or a player kills it on the way
+                     * — completely different code, and only the first was ever
+                     * exercised. The second is `npc_death_step`, which plays
+                     * `death_seq` at DEATH_ARRIVE and moves to DEATH_CORPSE on
+                     * the next line.
+                     *
+                     * Killed here, mid-walk, because by the end of the run they
+                     * have all arrived and there is nothing left to kill. The
+                     * assertion is that it reaches CORPSE — observable where
+                     * `anim_id` is not, since that is cleared in phase 11. The
+                     * same path and the same `elemental_death` carry Verzik's
+                     * healers one room later.
+                     */
+                    if( t == 3 && victim < 0 )
+                    {
+                        for( int n = 0; n < MOCK230_NPC_MAX && victim < 0; n++ )
+                        {
+                            if( srv->npcs[n].active &&
+                                srv->npcs[n].type == k_matomenos && n != boss &&
+                                mock230_mapinstance_find(srv->npcs[n].x,
+                                                         srv->npcs[n].z) == handle )
+                                victim = n;
+                        }
+                        if( victim >= 0 )
+                        {
+                            victim_seq = srv->npcs[victim].death_seq;
+                            /* Through the REAL kill, not by setting fields.
+                             * `mock230_combat_hit_npc` is what a player's swing
+                             * reaches, and it does more than zero the
+                             * hitpoints - it clears the npc's queue, stops its
+                             * combat and arms the death stages. A test that
+                             * arms them by hand is testing its own arithmetic. */
+                            mock230_combat_hit_npc(srv, victim, 0,
+                                                   srv->npcs[victim].hitpoints);
+                        }
+                    }
+                    if( victim >= 0 )
+                    {
+                        if( srv->npcs[victim].death_stage == MOCK230_DEATH_CORPSE )
+                            victim_corpse = 1;
+                        if( srv->npcs[victim].active )
+                            victim_alive_ticks++;
+                    }
                     if( getenv("MOCK230_TOB_CRABS") )
                     {
                         char line[256];
@@ -38475,10 +38579,12 @@ mock230_world_selftest(void)
                             if( mock230_mapinstance_find(srv->npcs[n].x,
                                                          srv->npcs[n].z) != handle )
                                 continue;
-                            at += snprintf(line + at, sizeof(line) - at, " %d:(%+d,%+d)t%d",
+                            at += snprintf(line + at, sizeof(line) - at,
+                                           " %d:(%+d,%+d)t%d d%d",
                                            n, srv->npcs[n].x - srv->npcs[boss].x,
                                            srv->npcs[n].z - srv->npcs[boss].z,
-                                           srv->npcs[n].timer_interval);
+                                           srv->npcs[n].timer_interval,
+                                           srv->npcs[n].death_seq);
                         }
                         fprintf(stderr, "    crabs t=%2d gap=%d%s\n", t, gap, line);
                     }
@@ -38757,6 +38863,22 @@ mock230_world_selftest(void)
                                "a Matomenos that reaches her must raise the leak "
                                "counter, got %d",
                                leaks);
+                fprintf(stderr,
+                        "  Maiden crab killed short: death_seq %d, reached corpse %d, "
+                        "visible for %d ticks after the blow\n",
+                        victim_seq, victim_corpse, victim_alive_ticks);
+                SELFTEST_CHECK(victim_seq > 0,
+                               "a Matomenos must carry elemental_death, got %d",
+                               victim_seq);
+                SELFTEST_CHECK(victim_corpse,
+                               "a Matomenos killed before it arrives must still play "
+                               "its death animation");
+                /* `elemental_death` is 61 client cycles - two game ticks - so a
+                 * corpse that is gone sooner cannot have shown it. */
+                SELFTEST_CHECK(victim_alive_ticks >= 2,
+                               "a killed Matomenos must stay visible long enough to "
+                               "play elemental_death, lasted %d tick(s)",
+                               victim_alive_ticks);
                 SELFTEST_CHECK(death_anim_seen > 0,
                                "a Matomenos reaching her must linger a tick with "
                                "its clock stopped (its death animation), saw %d "
@@ -38772,6 +38894,149 @@ mock230_world_selftest(void)
             player->dying = saved_dying;
             mock230_combat_sync_hitpoints(player);
         }
+
+        /*
+         * XARPUS' TWO TRANSFORMS, both of which were visibly wrong and neither
+         * of which anything checked.
+         *
+         * He is the only boss in the raid whose FOOTPRINT changes mid-fight —
+         * `tob_xarpus_feeding` is size 3 and `tob_xarpus_combat` is size 5 —
+         * and the only one whose death is two sequences on two models. The two
+         * defects have the same shape: a change of form that nobody measured
+         * from the player's side.
+         *
+         *   1. Standing up. An npc is anchored at its south-west corner, so
+         *      growing 3 -> 5 on a fixed anchor moves his CENTRE a full tile
+         *      north-east. `~tob_xarpus_stand_up` subtracts that tile; this
+         *      asserts the centre in eighths of a tile, because the correction
+         *      is exactly one tile and a check on the anchor alone would pass
+         *      for both the right answer and the wrong one.
+         *
+         *   2. Dying. `tob_xarpus_death_b` (8063) belongs to `xarpus_death`
+         *      (8341), not to the combat form, and the collapse has to outlive
+         *      the reap. Killed from here rather than by swinging at 5000
+         *      hitpoints: the sequence is the subject, not the damage pipeline,
+         *      and this is the same fixture the Maiden's fade uses above.
+         */
+        {
+            const int k_xarpus_feeding = 8339;
+            const int k_xarpus_combat = 8340;
+            const int k_xarpus_death = 8341;
+            int saved_hp = player->hitpoints;
+            int saved_god = player->godmode;
+            int saved_dying = player->dying;
+            int boss;
+
+            fprintf(stderr, "mock230 selftest: Xarpus transforms\n");
+            player->dying = 0;
+            player->godmode = 1;
+
+            mock230_scripts_run_debugproc(srv, "tob 5");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            boss = tob_harness_boss(srv, player);
+            SELFTEST_CHECK(boss >= 0, "Xarpus should be in his room");
+            if( boss >= 0 )
+            {
+                /*
+                 * Centres in EIGHTHS of a tile: a size-N npc anchored at `a`
+                 * covers [a, a+N), so its centre is `a + N/2`, which is a half
+                 * tile for odd N. Integer eighths keep both forms exact.
+                 */
+                int centre_x_before = 0;
+                int centre_z_before = 0;
+                int centre_x_after = 0;
+                int centre_z_after = 0;
+                int stood_up = 0;
+                int saw_feeding = 0;
+                int saw_death = 0;
+                int removed = 0;
+                int death_ticks = 0;
+
+                for( int t = 0; t < 200 && !stood_up; t++ )
+                {
+                    if( srv->npcs[boss].active && srv->npcs[boss].type == k_xarpus_feeding )
+                    {
+                        int sz = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+                        saw_feeding = 1;
+                        centre_x_before = srv->npcs[boss].x * 8 + sz * 4;
+                        centre_z_before = srv->npcs[boss].z * 8 + sz * 4;
+                    }
+                    mock230_world_tick(srv);
+                    if( srv->npcs[boss].active && srv->npcs[boss].type == k_xarpus_combat )
+                    {
+                        int sz = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+                        centre_x_after = srv->npcs[boss].x * 8 + sz * 4;
+                        centre_z_after = srv->npcs[boss].z * 8 + sz * 4;
+                        stood_up = 1;
+                    }
+                }
+
+                fprintf(stderr,
+                        "  Xarpus stand-up: centre %d,%d -> %d,%d (eighths of a tile)\n",
+                        centre_x_before, centre_z_before, centre_x_after, centre_z_after);
+                SELFTEST_CHECK(saw_feeding,
+                               "phase 1 should run as tob_xarpus_feeding");
+                SELFTEST_CHECK(stood_up,
+                               "he should stand up into tob_xarpus_combat within 200 ticks");
+                if( stood_up && saw_feeding )
+                {
+                    SELFTEST_CHECK(centre_x_after == centre_x_before &&
+                                       centre_z_after == centre_z_before,
+                                   "standing up must not move him: size 3 -> 5 on one "
+                                   "anchor slides his centre a tile north-east "
+                                   "(%d,%d -> %d,%d in eighths)",
+                                   centre_x_before, centre_z_before,
+                                   centre_x_after, centre_z_after);
+
+                    /*
+                     * And then he dies on screen. Armed the way
+                     * `mock230_combat_hit_npc` arms it, for the Maiden's stated
+                     * reason: zeroing hitpoints is not a death, `death_stage`
+                     * is, and `[ai_queue3]` hangs off that.
+                     */
+                    srv->npcs[boss].hitpoints = 0;
+                    srv->npcs[boss].death_stage = MOCK230_DEATH_QUEUED;
+                    srv->npcs[boss].death_tick = srv->tick + 1;
+                    for( int t = 0; t < 16; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( !srv->npcs[boss].active )
+                        {
+                            removed = 1;
+                            continue;
+                        }
+                        if( srv->npcs[boss].type == k_xarpus_death )
+                        {
+                            saw_death++;
+                            death_ticks++;
+                        }
+                    }
+                    fprintf(stderr,
+                            "  Xarpus death: xarpus_death on %d tick(s), removed %d\n",
+                            saw_death, removed);
+                    SELFTEST_CHECK(saw_death > 0,
+                                   "his death must transmog to xarpus_death (8341) so "
+                                   "tob_xarpus_death_b plays on the model it was "
+                                   "authored for, saw it on %d ticks",
+                                   saw_death);
+                    /* 8063 is 60 client cycles - two game ticks - so a corpse
+                     * gone sooner cannot have shown the collapse. */
+                    SELFTEST_CHECK(death_ticks >= 2,
+                                   "the collapse must stay on screen for its two "
+                                   "ticks, lasted %d",
+                                   death_ticks);
+                    SELFTEST_CHECK(removed,
+                                   "and the body must remove itself when it ends");
+                }
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            player->hitpoints = saved_hp;
+            player->godmode = saved_god;
+            player->dying = saved_dying;
+            mock230_combat_sync_hitpoints(player);
+        }
+
 
 
         /*
@@ -40183,6 +40448,59 @@ mock230_world_selftest(void)
                 {
                     int bx = 0, bz = 0;
                     mock230_mapinstance_base(mock230_mapinstance_find(npc->x, npc->z), &bx, &bz);
+                    /*
+                     * A DOWN BLOAT DOES NOT MOVE. Asserted in the RUN band,
+                     * because that is the half a walk-speed trace cannot see:
+                     * the noMode drain takes a second tile when `move_speed` is
+                     * set, so a down that forgot to clear the route would slide
+                     * two tiles a tick rather than one.
+                     *
+                     * Both halves of the stop are load-bearing and neither is
+                     * obvious. `npc_walk(npc_coord)` retargets the route at the
+                     * npc's own tile, which `npc_take_step` reads as "arrived"
+                     * and retires; `npc_setmovespeed(walk)` puts the speed back
+                     * so the rise does not inherit a run. Drop either and the
+                     * boss keeps travelling through its own down, which is the
+                     * one window the team has to attack it in.
+                     */
+                    {
+                        int h = mock230_mapinstance_find(npc->x, npc->z);
+                        int bx = 0, bz = 0;
+                        int down_x, down_z;
+                        int drifted = 0;
+                        int down_ticks = 0;
+
+                        mock230_mapinstance_base(h, &bx, &bz);
+                        npc->hitpoints = npc->base_hitpoints / 2; /* the run band */
+                        mock230_mapinstance_var_set(h, 45 /* speed */, 1);
+                        /* Force the walk clock and its cap into the past so the
+                         * very next walk tick goes down. */
+                        mock230_mapinstance_var_set(h, 4 /* clock */, 0);
+                        mock230_mapinstance_var_set(h, 48 /* cap */, 0);
+                        mock230_mapinstance_var_set(h, 14 /* lockout */, 0);
+                        mock230_world_tick(srv);
+                        down_x = npc->x;
+                        down_z = npc->z;
+                        for( int t = 0; t < 32; t++ )
+                        {
+                            mock230_world_tick(srv);
+                            if( mock230_mapinstance_var_get(h, 10 /* phase */) != 1 )
+                                break;
+                            down_ticks++;
+                            if( npc->x != down_x || npc->z != down_z )
+                                drifted = 1;
+                        }
+                        SELFTEST_CHECK(down_ticks > 20,
+                                       "the forced down should last, saw %d ticks of it",
+                                       down_ticks);
+                        SELFTEST_CHECK(!drifted,
+                                       "a down Bloat does not move, went %d,%d -> %d,%d",
+                                       down_x - bx, down_z - bz, npc->x - bx, npc->z - bz);
+                        SELFTEST_CHECK(npc->waypoint_index < 0,
+                                       "and holds no route while it is down, wp=%d",
+                                       npc->waypoint_index);
+                        npc->hitpoints = npc->base_hitpoints;
+                    }
                     fprintf(stderr, "    in-fight trail (corner reg / wp):");
                     for( int t = 0; t < 24; t++ )
                     {
@@ -40223,6 +40541,35 @@ mock230_world_selftest(void)
                                "nor after being attacked, got %d", npc->combat_target);
                 SELFTEST_CHECK(moved,
                                "and it keeps walking while it is being hit, still on %d,%d",
+                               npc->x, npc->z);
+
+                /*
+                 * And under a REAL fight, not a synthetic hitsplat.
+                 *
+                 * `mock230_combat_hit_npc` above exercises the retaliation
+                 * latch and nothing else. A player actually fighting it also
+                 * arms the player-side interaction, keeps it armed between
+                 * swings, and drives the whole combat tick — which is the path
+                 * a client takes and the one the report came from. If anything
+                 * in there faces the boss or takes its route, only this sees it.
+                 */
+                mock230_combat_engage(srv, boss);
+                start_x = npc->x;
+                start_z = npc->z;
+                moved = 0;
+                for( int t = 0; t < 8; t++ )
+                {
+                    mock230_world_tick(srv);
+                    if( npc->x != start_x || npc->z != start_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(npc->combat_target < 0,
+                               "a player fighting Bloat must not give it a target, got %d",
+                               npc->combat_target);
+                SELFTEST_CHECK(npc->face_entity < 0,
+                               "and must not turn it round, face=%d", npc->face_entity);
+                SELFTEST_CHECK(moved,
+                               "and it walks on through the fight, still on %d,%d",
                                npc->x, npc->z);
 
                 host->godmode = saved_god;
@@ -44931,6 +45278,115 @@ mock230_world_selftest(void)
                 player->v5_last_x = saved_v5_last_x;
                 player->v5_last_z = saved_v5_last_z;
                 player->v5_last_level = saved_v5_last_level;
+            }
+
+            /*
+             * A running player who only had one tile to take this tick is a
+             * WALK on the rev-239 wire.
+             *
+             * TEMP_MOVE_SPEED=2 is the traversal for a tick in which a SECOND
+             * tile was actually taken -- Zenyte's TemporaryMovementMask is
+             * `runDirection != -1 ? 2 : 1`, Kronos sets 2 only when its second
+             * `step()` succeeded. This writer used to stamp 2 on any move while
+             * `running`, and the everyday one-tile move is exactly the follower
+             * closing on a walking target: the client covered each of those in
+             * 15 cycles at run speed and stood still for the other 15, which is
+             * the stop-and-go every chase in the game had.
+             *
+             * Asserted on the flag word rather than the traversal byte itself
+             * because the flag is what decides whether the byte exists at all.
+             * 0x1000 is EXTINFO_TEMP_MOVE_SPEED, so it lives in the SECOND flag
+             * byte, which is only present when the first has NEXT_BYTE set.
+             */
+            fprintf(stderr, "mock230 selftest: a one-tile move by a running player is a WALK\n");
+            {
+                static struct Mock230Capture speed_capture;
+                const struct Mock230Wire* saved_wire = srv->wire;
+                const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                int saved_running = player->running;
+                int saved_move_count = player->move_count;
+                int saved_place_dirty = player->place_dirty;
+                uint32_t saved_masks = player->masks;
+                int saved_v5_playerinfo_sent = player->v5_playerinfo_sent;
+                int saved_v5_last_x = player->v5_last_x;
+                int saved_v5_last_z = player->v5_last_z;
+                int saved_v5_last_level = player->v5_last_level;
+                int saved_x = player->x;
+
+                SELFTEST_CHECK(wire239 != NULL, "the one-tile-run stanza needs wire 239");
+                if( wire239 )
+                {
+                    static const int k_moves[2] = { 1, 2 };
+                    for( int i = 0; i < 2; i++ )
+                    {
+                        const struct Mock230CapturedPacket* packet = NULL;
+                        int opcode;
+                        int at;
+                        int flag_hi = -1;
+
+                        srv->wire = wire239;
+                        player->running = 1;
+                        player->place_dirty = 0;
+                        player->masks = 0;
+                        player->v5_playerinfo_sent = 1;
+                        player->v5_last_level = player->level;
+                        /* Pretend the tick moved the player k_moves[i] tiles
+                         * east: the writer measures the delta against v5_last. */
+                        player->v5_last_x = player->x - k_moves[i];
+                        player->v5_last_z = player->z;
+                        player->move_count = k_moves[i];
+
+                        mock230_capture_begin(srv, &speed_capture);
+                        mock230_send_player_info(player);
+                        mock230_capture_end(srv);
+
+                        opcode = mock230_wire_opcode(wire239, PKT_NAME_PLAYER_INFO);
+                        at = mock230_capture_find(&speed_capture, opcode, 0);
+                        SELFTEST_CHECK(at >= 0, "rev-239 should emit PLAYER_INFO for a %d-tile move",
+                                       k_moves[i]);
+                        if( at >= 0 )
+                            packet = &speed_capture.packets[at];
+                        /*
+                         * The extended block sits at the tail: nothing else in
+                         * this stanza's payload flags extended info, so the
+                         * flag word is either one byte (no NEXT_BYTE) or two,
+                         * and the traversal byte -- when present -- is the
+                         * final byte. Two-tile: [.., 0x08 (NEXT_BYTE_1), 0x10
+                         * (TEMP_MOVE_SPEED >> 8), 2]. One-tile: no extended
+                         * block at all, so the packet ends on the movement
+                         * bits.
+                         */
+                        if( packet && packet->len >= 3 )
+                        {
+                            int lo = packet->data[packet->len - 3];
+                            int hi = packet->data[packet->len - 2];
+                            int val = packet->data[packet->len - 1];
+                            if( lo == 0x08 && hi == 0x10 && val == 2 )
+                                flag_hi = 1;
+                            else
+                                flag_hi = 0;
+                        }
+                        if( k_moves[i] == 2 )
+                            SELFTEST_CHECK(flag_hi == 1,
+                                           "a two-tile move by a running player carries "
+                                           "TEMP_MOVE_SPEED=2");
+                        else
+                            SELFTEST_CHECK(flag_hi == 0,
+                                           "a one-tile move by a running player carries NO "
+                                           "temp move speed (it is a WALK on the wire)");
+                    }
+                }
+
+                srv->wire = saved_wire;
+                player->running = saved_running;
+                player->move_count = saved_move_count;
+                player->place_dirty = saved_place_dirty;
+                player->masks = saved_masks;
+                player->v5_playerinfo_sent = saved_v5_playerinfo_sent;
+                player->v5_last_x = saved_v5_last_x;
+                player->v5_last_z = saved_v5_last_z;
+                player->v5_last_level = saved_v5_last_level;
+                player->x = saved_x;
             }
 
             /* And the walk actually goes there. "The player does not path

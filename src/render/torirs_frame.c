@@ -1086,9 +1086,38 @@ translate_ui_cmd(
          * viewport, which is also the clip — the reference draws these with
          * Pix2D clipped to the scene viewport. */
         struct UITreeEntityOverlay const* item;
+        int clip_x;
+        int clip_y;
+        int clip_w;
+        int clip_h;
         if( !desc->entity_overlays || frame->scrollbar_step >= desc->entity_overlay_count )
             return false;
         item = &desc->entity_overlays[frame->scrollbar_step];
+
+        /* The world viewport, narrowed by the primitive's own box when it has
+         * one. Intersecting rather than replacing: an item clip is always an
+         * extra cut inside the scene, never a licence to draw outside it. */
+        clip_x = desc->clip.x;
+        clip_y = desc->clip.y;
+        clip_w = desc->clip.w;
+        clip_h = desc->clip.h;
+        if( item->clip_w > 0 && item->clip_h > 0 )
+        {
+            int right = clip_x + clip_w;
+            int bottom = clip_y + clip_h;
+            if( item->clip_x > clip_x )
+                clip_x = item->clip_x;
+            if( item->clip_y > clip_y )
+                clip_y = item->clip_y;
+            if( item->clip_x + item->clip_w < right )
+                right = item->clip_x + item->clip_w;
+            if( item->clip_y + item->clip_h < bottom )
+                bottom = item->clip_y + item->clip_h;
+            clip_w = right - clip_x;
+            clip_h = bottom - clip_y;
+            if( clip_w <= 0 || clip_h <= 0 )
+                return false;
+        }
 
         switch( item->kind )
         {
@@ -1102,10 +1131,11 @@ translate_ui_cmd(
             out->u.sprite.y = item->y;
             out->u.sprite.w = item->w;
             out->u.sprite.h = item->h;
-            out->u.sprite.scissor_x = desc->clip.x;
-            out->u.sprite.scissor_y = desc->clip.y;
-            out->u.sprite.scissor_w = desc->clip.w;
-            out->u.sprite.scissor_h = desc->clip.h;
+            out->u.sprite.trans = item->trans;
+            out->u.sprite.scissor_x = clip_x;
+            out->u.sprite.scissor_y = clip_y;
+            out->u.sprite.scissor_w = clip_w;
+            out->u.sprite.scissor_h = clip_h;
             out->u.sprite.if3 = 0;
             return true;
         case UITREE_ENTITY_OVERLAY_TEXT:
@@ -1127,10 +1157,10 @@ translate_ui_cmd(
              * not a widget-box top. Without this the number lands ~1 line
              * height too low and drifts off the hitmark sprite. */
             out->u.font.baseline = 1;
-            out->u.font.scissor_x = desc->clip.x;
-            out->u.font.scissor_y = desc->clip.y;
-            out->u.font.scissor_w = desc->clip.w;
-            out->u.font.scissor_h = desc->clip.h;
+            out->u.font.scissor_x = clip_x;
+            out->u.font.scissor_y = clip_y;
+            out->u.font.scissor_w = clip_w;
+            out->u.font.scissor_h = clip_h;
             return true;
         case UITREE_ENTITY_OVERLAY_LINE:
             out->kind = TORIRSRC_LINE;
@@ -1141,10 +1171,10 @@ translate_ui_cmd(
             out->u.line.argb = item->color;
             out->u.line.line_width = item->line_width > 0 ? item->line_width : 1;
             out->u.line.line_direction = item->line_direction;
-            out->u.line.scissor_x = desc->clip.x;
-            out->u.line.scissor_y = desc->clip.y;
-            out->u.line.scissor_w = desc->clip.w;
-            out->u.line.scissor_h = desc->clip.h;
+            out->u.line.scissor_x = clip_x;
+            out->u.line.scissor_y = clip_y;
+            out->u.line.scissor_w = clip_w;
+            out->u.line.scissor_h = clip_h;
             return true;
         case UITREE_ENTITY_OVERLAY_RECT:
         default:
@@ -1155,10 +1185,10 @@ translate_ui_cmd(
             out->u.fill_rect.h = item->h;
             out->u.fill_rect.argb = item->color;
             out->u.fill_rect.filled = 1;
-            out->u.fill_rect.scissor_x = desc->clip.x;
-            out->u.fill_rect.scissor_y = desc->clip.y;
-            out->u.fill_rect.scissor_w = desc->clip.w;
-            out->u.fill_rect.scissor_h = desc->clip.h;
+            out->u.fill_rect.scissor_x = clip_x;
+            out->u.fill_rect.scissor_y = clip_y;
+            out->u.fill_rect.scissor_w = clip_w;
+            out->u.fill_rect.scissor_h = clip_h;
             return true;
         }
     }

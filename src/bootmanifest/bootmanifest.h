@@ -266,6 +266,12 @@ struct BootManifest
     int features_ground_click_nearest;
     /* [features:boot] painter_draw_distance, or 0 for "not stated". */
     int features_painter_draw_distance;
+    /* [features:boot] mover — enum ToriRS_MoverModel, or -1 for "not stated,
+     * keep the era's". The key exists because ToriRS_Features_ForCache has no
+     * era table for the RS2 lanes and drops them all on lostcity, whose mover
+     * is the 2004 one; a lane that is not reproducing the 2004 client says so
+     * here. Defaulted in BootManifest_Init. */
+    int features_mover_model;
     /* [features:boot] ground_click_unbounded / ground_click_offmap — the two
      * permissive ground-click extensions (features.h), 0/1, or -1 for "not
      * stated". Every era table leaves both off, so these keys are how a boot

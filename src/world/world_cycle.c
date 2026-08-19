@@ -2,6 +2,8 @@
 
 #include "entity_facets.h"
 
+#include "features/features.h"
+
 #include "toridraw_scene.h"
 
 #include <assert.h>
@@ -151,13 +153,15 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     /*
      * Too far to walk: put the entity there.
      *
-     * 288 draw units (2.25 tiles) is the rev-239 constant, measured as a
-     * Chebyshev distance from the *float* position. The 2004 client tested
-     * 256 per axis, which is a tile short of covering a two-tile run step
-     * taken from a fractional position -- under the frame-paced mover below
-     * that is an ordinary state, and snapping there is a teleport the player
-     * sees.
+     * The threshold is the era's. rev-239 tests `max(|dx|, |dz|) > 288` against
+     * the *float* position; the 2004 client tests each axis against 256 on the
+     * integer one. 256 is a quarter-tile short of covering a two-tile run step
+     * taken from a fractional position, which is an ordinary state under the
+     * frame-paced mover and nowhere near one under the cycle mover -- so the
+     * two constants are not interchangeable and neither is a rounding of the
+     * other.
      */
+    if( World_MoverModel(info->world) == TORIRS_MOVER_FRAME_DELTA )
     {
         float dx = (float)dstX - info->draw_position->fx;
         float dz = (float)dstZ - info->draw_position->fz;
@@ -170,6 +174,13 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
             info->grid_position->z = info->pathing->route_z[route_length - 1];
             return -1;
         }
+    }
+    else if( dstX - x > 256 || dstX - x < -256 || dstZ - z > 256 || dstZ - z < -256 )
+    {
+        World_DrawPositionSet(info->draw_position, dstX, dstZ);
+        info->grid_position->x = info->pathing->route_x[route_length - 1];
+        info->grid_position->z = info->pathing->route_z[route_length - 1];
+        return -1;
     }
 
     if( x < dstX )
@@ -210,17 +221,52 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
     if( seqId == -1 )
         seqId = info->idle->walkanim;
 
-    /* Speed only decides the animation here; the distance it implies is
-     * covered by the frame mover. Speed 8 is a run whatever queued the step:
-     * an entity closing a queue backlog runs, which is how the reference
-     * shows a walk that has fallen behind (method3520's `var20 >= 8` remap). */
-    if( World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/true) >= 8 &&
-        seqId == info->idle->walkanim && info->idle->runanim != -1 )
+    /* Speed 8 is a run whatever queued the step: an entity closing a queue
+     * backlog runs, which is how both references show a walk that has fallen
+     * behind (method3520's `var20 >= 8` remap, Client.ts's `moveSpeed >= 8`). */
+    int move_speed = World_MoverStepSpeed(info, route_length, /*consume_delay_move=*/true);
+    if( move_speed >= 8 && seqId == info->idle->walkanim && info->idle->runanim != -1 )
         seqId = info->idle->runanim;
 
-    /* The frame mover retires a step the moment it lands on it, so ordinarily
-     * there is nothing to retire here. This covers the entity that was already
-     * standing exactly on its next tile when the step arrived. */
+    /*
+     * Classic only: spend the speed here, on the cycle clock, because there is
+     * no frame mover under that era to spend it. Under FRAME_DELTA this pass
+     * decides and World_MoverAdvance travels, and doing both would move the
+     * entity twice.
+     */
+    if( World_MoverModel(info->world) == TORIRS_MOVER_CYCLE_INTEGER )
+    {
+        if( x < dstX )
+        {
+            x += move_speed;
+            if( x > dstX )
+                x = dstX;
+        }
+        else if( x > dstX )
+        {
+            x -= move_speed;
+            if( x < dstX )
+                x = dstX;
+        }
+        if( z < dstZ )
+        {
+            z += move_speed;
+            if( z > dstZ )
+                z = dstZ;
+        }
+        else if( z > dstZ )
+        {
+            z -= move_speed;
+            if( z < dstZ )
+                z = dstZ;
+        }
+        World_DrawPositionSet(info->draw_position, x, z);
+    }
+
+    /* Under FRAME_DELTA the frame mover retires a step the moment it lands on
+     * it, so this only covers the entity that was already standing exactly on
+     * its next tile when the step arrived. Under CYCLE_INTEGER it is the one
+     * and only retirement. */
     if( x == dstX && z == dstZ )
     {
         info->pathing->route_length--;
@@ -228,6 +274,8 @@ World_UpdateMoverMovementAndAnimation(struct World_MoverInfo* info)
             info->pathing->route_length = 0;
         info->grid_position->x = info->pathing->route_x[0];
         info->grid_position->z = info->pathing->route_z[0];
+        if( info->animation->preanim_route_length > 0 )
+            info->animation->preanim_route_length--;
     }
 
 yaw_turn:;
@@ -1357,6 +1405,15 @@ World_CycleRegisterPainterDynamics(struct World* world)
             painter_add_wall(
                 world->painter, grid_x, grid_z, paint_level, sc->element_id,
                 sc->painter_wall_ab, sc->painter_wall_side);
+        /* Ground decor (shape 22) belongs in the tile's exclusive decor slot,
+         * not in its scenery chain. The slot is emitted in the tile's BASE
+         * step, ahead of every scenery element whose footprint covers the
+         * tile — which is the whole difference for a puddle spawned under a
+         * 5x5 boss: as scenery it sorted against him and won on any tile
+         * nearer the camera than his anchor. */
+        else if( sc->painter_ground_decor )
+            painter_add_ground_decor_dynamic(
+                world->painter, grid_x, grid_z, paint_level, sc->element_id);
         else
             painter_add_normal_scenery(
                 world->painter,
@@ -1481,6 +1538,9 @@ World_MoversAdvance(
 {
     assert(world);
     if( !world->load_complete || cycles <= 0.0f )
+        return;
+    /* Classic spends the speed inside World_Cycle instead; see the enum. */
+    if( World_MoverModel(world) != TORIRS_MOVER_FRAME_DELTA )
         return;
 
     {

@@ -144,6 +144,19 @@ CreateTask_Dat2HitsplatLoad(
     struct RS_Hitsplats* hitsplats);
 
 /*
+ * Healthbar types (config group 33), whole-group and eager.
+ *
+ * The overhead bar's pixel width, its fill denominator and its fade are all in
+ * this record; without it every bar falls back to the reference constructor's
+ * 30-wide rectangle, which is right only for the standard bar.
+ */
+struct RS_Healthbars;
+struct ToriRS_Task*
+CreateTask_Dat2HealthbarLoad(
+    struct CacheProvider* provider,
+    struct RS_Healthbars* healthbars);
+
+/*
  * Ambient soundscapes (config group 15), whole-group and eager.
  *
  * An OldSchool 231+ type; a cache without the group leaves the table empty,

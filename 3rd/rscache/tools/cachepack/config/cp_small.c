@@ -336,23 +336,23 @@ cp_unpack_healthbar(
         cp_warn(ctx, &ctx->warn_short_decode, "healthbar %d: consumed %d of %d bytes", id,
                 entry._consumed, record_size);
 
-    /* Only opcodes 7 and 8 have an established meaning (a sprite pair); the rest
-     * keep their opcode numbers, as the library does, rather than take invented
-     * names that would read as knowledge. */
-    if( entry.has_opcode_2 )
-        cp_lines_addf(out, "opcode2=%d", entry.opcode_2);
-    if( entry.has_opcode_3 )
-        cp_lines_addf(out, "opcode3=%d", entry.opcode_3);
-    if( entry.has_opcode_5 )
-        cp_lines_addf(out, "opcode5=%d", entry.opcode_5);
-    if( entry.sprite_id_a >= 0 )
-        cp_lines_addf(out, "sprite_a=%d", entry.sprite_id_a);
-    if( entry.sprite_id_b >= 0 )
-        cp_lines_addf(out, "sprite_b=%d", entry.sprite_id_b);
-    if( entry.has_opcode_11 )
-        cp_lines_addf(out, "opcode11=%d", entry.opcode_11);
-    if( entry.has_opcode_14 )
-        cp_lines_addf(out, "opcode14=%d", entry.opcode_14);
+    /* The keys keep their opcode numbers even though the fields no longer do:
+     * they are the on-disk format of every unpacked `.healthbar` in the content
+     * tree, and renaming them would strand those files. */
+    if( entry.has_draw_order )
+        cp_lines_addf(out, "opcode2=%d", entry.draw_order);
+    if( entry.has_evict_priority )
+        cp_lines_addf(out, "opcode3=%d", entry.evict_priority);
+    if( entry.has_persist_cycles )
+        cp_lines_addf(out, "opcode5=%d", entry.persist_cycles);
+    if( entry.front_sprite_id >= 0 )
+        cp_lines_addf(out, "sprite_a=%d", entry.front_sprite_id);
+    if( entry.back_sprite_id >= 0 )
+        cp_lines_addf(out, "sprite_b=%d", entry.back_sprite_id);
+    if( entry.has_fade_threshold )
+        cp_lines_addf(out, "opcode11=%d", entry.fade_threshold);
+    if( entry.has_width )
+        cp_lines_addf(out, "opcode14=%d", entry.width);
     return 1;
 }
 
@@ -377,32 +377,32 @@ cp_pack_healthbar(
         int ok = 1;
         if( strcmp(key, "opcode2") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_2);
-            entry.has_opcode_2 = true;
+            ok = cp_parse_int(value, &entry.draw_order);
+            entry.has_draw_order = true;
         }
         else if( strcmp(key, "opcode3") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_3);
-            entry.has_opcode_3 = true;
+            ok = cp_parse_int(value, &entry.evict_priority);
+            entry.has_evict_priority = true;
         }
         else if( strcmp(key, "opcode5") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_5);
-            entry.has_opcode_5 = true;
+            ok = cp_parse_int(value, &entry.persist_cycles);
+            entry.has_persist_cycles = true;
         }
         else if( strcmp(key, "sprite_a") == 0 )
-            ok = cp_parse_int(value, &entry.sprite_id_a);
+            ok = cp_parse_int(value, &entry.front_sprite_id);
         else if( strcmp(key, "sprite_b") == 0 )
-            ok = cp_parse_int(value, &entry.sprite_id_b);
+            ok = cp_parse_int(value, &entry.back_sprite_id);
         else if( strcmp(key, "opcode11") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_11);
-            entry.has_opcode_11 = true;
+            ok = cp_parse_int(value, &entry.fade_threshold);
+            entry.has_fade_threshold = true;
         }
         else if( strcmp(key, "opcode14") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_14);
-            entry.has_opcode_14 = true;
+            ok = cp_parse_int(value, &entry.width);
+            entry.has_width = true;
         }
         else
             cp_warn(ctx, &ctx->warn_unknown_key, "healthbar [%s]: unknown key %s",

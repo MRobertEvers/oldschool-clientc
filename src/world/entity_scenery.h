@@ -134,6 +134,15 @@ struct WorldEntity_Scenery
      *  wall on the correct side of its tile instead of as centre scenery. */
     int painter_wall_ab;
     int painter_wall_side;
+    /** Painter registration for a runtime-spawned GROUND DECOR (shape 22) loc:
+     *  1 = re-register through painter_add_ground_decor_dynamic rather than as
+     *  normal scenery. Recorded at spawn time (scenery_add_floor_decoration)
+     *  for the same reason painter_wall_ab is — the build path's single-slot
+     *  registration is suppressed for a runtime spawn, so the per-frame pass
+     *  has to be told which slot the loc belongs in. Without it a spawned
+     *  puddle draws as scenery and can sort in front of a large NPC standing
+     *  over it. */
+    int painter_ground_decor;
     /** Placement provenance for the TORIRS_LOC_DEBUG hover readout. */
     struct WorldEntity_SceneryDebug debug;
 };

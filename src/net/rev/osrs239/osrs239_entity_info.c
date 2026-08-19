@@ -1038,7 +1038,16 @@ player_extended(
         }
         if( (flag & V5_PLAYER_HEADBARS) != 0 )
         {
-            int bars = tail_g1_alt1(data, len, &pos);
+            /*
+             * The three byte transforms here are NOT the npc block's, and the
+             * two blocks do not even agree on which is which: the player reads
+             * the count alt2 and the target fill alt3, the npc reads the count
+             * alt1 and the target fill alt2. Both used to be spelled the other
+             * way round, which costs nothing against a server that makes the
+             * same swap and turns a fill of 12 into 140 against one that does
+             * not -- and a target fill of 140 drew a 140-pixel bar.
+             */
+            int bars = tail_g1_alt2(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
             {
@@ -1062,7 +1071,7 @@ player_extended(
                     {
                         int start_delay = tail_smart(data, len, &pos);
                         int start_fill = tail_g1_alt1(data, len, &pos);
-                        int end_fill = duration > 0 ? tail_g1_alt2(data, len, &pos) : start_fill;
+                        int end_fill = duration > 0 ? tail_g1_alt3(data, len, &pos) : start_fill;
 
                         if( op )
                         {
@@ -1423,7 +1432,9 @@ npc_extended(
         }
         if( (flag & V5_NPC_HEADBARS) != 0 )
         {
-            int bars = tail_g1_alt2(data, len, &pos);
+            /* Count alt1 and target fill alt2 -- see the player block above
+             * for why these two are worth spelling out separately. */
+            int bars = tail_g1_alt1(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
             {
@@ -1446,7 +1457,7 @@ npc_extended(
                     {
                         int start_delay = tail_smart(data, len, &pos);
                         int start_fill = tail_g1_alt1(data, len, &pos);
-                        int end_fill = duration > 0 ? tail_g1_alt3(data, len, &pos) : start_fill;
+                        int end_fill = duration > 0 ? tail_g1_alt2(data, len, &pos) : start_fill;
 
                         if( op )
                         {

@@ -723,6 +723,13 @@ build_cache_overlay() {
 prepare_live_content() {
     if [ "$SKIP_CHECKS" = 1 ]; then
         echo "run-live.sh: --skip-checks -- using the cache and server script pack as they stand (they may be stale)" >&2
+        # The server refuses to boot on a stale pack (mock230_scripts.c). That
+        # refusal is the guarantee; this flag is the one place a caller has
+        # already said, in as many words, that stale is what they want. Carrying
+        # the opt-out here keeps the two statements consistent instead of
+        # letting the flag hit a wall it was designed to walk through.
+        MOCK230_ALLOW_STALE_SCRIPTS=1
+        export MOCK230_ALLOW_STALE_SCRIPTS
         return 0
     fi
     build_cache_overlay

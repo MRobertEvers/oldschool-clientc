@@ -195,9 +195,31 @@ struct WorldEntityFacet_Combat
     int combat_cycle;
     int health;
     int total_health;
-    /* Non-zero when health/total_health are raw HealthBarConfig fill units,
-     * rather than gameplay hitpoints from a legacy hitsplat block. */
-    int healthbar_width;
+    /*
+     * The overhead health bar, when the server sent one (reference
+     * HealthBarUpdate). Distinct from health/total_health above, which are the
+     * gameplay hitpoints a legacy dat1 hitsplat block carries: a HEADBAR block
+     * carries no hitpoints at all, only a fill fraction of the healthbar
+     * type's own `width`, and how that becomes a pixel span is the type's
+     * business. See src/game/rs_healthbar.h.
+     *
+     * The reference keeps up to four bars per entity, each with up to four
+     * queued updates, sorted by the type's draw order. One is kept here
+     * because one is what the protocol sends: both encoders write a single
+     * bar, and the extras only ever appear in the block's count.
+     *
+     * `healthbar_type < 0` means no bar, and is the state a dat1 session never
+     * leaves -- there the legacy fields above drive the old 30-wide rectangle.
+     */
+    int healthbar_type;
+    /** loopCycle + startDelay: when the fill starts moving. */
+    int healthbar_start_cycle;
+    /** Cycles the fill takes to travel; 0 = it is already at end_fill. */
+    int healthbar_duration;
+    int healthbar_start_fill;
+    int healthbar_end_fill;
+    /** start_cycle + duration + the type's persist window. */
+    int healthbar_end_cycle;
 };
 
 struct WorldEntityFacet_Appearance

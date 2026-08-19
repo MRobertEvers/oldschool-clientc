@@ -429,6 +429,21 @@ CS2VM2_TraceOpcode(
 
     if( !g_cs2_trace_mode )
         return;
+    /* TORIRS_CS2_TRACE_SCRIPT=<id>: trace ONE script. A whole-VM trace costs
+     * enough wall clock that a headless run's scripted commands land before
+     * login finishes, so "trace the boss HUD" was not reachable without it. */
+    {
+        static char const* only = NULL;
+        static int only_id = -2;
+        if( only_id == -2 )
+        {
+            only = getenv("TORIRS_CS2_TRACE_SCRIPT");
+            only_id = only ? (int)strtol(only, NULL, 0) : -1;
+        }
+        if( only_id >= 0 && frame->script &&
+            frame->script->script_id != only_id )
+            return;
+    }
 #if !CS2VM2_DEBUG_OPS
     if( g_cs2_trace_mode == 1 && !CS2VM2_IsTargetingOpcode(opcode) && result == CS2VM_EXECNO_OK )
         return;
@@ -6107,11 +6122,31 @@ CS2VM2_Op_Coord(
     struct CS2VM2_Frame* frame,
     int operand)
 {
+    struct CS2VM_HostRequest request;
+
     assert(vm);
     assert(frame);
     (void)operand;
 
-    return CS2VM2_PushInt(vm, 0);
+    /*
+     * THE LOCAL PLAYER'S OWN TILE, packed the way `coordx`/`coordy`/`coordz`
+     * unpack it: plane in bits 28-29, x in 14-27, z in 0-13.
+     *
+     * This used to push a literal 0, and a zero coord is not a harmless
+     * placeholder — it is a real tile, in the corner of the map, that no script
+     * comparing against a region ever matches. Every cache script that decides
+     * what to show from where the player is standing therefore took its "not
+     * here" branch.
+     *
+     * The Theatre of Blood's HUD is the case that found it. Script 2297 reads
+     * `coord`, compares it against the raid's regions and `if_sethide`s the
+     * boss health bar when it does not match — so the bar was mounted, its
+     * listener armed, its updater running on every varbit change, and hidden on
+     * every tick, in every room of the raid.
+     */
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_COORD;
+    return vm->vm->host_exec(vm, &request);
 }
 
 int

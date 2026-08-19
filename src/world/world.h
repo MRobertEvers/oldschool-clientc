@@ -1,6 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include "entity_pathing.h"
 #include "world_entity.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -56,6 +57,8 @@ typedef int (*World_HeightFn)(
     int world_x,
     int world_z,
     int level);
+
+struct ToriRS_FeatureTable;
 
 /*
  * Sequence-config timing source for entity animation stepping. Keeps the
@@ -202,6 +205,18 @@ struct World
     int cycle;
 
     struct World_SeqSource seq_source;
+
+    /**
+     * The era this world is drawing, from src/features -- read by the mover to
+     * pick between the 2004 per-cycle model and rev-239's frame-paced one
+     * (enum ToriRS_MoverModel).
+     *
+     * NULL means the zero table, i.e. classic, per the features header's
+     * zero-is-classic rule. A host that knows its era says so with
+     * World_SetFeatures; one that does not gets the oldest behaviour rather
+     * than the newest, which is the safe direction for a legacy server.
+     */
+    struct ToriRS_FeatureTable const* features;
 
     struct World_EntityList entities;
 
@@ -933,11 +948,19 @@ World_NpcAddHitmarkTimed(
     int duration,
     int slot_policy);
 
+/** Record a HEADBAR block. `bar` is the wire block already resolved against
+ *  its healthbar type -- see struct WorldEntity_Headbar. */
 void
-World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width);
+World_PlayerSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar);
 
 void
-World_NpcSetHealthbar(struct World* world, int idx, int fill, int width);
+World_NpcSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar);
 
 void
 World_PlayerClearHealthbar(struct World* world, int idx);
@@ -1115,6 +1138,19 @@ World_Cycle(
  * animations; this is what actually moves anything, and keeping it off the
  * 20ms grid is what stops a walk quantising into a lurch.
  */
+/**
+ * Tell the world which era it is drawing (src/features). Not owned; the table
+ * must outlive the world. NULL restores the classic defaults.
+ */
+void
+World_SetFeatures(
+    struct World* world,
+    struct ToriRS_FeatureTable const* features);
+
+/** enum ToriRS_MoverModel for this world; classic when no table is set. */
+int
+World_MoverModel(struct World const* world);
+
 void
 World_MoversAdvance(
     struct World* world,
