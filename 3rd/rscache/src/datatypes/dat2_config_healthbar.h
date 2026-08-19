@@ -34,7 +34,7 @@
  * sprite's* pixel width and uses `width` only to scale the server's fill value into it
  * — `drawn = fill * sprite_width / width`. The two agree for almost every record,
  * which is why the sprite names carry the same number (`standard_shield_60` has
- * `width` 60), but `healthbar_9` pairs a 100px `headbar_olmtimer_100` with `width`
+ * `width` 60), but `healthbar_8` pairs a 100px `headbar_olmtimer_100` with `width`
  * 120. A renderer that takes either one for the other is right 84 times out of 85.
  *
  * ## How the format was established, since no reference for it existed in-tree

@@ -153,25 +153,28 @@ def emit(table):
         lines.append("// ---------------- rotation %d (%d phases) ----------------"
                      % (ri + 1, len(rot)))
         for pi, ph in enumerate(rot):
-            lines.append("[zulrah_r%dp%d]" % (ri + 1, pi + 1))
-            lines.append("key=%d" % ((ri + 1) * 100 + (pi + 1)))
-            parts = []
+            lines.append("[zulrah_phase_r%d_p%d]" % (ri + 1, pi + 1))
+            lines.append("table=zulrah_phase")
+            lines.append("data=key,%d" % ((ri + 1) * 100 + (pi + 1)))
             for kind, a, b in ph:
                 if kind == "CLOUD":
-                    parts.append("%d,%d,%d" % (KIND["CLOUD"], pack(a), pack(b)))
+                    lines.append("data=step,%d,%d,%d  // clouds %s %s"
+                                 % (KIND["CLOUD"], pack(a), pack(b), a, b))
                 elif kind == "SNAKELING":
-                    parts.append("%d,%d,0" % (KIND["SNAKELING"], pack(a)))
+                    lines.append("data=step,%d,%d,0  // snakeling %s"
+                                 % (KIND["SNAKELING"], pack(a), a))
                 elif kind == "MAGIC":
-                    parts.append("%d,%d,0" % (KIND["MIXED"], a))
+                    lines.append("data=step,%d,%d,0  // mixed x%d" % (KIND["MIXED"], a, a))
                 elif kind == "RANGED":
-                    parts.append("%d,%d,0" % (KIND["RANGED"], a))
+                    lines.append("data=step,%d,%d,0  // ranged x%d" % (KIND["RANGED"], a, a))
                 elif kind == "MELEE":
-                    parts.append("%d,0,0" % KIND["MELEE"])
+                    lines.append("data=step,%d,0,0  // tail" % KIND["MELEE"])
                 elif kind == "FLICK":
-                    parts.append("%d,%d,0" % (KIND["FLICK"], STYLE[a]))
+                    lines.append("data=step,%d,%d,0  // jad, %s first"
+                                 % (KIND["FLICK"], STYLE[a], a.lower()))
                 elif kind == "DIVE":
-                    parts.append("%d,%d,%d" % (KIND["DIVE"], POS[a], FORM[b]))
-            lines.append("step=" + ",".join(parts))
+                    lines.append("data=step,%d,%d,%d  // dive %s %s"
+                                 % (KIND["DIVE"], POS[a], FORM[b], a.lower(), b))
             lines.append("")
     return "\n".join(lines) + "\n"
 

@@ -24,7 +24,7 @@
  *
  * so `width` (config opcode 14) is only ever a denominator. The two agree for
  * 84 of the 85 records -- `standard_shield_60` is 60 wide and declares 60 --
- * which is exactly why conflating them survives casual testing; healthbar_9
+ * which is exactly why conflating them survives casual testing; healthbar_8
  * pairs a 100px `headbar_olmtimer_100` sprite with a declared width of 120.
  *
  * Sprites are the normal case and rectangles the fallback: the reference draws

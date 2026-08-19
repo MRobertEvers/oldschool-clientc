@@ -4203,6 +4203,40 @@ npc_changetype_rehydrate(
             npc->size = size;
             mock230_world_npc_occupancy(npc, 1);
         }
+
+        /*
+         * AND THE TURN SPEED, for the same reason and with the same failure
+         * mode: the CLIENT re-reads it off the new type on CHANGE_TYPE
+         * (`npc->facing.turn_speed = npctype->turn_speed`, app.c), so a server
+         * still holding the SPAWN type's value is a server that disagrees with
+         * the only copy that draws anything.
+         *
+         * `turnspeed = 0` is not a rate, it is a veto: `mock230_npc_face_player`,
+         * `mock230_npc_face_npc` and `npc_facesquare` all return early on it, so
+         * an npc carrying a stale 0 cannot be turned by ANY facing source —
+         * silently, because every one of those sites is a no-op rather than an
+         * error.
+         *
+         * Verzik is the case that found it. `verzik_phase1` is `turnspeed=0` in
+         * the cache and correctly so — she is bolted to a throne for phase one —
+         * and she SPAWNS as that record. `verzik_phase2` and `verzik_phase3`
+         * state no turnspeed at all, i.e. the default 32, but the phase-one veto
+         * outlived both transforms: her `npc_facesquare` on landing and every
+         * facing latch after it were dropped on the floor, and she fought the
+         * whole of phase two and three pointing wherever her throne had pointed.
+         * From outside that is "Verzik P2 is stuck facing south".
+         *
+         * Resolved exactly as the spawn does it (mock230_world.c): a stated
+         * server overlay wins, an unstated one defers to the cache record.
+         */
+        {
+            const struct Mock230NpcDef* new_def = npc->def;
+            int turnspeed = new_def->turnspeed >= 0
+                                ? new_def->turnspeed
+                                : (info ? info->turnspeed : 32);
+
+            npc->turnspeed = turnspeed;
+        }
     }
 }
 

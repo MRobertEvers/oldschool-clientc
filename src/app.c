@@ -2548,7 +2548,7 @@ app_scene_sprite_size(
  *     both ends. It runs 30..160 across cache.osrs239's 85 records. Only a
  *     type naming no sprites falls back to `width` pixels.
  *   - `width` (opcode 14) is the denominator the fill arrives as a fraction of,
- *     which is a different number from the span for `healthbar_9` and equal to
+ *     which is a different number from the span for `healthbar_8` and equal to
  *     it for the other 84.
  *   - A block carries a start fill, an end fill and a duration; the bar
  *     travels between them and then fades, rather than snapping to one value.

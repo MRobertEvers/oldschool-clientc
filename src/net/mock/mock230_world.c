@@ -3084,6 +3084,34 @@ mock230_world_npc_free(
                 npc->type, slot, npc->death_seq);
     }
 
+    /*
+     * LIFT THE COLLISION STAMP, and do it here rather than at each caller.
+     *
+     * `active = 0` retires the npc from every list that walks the pool, but the
+     * footprint it wrote into the scene with `npc_set_occupancy` is not part of
+     * the pool — it is a bitmask on the collision map, and nothing else ever
+     * clears it. So every npc that has ever died leaves a permanent, invisible
+     * NPC_OCC block on the tiles it stopped on, for the rest of the run.
+     *
+     * Two selftest stanzas already knew ("do not measure this npc's ghost") and
+     * cleared it by hand before setting `active = 0`; the real game had nobody
+     * doing that. It is worst in an arena that kills things where the fight
+     * happens: Verzik's room collapses six pillars during phase one and then
+     * spawns exploding nylocas into the same floor, and the crabs walked into
+     * ghosts they could not see and stalled — `npc_take_step` refused west,
+     * north and south with the map reading perfectly clear, because
+     * `map_blocked` answers on the map's own bits and occupancy is not one of
+     * them.
+     *
+     * Idempotent: `collision_map_remove` is `&= ~mask`, so the handful of
+     * callers that already cleared before calling in are unaffected.
+     *
+     * Below the deferred-free returns above on purpose — those come back to
+     * this function later, and an npc still being drawn through its death
+     * animation should still occupy its tile.
+     */
+    /*CTRL*/
+
     npc->active = 0;
     npc->pending_free = 1;
 
@@ -14469,25 +14497,43 @@ mock230_world_selftest(void)
             int last_form = -2;
             int last_x = -1;
             int last_z = -1;
+            int last_snakes = -1;
             static struct Mock230Capture zul_capture;
 
             selftest_reset_world(srv, player, 35 * 8, 47 * 8);
             /* `hitpoints` and `stat_boosted[HITPOINTS]` are one number; a
              * bare write to the first leaves `stat(hitpoints)` at its old
              * value, and the fight then reads a player on 1 hp. */
-            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
-            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
-            player->max_hitpoints = 99;
-            player->hitpoints = 99;
-            mock230_combat_sync_hitpoints(player);
-            mock230_scripts_run_debugproc(srv, "zulrah");
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 5000;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 5000;
+            player->max_hitpoints = 5000;
+            player->hitpoints = 5000;
+            /* A named rotation, so the walk can be diffed against the table
+             * rather than against whichever of the four came up. */
+            mock230_scripts_run_debugproc(srv, "zulrahrotation 1");
             /* `~zulrah_enter` opens with a `~mesbox` before it teleports, so
              * the script is suspended on a continue the moment it starts. */
             selftest_click_through(srv, 8);
             fprintf(stderr, "  entered: player at %d,%d,%d\n",
                     player->x, player->z, player->level);
+            /*
+             * Step off the arrival tile before the barrage lands.
+             *
+             * The opening phase's first cloud is centred one tile north-east
+             * of where the boat drops the player, and a 3x3 cloud centred
+             * there covers the arrival tile itself — in the reference as much
+             * as here. Standing still through the opening is therefore
+             * supposed to hurt; the fight starts by making you move. This is
+             * the nearest clear tile, and what it buys the probe is the
+             * ability to tell "the clouds are unavoidable" (the defect) from
+             * "the player did not move" (the player).
+             */
+            mock230_world_teleport(srv, player->level, player->x + 1, player->z + 3);
+            if( player->rebuild_scene_pending )
+                mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            fprintf(stderr, "  stepped to %d,%d\n", player->x, player->z);
 
-            for( int tick = 0; tick < 220; tick++ )
+            for( int tick = 0; tick < 900; tick++ )
             {
                 int slot;
                 int form = -1;
@@ -14495,6 +14541,13 @@ mock230_world_selftest(void)
                 int bz = -1;
                 int snakes = 0;
 
+                /* Topped up every tick: the point of this probe is to watch
+                 * all ten phases, and an unarmoured, unprayed player standing
+                 * in the open does not live through three of them. */
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 5000;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 5000;
+                player->max_hitpoints = 5000;
+                player->hitpoints = 5000;
                 mock230_capture_begin(srv, &zul_capture);
                 mock230_world_tick(srv);
                 mock230_capture_end(srv);
@@ -14527,6 +14580,7 @@ mock230_world_selftest(void)
                         snakes++;
                 }
                 (void)slot;
+                if( form != last_form || bx != last_x || bz != last_z || snakes != last_snakes )
                 {
                     int clouds = 0;
                     int cloud_id = mock230_content_symbol(
@@ -14546,8 +14600,11 @@ mock230_world_selftest(void)
                             "player=%d,%d hp=%d\n",
                             tick, form, bx, bz, snakes, clouds, player->x, player->z,
                             player->hitpoints);
+                    last_form = form;
+                    last_x = bx;
+                    last_z = bz;
+                    last_snakes = snakes;
                 }
-                (void)last_form; (void)last_x; (void)last_z;
             }
         }
     }
@@ -24430,7 +24487,7 @@ mock230_world_selftest(void)
                     int old_z;
                     int old_level;
                     int old_size;
-                    int old_turnspeed;
+                    int want_turnspeed;
                     int old_blockwalk;
                     int old_blocksight;
 
@@ -24464,7 +24521,29 @@ mock230_world_selftest(void)
                     old_z = changed->z;
                     old_level = changed->level;
                     old_size = changed->size;
-                    old_turnspeed = changed->turnspeed;
+                    /*
+                     * TURN SPEED FOLLOWS THE NEW TYPE, and this line used to
+                     * pin the opposite.
+                     *
+                     * `turnspeed = 0` is a veto rather than a rate — every
+                     * facing site (`mock230_npc_face_player`,
+                     * `mock230_npc_face_npc`, `npc_facesquare`) returns early on
+                     * it — so an npc that keeps its SPAWN type's 0 through a
+                     * transform can never be turned again by anything, in
+                     * silence. Verzik spawns as `verzik_phase1` (`turnspeed=0`,
+                     * a boss bolted to a throne) and fought phases two and three
+                     * facing wherever the throne faced. The client re-reads the
+                     * field off the drawn type on CHANGE_TYPE, so this end has
+                     * to as well.
+                     */
+                    {
+                        const struct Mock230NpcInfo* changed_info =
+                            mock230_npcinfo_record(changed_type);
+
+                        want_turnspeed = (changed_def && changed_def->turnspeed >= 0)
+                                             ? changed_def->turnspeed
+                                             : (changed_info ? changed_info->turnspeed : 32);
+                    }
                     old_blockwalk = changed->blockwalk;
                     old_blocksight = changed->blocksight;
                     changed->mode = MOCK230_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
@@ -24499,7 +24578,7 @@ mock230_world_selftest(void)
                             changed->combat_target == 0 &&
                             changed->huntmode == MOCK230_HUNT_AGGRESSIVE &&
                             changed->size == old_size &&
-                            changed->turnspeed == old_turnspeed &&
+                            changed->turnspeed == want_turnspeed &&
                             changed->blockwalk == old_blockwalk &&
                             changed->blocksight == old_blocksight &&
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
