@@ -137,9 +137,22 @@ struct RS_MinimenuBuildCtx
 /* Custom, client-only minimenu action id: never sent to a server, and picked
  * well clear of both the real rev-254 action-id band (tops out ~1714, or
  * ~3714 deprioritized, revconfig.h) and the >1000 "deprioritized" bit
- * UIMinimenu_ActionNormalize/SortPriorityActions test for, so a Select row
- * sorts like any ordinary option instead of sinking to the bottom. */
-#define RS_MINIMENU_ACTION_LOCEDIT_SELECT 500000
+ * SortPriorityActions tests for, so a Select row sorts like any ordinary
+ * option instead of sinking to the bottom.
+ *
+ * Derived from the ui/ constant rather than restated, because being at or
+ * above it is what exempts the id from the +2000 priority bias — and an id
+ * merely "well clear" of the reference band is NOT enough on its own: 500000
+ * is >= 2000, so before that exemption existed the dispatcher's normalize step
+ * turned this into 498000 and the Select row did nothing at all. */
+#define RS_MINIMENU_ACTION_LOCEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 0)
+
+/* The same, for the GROUND rather than a loc. A tile is the other half of a
+ * placement question — whether a loc looks wrong because it is on the wrong
+ * square or because the square itself is a bridge deck is not answerable from
+ * the loc alone — and the terrain pick is already in the set, so selecting one
+ * costs a row rather than a second mechanism. */
+#define RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 1)
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */

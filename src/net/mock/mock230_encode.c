@@ -3750,17 +3750,23 @@ mock230_send_player_info(struct Mock230Player* player)
                  * symbols, not an engine-side numeric convention. Start from
                  * full and advance to the current fill so the v239 client can
                  * retain the config width independently of hitpoints. */
-                if( player->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
-                    mock230_ids()->healthbar_standard_width > 0 )
+                if( player->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 )
                 {
+                    /* Players are size 1, so the standard bar is the whole of
+                     * the size ladder for them -- but the WIDTH still comes
+                     * from the record rather than from a constant, so the two
+                     * halves of this block cannot drift apart the way the npc
+                     * one did. */
+                    int const width =
+                        mock230_healthbar_width(mock230_ids()->healthbar_standard);
+
                     ext.has_headbar = 1;
                     ext.headbar_type = mock230_ids()->healthbar_standard;
                     ext.headbar_duration = 1;
                     ext.headbar_start_delay = 0;
-                    ext.headbar_start_fill = mock230_ids()->healthbar_standard_width;
+                    ext.headbar_start_fill = width;
                     ext.headbar_end_fill =
-                        (player->hitpoints * mock230_ids()->healthbar_standard_width) /
-                        player->max_hitpoints;
+                        (player->hitpoints * width) / player->max_hitpoints;
                 }
             }
             if( player->masks & MOCK230_PMASK_SEQUENCE )
@@ -4285,17 +4291,57 @@ npc_queue_push(
  * The healthbar config an npc's hits raise, or -1 for none.
  *
  * The record's own choice wins; `MOCK230_NPC_HEALTHBAR_UNSET` means it made
- * none, and the standard bar stands in — that substitution is here rather than
- * in the default because the id is a symbol and the defaults are seeded before
- * the pack files are resolved.
+ * none, and the bar is chosen from the npc's SIZE — that substitution is here
+ * rather than in the default because the id is a symbol and the defaults are
+ * seeded before the pack files are resolved.
+ *
+ * SIZE PICKS THE BAR, and this is the whole of why a boss's bar is longer than
+ * a goblin's. Near-Reality's `EntityHitBar.getType()`:
+ *
+ *     switch (getSize()) {
+ *     case 4:            return 17;
+ *     case 5:            return 18;
+ *     case 6: case 7:    return 20;
+ *     case 8: case 9:    return 22;
+ *     default:           return 0;
+ *     }
+ *
+ * and this cache agrees exactly: those four ids carry `standard_health_60`,
+ * `_80`, `_120` and `_160`, with matching opcode 14. Every npc used to get the
+ * standard 30-wide bar whatever its footprint, so Xarpus standing (size 5, and
+ * therefore an 80-wide bar) drew the same stub as a chicken.
+ *
+ * Sizes 1..3 share the standard bar — the reference's `default`, not an
+ * omission, which is why phase one's size-3 Xarpus is right at 30 and phase
+ * two's size-5 form is not.
  */
+static int
+healthbar_for_size(int size)
+{
+    switch( size )
+    {
+    case 4:
+        return mock230_ids()->healthbar_size4;
+    case 5:
+        return mock230_ids()->healthbar_size5;
+    case 6:
+    case 7:
+        return mock230_ids()->healthbar_size67;
+    case 8:
+    case 9:
+        return mock230_ids()->healthbar_size89;
+    default:
+        return mock230_ids()->healthbar_standard;
+    }
+}
+
 static int
 npc_headbar_id(const struct Mock230Npc* npc)
 {
     const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
     int id = def ? def->healthbar : MOCK230_NPC_HEALTHBAR_UNSET;
 
-    return id == MOCK230_NPC_HEALTHBAR_UNSET ? mock230_ids()->healthbar_standard : id;
+    return id == MOCK230_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
 }
 
 static void
@@ -4330,8 +4376,7 @@ put_npc_extended_v5(
      * anyway. `healthbar=null` on the record is that choice, spelled.
      */
     int const headbar = npc_headbar_id(npc);
-    if( hit && headbar >= 0 && npc->max_hitpoints > 0 &&
-        mock230_ids()->healthbar_standard_width > 0 )
+    if( hit && headbar >= 0 && npc->max_hitpoints > 0 )
         flag |= V5_NPC_HEADBARS;
     if( classic & MOCK230_NMASK_ANIM )
         flag |= V5_NPC_SEQUENCE;
@@ -4397,7 +4442,10 @@ put_npc_extended_v5(
     }
     if( flag & V5_NPC_HEADBARS )
     {
-        int width = mock230_ids()->healthbar_standard_width;
+        /* The CHOSEN bar's width, not the standard one's: the client scales
+         * the fill by the type's own opcode 14, so an 80-wide bar fed a
+         * fraction of 30 would stop at 37% with the npc at full health. */
+        int width = mock230_healthbar_width(headbar);
         int fill = (npc->hitpoints * width) / npc->max_hitpoints;
 
         /* NpcHeadbarEncoder differs from the player only in the count and

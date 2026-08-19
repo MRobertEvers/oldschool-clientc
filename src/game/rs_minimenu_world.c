@@ -421,6 +421,40 @@ add_scenery_debug_row(
     };
     char text[UITREE_MINIMENU_OPTION_LEN];
 
+    /* The ground this loc stands on, in the same spelling the Walk-here row
+     * uses (World_TileSettingsText). A loc's own record cannot say why it draws
+     * or picks the way it does when the column under it is a bridge deck or
+     * carries VIS_BELOW, and reading that off a second hover — of the tile, not
+     * the loc — means the two readings are of different frames. `l` is the
+     * loc's own level, `d` the level the floor beneath it draws at.
+     *
+     * First of the three debug rows so the geometry and placement rows keep
+     * their existing order, and the placement row stays the last inserted. */
+    {
+        char settings[4 * 6 + 1];
+        char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
+
+        World_TileSettingsText(
+            world, scenery->grid_position.x, scenery->grid_position.z, settings,
+            (int)sizeof(settings));
+        World_TerrainMeshLevelsText(
+            world, scenery->grid_position.x, scenery->grid_position.z, meshes,
+            (int)sizeof(meshes));
+        snprintf(
+            text,
+            sizeof(text),
+            "@whi@tile sc(%d,%d) l%d d%d s[%s] m[%s]",
+            scenery->grid_position.x,
+            scenery->grid_position.z,
+            scenery->grid_position.level,
+            World_TerrainDrawLevel(
+                world, scenery->grid_position.x, scenery->grid_position.z,
+                scenery->grid_position.level),
+            settings,
+            meshes);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
+    }
+
     /* Geometry first so the placement row stays the last-inserted one, and so
      * stays the row the hover line is composed from. */
     add_scenery_geometry_row(menu, world, scenery, pick);
@@ -875,86 +909,6 @@ add_player_stack_rows(
     add_player_rows(menu, ctx, world, player, picked);
 }
 
-/*
- * TORIRS_LOC_DEBUG tile readout: the land settings of the hovered column, one
- * group per cache level, as `[L0|L1|L2|L3]`.
- *
- * Letters are the RSCache_FloorFlags in bit order — B block, L link-below,
- * R remove-roof, V vis-below, H force-high-detail — and `-` is a level whose
- * byte is zero. Spelled rather than hex because the two that move a floor off
- * its own plane are L and V, and "0x0a" does not say that at a glance.
- *
- * The whole column, not just the hovered level: LINK_BELOW is a property of the
- * column read at cache level 1 and applies to every plane of it, so a readout
- * showing only the level under the cursor cannot explain the level the tile
- * draws at.
- */
-static void
-tile_settings_text(
-    struct World* world,
-    int tile_x,
-    int tile_z,
-    char* out,
-    int cap)
-{
-    static char const letters[5] = { 'B', 'L', 'R', 'V', 'H' };
-    int used = 0;
-
-    assert(world);
-    assert(out);
-    if( cap > 0 )
-        out[0] = '\0';
-    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
-    {
-        unsigned flags = (unsigned)World_TileFlagGet(world, tile_x, tile_z, level);
-        int any = 0;
-
-        if( level > 0 && used < cap - 1 )
-            out[used++] = '|';
-        for( int bit = 0; bit < 5 && used < cap - 1; bit++ )
-            if( flags & (1u << bit) )
-            {
-                out[used++] = letters[bit];
-                any = 1;
-            }
-        if( !any && used < cap - 1 )
-            out[used++] = '-';
-    }
-    if( used < cap )
-        out[used] = '\0';
-}
-
-/*
- * Which cache levels of the hovered column actually carry a terrain mesh.
- *
- * "The tile has no floor here" and "the floor is on a plane you did not expect"
- * are the two states a blank or unclickable patch of ground is in, and they
- * look identical from the viewport. A ToB corridor answers `1` while the player
- * stands on level 0 — the deck — and a genuinely floorless tile answers `-`.
- */
-static void
-tile_mesh_levels_text(
-    struct World* world,
-    int tile_x,
-    int tile_z,
-    char* out,
-    int cap)
-{
-    int used = 0;
-
-    assert(world);
-    assert(out);
-    if( cap > 0 )
-        out[0] = '\0';
-    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
-        if( World_TerrainElementAt(world, tile_x, tile_z, level) >= 0 )
-            out[used++] = (char)('0' + level);
-    if( used == 0 && used < cap - 1 )
-        out[used++] = '-';
-    if( used < cap )
-        out[used] = '\0';
-}
-
 void
 RS_Minimenu_AddWorldRows(
     struct RS_MinimenuBuildCtx const* ctx,
@@ -1008,9 +962,9 @@ RS_Minimenu_AddWorldRows(
                 char settings[4 * 6 + 1];
                 char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
 
-                tile_settings_text(
+                World_TileSettingsText(
                     ctx->world, terrain->tile_x, terrain->tile_z, settings, (int)sizeof(settings));
-                tile_mesh_levels_text(
+                World_TerrainMeshLevelsText(
                     ctx->world, terrain->tile_x, terrain->tile_z, meshes, (int)sizeof(meshes));
                 snprintf(
                     text,
@@ -1034,6 +988,15 @@ RS_Minimenu_AddWorldRows(
             }
             else
                 UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
+
+            /* Loc editor: the ground is selectable too, and by the same
+             * disambiguated route the Select rows use — the pick set already
+             * names the exact tile the pointer is over, so this needs no
+             * second hit test and cannot disagree with the row above it. */
+            if( ctx->locedit_active )
+                UIMinimenu_AddOption(
+                    menu, "Select @whi@terrain", RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN, 0,
+                    pick);
         }
         else
         {

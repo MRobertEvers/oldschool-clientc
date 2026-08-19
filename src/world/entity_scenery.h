@@ -74,21 +74,38 @@ struct WorldEntity_SceneryDebug
 };
 
 /**
- * TORIRS_LOC_DEBUG: surface loc placement provenance in the minimenu, and let
- * every loc be picked while doing it — including the inactive ones the pick
- * classifier normally drops (LocType.active), which is most of the scenery a
- * misplacement is visible on (bushes, walls, gravel).
+ * TORIRS_LOC_DEBUG: surface loc placement provenance in the minimenu — the
+ * scene/abs slot on every loc row, and the full placement record as a row of
+ * its own.
  *
- * Read once per translation unit; flipping the env var mid-run does nothing.
+ * Env only, and read once: this is the READOUT, and a hotkey-driven tool must
+ * not start rewriting menu text as a side effect of being switched on.
  */
-static inline bool
-WorldEntity_SceneryDebugEnabled(void)
-{
-    static int enabled = -1;
-    if( enabled < 0 )
-        enabled = getenv("TORIRS_LOC_DEBUG") != NULL;
-    return enabled != 0;
-}
+bool
+WorldEntity_SceneryDebugEnabled(void);
+
+/**
+ * Whether an INACTIVE loc may be picked (LocType.active; the reference negates
+ * a non-active typecode and Model.draw records no hit for it, Model.ts:1758).
+ *
+ * Separate from the readout above because it is what every loc-inspection tool
+ * needs to see its subject at all. Walls, gravel, fences, ground decor and
+ * bushes are overwhelmingly inactive — they carry no ops and therefore no menu
+ * row — so with this false the footprint outline and the loc editor could only
+ * ever reach the small minority of scenery that happens to be interactive, and
+ * "the tool does nothing over a wall" is indistinguishable from a broken tool.
+ *
+ * True when the readout is on, or while WorldEntity_SceneryDebugSetTools says
+ * a tool that picks locs is running.
+ */
+bool
+WorldEntity_SceneryPickInactive(void);
+
+/** Declare whether a loc-picking tool (loc editor, footprint outline) is
+ *  active this frame. The host calls this; nothing in world/ turns it on by
+ *  itself. */
+void
+WorldEntity_SceneryDebugSetTools(bool active);
 
 struct WorldEntity_Scenery
 {

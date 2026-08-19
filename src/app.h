@@ -814,6 +814,14 @@ struct App
     int locedit_scene_x;
     int locedit_scene_z;
     int locedit_level;
+    /** 1 = the selection is a TILE, not a loc: locedit_loc_id stays -1 and
+     * scene_x/z/level name the ground instead. The move/rotate rows already
+     * guard on `locedit_loc_id < 0`, so a tile selection cannot be nudged —
+     * it is a readout, which is the whole of what a tile can offer. */
+    int locedit_terrain;
+    /** Cache (mesh) level of the selected tile — the plane the map authored
+     * that floor on, which on a bridge deck is not the plane it draws at. */
+    int locedit_terrain_level;
     /** The last world tile the cursor hovered while NOT over the panel itself
      * -- Reselect targets this, not the live world_hover_tile_x/z, because by
      * the time a menu click on "Reselect" lands the cursor has necessarily

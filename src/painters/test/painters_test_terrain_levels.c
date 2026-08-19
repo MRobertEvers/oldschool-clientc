@@ -747,6 +747,8 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
             runs++;
         prev = d;
         emitted++;
+        if( east_i >= 0 && i > east_i && d > 5 && getenv("SEAM_DEBUG") )
+            printf("       late floor (%d,%d) d=%d at cmd %d (east loc at %d)\n", tx, tz, d, i, east_i);
         if( east_i >= 0 && i > east_i && d > worst_after_east )
             worst_after_east = d;
     }
@@ -771,6 +773,76 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
 #undef SEAM_CAM_Z
 }
 
+/*
+ * The other half of the seam exception's contract (2026-08-19, ToB Xarpus /
+ * Maiden): a large loc that sits BEHIND a tile along the view ray must still
+ * be emitted before that tile's ground, however near the loc's nearest corner
+ * reaches in Manhattan terms.
+ *
+ * Eye at (16,4) looking up +z. A 6x5 loc at x[10,15] z[28,32] has its nearest
+ * footprint tile (15,28) at ring 25, but the floor directly in front of its
+ * z=28 row — (10..13, 27), rings 26..29 — is nearer the eye in depth and sits
+ * under the loc on screen. Every floor tile in the loc's x band with z < 28
+ * must therefore be emitted AFTER the loc. The first seam exception relaxed
+ * those tiles' north gate (the loc "reached nearer"), painted them first, and
+ * the loc's tall far part landed on top of them.
+ */
+static void
+test_loc_behind_a_tile_in_depth_is_emitted_first(void)
+{
+#define BEHIND_SCENE 32
+#define BEHIND_CAM_X 16
+#define BEHIND_CAM_Z 4
+    struct Painter* p = painter_new(BEHIND_SCENE, BEHIND_SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersBuffer* buf = painter_buffer_new();
+    const int ledge = 1400;
+    int ledge_i = -1;
+    int floor_before_ledge = 0;
+    int floor_in_front = 0;
+    int x, z;
+
+    printf("a loc behind a tile along the view ray is emitted before that tile's floor\n");
+    painter_set_draw_distance(p, BEHIND_SCENE);
+    for( x = 0; x < BEHIND_SCENE; x++ )
+        for( z = 0; z < BEHIND_SCENE; z++ )
+        {
+            painter_tile_set_terrain_levels(p, x, z, 0, 1u << 0);
+            painter_tile_set_terrain_levels(p, x, z, 1, 0);
+            painter_tile_set_terrain_levels(p, x, z, 2, 0);
+            painter_tile_set_terrain_levels(p, x, z, 3, 0);
+        }
+    painter_add_normal_scenery_ex(p, 10, 28, 0, ledge, 6, 5, 0, PNTR_SCENERY_STACK_BASE);
+
+    painter_paint_bucket(p, buf, BEHIND_CAM_X, BEHIND_CAM_Z, 0);
+
+    expect(entity_emits(buf, ledge, &ledge_i) == 1, "the ledge is emitted exactly once");
+    for( int i = 0; i < buf->command_count; i++ )
+    {
+        int tx, tz;
+        if( buf->commands[i]._bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+        tx = (int)buf->commands[i]._terrain._bf_terrain_x;
+        tz = (int)buf->commands[i]._terrain._bf_terrain_z;
+        if( tx < 10 || tx > 15 || tz >= 28 || tz < BEHIND_CAM_Z )
+            continue;
+        floor_in_front++;
+        if( ledge_i >= 0 && i < ledge_i )
+            floor_before_ledge++;
+    }
+    expect(floor_in_front > 0, "the box emitted the floor in front of the ledge");
+    expect(floor_before_ledge == 0, "no floor in front of the ledge is emitted before it");
+    if( floor_before_ledge )
+        printf("       (%d of %d floor tiles in front of the ledge emitted before it)\n",
+               floor_before_ledge, floor_in_front);
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+#undef BEHIND_SCENE
+#undef BEHIND_CAM_X
+#undef BEHIND_CAM_Z
+}
+
 int
 main(void)
 {
@@ -786,7 +858,12 @@ main(void)
     test_stack_base_does_not_defer_static_locs();
     test_ready_batch_sorts_by_far_corner();
     test_bucket_emits_one_globally_distance_ordered_sweep();
+#ifdef PAINTERS_BUCKET_SEAM_EXCEPTION
+    /* Only the seam-exception build keeps the QBD sweep; the default build
+     * runs the plain reference gate and waits, as painter_paint_world3d does. */
     test_seam_between_two_large_locs_keeps_the_sweep();
+#endif
+    test_loc_behind_a_tile_in_depth_is_emitted_first();
 
     if( g_failures )
     {

@@ -38421,12 +38421,11 @@ mock230_world_selftest(void)
                 int hud;
                 int death_anim_seen = 0;
                 int pool_under_player = 0;
+                int pool_any = 0;
                 int victim = -1;
                 int victim_seq = 0;
                 int victim_corpse = 0;
                 int victim_alive_ticks = 0;
-                int face_ticks = 0;
-                int face_other = -2;
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -38535,6 +38534,35 @@ mock230_world_selftest(void)
                             pool_under_player++;
                     }
                     /*
+                     * ...AND HOW MANY SHE THREW AT ALL.
+                     *
+                     * Without this the failure above says only "not on the
+                     * player's tile", which reads as a targeting bug and is the
+                     * same message whether she threw ten pools at the wrong
+                     * tiles or threw none. Those are opposite defects — one is
+                     * `~tob_maiden_blood_throw`'s aim, the other is the roll
+                     * that decides whether a blood attack happens — and the
+                     * suite has to be able to say which.
+                     *
+                     * Counted over her whole arena, once per tick, so the
+                     * number is "pool-tiles seen" rather than "throws": a pool
+                     * lives ^tob_maiden_blood_trail_ticks and this samples it
+                     * every tick it is open.
+                     */
+                    for( int px = -12; px <= 12; px++ )
+                    {
+                        for( int pz = -12; pz <= 12; pz++ )
+                        {
+                            int slot = mock230_scene_find_loc_exact(
+                                srv->npcs[boss].x + px, srv->npcs[boss].z + pz,
+                                srv->npcs[boss].level, 10);
+                            struct Mock230SceneLoc* l =
+                                slot >= 0 ? mock230_scene_loc(slot) : NULL;
+                            if( l && l->active && l->loc_id == 32984 )
+                                pool_any++;
+                        }
+                    }
+                    /*
                      * A CRAB KILLED SHORT OF HER STILL PLAYS ITS DEATH
                      * ANIMATION.
                      *
@@ -38575,6 +38603,14 @@ mock230_world_selftest(void)
                                                    srv->npcs[victim].hitpoints);
                         }
                     }
+                    if( getenv("MOCK230_TOB_FACE") )
+                        fprintf(stderr,
+                                "    fight t=%2d mode=%d face_entity=%d (want %d) "
+                                "masks=0x%x ct=%d anim=%d\n",
+                                t, srv->npcs[boss].mode, srv->npcs[boss].face_entity,
+                                MOCK230_FACE_PLAYER_BASE + player->pid,
+                                srv->npcs[boss].masks, srv->npcs[boss].combat_target,
+                                srv->npcs[boss].anim_id);
                     if( victim >= 0 )
                     {
                         if( srv->npcs[victim].death_stage == MOCK230_DEATH_CORPSE )
@@ -38582,34 +38618,6 @@ mock230_world_selftest(void)
                         if( srv->npcs[victim].active )
                             victim_alive_ticks++;
                     }
-                    /*
-                     * SHE LOOKS AT THE PLAYER SHE IS SHOOTING, ALL THE TIME.
-                     *
-                     * `~tob_maiden_face_latch` is `npc_setmode(playerface)`,
-                     * and a mode is only as durable as `npc_mode_target_valid`
-                     * lets it be: that ends `from_spawn <= maxrange + 1`,
-                     * measured from the npc's SPAWN TILE, with `maxrange`
-                     * defaulting to 7. Her arena is 24 tiles deep, so every
-                     * player standing where this fight is actually fought was
-                     * "out of range" - the mode was reset to `none` on the tick
-                     * after it was set and the FACE_ENTITY latch kept pointing
-                     * wherever it happened to be aimed when she last threw.
-                     *
-                     * From outside that is exactly the report: she does not
-                     * turn towards the player she is attacking until something
-                     * else makes her (a hit, which re-aims through the combat
-                     * path). `maxrange=24` on all four of her bodies is the
-                     * fix, and this is what says so - the latch is checked on
-                     * every tick of a 60-tick fight, not once.
-                     */
-                    if( srv->npcs[boss].face_entity !=
-                        MOCK230_FACE_PLAYER_BASE + player->pid )
-                    {
-                        if( face_other == -2 )
-                            face_other = srv->npcs[boss].face_entity;
-                    }
-                    else
-                        face_ticks++;
                     if( getenv("MOCK230_TOB_CRABS") )
                     {
                         char line[256];
@@ -38836,17 +38844,19 @@ mock230_world_selftest(void)
                                 mock230_mapinstance_var_get(handle, 77));
                     fprintf(stderr,
                             "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), "
-                            "leaks %d, blood-on-platform %d, pool-under-player %d, hud %d\n",
+                            "leaks %d, blood-on-platform %d, pool-under-player %d, "
+                            "pool-tiles-anywhere %d, hud %d\n",
                             spawned, first_gap, last_gap, min_gap, leaks, on_body,
-                            pool_under_player, hud);
+                            pool_under_player, pool_any, hud);
                     SELFTEST_CHECK(on_body == 0,
                                    "no blood pool may land on the Maiden's platform, "
                                    "found %d",
                                    on_body);
                     SELFTEST_CHECK(pool_under_player > 0,
                                    "she must throw a blood pool at the player's own "
-                                   "tile, saw it on %d of %d ticks",
-                                   pool_under_player, 60);
+                                   "tile, saw it on %d of %d ticks (she put %d "
+                                   "pool-tile-ticks down anywhere in the arena)",
+                                   pool_under_player, 60, pool_any);
                     /*
                      * And the top bar is showing her, with real numbers.
                      *
@@ -38911,13 +38921,67 @@ mock230_world_selftest(void)
                         "  Maiden crab killed short: death_seq %d, reached corpse %d, "
                         "visible for %d ticks after the blow\n",
                         victim_seq, victim_corpse, victim_alive_ticks);
-                SELFTEST_CHECK(face_ticks >= 50,
-                               "the Maiden must hold a FACE_ENTITY latch on the "
-                               "player she is fighting for the whole fight, held "
-                               "it on %d of 60 ticks (first miss faced %d, wanted "
-                               "%d)",
-                               face_ticks, face_other,
-                               MOCK230_FACE_PLAYER_BASE + player->pid);
+                /*
+                 * SHE LOOKS AT THE PLAYER SHE IS SHOOTING — FROM WHERE THE
+                 * FIGHT IS ACTUALLY FOUGHT.
+                 *
+                 * `~tob_maiden_face_latch` is `npc_setmode(playerface)`, and a
+                 * mode is only as durable as `npc_mode_target_valid` lets it
+                 * be: that ends `from_spawn <= maxrange + 1`, measured from the
+                 * npc's SPAWN TILE, with `maxrange` defaulting to 7. So the
+                 * mode was reset to `none` on the tick after it was set, and
+                 * the FACE_ENTITY latch — being a latch — kept pointing
+                 * wherever it happened to be aimed when she last threw. From
+                 * outside that is the report exactly: she does not turn towards
+                 * the player she is attacking until something else re-aims her,
+                 * and a hit does, through the combat path.
+                 *
+                 * This leg has to place the player ITSELF, and that is the
+                 * whole reason it is a leg. `tobstand` parks them at
+                 * `boss.x + size + 1` — seven tiles from her spawn, which is
+                 * `maxrange + 1` for the default 7 and therefore the one
+                 * distance at which the bug cannot be observed. The room is 24
+                 * tiles deep (`^tob_maiden_fight_lx` is 22 east of her body)
+                 * and that is where a team stands.
+                 *
+                 * Ticked without `tobstand`, or it teleports the player back to
+                 * the boundary every tick and measures the fixture instead of
+                 * the boss.
+                 */
+                {
+                    int face_hits = 0;
+                    int face_saw = -2;
+
+                    mock230_world_set_active(srv, player);
+                    mock230_world_teleport(srv, srv->npcs[boss].level,
+                                           srv->npcs[boss].x + 20, srv->npcs[boss].z);
+                    for( int t = 0; t < 12; t++ )
+                    {
+                        mock230_world_tick(srv);
+                        if( getenv("MOCK230_TOB_FACE") )
+                            fprintf(stderr,
+                                    "    face t=%2d mode=%d face_entity=%d (want %d) "
+                                    "masks=0x%x combat_target=%d turnspeed=%d\n",
+                                    t, srv->npcs[boss].mode,
+                                    srv->npcs[boss].face_entity,
+                                    MOCK230_FACE_PLAYER_BASE + player->pid,
+                                    srv->npcs[boss].masks,
+                                    srv->npcs[boss].combat_target,
+                                    srv->npcs[boss].turnspeed);
+                        if( srv->npcs[boss].face_entity ==
+                            MOCK230_FACE_PLAYER_BASE + player->pid )
+                            face_hits++;
+                        else if( face_saw == -2 )
+                            face_saw = srv->npcs[boss].face_entity;
+                    }
+                    SELFTEST_CHECK(face_hits >= 10,
+                                   "the Maiden must face the player she is fighting "
+                                   "from across her own room, held the latch on %d "
+                                   "of 12 ticks 20 tiles out (first miss faced %d, "
+                                   "wanted %d)",
+                                   face_hits, face_saw,
+                                   MOCK230_FACE_PLAYER_BASE + player->pid);
+                }
                 SELFTEST_CHECK(victim_seq > 0,
                                "a Matomenos must carry elemental_death, got %d",
                                victim_seq);

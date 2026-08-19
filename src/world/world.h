@@ -383,6 +383,29 @@ World_TerrainDrawLevel(
     int z,
     int mesh_level);
 
+/** `[L0|L1|L2|L3]` land-settings decode of a column, for debug readouts:
+ *  B block, L link-below, R remove-roof, V vis-below, H force-high-detail,
+ *  `-` for none. Always NUL-terminates; truncates rather than overflowing.
+ *  Non-const World for the pair's sake — its twin below reads the terrain
+ *  entity pool, whose lookup is not const-clean. */
+void
+World_TileSettingsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap);
+
+/** The cache levels of a column that carry a terrain mesh, as digits, or "-"
+ *  for none. Separates "no floor" from "floor on an unexpected plane". */
+void
+World_TerrainMeshLevelsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap);
+
 /** Wire (walked) level -> cache level, the trip a zone loc packet has to make
  *  before it can name the loc the map placed. Mirrors app_world_height's own
  *  +1 for heights (Client.ts getAvH), including its `level < 3` guard. */

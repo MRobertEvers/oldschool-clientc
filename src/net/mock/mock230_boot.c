@@ -196,6 +196,7 @@ mock230_boot_load(const struct Mock230BootConfig* config)
     mock230_objinfo_load(config->cache_dir);
     mock230_npcinfo_load(config->cache_dir);
     mock230_seqinfo_load(config->cache_dir);
+    mock230_healthbarinfo_load(config->cache_dir);
     /* The other two param tables. Nothing seeds content from these — they exist
      * for `lc_param` and `struct_param` — but they belong with the rest of the
      * cache's tables, which is what step 1 means. */

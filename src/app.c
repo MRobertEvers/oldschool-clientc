@@ -100,6 +100,9 @@ app_debug_key_held(
 }
 #include <time.h>
 
+/* A/B probe: non-zero routes the world paint through the bucket painter. */
+int g_torirs_painter_bucket = 0;
+
 enum
 {
     APP_LOGIC_TICK_MS = 20,
@@ -3997,7 +4000,7 @@ app_debug_overlay_init(struct App* app)
     app->locedit_panel =
         ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
     app->locedit_row_target =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "no loc selected");
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "nothing selected");
     app->locedit_row_pos = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
     app->locedit_row_size = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
     app->locedit_row_extra = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
@@ -4031,6 +4034,8 @@ app_debug_overlay_init(struct App* app)
     app->locedit_scene_x = -1;
     app->locedit_scene_z = -1;
     app->locedit_level = 0;
+    app->locedit_terrain = 0;
+    app->locedit_terrain_level = 0;
     app->locedit_hover_x = -1;
     app->locedit_hover_z = -1;
 
@@ -4172,9 +4177,60 @@ app_loc_editor_refresh_labels(struct App* app)
 {
     char text[TORIDBG_INPUT_MAX];
 
+    /*
+     * A selected TILE, which answers a different set of questions than a loc.
+     *
+     * The three levels are all different on exactly the columns where ground
+     * misbehaves, so all three are shown rather than one "level":
+     *   cache  — the plane the map authored this floor on (the mesh level).
+     *   draw   — the plane it is culled and picked against; VIS_BELOW makes
+     *            that 0, and a LinkBelow column's upper planes one lower.
+     *   paint  — where the build's push-down parked the tile in the painter.
+     * A flat column reads the same number three times; a bridge deck reads
+     * 1/0/0, and that spread is the readout's whole reason to exist.
+     */
+    if( app->locedit_terrain )
+    {
+        char settings[4 * 6 + 1];
+        char meshes[WORLD_MAP_TERRAIN_LEVELS + 1];
+        int const cache_level = app->locedit_terrain_level;
+
+        World_TileSettingsText(
+            app->world, app->locedit_scene_x, app->locedit_scene_z, settings,
+            (int)sizeof(settings));
+        World_TerrainMeshLevelsText(
+            app->world, app->locedit_scene_x, app->locedit_scene_z, meshes,
+            (int)sizeof(meshes));
+
+        snprintf(text, sizeof(text), "terrain tile, mesh on level %d", cache_level);
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
+        snprintf(
+            text,
+            sizeof(text),
+            "x=%d z=%d abs(%d,%d)",
+            app->locedit_scene_x,
+            app->locedit_scene_z,
+            app->world ? app->world->_base_tile_x + app->locedit_scene_x : -1,
+            app->world ? app->world->_base_tile_z + app->locedit_scene_z : -1);
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, text);
+        snprintf(
+            text,
+            sizeof(text),
+            "cache=%d draw=%d paint=%d",
+            cache_level,
+            World_TerrainDrawLevel(
+                app->world, app->locedit_scene_x, app->locedit_scene_z, cache_level),
+            World_LocPaintLevel(
+                app->world, app->locedit_scene_x, app->locedit_scene_z, cache_level));
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, text);
+        snprintf(text, sizeof(text), "s[%s] mesh[%s]", settings, meshes);
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, text);
+        return;
+    }
+
     if( app->locedit_loc_id < 0 )
     {
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "no loc selected");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "nothing selected");
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, "");
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, "");
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, "");
@@ -4233,6 +4289,7 @@ app_loc_editor_reselect(struct App* app)
     int idx;
 
     app->locedit_loc_id = -1;
+    app->locedit_terrain = 0;
     if( !app->world || app->locedit_hover_x < 0 || app->locedit_hover_z < 0 )
     {
         app_loc_editor_refresh_labels(app);
@@ -4268,11 +4325,14 @@ app_loc_editor_reselect(struct App* app)
     app_loc_editor_refresh_labels(app);
 }
 
-/* Explicit Deselect: clears the target without touching the world. */
+/* Explicit Deselect: clears the target without touching the world. Clears the
+ * tile selection too — one row, both subjects, or Deselect would appear to do
+ * nothing while a tile was up. */
 static void
 app_loc_editor_deselect(struct App* app)
 {
     app->locedit_loc_id = -1;
+    app->locedit_terrain = 0;
     app_loc_editor_refresh_labels(app);
 }
 
@@ -4294,6 +4354,8 @@ app_loc_editor_select_element(
     scenery = World_SceneryGetByElementId(app->world, element_id);
     if( !scenery )
         return;
+    /* The two selections are exclusive: one panel, one subject. */
+    app->locedit_terrain = 0;
     app->locedit_loc_id = scenery->loc_id;
     app->locedit_shape = scenery->shape;
     app->locedit_angle = scenery->angle;
@@ -4304,6 +4366,27 @@ app_loc_editor_select_element(
     app->locedit_scene_x = scenery->grid_position.x;
     app->locedit_scene_z = scenery->grid_position.z;
     app->locedit_level = scenery->grid_position.level;
+    app_loc_editor_refresh_labels(app);
+}
+
+/* Select the GROUND at a scene tile. `cache_level` is the picked mesh level —
+ * the plane the map authored that floor on — which the panel then reads the
+ * draw and paint levels off, since those are derived and not stored. */
+static void
+app_loc_editor_select_terrain(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int cache_level)
+{
+    if( !app->world )
+        return;
+    app->locedit_terrain = 1;
+    app->locedit_loc_id = -1;
+    app->locedit_scene_x = scene_x;
+    app->locedit_scene_z = scene_z;
+    app->locedit_terrain_level = cache_level;
+    app->locedit_level = cache_level;
     app_loc_editor_refresh_labels(app);
 }
 
@@ -4392,6 +4475,13 @@ app_loc_editor_tick(
         app->need_redraw = 1;
         fprintf(stderr, "hover_footprint: %d\n", app->hover_footprint);
     }
+
+    /* Both tools inspect locs the pick classifier drops by default — walls,
+     * fences, gravel, ground decor: everything with no ops on it, which is
+     * most of what a placement or footprint question is actually about. Told
+     * here, once, from the two toggles that own the state, so neither tool has
+     * to reach into the pick path itself. */
+    WorldEntity_SceneryDebugSetTools(app->locedit_visible || app->hover_footprint != 0);
 
     /* Remember the world tile under the cursor whenever the cursor is NOT
      * over the panel itself. Runs every frame, panel open or not, so the
@@ -9477,7 +9567,7 @@ app_world_paint(struct App* app)
      * bug is either in the traversal or in the geometry it orders, and this is
      * what separates the two: same scene, same frame, the other painter. Pair
      * it with TORIRS_PIXOWNER to name what changed hands. */
-    else if( getenv("TORIRS_PAINTER_W3D") || true )
+    else if( !getenv("TORIRS_PAINTER_BUCKET") && !g_torirs_painter_bucket )
         painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
@@ -15802,6 +15892,18 @@ app_minimenu_run_option(
     {
         if( app->locedit_visible )
             app_loc_editor_select_element(app, opt.pick.id);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /* Its ground twin. The pick already carries the exact tile the terrain hit
+     * named — secondary/tertiary are scene x/z and quaternary the mesh level —
+     * so nothing is re-derived here and the panel cannot describe a different
+     * tile than the row that was clicked. */
+    if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN )
+    {
+        if( app->locedit_visible )
+            app_loc_editor_select_terrain(
+                app, opt.pick.secondary_id, opt.pick.tertiary_id, opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 

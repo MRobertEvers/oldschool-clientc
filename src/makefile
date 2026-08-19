@@ -486,6 +486,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_objinfo.c \
 	net/mock/mock230_split.c \
 	net/mock/mock230_runenergy.c \
+	net/mock/mock230_healthbarinfo.c \
 	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
@@ -1681,6 +1682,9 @@ test-painters-occluders: $(OBJ_DIR) $(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/he
 		$(OBJ_DIR)/occluder_buildmap.o $(OBJ_DIR)/heightmap.o
 	./$(OBJ_DIR)/painters_test_occluders
 
+# Built twice: the default (reference gate, what the client ships) and with
+# -DPAINTERS_BUCKET_SEAM_EXCEPTION, which must keep BOTH the QBD seam sweep and
+# the loc-behind-a-tile order (painters_bucket.u.c, bucket_gate_blocks).
 test-painters-terrain-levels: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
 		-o $(OBJ_DIR)/painters_test_terrain_levels \
@@ -1689,6 +1693,13 @@ test-painters-terrain-levels: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_terrain_levels
+	$(CC) $(CFLAGS) -DPAINTERS_BUCKET_SEAM_EXCEPTION -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_terrain_levels_seam \
+		painters/test/painters_test_terrain_levels.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_terrain_levels_seam
 
 test-painters-ground-decor: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \

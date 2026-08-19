@@ -118,10 +118,26 @@ UIMinimenu_AddOption(
 void
 UIMinimenu_SortPriorityActions(struct UIMinimenu* menu);
 
+/**
+ * Where the client's own synthetic action ids start.
+ *
+ * The reference's action space is small (rev-254 tops out ~1714, ~3714 once
+ * deprioritized) and every id in it may carry the +2000 priority bias. A row
+ * the CLIENT invents — a dev tool's, never sent to a server — is not a
+ * component operation and never carries that bias, so the two rules below must
+ * leave it exactly as it was handed in. Without the guard, normalize turned the
+ * loc editor's Select row from 500000 into 498000 and its dispatch, an
+ * equality test against the constant, silently stopped matching: the row drew,
+ * the menu closed, and nothing happened.
+ */
+#define UITREE_MINIMENU_ACTION_CLIENT_BASE 500000
+
 /** Deprioritize bias (reference +2000): pushes a row below normal entries. */
 static inline int
 UIMinimenu_ActionDeprioritize(int action)
 {
+    if( action >= UITREE_MINIMENU_ACTION_CLIENT_BASE )
+        return action;
     return action > 1000 ? action : action + 2000;
 }
 
@@ -129,6 +145,8 @@ UIMinimenu_ActionDeprioritize(int action)
 static inline int
 UIMinimenu_ActionNormalize(int action)
 {
+    if( action >= UITREE_MINIMENU_ACTION_CLIENT_BASE )
+        return action;
     return action >= 2000 ? action - 2000 : action;
 }
 

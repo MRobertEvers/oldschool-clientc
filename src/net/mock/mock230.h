@@ -4417,6 +4417,27 @@ mock230_step_delta(
 /* Sequence names (mock230_seqinfo.c)                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Healthbar widths (config group 33), the denominator a HEADBAR fill is a
+ * fraction of. Returns the table size, 0 when the cache has no such group.
+ */
+int
+mock230_healthbarinfo_load(const char* cache_dir);
+
+void
+mock230_healthbarinfo_free(void);
+
+int
+mock230_healthbarinfo_count(void);
+
+/** Opcode 14 for a healthbar id, or the client constructor's default. Never 0,
+ *  so it is always safe to divide by. */
+int
+mock230_healthbar_width(int id);
+
+/** class381 var10: the fill denominator when a record states no opcode 14. */
+#define MOCK230_HEALTHBAR_DEFAULT_WIDTH 30
+
 /** Index every sequence's debug name. Returns the count, 0 when absent. */
 int
 mock230_seqinfo_load(const char* cache_dir);

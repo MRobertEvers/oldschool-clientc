@@ -134,7 +134,9 @@ bucket_ctx_free(struct Painter* painter)
 }
 
 /*
- * The seam exception to the reference adjacency gate.
+ * The seam exception to the reference adjacency gate — COMPILED OUT by
+ * default (PAINTERS_BUCKET_SEAM_EXCEPTION), so the bucket painter runs the
+ * plain reference gate and orders exactly as painter_paint_world3d.
  *
  * The reference rule is "a tile may not draw its ground until the neighbour
  * between it and the far edge has fully retired", with one escape: if the two
@@ -152,13 +154,26 @@ bucket_ctx_free(struct Painter* painter)
  * tile whatever happens. Holding the farther tile behind it inverts the sweep
  * and paints its floor over the loc.
  *
- * So: once the neighbour's own ground is down, and everything still keeping it
- * from DONE is scenery that reaches nearer the eye than the tile being gated,
- * the gate has nothing left to protect. Walls disqualify the neighbour — a far
- * tile's near wall must still precede a nearer tile's ground — and so does any
- * pending element whose footprint does not reach past this ring, which keeps
- * the ordinary "wait for the tile behind me" case exactly as the reference has
- * it.
+ * The first version of this relaxed the gate on EITHER axis, and that was a
+ * bug (2026-08-19, ToB): a large loc also straddles rings in depth. Xarpus'
+ * 6x5 ledge at x[43,48] z[67,71] seen from (50,43) has its near corner at
+ * ring 26, but tile (44,66) — ring 29 — is directly in FRONT of its z=67 row;
+ * relaxing (44,66)'s north gate let that floor paint first and the ledge's
+ * tall far part land on top of it. Same shape for the Maiden stair landing.
+ *
+ * So the relaxation is now confined to the LATERAL gate: the neighbour that
+ * lies to the side of the eye->tile ray, not along it. For a tile at
+ * (dx, dz) from the eye, the depth axis is the one with the larger |delta|;
+ * the gate across the other axis is lateral. A loc pending on a lateral
+ * neighbour is beside this tile's line of sight, so its far part is not
+ * behind this tile's ground the way a depth-neighbour's loc is. The QBD seam
+ * column has dx == 0, so both of its x gates are lateral and still relax;
+ * the Xarpus/Maiden cases gate on the depth axis and now wait, as the
+ * reference does. Ties (|dx| == |dz|) are treated as depth — strict.
+ *
+ * Walls still disqualify the neighbour — a far tile's near wall must precede
+ * a nearer tile's ground — and so does any pending element whose footprint
+ * does not reach past this ring.
  */
 static int
 bucket_neighbour_holds_only_nearer_scenery(
@@ -167,10 +182,14 @@ bucket_neighbour_holds_only_nearer_scenery(
     const struct TilePaint* other_paint,
     int camera_sx,
     int camera_sz,
-    int dist)
+    int dist,
+    int lateral_gate)
 {
+#ifdef PAINTERS_BUCKET_SEAM_EXCEPTION
     int pending = 0;
 
+    if( !lateral_gate )
+        return 0; /* the neighbour is behind this tile along the view ray */
     if( other_paint->step == PAINT_STEP_READY )
         return 0; /* ground not down yet — nothing to relax */
     if( other_tile->scenery_head == -1 )
@@ -190,9 +209,22 @@ bucket_neighbour_holds_only_nearer_scenery(
         pending = 1;
     }
     return pending;
+#else
+    (void)painter;
+    (void)other_tile;
+    (void)other_paint;
+    (void)camera_sx;
+    (void)camera_sz;
+    (void)dist;
+    (void)lateral_gate;
+    return 0;
+#endif
 }
 
-/* One direction of the adjacency gate. Non-zero = this tile must wait. */
+/* One direction of the adjacency gate. Non-zero = this tile must wait.
+ * `span_flag` names the direction; the W/E gates are lateral when the tile
+ * sits more ahead of the eye than beside it (|dz| > |dx|), the N/S gates when
+ * the reverse holds. */
 static inline int
 bucket_gate_blocks(
     struct Painter* painter,
@@ -210,9 +242,16 @@ bucket_gate_blocks(
         return 0;
     if( other->step != PAINT_STEP_READY && (tile->spans & span_flag) != 0 )
         return 0; /* reference span exception: the two share a loc */
-    if( bucket_neighbour_holds_only_nearer_scenery(
-            painter, other_tile, other, camera_sx, camera_sz, dist) )
-        return 0;
+    {
+        int adx = abs((int)tile->sx - camera_sx);
+        int adz = abs((int)tile->sz - camera_sz);
+        int lateral_gate = (span_flag == SPAN_FLAG_WEST || span_flag == SPAN_FLAG_EAST)
+                               ? (adz > adx)
+                               : (adx > adz);
+        if( bucket_neighbour_holds_only_nearer_scenery(
+                painter, other_tile, other, camera_sx, camera_sz, dist, lateral_gate) )
+            return 0;
+    }
     return 1;
 }
 

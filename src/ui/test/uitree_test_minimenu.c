@@ -598,6 +598,41 @@ test_hovertext_compose(void)
  * without it the sidebar-tab gate cannot run and an unselected tab's
  * components win the (last-match-wins) hover, which is what shrank the stats
  * tab's per-stat tooltip hitbox to a few pixels. */
+/*
+ * The +2000 priority bias is the REFERENCE's, and must not touch the client's
+ * own synthetic action ids.
+ *
+ * Both rules are unconditional arithmetic on a bare int, so an id the client
+ * invents for a dev-tool row falls into them by accident: at 500000 it is
+ * >= 2000, so normalize handed the dispatcher 498000 and the loc editor's
+ * "Select" row — dispatched by equality against the constant — drew, closed the
+ * menu and did nothing. Anything at or above UITREE_MINIMENU_ACTION_CLIENT_BASE
+ * must round-trip through both rules unchanged.
+ */
+static void
+test_minimenu_client_actions_carry_no_bias(void)
+{
+    int const client = UITREE_MINIMENU_ACTION_CLIENT_BASE;
+
+    TEST_ASSERT(UIMinimenu_ActionNormalize(client) == client,
+                "a client-only action survives normalize");
+    TEST_ASSERT(UIMinimenu_ActionDeprioritize(client) == client,
+                "and is never given the bias in the first place");
+    TEST_ASSERT(
+        UIMinimenu_ActionNormalize(UIMinimenu_ActionDeprioritize(client)) == client,
+        "so it round-trips through both");
+
+    /* The reference band still behaves exactly as before. */
+    TEST_ASSERT(UIMinimenu_ActionDeprioritize(TEST_ACTION_OP1) == TEST_ACTION_OP1 + 2000,
+                "a normal-priority op still takes the bias");
+    TEST_ASSERT(
+        UIMinimenu_ActionNormalize(UIMinimenu_ActionDeprioritize(TEST_ACTION_OP1)) ==
+            TEST_ACTION_OP1,
+        "and normalize still removes it");
+    TEST_ASSERT(UIMinimenu_ActionDeprioritize(TEST_ACTION_EXAMINE) == TEST_ACTION_EXAMINE,
+                "an already-high id is left alone");
+}
+
 static void
 test_interact_hover_uses_host(void)
 {
@@ -641,6 +676,7 @@ test_minimenu(void)
 {
     printf("TEST: minimenu / cross\n");
     test_hovertext_compose();
+    test_minimenu_client_actions_carry_no_bias();
     test_minimenu_layout_math();
     test_minimenu_width_holds_the_rows();
     test_minimenu_hide_keeps_font();

@@ -49,10 +49,12 @@ pick_classify_element(
          * menu row. Without this every unnamed loc surfaced as
          * "Examine @cya@ Scenery".
          *
-         * TORIRS_LOC_DEBUG lifts the gate: the locs worth inspecting for a
-         * placement bug are overwhelmingly the inactive ones (a bush on the
-         * wrong square is invisible to a menu that refuses to pick bushes). */
-        if( !scenery->interactive && !WorldEntity_SceneryDebugEnabled() )
+         * The loc-inspection tools lift the gate, because the locs worth
+         * inspecting for a placement bug are overwhelmingly the inactive ones —
+         * a wall, a fence or a patch of ground decor on the wrong square is
+         * invisible to a menu that refuses to pick them, and so is its
+         * footprint. See WorldEntity_SceneryPickInactive. */
+        if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
             return false;
         *out_type = WORLD_PICK_SCENERY;
         *out_tile_x = scenery->grid_position.x;

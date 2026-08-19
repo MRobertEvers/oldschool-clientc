@@ -46,7 +46,14 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_INV, "worn", &g_ids.inv_worn },
         { MOCK230_PACK_INV, "bank", &g_ids.inv_bank },
         { MOCK230_PACK_INV, "collection_transmit", &g_ids.inv_collection_log },
-        { MOCK230_PACK_HEALTHBAR, "healthbar_0", &g_ids.healthbar_standard },
+        /* The standard-health family, one per footprint band. The BAND is the
+         * engine's convention (`healthbar_for_size`); the NAMES are the
+         * cache's, so the mapping is readable at both ends. */
+        { MOCK230_PACK_HEALTHBAR, "healthbar_standard_30", &g_ids.healthbar_standard },
+        { MOCK230_PACK_HEALTHBAR, "healthbar_standard_60", &g_ids.healthbar_size4 },
+        { MOCK230_PACK_HEALTHBAR, "healthbar_standard_80", &g_ids.healthbar_size5 },
+        { MOCK230_PACK_HEALTHBAR, "healthbar_standard_120", &g_ids.healthbar_size67 },
+        { MOCK230_PACK_HEALTHBAR, "healthbar_standard_160", &g_ids.healthbar_size89 },
 
         { MOCK230_PACK_ENUM, "worn_slots", &g_ids.enum_worn_slots },
 
@@ -148,7 +155,6 @@ mock230_ids_resolve(void)
         { "bank_qty_10", &g_ids.bank_qty_10 },   { "bank_qty_x", &g_ids.bank_qty_x },
         { "bank_qty_all", &g_ids.bank_qty_all },
         { "lootdrop_duration", &g_ids.lootdrop_duration },
-        { "healthbar_standard_width", &g_ids.healthbar_standard_width },
     };
     int failed;
 

@@ -87,8 +87,27 @@ struct Mock230Ids
      */
     int inv_collection_log;
 
-    /** Default overhead bar, resolved from the cache's healthbar namespace. */
+    /*
+     * The overhead bars, one per footprint band, resolved from the cache's
+     * healthbar namespace.
+     *
+     * `healthbar_standard` is the reference's `default` arm and covers sizes
+     * 1..3 as well as anything that never states a size; the other four are the
+     * bands Near-Reality's `EntityHitBar.getType()` names. Symbols rather than
+     * literals for the usual reason -- the ids are a cache fact and the content
+     * tree is where cache facts are named -- and the WIDTHS deliberately do not
+     * live beside them: those come from the records themselves, through
+     * `mock230_healthbar_width`.
+     */
     int healthbar_standard;
+    /** Size 4. */
+    int healthbar_size4;
+    /** Size 5. */
+    int healthbar_size5;
+    /** Sizes 6 and 7. */
+    int healthbar_size67;
+    /** Sizes 8 and 9. */
+    int healthbar_size89;
 
     /** The content-owned mapping from worn-tab components to wear slots. */
     int enum_worn_slots;
@@ -229,7 +248,6 @@ struct Mock230Ids
      *  drop_tables/configs/lootdrop.constant has stated all along while
      *  `MOCK230_LOOT_TICKS` said the same 200 in C beside it. */
     int lootdrop_duration;
-    int healthbar_standard_width;
 };
 
 /** The table. Every field is -1 until mock230_ids_resolve has run. */

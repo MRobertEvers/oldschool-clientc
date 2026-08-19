@@ -1265,6 +1265,7 @@ main(
     mock230_objinfo_load(cache);
     mock230_npcinfo_load(cache);
     mock230_seqinfo_load(cache);
+    mock230_healthbarinfo_load(cache);
     /* The loc config table, for `validate_categories`' loc arm. Without it every
      * loc-only category name in `pack/category.pack` would be reported as carried
      * by nothing — a validator answering from a table it did not load is worse

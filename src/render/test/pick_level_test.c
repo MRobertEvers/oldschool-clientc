@@ -10,16 +10,25 @@
  * method5213/5214 guard on `field2292 <= plane`, field2292 being the draw level
  * method4161 answers), which is what these cases hold the port to.
  *
- * Mutation check: replace terrain_pick_draw_level's body with `return
+ * Mutation check: replace World_TerrainDrawLevel's body with `return
  * mesh_level;` (the defect) and the bridge and VisBelow cases go red; make it
  * `return 0` and the genuine-upper-floor case goes red.
+ *
+ * The second half pins the other gate in the same classifier: whether an
+ * INACTIVE loc — a wall, a fence, ground decor, anything carrying no ops —
+ * survives to the pickset. It must not by default (the reference records no
+ * hit for a non-active typecode) and must while a loc-inspection tool is
+ * running, or the footprint outline and the loc editor can only ever see the
+ * handful of scenery that happens to be interactive.
  */
 #include "render/torirs_pick.h"
 
 #include "world/world.h"
+#include "world/entity_scenery.h"
 #include "world/world_pickset.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static int g_failures;
 
@@ -101,6 +110,60 @@ main(void)
           "the deck's own upper storey is still refused from the deck");
     CHECK(terrain_hit_survives(world, bridge_x, bridge_z, 2, 1),
           "and is clickable once you are standing on it");
+
+    printf("TEST: column readout text\n");
+    {
+        char buf[64];
+
+        /* One group per cache level, in bit order, `-` for a zero byte. Three
+         * consumers render this now (the Walk-here row, the loc's own tile row
+         * and the loc editor's terrain panel), which is why it is one function
+         * and why its exact spelling is pinned. */
+        World_TileSettingsText(world, bridge_x, bridge_z, buf, (int)sizeof(buf));
+        CHECK(strcmp(buf, "-|L|-|-") == 0, "a bridge column spells LinkBelow on level 1");
+        World_TileSettingsText(world, vis_x, vis_z, buf, (int)sizeof(buf));
+        CHECK(strcmp(buf, "-|-|V|-") == 0, "a VisBelow tile spells V on its own level");
+        World_TileSettingsText(world, flat_x, flat_z, buf, (int)sizeof(buf));
+        CHECK(strcmp(buf, "-|-|-|-") == 0, "a plain column is four dashes");
+
+        /* No terrain was registered in this fixture, so every column is
+         * floorless — which is the state that must read as "-" rather than as
+         * an empty string a caller would print as nothing at all. */
+        World_TerrainMeshLevelsText(world, flat_x, flat_z, buf, (int)sizeof(buf));
+        CHECK(strcmp(buf, "-") == 0, "a floorless column says so");
+
+        /* Truncation must still terminate: a two-byte buffer holds one char. */
+        World_TileSettingsText(world, bridge_x, bridge_z, buf, 2);
+        CHECK(strcmp(buf, "-") == 0, "a short buffer truncates and stays terminated");
+    }
+
+    printf("TEST: inactive locs and the loc-inspection tools\n");
+    {
+        char actions[5][32] = { { 0 } };
+        struct ToriRS_PickHits hits;
+        struct World_PickSet pickset;
+        struct ToriRS_PickResult result;
+        /* interactive = 0: a wall, which is what most of the scene is. */
+        CHECK(World_SceneryRegister(
+                  world, /* element */ 70, /* loc */ 900, /* x */ 8, /* z */ 9, /* level */ 0,
+                  /* size */ 1, 1, /* shape */ 0, /* angle */ 0, /* force_approach */ 0,
+                  "Wall", actions, /* interactive */ 0) >= 0,
+              "the fixture wall registers");
+
+        ToriRS_PickHitsReset(&hits);
+        ToriRS_PickHitsAdd(&hits, 70, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        CHECK(pickset.count == 0, "an inactive loc is not picked by default");
+
+        WorldEntity_SceneryDebugSetTools(true);
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        CHECK(pickset.count == 1 && pickset.items[0].type == WORLD_PICK_SCENERY,
+              "a tool that inspects locs picks the inactive ones");
+
+        WorldEntity_SceneryDebugSetTools(false);
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        CHECK(pickset.count == 0, "and stops again when the tool is switched off");
+    }
 
     World_Free(world);
 

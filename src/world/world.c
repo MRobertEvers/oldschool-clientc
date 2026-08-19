@@ -221,6 +221,81 @@ World_TerrainDrawLevel(
     return mesh_level;
 }
 
+/*
+ * Debug readouts of a column, shared so the minimenu row and the loc editor
+ * panel cannot describe the same tile differently.
+ *
+ * Settings: one group per cache level, `[L0|L1|L2|L3]`, letters in bit order —
+ * B block, L link-below, R remove-roof, V vis-below, H force-high-detail, `-`
+ * for a level whose byte is zero. Spelled rather than hex because the two that
+ * move a floor off its own plane are L and V, and "0x0a" does not say that at a
+ * glance. The whole column, not one level: LINK_BELOW is read at cache level 1
+ * and speaks for every plane, so a readout of the hovered level alone cannot
+ * explain the level the tile draws at.
+ */
+void
+World_TileSettingsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap)
+{
+    static char const letters[5] = { 'B', 'L', 'R', 'V', 'H' };
+    int used = 0;
+
+    assert(out);
+    assert(cap > 0);
+    out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+    {
+        unsigned flags = (unsigned)World_TileFlagGet(world, x, z, level);
+        int any = 0;
+
+        if( level > 0 && used < cap - 1 )
+            out[used++] = '|';
+        for( int bit = 0; bit < 5 && used < cap - 1; bit++ )
+            if( flags & (1u << bit) )
+            {
+                out[used++] = letters[bit];
+                any = 1;
+            }
+        if( !any && used < cap - 1 )
+            out[used++] = '-';
+    }
+    out[used] = '\0';
+}
+
+/*
+ * Which cache levels of a column actually carry a terrain mesh, as digits, or
+ * `-` for none.
+ *
+ * "There is no floor here" and "the floor is on a plane you did not expect" are
+ * the two states an unclickable or blank patch of ground is in, and they look
+ * identical in the viewport. A Theatre of Blood corridor answers `1` while the
+ * player stands on level 0; a genuinely floorless tile answers `-`.
+ */
+void
+World_TerrainMeshLevelsText(
+    struct World* world,
+    int x,
+    int z,
+    char* out,
+    int cap)
+{
+    int used = 0;
+
+    assert(out);
+    assert(cap > 0);
+    out[0] = '\0';
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS && used < cap - 1; level++ )
+        if( World_TerrainElementAt(world, x, z, level) >= 0 )
+            out[used++] = (char)('0' + level);
+    if( used == 0 && used < cap - 1 )
+        out[used++] = '-';
+    out[used] = '\0';
+}
+
 int
 World_LocCacheLevel(
     struct World const* world,
