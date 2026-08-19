@@ -2859,6 +2859,13 @@ npc_spawn(
         }
         npc->blockwalk = def->blockwalk;
         npc->blocksight = def->blocksight;
+        /* `timer=<ticks>` arms the type's `[ai_timer]` at spawn. The hook is
+         * resolved by type when it fires, so a changetype picks up the new
+         * type's — which is exactly what Troll Stronghold's sleeping prison
+         * guards need, each pair swapping between the awake and asleep record
+         * from inside its own timer. */
+        npc->timer_interval = def->timer > 0 ? def->timer : 0;
+        npc->timer_clock = 0;
         npc->last_step_x = x - 1;
         npc->last_step_z = z;
         npc->follow_x = npc->last_step_x;
@@ -13454,6 +13461,29 @@ selftest_click_through(
         clicks++;
     }
     return clicks;
+}
+
+/*
+ * Any live npc at all, for a proc that needs one bound but does not care which.
+ *
+ * `[proc,give_combat_experience]` is the case: it reads
+ * `npc_param(combat_xp_multiplier)` off the target it is being paid for, and
+ * `npc_param` aborts the script outright when nothing is active. Called with no
+ * npc, the proc reports as *missing* rather than as failing, which is how four
+ * styles' worth of xp checks all read "content should answer
+ * give_combat_experience". Borrowing a bystander is honest here because the
+ * multiplier defaults to 1000 on every npc that does not state one, and the
+ * check is about which skills moved rather than by how much.
+ */
+static int
+selftest_any_active_npc(const struct Mock230Server* srv)
+{
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        if( srv->npcs[i].active )
+            return i;
+    }
+    return -1;
 }
 
 /** Slot holding the first active npc of this type, or -1. */
@@ -29031,8 +29061,15 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->inv[0].obj_id == -1,
                            "inv_delslot should empty the bones slot, got %d",
                            player->inv[0].obj_id);
-            SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_PRAYER] == prayer_xp + 450,
-                           "burying bones should award 45 prayer experience, got %d",
+            /* 45 TENTHS — 4.5 points, the wiki's figure for plain bones.
+             * `^bone_exp_bones` was 450 until 2026-08-17, when the whole table
+             * was found to be wiki x100 rather than wiki x10 and every bone in
+             * the game was paying ten times over; this number followed the
+             * content down. Stated in tenths because that is the unit
+             * `stat_advance` and the wire both use. */
+            SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_PRAYER] == prayer_xp + 45,
+                           "burying bones should award 45 tenths (4.5 points) of prayer "
+                           "experience, got %d",
                            player->stat_xp_tenths[MOCK230_STAT_PRAYER] - prayer_xp);
 
             /*
@@ -32330,6 +32367,10 @@ mock230_world_selftest(void)
                 { 3, "controlled",            1,  1,  1 },
             };
 
+            int xp_target = selftest_any_active_npc(srv);
+
+            SELFTEST_CHECK(xp_target >= 0,
+                           "an npc has to be alive to be paid experience for");
             for( size_t i = 0; i < sizeof(k_styles) / sizeof(k_styles[0]); i++ )
             {
                 int32_t args[2] = { k_styles[i].style, 4 /* damage */ };
@@ -32339,7 +32380,8 @@ mock230_world_selftest(void)
                 for( int s = 0; s < MOCK230_STAT_COUNT; s++ )
                     before[s] = player->stat_xp_tenths[s];
                 SELFTEST_CHECK(
-                    mock230_scripts_run_proc(srv, "[proc,give_combat_experience]", args, 2),
+                    mock230_scripts_run_proc_args_on_npc(
+                        srv, "[proc,give_combat_experience]", xp_target, args, 2),
                     "content should answer give_combat_experience");
                 for( int s = 0; s < MOCK230_STAT_COUNT; s++ )
                     moved[s] = player->stat_xp_tenths[s] > before[s];
@@ -36405,6 +36447,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: prayer\n");
+
     {
         /*
          * Every name here is content's, and none of them is an engine call any
@@ -36532,6 +36575,7 @@ mock230_world_selftest(void)
              * says used to catch it.
              */
             fprintf(stderr, "mock230 selftest: Chambers of Xeric\n");
+
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
             SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "coxrun") ==
                                MOCK230_TRIGGER_RAN,
@@ -37257,6 +37301,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: run energy\n");
+
     {
         int energy_before;
         int weight;
@@ -37487,6 +37532,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: rebuild on scene edge\n");
+
     {
         int zone_before = srv->zone_x;
         steps_clear(player);
@@ -37528,6 +37574,7 @@ mock230_world_selftest(void)
      * than one stanza that already has it.
      */
     fprintf(stderr, "mock230 selftest: the wield refusal is content's, words and all\n");
+
     {
         /*
          * The sentence, read off the wire — and now the whole decision as well.
@@ -37636,6 +37683,7 @@ mock230_world_selftest(void)
 
 
     fprintf(stderr, "mock230 selftest: equipping is content's rule\n");
+
     {
         /*
          * `[proc,equip]` / `[proc,try_equip]` / `[proc,wearpos_conflicts]` —
@@ -37705,6 +37753,43 @@ mock230_world_selftest(void)
          * `::gearrun` stops at the first broken assertion, so "no FAIL was
          * printed" is also what a script that aborted on line one produces.
          */
+        /*
+         * EVERY RAID HARNESS BELOW HANDS THE PLAYER BACK CHANGED, AND THE
+         * STANZAS AFTER THIS BLOCK READ THE PLAYER THEY WERE HANDED.
+         *
+         * `::tobout` is the one that matters and it is not misbehaving: leaving
+         * the Theatre runs `~tob_board_bank`, which is the raid's real storage
+         * mechanic — the backpack goes to the bank — and then
+         * `p_teleport(^tob_outside)`, which is Ver Sinhaza, 470 tiles from
+         * Lumbridge. So by the time the equip fixtures below look for the
+         * bronze full helm the login kit is in the bank and the player is on
+         * the wrong side of the map.
+         *
+         * That was eleven failures in four unrelated sections, none of them
+         * about the Theatre: four equip fixtures "in the starting kit", three
+         * "the roster should include Hans" (his patrol is in a scene the player
+         * is no longer standing in), the two collision probes that need
+         * Lumbridge's own blocked tiles, the L-corridor route, and the zone
+         * add/empty count.
+         *
+         * Same rule as the `::gearrun` stanza further down, and the same fix:
+         * the harness may do what it likes inside its own block, and the block
+         * puts the player back. Position, level, hitpoints and both containers
+         * — the raid moves items between them, so restoring one without the
+         * other duplicates or destroys the kit.
+         */
+        int raid_saved_x = player->x;
+        int raid_saved_z = player->z;
+        int raid_saved_level = player->level;
+        int raid_saved_hp = player->hitpoints;
+        static struct Mock230Item raid_saved_inv[MOCK230_INV_SLOTS];
+        static struct Mock230Item raid_saved_worn[MOCK230_WORN_SLOTS];
+
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            raid_saved_inv[i] = player->inv[i];
+        for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            raid_saved_worn[i] = player->worn[i];
+
         /*
          * The Old School Tormented Demon contract (`::tdtest`,
          * bosses/boss_tormented_demons/scripts/td_selftest.rs2).
@@ -38600,6 +38685,7 @@ mock230_world_selftest(void)
             int saved_dying = player->dying;
 
             fprintf(stderr, "mock230 selftest: Theatre of Blood harness\n");
+
             /*
              * God mode for the CADENCE runs, and it is the right tool rather
              * than a shortcut. The fixture has 10 hitpoints; the Maiden hits 36.
@@ -38926,6 +39012,7 @@ mock230_world_selftest(void)
             char form[32] = "?";
 
             fprintf(stderr, "mock230 selftest: Sotetseg's shadow maze\n");
+
             player->godmode = 1;
             mock230_scripts_run_debugproc(srv, "tob 4");
             mock230_scripts_run_debugproc(srv, "tobgo");
@@ -39108,6 +39195,7 @@ mock230_world_selftest(void)
             int boss;
 
             fprintf(stderr, "mock230 selftest: Maiden crabs\n");
+
             player->dying = 0;
             player->godmode = 1;
             player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
@@ -39780,6 +39868,7 @@ mock230_world_selftest(void)
             int boss;
 
             fprintf(stderr, "mock230 selftest: Xarpus transforms\n");
+
             player->dying = 0;
             player->godmode = 1;
 
@@ -39995,6 +40084,7 @@ mock230_world_selftest(void)
             int saved_dying = player->dying;
 
             fprintf(stderr, "mock230 selftest: ToB player techniques (scan lead)\n");
+
             /*
              * SIX runs, three each way, summed.
              *
@@ -40616,6 +40706,7 @@ mock230_world_selftest(void)
             int start_tick;
 
             fprintf(stderr, "mock230 selftest: the Nylocas room\n");
+
             player->dying = 0;
             player->godmode = 1;
             player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
@@ -40737,6 +40828,71 @@ mock230_world_selftest(void)
                     pillar_hp_start = pillar_hp;
                 if( pillar_hp > 0 && pillar_hp < pillar_hp_low )
                     pillar_hp_low = pillar_hp;
+
+                /*
+                 * How fast the supports are actually being chewed, per tick.
+                 * The harness player is in godmode and never attacks, so this
+                 * room is the no-kill solo, and the combined bar's slope is the
+                 * one number comparable to the live measurement in
+                 * docs/NYLO_PILLARS.md (tools/measure_tob_pillar_damage.py).
+                 * Off unless asked for: it is one line a tick.
+                 */
+                if( getenv("MOCK230_NYLO_TRACE") )
+                {
+                    int hp_of[4];
+                    int chewers[4];
+
+                    for( size_t i = 0; i < 4; i++ )
+                    {
+                        hp_of[i] = 0;
+                        chewers[i] = 0;
+                    }
+                    for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[n];
+                        const char* nm;
+                        int lx;
+                        int lz;
+
+                        if( !npc->active )
+                            continue;
+                        if( mock230_mapinstance_find(npc->x, npc->z) != handle )
+                            continue;
+                        lx = npc->x - base_x;
+                        lz = npc->z - base_z;
+                        for( size_t i = 0; i < 4; i++ )
+                        {
+                            if( npc->type == k_nylo_support &&
+                                lx == k_pillars[i].lx && lz == k_pillars[i].lz )
+                                hp_of[i] = npc->hitpoints;
+                        }
+                        nm = mock230_content_symbol_name(MOCK230_PACK_NPC, npc->type);
+                        if( !nm || strncmp(nm, "tob_nylocas_", 12) != 0 )
+                            continue;
+                        for( size_t i = 0; i < 4; i++ )
+                        {
+                            int size = npc->size > 0 ? npc->size : 1;
+                            int dx = 0;
+                            int dz = 0;
+
+                            if( lx > k_pillars[i].lx + 2 )
+                                dx = lx - (k_pillars[i].lx + 2);
+                            else if( lx + size - 1 < k_pillars[i].lx )
+                                dx = k_pillars[i].lx - (lx + size - 1);
+                            if( lz > k_pillars[i].lz + 2 )
+                                dz = lz - (k_pillars[i].lz + 2);
+                            else if( lz + size - 1 < k_pillars[i].lz )
+                                dz = k_pillars[i].lz - (lz + size - 1);
+                            if( dx <= 1 && dz <= 1 )
+                                chewers[i]++;
+                        }
+                    }
+                    fprintf(stderr,
+                            "nylotrace tick=%d alive=%d hp %d %d %d %d "
+                            "chewers %d %d %d %d\n",
+                            t, alive, hp_of[0], hp_of[1], hp_of[2], hp_of[3],
+                            chewers[0], chewers[1], chewers[2], chewers[3]);
+                }
 
                 /* Splits: kill the first big the room produces and count what
                  * is alive either side of the tick. Wave 4 is the first with a
@@ -41592,6 +41748,14 @@ mock230_world_selftest(void)
                            "(stomp %d, rise %d)", stomp, up);
             mock230_scripts_run_debugproc(srv, "tobout");
         }
+
+        /* The raid harnesses are done; give the player back. See the save above. */
+        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            player->inv[i] = raid_saved_inv[i];
+        for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+            player->worn[i] = raid_saved_worn[i];
+        player->hitpoints = raid_saved_hp;
+        mock230_world_teleport(srv, raid_saved_level, raid_saved_x, raid_saved_z);
 
         {
             static struct Mock230Capture gearrun_capture;
@@ -43223,6 +43387,24 @@ mock230_world_selftest(void)
                 }
                 SELFTEST_CHECK(flee_steps >= 6,
                                "a walkable route away from the goblin's spawn to run down");
+                if( getenv("MOCK230_DBG_CHASE") )
+                {
+                    fprintf(stderr, "DBGROUTE home=%d,%d steps=%d:", home_x, home_z, flee_steps);
+                    for( int i = 0; i < flee_steps; i++ )
+                        fprintf(stderr, " %d,%d", flee_x[i], flee_z[i]);
+                    fprintf(stderr, "\n");
+                    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    {
+                        if( !srv->npcs[i].active )
+                            continue;
+                        if( srv->npcs[i].x < 3213 || srv->npcs[i].x > 3226 ||
+                            srv->npcs[i].z < 3222 || srv->npcs[i].z > 3232 )
+                            continue;
+                        fprintf(stderr, "DBGNPC slot=%d type=%d at %d,%d size=%d blockwalk=%d\n",
+                                i, srv->npcs[i].type, srv->npcs[i].x, srv->npcs[i].z,
+                                srv->npcs[i].size, srv->npcs[i].blockwalk);
+                    }
+                }
             }
 
             if( flee_steps >= 6 )
@@ -43314,6 +43496,11 @@ mock230_world_selftest(void)
                 {
                     player->hitpoints = player->max_hitpoints;
                     mock230_world_tick(srv);
+                    if( getenv("MOCK230_DBG_CHASE") )
+                        fprintf(stderr, "DBGCHASE t%d npc=%d,%d player=%d,%d gap=%d target=%d\n",
+                                i, npc->x, npc->z, player->x, player->z,
+                                distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1),
+                                npc->combat_target);
                 }
                 SELFTEST_CHECK(distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1) <= 1,
                                "and catches a player who stops, at %d,%d vs %d,%d", npc->x, npc->z,

@@ -133,6 +133,10 @@ ToriDraw_ModelMoveArrays(
     dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
     dst->model_priority = src->model_priority;
+    dst->post_resize = src->post_resize;
+    dst->post_resize_x = src->post_resize_x;
+    dst->post_resize_z = src->post_resize_z;
+    dst->post_resize_height = src->post_resize_height;
 
 #define MODEL_MOVE(field) TORIDRAW_MODEL_MOVE(dst, field, src->field)
 
@@ -197,6 +201,13 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
     dst->vertex_count = src->vertex_count;
     dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
+    /* Travels with the bind pose below, and for the same reason: a copy whose
+     * originals are the authored size but whose post-resize is identity poses
+     * itself back to full size on the next frame. */
+    dst->post_resize = src->post_resize;
+    dst->post_resize_x = src->post_resize_x;
+    dst->post_resize_z = src->post_resize_z;
+    dst->post_resize_height = src->post_resize_height;
 
     if( src->vertex_count > 0 )
     {
@@ -702,6 +713,30 @@ ToriDraw_ModelScale(
         model->vertices_y[i] = (vertexint_t)((int)model->vertices_y[i] * height / 128);
         model->vertices_z[i] = (vertexint_t)((int)model->vertices_z[i] * z / 128);
     }
+}
+
+void
+ToriDraw_ModelSetPostResize(
+    struct ToriDraw_Model* model,
+    int x,
+    int z,
+    int height)
+{
+    assert(model);
+    model->post_resize = (x != 128 || z != 128 || height != 128);
+    model->post_resize_x = x;
+    model->post_resize_z = z;
+    model->post_resize_height = height;
+}
+
+void
+ToriDraw_ModelApplyPostResize(struct ToriDraw_Model* model)
+{
+    assert(model);
+    if( !model->post_resize )
+        return;
+    ToriDraw_ModelScale(
+        model, model->post_resize_x, model->post_resize_z, model->post_resize_height);
 }
 
 void

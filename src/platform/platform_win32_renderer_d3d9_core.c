@@ -4755,6 +4755,7 @@ d3d9_animation_load(
                 (size_t)baked->face_count * sizeof(*baked->face_alphas));
 
         ToriDraw_ModelCaptureOriginalVertices(baked);
+        bool posed = false;
         /* Missing/empty cache frames hold the rest pose.  Calling the classic
          * animator for one would assert instead of producing that pose. */
         if( skeletal )
@@ -4763,11 +4764,22 @@ d3d9_animation_load(
             if( skeletal->frame_count > 0 && skeletal->matrices &&
                 baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
                 baked->animaya_groups && baked->animaya_scales )
+            {
                 ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+                posed = true;
+            }
         }
         else if( animation->frames[frame].length > 0 )
+        {
             ToriDraw_ModelAnimateFrame(
                 baked, animation->base, &animation->frames[frame]);
+            posed = true;
+        }
+        /* Every pose that DID run has already re-applied the model's
+         * post-animation resize; the rest pose is the one path that has not,
+         * and it still has to be baked at render scale. */
+        if( !posed )
+            ToriDraw_ModelApplyPostResize(baked);
         memset(&handle, 0, sizeof(handle));
         handle.kind = TORIDRAWMK_MODEL;
         handle.u.model.model = baked;

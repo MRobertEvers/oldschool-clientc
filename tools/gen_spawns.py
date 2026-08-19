@@ -214,6 +214,26 @@ NPC_SPAWN_EXCLUSIONS = {
 }
 
 
+# The obj dump is the weak half --- it carries a bare id and no name, so rule 2
+# cannot run on it and a row that names the wrong member of an id family sails
+# straight through. Each entry here is `(dump id, x, z, plane)` -> the cache
+# symbol the row must resolve to instead. Pinning all four coordinates keeps it
+# narrow: the correction applies to the one tile that was audited and to no
+# other spawn of the same id.
+#
+# `druid_pouch_empty` (2957) is the pouch; `druid_pouch` (2958) is stackable and
+# is how this tree represents a single *charge* --- `[label,druid_pouch_fill]`
+# in quest_druidspirit.rs2 adds `druid_pouch` x <charges> once three herbs are
+# in. So the dump's 2958 in the Nature Grotto lays down one loose charge and no
+# container, which is not a replacement for a lost pouch; Filliman's own
+# recovery path hands out `druid_pouch_empty`, and the grotto respawn has to
+# agree with it. Audited against
+# https://oldschool.runescape.wiki/w/Druid_pouch and quest_druidspirit.rs2.
+OBJ_SPAWN_ID_CORRECTIONS = {
+    (2958, 3443, 9741, 1): "druid_pouch_empty",
+}
+
+
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
 
@@ -273,6 +293,7 @@ def main():
     squares = load_squares(os.path.join(content, "maps"))
 
     reject = collections.Counter()
+    corrected = collections.Counter()
     drift = {}
     absent_square = collections.Counter()
     kept = collections.defaultdict(list)
@@ -341,6 +362,13 @@ def main():
         if name is None:
             reject["obj: id past the end of this cache's obj table"] += 1
             continue
+        correction = OBJ_SPAWN_ID_CORRECTIONS.get(
+            (ident, row["x"], row["y"], row["plane"]))
+        if correction is not None:
+            assert correction in obj_ids.values(), correction
+            corrected["%s -> %s @ (%d,%d,%d)" % (
+                name, correction, row["x"], row["y"], row["plane"])] += 1
+            name = correction
         level = row["plane"]
         if not 0 <= level <= 3:
             reject["obj: level outside 0..3"] += 1
@@ -408,6 +436,12 @@ def main():
     print("", file=out)
     print("kept without a name check (record and every variant unnamed): %d npc" % unnamed, file=out)
     print("obj spawns carry no name in the dump, so NONE of them got a name check.", file=out)
+    print("", file=out)
+    print("audited obj id corrections (OBJ_SPAWN_ID_CORRECTIONS):", file=out)
+    for note, count in sorted(corrected.items()):
+        print("  %-64s %d" % (note, count), file=out)
+    if not corrected:
+        print("  (none applied)", file=out)
     print("", file=out)
     print("dropped:", file=out)
     for reason, count in reject.most_common():

@@ -5,6 +5,7 @@
 #include "toridraw_map.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
+#include "toridraw_model_transform.h"
 #include "toridraw_sprite.h"
 
 #include <assert.h>
@@ -1426,6 +1427,10 @@ ToriDraw_SceneElementSetAnimation(
             if( element->model.kind == TORIDRAWMK_MODEL && element->model.u.model.model )
             {
                 ToriDraw_ModelAnimateReset(element->model.u.model.model);
+                /* The reset restores the AUTHORED bind pose; a model with a
+                 * post-resize has to be put back into render scale or it
+                 * springs to full size the moment its animation is dropped. */
+                ToriDraw_ModelApplyPostResize(element->model.u.model.model);
                 ToriDraw_ModelSetBoundsCylinder(element->model.u.model.model);
             }
         }
@@ -1478,8 +1483,11 @@ ToriDraw_SceneElementSetAnimationSeq(
     {
         struct ToriDraw_Model* model = element->model.u.model.model;
         ToriDraw_ModelAnimateReset(model);
-        ToriDraw_ModelSetBoundsCylinder(model);
+        /* Capture before the resize: the bind pose every keyframe is applied to
+         * is the model at its AUTHORED size (see post_resize). */
         ToriDraw_ModelCaptureOriginalVertices(model);
+        ToriDraw_ModelApplyPostResize(model);
+        ToriDraw_ModelSetBoundsCylinder(model);
     }
 }
 
@@ -1571,6 +1579,7 @@ ToriDraw_SceneElementApplyAnimation(
         if( animation->frames[frame].length <= 0 )
         {
             ToriDraw_ModelAnimateReset(model);
+            ToriDraw_ModelApplyPostResize(model);
             ToriDraw_ModelSetBoundsCylinder(model);
             return;
         }
@@ -1600,6 +1609,17 @@ ToriDraw_SceneElementApplyAnimation(
         }
 
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+        if( getenv("TORIRS_TMP_YSPAN") && model->vertex_count > 0 )
+        {
+            int lo = model->vertices_y[0], hi = lo;
+            for( int i = 0; i < model->vertex_count; i++ )
+            {
+                if( model->vertices_y[i] < lo ) lo = model->vertices_y[i];
+                if( model->vertices_y[i] > hi ) hi = model->vertices_y[i];
+            }
+            fprintf(stderr, "tmp_yspan: element=%d seq=%d frame=%d verts=%d y=%d..%d\n",
+                    element_id, element->anim_seq_id, frame, model->vertex_count, lo, hi);
+        }
 
         /*
          * TORIRS_ANIM_STACK: how far this pose moved the model off its own bind

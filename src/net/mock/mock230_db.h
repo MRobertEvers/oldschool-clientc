@@ -196,11 +196,18 @@ mock230_db_row_column_set(
     const struct Mock230DbValue* values,
     int count);
 
-/** Load every DBTABLE / DBROW from the dat2 cache into the runtime. Returns 1
- *  on success (including "cache missing" with a diagnostic), 0 never — boot
- *  continues either way, matching objinfo. */
+/** Install every DBTABLE schema the dat2 cache ships. Call this BEFORE
+ *  `mock230_db_load`: an authored `.dbrow` may name a cache table by symbol,
+ *  and a table it cannot resolve costs one error per `data=` line after it.
+ *  Returns 1 on success (including "cache missing" with a diagnostic), 0
+ *  never — boot continues either way, matching objinfo. */
 int
-mock230_db_load_cache(const char* cache_dir);
+mock230_db_load_cache_tables(const char* cache_dir);
+
+/** Fill in the cache's own DBROW values, AFTER `mock230_db_load`, so a row the
+ *  tree states wins over the cache's copy of the same id. */
+int
+mock230_db_load_cache_rows(const char* cache_dir);
 
 int
 mock230_db_table_count(void);

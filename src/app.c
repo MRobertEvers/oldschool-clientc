@@ -11714,8 +11714,20 @@ app_world_build_model(
             ToriDraw_ModelNoteTextureWants(model);
     }
 
-    if( scale_xz != 128 || scale_y != 128 )
-        ToriDraw_ModelScale(model, scale_xz, scale_xz, scale_y);
+    /*
+     * Recorded, not applied: the reference resizes the model AFTER animating it
+     * (NpcType.getModel), and the animation is applied to the bind pose this
+     * function is about to capture. Applying it here instead put every
+     * keyframe's translations and ORIGIN pivots -- authored at full size --
+     * against a shrunken model, which is what threw Xarpus (resizeh/resizev 64)
+     * into the air above his arena. ToriDraw_ModelApplyPostResize below puts
+     * this instance into render scale for the un-animated case; every pose
+     * re-applies it.
+     *
+     * Lighting therefore also runs at the authored size, which is where the
+     * reference lights its cached base too.
+     */
+    ToriDraw_ModelSetPostResize(model, scale_xz, scale_xz, scale_y);
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate.
      * Without this, every face whose material is HD-only keeps a texture id,
@@ -11735,8 +11747,10 @@ app_world_build_model(
         else
             ToriDraw_LightModelScene(hnd, light_contrast, light_ambient);
     }
-    ToriDraw_ModelSetBoundsCylinder(model);
+    /* Capture first: the bind pose is the authored-size model. */
     ToriDraw_ModelCaptureOriginalVertices(model);
+    ToriDraw_ModelApplyPostResize(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
     return model;
 }
 
@@ -11859,8 +11873,9 @@ app_world_build_spotanim_model(
     if( retextured )
         ToriDraw_ModelNoteTextureWants(model);
 
-    if( spot->resizeh != 128 || spot->resizev != 128 )
-        ToriDraw_ModelScale(model, spot->resizeh, spot->resizeh, spot->resizev);
+    /* Recorded rather than applied, for the reason app_world_build_model gives:
+     * MapSpotAnim.getModel animates the copy and only then resizes it. */
+    ToriDraw_ModelSetPostResize(model, spot->resizeh, spot->resizeh, spot->resizev);
 
     if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
@@ -11875,8 +11890,9 @@ app_world_build_spotanim_model(
         hnd.u.model.model = model;
         ToriDraw_LightModelActor(hnd, spot->contrast, spot->ambient);
     }
-    ToriDraw_ModelSetBoundsCylinder(model);
     ToriDraw_ModelCaptureOriginalVertices(model);
+    ToriDraw_ModelApplyPostResize(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
 
     /* Cache the lit base; return a copy so the scene owns a mutable instance. */
     {

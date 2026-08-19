@@ -77,6 +77,9 @@ static const struct ServerField k_npc_fields[] = {
     { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
     { 201, WIRE_U2, offsetof(struct Mock230NpcDef, maxrange),    "maxrange"    },
     { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },
+    /* LostCity's own opcode for `timer=`, the tick interval `[ai_timer]` runs
+     * at, sitting where it does in its 200 band. */
+    { 203, WIRE_U2, offsetof(struct Mock230NpcDef, timer),       "timer"       },
     { 204, WIRE_U2, offsetof(struct Mock230NpcDef, respawnrate), "respawnrate" },
     /* LostCity's moverestrict opcode. `nomove` at 208 stays for packs that
      * already emit the collapsed boolean. */

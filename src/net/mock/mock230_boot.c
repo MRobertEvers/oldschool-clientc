@@ -247,10 +247,15 @@ mock230_boot_load(const struct Mock230BootConfig* config)
     /* 3. The db tables, which resolve their own ids and their `^constants` out
      *    of what step 2 loaded. Separate from step 2 because a `.dbrow` also
      *    resolves obj/npc/loc names, so it needs the whole symbol space, not
-     *    just the packs. Authored `.dbtable` / `.dbrow` first; then the cache's
-     *    own DBTABLE/DBROW binary fills the cache-id half (quest, …). */
+     *    just the packs. Three phases, in this order for two different
+     *    reasons: the cache's SCHEMAS first, because an authored `.dbrow` may
+     *    name a cache table (`poh_hotspot`) and cannot resolve one that has not
+     *    arrived; the tree next; the cache's ROW VALUES last, because that half
+     *    merges onto whatever the tree stated, so authored values win. */
+    mock230_db_free();
+    mock230_db_load_cache_tables(config->cache_dir);
     mock230_db_load(config->content_dir);
-    mock230_db_load_cache(config->cache_dir);
+    mock230_db_load_cache_rows(config->cache_dir);
 
     /* 4. Every interface, component and varbit the engine addresses is a name
      *    in that tree. */

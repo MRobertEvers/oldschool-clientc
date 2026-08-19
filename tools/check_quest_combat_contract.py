@@ -3104,7 +3104,7 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_HIT_FUNNEL.read_text(),
-        ("~horror_mother_is_type = true", "~horror_mother_prepare_hit($rolled_damage, $hit_success)"),
+        ("~horror_mother_is_type = true", "~horror_mother_prepare_hit($prepared, $hit_success)"),
         "Horror from the Deep shared hit funnel",
     )
     require_text(

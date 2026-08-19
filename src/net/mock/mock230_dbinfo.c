@@ -245,16 +245,30 @@ on_row(int id, const void* record)
     import_row(id, (const struct RSCache_Dat2ConfigDbRow*)record);
 }
 
+/*
+ * The cache's DBTABLE and DBROW halves load at two different points in boot,
+ * and the gap between them is where the content tree goes.
+ *
+ * A `.dbrow` in `server/scripts` names its table by symbol, and the symbol
+ * namespace is shared: `poh_hotspot` is a *cache* table (id 112) that authored
+ * rows legitimately extend, exactly as `poh_workshop_functions.rs2` reads it
+ * back through `poh_hotspot:builddata`. Loading every cache table only after
+ * the authored rows meant that name resolved against nothing, and the 82
+ * flatpack group rows reported `names unknown table` and then 82 more
+ * `data= before table=` — the schema had not arrived yet, not the file being
+ * wrong.
+ *
+ * Rows still load *after* the tree, because that half is a merge:
+ * `mock230_db_ensure_row` fills a cache id onto whatever the tree already
+ * stated, so an authored value wins over the cache's.
+ */
 int
-mock230_db_load_cache(const char* cache_dir)
+mock230_db_load_cache_tables(const char* cache_dir)
 {
     struct RSCache_Dat2Disk* disk;
-    int configs_table;
     int tables_seen;
-    int rows_seen;
 
     g_cache_tables = 0;
-    g_cache_rows = 0;
 
     disk = open_cache(cache_dir);
     if( !disk )
@@ -263,20 +277,38 @@ mock230_db_load_cache(const char* cache_dir)
         return 1;
     }
 
-    configs_table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    tables_seen = load_kind(disk,
+                            RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS),
+                            RSCACHE_DAT2_CONFIG_KIND_DBTABLE, on_table, 1);
+    RSCache_Dat2DiskFree(disk);
 
-    /* Tables first: import_row needs the schema (authored or just-loaded). */
-    tables_seen = load_kind(
-        disk, configs_table, RSCACHE_DAT2_CONFIG_KIND_DBTABLE, on_table, 1);
-    rows_seen = load_kind(
-        disk, configs_table, RSCACHE_DAT2_CONFIG_KIND_DBROW, on_row, 0);
+    fprintf(stderr, "mock230: db schemas loaded (%d schema(s) installed from %s; "
+                    "%d archive table(s))\n",
+            g_cache_tables, cache_dir, tables_seen);
+    return 1;
+}
 
+int
+mock230_db_load_cache_rows(const char* cache_dir)
+{
+    struct RSCache_Dat2Disk* disk;
+    int rows_seen;
+
+    g_cache_rows = 0;
+
+    disk = open_cache(cache_dir);
+    if( !disk )
+        return 1; /* mock230_db_load_cache_tables already said so */
+
+    rows_seen = load_kind(disk,
+                          RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS),
+                          RSCACHE_DAT2_CONFIG_KIND_DBROW, on_row, 0);
     RSCache_Dat2DiskFree(disk);
 
     fprintf(stderr,
-            "mock230: db tables loaded (%d tables, %d rows from %s; %d schema(s) "
-            "installed, %d row(s) filled; %d archive table(s), %d archive row(s))\n",
+            "mock230: db tables loaded (%d tables, %d rows from %s; %d row(s) "
+            "filled; %d archive row(s))\n",
             mock230_db_table_count(), mock230_db_total_row_count(), cache_dir,
-            g_cache_tables, g_cache_rows, tables_seen, rows_seen);
+            g_cache_rows, rows_seen);
     return 1;
 }

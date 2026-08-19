@@ -279,11 +279,17 @@ enum Mock230CombatParam
     MOCK230_PARAM_BONUS_COUNT = 12,
     /*
      * How many authored `param=` rows one npc block can carry, for the by-id
-     * copy `npc_param` reads. `apply_param` knows twenty names — the twelve
-     * bonuses plus eight singles — so this is that with room to grow, and
-     * overflow is an error rather than a silent drop.
+     * copy `npc_param` reads. `apply_param` knows twenty-three names — the
+     * twelve bonuses plus eleven singles — so this is that with room to grow,
+     * and overflow is an error rather than a silent drop.
+     *
+     * Raised from 24 when `elemental_weakness`, `elemental_weakness_percent`
+     * and `combat_xp_multiplier` joined the whitelist: the three richest boss
+     * blocks in the tree (Arrg, the Monkey Madness demon, the Haunted Mine
+     * boss ghost) state 26 rows each, and the ceiling is what decides how many
+     * of them a script can read back.
      */
-    MOCK230_NPCDEF_PARAM_MAX = 24
+    MOCK230_NPCDEF_PARAM_MAX = 32
 };
 
 /* Cache param ids that are not bonuses. `ATTACKRATE` is ticks between swings;
@@ -338,6 +344,13 @@ struct Mock230NpcDef
     int ranged;
 
     int respawnrate; /* ticks from despawn to respawn */
+    /* `timer=<ticks>` — the interval this npc's `[ai_timer]` runs at, armed on
+     * spawn. 0 means "not armed", which is a real state and the default: an
+     * npc whose only ai_timer job is to re-arm itself with a random interval
+     * calls `npc_settimer` in the hook instead. Without this key the hook can
+     * only be reached by an npc that already ran it once, which is nobody —
+     * see [[ai-timer-never-armed]]. */
+    int timer;
     /* Ticks the corpse lies there once the death *animation* has started — the
      * reference's `npc_delay(1)` in `[proc,npc_death]`, which is two. The blow
      * itself is one tick earlier than that, plus `npc_arrivedelay`. */

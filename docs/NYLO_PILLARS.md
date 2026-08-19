@@ -49,7 +49,82 @@ Near Reality’s flat **500** matches nothing Jagex published. Combined HUD of f
 
 Entry / Hard 5-man cache values (155 / 150) are still the best 5-man bases for those modes. 9 June 2021 hotfix: “Nylocas Pillar HP increased by **5–10, depending on group size**” in Story. That increment is scale-dependent and sits on top of whatever Story launched with; it is not the whole Entry table.
 
-### Damage **to** a pillar — small 2 is still the best guess; 17/24 vs players is not pillar damage
+### Damage **to** a pillar — MEASURED: about **1 per bite**, and a big bites no harder than a small
+
+Measured 19 August 2026 from **145 recorded live Regular rooms** (blert event
+streams, every scale) by
+[`tools/measure_tob_pillar_damage.py`](../tools/measure_tob_pillar_damage.py).
+This closes the half of [M7] that two earlier passes came back empty on. It did
+**not** need pillar telemetry, which blert does not carry:
+
+- blert reports a position for **every wave nylo on every tick**, and a support
+  is a 2x2 block whose two room-facing sides are the only tiles a nylo stands
+  on (77 % of every style's stationary ticks are at chebyshev 1 — no colour
+  chews from range). "Cardinally adjacent and did not move" over the cache
+  attack rate of 3 is therefore the **bite count** a support really took.
+- A bite count is only a rate. What makes it a damage figure is the collapse:
+  when a support falls, everything chewing it retargets the players **on that
+  tick** and it is never chewed again, while the other three keep taking bites
+  for the rest of the room. So a support whose bite stream stops dead ≥40 ticks
+  before the room's does has collapsed — and the bites it had taken by then
+  **are its hitpoints**, which Jagex published.
+
+Fourteen such collapses were found, all in solos, where 330 hitpoints meets the
+same wave table one player cannot clear:
+
+| First bite on parked tick | Median bites at collapse | sd | **Damage per bite** |
+|---|---|---|---|
+| 1 | 399 | 7 | 0.83 |
+| 2 | 377 | 4 | 0.88 |
+| 3 | 367 | 4 | **0.90** |
+| 4 | 353 | 4 | 0.93 |
+
+**0.83–0.93 across every plausible attack-timing assumption, sd 1 %.** The one
+free parameter — which parked tick the first bite lands on — moves the answer by
+0.03, because a support takes ~36 separate visits before it falls.
+
+That is the ordinary OSRS damage roll on a **max hit of 2**: uniform over
+`0..2`, mean **1.0**. The measured 0.90 sits ~10 % under it, which is exactly one
+turn-and-swing tick per arrival across those 36 visits. Nothing else fits:
+
+| To read as | Requires this share of parked ticks to be no swing |
+|---|---|
+| max 2, roll `0..2` (mean 1.0) | 10 % — one tick per arrival |
+| this tree's `1 + random(2)` (mean 1.5) | **40 %** |
+| Zenyte's flat 2 (mean 2.0) | **55 %** |
+| wiki 17 vs players (mean 8.5) | **89 %** |
+
+**A big bites no harder than a small.** Least squares over the fourteen collapse
+sums, solving small and large separately, returns **0.92 / 0.84** — ratio 0.91,
+and the two timing models either side put it at 0.80 and 0.67. Every reading has
+the large at or *below* the small (the 2x2 reach test is the more generous one,
+which is the likely source of the deficit). Zenyte's **4** is contradicted, not
+merely unsupported: with bigs at ~24 % of the bites on a collapsed support, a
+2× large would have spread the collapse points far wider than the sd of 4 bites
+that was actually observed.
+
+The rate this implies is also the right shape. At 0.9 the worst-hit support in a
+room falls in 14 % of solos, 3 % of duos and 1–6 % of trios through five-mans —
+a solo and duo problem, rare above that, which is what the recordings show
+directly (no room at scale 2–5 had a support go quiet early; 14 of 25 solo rooms
+did). At 1.5 it falls in 45–99 % of rooms at **every** scale, and at 2.0 in
+80–100 %. Live rooms do not lose supports at anything like that rate.
+
+Two by-products, both free:
+
+- **330 solo is confirmed independently.** The collapse points cluster at 367
+  bites with sd 4 across fourteen supports in seven different raids.
+- **`380 − 50n` survives its first real test.** The heaviest bite load a support
+  carried, as a fraction of the hitpoints that line assigns it, is 1.42 / 1.25 /
+  1.25 / 1.23 / 1.15 at five down to one. A wrong slope would fan those out.
+
+**The change this asks for in this tree** is one line —
+`^tob_nylo_pillar_hit_max = 2` is the right *max hit* but
+`add(1, random(^tob_nylo_pillar_hit_max))` is the wrong roll for it: it means
+1..2 (mean 1.5), where OSRS rolls 0..max (mean 1.0). `random(add(^tob_nylo_pillar_hit_max, 1))`
+is the fix, and it stays one rule for both sizes.
+
+#### What the earlier reasoning got wrong
 
 Wiki [Nylocas Ischyros](https://oldschool.runescape.wiki/w/Nylocas_Ischyros) max hits (small **17**, large **24**, attack speed **3**) are the hits against **players**. If those applied to pillars, one ignored small would delete a 130 HP 5-man pillar in ~8 swings (~24 ticks after it arrives). Learners would lose pillars in the first few waves every time. They do not.
 
@@ -59,7 +134,9 @@ Zenyte / clientc `^tob_nylo_pillar_hit_max = 2` (small) and Zenyte large **4**, 
 - 5-man 130 / 26 ≈ **five** full-life smalls to kill one pillar.
 - Solo 330 / 26 ≈ **thirteen** full-life smalls.
 
-That matches: ignore a 5-man pillar for a few waves and it dies; solo pillars “tank way more.” [Alora suggestion, Jul 2021](https://www.alora.io/forums/topic/73366-tobhm-nylocas-162260/) (live OSRS player, could not find official HP or pillar max-hit): “In OSRS you can let the pillars tank way more compared to Alora” and asked to “upscale the pillar HP depending on team size.” One sentence in that post also claims 162s and 260s share a pillar max-hit *and* that the big hits harder — it contradicts itself. Keep both readings; do not treat 2-vs-4 as closed.
+That matches: ignore a 5-man pillar for a few waves and it dies; solo pillars “tank way more.” [Alora suggestion, Jul 2021](https://www.alora.io/forums/topic/73366-tobhm-nylocas-162260/) (live OSRS player, could not find official HP or pillar max-hit): “In OSRS you can let the pillars tank way more compared to Alora” and asked to “upscale the pillar HP depending on team size.” One sentence in that post also claims 162s and 260s share a pillar max-hit *and* that the big hits harder — it contradicts itself.
+
+The duration check above landed on the right *max hit* for the wrong reason and then read it as the wrong *roll*. `2` is not the damage a small deals, it is the ceiling it rolls under: 0..2, mean 1.0, which is half of the 24–28 per full-life small that paragraph assumes. Its conclusion — “ignore a 5-man pillar for a few waves and it dies” — is what the recordings contradict most directly. And the half of the Alora post that has the two sizes sharing a max hit is the half that measured true.
 
 ### Collapse — room-wide rocks, about 30–50 Regular, 30+ Entry; not Zenyte’s 20–35
 
@@ -241,6 +318,7 @@ Entry 155 and Hard 150 being **above** Regular 130 is now expected (Entry hotfix
 
 | Source | Small nylo | Large nylo |
 |---|---|---|
+| **Measured, 145 recorded live rooms** | **~1 per bite** (max hit 2, rolled 0..2) | **the same**, ratio 0.91 |
 | Zenyte / Zyrox / SSL `Nylocas.attack` | **2** if target is `PillarSupport` | **4** |
 | clientc plan `^tob_nylo_pillar_hit_max` | **2** | (not stated; 4 would be a guess) |
 | Wiki Ischyros infobox | **17** vs players (speed 3) | **24** vs players |
@@ -367,6 +445,13 @@ If this tree is meant to match live Regular: `380 − 50 × partySize` (or at le
 27. [damencs/tob-qol](https://github.com/damencs/tob-qol) — pillar npc + loc ids
 28. [SuperNerdEric/combat-logger](https://github.com/SuperNerdEric/combat-logger) — pillar spawn starts the room
 29. OpenOSRS `NyloHandler` (many forks, Kronos client) — `healthRatio` overlay
+
+### Measurement
+
+32. `tools/measure_tob_pillar_damage.py` in this repo — 145 recorded Regular
+    Nylocas rooms off blert's unauthenticated event API (`GET
+    /api/v1/raids/tob/{uuid}/events?stage=12`), fourteen observed support
+    collapses, **0.90 damage per bite** (bracket 0.83–0.93), large/small 0.91
 
 ### Absent
 

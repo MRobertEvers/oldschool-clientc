@@ -716,6 +716,12 @@ ToriDraw_ModelAnimateFrame(
             model);
     }
 
+    /* Animate, THEN resize -- the reference's order (NpcType.getModel,
+     * MapSpotAnim.getModel). The bind pose the ops above were applied to is the
+     * model at its authored size; this is what puts the finished pose into
+     * render scale. */
+    ToriDraw_ModelApplyPostResize(model);
+
     /* Projection culling and the face-sort depth bias both consume this
      * cylinder.  Keeping the bind-pose cylinder on a large deformation can
      * make valid depths negative even when the scene's depth table is large
@@ -790,6 +796,7 @@ ToriDraw_ModelAnimateFrameMasked(
     }
     model_animate_frame_mask_pass(model, base, primary, walkmerge, 0);
     model_animate_frame_mask_pass(model, base, secondary, walkmerge, 1);
+    ToriDraw_ModelApplyPostResize(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 }
 
@@ -899,6 +906,9 @@ ToriDraw_ModelAnimateSkeletal(
         }
     }
 
+    /* Same order as the classic path above: the palette poses the authored
+     * bind, the resize follows it. */
+    ToriDraw_ModelApplyPostResize(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 }
 

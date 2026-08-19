@@ -148,6 +148,27 @@ struct ToriDraw_Model
     vertexint_t* original_vertices_y;
     vertexint_t* original_vertices_z;
 
+    /*
+     * The resize the reference applies AFTER animating, not before.
+     *
+     * NpcType.getModel and MapSpotAnim.getModel both copy the base, animate the
+     * copy, and only then call resize() -- so the keyframe is authored against,
+     * and applied to, the model at its AUTHORED size. original_vertices_* is
+     * that authored bind pose, which means the resize has to be re-applied to
+     * every pose the animation produces; baking it into the bind pose instead
+     * leaves the frame's translations and ORIGIN pivots at full magnitude
+     * against a model that is no longer full size, and the pose lands somewhere
+     * the animator never put it. Xarpus (resizeh/resizev 64, i.e. half size)
+     * came out floating several tiles above his own arena.
+     *
+     * `post_resize` false is identity. The three factors are 128-based and in
+     * ToriDraw_ModelScale's (x, z, height) argument order.
+     */
+    bool post_resize;
+    int post_resize_x;
+    int post_resize_z;
+    int post_resize_height;
+
     alphaint_t* face_alphas;
     alphaint_t* original_face_alphas;
     int* face_infos;

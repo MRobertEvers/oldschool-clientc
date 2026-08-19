@@ -764,17 +764,134 @@ walk_suffix(
     closedir(handle);
 }
 
+/*
+ * Put the cache's own column NAMES on the cache's own tables.
+ *
+ * A dat2 DBTABLE record carries column types and defaults and no names at all —
+ * the names live in `configs/all.dbtable`, the unpacked text, which is where
+ * `sscompile` reads them to compile `poh_hotspot:builddata` into a column id.
+ * The runtime had no such reader, so every cache table arrived with
+ * `column->name == NULL` and an authored `.dbrow` extending one could not name
+ * its column: 82 `table has no column` lines for the Construction workbench's
+ * four flatpack category rows, and a workbench that offers nothing.
+ *
+ * Names only. Types, arity and defaults stay the binary's, and a table the tree
+ * defines itself is untouched — this runs before the authored `.dbtable` walk
+ * and only fills a column that already exists and is still unnamed.
+ */
+static void
+name_cache_table_columns(const char* content_dir)
+{
+    char path[1024];
+    FILE* file;
+    char raw[1024];
+    struct Mock230DbTable* table = NULL;
+
+    snprintf(path, sizeof(path), "%s/configs/all.dbtable", content_dir);
+    file = fopen(path, "rb");
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char* value;
+        char* comma;
+        int col_id;
+        int table_id;
+
+        if( !*line )
+            continue;
+        {
+            char* header = mock230_content_section_header(line);
+
+            if( header )
+            {
+                table = NULL;
+                table_id = mock230_content_symbol(MOCK230_PACK_DBTABLE, header);
+                if( table_id >= 0 )
+                {
+                    for( int i = 0; i < g_table_count; i++ )
+                    {
+                        if( g_tables[i].table_id == table_id )
+                        {
+                            table = &g_tables[i];
+                            break;
+                        }
+                    }
+                }
+                continue;
+            }
+        }
+        value = mock230_content_split_key_value(line);
+        if( !value || !table || strcmp(line, "columndef") != 0 )
+            continue;
+        /* `columndef=<id>:<name>,<type>[,<type>...]` */
+        col_id = atoi(value);
+        value = strchr(value, ':');
+        if( !value )
+            continue;
+        value++;
+        comma = strchr(value, ',');
+        if( comma )
+            *comma = '\0';
+        if( col_id < 0 || col_id >= MOCK230_DB_COLUMN_MAX )
+            continue;
+        if( table->columns[col_id].type_count <= 0 || table->columns[col_id].name )
+            continue;
+        table->columns[col_id].name = strdup(value);
+        assert(table->columns[col_id].name);
+        if( col_id + 1 > table->column_count )
+            table->column_count = col_id + 1;
+        /* The type words the binary could not carry either. Positions must line
+         * up with the arity the record already declared; a disagreement is the
+         * text and the binary describing different tables, so say nothing rather
+         * than name half a tuple's namespaces wrongly. */
+        if( comma )
+        {
+            struct Mock230DbColumn* column = &table->columns[col_id];
+            char* cursor = comma + 1;
+            int position = 0;
+
+            while( *cursor && position < column->type_count )
+            {
+                char* end = strchr(cursor, ',');
+
+                if( end )
+                    *end = '\0';
+                column->kind[position] = db_kind_for_type(cursor);
+                if( strcmp(cursor, "coord") == 0 )
+                    column->kind[position] = MOCK230_PACK_COUNT;
+                position++;
+                if( !end )
+                    break;
+                cursor = end + 1;
+            }
+        }
+    }
+    fclose(file);
+}
+
 void
 mock230_db_load(const char* dir)
 {
     char scripts[1024];
 
-    mock230_db_free();
+    /*
+     * Deliberately NOT `mock230_db_free()` first.
+     *
+     * The cache's DBTABLE schemas are installed *before* this call (see
+     * mock230_boot.c step 3), because an authored `.dbrow` may name a cache
+     * table — `poh_hotspot` — and cannot resolve one that is not loaded. A free
+     * here threw those 246 schemas away again and the 82 flatpack rows went on
+     * reporting `names unknown table`. Callers that reload rather than boot
+     * call `mock230_db_free` themselves.
+     */
     /* Server DB source has exactly one root. Client cache exports and flagged
      * client lanes use a different grammar (`columndef=` / `values=`), and the
      * binary loader below is their route into this runtime. Walking the whole
      * content tree made a feature-only client dbrow look like malformed server
      * content before its valid cache record was loaded. */
+    name_cache_table_columns(dir);
     snprintf(scripts, sizeof(scripts), "%s/server/scripts", dir);
     walk_suffix(scripts, ".dbtable", load_dbtable_file);
     walk_suffix(scripts, ".dbrow", load_dbrow_file);
@@ -932,11 +1049,22 @@ mock230_db_column_define(
     column->type_count = type_count;
     for( int i = 0; i < type_count; i++ )
         column->is_string[i] = is_string[i] ? 1 : 0;
-    for( int i = type_count; i < MOCK230_DB_TUPLE_MAX; i++ )
-    {
-        column->is_string[i] = 0;
+    /*
+     * Every position's kind, not just the ones past `type_count`.
+     *
+     * `MOCK230_PACK_NPC` is 0, so a column left at the calloc'd value claims to
+     * hold npc names — and the cache import calls this with types and no kinds
+     * at all, which made every dat2 column an npc column. `poh_hotspot:builddata`
+     * holds dbrow ids; resolving `poh_armchair_1` against the npc pack answered
+     * "does not resolve", which is the polite version of the failure. The kind
+     * is set afterwards by whoever knows it (see name_cache_table_columns and
+     * the `.dbtable` walk), and COUNT — an int literal — is the only safe thing
+     * to say until then.
+     */
+    for( int i = 0; i < MOCK230_DB_TUPLE_MAX; i++ )
         column->kind[i] = MOCK230_PACK_COUNT;
-    }
+    for( int i = type_count; i < MOCK230_DB_TUPLE_MAX; i++ )
+        column->is_string[i] = 0;
     if( col_id + 1 > table->column_count )
         table->column_count = col_id + 1;
 }

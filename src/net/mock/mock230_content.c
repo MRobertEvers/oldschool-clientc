@@ -1265,6 +1265,30 @@ apply_param(
             resolved = atoi(value);
     }
     /*
+     * Project Rebalance's elemental weakness, and the per-npc xp scalar.
+     *
+     * Script-visible only, like `rangebonus` above — `[proc,npc_elemental_weakness]`
+     * in player_magic.rs2 compares `npc_param(elemental_weakness)` against the
+     * spell's element, and combat.rs2 scales its award by
+     * `npc_param(combat_xp_multiplier)`. The element side takes the same
+     * `^constant`-or-number spelling as `undead`, because every one of the nine
+     * npc configs that states it writes `^element_earth` rather than the number.
+     *
+     * Undeclared, these were 35 `unknown param` lines across nine quests and
+     * every one of those bosses fought with no weakness and ordinary xp — the
+     * whitelist's own failure mode, see [[npc-overlay-param-whitelist]].
+     */
+    else if( strcmp(text, "elemental_weakness") == 0 )
+    {
+        if( value[0] == '^' )
+            resolved = mock230_content_constant_int(value, 0);
+        else
+            resolved = atoi(value);
+    }
+    else if( strcmp(text, "elemental_weakness_percent") == 0 ||
+             strcmp(text, "combat_xp_multiplier") == 0 )
+        resolved = atoi(value);
+    /*
      * The four symbolic params, and the one place the two halves of this merge
      * had to be combined rather than chosen between.
      *
@@ -1451,6 +1475,8 @@ npc_config_key(
         def->ranged = atoi(value);
     else if( strcmp(key, "respawnrate") == 0 )
         def->respawnrate = atoi(value);
+    else if( strcmp(key, "timer") == 0 )
+        def->timer = atoi(value);
     else if( strcmp(key, "death_delay") == 0 )
         def->death_delay = atoi(value);
     else if( strcmp(key, "wanderrange") == 0 )
@@ -1783,6 +1809,21 @@ load_npc_config(const char* path)
  * `mock230_objinfo_param_overlay` the way `.loc` uses
  * `mock230_locinfo_param_overlay`.
  */
+/*
+ * And the namespace each param's values are spelled in.
+ *
+ * `g_param_types` collapses every declared type to `i` or `s`, because that is
+ * all the cache's own single-letter `all.param` can say. A server `.param`
+ * declares the real thing — `type=struct`, `type=loc`, `type=npc` — and throwing
+ * that away left `obj_resolve_param_value` guessing from a fixed list of four
+ * namespaces. A `struct` value therefore could not be spelled at all:
+ * `param=funeral_pyre_struct,pyre_teak_logs` was 32 unresolved values across
+ * Mort'ton's pyres, and each one is a pyre that burns at the wrong level for the
+ * wrong xp. `MOCK230_PACK_COUNT` means "no namespace" — an int literal.
+ */
+static enum Mock230PackKind* g_param_kinds;
+static int g_param_kind_count;
+
 static int
 obj_resolve_param_value(
     int param_id,
@@ -1808,6 +1849,18 @@ obj_resolve_param_value(
     {
         *out = atoi(value);
         return 1;
+    }
+    /* A param that declared its namespace resolves in that one and nowhere
+     * else. Guessing is only for the ones that did not — a cache `all.param`
+     * row says `i`, and nothing more. */
+    if( g_param_kinds && param_id >= 0 && param_id < g_param_kind_count &&
+        g_param_kinds[param_id] != MOCK230_PACK_COUNT )
+    {
+        if( mock230_content_symbol_checked(g_param_kinds[param_id], value, out) )
+            return 1;
+        CONTENT_ERROR("%s: `%s` is not in pack/%s.pack\n", where, value,
+                      mock230_content_pack_name(g_param_kinds[param_id]));
+        return 0;
     }
     /* Symbolic: try seq first (anims / baseanim), then obj / spotanim, then
      * synth. Synth is last because its names are `synth_<id>` and carry no
@@ -3452,6 +3505,12 @@ load_param_types(const char* content_dir)
     assert(g_param_types);
     g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
     assert(g_param_defaults);
+    g_param_kinds = (enum Mock230PackKind*)malloc((size_t)g_param_type_count *
+                                                 sizeof(*g_param_kinds));
+    assert(g_param_kinds);
+    g_param_kind_count = g_param_type_count;
+    for( int i = 0; i < g_param_kind_count; i++ )
+        g_param_kinds[i] = MOCK230_PACK_COUNT;
     for( int i = 0; i < g_param_type_count; i++ )
         g_param_defaults[i] = 0;
 
@@ -3559,6 +3618,8 @@ load_server_param_defaults_file(const char* path)
                 g_param_types[current] = 's';
             else
                 g_param_types[current] = 'i';
+            if( g_param_kinds && current < g_param_kind_count )
+                g_param_kinds[current] = pack_kind_for_type(value);
             loaded++;
             continue;
         }
@@ -4618,6 +4679,9 @@ mock230_content_free(void)
     g_constant_count = g_constant_capacity = 0;
     free(g_param_types);
     g_param_types = NULL;
+    free(g_param_kinds);
+    g_param_kinds = NULL;
+    g_param_kind_count = 0;
     g_param_type_count = 0;
 
     free(g_npc_spawns);

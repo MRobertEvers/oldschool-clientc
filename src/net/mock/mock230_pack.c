@@ -1284,6 +1284,8 @@ main(
      * go through `mock230_content_report_error`, so they reach the exit status
      * from here without any further plumbing.
      */
+    mock230_db_free();
+    mock230_db_load_cache_tables(cache);
     mock230_db_load(content);
     /* The engine's own symbol table, which is a claim about the packs in
      * exactly the way a config line is: every name the C addresses has to be in

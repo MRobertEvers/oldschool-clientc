@@ -48,6 +48,26 @@ ToriDraw_ModelScale(
     int z,
     int height);
 
+/*
+ * Record the resize that must be applied AFTER every animation frame, rather
+ * than applying it now. See `post_resize` in struct ToriDraw_Model for why the
+ * two are not interchangeable. (128, 128, 128) clears the record.
+ *
+ * Callers still have to put the model into render scale once themselves --
+ * ToriDraw_ModelApplyPostResize -- because a model that is never animated is
+ * never posed, and nothing else would ever apply it.
+ */
+void
+ToriDraw_ModelSetPostResize(
+    struct ToriDraw_Model* model,
+    int x,
+    int z,
+    int height);
+
+/** Put the model's live vertices into render scale. No-op with none recorded. */
+void
+ToriDraw_ModelApplyPostResize(struct ToriDraw_Model* model);
+
 void
 ToriDraw_ModelTranslate(
     struct ToriDraw_Model* model,

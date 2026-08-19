@@ -1178,6 +1178,16 @@ main(int argc, char** argv)
         canvas_fill(&pb, 0x141014);
         rig_pose(&ra, f);
         rig_pose(&rb, f);
+        if( getenv("ANIM_YRANGE") )
+        {
+            int amin=1<<30,amax=-(1<<30),bmin=1<<30,bmax=-(1<<30);
+            int omin=1<<30,omax=-(1<<30);
+            for( int i=0;i<ra.vertex_count;i++){ if(ra.vy[i]<amin)amin=ra.vy[i]; if(ra.vy[i]>amax)amax=ra.vy[i];
+                                                 if(ra.oy[i]<omin)omin=ra.oy[i]; if(ra.oy[i]>omax)omax=ra.oy[i]; }
+            for( int i=0;i<rb.vertex_count;i++){ if(rb.vy[i]<bmin)bmin=rb.vy[i]; if(rb.vy[i]>bmax)bmax=rb.vy[i]; }
+            printf("frame %3d  A y[%6d..%6d]  B y[%6d..%6d]  bind y[%6d..%6d]\n",
+                   f, amin, amax, bmin, bmax, omin, omax);
+        }
         rig_render(&ra, &pa, yaw, scale, by_label);
         rig_render(&rb, &pb, yaw, scale, by_label);
         canvas_fill(&pair, 0x000000);
