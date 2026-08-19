@@ -375,6 +375,21 @@ struct ToriRS_Npctype
      *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
      *  Defaults true; only a record that states opcode 93 turns it off. */
     bool minimap_visible;
+    /** NpcType.interactable (dat2 opcode 107, another bare flag that *clears*
+     *  the default; dat1 has no such opcode and this is true there).
+     *
+     *  The reference's minimap gate is BOTH flags, not opcode 93 alone:
+     *  `if (var8 != null && var8.isMinimapVisible() && var8.isInteractible())`
+     *  in rev-239's `method2403`, tested on the TRANSFORMED composition. Which
+     *  is how Jagex hides the Theatre of Blood's Nylocas supports without ever
+     *  touching opcode 93 on them — 8358 states `interactable=no` and nothing
+     *  else, and the dot never draws. Reading only opcode 93 put a dot on every
+     *  such record and made the cache look like it was stating the wrong thing.
+     *
+     *  Named for the reference field and not for pickability: nothing else in
+     *  this client reads it yet, and the minimap is the one place the reference
+     *  spends it that we have. */
+    bool interactable;
     /**
      * Overhead prayer icon (dat2 opcode 102 / dat1 opcode 102).
      *

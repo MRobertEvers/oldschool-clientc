@@ -1480,6 +1480,12 @@ npc_config_key(
         else
             def->healthbar = id;
     }
+    /* Same shape as `retaliate` above: the negative is the only case worth
+     * stating, so anything but `no` means yes. Suppresses the SPLAT alone —
+     * `healthbar=null` is the switch for the bar, and an npc that wants
+     * neither states both. */
+    else if( strcmp(key, "hitsplat") == 0 )
+        def->hitsplat = strcmp(value, "no") != 0;
     else if( strcmp(key, "blockwalk") == 0 )
     {
         /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
@@ -3904,6 +3910,8 @@ init_defaults(void)
     g_npc_default.retaliate = 1;
     /* Unstated, so the encoder uses the standard bar — see the field's note. */
     g_npc_default.healthbar = MOCK230_NPC_HEALTHBAR_UNSET;
+    /* Everything that can be hit shows the number unless it says otherwise. */
+    g_npc_default.hitsplat = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
     g_npc_default.blockwalk = 1;
     g_npc_default.blocksight = 0;

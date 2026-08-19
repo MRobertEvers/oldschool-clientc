@@ -68,6 +68,9 @@ static const struct ServerField k_npc_fields[] = {
      * an id whose stated absence is negative, and only u4 round-trips a
      * negative through a zero-extending decode. */
     { 162, WIRE_U4, offsetof(struct Mock230NpcDef, healthbar),   "healthbar"   },
+    /* Ours (150..199). The bar's twin: 162 says which bar, this says whether
+     * the splat rides with it. */
+    { 163, WIRE_U1, offsetof(struct Mock230NpcDef, hitsplat),    "hitsplat"    },
     { 158, WIRE_U4, offsetof(struct Mock230NpcDef, attack_sound), "attack_sound" },
     { 159, WIRE_U4, offsetof(struct Mock230NpcDef, defend_sound), "defend_sound" },
     { 160, WIRE_U4, offsetof(struct Mock230NpcDef, death_sound),  "death_sound"  },

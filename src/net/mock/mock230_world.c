@@ -985,15 +985,57 @@ interaction_target(
         if( interaction->npc_slot < 0 || interaction->npc_slot >= MOCK230_NPC_MAX )
             return 0;
         npc = &srv->npcs[interaction->npc_slot];
-        /* Slot reuse: same index, different npc. Acting on it would attack
-         * whatever respawned there. */
-        if( !npc->active || npc->type != interaction->target_id ||
-            npc->generation != interaction->target_generation )
+        /*
+         * Slot reuse: same index, a different npc. Acting on it would attack
+         * whatever respawned there — and `generation` is the whole of that
+         * test. Every spawn into a slot bumps it (`mock230_world_npc_spawn`),
+         * so (slot, generation) names one npc for its entire life, which is
+         * exactly what the reference gets for free by holding the object.
+         *
+         * The TYPE deliberately takes no part, and this is a considered
+         * divergence: `Player.validateTarget` compares `targetSubject.type`
+         * against `target.type` with the comment "this is effectively checking
+         * if the Npc or Loc did a changetype", so upstream a transformation
+         * ends the interaction. Here it must not. `npc_changetype` is the same
+         * npc in a new form — Verzik between phases, Xarpus between his
+         * feeding and combat types — and losing the interaction loses the
+         * fight: the interaction is cleared, and with it the `p_opnpc(2)`
+         * re-issue at the end of `[label,player_melee_attack]` that is the
+         * only thing re-arming the swing. The player stands there, still
+         * walking after a boss that no longer takes hits.
+         *
+         * So the live type is ADOPTED rather than compared. Everything
+         * downstream keys off `target_id` — `interaction_category`, the ap
+         * rung, the `[opnpc<n>]` dispatch — and adopting it is what makes them
+         * resolve against what the npc is NOW, which is the reference's own
+         * `NpcType.get(target.type)` read at dispatch time. A phase that binds
+         * its own `[apnpc2,<new type>]` therefore gets it on the next swing.
+         *
+         * The footprint travels with it, and only with it. A transform that
+         * grows the npc has already moved its collision rectangle
+         * (`npc_changetype_rehydrate` releases and retakes the occupancy), and
+         * an approach still measuring the 3x3 of Xarpus' feeding form would
+         * walk the player under the 5x5 he is now. But the refresh is gated on
+         * the type having actually changed rather than run every tick,
+         * because the interaction's footprint is its opener's to state: the
+         * under-a-size-5-npc stanza below stands a 1x1 goblin in for a boss by
+         * describing it as 5x5 in the interaction, and a size re-read on every
+         * tick quietly puts that back to 1 and tests nothing.
+         */
+        if( !npc->active || npc->generation != interaction->target_generation )
             return 0;
         if( npc->level != srv->active_player->level )
             return 0;
         if( npc->death_tick >= 0 )
             return 0;
+        if( npc->type != interaction->target_id )
+        {
+            int size = npc->size > 0 ? npc->size : 1;
+
+            interaction->target_id = npc->type;
+            interaction->size_x = size;
+            interaction->size_z = size;
+        }
         *out_x = npc->x;
         *out_z = npc->z;
         *out_size_x = interaction->size_x;
@@ -37889,6 +37931,47 @@ mock230_world_selftest(void)
         }
 
         /*
+         * The maze generator's ONE measured rate (M11).
+         *
+         * Its own debugproc, and therefore its own 500,000-instruction budget,
+         * for the reason `::tobmaze` is already separate from `::tobrun`: this
+         * is a Monte-Carlo check over 14,000 generated turns and it does not
+         * fit alongside the contiguity walk, let alone alongside the Nylocas
+         * tables.
+         *
+         * What it measures cannot be seen any other way. A skipped turn and a
+         * zero-length horizontal run lay down identical tiles, so every
+         * structural property of the maze — contiguity, run rows, the clamp —
+         * passes for both the right generator and the wrong one. Only the RATE
+         * separates them: 20.0% measured over 183 real mazes, against 11.3%
+         * for a plain clamped-uniform draw and ~45% for Zenyte's mechanism.
+         */
+        {
+            static struct Mock230Capture rate_capture;
+            int rate_said_ok = 0;
+
+            mock230_capture_begin(srv, &rate_capture);
+            mock230_scripts_run_debugproc(srv, "tobmazerate");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&rate_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&rate_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &rate_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tobmazerate") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "tobmazerate OK") != NULL )
+                    rate_said_ok = 1;
+            }
+            SELFTEST_CHECK(rate_said_ok, "::tobmazerate should reach its OK line");
+        }
+
+        /*
          * The over-hit primitive (`::tobhit`, p_overhit / SS_OP_P_OVERHIT).
          *
          * Separate stanza from ::tobrun because it damages the player. What it
@@ -43503,6 +43586,170 @@ mock230_world_selftest(void)
                            "release that never happens");
 
             mock230_world_npc_free(srv, slot);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: an npc changing type mid-fight keeps the fight\n");
+    {
+        /*
+         * `npc_changetype` is a transformation, not a new npc, and the player
+         * fighting it must still be fighting it afterwards.
+         *
+         * Every phase boss in the tree is built on this — Verzik between her
+         * three forms, Xarpus between feeding and combat, the Nylocas boss
+         * between its styles — and the failure is total rather than subtle:
+         * the interaction is dropped on the tick after the transform, and the
+         * interaction is what carries combat. `[label,player_melee_attack]`
+         * ends with `p_opnpc(2)`, which re-arms the SAME interaction for the
+         * next swing, so once it is cleared nothing re-arms it. The player
+         * stands there facing a boss that no longer takes damage until they
+         * click it again.
+         *
+         * The transform is run through the real op on the real VM rather than
+         * by writing `npc->type` here, because the half of the fix that is not
+         * the staleness test — the interaction adopting the new type and its
+         * footprint — is only reachable from what `npc_changetype_rehydrate`
+         * actually leaves behind.
+         *
+         * Placed immediately before the next `selftest_reset_world` on
+         * purpose: it spawns an npc and ticks the world, and every section
+         * shares one server and one RNG stream.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int from_type = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+        int to_type = mock230_content_symbol(MOCK230_PACK_NPC, "cow");
+        int slot;
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        /* The swing loop IS the content: `[opnpc2,_] @player_combat_start`
+         * ending in `p_opnpc(2)`. Without the pack there is no loop to keep,
+         * and every check below would pass or fail on nothing. */
+        if( !loaded )
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        slot = (loaded && from_type > 0)
+                   ? npc_spawn(srv, from_type, player->x + 4, player->z + 4, player->level)
+                   : -1;
+
+        if( loaded )
+            SELFTEST_CHECK(slot >= 0 && to_type > 0,
+                           "the changetype fixture should spawn (goblin %d -> cow %d, "
+                           "slot %d)",
+                           from_type, to_type, slot);
+        if( slot >= 0 && to_type > 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            const struct Mock230NpcInfo* to_info = mock230_npcinfo(to_type);
+            uint16_t change_ops[] = {
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                SS_OP_NPC_CHANGETYPE, SS_OP_RETURN,
+            };
+            int32_t change_operands[] = { to_type, INT32_MAX, 0, 0 };
+            char* change_strings[4] = { NULL };
+            struct SSVM_Script change_script = {
+                .id = -1,
+                .name = "[selftest,combat_changetype]",
+                .source_path = "<selftest>",
+                .lookup_key = -1,
+                .op_count = 4,
+                .opcodes = change_ops,
+                .int_operands = change_operands,
+                .string_operands = change_strings,
+            };
+            int hp_level_before = player->stat_level[MOCK230_STAT_HITPOINTS];
+            int hp_boost_before = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int hp_xp_before = player->stat_xp_tenths[MOCK230_STAT_HITPOINTS];
+            int size_before = npc->size;
+            int hp_after_change;
+            int damaged = 0;
+
+            /* The premise, twice over. `p_opnpc(2)` refuses an op the record
+             * does not offer, so a form without Attack on op 2 would end the
+             * fight for a reason this section is not about; and a form the
+             * same size as the one it replaces cannot show the footprint
+             * following the type. */
+            SELFTEST_CHECK(to_info->ops[1] && strcmp(to_info->ops[1], "Attack") == 0,
+                           "the form it becomes must offer Attack on op 2, got %s",
+                           to_info->ops[1] ? to_info->ops[1] : "<none>");
+            SELFTEST_CHECK(to_info->size != size_before,
+                           "and be a different size from the form it replaces (%d vs %d)",
+                           to_info->size, size_before);
+
+            /* West of the anchor: a cow is 2x2 and grows east and north, so
+             * the transform cannot stamp its new footprint on the player. */
+            selftest_park_player(srv, npc->x - 1, npc->z);
+            player->level = npc->level;
+            mock230_combat_set_level(player, MOCK230_STAT_HITPOINTS, 40);
+            player->hitpoints = player->max_hitpoints;
+            player->damage_type = -1;
+            /* The 20-minute anti-AFK rule stops a fight at its next swing, and
+             * by this point in the suite `srv->tick` is well past it. A player
+             * whose click is this tick is not AFK. */
+            player->last_input_tick = srv->tick;
+            /* Nothing here is a claim about how long a goblin survives. */
+            npc->base_hitpoints = 200;
+            npc->max_hitpoints = 200;
+            npc->hitpoints = 200;
+
+            mock230_combat_engage(srv, slot);
+            SELFTEST_CHECK(player->combat_target == slot &&
+                               player->interaction.kind == MOCK230_INTERACT_NPC,
+                           "engaging arms the OPNPC2 interaction");
+            for( int i = 0; i < 3; i++ )
+                mock230_world_tick(srv);
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC,
+                           "which the swing loop keeps armed while the fight runs");
+
+            SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(srv, &change_script, slot),
+                           "npc_changetype executes on the npc being fought");
+            SELFTEST_CHECK(npc->type == to_type, "and it is the new form, got type %d",
+                           npc->type);
+            /* Same reason as above, and now against the new form's own base:
+             * a cow has 8 hitpoints, and a fight that ends in a kill would
+             * clear the interaction for the one reason that is legitimate. */
+            npc->base_hitpoints = 200;
+            npc->max_hitpoints = 200;
+            npc->hitpoints = 200;
+            hp_after_change = npc->hitpoints;
+
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC &&
+                               player->interaction.npc_slot == slot &&
+                               player->combat_target == slot,
+                           "a transform must NOT end the fight: interaction kind %d slot "
+                           "%d, combat target %d",
+                           (int)player->interaction.kind, player->interaction.npc_slot,
+                           player->combat_target);
+            SELFTEST_CHECK(player->interaction.target_id == to_type,
+                           "and the interaction resolves against what the npc IS now, "
+                           "got %d want %d",
+                           player->interaction.target_id, to_type);
+            SELFTEST_CHECK(npc->size == to_info->size &&
+                               player->interaction.size_x == npc->size &&
+                               player->interaction.size_z == npc->size,
+                           "and against its new footprint: npc %d (was %d), interaction "
+                           "%dx%d",
+                           npc->size, size_before, player->interaction.size_x,
+                           player->interaction.size_z);
+
+            for( int i = 0; i < 30 && !damaged; i++ )
+            {
+                mock230_world_tick(srv);
+                damaged = npc->hitpoints < hp_after_change;
+            }
+            SELFTEST_CHECK(damaged,
+                           "and the swings keep landing on the new form, hp %d of %d",
+                           npc->hitpoints, hp_after_change);
+
+            mock230_world_npc_free(srv, slot);
+            /* Put the level back by hand, as the cow section does:
+             * `mock230_combat_set_level` would re-derive the xp from it and
+             * the sections below read both. */
+            player->stat_level[MOCK230_STAT_HITPOINTS] = hp_level_before;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = hp_boost_before;
+            player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = hp_xp_before;
+            mock230_combat_sync_hitpoints(player);
+            player->hitpoints = player->max_hitpoints;
         }
     }
 

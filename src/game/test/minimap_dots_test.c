@@ -147,6 +147,51 @@ test_minimap_flag_gates_npc_dot(void)
     fixture_free(&fx);
 }
 
+/*
+ * The other half of the reference's gate, and the half that was missing.
+ *
+ * Rev 239's `method2403` tests `isMinimapVisible() && isInteractible()`, so an
+ * npc that states opcode 107 and nothing else draws no dot. The Theatre of
+ * Blood's Nylocas supports are exactly that record — `interactable=no`, no
+ * opcode 93 — and they put four dots on the minimap for as long as only the
+ * first flag was read.
+ */
+static void
+test_interactable_flag_gates_npc_dot(void)
+{
+    struct DotFixture fx;
+    struct UITreeMinimapDot const* dots = NULL;
+    int count;
+
+    printf("TEST: NpcType.interactable=false suppresses the npc's minimap dot\n");
+
+    fixture_init(&fx);
+    spawn_npc(&fx, 10, 26, 25);
+    spawn_npc(&fx, 11, 24, 25);
+
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(
+        count_dots(dots, count, fx.dots_scene, 1) == 2, "both visible npcs draw a dot");
+
+    {
+        struct World_EntityPool* pool = &fx.app.world->entities.npc;
+        struct WorldEntity_NPC* npc =
+            World_EntityPoolGet(pool, World_EntityPoolHead(pool));
+
+        npc->interactable = false;
+        /* Left ON, so this proves the SECOND flag is read rather than the
+         * first one doing the work again. */
+        TEST_ASSERT(npc->minimap_visible, "the opcode 93 flag is still set");
+    }
+
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(
+        count_dots(dots, count, fx.dots_scene, 1) == 1,
+        "the npc that clears NpcType.interactable draws no dot");
+
+    fixture_free(&fx);
+}
+
 static void
 test_spawn_defaults_minimap_visible(void)
 {
@@ -161,6 +206,9 @@ test_spawn_defaults_minimap_visible(void)
      * an npc whose config has not resolved yet must still show its dot, which
      * is what the client did before the flag was honoured at all. */
     TEST_ASSERT(npc->minimap_visible, "World_NpcSpawn leaves the dot enabled");
+    /* Opcode 107 is the same shape — it only ever clears — so the spawn
+     * default is on for the same reason. */
+    TEST_ASSERT(npc->interactable, "World_NpcSpawn leaves the npc interactable");
     fixture_free(&fx);
 }
 
@@ -169,6 +217,7 @@ main(void)
 {
     g_failures = 0;
     test_minimap_flag_gates_npc_dot();
+    test_interactable_flag_gates_npc_dot();
     test_spawn_defaults_minimap_visible();
     if( g_failures )
     {

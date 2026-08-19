@@ -811,29 +811,36 @@ P3 retaliation (base 50–75, × `1 + 0.4 × stat uplift`).
                 pillar before the attack is launched" and "having Protect from
                 Magic active before the projectile is launched".
                 Projectile 1580, delay 20 + duration 90 client cycles.
-+25   IMPACT  pillar: exactly ONE hit however many players hid behind it.
++24   IMPACT  pillar: exactly ONE hit however many players hid behind it.
               player: up to 137, halved to 68 by Protect from Magic,
                       NOT tick-eatable - the number was fixed at +21.
 then  wind-up every 14: 32, 46, 60 ... firing on 35, 49, 63 ...
 ```
 
-**Impact is launch+4, and it used to be launch+2 - transport, not mechanics.** This block used
-to say +21, taken from Zenyte's `Projectile.getTime` (`duration / 30 - 1`). That
-expression is calibrated against Zenyte's own client clock and does not survive
-being moved: on this engine the zone event is written in the launch tick's update
-and the client starts the bolt's clock when it processes that update, one tick
-later, so 110 cycles of flight land inside T+4 measured from the launch tick -
-`duration / 30 + 1`, which is the arrival rule `~pvm_spell_success`,
-`[label,player_powered_staff_attack]` and every other player-side projectile in
-the tree already use. `~tob_verzik_flight_ticks` carried the Zenyte form until
-2026-08-19 and resolved BOTH halves of the phase two ticks early: the player's
-splat, and the pillar's splat, sound and impact graphic, which visibly fired
-while the bolt was still crossing the room.
+**Impact is launch+3, and it used to be launch+2 — she was the only shot in the
+raid not using the raid's own rule.** A projectile's helpers
+(`~npc_projectile`/`~player_projectile`/`~map_projectile`) return its duration in
+client cycles and hand the client that same number as the end cycle, so "which
+tick does the splat go on" is a rounding choice. Every other room floors it;
+Verzik P1 carried Zenyte's `Projectile.getTime`, `duration / 30 - 1`, and
+resolved a tick early — the player's splat and the pillar's splat, sound and
+impact graphic with it.
 
-That is a separate number from the launch, and separate from the launch fix
-above: cover, Protect from Magic and the damage roll are all settled on the
-launch tick whenever that is, and this only moves when the settled number is
-*shown*.
+Floor is not this project's inference. TobMistakeTracker states it outright,
+reverse-engineered against the live game
+(`sources/tobmistaketracker/MaidenMistakeDetector.java`): *"The math is:
+gameTicksToActivate = floor(remainingCycles / CYCLES_PER_GAME_TICK)"*, and it is
+`Math.floor(projectile.getRemainingCycles() / CYCLES_PER_GAME_TICK)` in that
+file's own `onProjectileMoved`. `remainingCycles` at the tick a projectile is
+created is exactly the `duration` these helpers return. Verzik's 110 cycles floor
+to 3. All six rooms now share `~tob_flight_ticks` (tob_timing.rs2), which is that
+line and nothing else.
+
+Floor leaves a residual worth naming: with a duration that is not a multiple of
+30 the splat lands up to 29 cycles — for Verzik's 110, twenty cycles, 400 ms —
+before the bolt arrives. Removing that means the shot's duration being a multiple
+of 30, which is a claim about `^tob_verzik_p1_proj_length` that nothing available
+here supports.
 
 **The opening is 18, not one attack period.** [M16] Blert's streams for 29
 completed Verzik rooms put the first auto on room tick 19 (12 rooms) or 20 (17),
@@ -856,6 +863,34 @@ pillar. At 14 the swing on 12 would have two, and the Wiki would say three.
 Damage cap while shielded: **10 melee / 3 ranged / 3 magic per hitsplat**.
 Dawnbringer is exempt from both the cap and the accuracy roll (75–150).
 
+### 7.1a Off the throne — seventeen ticks, three forms
+
+The phase boundary is not an instant, and the ids say so on their own: the cache
+ships **8371 `verzik_phase1_to2_transition`** between 8370 and 8372, and Near
+Reality's `isMovableEntity()` is true for exactly 8371 and 8374 — she is
+`moverestrict=nomove` in both fought phases and can only move while she is
+this one. `switchToSecondPhase` (`second/SecondPhase.kt`) spends it like this:
+
+```
++0    seq verzik_phase1_death 8111 on the P1 FORM.
+      Despite the cache name this is the HOP OFF THE THRONE - it is on framemap
+      1796, the rig only 8370 wears, and NR calls its own copy `hopOffThroneAnim`.
+      The shield is gone from this tick: throne varbit 6400 -> 1, the Dawnbringer
+      is deleted and unequipped, `isCantInteract = true`, attack clock stopped.
++3    8370 -> 8371, seq verzik_phase2_spawn 8112 (132 frames, framemap 1808).
+      Health bar refreshed onto the P2 pool; every pillar still standing is
+      collapsed here.
++4    animation dropped (`Animation.STOP`) and `addWalkSteps(base(30,24))` -
+      she crosses the room on foot, one tile a tick.
++17   `setLocation(base(31,25))`, 8371 -> 8372, face SOUTH, unlock.
+      Only now does the +3 below start counting.
+```
+
+The last placement is not redundant with the walk: NR force-places her one tile
+NE of the tile it walked her to, so the arrival is exact however far the walk
+actually got. Ours re-uses that for the same reason — `npc_walk` queues a
+waypoint and the greedy stepper can stall on the dais.
+
 ### 7.2 Phase 2 — 4 ticks, and the "dangerous tick"
 
 ```
@@ -875,6 +910,10 @@ then every 4 ticks:
                 overhead "There's nothing for you there!"
           - zap cooldown expired (>=4 attacks) -> LIGHTNING, projectile 1585
           - purple cooldown expired (>=16 attacks) -> ATHANATOS, projectile 1586
+                and the group of exploding nylocas WITH it, on the same
+                8114 cast - `spawnPurpleCrab(); spawnCrabs()` is one branch of
+                NR's `secondPhase()`, never a roll of its own. The Wiki's
+                "occasionally" is this gate, not a per-attack chance.
           - otherwise -> URNBOMB, seq 8114, projectile 1583, one per player,
                 aimed at each player's LOCKED (previous-tick) tile.
 

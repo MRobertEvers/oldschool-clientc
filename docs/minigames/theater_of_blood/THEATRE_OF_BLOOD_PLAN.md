@@ -1252,8 +1252,9 @@ Region 13123 (overworld), area (3271, 4304) 17 × 30; the shadow realm is region
 
 ### 9.1 Stats
 
-HP **3000 / 3500 / 4000** for ≤3 / 4 / 5 players, identical in Hard Mode. Level
-995. Defence can be drained
+HP **3000 / 3500 / 4000** for ≤3 / 4 / 5 players, identical in Hard Mode. **Entry Mode is
+the other direction — 560 per player** (the cache's `stat4` on the `_story` record), so the
+Wiki's 2240 is the four-player figure [M19]. Level 995. Defence can be drained
 to a floor of **100**, and it is **restored to full after each maze**, which is why
 the team assigns special attacks in a 1-2 / 1-3 / 2-3 / backup pattern. It is a
 dark beast but **does not count for a Slayer task**.
@@ -1373,6 +1374,11 @@ on death: seq 8140, sound 3286. Supply chest #2 becomes available.
 
 ### 9.5 Maze generation
 
+**[M11 is closed.]** See §9.7 and [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md): the trainer's
+skeleton is confirmed on 183 measured mazes, and the one thing it gets wrong is a rate —
+20.0 % of turns carry no lateral move where its own clamped-uniform draw gives 11.3 %. The
+implementation is the skeleton below plus a 9.8 % explicit skip.
+
 The path is randomly generated per maze. A community simulator that reproduces the
 game's generator and movement rules exists at
 <https://devqhp.github.io/osrs/sotetseg/> and accepts an 8-number seed
@@ -1466,9 +1472,46 @@ measurement outranks a reference server:
   inert there. §9.3's rule is the Wiki's: it chases the *arena* team, and
   reaches the runner only in a solo or in Hard Mode.
 
-Gates: `::tobrun` (`~tob_st_sote_tornado_damage`, `~tob_st_sote_ball_ring`, both
-proven to fail by mutation) and the `mock230 --selftest` shadow-maze stanza,
-which now exercises the corrected threshold.
+### 9.8 Research pass — the constants against the log
+
+Same day, immediately after §9.7: every `^tob_sote_*` constant and every damage
+figure walked against [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md), which is the
+tree's measured record. Three findings had been **closed in that log for some
+time and never carried across**, which is a distinct failure mode from a wrong
+guess — the answer was written down and the tree went on using the placeholder.
+See §9.7's list for the Near-Reality half; this is the measured half.
+
+| Finding | Was | Is |
+|---|---|---|
+| **M10** — first post-maze attack is 1 tick after re-activation (26 mazes, 25 of them exactly 1) | a full 5-tick period, tagged in-comment as "unmeasured" | `^tob_sote_post_maze_ticks = 1` |
+| **M10** — he can attack *on* the maze proc tick | the threshold check ran first and swallowed that attack | the attack resolves first; delayed hits are then nulled by `~tob_sote_maze_nulls_hit` |
+| **M11** — 20.0 % of turns carry no lateral move (183 mazes) | 11.3 %, the clamped-uniform draw alone | `^tob_sote_maze_skip_permille = 98` in front of it |
+| **M19** — Entry scales *up* per player | 560 flat at every party size, so a four-man Entry Sotetseg had a quarter of his health and never reached the second maze | `multiply(^tob_sote_hp_entry, scale)` at the call site |
+
+Verified against the log and left alone: attack speed 5 (cache `attackrate` on
+8388, and blert's `SOTE_ATTACK_SPEED`); the maze grid 14 × 15 with origins (9, 22)
+plane 0 and (26, 23) plane 3, both settled by counting the cache's own 210 ground
+decorations [M25]; `max_x_change = 5` and the `[1, 13]` start column, both
+corroborated by the corpus; the HP table 3000/3500/4000; the 5-tick prayer
+disable, 45/22 melee, 50 projectile, 10-attack ball counter, 7-tick chip, 4-tick
+despawn cycle and `6.67 % + 15` rag, all Wiki; and the five sound ids, all
+confirmed against `all.synth.compack` (3540 melee, 3539 cast, 4001 death-ball hum,
+3963 shadow-realm teleport, 3286 death). The two impact sounds the cache names for
+this fight and nothing was playing — **3996** `tob_sotetseg_fireball_player_hit`
+and **4015** `tob_sotetseg_ricochet_player_hit` — are now played at the two
+arrivals they are named for; Near-Reality plays 4015 at exactly that moment.
+
+Two constants are read by nothing and now say so at their definition rather than
+looking live: `^tob_sote_ball_max` (superseded by the per-scale table it
+documents) and `^tob_sote_defence_floor` (the Wiki's drain floor of 100 — every
+drain in this tree calls `npc_statsub` straight from its own spec script, so
+there is no shared seam to clamp in, and honouring it is a raid-wide change).
+
+Gates: `::tobrun` (`~tob_st_sote_research`, `~tob_st_sote_tornado_damage`,
+`~tob_st_sote_ball_ring`), `::tobmazerate` (the M11 rate, 7000 generated turns
+against the corpus CI — its own debugproc because `::tobrun` has no instruction
+budget left), and the `mock230 --selftest` shadow-maze stanza, which now
+exercises the corrected threshold. All proven to fail by mutation.
 
 ---
 
@@ -1732,7 +1775,11 @@ times without doing so, or the target has no neighbour, that player takes up to 
 
 **Nylocas** — the three `verzik_nylocas_*` (8381/8382/8383, 11 HP each) home in on
 a player and explode for up to **46**, or 8 if popped from three tiles away, and
-die on their own after about 15 s.
+die on their own after about 15 s. They arrive **with the Athanatos and only with
+it** — `spawnPurpleCrab(); spawnCrabs()` are two lines of one branch in Near
+Reality's `secondPhase()`, on the one 8114 cast — so the Wiki's "occasionally" is
+the purple's own gate (16-attack floor, 25 % roll, suppressed while one is alive)
+and not a separate per-attack chance.
 
 **Nylocas Athanatos** — `tob_verzik_phase2_armourednylocas` **8384**, arriving as
 the slow purple projectile 1586 (up to 78 on the tile it lands). It heals her
@@ -2116,8 +2163,9 @@ approximation and tag it in `tob.constant`.
 | M7 | Nylocas | **Hitpoints closed — by Jagex, not by the cache.** The 21 June 2018 newspost that cut the first 21 waves states both ends outright: *"Players in groups of five will find that the pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has been reduced from 350 hitpoints to 330 hitpoints."* So pillars **scale upwards as the party shrinks** — the only thing in the raid that runs opposite to the bosses — and the cache's `stat4=130` is the **five-man anchor**, exactly as it is for every boss. The two published points fit one line, **`hp = 380 − 50 × party`** → 330 / 280 / 230 / 180 / 130, and 2/3/4-man are that interpolation rather than measurements. Corroboration that the *slope* is real and not fitted: the Zenyte family carries `380 − partySize * 50` — this exact line — on **Verzik's** pillars while giving the nylo supports a `380 − partySize * 20` that matches nothing Jagex said; and [User:Mc/Mechanics/ToB](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB) independently states pillars have *"more HP in lower scales, and will scale down to 1"*. Hard and Entry keep their cache five-man anchors (150 / 155) with the same −50 step carried on, disclosed as an assumption. **Still open: damage per swing** — `^tob_nylo_pillar_hit_max = 2` matches Zenyte's small-nylo figure, its big-nylo 4 is that tree's alone, and the Wiki's 17/24 are max hits against *players* (at 17 one small would delete a five-man pillar in eight swings). Implemented: `^tob_nylo_pillar_hp_step`, a scale-aware `~tob_nylo_pillar_hp`, and support npc bases re-authored to the **solo** figure because `npc_statheal` cannot raise an npc above its config base. The engine needed no new opcode (authored `hitpoints=` already reaches `base_hitpoints`); the base-vs-solo coupling is pinned by `tools/check_tob_pillar_contract.py` in the `mock230-scripts` build, since the opcode table is generated from the reference server and cannot be extended locally. `::tobrooms` had pinned the old flat assumption and now checks base against the solo figure *and* current against the party's figure. See [`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M8 | Nylocas | **Closed.** `boss_spawn = first wave-check tick ≥ cleanup_end + 16`, i.e. four full cycles after the last nylo *despawns*, rounded up to the next cycle-0 tick. Reproduces **22 of 22** recorded raids exactly (observed deltas 16–19), and blert's own guide words it as "the start of the 5th cycle following the despawn". Keyed on despawn, not death — the death→despawn delay is itself a function of size, cause and whether it was walking. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M9 | Nylocas | **Regular closed; Entry resolved on the balance of evidence.** Vasilias always spawns **melee**, first switches **9 ticks** after spawn, then exactly every **10 ticks**, and **never repeats a style** (185 recorded switches; Zenyte independently does `ticks % 10` with `types.remove(type)`). For Entry the Wiki contradicts itself: the [Nylocas Vasilias](https://oldschool.runescape.wiki/w/Nylocas_Vasilias) page says the boss "takes longer to switch colours" with no figure, while [Theatre of Blood/Entry Mode](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Entry_Mode) says it "will change colours after 10 ticks (6 seconds)" and "will never remain in the same form twice in a row". The cache backs the specific number — the `_story` boss records are structurally identical to the regular ones, same `param=attackrate,int,4` — and blert is a dead end (its entire database holds **one** Entry raid, unfinished). **Implement Entry at 10 ticks, tagged**, and soften §8's claim of a longer interval. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M10 | Sotetseg | **Closed — 1 tick.** He flips to his inactive npc id on the maze proc tick and back on maze end; the first post-maze attack is the **very next tick** in 25 of 26 recorded mazes. The gap from his *last pre-maze* attack is 25–51 ticks and is pure noise — it tracks how fast the player ran the maze, which is why this looked open. He can also attack *on* the proc tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M11 | Sotetseg | **Reduced to one yes/no question.** A **second, independent** generator now exists — Zenyte's `ShadowRealmArea.generatePath` — and it agrees with the devqhp trainer on the **14 × 15 grid**, on **`max_x_change = 5`** (two independent reconstructions landing on 5 promotes it to a near-certain game constant), on horizontal runs joined by straight vertical segments, and on the path only advancing towards the far row. They disagree on exactly one thing: devqhp advances **2 rows per turn always** (so always **7 horizontal runs**), Zenyte advances **2 or 4** (so 4–7 runs). **So M11 is now: do real mazes always have exactly seven horizontal runs?** Answerable from a blert `TOB_SOTE_MAZE_PATH` corpus — keep only mazes covering all 15 rows with no gaps, and split by tick gap as well as by the `maze` index field, which read 0 on 70 of 71 events in a raid that ran two mazes and would otherwise merge them into a false refutation. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M10 | Sotetseg | **Closed — 1 tick, and now in the tree** (19 Aug 2026; `^tob_sote_post_maze_ticks`, and the threshold check moved after the attack so the proc tick keeps its own attack). Delayed hits are nulled while the maze runs, which that reordering makes load-bearing rather than theoretical. He flips to his inactive npc id on the maze proc tick and back on maze end; the first post-maze attack is the **very next tick** in 25 of 26 recorded mazes. The gap from his *last pre-maze* attack is 25–51 ticks and is pure noise — it tracks how fast the player ran the maze, which is why this looked open. He can also attack *on* the proc tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M11 | Sotetseg | **CLOSED on 183 mazes from 440 recorded raids, and in the tree** (19 Aug 2026). The yes/no question dissolved — a skipped turn and a zero-length run lay down identical tiles — so the answer is a rate: **20.0 % of turns carry no lateral move** (CI 17.8–22.2), against devqhp's 11.3 % and Zenyte's ~45 %. Implemented as devqhp's skeleton plus an explicit **9.8 %** skip (`^tob_sote_maze_skip_permille = 98`; 0.098 + 0.902 × 0.113 = 0.200). The corpus also confirms runs on odd rows in 367 of 367, max \|Δx\| = 5, and that column 0 never starts a maze — devqhp's rule, not Zenyte's `random(0,13)`. Gate: `::tobmazerate`. Superseded text below. |
+| M11 *(superseded)* | Sotetseg | **Reduced to one yes/no question.** A **second, independent** generator now exists — Zenyte's `ShadowRealmArea.generatePath` — and it agrees with the devqhp trainer on the **14 × 15 grid**, on **`max_x_change = 5`** (two independent reconstructions landing on 5 promotes it to a near-certain game constant), on horizontal runs joined by straight vertical segments, and on the path only advancing towards the far row. They disagree on exactly one thing: devqhp advances **2 rows per turn always** (so always **7 horizontal runs**), Zenyte advances **2 or 4** (so 4–7 runs). **So M11 is now: do real mazes always have exactly seven horizontal runs?** Answerable from a blert `TOB_SOTE_MAZE_PATH` corpus — keep only mazes covering all 15 rows with no gaps, and split by tick gap as well as by the `maze` index field, which read 0 on 70 of 71 events in a raid that ran two mazes and would otherwise merge them into a false refutation. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M12 | Xarpus | **Closed** — **7 / 9 / 12 / 15 / 18** exhumeds at scales 1–5 (measured, 31 rooms, matches OpenOSRS exactly), and **16 for a Hard Mode trio** — more than a regular four-man, a case no source in the plan covered. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M13 | Xarpus | **Closed — scaled, not fixed.** Spawn cadence is **12 ticks solo, 8 at scales 2–3, 4 at scales 4–5** (and 4 in Hard Mode), dead regular within a raid, first exhumed always on tick 8–11. Phase length is not monotonic: a trio is slow-drip (8t × 12), a four-man a fast burst (4t × 15). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M14 | Xarpus | **Closed.** An uncovered exhumed fires a heal orb **every tick, starting 3 ticks after it spawns**. Heal per orb is set by scale and moves *inversely* to it: **20 / 16 / 12 / 9 / 8** for scales 1–5 (Hard trio 12). `count × heal` is near-invariant (140/144/144/135/144), which points at a fixed healing pool split across the exhumeds — so no single heal constant is correct, and it cannot be derived from his max HP (which is flat across scales 1–3 while the heal is not). See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
@@ -2136,7 +2184,7 @@ approximation and tag it in `tob.constant`.
 | M51 | Verzik | Hard Mode's own two unquantified numbers: how hard a **red explodes** when it is left alive into the next summon (stated to happen, never measured — currently borrows the exploding nylocas' 46), and how often a hard-mode **combat nylocas changes colour** (currently the Nylocas room's own 4-tick beat). |
 | M50 | Verzik | Three P3 approximations, each disclosed at its constant: what "heavy damage" is when a **web snaps** on its own; whether the **lightning bounce** passes through her, answered at the segment's midpoint (exact for the straight-line case teams set up, approximate otherwise); and how long the **death bat** is on the floor. |
 | M49 | Verzik | The **P3 melee chance**. The Wiki says only "there is a chance she melees instead" once the tank is adjacent-and-not-overlapping. The predicate is settled (M28); the odds are not. Currently 50 %. |
-| M48 | Verzik | Four P2 rates the sources word rather than state: the **body slam**'s "high chance" when somebody is beside her; how often "**occasionally**" summons a group of exploding nylocas; how many ticks "**every few ticks**" is for the Athanatos heal; and whether the Wiki's 25 % purple roll sits on top of blert's 16-attack floor or replaces it (implemented as both). |
+| M48 | Verzik | Three P2 rates the sources word rather than state: the **body slam**'s "high chance" when somebody is beside her; how many ticks "**every few ticks**" is for the Athanatos heal; and whether the Wiki's 25 % purple roll sits on top of blert's 16-attack floor or replaces it (implemented as both). The fourth is **closed**: "occasionally" for the exploding nylocas is not a rate at all — NR spawns them on the Athanatos branch and nowhere else (§11.2), so they inherit the purple's gate. A flat 20 %-per-attack roll stood here until 2026-08-19 and produced a group of four crabs every fifth auto, reported as "random nylocas". |
 | M47 | Verzik | **Phase 1's pillar geometry.** "It is mandatory to hide behind a pillar" and "each will also collapse after several attacks" are the whole of the record, so three numbers are still this implementation's reading: how close counts as hiding (2 tiles), the collapse radius (2), and the knockback and stun. The *shape* of the rule is sourced — the pillar takes one hit however many hid behind it, and hiding means the pillar is between you and her. **The hit budget is no longer among them**: a pillar is the cache's own 185-hitpoint npc and Verzik's bolt takes Near Reality's `Utils.random(40, 60)` off it, drawn as a real splat with the overhead health bar (`^tob_verzik_pillar_hit_min`/`_max`, `~tob_verzik_pillar_take_hit`). Gate: `::tobpillars`. |
 | M46 | Sotetseg | **How far a wrong maze tile reaches.** The Wiki words the rag as damage to *"the player"*; §9.3 and [`ENCOUNTER_TIMING.md` §5.3](ENCOUNTER_TIMING.md) both word it as damage to *"nearby players"*, which is what makes the maze a team mechanic rather than one person's problem. Nothing states the radius. `^tob_sote_rag_range` is 1 — the 3 × 3 around the tile stepped on, the smallest thing that can mean "nearby". **Near-Reality corroborates the radius** (`validTargets.filter { p.location.withinDistance(it, 1) }`) though not the damage, which it makes a flat `Utils.random(10, 25)` against the Wiki's `6.67 % + 15`; the Wiki figure is kept. |
 | M39 | All | `tools/gen_npc_stats.py` skips any npc with an authored block anywhere in the tree — a rule from when the loader was first-match-wins. It now merges overlays, so the skip should be narrowed to blocks that actually declare stats. 394 of 754 authored blocks are overlay-only, so narrowing would emit generated stats for ~352 npcs at once: worth doing, worth its own diff. The tool currently just refuses to drop a block it already emits. |

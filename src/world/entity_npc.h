@@ -32,6 +32,10 @@ struct WorldEntity_NPC
      *  (Client.ts minimapDraw skips it). Defaults true at spawn so an npc
      *  whose type never resolved still shows, which is the old behaviour. */
     bool minimap_visible;
+    /** NpcType.interactable (opcode 107). The minimap gate is BOTH this and
+     *  `minimap_visible` — see the reference quoted on ToriRS_Npctype. Same
+     *  default-true rule and for the same reason. */
+    bool interactable;
     int combat_level;
     /* 64, matching ToriRS_Npctype.name (TORIRS_NAME_MAX) -- col-tagged names
      * like "<col=00ffff>Ancestral Glyph</col>" don't fit in 32. */

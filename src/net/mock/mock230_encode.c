@@ -4355,6 +4355,21 @@ npc_headbar_id(const struct Mock230Npc* npc)
     return id == MOCK230_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
 }
 
+/*
+ * Whether this npc's hits carry a splat, the other half of the pair above.
+ *
+ * `hitsplat=no` is scenery with hitpoints that must show a bar and not a
+ * number — see the field's note in mock230_content.h. Both halves of the
+ * choice now read off the record, so nothing here decides policy.
+ */
+static int
+npc_shows_hitsplat(const struct Mock230Npc* npc)
+{
+    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
+
+    return def ? def->hitsplat : 1;
+}
+
 static void
 put_npc_extended_v5(
     struct RSAreaBuf* buf,
@@ -4371,7 +4386,15 @@ put_npc_extended_v5(
         &face, recipient, classic, MOCK230_NMASK_FACE_ENTITY, MOCK230_NMASK_FACE_COORD,
         npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
 
-    if( hit )
+    /*
+     * The splat and the bar are two masks, and an npc may want the second
+     * without the first (`hitsplat=no`). Read once, so the flag and the block
+     * below cannot disagree — a flag set without its block shifts every block
+     * after it by however many bytes the client then reads as this one.
+     */
+    int const splat = hit && npc_shows_hitsplat(npc);
+
+    if( splat )
         flag |= V5_NPC_HITMARKS;
     if( getenv("MOCK230_SPLAT_DEBUG") && hit )
         fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
@@ -4411,7 +4434,7 @@ put_npc_extended_v5(
      * TRANSFORMATION. The client reads them in this sequence and nothing on the
      * wire separates them, so a block out of place is read as the next one.
      */
-    if( hit )
+    if( splat )
     {
         /*
          * NpcHitmarkEncoder: p1Alt1 count, then per hit pSmart1or2 type, value,
@@ -4569,6 +4592,20 @@ put_npc_extended(
     int force_type_latch)
 {
     uint32_t mask = npc->masks & 0xff;
+
+    /*
+     * `hitsplat=no`, as far as this revision can honour it.
+     *
+     * The classic block is ONE block carrying the damage and the health
+     * together, so there is no "bar without splat" to select here: dropping the
+     * splat drops the bar with it. The rev-239 writer has two independent masks
+     * and keeps the bar (`put_npc_extended_v5`). Clearing the bits leaves a
+     * mask byte of zero when nothing else is set, which the reader handles —
+     * a byte-aligned block that says nothing, unlike the v5 bitstream the
+     * comment above `npc_extended_pending_v5` warns about.
+     */
+    if( !npc_shows_hitsplat(npc) )
+        mask &= ~(uint32_t)(MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2);
 
     if( force_face_latch && npc->face_entity != -1 )
         mask |= MOCK230_NMASK_FACE_ENTITY;

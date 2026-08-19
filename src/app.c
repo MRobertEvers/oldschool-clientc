@@ -1896,10 +1896,20 @@ App_MinimapBuildDots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-            /* NpcType.minimap (config opcode 93), copied onto the entity when
-             * its type resolves: an npc that clears it draws no dot at all
-             * (reference minimapDraw's `npc.type.minimap` gate). */
+            /*
+             * TWO config flags, not one, and both are copied onto the entity
+             * when its type resolves. Rev 239's `method2403`:
+             *
+             *   if (var8 != null && var8.isMinimapVisible() && var8.isInteractible())
+             *
+             * — opcode 93 AND opcode 107, on the transformed composition. Only
+             * the first was read here, which is why the Theatre of Blood's
+             * Nylocas supports drew four dots on the minimap: 8358 states
+             * `interactable=no` and says nothing at all about opcode 93, so
+             * the cache was right and the gate was half of one.
+             */
             if( !npc || npc->multinpc_hidden || !npc->minimap_visible ||
+                !npc->interactable ||
                 npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
@@ -12224,6 +12234,7 @@ app_world_spawn_npc_now(
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
             npc->minimap_visible = npctype->minimap_visible;
+            npc->interactable = npctype->interactable;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -19793,6 +19804,7 @@ App_WorldApplyNpcType(
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
             npc->minimap_visible = npctype->minimap_visible;
+            npc->interactable = npctype->interactable;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

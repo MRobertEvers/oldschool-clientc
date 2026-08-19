@@ -602,6 +602,126 @@ World_EmitAnimFrameSound(
         (int)draw_position->z);
 }
 
+/*
+ * ONE STEPPER, BOTH TRACKS -- an exact port of the reference's `method4366`
+ * (Statics.java:11987), which is what `method5261` calls for a classic-frame
+ * sequence and which the entity update runs over the movement track
+ * (`field1504`) and the action track (`field1505`) alike.
+ *
+ *     int var9 = var1 + var7;                       // advance + carried cycle
+ *     while (var9 > var5.field4651[var6]) {         // > this frame's duration
+ *         var9 -= var5.field4651[var6];             // CARRY the remainder
+ *         var6++;
+ *         if ((var4 & 0x2) == 0 && var2 != null) var2.method9642(var5, var6, ..);
+ *         if (var6 >= var5.field4649.length) {
+ *             var8++; var4 |= 0x1;
+ *             var6 -= var5.field4652;               // frame -= frameStep
+ *             if (var8 >= var5.field4661) var4 |= 0x2;
+ *             if (!(var6 >= 0 && var6 < len)) { var4 |= 0x2; var6 = 0; }
+ *             if ((var4 & 0x2) == 0) var2.method9642(var5, var6, ..);
+ *         }
+ *     }
+ *
+ * The two tracks used to have two implementations here and only the action one
+ * was faithful. The secondary zeroed the accumulator on every frame advance
+ * instead of subtracting the frame's duration, and the arithmetic of that is
+ * not subtle: `cycle` is pre-incremented and the test is `cycle > duration`, so
+ * carrying the remainder costs a 3-cycle frame three cycles in the steady state
+ * and dropping it costs four. **Every idle and walk animation in the game ran a
+ * third slow**, on a different clock from the action animation covering it, and
+ * the error scaled with the frame duration -- a 1-cycle frame ran at half speed.
+ * Xarpus is where it is loudest, because his 4-tick spit cadence cuts to the
+ * idle twenty times a minute and it is never where the previous cut left it.
+ *
+ * It also used `if` rather than `while`, so a track could not advance more than
+ * one frame per call however many cycles it was handed, and wrapped to frame 0
+ * unconditionally rather than through `frameStep`/`maxLoops`.
+ */
+enum
+{
+    WORLD_ANIM_STEP_LOOPED = 0x1,
+    WORLD_ANIM_STEP_FINISHED = 0x2,
+    WORLD_ANIM_STEP_ADVANCED = 0x4,
+};
+
+static int
+World_StepAnimationTrack(
+    struct World* world,
+    struct WorldEntityFacet_AnimationStep* step,
+    int cycles,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int emit_sounds)
+{
+    int seq = step->anim_id;
+    int count = cycle_seq_frame_count(world, seq);
+    int frame;
+    int accumulated;
+    int loop;
+    int flags = 0;
+
+    assert(world);
+    assert(step);
+
+    /*
+     * A seq whose frames are not resident cannot advance and cannot end, so the
+     * entity holds frame 0 of it. That is what a corpse stuck in its death pose
+     * is: the animation never played and never finished, and both halves are
+     * silent -- `count > 0` simply skips the whole block.
+     */
+    if( count <= 0 )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr, "anim: seq %d has no frames; held at frame 0\n", seq);
+        return 0;
+    }
+
+    frame = step->frame;
+    accumulated = step->cycle;
+    loop = step->loop;
+    /* Reference guard: a frame index past the end of the seq resets both. It
+     * happens when a track keeps its frame across a seq change. */
+    if( frame >= count )
+    {
+        frame = 0;
+        accumulated = 0;
+    }
+
+    accumulated += cycles;
+    while( accumulated > cycle_seq_frame_duration(world, seq, frame) )
+    {
+        accumulated -= cycle_seq_frame_duration(world, seq, frame);
+        frame++;
+        flags |= WORLD_ANIM_STEP_ADVANCED;
+        if( !(flags & WORLD_ANIM_STEP_FINISHED) && emit_sounds )
+            World_EmitAnimFrameSound(world, draw_position, seq, frame);
+        if( frame >= count )
+        {
+            int frame_step = cycle_seq_frame_step(world, seq);
+            loop++;
+            flags |= WORLD_ANIM_STEP_LOOPED;
+            frame -= frame_step;
+            if( loop >= cycle_seq_max_loops(world, seq) )
+                flags |= WORLD_ANIM_STEP_FINISHED;
+            if( frame < 0 || frame >= count )
+            {
+                flags |= WORLD_ANIM_STEP_FINISHED;
+                frame = 0;
+            }
+            /* Looped rather than finished: the frame it looped back onto sounds,
+             * exactly as the frames before it did. Xarpus' first wing flap is on
+             * frame 1 of a looping readyanim, so a loop that emitted nothing on
+             * its way round would drop one flap in three. */
+            if( !(flags & WORLD_ANIM_STEP_FINISHED) && emit_sounds )
+                World_EmitAnimFrameSound(world, draw_position, seq, frame);
+        }
+    }
+
+    step->frame = (uint16_t)frame;
+    step->cycle = (uint16_t)accumulated;
+    step->loop = (uint8_t)(loop > 255 ? 255 : loop);
+    return flags;
+}
+
 /* One client cycle of frame stepping for an entity's animation tracks +
  * attached graphic (exact port of Client.ts entityAnim, 4000-4075). */
 static void
@@ -617,32 +737,26 @@ World_StepEntityAnimation(
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
     anim->needs_forward_draw_padding = 0;
 
-    /* Secondary (idle/walk) loops forever. */
+    /*
+     * Secondary (idle/walk). The reference steps it first and resets it on the
+     * same terms as any other track (`Statics` ~40056):
+     *
+     *     int var10 = method5261(var1.field1504, 1, field6534, ..);
+     *     if ((var10 & 0x2) != 0) method9990(var1.field1504, ..);
+     *
+     * -- so a movement animation that runs out of loops restarts rather than
+     * parking, which is what makes a readyanim loop forever without the wrap
+     * being special-cased here.
+     */
     if( anim_step_active(&anim->secondary) )
     {
-        int seq = anim->secondary.anim_id;
-        int count = cycle_seq_frame_count(world, seq);
-        if( count > 0 )
+        int flags =
+            World_StepAnimationTrack(world, &anim->secondary, 1, draw_position, 1);
+        if( flags & WORLD_ANIM_STEP_FINISHED )
         {
-            anim->secondary.cycle++;
-            if( anim->secondary.frame < count &&
-                anim->secondary.cycle > cycle_seq_frame_duration(world, seq, anim->secondary.frame) )
-            {
-                anim->secondary.cycle = 0;
-                anim->secondary.frame++;
-                if( anim->secondary.frame < count )
-                    World_EmitAnimFrameSound(world, draw_position, seq, anim->secondary.frame);
-            }
-            if( anim->secondary.frame >= count )
-            {
-                anim->secondary.frame = 0;
-                anim->secondary.cycle = 0;
-                /* The wrap lands on frame 0, and the reference announces that
-                 * frame too -- Xarpus' first wing flap is on frame 1 of a
-                 * looping readyanim, so a loop that emitted nothing on its way
-                 * round would drop one flap in three. */
-                World_EmitAnimFrameSound(world, draw_position, seq, 0);
-            }
+            anim->secondary.frame = 0;
+            anim->secondary.cycle = 0;
+            anim->secondary.loop = 0;
         }
     }
 
@@ -690,111 +804,42 @@ World_StepEntityAnimation(
 
         if( anim->primary.delay == 0 )
         {
-            int count = cycle_seq_frame_count(world, seq);
-
-            /*
-             * A seq whose frames are not resident cannot advance and cannot
-             * end, so the entity holds frame 0 of it for the rest of the
-             * session. That is what a corpse stuck in its death pose is: the
-             * animation never played and never finished, and both halves are
-             * silent — `count > 0` simply skips the whole block.
-             *
-             * The guard is still right (a seq that is still loading must wait,
-             * not expire instantly at frame 0 >= count 0), so what is missing
-             * is not a different rule but a way to see it happen.
-             */
-            if( count <= 0 && getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(
-                    stderr, "anim: primary seq %d has no frames; held at frame 0\n", seq);
-            if( count > 0 )
+            int flags = World_StepAnimationTrack(world, &anim->primary, 1, draw_position, 1);
+            if( flags & WORLD_ANIM_STEP_FINISHED )
             {
-                anim->primary.cycle++;
-                while( anim->primary.frame < count &&
-                       anim->primary.cycle >
-                           cycle_seq_frame_duration(world, seq, anim->primary.frame) )
+                /*
+                 * The reference clears the action track and then, in the same
+                 * breath, restarts the idle underneath it (Statics ~40139):
+                 *
+                 *   if ((var17 & 0x2) != 0) {
+                 *       var1.field1505.method9935(..);              // clear
+                 *       if (var1.field1504.method9969(..) == var1.field1498)
+                 *           if (var1.method2909(..))                // opcode 130
+                 *               method9990(var1.field1504, ..);     // frame = 0
+                 *   }
+                 *
+                 * `method9935` is `method9934(-1)`, i.e. seq = -1. The restart
+                 * exists because the secondary keeps stepping underneath the
+                 * action, so by the time the action ends it sits at an arbitrary
+                 * frame and revealing it there is a jump cut.
+                 *
+                 * Three conditions, all the reference's, and each one earns its
+                 * place: the secondary has to BE the readyanim (restarting a
+                 * walk animation would stutter the gait, and it is positional),
+                 * the entity has to carry NpcType opcode 130 (`method2909` is a
+                 * hard `false` on the player class, so players never do this),
+                 * and it fires on the FINISH, not on a loop-back.
+                 */
+                anim->primary.anim_id = (uint16_t)-1;
+                anim->primary.frame = 0;
+                anim->primary.cycle = 0;
+                anim->primary.loop = 0;
+                if( idle && idle->idle_anim_restart && anim_step_active(&anim->secondary) &&
+                    anim->secondary.anim_id == (uint16_t)idle->readyanim )
                 {
-                    anim->primary.cycle = (uint16_t)(
-                        anim->primary.cycle -
-                        cycle_seq_frame_duration(world, seq, anim->primary.frame));
-                    anim->primary.frame++;
-                    if( anim->primary.frame < count )
-                        World_EmitAnimFrameSound(
-                            world, draw_position, seq, anim->primary.frame);
-
-                    if( anim->primary.frame >= count )
-                    {
-                        int fstep = cycle_seq_frame_step(world, seq);
-                        int mloops = cycle_seq_max_loops(world, seq);
-                        int stepped = (int)anim->primary.frame - fstep;
-                        anim->primary.loop++;
-                        if( getenv("TORIRS_ANIM_DEBUG") )
-                            fprintf(
-                                stderr,
-                                "loopback: seq=%d frame=%d count=%d frame_step=%d "
-                                "max_loops=%d loop=%d stepped=%d -> %s\n",
-                                seq,
-                                (int)anim->primary.frame,
-                                count,
-                                fstep,
-                                mloops,
-                                anim->primary.loop,
-                                stepped,
-                                (anim->primary.loop >= mloops || stepped < 0 || stepped >= count)
-                                    ? "STOP"
-                                    : "LOOP");
-                        if( anim->primary.loop >= cycle_seq_max_loops(world, seq) ||
-                            stepped < 0 || stepped >= count )
-                        {
-                            anim->primary.anim_id = (uint16_t)-1;
-                            anim->primary.frame = 0;
-                            anim->primary.cycle = 0;
-                            anim->primary.loop = 0;
-                            /*
-                             * THE IDLE RESTARTS UNDER AN ENTITY THAT ASKS FOR
-                             * IT. The reference does this in the same breath as
-                             * clearing the action track (Statics ~40139):
-                             *
-                             *   if ((var17 & 0x2) != 0) {
-                             *       var1.field1505.method9935(...);   // clear
-                             *       if (var1.field1504.method9969(...)
-                             *               == var1.field1498)        // == readyanim
-                             *           if (var1.method2909(...))     // opcode 130
-                             *               method9990(var1.field1504, ...);
-                             *   }
-                             *
-                             * `method9990` zeroes frame/cycle/loop. The point of
-                             * it is what the secondary track does while the
-                             * action covers it: it keeps stepping, so by the
-                             * time the action ends it is at an arbitrary frame,
-                             * and revealing it there is a jump cut. Xarpus is
-                             * the case that shows it -- his 52-frame idle came
-                             * back at frame 30, then 13, then 50, then 18 after
-                             * successive spits.
-                             *
-                             * Three conditions, all of them the reference's, and
-                             * each one matters: the secondary has to BE the
-                             * readyanim (a walk animation is positional and
-                             * restarting it would stutter the gait), the entity
-                             * has to carry opcode 130 (`method2909` is a hard
-                             * `false` on the player class, so players never do
-                             * this), and it happens on the FINISH rather than on
-                             * a loop-back.
-                             */
-                            if( idle && idle->idle_anim_restart &&
-                                anim_step_active(&anim->secondary) &&
-                                anim->secondary.anim_id == (uint16_t)idle->readyanim )
-                            {
-                                anim->secondary.frame = 0;
-                                anim->secondary.cycle = 0;
-                            }
-                            break;
-                        }
-                        anim->primary.frame = (uint16_t)stepped;
-                        /* Looped rather than finished: the frame it looped back
-                         * onto sounds, exactly as the frames before it did. */
-                        World_EmitAnimFrameSound(
-                            world, draw_position, seq, anim->primary.frame);
-                    }
+                    anim->secondary.frame = 0;
+                    anim->secondary.cycle = 0;
+                    anim->secondary.loop = 0;
                 }
             }
             /* Reference entityAnim (Client.ts:4069): an active, un-delayed

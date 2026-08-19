@@ -410,6 +410,31 @@ struct Mock230NpcDef
      * nothing keeps exactly the bar it has today.
      */
     int healthbar;
+    /**
+     * `hitsplat=no`: this npc's hits raise a health bar and no splat.
+     *
+     * Ours, not the reference's. The two masks are already independent on the
+     * wire — the hitsplat block carries no health and the headbar block carries
+     * no damage — so "bar, no splat" is a shape the protocol can express and
+     * only the server's choice of masks decides. It is the exact twin of
+     * `healthbar=null` one field up, which spells the other half.
+     *
+     * The Nylocas supports are the case, and Near-Reality states it the same
+     * way: `PillarSupport.processHit` flags the hit and calls `addHitbar()`
+     * without ever adding the hit to the splat list, so a support chewed by
+     * 120 nylocas over a room shows a draining bar and not one number. Ours
+     * showed a red splat per bite per pillar — four columns of scrolling
+     * damage nobody in the raid can act on.
+     *
+     * Default yes, so every npc that is actually fought keeps its splats.
+     *
+     * Only the rev-239 writer can honour this. The classic (rev-230) npc mask
+     * puts the splat and the health in ONE block, so there the choice is the
+     * whole block or nothing; `put_npc_extended` drops it, which costs the bar
+     * as well. Stated rather than silently ignored, because a revision that
+     * cannot express the field is worth knowing about at the one call site.
+     */
+    int hitsplat;
 
     /* Seeded from the cache's params, overridable with `param=`. */
     int bonus[MOCK230_PARAM_BONUS_COUNT];

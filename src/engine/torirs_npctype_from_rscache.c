@@ -134,6 +134,10 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->height = -1;
     npctype->alwaysontop = src->alwaysontop;
     npctype->minimap_visible = src->minimap;
+    /* dat1 has no opcode 107. True rather than the calloc zero: the flag's
+     * default IS true, and a false here would take the minimap dot off every
+     * npc in every dat1 cache. */
+    npctype->interactable = true;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
     /* The dat1 decoder does not surface opcode 102. Stated rather than left at
@@ -243,6 +247,10 @@ ToriRS_NpctypeFromRSCacheDat2(
         src->retexture_count);
 
     npctype->readyanim = src->standing_animation > 0 ? src->standing_animation : -1;
+    /* Opcode 130 (rev 236+): restart the idle when an action animation finishes.
+     * Decoded here since 236 and read by nobody until now — see
+     * World_StepEntityAnimation. dat1 has no equivalent opcode. */
+    npctype->idle_anim_restart = src->idle_anim_restart;
     npctype->walkanim = src->walking_animation > 0 ? src->walking_animation : -1;
     npctype->walkanim_b = src->rotate180_animation > 0 ? src->rotate180_animation : -1;
     npctype->walkanim_r = src->rotate_right_animation > 0 ? src->rotate_right_animation : -1;
@@ -263,6 +271,7 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->height = src->height;
     npctype->alwaysontop = src->has_render_priority;
     npctype->minimap_visible = src->is_minimap_visible;
+    npctype->interactable = src->is_interactable;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
     /*
