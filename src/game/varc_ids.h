@@ -22,11 +22,27 @@ struct VarCIds
     /* VarC STRING: the chatbox text-input dialog mirrors its current input
      * string here (CS2 reads it back to submit). */
     int chatbox_input_string;
+    /*
+     * VarC INT: an interface's own text box has taken the keyboard.
+     *
+     * Set to 1 by `~chatdefault_stopinput` (proc 2157), which is what every
+     * panel with a search field calls — settings 134, collection log 621,
+     * league tasks — along with disarming the chatbox's onKey. Put back to 0 by
+     * `~chatdefault_restoreinput` (proc 4079, wrapper clientscript 2158), which
+     * re-arms it. Never written reads -1, so the test is `== 1` and not
+     * `!= 0`.
+     *
+     * The C client reads it for one thing: while a box owns the keyboard no
+     * client-side hotkey may fire, or a search term switches tabs and flies the
+     * camera as it is typed.
+     */
+    int interface_input_active;
 };
 
 /* OSRS revision 230 (and the near-era caches this client targets). */
 static const struct VarCIds VARC_IDS_OSRS230 = {
     .chatbox_input_string = 335,
+    .interface_input_active = 11,
 };
 
 /** Resolve the varc id set for a revision. Defaults to the OSRS-230 set (the

@@ -73,6 +73,32 @@ struct RS_ChatWidgetLayout
      * not own the input line. No such revision is known.
      */
     int input_child;
+    /**
+     * The same `chatbox:input` component, named for the OTHER thing the client
+     * does with it: paint the unfocused prompt ("Press Enter to chat...") over
+     * whatever the clientscript composed. -1 = this revision has no prompt.
+     *
+     * Two fields for one component id because they are opposite claims of
+     * ownership, and conflating them is what `input_child`'s comment above is
+     * about. `input_child` says "the client composes this line, every frame,
+     * from RS_Chat.input". `prompt_child` says the reverse: the script owns the
+     * line, and the client only borrows the component while the chat has no
+     * focus — putting the script's version back by re-running `input_script`
+     * the moment focus returns. Setting both would be a contradiction, which is
+     * why no revision does.
+     */
+    int prompt_child;
+    /**
+     * Clientscript that recomposes `prompt_child` from the era's own input
+     * state (rev 230: 223, `<icon><chat_playername>: <col=…><typed></col>*` out
+     * of `%varcstring335`). Run on focus gain, to undo the prompt.
+     *
+     * A script rather than a saved copy of the text: while the chat is
+     * unfocused the cache can still rewrite that line for its own reasons — a
+     * filter tab changing the mode icon is one — and a restore that replayed a
+     * snapshot would put a stale line back. 0 = none.
+     */
+    int input_script;
     /** Pixels per line — the height the line components declare. */
     int line_height;
 };

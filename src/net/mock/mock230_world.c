@@ -38116,18 +38116,18 @@ mock230_world_selftest(void)
                         int iface;
 
                         /*
-                         * Seven bytes either way, with the fields in opposite
-                         * orders: the rev-230 hybrid writes the combined uid
-                         * first and the group after it, revision 239 writes the
-                         * group first (g2-le-add128). The fixture is a 230
-                         * player, so read that layout — and say which, because
-                         * reading it the other way round finds a plausible
-                         * interface id in the top half of a component uid and
-                         * asserts nothing.
+                         * `p1 type, p2Alt2 group, p4Alt3 uid` — the fixture's
+                         * layout, straight out of `mock230_send_if_opensub`,
+                         * and worth spelling out because every field of it is
+                         * scrambled: alt2 writes the HIGH byte first and the
+                         * low byte PLUS 128 second. Read as a plain big-endian
+                         * pair it yields a number that is never any real
+                         * interface id — an assertion that cannot pass rather
+                         * than one that cannot fail, and identical from outside.
                          */
                         if( packet->len < 7 )
                             continue;
-                        iface = (packet->data[4] << 8) | packet->data[5];
+                        iface = (packet->data[1] << 8) | ((packet->data[2] - 128) & 0xff);
                         if( iface == k_text_iface )
                             mounted_text = 1;
                         /* 97/98/99 are darkness_light / _medium / _dark. The

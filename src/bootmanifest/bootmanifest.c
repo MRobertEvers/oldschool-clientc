@@ -555,6 +555,16 @@ bm_set_kv(
             bm->chatbox_input = atoi(value);
             return;
         }
+        if( strcmp(key, "chatbox_prompt") == 0 )
+        {
+            bm->chatbox_prompt = atoi(value);
+            return;
+        }
+        if( strcmp(key, "chatbox_input_script") == 0 )
+        {
+            bm->chatbox_input_script = atoi(value);
+            return;
+        }
         if( strcmp(key, "chatbox_line_height") == 0 )
         {
             bm->chatbox_line_height = atoi(value);
@@ -925,6 +935,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
      * scroll layer, and 0 is a real component child id. */
     bm->chatbox_messages = -1;
     bm->chatbox_input = -1;
+    bm->chatbox_prompt = -1;
 
     FILE* f = fopen(path, "rb");
     if( !f )
@@ -1210,6 +1221,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->chatbox.first_line = bm->chatbox_first_line;
         cfg->chatbox.line_count = bm->chatbox_line_count;
         cfg->chatbox.input_child = bm->chatbox_input;
+        cfg->chatbox.prompt_child = bm->chatbox_prompt;
+        cfg->chatbox.input_script = bm->chatbox_input_script;
         cfg->chatbox.line_height = bm->chatbox_line_height;
     }
     if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )

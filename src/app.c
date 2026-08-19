@@ -31,6 +31,7 @@
 #include "game/rs_minimenu_cross.h"
 #include "game/rs_worldmap.h"
 #include "game/rs_worldmap_render.h"
+#include "game/varc_ids.h"
 #include "game/task_cs1_run.h"
 #include "game/task_cs2_run.h"
 #include "game/task_exec_entity_info.h"
@@ -196,8 +197,22 @@ app_chat_region(
     return 1;
 }
 
+/* Component id of a chatbox child, for the revisions whose chatbox is widgets. */
+static int
+app_chatbox_uid(
+    struct App const* app,
+    int child)
+{
+    return (app->cfg.chatbox.interface_id << 16) | (child & 0xffff);
+}
+
 /* True when a canvas-space point lands inside the chat region's bounds. Used to
- * decide chat input focus on a left click. */
+ * decide chat input focus on a left click.
+ *
+ * Both eras answer it, because focus is not a dat1 idea: a revconfig tree tags
+ * its chat region with a slot (`slots.chat_index`), and a cache tree has the
+ * chatbox interface's own root instead (rev 230: 162:0, the node whose onKey
+ * hook is the typed line). Only one of the two exists in any given boot. */
 static int
 app_point_in_chat(
     struct App const* app,
@@ -205,13 +220,219 @@ app_point_in_chat(
     int y)
 {
     struct UITreeComponent const* node;
+    int32_t idx = app->slots.chat_index;
     int bx = 0, by = 0, bw = 0, bh = 0;
 
-    if( app->slots.chat_index < 0 )
+    if( idx < 0 && RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
+        idx = UITree_FindByComponentId(app->tree, app_chatbox_uid(app, 0));
+    if( idx < 0 )
         return 0;
-    node = &app->tree->components[app->slots.chat_index];
+    node = &app->tree->components[idx];
     UITree_LayoutGetBounds(&node->position, &bx, &by, &bw, &bh);
     return x >= bx && x < bx + bw && y >= by && y < by + bh;
+}
+
+/*
+ * An interface's own text box has the keyboard.
+ *
+ * A panel with a search field (settings 134, collection log 621, league tasks)
+ * takes it by calling `~chatdefault_stopinput`, which sets this varc and
+ * disarms the chatbox's onKey; `~chatdefault_restoreinput` puts both back. It
+ * is the cache's own focus flag, and reading it is how the client learns that
+ * something it does not own is being typed into. Unset reads -1, which is not
+ * "a box has it" — hence `== 1`. */
+static int
+app_iface_text_input_focused(struct App const* app)
+{
+    struct VarCIds const* ids =
+        varc_ids_for_revision(app->net && app->net->rev ? (int)app->net->rev->revision : 0);
+
+    assert(app);
+    if( ids->interface_input_active < 0 )
+        return 0;
+    return VarCManager_GetInt(&app->varcs, ids->interface_input_active) == 1;
+}
+
+/*
+ * Is the keyboard spoken for by something the player is typing into?
+ *
+ * The one question every hotkey has to ask, and the reason it is a function
+ * rather than the three-flag conjunction it used to be spelled as at four call
+ * sites: each of those spellings was a list of the text inputs that existed
+ * when it was written, so a text input added later silently kept the hotkeys
+ * live underneath it. `f` switching a tab behind the caret, a spawn digit
+ * spawning while typing a bank amount, W flying the camera through a search
+ * term — all one bug, four times.
+ */
+static int
+app_text_input_focused(struct App const* app)
+{
+    assert(app);
+    return app->chat_input_active || app->chat.social_input_open ||
+           app->chat.dialog_input_open || app_iface_text_input_focused(app);
+}
+
+/*
+ * The unfocused chat line.
+ *
+ * The focused line ends in the reference's `*` caret; this one ends in an
+ * ellipsis and says what to press, because "no caret" on its own is a
+ * difference nobody reads — the symptom players report is that typing does
+ * nothing, not that a character is missing. The colour is a muted grey against
+ * the chatbox's tan, so the prompt reads as chrome rather than as a message
+ * somebody sent.
+ */
+#define APP_CHAT_PROMPT_TEXT "<col=4a443a>Press Enter to chat...</col>"
+
+/*
+ * Paint the prompt over the script-owned input line while the chat is
+ * unfocused (see RS_ChatWidgetLayout.prompt_child).
+ *
+ * Every frame rather than once on the focus edge: while unfocused the cache can
+ * still rewrite that component for its own reasons — the filter tabs recompose
+ * the line to change the mode icon — and a one-shot write would be silently
+ * undone by the next one of those. The text is compared first, so the ordinary
+ * case is a read and the tree is not marked dirty 50 times a second.
+ */
+static void
+app_chat_prompt_apply(struct App* app)
+{
+    struct UITreeComponent const* node;
+    int32_t idx;
+    int uid;
+
+    assert(app);
+    if( app->cfg.chatbox.prompt_child < 0 || app->chat_input_active )
+        return;
+
+    uid = app_chatbox_uid(app, app->cfg.chatbox.prompt_child);
+    idx = UITree_FindByComponentId(app->tree, uid);
+    if( idx < 0 )
+        return;
+    node = &app->tree->components[idx];
+    if( node->type == UIELEM_RS_TEXT && node->u.rs_text.text &&
+        strcmp(node->u.rs_text.text, APP_CHAT_PROMPT_TEXT) == 0 )
+        return;
+    UITree_ApplyText(app->tree, uid, APP_CHAT_PROMPT_TEXT);
+}
+
+/*
+ * Chat input focus, for the frame.
+ *
+ * Runs ahead of the keyboard broadcast so the frame's keys are routed by a
+ * focus state this frame's clicks and Enter have already been folded into,
+ * rather than by last frame's.
+ *
+ * Focus is taken by clicking the chat region or by pressing Enter, and dropped
+ * by clicking anywhere else, by Escape, and by sending the line. Which is the
+ * whole point of the state: while it is off every key belongs to the hotkeys,
+ * and while it is on none of them do.
+ *
+ * @param pointer_consumed an open minimenu already claimed this frame's press.
+ * @param out_submit set when Enter arrived with the line focused — the line
+ *        sends this frame, and the focus goes with it once the sending script
+ *        has run (which is after this returns).
+ * @return nonzero when the frame's keys must not reach the chat line at all:
+ *         the Escape that dropped focus and the Enter that took it are focus
+ *         commands, not text. It suppresses anything else typed in the same
+ *         20ms frame, which is not a rate a player types at.
+ */
+static int
+app_chat_focus_tick(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    int pointer_consumed,
+    int* out_submit)
+{
+    int suppress = 0;
+    int const was_focused = app->chat_input_active;
+
+    assert(app);
+    assert(input);
+    assert(out_submit);
+    *out_submit = 0;
+
+    /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
+     * already forced the focus flags off; do not hand them back under it. */
+    if( app->locedit_visible )
+        return 0;
+    /* A panel's own search box has the keyboard (the cache disarmed the
+     * chatbox's onKey to give it to them), so the chat line cannot also have
+     * it. Dropping focus here rather than merely ignoring it keeps
+     * app_text_input_focused's two halves from both claiming to be the focused
+     * one. */
+    if( app_iface_text_input_focused(app) )
+    {
+        app->chat_input_active = 0;
+        return 0;
+    }
+
+    if( !pointer_consumed && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        app->chat_input_active = app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
+
+    for( int e = 0; e < input->key_event_count; e++ )
+    {
+        int const typed = input->key_events[e].key_typed;
+
+        if( typed == TORIRS_OSRSKEY_ESCAPE )
+        {
+            app->chat_input_active = 0;
+            suppress = 1;
+            continue;
+        }
+        if( typed != TORIRS_OSRSKEY_ENTER )
+            continue;
+        /* Enter with the line unfocused takes focus instead of submitting, so
+         * the keyboard alone can start a message; with it focused it submits,
+         * and the focus is released with the message the way the reference's
+         * press-enter-to-chat does. */
+        if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+            *out_submit = 1;
+        else
+        {
+            app->chat_input_active = 1;
+            suppress = 1;
+        }
+    }
+
+    if( app->chat_input_active != was_focused )
+    {
+        app->need_redraw = 1;
+        /* Focus regained: undo the prompt by asking the era's own script to
+         * recompose the line from the input state it keeps (rev 230: 223 out of
+         * %varcstring335). Enqueued like any other clientscript; the frame's
+         * pump runs it. */
+        if( app->chat_input_active && app->cfg.chatbox.input_script > 0 )
+            RS_CS2_RunScript(
+                &app->host, &app->runner, app->cfg.chatbox.input_script, NULL, 0, 0, NULL, 0);
+    }
+    return suppress;
+}
+
+/*
+ * May this component's onKey hook see the frame's typed keys?
+ *
+ * The chatbox's hook (script 73 at rev 230) is the typed line itself, so it
+ * sees a key only while the line has focus — otherwise every keystroke lands in
+ * a line the player is not looking at, which is what the chatbox used to do.
+ * Everything else is the mirror image: while the line has focus no other onKey
+ * runs, and the gameframe's key handler (script 905, the one that switches
+ * tabs) is the reason that matters.
+ *
+ * Revisions with no widget chatbox have neither hook and gate nothing.
+ */
+static int
+app_key_target_accepts(
+    struct App const* app,
+    int com_id,
+    int chat_keys_suppressed)
+{
+    assert(app);
+    if( !RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
+        return 1;
+    if( ((com_id >> 16) & 0xffff) == app->cfg.chatbox.interface_id )
+        return app->chat_input_active && !chat_keys_suppressed;
+    return !app->chat_input_active;
 }
 
 /*
@@ -236,6 +457,7 @@ app_chat_build_view(struct App* app)
     if( RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
     {
         RS_ChatWidgets_Apply(app->tree, &app->chat, &filters, &app->cfg.chatbox);
+        app_chat_prompt_apply(app);
         memset(&app->chat_view, 0, sizeof(app->chat_view));
         return;
     }
@@ -4129,7 +4351,7 @@ app_debug_overlay_tick(
 
     /* Suppressed while a text line has focus, like the camera keys: typing a
      * message must not flip debug chrome. */
-    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
+    if( !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_DEBUG_OVERLAY) )
     {
         app->dbg_visible = !app->dbg_visible;
@@ -4466,8 +4688,7 @@ app_loc_editor_tick(
 
     /* Same suppression as the developer overlay toggle: a chat line has focus
      * must not also flip debug chrome. */
-    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
-        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
+    if( !app_text_input_focused(app) && app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
     {
         /* Toggling visibility only, never the selection -- a target picked
          * with Reselect stays active across a close/reopen. */
@@ -4480,7 +4701,7 @@ app_loc_editor_tick(
      * Restores the configured mode instead of a literal 1, so a run started
      * with TORIRS_HOVER_FOOTPRINT=<loc id> keeps outlining that id after an
      * off/on rather than silently downgrading to "the hovered loc". */
-    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
+    if( !app_text_input_focused(app) &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_HOVER_FOOTPRINT) )
     {
         app->hover_footprint = app->hover_footprint ? 0 : app->hover_footprint_mode;
@@ -10572,12 +10793,14 @@ app_world_camera_keys(
          app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PAINT_LESS_100)) )
         fprintf(
             stderr,
-            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d chat=%d/%d/%d\n",
+            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d "
+            "chat=%d/%d/%d iface_input=%d\n",
             app->world_active,
             app->world_view_valid,
             app->chat_input_active,
             app->chat.social_input_open,
-            app->chat.dialog_input_open);
+            app->chat.dialog_input_open,
+            app_iface_text_input_focused(app));
 
     /* No key_target gating: the reference broadcasts every key to onKey
      * scripts AND moves the camera in the same frame; there is no focused
@@ -10585,9 +10808,9 @@ app_world_camera_keys(
      * screen — with no world drawn these keys belong to the interface. */
     if( !app->world_active || !app->world_view_valid )
         return;
-    /* Suppressed while the chat input line (or a modal text prompt) has focus,
-     * so typing a message never flies the camera. */
-    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+    /* Suppressed while any text input has focus (the chat line, a modal
+     * prompt, a panel's search box), so typing never flies the camera. */
+    if( app_text_input_focused(app) )
         return;
     (void)out;
 
@@ -10744,7 +10967,7 @@ app_ui_hotkeys(
         return;
     /* Typing wins over every binding — otherwise "f" in a chat line, or a digit
      * in a bank amount, silently switches tabs behind the caret. */
-    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+    if( app_text_input_focused(app) )
         return;
     /* An open right-click menu owns the pointer; let it own the keyboard too,
      * matching how interact_minimenu swallows everything until it closes. */
@@ -14114,8 +14337,9 @@ app_world_hotkeys(
     (void)out;
     if( !app->world_active || !app->world_view_valid )
         return;
-    /* Suppressed while composing chat, so spawn-digit keys type instead. */
-    if( app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open )
+    /* Suppressed while any text input has focus, so spawn-digit keys type
+     * instead. */
+    if( app_text_input_focused(app) )
         return;
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return;
@@ -17740,6 +17964,13 @@ App_RunOnce(
         }
     }
 
+    /* Chat input focus, before the keys are handed out: which onKey hooks may
+     * see this frame's keys is a focus question, and the frame's own clicks and
+     * Enter are part of the answer. */
+    int chat_submit_pending = 0;
+    int const chat_keys_suppressed =
+        app_chat_focus_tick(app, input, out.minimenu_consumed_pointer, &chat_submit_pending);
+
     /* Keyboard broadcast: every event this frame times every visible onKey
      * handler (reference OsrsClient key dispatch). Unlike the intent loop above
      * this re-resolves each component id immediately before dispatching it
@@ -17752,7 +17983,10 @@ App_RunOnce(
         for( int t = 0; t < out.key_target_count; t++ )
         {
             struct UIKeyTarget const* target = &out.key_targets[t];
-            int32_t idx = UITree_FindByComponentId(app->tree, target->component_id);
+            int32_t idx;
+            if( !app_key_target_accepts(app, target->component_id, chat_keys_suppressed) )
+                continue;
+            idx = UITree_FindByComponentId(app->tree, target->component_id);
             if( idx < 0 )
                 continue;
             /* Re-check the hook too: the id may have been reclaimed and handed
@@ -17833,18 +18067,13 @@ App_RunOnce(
      * line even while op-key bindings also fire). Only when a chat region
      * exists (dat1 gameframe), and not while the loc editor is open -- it
      * already forced every chat-focus flag off this frame, and W/A/S/D/R/
-     * Space/Backspace are its keys while it's up, not chat's. */
+     * Space/Backspace are its keys while it's up, not chat's.
+     *
+     * Focus itself is not decided here: app_chat_focus_tick above owns it for
+     * every revision, because a cache chatbox has a focus state too and only
+     * its *typing* is a clientscript's. What is left below is the typing. */
     if( app->slots.chat_index >= 0 && !app->locedit_visible )
     {
-        /* Chat input focus: a left press inside the chat region focuses it, a
-         * press anywhere else unfocuses. Only while focused do typed keys feed
-         * the chat line -- otherwise they are left for the debug camera/world
-         * hotkeys. Modal prompts (add-friend name, amount dialog) always
-         * capture regardless of focus. */
-        if( !out.minimenu_consumed_pointer && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
-            app->chat_input_active =
-                app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
-
         int chat_captures =
             app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;
 
@@ -17855,35 +18084,21 @@ App_RunOnce(
          * the front) is forwarded to the server. */
         for( int e = 0; e < input->key_event_count; e++ )
         {
-            /* Escape does two things at once, neither gated on the other:
-             * releases chat focus (reference: Esc cancels the input line —
-             * and the line is focused by default, so gating the close on
-             * "chat unfocused" would eat the first press) and asks the server
-             * to close whatever modal is up. The close is the same
+            /* Escape asks the server to close whatever modal is up — the same
              * CLOSE_MODAL the gameframe X's clientscript (29, if_close)
              * raises, so what actually closes stays the server's decision and
-             * an idle Escape is a no-op there. */
+             * an idle Escape is a no-op there. Releasing the chat focus was
+             * app_chat_focus_tick's, before the keys were routed. */
             if( input->key_events[e].key_typed == TORIRS_OSRSKEY_ESCAPE )
             {
-                if( app->chat_input_active )
-                {
-                    app->chat_input_active = 0;
-                    chat_captures = app->chat.social_input_open || app->chat.dialog_input_open;
-                }
                 app->host.close_modal_requested = true;
                 app->need_redraw = 1;
                 continue;
             }
-            /* Enter with the line unfocused grabs focus instead of submitting,
-             * so the keyboard alone can start a message. */
-            if( !chat_captures && input->key_events[e].key_typed == TORIRS_OSRSKEY_ENTER )
-            {
-                app->chat_input_active = 1;
-                chat_captures = 1;
-                app->need_redraw = 1;
-                continue;
-            }
-            if( !chat_captures )
+            /* A suppressed frame is one whose keys were focus commands (the
+             * Enter that took focus, the Escape that dropped it); the line must
+             * not type them as well. */
+            if( chat_keys_suppressed || !chat_captures )
                 continue;
 
             int had_input = app->chat.input[0] != '\0';
@@ -18078,6 +18293,17 @@ App_RunOnce(
      * nothing was unhidden. */
     if( out.intent_count > 0 || out.key_target_count > 0 )
         RS_CS2_PumpTransmits(&app->host, &app->runner);
+
+    /* The line was sent this frame, so the focus goes with it: the next key
+     * belongs to the hotkeys again until Enter asks for the line back. Applied
+     * here rather than in the focus tick because both submit paths -- the
+     * clientscript dispatched in the keyboard broadcast, and the dat1
+     * RS_Chat_HandleKey loop -- had to have the frame's Enter first. */
+    if( chat_submit_pending && app->chat_input_active )
+    {
+        app->chat_input_active = 0;
+        app->need_redraw = 1;
+    }
 
     app_world_camera_keys(app, input, &out);
     app_world_camera_mouse(app, input, &out);
