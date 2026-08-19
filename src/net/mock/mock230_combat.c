@@ -771,6 +771,28 @@ mock230_combat_hit_npc(
     npc = &srv->npcs[slot];
     if( !npc->active || npc->death_tick >= 0 )
         return;
+    /*
+     * Already dead by content's hand, not yet by the engine's.
+     *
+     * `[proc,npc_default_damage]` opens with `if (npc_stat(hitpoints) = 0)
+     * return;` — the reference drops a hit on an npc whose bar is empty, and
+     * every player swing reaches it through `[ai_queue2,_]`. But `npc_damage`
+     * from a script, a poison tick and this function's other callers do not
+     * pass through that proc, and a script that zeroes hitpoints itself
+     * (`npc_statsub(hitpoints, 0, 100)` — the ToB Matomenos absorbed at the
+     * Maiden, Zenyte's `setHitpoints(0)`) has said "this one is dead" without
+     * arming `death_tick`. A hit landing in that window used to draw a block
+     * splat, read `hitpoints == 0` below and arm a SECOND death on an npc
+     * already playing its first one: two `elemental_death` sends, and the
+     * client — correctly, per replyMode — does not restart a seq it is
+     * already on, so the corpse held its last frame and read as vanishing.
+     *
+     * Same rule as the content's, stated once at the engine seam all callers
+     * share. Not a silent no-op for a caller bug: a 0-hp npc that is not
+     * dying is a state content has deliberately created.
+     */
+    if( npc->hitpoints == 0 )
+        return;
 
     /* The cache reserves category 981 for the nine attached POH combat
      * dummies. They are damage meters: a landed attack must still emit its

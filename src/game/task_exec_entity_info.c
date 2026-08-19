@@ -1370,6 +1370,11 @@ npc_apply_op(
         }
         break;
     case PKT_NPC_INFO_OP_SEQUENCE:
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr,
+                    "anim: npc SEQUENCE op seq=%d delay=%d slot=%d world_idx=%d%s\n",
+                    op->_sequence.sequence_id, op->_sequence.delay, self->cur_slot, idx,
+                    idx >= 0 ? "" : "  <-- NO TARGET, dropped");
         if( idx >= 0 )
         {
             self->pending_seq = op->_sequence.sequence_id;

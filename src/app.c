@@ -8612,6 +8612,11 @@ app_world_sync_positions(struct App* app)
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
+        if( getenv("TORIRS_NPCPOS_DEBUG") )
+            fprintf(
+                stderr, "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
+                player->grid_position.x, player->grid_position.z,
+                player->grid_position.level, local_level, wx, wz, wy);
         ToriDraw_SceneElementSetPosition(
             app->scene, player->element_id, wx, wy, wz, player->orientation.yaw);
     }
@@ -8630,6 +8635,18 @@ app_world_sync_positions(struct App* app)
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
+        if( getenv("TORIRS_NPCPOS_DEBUG") )
+            fprintf(
+                stderr,
+                "npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
+                "h0=%d h1=%d h2=%d lb=%d\n",
+                npc->npc_id, npc->grid_position.x, npc->grid_position.z,
+                npc->grid_position.level, local_level, wx, wz, wy, npc->size,
+                heightmap_get_interpolated(app->world->heightmap, wx, wz, 0),
+                heightmap_get_interpolated(app->world->heightmap, wx, wz, 1),
+                heightmap_get_interpolated(app->world->heightmap, wx, wz, 2),
+                (World_TileFlagGet(app->world, wx >> 7, wz >> 7, 1) &
+                 RSCACHE_FLOFLAG_LINK_BELOW) != 0);
         ToriDraw_SceneElementSetPosition(
             app->scene, npc->element_id, wx, wy, wz, npc->orientation.yaw);
     }

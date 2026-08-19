@@ -1242,7 +1242,11 @@ drain_queue(
         argc = entry->argc;
         entry->active = 0;
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(stderr, "queue: script=%d FIRE tick=%d\n", script_id, srv->tick);
+        {
+            const struct SSVM_Script* qs = SSVM_ProviderGet(srv->scripts, script_id);
+            fprintf(stderr, "queue: script=%d (%s) FIRE tick=%d\n", script_id,
+                    qs && qs->name ? qs->name : "?", srv->tick);
+        }
         run_script_id(srv, script_id, args, argc, -1, 1, "queue");
     }
 }

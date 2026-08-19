@@ -1769,6 +1769,21 @@ world_apply_primary_animation(
     if( animation->primary.anim_id == (uint16_t)seq_id )
     {
         int restart = world_seq_duplicate_behavior(world, seq_id);
+        /*
+         * Worth a line because of what it looks like from outside. A seq
+         * re-sent while the entity is already on it does NOT restart unless
+         * the seq's own replyMode says so (mode 1), which is the reference's
+         * rule and is right — but a one-shot death seq parked on its last
+         * frame that receives itself again therefore stays parked, and the
+         * corpse is reaped showing a pose that never moved. That reads as "it
+         * just disappeared". The sender is at fault when that happens, not
+         * this branch: see the ToB Matomenos, whose scripted arrival death and
+         * engine kill could both play 8097 on one npc.
+         */
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr,
+                    "anim: seq %d re-applied while already playing (frame %d, restart mode %d)\n",
+                    seq_id, (int)animation->primary.frame, restart);
         if( restart == 1 ) /* RestartMode.RESET */
         {
             animation->primary.frame = 0;

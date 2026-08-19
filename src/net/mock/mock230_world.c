@@ -38071,52 +38071,72 @@ mock230_world_selftest(void)
 
                 snprintf(command, sizeof(command), "tob %d", room);
                 mock230_scripts_run_debugproc(srv, command);
-                mock230_capture_begin(srv, &card_capture);
-                /* The card is armed for the next tick and shows its name two
-                 * ticks after that — it opens over the room, not over the one
-                 * the player was standing in when the click landed. */
-                for( int i = 0; i < 5; i++ )
+                /*
+                 * ONE TICK PER CAPTURE, and that is not fussiness: a capture
+                 * holds MOCK230_CAPTURE_MAX packets and a room build blows
+                 * straight through it — scene rebuild, 56 varps, a 941-byte
+                 * region — so a window wrapped around the whole card silently
+                 * drops everything after the build and reads as "no card was
+                 * ever sent". It cost an hour of looking at the wrong half.
+                 *
+                 * The card is armed for the next tick and shows its name two
+                 * ticks after that; five ticks covers it with room to spare.
+                 */
+                for( int t = 0; t < 5; t++ )
+                {
+                    mock230_capture_begin(srv, &card_capture);
                     mock230_world_tick(srv);
-                mock230_capture_end(srv);
+                    mock230_capture_end(srv);
+                    if( room == 1 )
+                        for( int i = 0; i < card_capture.count; i++ )
+                            fprintf(stderr, "      t%d op=%d name=%d len=%d\n", t,
+                                    card_capture.packets[i].opcode,
+                                    card_capture.packets[i].name,
+                                    card_capture.packets[i].len);
 
-                for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, 0);
-                     i >= 0;
-                     i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
+                    for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, 0);
+                         i >= 0;
+                         i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
 
-                    /* p4 component uid, then the string. */
-                    if( packet->len < 6 )
-                        continue;
-                    if( strstr((const char*)packet->data + 4, k_card[room - 1]) != NULL )
-                        said_name = 1;
-                }
-                for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, 0);
-                     i >= 0;
-                     i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
-                    int iface;
+                        /* rev239 IfSetTextEncoder: the string FIRST, then the
+                         * component uid — the other way round from 230. */
+                        if( packet->len < 2 )
+                            continue;
+                        if( memmem(packet->data, (size_t)packet->len, k_card[room - 1],
+                                   strlen(k_card[room - 1])) != NULL )
+                            said_name = 1;
+                    }
+                    for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, 0);
+                         i >= 0;
+                         i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
+                        int iface;
 
-                    if( packet->len < 6 )
-                        continue;
-                    iface = (packet->data[4] << 8) | packet->data[5];
-                    if( iface == k_text_iface )
-                        mounted_text = 1;
-                    /* 97/98/99 are darkness_light / _medium / _dark. The card
-                     * fades by swapping which strength is mounted — there is no
-                     * `if_settrans` in this dialect — so any of the three
-                     * standing up means the wash was raised. */
-                    if( iface >= 97 && iface <= 99 )
-                        mounted_wash = 1;
-                }
-                if( room == 1 )
-                {
-                    fprintf(stderr, "    captured %d packets\n", card_capture.count);
-                    for( int i = 0; i < card_capture.count && i < 60; i++ )
-                        fprintf(stderr, "      op=%d name=%d len=%d\n",
-                                card_capture.packets[i].opcode, card_capture.packets[i].name,
-                                card_capture.packets[i].len);
+                        /*
+                         * Seven bytes either way, with the fields in opposite
+                         * orders: the rev-230 hybrid writes the combined uid
+                         * first and the group after it, revision 239 writes the
+                         * group first (g2-le-add128). The fixture is a 230
+                         * player, so read that layout — and say which, because
+                         * reading it the other way round finds a plausible
+                         * interface id in the top half of a component uid and
+                         * asserts nothing.
+                         */
+                        if( packet->len < 7 )
+                            continue;
+                        iface = (packet->data[4] << 8) | packet->data[5];
+                        if( iface == k_text_iface )
+                            mounted_text = 1;
+                        /* 97/98/99 are darkness_light / _medium / _dark. The
+                         * card fades by swapping which strength is mounted —
+                         * there is no `if_settrans` in this dialect — so any of
+                         * the three standing up means the wash was raised. */
+                        if( iface >= 97 && iface <= 99 )
+                            mounted_wash = 1;
+                    }
                 }
                 fprintf(stderr, "  tobcard room %d: wash=%d text=%d name=%d (%s)\n", room,
                         mounted_wash, mounted_text, said_name, k_card[room - 1]);
@@ -38792,6 +38812,9 @@ mock230_world_selftest(void)
                 int leaks;
                 int hud;
                 int death_anim_seen = 0;
+                int arrived_hit = 0;
+                int arrived_rekilled = 0;
+                int arrived_alive = 0;
                 int pool_under_player = 0;
                 int pool_any = 0;
                 int victim = -1;
@@ -38858,7 +38881,37 @@ mock230_world_selftest(void)
                          * as it is issued.
                          */
                         if( srv->npcs[n].timer_interval == 0 )
+                        {
                             death_anim_seen++;
+                            /*
+                             * AND A DYING CRAB CANNOT BE KILLED AGAIN.
+                             *
+                             * This is the spec-at-her-feet case: a crab in
+                             * its three dying ticks is exactly where a team's
+                             * area attacks land. It used to sit on full
+                             * hitpoints through those ticks, so a hit armed a
+                             * second, engine death and sent `elemental_death`
+                             * a second time to a client already parked on
+                             * that seq's final frame — and the reference
+                             * client does not restart a seq it is already on.
+                             * The corpse held one pose and was reaped: "it
+                             * just disappears".
+                             *
+                             * Hit it through the real path and assert the
+                             * engine refused. Observable on the npc itself:
+                             * an engine death sets `death_tick`, and a hit on
+                             * the arrived crab must leave it at -1.
+                             */
+                            if( srv->npcs[n].death_tick < 0 )
+                            {
+                                mock230_combat_hit_npc(srv, n, 0, 500);
+                                arrived_hit++;
+                                if( srv->npcs[n].death_tick >= 0 )
+                                    arrived_rekilled++;
+                                if( srv->npcs[n].hitpoints != 0 )
+                                    arrived_alive++;
+                            }
+                        }
                         msize = srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
                         csize = srv->npcs[n].size > 0 ? srv->npcs[n].size : 1;
                         /* Edge to edge, per axis - the same measure the content
@@ -39366,6 +39419,17 @@ mock230_world_selftest(void)
                                "a killed Matomenos must stay visible long enough to "
                                "play elemental_death, lasted %d tick(s)",
                                victim_alive_ticks);
+                SELFTEST_CHECK(arrived_hit > 0 && arrived_alive == 0,
+                               "a Matomenos that reached her must be at 0 hitpoints "
+                               "while it dies (hit %d arrived crabs, %d still had "
+                               "hitpoints)",
+                               arrived_hit, arrived_alive);
+                SELFTEST_CHECK(arrived_hit > 0 && arrived_rekilled == 0,
+                               "a hit on a Matomenos already dying at her feet must "
+                               "not arm a second engine death (hit %d, re-killed %d) "
+                               "- that sent elemental_death twice and the client "
+                               "showed a frozen corpse",
+                               arrived_hit, arrived_rekilled);
                 SELFTEST_CHECK(death_anim_seen > 0,
                                "a Matomenos reaching her must linger a tick with "
                                "its clock stopped (its death animation), saw %d "
@@ -39546,6 +39610,19 @@ mock230_world_selftest(void)
          * search, deliberately the half WITHOUT `~objbox` in it, because the
          * dialogue parks the script on `p_pausebutton` until somebody clicks
          * continue and this harness has nobody to do that.
+         *
+         * KNOWN FAILING, AND NOT ON THE CONTENT. `loc_find` cannot see the
+         * skeleton in the instanced room, and the same is true of the exit
+         * door - `::tobexit` sweeps 5x5 on four planes for
+         * `tob_dungeon_xarpus_arena_door_exit` and reports nowhere, which is
+         * why that debugproc exists and predates this fixture. Traced to the
+         * scene: `record_loc_at` DOES record 32741 at (6435,109) level 1 while
+         * an m49_68 instance is being built (1664 locs that time), but the
+         * build standing when the search runs carries 1331 and does not have
+         * it, so the corridor half of the square is missing from the scene the
+         * lookup reads. Content-side the placement, the symbol and the take are
+         * all correct; the assertion below states the requirement rather than
+         * the current behaviour on purpose.
          */
         {
             const int k_dawnbringer = 22516;
@@ -39556,30 +39633,13 @@ mock230_world_selftest(void)
             fprintf(stderr, "mock230 selftest: Xarpus Dawnbringer\n");
             mock230_scripts_run_debugproc(srv, "tob 5");
             /*
-             * The room is built and the player teleported into it, and NEITHER
-             * is visible to `loc_find` yet: the scene is rebuilt on the tick
-             * boundary, so a search run in the same breath as the build looks
-             * at the square the player was standing on before. Ticking first
-             * costs three ticks and is the difference between this fixture
-             * finding the skeleton and finding nothing anywhere in the square.
+             * The room is built and the player teleported into it, and neither
+             * is visible to `loc_find` in the same breath: the scene is rebuilt
+             * on the tick boundary, so a search run immediately looks at the
+             * square the player was standing on before.
              */
             for( int t = 0; t < 3; t++ )
                 mock230_world_tick(srv);
-            mock230_scripts_run_debugproc(srv, "tobskelsweep");
-            mock230_scripts_run_debugproc(srv, "tobprobe");
-            {
-                int bx = mock230_scene_base_x();
-                int bz = mock230_scene_base_z();
-                int n = 0;
-                fprintf(stderr, "  cprobe: player %d,%d,%d base %d,%d\n",
-                        player->x, player->z, player->level, bx, bz);
-                for( int lvl = 0; lvl < 4; lvl++ )
-                    for( int x = bx; x < bx + 104; x++ )
-                        for( int z = bz; z < bz + 104; z++ )
-                            if( mock230_scene_find_loc_id(x, z, lvl, 32741) >= 0 )
-                            { fprintf(stderr, "  cprobe: 32741 at %d,%d lvl %d\n", x, z, lvl); n++; }
-                fprintf(stderr, "  cprobe: 32741 count %d\n", n);
-            }
             held_before = selftest_count(player, k_dawnbringer);
             mock230_scripts_run_debugproc(srv, "tobdawn");
             held_after = selftest_count(player, k_dawnbringer);
