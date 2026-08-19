@@ -1,6 +1,7 @@
 #include "task_exec_entity_info.h"
 
 #include "app.h"
+#include "game/rs_healthbar.h"
 #include "game/rs_hitsplat.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
@@ -21,6 +22,39 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/*
+ * Turn one HEADBAR block into the record the overlay reads.
+ *
+ * The wire carries fills, a duration and a start delay; how long the bar then
+ * lingers is the healthbar TYPE's (opcode 5), which is why this lives here --
+ * task_exec is the side that can reach the config table, and World must not
+ * grow a dependency on it just to compute an expiry.
+ *
+ * Reference `class66.method1483`: an update is dropped once
+ * `type.persist + startCycle + duration <= loopCycle`.
+ */
+static struct WorldEntity_Headbar
+headbar_from_block(
+    struct App* app,
+    struct World const* world,
+    int type,
+    int duration,
+    int start_delay,
+    int start_fill,
+    int end_fill)
+{
+    struct RS_HealthbarType const* cfg = RS_Healthbars_TypeFor(&app->healthbars, type);
+    struct WorldEntity_Headbar bar;
+
+    bar.type = type;
+    bar.start_cycle = world->cycle + start_delay;
+    bar.duration = duration;
+    bar.start_fill = start_fill;
+    bar.end_fill = end_fill;
+    bar.end_cycle = bar.start_cycle + duration + cfg->persist_cycles;
+    return bar;
+}
 
 enum
 {
@@ -702,12 +736,13 @@ player_apply_op(
         if( op->_headbar.remove )
             World_PlayerClearHealthbar(world, idx);
         else
-        {
-            int width = op->_headbar.start_fill;
-            if( op->_headbar.end_fill > width )
-                width = op->_headbar.end_fill;
-            World_PlayerSetHealthbar(world, idx, op->_headbar.end_fill, width);
-        }
+            World_PlayerSetHealthbar(
+                world,
+                idx,
+                headbar_from_block(
+                    self->app, world, op->_headbar.type, op->_headbar.duration,
+                    op->_headbar.start_delay, op->_headbar.start_fill,
+                    op->_headbar.end_fill));
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
         if( getenv("TORIRS_NET_DEBUG") )
@@ -1398,12 +1433,13 @@ npc_apply_op(
             if( op->_headbar.remove )
                 World_NpcClearHealthbar(world, idx);
             else
-            {
-                int width = op->_headbar.start_fill;
-                if( op->_headbar.end_fill > width )
-                    width = op->_headbar.end_fill;
-                World_NpcSetHealthbar(world, idx, op->_headbar.end_fill, width);
-            }
+                World_NpcSetHealthbar(
+                    world,
+                    idx,
+                    headbar_from_block(
+                        self->app, world, op->_headbar.type, op->_headbar.duration,
+                        op->_headbar.start_delay, op->_headbar.start_fill,
+                        op->_headbar.end_fill));
         }
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:

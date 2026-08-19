@@ -435,6 +435,24 @@ scenery_record_runtime_wall(
     }
 }
 
+/* Runtime ground-decor spawn: painter_add_ground_decor is suppressed (its
+ * static slot is baked), so mark the pool entry — world_cycle's per-frame
+ * re-registration replays it via painter_add_ground_decor_dynamic instead of
+ * painter_add_normal_scenery, which is what puts the puddle in the tile's base
+ * step and therefore underneath anything standing on it. */
+static void
+scenery_record_runtime_ground_decor(
+    struct WorldBuilder* builder,
+    int element_id)
+{
+    struct WorldEntity_Scenery* scenery;
+    if( !builder->scenery_runtime_spawn || element_id < 0 )
+        return;
+    scenery = World_SceneryGetByElementId(builder->world, element_id);
+    if( scenery )
+        scenery->painter_ground_decor = 1;
+}
+
 /* Loc recolour endpoints <= this are texture ids (retexture), not HSL colours.
  * The reference stores a textured face's texture id in the same faceColour field
  * a recolour pass remaps, so the two operations are one pass partitioned purely
@@ -1893,6 +1911,7 @@ scenery_add_floor_decoration(
 
     painter_add_ground_decor(
         world->painter, scene_x, scene_z, map_loc->chunk_pos_level, element_id);
+    scenery_record_runtime_ground_decor(builder, element_id);
 
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);

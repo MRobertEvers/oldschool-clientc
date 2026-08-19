@@ -364,6 +364,13 @@ struct RS_CS2Host
     struct LootStore* loot;   /* client-native loot tracker; may be NULL */
 
     int client_clock;
+
+    /* The local player's packed coord (plane<<28 | x<<14 | z), refreshed by the
+     * App each frame. Cache scripts branch on it - the raid HUDs decide which
+     * panel to show from where the player is standing - and -1 means "the world
+     * has no local player yet", which reads as no tile rather than as tile
+     * zero. See CS2VM2_Op_Coord. */
+    int local_coord;
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
      *  return. One of three copies of the canvas size — write it through
      *  App_SetCanvasSize, never here, or the layout and the scripts that read it

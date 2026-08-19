@@ -847,6 +847,7 @@ RS_CS2Host_Init(
     host->varps = varps;
     host->varcs = varcs;
     host->client_clock = 100;
+    host->local_coord = 0;
     host->top_interface_id = -1;
     host->mouse_x = -1;
     host->mouse_y = -1;
@@ -6473,6 +6474,14 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
+
+    case CS2VM_HOST_REQUEST_COORD:
+        /* MINUS ONE when there is no local player, which is the reference's own
+         * answer: `Statics.method9635` returns null (or its validity check
+         * fails) and opcode 3308 pushes -1 rather than a tile. Zero is a real
+         * tile in the corner of the map and a script comparing against a box
+         * cannot tell it from a position. */
+        return CS2VM2_PushInt(vm, host->local_coord);
 
     case CS2VM_HOST_REQUEST_STAT:
     case CS2VM_HOST_REQUEST_STAT_BASE:

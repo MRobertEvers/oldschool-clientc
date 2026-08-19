@@ -3786,14 +3786,33 @@ mock230_send_player_info(struct Mock230Player* player)
                 &ext.face, player, player->masks, MOCK230_PMASK_FACE_ENTITY,
                 MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
                 player->face_z, 0);
-            if( player->running && player->move_count > 0 &&
+            if( player->running && player->move_count > 1 &&
                 movement != MOCK239_PLAYER_TELEPORT )
             {
-                /* The movement opcode states geometry, not traversal. A runner
-                 * whose remaining route is only one tile still uses WALK
-                 * geometry with class174.field2474 (TEMP_MOVE_SPEED=2). That
-                 * RUN traversal is also what makes RuneLite method3189 invoke
-                 * method2600 and locally retain corner waypoints. */
+                /*
+                 * The movement opcode states geometry, not traversal: a two-step
+                 * turn that ends one diagonal tile away is WALK geometry, and
+                 * TEMP_MOVE_SPEED=2 (class174.field2474) is what tells the
+                 * client the tiles were RUN -- it is also what makes RuneLite
+                 * method3189 invoke method2600 and locally retain the corner.
+                 *
+                 * `move_count > 1`, not `> 0`. Both reference servers stamp RUN
+                 * only when a SECOND tile was actually taken this tick --
+                 * Zenyte's TemporaryMovementMask is `runDirection != -1 ? 2 :
+                 * 1`, Kronos sets movementModeUpdate 2 only when its second
+                 * `step()` succeeded. A running player who only had one tile
+                 * to take (a follower behind a walking npc is the everyday
+                 * case: it closes one tile a tick because that is all the
+                 * target opens up) is a WALK step on the wire.
+                 *
+                 * Sending 2 there is not cosmetic. The client moves a RUN step
+                 * at speed 8, so a one-tile step arriving every 30 cycles is
+                 * covered in 15 and the model stands still for the other 15 --
+                 * a hard stop-and-go, every tick, for the whole chase. That was
+                 * "the player stutters following a moving npc", and it was
+                 * invisible with run off (speed 4 covers 120 of the 128, so a
+                 * walker only lags, it never halts).
+                 */
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
@@ -4382,13 +4401,14 @@ put_npc_extended_v5(
         int fill = (npc->hitpoints * width) / npc->max_hitpoints;
 
         /* NpcHeadbarEncoder differs from the player only in the count and
-         * target-fill byte transform. See the matching decoder's V5 block. */
-        rsab_p1_alt2(buf, 1);
+         * target-fill byte transform -- alt1 and alt2 here against the
+         * player's alt2 and alt3. See the matching decoder's V5 block. */
+        rsab_p1_alt1(buf, 1);
         v5_psmart1or2(buf, headbar);
         v5_psmart1or2(buf, 1);
         v5_psmart1or2(buf, 0);
         rsab_p1_alt1(buf, width);
-        rsab_p1_alt3(buf, fill);
+        rsab_p1_alt2(buf, fill);
     }
     if( classic & MOCK230_NMASK_ANIM )
     {

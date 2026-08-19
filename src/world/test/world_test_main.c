@@ -22,6 +22,8 @@ main(void)
     test_cycle_movers();
     test_delaymove_gate();
     test_walk_keeps_up();
+    test_mover_model_flag();
+    test_stop_settles_promptly();
     test_entity_face();
     test_try_route();
     test_try_route_nearest_models();

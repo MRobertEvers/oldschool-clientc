@@ -147,6 +147,44 @@ enum ToriRS_RunEnergyModel
     TORIRS_RUN_ENERGY_OSRS_2025 = 1,
 };
 
+/**
+ * How an actor's draw position is integrated between the tiles the server
+ * hands out — the difference between a walk that glides and one that ticks.
+ *
+ * Both models pick the step speed the same way (4 walking, 2 mid-turn when the
+ * actor is free to turn, 6/8 once the queue has run 3/4 deep, doubled for a run
+ * step, 8 to repay a DELAYMOVE hold). They disagree only about the clock the
+ * speed is spent against.
+ */
+enum ToriRS_MoverModel
+{
+    /**
+     * 2004 / LostCity (`Client.ts` routeMove): one integer `moveSpeed` applied
+     * per 20ms client cycle, inside the same pass that picks the facing and the
+     * walk sequence. A frame that is not a whole cycle contributes nothing, and
+     * one that is two contributes exactly two. The teleport-snap test is the
+     * era's own: per axis, `|dst - pos| > 256`.
+     *
+     * Zero, per the table's zero-is-classic rule — and a legacy server on a
+     * legacy client should keep it, because the era's own client looks like
+     * this and a smoother one is a difference, not a fix.
+     */
+    TORIRS_MOVER_CYCLE_INTEGER = 0,
+    /**
+     * rev-239 (`class105.method3611`, driven per rendered frame from
+     * `client.method2324` with `elapsed_ns / 2.0E7F`): the speed is spent
+     * against real elapsed time expressed in fractional 20ms cycles, into a
+     * float position, carrying the remainder of a frame's budget onto the next
+     * queued tile. `class105.method3520` keeps the per-cycle half — facing,
+     * sequence choice, tile retirement — and moves nothing.
+     *
+     * The snap test moves with it: `max(|dx|, |dz|) > 288` measured on the
+     * float position, because a two-tile run step taken from a fractional
+     * position is ordinary here and the 256 rule would teleport through it.
+     */
+    TORIRS_MOVER_FRAME_DELTA = 1,
+};
+
 struct ToriRS_FeatureTable
 {
     enum ToriRS_FeatureEra era;
@@ -156,6 +194,8 @@ struct ToriRS_FeatureTable
 
     /** enum ToriRS_PathingMode. 0 = client-side BFS. */
     int pathing_mode;
+    /** enum ToriRS_MoverModel. 0 = the 2004 per-cycle integer mover. */
+    int mover_model;
     /** enum ToriRS_ApproachModel. 0 = legacy shape tests. */
     int approach_model;
     /**
@@ -452,6 +492,17 @@ ToriRS_Features_ByName(char const* name);
  */
 int
 ToriRS_Features_NearestModelByName(char const* name);
+
+/**
+ * Resolve an enum ToriRS_MoverModel by name, for the manifest key and its env
+ * twin. Returns -1 for an unknown name. Names: `cycle` | `frame`.
+ */
+int
+ToriRS_Features_MoverModelByName(char const* name);
+
+/** Name of an enum ToriRS_MoverModel, for diagnostics. */
+char const*
+ToriRS_Features_MoverModelName(int model);
 
 /**
  * Resolve an enum ToriRS_RunEnergyModel by name, for the mock server's env

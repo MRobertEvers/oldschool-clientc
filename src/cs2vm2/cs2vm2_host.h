@@ -357,6 +357,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH,
     CS2VM_HOST_REQUEST_OC_INT_PARAM,
     CS2VM_HOST_REQUEST_CLIENTCLOCK,
+    /* The local player's packed coord, for scripts that branch on where the
+     * player is standing (the raid HUDs are the load-bearing case). */
+    CS2VM_HOST_REQUEST_COORD,
     /* STAT / STAT_BASE / STAT_XP (3305-3307): the skill a script is asking
      * about. `stat` is the protocol's skill index — the same one UPDATE_STAT
      * carries. */

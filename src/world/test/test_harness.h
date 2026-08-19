@@ -3,6 +3,8 @@
 
 #include "world.h"
 
+#include "features/features.h"
+
 #include <stdio.h>
 
 extern int g_failures;
@@ -53,12 +55,25 @@ World_TestDefaultIdle(void)
 }
 
 static inline struct World*
-World_TestMakeReady(int scene_size)
+World_TestMakeReadyEra(
+    int scene_size,
+    struct ToriRS_FeatureTable const* features)
 {
     struct World* world = World_New();
     World_ResetScene(world, 50, 50, scene_size);
     World_SetLoadComplete(world, true);
+    World_SetFeatures(world, features);
     return world;
+}
+
+/* The lane this tree ships: rev-239 features, so the frame-paced mover. A test
+ * that is about the 2004 mover asks for it by name with World_TestMakeReadyEra
+ * (ToriRS_Features_LostCity), which is the only era that still moves actors on
+ * the cycle clock. */
+static inline struct World*
+World_TestMakeReady(int scene_size)
+{
+    return World_TestMakeReadyEra(scene_size, ToriRS_Features_OSRS());
 }
 
 static inline int
@@ -113,6 +128,8 @@ void test_bridge_levels(void);
 void test_cycle_movers(void);
 void test_delaymove_gate(void);
 void test_walk_keeps_up(void);
+void test_mover_model_flag(void);
+void test_stop_settles_promptly(void);
 void test_entity_face(void);
 void test_try_route(void);
 void test_try_route_nearest_models(void);

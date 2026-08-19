@@ -28,6 +28,7 @@
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
 #include "toridraw_scene.h"
+#include "toridraw_sprite.h"
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
 #include "ui/uitree_debug_overlay.h"
@@ -37,6 +38,7 @@
 #include "ui/uitree_interact.h"
 #include "varc/varc_manager.h"
 #include "game/rs_loot_store.h"
+#include "game/rs_healthbar.h"
 #include "game/rs_hitsplat.h"
 #include "game/rs_soundscape.h"
 #include "varp/varp_manager.h"
@@ -234,6 +236,11 @@ struct AppConfig
      * way to turn one on. -1 = not stated. */
     int features_ground_click_unbounded;
     int features_ground_click_offmap;
+    /** `[features:boot] mover` — enum ToriRS_MoverModel, only read when the
+     * _set flag is 1 (0 is a real model, CYCLE_INTEGER). Overrides the era
+     * table; TORIRS_MOVER_MODEL overrides both. */
+    int features_mover_model;
+    int features_mover_model_set;
     /** `[features:boot] painter_draw_distance`, in the official OSRS 25..90
      * tile interval. Absent keeps Client-TS's fixed 25-tile radius;
      * TORIRS_DRAW_DISTANCE overrides it at runtime. */
@@ -645,6 +652,10 @@ struct App
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */
     struct RS_Hitsplats hitsplats;
+    /* Healthbar types (config group 33): the overhead bar's sprites, its fill
+     * denominator and its fade. See src/game/rs_healthbar.h for why the fill
+     * value the server sends is not the bar's pixel width. */
+    struct RS_Healthbars healthbars;
     /** Ambient soundscapes (config group 15). Empty before OldSchool 231, and
      *  the audio layer reads empty as "AMBIENTSOUND_START ids are effect ids". */
     struct RS_Soundscapes soundscapes;

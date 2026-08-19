@@ -1,5 +1,7 @@
 #include "world.h"
 
+#include "features/features.h"
+
 #include "entity_pathing.h"
 
 #include <assert.h>
@@ -616,6 +618,9 @@ World_PlayerSpawn(
         .held_left_applied = -1,
         .held_right_applied = -1,
         .loc_merge_id = -1,
+        /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
+         * spelled rather than left to the pool's zeroing. */
+        .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
     };
@@ -682,6 +687,9 @@ World_NpcSpawn(
                     .turn_speed = 32 },
         .visible_ops = 0x1f,
         .server_slot = -1,
+        /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
+         * spelled rather than left to the pool's zeroing. */
+        .combat = { .healthbar_type = -1 },
         /* Reference ClientEntity default: no attached graphic (spotanimId -1). */
         .spotanim = { .id = -1, .frame = -1 },
     };
@@ -1096,6 +1104,7 @@ World_SceneryRegister(
     World_CopyMenuActions(scenery->actions, actions);
     scenery->interactive = interactive ? 1 : 0;
     scenery->painter_wall_ab = -1;
+    scenery->painter_ground_decor = 0;
     scenery->painter_wall_side = 0;
     return idx;
 }
@@ -1563,6 +1572,22 @@ World_EventsClear(struct World* world)
 {
     assert(world);
     world->event_count = 0;
+}
+
+void
+World_SetFeatures(
+    struct World* world,
+    struct ToriRS_FeatureTable const* features)
+{
+    assert(world);
+    world->features = features;
+}
+
+int
+World_MoverModel(struct World const* world)
+{
+    assert(world);
+    return world->features ? world->features->mover_model : TORIRS_MOVER_CYCLE_INTEGER;
 }
 
 void
@@ -2070,25 +2095,32 @@ World_PlayerAddHitmarkTimed(
         slot_policy);
     player->combat.health = health;
     player->combat.total_health = total_health;
-    player->combat.healthbar_width = 0;
     player->combat.combat_cycle = world->cycle + 400;
 }
 
+/*
+ * Record one HEADBAR block.
+ *
+ * The fills are fractions of the healthbar TYPE's own width and mean nothing
+ * without it, so nothing here interprets them -- the caller resolves the type
+ * (it is the side that can reach the config table) and hands over the already
+ * computed expiry. World's job is to remember what the server said until the
+ * overlay build reads it back.
+ */
 void
-World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width)
+World_PlayerSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar)
 {
     struct WorldEntity_Player* player;
 
     assert(world);
-    if( !World_EntityPoolIsActive(&world->entities.player, idx) || width <= 0 )
+    assert(bar.type >= 0);
+    if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
-    if( player->combat.healthbar_width > width )
-        width = player->combat.healthbar_width;
-    player->combat.health = fill;
-    player->combat.total_health = width;
-    player->combat.healthbar_width = width;
-    player->combat.combat_cycle = world->cycle + 400;
+    World_EntityApplyHeadbar(&player->combat, bar);
 }
 
 void
@@ -2100,7 +2132,7 @@ World_PlayerClearHealthbar(struct World* world, int idx)
     if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
-    player->combat.combat_cycle = 0;
+    player->combat.healthbar_type = -1;
 }
 
 int
@@ -2345,25 +2377,23 @@ World_NpcAddHitmarkTimed(
         slot_policy);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
-    npc->combat.healthbar_width = 0;
     npc->combat.combat_cycle = world->cycle + 400;
 }
 
 void
-World_NpcSetHealthbar(struct World* world, int idx, int fill, int width)
+World_NpcSetHealthbar(
+    struct World* world,
+    int idx,
+    struct WorldEntity_Headbar bar)
 {
     struct WorldEntity_NPC* npc;
 
     assert(world);
-    if( !World_EntityPoolIsActive(&world->entities.npc, idx) || width <= 0 )
+    assert(bar.type >= 0);
+    if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
-    if( npc->combat.healthbar_width > width )
-        width = npc->combat.healthbar_width;
-    npc->combat.health = fill;
-    npc->combat.total_health = width;
-    npc->combat.healthbar_width = width;
-    npc->combat.combat_cycle = world->cycle + 400;
+    World_EntityApplyHeadbar(&npc->combat, bar);
 }
 
 void
@@ -2375,7 +2405,7 @@ World_NpcClearHealthbar(struct World* world, int idx)
     if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
-    npc->combat.combat_cycle = 0;
+    npc->combat.healthbar_type = -1;
 }
 
 /* Reference chatTimer = 150 on every new message (Client.ts:8166); the per-

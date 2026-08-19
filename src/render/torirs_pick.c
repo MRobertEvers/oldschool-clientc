@@ -3,6 +3,8 @@
 #include "world/world.h"
 #include "world/world_pickset.h"
 
+#include <datatypes/maps.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -175,6 +177,43 @@ pick_debug_dump(
     }
 }
 
+/*
+ * The DRAW level of a terrain hit, which is what the level guard below compares
+ * — never the mesh level the hit carries.
+ *
+ * The two differ on exactly the columns where the guard matters. A bridge deck
+ * keeps its geometry on cache level 1 and is pushed down to paint level 0
+ * (WorldBuilder_RebuildCenterzoneEnd, reference World.pushDown), so a player
+ * standing on the deck is on level 0 while every tile under their feet reports
+ * mesh level 1. Comparing the mesh level threw those hits away: the Theatre of
+ * Blood's corridors are one long LinkBelow deck, and none of their ground was
+ * clickable — no "Walk here" destination, no yellow cross, nothing.
+ *
+ * Same inputs the builder used for painter_tile_set_draw_level, read back from
+ * the persisted land settings rather than from the painter, so this stays a
+ * pure function of (tile, mesh level): the settings byte at the mesh level, and
+ * whether the column carries LinkBelow at cache level 1. VIS_BELOW is folded in
+ * by the same helper, which is the other way a tile draws below its own plane.
+ */
+static int
+terrain_pick_draw_level(
+    struct World* world,
+    int tile_x,
+    int tile_z,
+    int mesh_level)
+{
+    int link_below;
+
+    assert(world);
+    if( mesh_level < 0 )
+        return mesh_level;
+
+    link_below = (World_TileFlagGet(world, tile_x, tile_z, 1) &
+                  RSCACHE_FLOFLAG_LINK_BELOW) != 0;
+    return RSCache_MapFloorVisBelowDrawLevel(
+        (uint8_t)World_TileFlagGet(world, tile_x, tile_z, mesh_level), mesh_level, link_below);
+}
+
 void
 ToriRS_PickHitsClassify(
     struct World* world,
@@ -214,7 +253,9 @@ ToriRS_PickHitsClassify(
              * carrying the link-below flag), so equality would make the ground
              * under your own feet unclickable.
              */
-            if( player_level >= 0 && hit->tile_level > player_level )
+            if( player_level >= 0 &&
+                terrain_pick_draw_level(world, hit->tile_x, hit->tile_z, hit->tile_level) >
+                    player_level )
                 continue;
             /* Hits arrive in render order, back-to-front: the last terrain
              * hit is nearest. */
