@@ -610,7 +610,8 @@ World_StepEntityAnimation(
     struct WorldEntityFacet_Animation* anim,
     struct WorldEntityFacet_EntitySpotanim* spot,
     struct WorldEntityFacet_Pathing const* pathing,
-    struct WorldEntityFacet_DrawPosition const* draw_position)
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    struct WorldEntityFacet_IdleAnimations const* idle)
 {
     /* Reference entityAnim clears this at the top every cycle; only an active,
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
@@ -748,6 +749,44 @@ World_StepEntityAnimation(
                             anim->primary.frame = 0;
                             anim->primary.cycle = 0;
                             anim->primary.loop = 0;
+                            /*
+                             * THE IDLE RESTARTS UNDER AN ENTITY THAT ASKS FOR
+                             * IT. The reference does this in the same breath as
+                             * clearing the action track (Statics ~40139):
+                             *
+                             *   if ((var17 & 0x2) != 0) {
+                             *       var1.field1505.method9935(...);   // clear
+                             *       if (var1.field1504.method9969(...)
+                             *               == var1.field1498)        // == readyanim
+                             *           if (var1.method2909(...))     // opcode 130
+                             *               method9990(var1.field1504, ...);
+                             *   }
+                             *
+                             * `method9990` zeroes frame/cycle/loop. The point of
+                             * it is what the secondary track does while the
+                             * action covers it: it keeps stepping, so by the
+                             * time the action ends it is at an arbitrary frame,
+                             * and revealing it there is a jump cut. Xarpus is
+                             * the case that shows it -- his 52-frame idle came
+                             * back at frame 30, then 13, then 50, then 18 after
+                             * successive spits.
+                             *
+                             * Three conditions, all of them the reference's, and
+                             * each one matters: the secondary has to BE the
+                             * readyanim (a walk animation is positional and
+                             * restarting it would stutter the gait), the entity
+                             * has to carry opcode 130 (`method2909` is a hard
+                             * `false` on the player class, so players never do
+                             * this), and it happens on the FINISH rather than on
+                             * a loop-back.
+                             */
+                            if( idle && idle->idle_anim_restart &&
+                                anim_step_active(&anim->secondary) &&
+                                anim->secondary.anim_id == (uint16_t)idle->readyanim )
+                            {
+                                anim->secondary.frame = 0;
+                                anim->secondary.cycle = 0;
+                            }
                             break;
                         }
                         anim->primary.frame = (uint16_t)stepped;
@@ -938,7 +977,8 @@ World_CycleUpdatePlayers(
                 &player->animation,
                 &player->spotanim,
                 &player->pathing,
-                &player->draw_position);
+                &player->draw_position,
+                &player->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3161). */
             if( player->chat.timer > 0 && --player->chat.timer == 0 )
                 player->chat.message[0] = '\0';
@@ -1002,7 +1042,8 @@ World_CycleUpdateNpcs(
                     World_ApplySecondaryAnim(&npc->animation, face_seq);
             }
             World_StepEntityAnimation(
-                world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position);
+                world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position,
+                &npc->idle_animations);
             /* Overhead chat expiry (reference Client.ts:3174). */
             if( npc->chat.timer > 0 && --npc->chat.timer == 0 )
                 npc->chat.message[0] = '\0';

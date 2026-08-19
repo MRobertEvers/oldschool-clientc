@@ -14,7 +14,18 @@
  * mesh_level;` (the defect) and the bridge and VisBelow cases go red; make it
  * `return 0` and the genuine-upper-floor case goes red.
  *
- * The second half pins the other gate in the same classifier: whether an
+ * The same defect had a second half nobody had reached: a LOC on that deck.
+ * Scenery carries the cache level it was authored on, and the guard compared it
+ * raw — so the Theatre's arena barriers, authored on plane 1 above a LinkBelow
+ * column, drew and animated in front of a player on level 0 and refused every
+ * click. World_LocPaintLevel is the loc's answer to World_TerrainDrawLevel, and
+ * is the shuffle the build itself registered the geometry with.
+ *
+ * Mutation check for that half: drop the World_LocPaintLevel call in the
+ * classifier and "a loc on the deck under your feet" goes red; apply it to
+ * every pick type and the npc/obj cases below a deck would follow.
+ *
+ * The third part pins the other gate in the same classifier: whether an
  * INACTIVE loc — a wall, a fence, ground decor, anything carrying no ops —
  * survives to the pickset. It must not by default (the reference records no
  * hit for a non-active typecode) and must while a loc-inspection tool is
@@ -163,6 +174,45 @@ main(void)
         WorldEntity_SceneryDebugSetTools(false);
         ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
         CHECK(pickset.count == 0, "and stops again when the tool is switched off");
+    }
+
+    printf("TEST: a loc on a bridge deck\n");
+    {
+        char actions[5][32] = { { 0 } };
+        struct ToriRS_PickHits hits;
+        struct World_PickSet pickset;
+        struct ToriRS_PickResult result;
+
+        /* The Theatre of Blood's arena barriers: authored on cache level 1 over
+         * a LinkBelow column, parked by the build on paint level 0, and clicked
+         * by a player standing on level 0. Registered interactive, because that
+         * is what a loc carrying "Pass" is. */
+        CHECK(World_SceneryRegister(
+                  world, /* element */ 71, /* loc */ 32755, bridge_x, bridge_z, /* level */ 1,
+                  /* size */ 1, 1, /* shape */ 10, /* angle */ 0, /* force_approach */ 0,
+                  "Barrier", actions, /* interactive */ 1) >= 0,
+              "the fixture barrier registers");
+        CHECK(World_SceneryRegister(
+                  world, /* element */ 72, /* loc */ 32755, flat_x, flat_z, /* level */ 1,
+                  /* size */ 1, 1, /* shape */ 10, /* angle */ 0, /* force_approach */ 0,
+                  "Barrier", actions, /* interactive */ 1) >= 0,
+              "the fixture upper-storey loc registers");
+
+        ToriRS_PickHitsReset(&hits);
+        ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        CHECK(pickset.count == 1 && pickset.items[0].type == WORLD_PICK_SCENERY,
+              "a loc on the deck under your feet is clickable from level 0");
+
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 1, &pickset, &result);
+        CHECK(pickset.count == 0, "and is not reachable from the level it was authored on");
+
+        ToriRS_PickHitsReset(&hits);
+        ToriRS_PickHitsAdd(&hits, 72, /* is_terrain */ false, -1, -1, -1);
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
+        CHECK(pickset.count == 0, "a loc on a genuine upper storey stays unreachable from below");
+        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 1, &pickset, &result);
+        CHECK(pickset.count == 1, "and is clickable once you are standing up there");
     }
 
     World_Free(world);

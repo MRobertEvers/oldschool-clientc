@@ -12199,6 +12199,7 @@ app_world_spawn_npc_now(
             .walkanim_b = facts.walkanim_b,
             .walkanim_r = facts.walkanim_l,
             .walkanim_l = facts.walkanim_r,
+            .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
         };
         idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, size, idle);
     }
@@ -19749,6 +19750,12 @@ App_WorldApplyNpcType(
             .walkanim_b = facts.walkanim_b,
             .walkanim_r = facts.walkanim_l,
             .walkanim_l = facts.walkanim_r,
+            /* Read off the DRAWN type, and deliberately not gap-filled from the
+             * shell the way size and readyanim are: it is a bare boolean whose
+             * absent value and whose authored-false value are the same bit, so
+             * "the rung did not state it" cannot be expressed. Same reason
+             * `turn_speed` is left out of AppNpcEntityFacts. */
+            .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
         };
         World_NpcSetType(
             app->world, world_idx, npc_type, facts.size, &idle);

@@ -355,6 +355,13 @@ struct ToriRS_Npctype
     /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
      *  turns — Client-TS entityFace returns immediately for those. */
     int turn_speed;
+    /** NpcType opcode 130 (rev 236+): when an ACTION animation finishes, the
+     *  entity's idle animator is reset to frame 0 instead of being left wherever
+     *  it drifted to underneath. The reference gates its `method9990` on this
+     *  exact flag (`class86.method2909` -> `class405.field5176`), and players
+     *  never have it (`class105.method2909` returns a hard false). 33 npcs in
+     *  osrs239 set it. */
+    bool idle_anim_restart;
     /** Model scale, 128 == 1.0 (reference widthScale/heightScale, dat1 resizeh/resizev,
      *  dat2 opcodes 97/98). Applied as scale(width, height, width) — NpcModelLoader. */
     int width_scale;

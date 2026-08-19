@@ -250,20 +250,29 @@ ToriRS_PickHitsClassify(
                     world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) )
             {
                 /* Scenery/NPCs/obj stacks on a level other than the player's are
-                 * unreachable — never surface them in the minimenu. */
-                if( player_level >= 0 && tile_level != player_level )
-                {
-                    if( getenv("TORIRS_PICK_DEBUG") )
-                    {
-                        struct WorldEntity_Scenery* dsc =
-                            World_SceneryGetByElementId(world, hit->element_id);
-                        fprintf(stderr,
-                                "pick-drop: el=%d type=%d tile=(%d,%d) lvl=%d player=%d loc=%d\n",
-                                hit->element_id, (int)type, tile_x, tile_z,
-                                tile_level, player_level, dsc ? dsc->loc_id : -1);
-                    }
+                 * unreachable — never surface them in the minimenu.
+                 *
+                 * A LOC's level is not read raw, for the same reason the
+                 * terrain guard above does not read `hit->tile_level`: the
+                 * scenery pool holds the CACHE level a loc was authored on,
+                 * and on a LinkBelow column the build parks its geometry one
+                 * level down (World_LocPaintLevel — the same shuffle
+                 * world_builder and world_cycle register it into the painter
+                 * with). Every ToB corridor is such a deck, so the Nylocas
+                 * room's barrier was authored at plane 1, drawn at paint level
+                 * 0 in front of a player standing on level 0 — and thrown away
+                 * by a guard comparing 1 against 0. The red gate drew, lit,
+                 * animated, and could not be clicked.
+                 *
+                 * NPCs, players and obj stacks are already positioned on the
+                 * level they are WALKED on (the server shifts them), so only
+                 * scenery takes the conversion — running it on the rest would
+                 * push a bridge-deck npc from level 0 to the underside. */
+                int reach_level = tile_level;
+                if( type == WORLD_PICK_SCENERY )
+                    reach_level = World_LocPaintLevel(world, tile_x, tile_z, tile_level);
+                if( player_level >= 0 && reach_level != player_level )
                     continue;
-                }
                 World_PickSetAdd(out_pickset, hit->element_id, type, tile_x, tile_z, tile_level);
             }
         }

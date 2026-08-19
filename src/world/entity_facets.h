@@ -13,6 +13,11 @@ struct WorldEntityFacet_IdleAnimations
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** NpcType opcode 130. See World_StepEntityAnimation: when the action track
+     *  finishes, an entity carrying this restarts its idle from frame 0 rather
+     *  than revealing it wherever it drifted to underneath. Players are always
+     *  0 -- the reference's predicate is a hard `false` on the player class. */
+    int idle_anim_restart;
 };
 
 struct WorldEntityFacet_AnimationStep
