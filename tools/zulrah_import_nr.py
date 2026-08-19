@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Regenerate Zulrah's rotation table from the Near-Reality reference.
+
+Reads `ZulrahNPC.sequences` out of the Zenyte-lineage source and writes
+`zulrah_phase.dbrow`. The table is 43 phases and 191 steps; transcribing that
+by hand is how a one-tile slip gets into a rotation and is never found again,
+so it is imported mechanically instead.
+
+    python3 tools/zulrah_import_nr.py \
+        [--src <ZulrahNPC.java>] [--out <zulrah_phase.dbrow>]
+
+The reference tree is not vendored here. `--src` defaults to the sibling
+checkout the import was taken from; the generated .dbrow is committed, so the
+tool only needs to run when the reference moves.
+"""
+import argparse
+import json
+import os
+import re
+import sys
+
+DEFAULT_SRC = (
+    "/Users/matthewevers/Documents/git_repos/RSPS-NEAR-REALITY/near-reality-server-main"
+    "/plugins/excluded/src/main/java/com/zenyte/game/content/boss/zulrah/ZulrahNPC.java"
+)
+DEFAULT_OUT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_zulrah"
+    "/configs/zulrah_phase.dbrow",
+)
+
+
+LOC = re.compile(r"new Location\((\d+),\s*(\d+),\s*(\d+)\)")
+FORM_OF_ID = {"MELEE": "crimson", "MAGIC": "tanzanite", "RANGED": "green"}
+
+KIND = {"CLOUD": 0, "SNAKELING": 1, "MIXED": 2, "RANGED": 3, "MELEE": 4, "FLICK": 5, "DIVE": 6}
+POS = {"CENTER": 0, "SOUTH": 1, "EAST": 2, "WEST": 3}
+FORM = {"green": 0, "crimson": 1, "tanzanite": 2}
+STYLE = {"RANGED": 0, "MAGIC": 1}
+OX, OZ = 2240, 3040
+
+
+def split_top(s):
+    """Split a `{a, b, c}` body on its top-level commas."""
+    inner = s.strip()
+    assert inner[0] == "{" and inner[-1] == "}", inner[:40]
+    inner = inner[1:-1]
+    out, depth, cur = [], 0, []
+    for ch in inner:
+        if ch in "{(":
+            depth += 1
+        elif ch in "})":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if "".join(cur).strip():
+        out.append("".join(cur))
+    return [x.strip() for x in out if x.strip()]
+
+
+def grab_arrays(s):
+    """The `{...}` initialiser of each top-level `new Sequence[]...` item."""
+    return [it[it.index("{"):] for it in split_top(s)]
+
+
+def parse(src_text):
+    """The reference's `sequences` field as [rotation][phase][step]."""
+    start = src_text.index("private static final Sequence[][][] sequences")
+    start = src_text.index("{", start)
+    depth = 0
+    end = None
+    for i in range(start, len(src_text)):
+        if src_text[i] == "{":
+            depth += 1
+        elif src_text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end is None:
+        raise SystemExit("unterminated sequences initialiser")
+
+    out = []
+    for rot in grab_arrays(src_text[start:end]):
+        phases = []
+        for ph in grab_arrays(rot):
+            steps = []
+            for st in split_top(ph):
+                st = st.strip()
+                if st.startswith("new CloudsSequence"):
+                    ls = LOC.findall(st)
+                    steps.append(("CLOUD", (int(ls[0][0]), int(ls[0][1])),
+                                  (int(ls[1][0]), int(ls[1][1]))))
+                elif st.startswith("new SnakelingSequence"):
+                    m = LOC.search(st)
+                    steps.append(("SNAKELING", (int(m.group(1)), int(m.group(2))), None))
+                elif st.startswith("new MagicSequence"):
+                    steps.append(("MAGIC", int(re.search(r"\((\d+)\)", st).group(1)), None))
+                elif st.startswith("new RangedSequence"):
+                    steps.append(("RANGED", int(re.search(r"\((\d+)\)", st).group(1)), None))
+                elif st.startswith("new MeleeSequence"):
+                    steps.append(("MELEE", None, None))
+                elif st.startswith("new FlickingSequence"):
+                    steps.append(("FLICK", re.search(r"\((\w+)\)", st).group(1), None))
+                elif st.startswith("new DiveSequence"):
+                    m = re.search(r"\((\w+),\s*(\w+)\)", st)
+                    steps.append(("DIVE", m.group(1), FORM_OF_ID[m.group(2)]))
+                else:
+                    raise SystemExit("unknown step: " + st[:60])
+            phases.append(steps)
+        out.append(phases)
+    return out
+
+
+def pack(tile):
+    """A world tile as instance-local x*64+z."""
+    x, z = tile
+    # The reference's rotation 1 phase 9 carries a plain typo, 2075 for 3075.
+    # Every other tile in all four rotations is on the island rim at z
+    # 3069-3078, and rotation 2's matching phase spells the same pair right.
+    if z == 2075:
+        z = 3075
+    lx, lz = x - OX, z - OZ
+    if not (0 <= lx < 64 and 0 <= lz < 64):
+        raise SystemExit("tile out of the instance-local frame: %r" % (tile,))
+    return lx * 64 + lz
+
+
+def emit(table):
+    lines = [
+        "// GENERATED by tools/zulrah_import_nr.py — do not hand-edit.",
+        "//",
+        "// Zulrah's rotation table, transcribed mechanically from Near-Reality's",
+        "// `ZulrahNPC.sequences` (Zenyte lineage). One row per phase; `step` is an",
+        "// ordered LIST of (kind, a, b) triples, one per `Sequence` object, in the",
+        "// reference's own order.",
+        "//",
+        "//   kind 0 CLOUD      a = primary cloud centre,  b = secondary cloud centre",
+        "//   kind 1 SNAKELING  a = spawn tile",
+        "//   kind 2 MIXED      a = attack count   (the reference's MagicSequence)",
+        "//   kind 3 RANGED     a = attack count",
+        "//   kind 4 MELEE      the tail, two swings",
+        "//   kind 5 FLICK      a = starting style (0 ranged, 1 magic)",
+        "//   kind 6 DIVE       a = position, b = form",
+        "//",
+        "// Tiles are packed instance-local x*64+z, local = world - (2240, 3040).",
+        "",
+    ]
+    for ri, rot in enumerate(table):
+        lines.append("// ---------------- rotation %d (%d phases) ----------------"
+                     % (ri + 1, len(rot)))
+        for pi, ph in enumerate(rot):
+            lines.append("[zulrah_r%dp%d]" % (ri + 1, pi + 1))
+            lines.append("key=%d" % ((ri + 1) * 100 + (pi + 1)))
+            parts = []
+            for kind, a, b in ph:
+                if kind == "CLOUD":
+                    parts.append("%d,%d,%d" % (KIND["CLOUD"], pack(a), pack(b)))
+                elif kind == "SNAKELING":
+                    parts.append("%d,%d,0" % (KIND["SNAKELING"], pack(a)))
+                elif kind == "MAGIC":
+                    parts.append("%d,%d,0" % (KIND["MIXED"], a))
+                elif kind == "RANGED":
+                    parts.append("%d,%d,0" % (KIND["RANGED"], a))
+                elif kind == "MELEE":
+                    parts.append("%d,0,0" % KIND["MELEE"])
+                elif kind == "FLICK":
+                    parts.append("%d,%d,0" % (KIND["FLICK"], STYLE[a]))
+                elif kind == "DIVE":
+                    parts.append("%d,%d,%d" % (KIND["DIVE"], POS[a], FORM[b]))
+            lines.append("step=" + ",".join(parts))
+            lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", default=DEFAULT_SRC)
+    ap.add_argument("--out", default=DEFAULT_OUT)
+    args = ap.parse_args()
+
+    if not os.path.exists(args.src):
+        sys.exit("reference not found: %s\n"
+                 "Pass --src <ZulrahNPC.java> from a Near-Reality checkout." % args.src)
+    table = parse(open(args.src, encoding="utf-8").read())
+    open(args.out, "w", encoding="utf-8").write(emit(table))
+    print("rotations: %s phases, %d steps -> %s"
+          % ("/".join(str(len(r)) for r in table),
+             sum(len(p) for r in table for p in r), args.out))
+
+
+if __name__ == "__main__":
+    main()

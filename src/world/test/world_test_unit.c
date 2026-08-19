@@ -1293,6 +1293,84 @@ test_action_anim_restarts_the_readyanim(void)
 }
 
 /*
+ * ...and the far end of the same seam: the action animation hands BACK to the
+ * readyanim's loop point when it finishes.
+ *
+ * The two halves have to agree. An attack clip is authored to leave the ready
+ * loop at frame 0 and return to it, so if only the entry is locked the creature
+ * enters the swing seamlessly and jump-cuts out of it. Xarpus is the
+ * measurement: seq 8059 descends out of the spit at ~73 authored units per
+ * frame (its last three frames top out at -1045, -972, -900), seq 8058 frame 0
+ * tops out at -825 and continues that descent, and the free-running readyanim
+ * was instead revealed at frame 26 (-1095) -- 195 units of upward snap, against
+ * the direction he was moving.
+ *
+ * This is the reference's own restart (deob Statics ~40139) minus its NpcType
+ * opcode-130 gate; see the comment on the branch in world_cycle.c for why the
+ * flag is the wrong instrument for the question.
+ */
+static int
+seq_test_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* The action is three frames; the readyanim is long enough that a
+     * free-running track would still be mid-loop when the action ends. */
+    return seq_id == 8059 ? 3 : 52;
+}
+
+static int
+seq_test_frame_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 1;
+}
+
+static int
+seq_test_max_loops(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* One pass, so the action FINISHES rather than looping. */
+    return seq_id == 8059 ? 1 : 99;
+}
+
+void
+test_action_anim_hands_back_to_the_readyanim_loop_point(void)
+{
+    printf("TEST: a finished action animation hands back to the readyanim loop point\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.frame_count = seq_test_frame_count;
+    world->seq_source.frame_duration = seq_test_frame_duration;
+    world->seq_source.max_loops = seq_test_max_loops;
+
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 0,
+                "the entry half put the ready track on its loop point");
+
+    /* Step until the action runs out. The ready track free-runs underneath it
+     * the whole way -- that is what leaves it somewhere arbitrary. */
+    for( int i = 0; i < 8 && npc->animation.primary.anim_id != (uint16_t)-1; i++ )
+        World_Cycle(world, 1);
+
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1,
+                "the action animation finished");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "the ready track is still the one holding the readyanim");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "and it is revealed at the loop point, not where free-running left it");
+
+    World_Free(world);
+}
+
+/*
  * A transmog keeps whatever one-shot is already playing.
  *
  * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk

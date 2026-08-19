@@ -823,18 +823,47 @@ World_StepEntityAnimation(
                  * action, so by the time the action ends it sits at an arbitrary
                  * frame and revealing it there is a jump cut.
                  *
-                 * Three conditions, all the reference's, and each one earns its
-                 * place: the secondary has to BE the readyanim (restarting a
-                 * walk animation would stutter the gait, and it is positional),
-                 * the entity has to carry NpcType opcode 130 (`method2909` is a
-                 * hard `false` on the player class, so players never do this),
-                 * and it fires on the FINISH, not on a loop-back.
+                 * TWO of the reference's three conditions are kept. The
+                 * secondary has to BE the readyanim -- restarting a walk
+                 * animation would stutter the gait, and it is positional -- and
+                 * it fires on the FINISH, not on a loop-back.
+                 *
+                 * THE OPCODE-130 CONDITION IS NOT. `method2909` gates this on
+                 * an NpcType flag that 33 records in the rev-239 cache set, and
+                 * the flag is the wrong instrument for the question: an action
+                 * animation ENDS on the readyanim's loop point whether or not
+                 * its record says so, because that is how the clip was authored.
+                 * `world_restart_readyanim_under_action` (world.c) states the
+                 * matching half at the other end and states the evidence; this
+                 * is its mirror, and the two have to agree or a clip is seamless
+                 * going in and a jump cut coming out.
+                 *
+                 * Xarpus is the measurement. Seq 8059 descends out of the spit
+                 * at ~73 authored units per frame -- its last three frames top
+                 * out at -1045, -972, -900 -- and seq 8058 frame 0 tops out at
+                 * -825, which continues that descent exactly. Resuming the
+                 * readyanim where the free-run left it instead put frame 26
+                 * (-1095) on screen: 195 units of upward snap, against the
+                 * direction he was moving. Same reading from the pose diff --
+                 * 14.94 to frame 0 against 19.74 to frame 26.
+                 *
+                 * What it costs elsewhere is a resume point that is fixed rather
+                 * than wandering, and the restart at the far end already spent
+                 * that: with both in place a readyanim under a repeating attack
+                 * shows its first `action length` of cycles, where before it
+                 * showed an arbitrary window that moved every time. Neither is
+                 * more of the loop than the other; only this one lands on the
+                 * frame the clip hands over to. `idle_anim_restart` stays
+                 * decoded and carried (ToriRS_Npctype, WorldEntityFacet_
+                 * IdleAnimations) because the cache states it and a field that
+                 * is read back is worth more than one that was dropped -- it is
+                 * simply no longer what decides this.
                  */
                 anim->primary.anim_id = (uint16_t)-1;
                 anim->primary.frame = 0;
                 anim->primary.cycle = 0;
                 anim->primary.loop = 0;
-                if( idle && idle->idle_anim_restart && anim_step_active(&anim->secondary) &&
+                if( idle && anim_step_active(&anim->secondary) &&
                     anim->secondary.anim_id == (uint16_t)idle->readyanim )
                 {
                     anim->secondary.frame = 0;

@@ -14435,6 +14435,123 @@ mock230_world_selftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
+    /*
+     * A focused, live Zulrah fight. `::zulrahrun` reads the phase table; this
+     * runs the encounter and reports what the player would actually see, tick
+     * by tick: which boss record is standing, where its south-west corner is,
+     * how many snakelings are alive, and the player's hitpoints.
+     *
+     *   MOCK230_SELFTEST_ZULRAH_ONLY=1 ./src/build_opt/mock230 --selftest
+     */
+    if( getenv("MOCK230_SELFTEST_ZULRAH_ONLY") )
+    {
+        int zul_loaded = mock230_scripts_load(
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int forms[3];
+        int minions[2];
+
+        if( !zul_loaded )
+            zul_loaded = mock230_scripts_load(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        fprintf(stderr, "mock230 selftest: Zulrah focused live fight\n");
+        SELFTEST_CHECK(zul_loaded, "the focused Zulrah lane loads a compiled script pack");
+
+        forms[0] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_ranged");
+        forms[1] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_melee");
+        forms[2] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_magic");
+        minions[0] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_melee");
+        minions[1] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_magic");
+        fprintf(stderr, "  forms=%d/%d/%d minions=%d/%d\n",
+                forms[0], forms[1], forms[2], minions[0], minions[1]);
+
+        if( zul_loaded )
+        {
+            int last_form = -2;
+            int last_x = -1;
+            int last_z = -1;
+            static struct Mock230Capture zul_capture;
+
+            selftest_reset_world(srv, player, 35 * 8, 47 * 8);
+            /* `hitpoints` and `stat_boosted[HITPOINTS]` are one number; a
+             * bare write to the first leaves `stat(hitpoints)` at its old
+             * value, and the fight then reads a player on 1 hp. */
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->max_hitpoints = 99;
+            player->hitpoints = 99;
+            mock230_combat_sync_hitpoints(player);
+            mock230_scripts_run_debugproc(srv, "zulrah");
+            /* `~zulrah_enter` opens with a `~mesbox` before it teleports, so
+             * the script is suspended on a continue the moment it starts. */
+            selftest_click_through(srv, 8);
+            fprintf(stderr, "  entered: player at %d,%d,%d\n",
+                    player->x, player->z, player->level);
+
+            for( int tick = 0; tick < 220; tick++ )
+            {
+                int slot;
+                int form = -1;
+                int bx = -1;
+                int bz = -1;
+                int snakes = 0;
+
+                mock230_capture_begin(srv, &zul_capture);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
+                if( player->rebuild_scene_pending )
+                    mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                selftest_click_through(srv, 4);
+                for( int i = mock230_capture_find(&zul_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&zul_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &zul_capture.packets[i];
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    fprintf(stderr, "      t=%3d msg: %s\n", tick, (const char*)pk->data + 1);
+                }
+
+                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                {
+                    if( !srv->npcs[i].active )
+                        continue;
+                    for( int f = 0; f < 3; f++ )
+                    {
+                        if( srv->npcs[i].type == forms[f] )
+                        {
+                            form = f;
+                            bx = srv->npcs[i].x;
+                            bz = srv->npcs[i].z;
+                        }
+                    }
+                    if( srv->npcs[i].type == minions[0] || srv->npcs[i].type == minions[1] )
+                        snakes++;
+                }
+                (void)slot;
+                {
+                    int clouds = 0;
+                    int cloud_id = mock230_content_symbol(
+                        MOCK230_PACK_LOC, "snakeboss_poisoncloud");
+
+                    for( int dx = -6; dx <= 6; dx++ )
+                    {
+                        for( int dz = -6; dz <= 6; dz++ )
+                        {
+                            if( mock230_scene_find_loc_id(player->x + dx, player->z + dz,
+                                                          player->level, cloud_id) >= 0 )
+                                clouds++;
+                        }
+                    }
+                    fprintf(stderr,
+                            "  t=%3d form=%2d at %4d,%4d snakelings=%d clouds=%d "
+                            "player=%d,%d hp=%d\n",
+                            tick, form, bx, bz, snakes, clouds, player->x, player->z,
+                            player->hitpoints);
+                }
+                (void)last_form; (void)last_x; (void)last_z;
+            }
+        }
+    }
+
     if( getenv("MOCK230_SELFTEST_TD_ONLY") )
     {
         static struct Mock230Capture td_only_capture;
@@ -53375,6 +53492,196 @@ mock230_world_selftest(void)
      * Mutation: restore either half — send `1` for the jump bit, or drop the
      * `unpark` in run_or_park's SSVM_WORLD_SUSPENDED arm — and this goes red.
      */
+    /*
+     * Windmill: fill the hopper, operate the levers, empty the flour bin.
+     *
+     * A whole-loop test for the same reason the farming one is: both defects it
+     * pins are in the dispatch, not in `windmills.rs2`.
+     *
+     * 1. The hopper's `op1=Fill` bound nothing. Only `[oplocu,hopper]` existed,
+     *    so grain went in by dragging it onto the loc and the loc's own menu
+     *    option fell through to "Nothing interesting happens."
+     *
+     *    Mutation: delete `[oploc1,hopper]` and the grain never leaves the
+     *    backpack.
+     *
+     * 2. The flour bin's ops were bound to `millbase`, which is a multiloc BASE
+     *    and therefore never the trigger type — a loc op dispatches on the
+     *    varbit-resolved child, which is `millbase_empty` at %mill_showflour 0
+     *    and `millbase_flour` at 1. Both bin bindings were unreachable, so
+     *    neither the "no flour yet" message nor the fill-a-pot ever ran.
+     *
+     *    Mutation: rebind either script to `millbase` and the matching
+     *    assertion below goes red.
+     *
+     * The morph is the third thing under test: `%mill_showflour` is bit 0 of
+     * cache carrier varp `millcheck_multi`, and the carrier needs a server half
+     * (hopper.varp) or the write lands nowhere and the bin never changes model.
+     *
+     * Locs are found by scanning the scene rather than by hardcoded tiles: the
+     * hopper and levers are two floors above the bin, and the park below is a
+     * ground-floor tile near Mill Lane Mill.
+     */
+    fprintf(stderr, "mock230 selftest: windmill hopper -> levers -> flour bin\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /* Mill Lane Mill's hopper is `hopper1`, the sibling that pairs with
+             * `hopperlevers1`. `hopper` proper stands in another mill, and all
+             * four hopper records carry the same `op1=Fill`. */
+            int hopper = mock230_content_symbol(MOCK230_PACK_LOC, "hopper1");
+            int levers = mock230_content_symbol(MOCK230_PACK_LOC, "hopperlevers1");
+            int millbase = mock230_content_symbol(MOCK230_PACK_LOC, "millbase");
+            int bin_empty = mock230_content_symbol(MOCK230_PACK_LOC, "millbase_empty");
+            int bin_flour = mock230_content_symbol(MOCK230_PACK_LOC, "millbase_flour");
+            int grain = mock230_content_symbol(MOCK230_PACK_OBJ, "grain");
+            int pot_empty = mock230_content_symbol(MOCK230_PACK_OBJ, "pot_empty");
+            int pot_flour = mock230_content_symbol(MOCK230_PACK_OBJ, "pot_flour");
+            int vb_show = mock230_content_symbol(MOCK230_PACK_VARBIT, "mill_showflour");
+            int hopper_slot = -1;
+            int levers_slot = -1;
+            int bin_slot = -1;
+
+            SELFTEST_CHECK(hopper > 0 && levers > 0 && millbase > 0 && bin_empty > 0 &&
+                               bin_flour > 0 && grain > 0 && pot_empty > 0 && pot_flour > 0 &&
+                               vb_show > 0,
+                           "every windmill symbol this section names should resolve");
+
+            selftest_park_player(srv, 3165, 3305);
+            for( int s = 0;; s++ )
+            {
+                struct Mock230SceneLoc* l = mock230_scene_loc(s);
+
+                if( !l )
+                    break;
+                if( !l->active )
+                    continue;
+                if( hopper_slot < 0 && l->loc_id == hopper )
+                    hopper_slot = s;
+                else if( levers_slot < 0 && l->loc_id == levers )
+                    levers_slot = s;
+                else if( bin_slot < 0 && l->loc_id == millbase )
+                    bin_slot = s;
+            }
+            SELFTEST_CHECK(hopper_slot >= 0 && levers_slot >= 0 && bin_slot >= 0,
+                           "Mill Lane Mill's hopper / levers / flour bin should be in the "
+                           "scene, got slots %d / %d / %d",
+                           hopper_slot, levers_slot, bin_slot);
+
+            if( hopper_slot >= 0 && levers_slot >= 0 && bin_slot >= 0 )
+            {
+                struct Mock230SceneLoc* lh = mock230_scene_loc(hopper_slot);
+                struct Mock230SceneLoc* ll = mock230_scene_loc(levers_slot);
+                struct Mock230SceneLoc* lb = mock230_scene_loc(bin_slot);
+
+                selftest_clear_inv(player);
+                mock230_varbit_set(srv, vb_show, 0);
+
+                /* ---- the bin is empty, and says so ----------------------- */
+                SELFTEST_CHECK(mock230_loc_resolve_transform(player, millbase) == bin_empty,
+                               "with no flour ground the bin should draw millbase_empty (%d), "
+                               "draws %d",
+                               bin_empty, mock230_loc_resolve_transform(player, millbase));
+
+                /* Run the ops directly rather than over a packet: the hopper and
+                 * the levers are on the mill's upper floors and the bin is on the
+                 * ground, so a packet leg would be testing three staircases. What
+                 * is under test is the trigger the resolved loc id reaches. */
+                player->level = lb->level;
+                player->x = lb->x;
+                player->z = lb->z;
+                SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                   srv, SS_TRIGGER_OPLOC1, bin_empty,
+                                   mock230_loc_category(bin_empty), bin_slot) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "Empty on the empty bin should reach a script");
+
+                /* ---- Fill, the hopper's own op1 ------------------------- */
+                player->level = lh->level;
+                player->x = lh->x;
+                player->z = lh->z;
+                inv_set(player, 0, grain, 1);
+                SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                   srv, SS_TRIGGER_OPLOC1, hopper,
+                                   mock230_loc_category(hopper), hopper_slot) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "Fill on the hopper should reach a script");
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(selftest_count(player, grain) == 0,
+                               "and take the grain out of the backpack, %d left",
+                               selftest_count(player, grain));
+
+                /* A second Fill with no grain must not consume anything, and a
+                 * second Fill WITH grain must not stack — the hopper holds one. */
+                inv_set(player, 0, grain, 1);
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, hopper,
+                                                   mock230_loc_category(hopper), hopper_slot);
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(selftest_count(player, grain) == 1,
+                               "a full hopper should refuse the second grain, %d left",
+                               selftest_count(player, grain));
+                selftest_clear_inv(player);
+
+                /* ---- Operate: grain becomes flour, the bin morphs -------- */
+                player->level = ll->level;
+                player->x = ll->x;
+                player->z = ll->z;
+                SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                   srv, SS_TRIGGER_OPLOC1, levers,
+                                   mock230_loc_category(levers), levers_slot) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "Operate on the hopper controls should reach a script");
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_show) == 1,
+                               "grinding should set %%mill_showflour, got %d",
+                               mock230_varbit_get(player, vb_show));
+                SELFTEST_CHECK(mock230_loc_resolve_transform(player, millbase) == bin_flour,
+                               "so the bin should draw millbase_flour (%d), draws %d", bin_flour,
+                               mock230_loc_resolve_transform(player, millbase));
+
+                /* ---- Empty the bin, which is now the OTHER child --------- */
+                player->level = lb->level;
+                player->x = lb->x;
+                player->z = lb->z;
+                inv_set(player, 0, pot_empty, 1);
+                SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                   srv, SS_TRIGGER_OPLOC1, bin_flour,
+                                   mock230_loc_category(bin_flour), bin_slot) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "Empty on the full bin should reach a script");
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(selftest_count(player, pot_flour) == 1 &&
+                                   selftest_count(player, pot_empty) == 0,
+                               "and trade the empty pot for a pot of flour, got %d flour / %d "
+                               "empty",
+                               selftest_count(player, pot_flour),
+                               selftest_count(player, pot_empty));
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_show) == 0,
+                               "taking the flour should clear the morph, got %d",
+                               mock230_varbit_get(player, vb_show));
+                SELFTEST_CHECK(mock230_loc_resolve_transform(player, millbase) == bin_empty,
+                               "so the bin draws millbase_empty (%d) again, draws %d", bin_empty,
+                               mock230_loc_resolve_transform(player, millbase));
+
+                mock230_varbit_set(srv, vb_show, 0);
+                selftest_clear_inv(player);
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: lighting a fire steps off it, twice\n");
     {
         int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
