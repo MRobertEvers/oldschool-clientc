@@ -328,6 +328,99 @@ check_a_copied_model_keeps_its_bind_pose(void)
     ToriDraw_SceneFree(scene);
 }
 
+/*
+ * A resized model is animated at its AUTHORED size and resized afterwards.
+ *
+ * The reference does exactly that -- NpcType.getModel and MapSpotAnim.getModel
+ * both animate the copy and only then call resize() -- and the two orders are
+ * not the same picture. A keyframe's translations and ORIGIN pivots are
+ * authored in the model's own units, so baking the resize into the bind pose
+ * first leaves them at full magnitude against geometry that is no longer full
+ * size. On Xarpus (resizeh/resizev 64, i.e. half) that lifted him several tiles
+ * off the floor of his own arena: the model's feet ended up where the
+ * animator's units said the wings should be.
+ *
+ * The check is arithmetic rather than pictorial. One vertex, one TRANSLATE of
+ * +2000, a half-size post-resize: animate-then-resize gives 1000, and
+ * resize-then-animate would give 2000 (the bind vertex is at the origin, so
+ * only the translation distinguishes the two).
+ */
+static void
+check_resize_is_applied_after_the_animation(void)
+{
+    vertexint_t vertices_x[1] = { 0 };
+    vertexint_t vertices_y[1] = { 0 };
+    vertexint_t vertices_z[1] = { 0 };
+    vertexint_t originals_x[1] = { 0 };
+    vertexint_t originals_y[1] = { 0 };
+    vertexint_t originals_z[1] = { 0 };
+    boneint_t bone_vertices[1] = { 0 };
+    boneint_t* bones[1] = { bone_vertices };
+    boneint_t bone_sizes[1] = { 1 };
+    struct ToriDraw_Bones vertex_bones = {
+        .bones_count = 1,
+        .bones = bones,
+        .bones_sizes = bone_sizes,
+    };
+    uint8_t transform_types[1] = { 1 }; /* TRANSLATE */
+    uint8_t transform_bones[1] = { 0 };
+    uint8_t* bone_groups[1] = { transform_bones };
+    uint16_t bone_group_lengths[1] = { 1 };
+    struct ToriDraw_AnimBase base = {
+        .length = 1,
+        .types = transform_types,
+        .bone_groups = bone_groups,
+        .bone_group_lengths = bone_group_lengths,
+    };
+    int16_t frame_groups[1] = { 0 };
+    int16_t frame_x[1] = { 2000 };
+    int16_t frame_y[1] = { 2000 };
+    int16_t frame_z[1] = { 0 };
+    struct ToriDraw_AnimFrame frame = {
+        .length = 1,
+        .groups = frame_groups,
+        .x = frame_x,
+        .y = frame_y,
+        .z = frame_z,
+    };
+    struct ToriDraw_BoundsCylinder bounds = { 0 };
+    struct ToriDraw_Model model = {
+        .vertex_count = 1,
+        .vertices_x = vertices_x,
+        .vertices_y = vertices_y,
+        .vertices_z = vertices_z,
+        .original_vertices_x = originals_x,
+        .original_vertices_y = originals_y,
+        .original_vertices_z = originals_z,
+        .vertex_bones = &vertex_bones,
+        .bounds_cylinder = &bounds,
+    };
+
+    ToriDraw_ModelSetPostResize(&model, 64, 64, 64);
+    CHECK(model.post_resize, "a non-identity resize is recorded");
+
+    ToriDraw_ModelAnimateFrame(&model, &base, &frame);
+    CHECK(vertices_x[0] == 1000, "translation is resized, not applied at full size");
+    CHECK(vertices_y[0] == 1000, "and on the axis the floating boss was wrong on");
+
+    /* The bind pose stays at the authored size, or the next frame composes with
+     * a shrunken one and the model creeps toward zero. */
+    CHECK(originals_x[0] == 0 && originals_y[0] == 0, "the bind pose is left alone");
+
+    /* Replaying the same frame is idempotent -- the resize is re-derived from
+     * the bind pose every time rather than compounding. */
+    ToriDraw_ModelAnimateReset(&model);
+    ToriDraw_ModelAnimateFrame(&model, &base, &frame);
+    CHECK(vertices_y[0] == 1000, "a second pose of the same frame lands in the same place");
+
+    /* Identity resizes leave the pose exactly where the animator put it. */
+    ToriDraw_ModelSetPostResize(&model, 128, 128, 128);
+    CHECK(!model.post_resize, "an identity resize records nothing");
+    ToriDraw_ModelAnimateReset(&model);
+    ToriDraw_ModelAnimateFrame(&model, &base, &frame);
+    CHECK(vertices_y[0] == 2000, "an unresized model is posed verbatim");
+}
+
 int
 main(void)
 {
@@ -345,6 +438,7 @@ main(void)
     check_projectile_sequence_loops();
     check_duplicate_animation_registration_keeps_the_first();
     check_a_copied_model_keeps_its_bind_pose();
+    check_resize_is_applied_after_the_animation();
 
     frame = 12;
     CHECK(ToriDraw_AnimationAdvanceObjectFrame(&anim, &frame), "interior frame advances");

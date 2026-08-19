@@ -741,6 +741,9 @@ npc_decode_op_rs2_b669(
     int opcode,
     struct RSCache_Buffer* buffer)
 {
+        if( getenv("RSCACHE_OPCODE_CENSUS") )
+            fprintf(stderr, "census NPC %d\n", opcode);
+
     switch( opcode )
     {
     case 0x01: /* models */

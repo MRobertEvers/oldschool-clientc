@@ -32,8 +32,10 @@ Sections are in the order the answers arrived, not in M-number order; the
 [provenance audit](#provenance-audit--what-blert-observes-versus-what-blert-asserts)
 records which figures are observations and which are another project's constants.
 
-**Outcome: 20 questions closed, 3 partially closed. Only M7 (pillar hitpoints) and M6 (stun length)
-are still genuinely open, and both now need a client-side capture rather than another source.**
+**Outcome: 21 questions closed, 3 partially closed. M6's stun length is the only one still
+genuinely open.** M7 was the other, and the sixth pass closed it — not with a client-side
+capture, which is what this document kept saying it needed, but by measuring the *supports*
+out of blert's ordinary event stream. See [M7's sixth pass](#m7-sixth-pass--damage-per-swing-measured-090-per-bite).
 Sections are appended by pass; where a later pass overturned an earlier one, the earlier section
 carries a forward pointer.
 
@@ -883,7 +885,7 @@ counts, so this needs a small capture plugin, not another API query.
 
 ---
 
-## M7 — Nylocas pillars. **HP CLOSED BY JAGEX; damage per swing still open**
+## M7 — Nylocas pillars. **HP CLOSED BY JAGEX; damage per swing CLOSED BY MEASUREMENT** (see the [sixth pass](#m7-sixth-pass--damage-per-swing-measured-090-per-bite))
 
 A separate pass ([`NYLO_PILLARS.md`](NYLO_PILLARS.md)) found the source that three passes of
 plugin and server reading had missed: **Jagex published both ends of the pillar HP curve
@@ -987,6 +989,121 @@ failures in this tree, and its `::tdtest` line flips between runs on identical c
 shared-RNG flakiness already on record — so the comparison is failure-set diffs, not totals.)
 
 ---
+
+## M7 sixth pass — damage per swing. **MEASURED — 0.90 per bite, and a big bites no harder than a small**
+
+Five passes looked for this number in newsposts, the wiki, plugin source and five server trees
+and came back with one figure, Zenyte's flat small 2 / big 4, which no other tree corroborates.
+This document twice concluded it needed "a client-side capture". It did not. The supports are
+measurable from the **same blert stream every other measurement in this log came from** — the
+trick is that you never have to read a support's hitpoints at all.
+
+Full write-up and the source ranking: [`NYLO_PILLARS.md`](NYLO_PILLARS.md). Tool:
+[`tools/measure_tob_pillar_damage.py`](../tools/measure_tob_pillar_damage.py). 145 recorded
+Regular rooms across all five scales.
+
+### Why blert can measure a support it does not track
+
+`NylocasDataTracker` uses a support's spawn only to call `startRoom()` and then returns
+`Optional.empty()` — the npc ids 8358 / 10790 / 10811 never enter the stream, which is what
+the fifth pass correctly concluded. But blert reports a **position for every wave nylo on
+every tick**, and that is enough for both halves:
+
+1. **The bite count is geometry.** A support is a **2×2** block — read that off a dwell
+   histogram of the recorded rooms, not off the wiki's map pins — and only its two
+   room-facing sides are stood on. 77 % of *every* colour's stationary ticks are at chebyshev
+   1, so no colour chews from range and nothing is missed by requiring melee reach.
+   "Cardinally adjacent and did not move this tick", over the cache attack rate of 3, is the
+   number of bites a support really took.
+2. **The collapse is visible without hitpoints.** When a support falls, everything chewing it
+   retargets the players *on that tick* and it is never chewed again, while the other three
+   keep taking bites for the rest of the room (official Support page; blert's mechanics guide;
+   M24). So a support whose bite stream stops ≥40 ticks before the room's has collapsed — and
+   the bites it had taken by then **are its hitpoints**, which Jagex published above.
+
+The signature is unmistakable in the raw data. In raid `038b9770` at tick 401, five nylos that
+had sat against the south-west support for tens of ticks all step toward the player on the
+same tick; that support's last bite is tick 401 and the room runs to 539 with the other three
+still being chewed.
+
+### The number
+
+Fourteen collapses, all in **solos** — 330 hitpoints against a wave table one player cannot
+clear, which is why solos and not five-mans are the right place to measure this:
+
+| First bite on parked tick | Median bites at collapse | sd | **Damage per bite** |
+|---|---|---|---|
+| 1 | 399 | 7 | 0.83 |
+| 2 | 377 | 4 | 0.88 |
+| 3 | 367 | 4 | **0.90** |
+| 4 | 353 | 4 | 0.93 |
+
+The one free parameter is which parked tick the first bite lands on, and it moves the answer
+by 0.03 because a support takes ~36 separate visits before it falls. **0.83–0.93 over the whole
+family, sd 1 %.**
+
+That is the ordinary OSRS damage roll on a **max hit of 2**: uniform `0..2`, mean **1.0**. The
+measured 0.90 sits ~10 % under, which is one turn-and-swing tick per arrival across 36 visits.
+Nothing else survives:
+
+| To read as | Requires this share of parked ticks to be no swing |
+|---|---|
+| max 2, roll `0..2` (mean 1.0) | 10 % — one tick per arrival |
+| Zenyte's flat 2 (mean 2.0) | 55 % |
+| the wiki's 17 vs players (mean 8.5) | 89 % |
+
+**A big bites no harder than a small.** Least squares over the fourteen collapse sums, solving
+the two sizes separately, returns **0.92 / 0.84** — ratio 0.91; the neighbouring timing models
+put it at 0.80 and 0.67. Every reading has the large at or *below* the small. Zenyte's 4 is
+contradicted rather than merely unsourced: bigs are ~24 % of the bites on a collapsed support,
+so a 2× large would have scattered the collapse points far wider than the observed sd of 4.
+
+### Two things it confirms for free
+
+- **Solo 330 is independent of the newspost now.** The collapse points cluster at 367 bites,
+  sd 4, across fourteen supports in seven different raids.
+- **`380 − 50 × party` passes its first real test.** The heaviest bite load a support carried,
+  as a fraction of the hitpoints that line assigns it, is 1.42 / 1.25 / 1.25 / 1.23 / 1.15 from
+  five players down to one. A wrong slope would have fanned those out.
+
+### Why the answer is invariant to how fast the team kills
+
+The obvious objection is that the recorded teams were killing the nylos chewing the supports.
+They were, and it cannot reach the estimate: no clear rate is modelled or assumed anywhere.
+The estimator reads the bites **actually delivered** up to a tick a support **demonstrably
+collapsed**, and divides published hitpoints by that count. Killing changes how long a room
+takes to get there; it does not change how many bites had landed when it did. The fourteen
+collapses come from seven raids with very different clear speeds and agree to 1 %.
+
+The one residual bias runs the other way: a nylo killed mid-cycle loses its partial cycle to
+`floor(parked / 3)`, so the bite count is **under**-counted and the damage figure **over**-stated.
+0.90 is a ceiling, not a midpoint.
+
+### What it cost the tree
+
+`^tob_nylo_pillar_hit_max = 2` was already the right max hit; `~tob_nylo_chew` was rolling it
+`add(1, random(max))` — 1..2, mean 1.5 — where OSRS rolls `0..max`. Fixed to
+`random(add(max, 1))`. Held against blert on the statistics that do not depend on clear speed:
+
+| scenario-free quantity | live | tree before | tree after |
+|---|---|---|---|
+| spawn → first at a support | 12 ticks | 12 | 12 |
+| spawn → first bite | 14 ticks | 14 | 14 |
+| lifetime before self-destruct | 52 ticks | 52 | 52 |
+| ticks parked, full-life chewer | 42 | 38 | 38 |
+| bites, full-life chewer (mean) | 13.15 | 12.12 | 12.81 |
+| hp per bite | 0.90 | 1.50 | 0.93 |
+| **hp off a support per full-life chewer** | **11.8** | **18.2** | **11.9** |
+
+Everything else about the room was already right. In the harness's no-kill solo
+(`MOCK230_NYLO_TRACE=1` on `mock230 --selftest`, whose player is in godmode and never attacks)
+all four supports used to fall by tick 440 and the room wiped before Vasilias could land; it
+now keeps them, worst at 299/330 after 520 ticks, and `--selftest` went 15 → 12 failures.
+
+Still short by ~10 %: **38 parked ticks against live's 42**. Live splits a 52-tick nylo into 12
+walking and 40 parked; the tree loses ~2 ticks at the handover. The two places to look are the
+arrival tick spent retiring the route in `~tob_nylo_pillar_tick` and `^tob_nylo_pillar_reach = 2`
+measured against a cache **size-3** support where live's blocked footprint is **2×2**.
 
 ## M37 — which pillar a split attacks. **STILL OPEN, but the survivorship bias is now fixable**
 
@@ -1807,7 +1924,7 @@ update posts for a mechanic before reading anybody's code for it.**
 | M4 | Maiden | **Closed** — 10-slot table, uniform subset of 2×scale, on the transmog tick | observed, 81 spawns |
 | M5 | Maiden | **Closed — 30 ticks.** Measured 29 over 3 366 runs; Zenyte's `BloodTrail` states 30 with a `resetTimer()` on re-cover, resolving the off-by-one | observed + server source |
 | M6 | Bloat | **2 of 3 closed** — 16 hands per drop (Mc: 16 attempts over 12 tiles), 3-tick shadow→land, cadence 6→4 ticks HP-gated in (34 %, 41.3 %]. Stun length still open: **3 ticks** in two independent server trees (Zenyte, Trinity) against **5** in a third (Ferox/Valinor), with the wiki's own 5-tick precedent for Verzik's slam favouring 5; Mc's page documents the hands and gives no stun | observed + four source trees |
-| M7 | Nylocas | **Hitpoints closed by Jagex**: 130 at five players and 330 solo, published 21 Jun 2018, so the curve is `380 − 50 × party` and the cache's `stat4 = 130` is the five-man anchor. Mc's direction was right and Zenyte's inverse slope was right in kind — that tree carries this exact line on *Verzik's* pillars. 2/3/4-man interpolated between the two published points; **damage per swing still open** (Zenyte's flat small 2 / big 4 is the only figure) | **Jagex newspost** + cache + Mc |
+| M7 | Nylocas | **Closed, both halves.** Hitpoints by Jagex: 130 at five players and 330 solo, published 21 Jun 2018, so the curve is `380 − 50 × party` and the cache's `stat4 = 130` is the five-man anchor; Mc's direction was right and Zenyte's inverse slope was right in kind — that tree carries this exact line on *Verzik's* pillars. Damage by measurement: **0.90 per bite** (bracket 0.83–0.93, sd 1 %) over 14 observed support collapses in 145 recorded rooms, i.e. a max hit of 2 rolled `0..2`, **the same for a big** (ratio 0.91), which kills Zenyte's 4. The measurement re-derives solo 330 and passes `380 − 50n` through its first real test; 2/3/4-man remain that interpolation | **Jagex newspost** + cache + Mc + **145 recorded rooms** |
 | M8 | Nylocas | **Closed** — first wave-check tick ≥ cleanup+16; 22/22 raids | observed |
 | M9 | Nylocas | **Regular closed**, Entry **resolved on the balance of evidence** — the Entry Mode page says 10 ticks, matching every other source; the "takes longer" line is a numberless comparative on a different page, and the cache shows no per-mode difference | observed + Wiki + cache |
 | M10 | Sotetseg | **Closed** — 1 tick after re-activation, 25/26 mazes | observed |
@@ -1829,11 +1946,17 @@ update posts for a mechanic before reading anybody's code for it.**
 | M38 | Nylocas | **Closed** — it moves (up to 4 distinct tiles in one fight) | observed |
 | M39 | All | Not a research item | — |
 
-**Net: 21 questions closed (M11 and M37 by measurement in the fourth pass; M7's hitpoints by a
-Jagex newspost in the fifth), 3 partially closed. What remains genuinely open is narrower than
-a question: M6's stun length, and the two halves of M7 that Jagex did not print — the 2/3/4-man
-interpolation and the damage one nylocas does per swing. All three need the same thing, a
-client-side capture, not another source.**
+**Net: 22 questions closed (M11 and M37 by measurement in the fourth pass; M7's hitpoints by a
+Jagex newspost in the fifth; M7's damage per swing by measurement in the sixth), 3 partially
+closed. What remains genuinely open is one thing: M6's stun length. The 2/3/4-man support
+hitpoints are still an interpolation, but the sixth pass put a check through it.**
+
+**And the standing "this needs a client-side capture" verdict was wrong twice.** M7's
+hitpoints turned out to be sitting in a Jagex newspost, and M7's damage turned out to be
+measurable from the blert stream this log had already downloaded — by measuring the *chewers*
+and the moment a support stopped being chewed, rather than the support. Before concluding a
+question needs telemetry nobody has, check whether the thing you cannot see leaves a mark on
+the things you can.
 
 ---
 

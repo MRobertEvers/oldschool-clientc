@@ -68,6 +68,16 @@
 > scaling), **M45** (the tornado's damage) and **M46** (how far a wrong tile
 > reaches).
 
+> **19 August 2026, Nylocas:** **M7 is closed** — the last open number in the room.
+> Damage to a support is **a max hit of 2 rolled `0..2`, mean 1.0, the same for a big**,
+> measured at 0.90 per bite over 14 observed collapses in 145 recorded rooms (§8.4). It was
+> reachable from the blert stream all along by measuring the *chewers* and the tick a support
+> stopped being chewed, rather than the support — which no recorder tracks. `~tob_nylo_chew`
+> was rolling `add(1, random(max))`, i.e. 1..2 and mean 1.5, 46 % hot; it now rolls
+> `random(add(max, 1))`. In the harness's no-kill solo all four supports used to fall by tick
+> 440 and the room wiped before Vasilias could land — `mock230 --selftest` went 15 → 12
+> failures on the one-line change.
+>
 > **17 August 2026, Nylocas:** M24 is closed. The spawn→pillar assignment is
 > measured over 199 recorded raids and now ships as a `pillar` column in
 > `tob_nylo_spawn` (§8.4.1). Three further defects fell out of the same
@@ -1046,6 +1056,28 @@ the tiles nylos stand on to attack them. `^tob_nylo_pillar_*_l[xz]` are now the
 south-west anchors, and `~tob_st_pillar_geometry` pins the relationships.
 
 - The top health bar during the wave phase is the **combined** health of all four.
+- The room is held against blert on the statistics that do not depend on clear speed, which is
+  the only honest way to compare a harness run with a recorded raid. Targets, and where the
+  tree sits (`MOCK230_NYLO_TRACE=1` on `mock230 --selftest`, whose player is in godmode and
+  never attacks, i.e. a no-kill solo):
+
+  | scenario-free quantity | live | tree |
+  |---|---|---|
+  | spawn → first at a support | 12 ticks | 12 |
+  | spawn → first bite | 14 ticks | 14 |
+  | lifetime before self-destruct | 52 ticks | 52 |
+  | ticks parked, full-life chewer | 42 | **38** |
+  | bites, full-life chewer (mean) | 13.15 | 12.81 |
+  | hp off a support per full-life chewer | 11.8 | 11.9 |
+
+  The nylo *count* is not comparable and must not be read as a defect: a live solo room carries
+  ~207 tracked nylos against the harness's 122, because nothing kills a big in a no-kill run
+  and so nothing splits.
+
+  **Open, ~10 %:** parked ticks are 38 against live's 42. Live splits a 52-tick nylo into 12
+  walking and 40 parked. Two places to look — the arrival tick `~tob_nylo_pillar_tick` spends
+  retiring its route, and `^tob_nylo_pillar_reach = 2` measured to the centre of a cache
+  **size-3** support where the blocked footprint above is **2×2**.
 - A pillar reaching 0 collapses, deals **up to 50** to everyone in the room, and
   the nylocas that were attacking it **switch to attacking players**.
 - All four down = **instant team death**.
@@ -1063,8 +1095,32 @@ south-west anchors, and `~tob_st_pillar_geometry` pins the relationships.
   figure (330 / 350 / 355) rather than the cache's five-man one: `npc_statheal` cannot raise
   an npc above its config base, so a base left at 130 would silently give every small party a
   five-man pillar. Bosses have the opposite problem and are authored at their five-man value.
-- What is still **[MEASURE M7]** is the other half: how much one nylocas takes off a pillar
-  per swing.
+- The other half, how much one nylocas takes off a support, is **measured — no longer
+  [MEASURE M7]**. `^tob_nylo_pillar_hit_max = 2` is a **max hit**, and `~tob_nylo_chew` rolls
+  it `0..max` the way OSRS rolls every hit, so it averages **1.0**. The same number for a big:
+  the two sizes measure at a ratio of **0.91**, so Zenyte's flat small 2 / big 4 — the only
+  figure any tree carried — is contradicted on both counts, the flatness and the 4.
+
+  Measured over **145 recorded live rooms** from blert's ordinary event stream, without ever
+  reading a support's hitpoints, because blert does not carry them. Two steps:
+  the **bite count** is geometry — a support is 2×2, only its two room-facing sides are stood
+  on, and 77 % of every colour's stationary ticks are at chebyshev 1, so "cardinally adjacent
+  and did not move" over the cache attack rate of 3 is what a support really took; and the
+  **collapse is visible** without telemetry, because everything chewing a support that falls
+  retargets the players on that tick and it is never chewed again while the room carries on,
+  so the bites it had taken by then *are* its hitpoints. Fourteen such collapses, all in solos
+  (330 against a wave table one player cannot clear), give **0.90 per bite, sd 1 %**, bracket
+  0.83–0.93 over every attack-timing assumption. It is invariant to how fast the team was
+  killing: no clear rate is modelled anywhere, and a nylo killed mid-cycle only *under*-counts
+  bites, so 0.90 is a ceiling.
+
+  Free by-products: solo **330** is now independent of the newspost (collapses cluster at 367
+  bites, sd 4, across seven raids), and `380 − 50 × party` passes its first real test — the
+  heaviest bite load a support carried, over the hitpoints that line assigns it, is
+  1.42 / 1.25 / 1.25 / 1.23 / 1.15 from five players down to one.
+
+  [`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) · [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md) M7
+  sixth pass · [`tools/measure_tob_pillar_damage.py`](../../../tools/measure_tob_pillar_damage.py)
 
 #### 8.4.1 Which pillar each nylo attacks — **M24, measured**
 
@@ -2160,7 +2216,7 @@ approximation and tag it in `tob.constant`.
 | M4 | Maiden | **Closed.** Ten fixed slots (5 north, 5 south) each with a "scuffed" variant one tile east and one tile outward; table matches blert's constants and 462 recorded spawns. **Scale 5 uses all ten every time**; below that a **fresh uniform subset of 2 × scale** is drawn per spawn (per-slot counts χ² p ≈ 0.92). Spawn is **on the transmog tick itself** — crab spawn tick == Maiden id-change tick in 81 of 81 events. The scuff applies to the whole spawn set at once (2 of 60 events), not per crab. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M5 | Maiden | **Closed — 30 ticks.** Measured 29 ticks of active life per trail tile (80 % of 3 366 recorded runs; longer runs are a spawn re-covering its own trail), and Zenyte's `BloodTrail` states the constant outright — `ticks = 31`, active at 30, removed at 0, with a `resetTimer()` that restarts it on re-cover. Two sources, one off-by-one: **use 30**. The Wiki's "roughly 20–30 seconds" measures the lifetime of a *patch* under a circling spawn, not of a tile. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M6 | Bloat | **Two of three closed, third has a lead.** **16 hands per drop**; **shadow→land is 3 ticks**, now with a first-party origin: Jagex made the shadows appear *"one cycle earlier"* (13 Jun 2018) and the hands *"take slightly longer to fall"* (21 Jun 2018), which is how a 2-tick warning became 3 — matching TobMistakeTracker's stated 3, blert's drop→splat delta of 3 with no exceptions, and Zenyte's `% 5 == 0` drop / `% 5 == 3` land; the **drop cadence is HP-gated — 6 ticks above the threshold, 4 below**, bracketed to **(34 %, 41.3 %]** and proven by one raid that did both in different walks. Down phase is ~33 ticks (Zenyte `freeze(32)`). **Stun duration:** Zenyte says **3 ticks** (`member.stun(3)`, `Entity.stun(int ticks)`) — the only figure any source gives, but it is suspiciously equal to the shadow delay two lines above it, so implement it tagged and confirm with a splat-tick→first-action capture. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
-| M7 | Nylocas | **Hitpoints closed — by Jagex, not by the cache.** The 21 June 2018 newspost that cut the first 21 waves states both ends outright: *"Players in groups of five will find that the pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has been reduced from 350 hitpoints to 330 hitpoints."* So pillars **scale upwards as the party shrinks** — the only thing in the raid that runs opposite to the bosses — and the cache's `stat4=130` is the **five-man anchor**, exactly as it is for every boss. The two published points fit one line, **`hp = 380 − 50 × party`** → 330 / 280 / 230 / 180 / 130, and 2/3/4-man are that interpolation rather than measurements. Corroboration that the *slope* is real and not fitted: the Zenyte family carries `380 − partySize * 50` — this exact line — on **Verzik's** pillars while giving the nylo supports a `380 − partySize * 20` that matches nothing Jagex said; and [User:Mc/Mechanics/ToB](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB) independently states pillars have *"more HP in lower scales, and will scale down to 1"*. Hard and Entry keep their cache five-man anchors (150 / 155) with the same −50 step carried on, disclosed as an assumption. **Still open: damage per swing** — `^tob_nylo_pillar_hit_max = 2` matches Zenyte's small-nylo figure, its big-nylo 4 is that tree's alone, and the Wiki's 17/24 are max hits against *players* (at 17 one small would delete a five-man pillar in eight swings). Implemented: `^tob_nylo_pillar_hp_step`, a scale-aware `~tob_nylo_pillar_hp`, and support npc bases re-authored to the **solo** figure because `npc_statheal` cannot raise an npc above its config base. The engine needed no new opcode (authored `hitpoints=` already reaches `base_hitpoints`); the base-vs-solo coupling is pinned by `tools/check_tob_pillar_contract.py` in the `mock230-scripts` build, since the opcode table is generated from the reference server and cannot be extended locally. `::tobrooms` had pinned the old flat assumption and now checks base against the solo figure *and* current against the party's figure. See [`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
+| M7 | Nylocas | **Hitpoints closed — by Jagex, not by the cache.** The 21 June 2018 newspost that cut the first 21 waves states both ends outright: *"Players in groups of five will find that the pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has been reduced from 350 hitpoints to 330 hitpoints."* So pillars **scale upwards as the party shrinks** — the only thing in the raid that runs opposite to the bosses — and the cache's `stat4=130` is the **five-man anchor**, exactly as it is for every boss. The two published points fit one line, **`hp = 380 − 50 × party`** → 330 / 280 / 230 / 180 / 130, and 2/3/4-man are that interpolation rather than measurements. Corroboration that the *slope* is real and not fitted: the Zenyte family carries `380 − partySize * 50` — this exact line — on **Verzik's** pillars while giving the nylo supports a `380 − partySize * 20` that matches nothing Jagex said; and [User:Mc/Mechanics/ToB](https://oldschool.runescape.wiki/w/User:Mc/Mechanics/ToB) independently states pillars have *"more HP in lower scales, and will scale down to 1"*. Hard and Entry keep their cache five-man anchors (150 / 155) with the same −50 step carried on, disclosed as an assumption. **Damage per swing closed too, 19 August 2026, by measurement** — `^tob_nylo_pillar_hit_max = 2` was the right *max hit* all along, but a max hit is rolled `0..max` in OSRS, so it averages **1.0**, and `~tob_nylo_chew` was rolling `add(1, random(max))` — 1..2, mean 1.5, 46 % hot. Fixed to `random(add(max, 1))`. Zenyte's big-nylo **4** is contradicted, not merely unsourced: solving the two sizes separately puts the large/small ratio at **0.91**, and since bigs are ~24 % of the bites on a collapsed support a 2× large would have scattered the collapse points far wider than the observed sd of 4 bites. The Wiki's 17/24 remain max hits against *players*. Method (§8.4, and it needed no telemetry nobody has): blert never tracks the supports, but it reports every wave nylo's position every tick, so the **bite count is geometry** — 2×2 block, two room-facing sides, 77 % of every colour's stationary ticks at chebyshev 1 — and a **collapse is visible** because everything chewing a support that falls retargets the players on that tick and it is never chewed again while the room carries on, which makes the bites it had taken *its hitpoints*. Fourteen collapses across 145 recorded rooms: **0.90 per bite, sd 1 %**, bracket 0.83–0.93. It is invariant to how fast the team killed — no clear rate is modelled, and a nylo killed mid-cycle only under-counts bites, so 0.90 is a ceiling. It also re-derives solo **330** independently and puts the first real check through `380 − 50 × party`. Implemented: `^tob_nylo_pillar_hp_step`, a scale-aware `~tob_nylo_pillar_hp`, and support npc bases re-authored to the **solo** figure because `npc_statheal` cannot raise an npc above its config base. The engine needed no new opcode (authored `hitpoints=` already reaches `base_hitpoints`); the base-vs-solo coupling is pinned by `tools/check_tob_pillar_contract.py` in the `mock230-scripts` build, since the opcode table is generated from the reference server and cannot be extended locally. `::tobrooms` had pinned the old flat assumption and now checks base against the solo figure *and* current against the party's figure. See [`NYLO_PILLARS.md`](../../NYLO_PILLARS.md) and [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M8 | Nylocas | **Closed.** `boss_spawn = first wave-check tick ≥ cleanup_end + 16`, i.e. four full cycles after the last nylo *despawns*, rounded up to the next cycle-0 tick. Reproduces **22 of 22** recorded raids exactly (observed deltas 16–19), and blert's own guide words it as "the start of the 5th cycle following the despawn". Keyed on despawn, not death — the death→despawn delay is itself a function of size, cause and whether it was walking. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M9 | Nylocas | **Regular closed; Entry resolved on the balance of evidence.** Vasilias always spawns **melee**, first switches **9 ticks** after spawn, then exactly every **10 ticks**, and **never repeats a style** (185 recorded switches; Zenyte independently does `ticks % 10` with `types.remove(type)`). For Entry the Wiki contradicts itself: the [Nylocas Vasilias](https://oldschool.runescape.wiki/w/Nylocas_Vasilias) page says the boss "takes longer to switch colours" with no figure, while [Theatre of Blood/Entry Mode](https://oldschool.runescape.wiki/w/Theatre_of_Blood/Entry_Mode) says it "will change colours after 10 ticks (6 seconds)" and "will never remain in the same form twice in a row". The cache backs the specific number — the `_story` boss records are structurally identical to the regular ones, same `param=attackrate,int,4` — and blert is a dead end (its entire database holds **one** Entry raid, unfinished). **Implement Entry at 10 ticks, tagged**, and soften §8's claim of a longer interval. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |
 | M10 | Sotetseg | **Closed — 1 tick, and now in the tree** (19 Aug 2026; `^tob_sote_post_maze_ticks`, and the threshold check moved after the attack so the proc tick keeps its own attack). Delayed hits are nulled while the maze runs, which that reordering makes load-bearing rather than theoretical. He flips to his inactive npc id on the maze proc tick and back on maze end; the first post-maze attack is the **very next tick** in 25 of 26 recorded mazes. The gap from his *last pre-maze* attack is 25–51 ticks and is pure noise — it tracks how fast the player ran the maze, which is why this looked open. He can also attack *on* the proc tick. See [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md). |

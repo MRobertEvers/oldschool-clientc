@@ -832,6 +832,9 @@ RSCache_Dat2ConfigLocDecodeOp(
     struct RSCache_Buffer* buffer,
     unsigned flags)
 {
+        if( getenv("RSCACHE_OPCODE_CENSUS") )
+            fprintf(stderr, "census LOC %d\n", opcode);
+
         switch( opcode )
         {
         case 1:

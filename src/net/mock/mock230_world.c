@@ -40837,61 +40837,40 @@ mock230_world_selftest(void)
                  * docs/NYLO_PILLARS.md (tools/measure_tob_pillar_damage.py).
                  * Off unless asked for: it is one line a tick.
                  */
+                /*
+                 * Per-nylo trace, so the room can be held against the live
+                 * measurement in docs/NYLO_PILLARS.md tick for tick: this
+                 * harness player is in godmode and never attacks, which is the
+                 * no-kill solo. One line per nylo per tick, plus one for the
+                 * supports. Off unless asked for.
+                 */
                 if( getenv("MOCK230_NYLO_TRACE") )
                 {
-                    int hp_of[4];
-                    int chewers[4];
-
-                    for( size_t i = 0; i < 4; i++ )
-                    {
-                        hp_of[i] = 0;
-                        chewers[i] = 0;
-                    }
                     for( int n = 0; n < MOCK230_NPC_MAX; n++ )
                     {
                         struct Mock230Npc* npc = &srv->npcs[n];
                         const char* nm;
-                        int lx;
-                        int lz;
 
                         if( !npc->active )
                             continue;
                         if( mock230_mapinstance_find(npc->x, npc->z) != handle )
                             continue;
-                        lx = npc->x - base_x;
-                        lz = npc->z - base_z;
-                        for( size_t i = 0; i < 4; i++ )
+                        if( npc->type == k_nylo_support )
                         {
-                            if( npc->type == k_nylo_support &&
-                                lx == k_pillars[i].lx && lz == k_pillars[i].lz )
-                                hp_of[i] = npc->hitpoints;
+                            fprintf(stderr, "nylosup t=%d lx=%d lz=%d hp=%d\n",
+                                    t, npc->x - base_x, npc->z - base_z,
+                                    npc->hitpoints);
+                            continue;
                         }
                         nm = mock230_content_symbol_name(MOCK230_PACK_NPC, npc->type);
                         if( !nm || strncmp(nm, "tob_nylocas_", 12) != 0 )
                             continue;
-                        for( size_t i = 0; i < 4; i++ )
-                        {
-                            int size = npc->size > 0 ? npc->size : 1;
-                            int dx = 0;
-                            int dz = 0;
-
-                            if( lx > k_pillars[i].lx + 2 )
-                                dx = lx - (k_pillars[i].lx + 2);
-                            else if( lx + size - 1 < k_pillars[i].lx )
-                                dx = k_pillars[i].lx - (lx + size - 1);
-                            if( lz > k_pillars[i].lz + 2 )
-                                dz = lz - (k_pillars[i].lz + 2);
-                            else if( lz + size - 1 < k_pillars[i].lz )
-                                dz = k_pillars[i].lz - (lz + size - 1);
-                            if( dx <= 1 && dz <= 1 )
-                                chewers[i]++;
-                        }
+                        fprintf(stderr,
+                                "nylo t=%d uid=%d lx=%d lz=%d size=%d name=%s\n",
+                                t, n * 65536 + npc->generation,
+                                npc->x - base_x, npc->z - base_z,
+                                npc->size > 0 ? npc->size : 1, nm);
                     }
-                    fprintf(stderr,
-                            "nylotrace tick=%d alive=%d hp %d %d %d %d "
-                            "chewers %d %d %d %d\n",
-                            t, alive, hp_of[0], hp_of[1], hp_of[2], hp_of[3],
-                            chewers[0], chewers[1], chewers[2], chewers[3]);
                 }
 
                 /* Splits: kill the first big the room produces and count what
@@ -43387,24 +43366,6 @@ mock230_world_selftest(void)
                 }
                 SELFTEST_CHECK(flee_steps >= 6,
                                "a walkable route away from the goblin's spawn to run down");
-                if( getenv("MOCK230_DBG_CHASE") )
-                {
-                    fprintf(stderr, "DBGROUTE home=%d,%d steps=%d:", home_x, home_z, flee_steps);
-                    for( int i = 0; i < flee_steps; i++ )
-                        fprintf(stderr, " %d,%d", flee_x[i], flee_z[i]);
-                    fprintf(stderr, "\n");
-                    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                    {
-                        if( !srv->npcs[i].active )
-                            continue;
-                        if( srv->npcs[i].x < 3213 || srv->npcs[i].x > 3226 ||
-                            srv->npcs[i].z < 3222 || srv->npcs[i].z > 3232 )
-                            continue;
-                        fprintf(stderr, "DBGNPC slot=%d type=%d at %d,%d size=%d blockwalk=%d\n",
-                                i, srv->npcs[i].type, srv->npcs[i].x, srv->npcs[i].z,
-                                srv->npcs[i].size, srv->npcs[i].blockwalk);
-                    }
-                }
             }
 
             if( flee_steps >= 6 )
@@ -43496,11 +43457,6 @@ mock230_world_selftest(void)
                 {
                     player->hitpoints = player->max_hitpoints;
                     mock230_world_tick(srv);
-                    if( getenv("MOCK230_DBG_CHASE") )
-                        fprintf(stderr, "DBGCHASE t%d npc=%d,%d player=%d,%d gap=%d target=%d\n",
-                                i, npc->x, npc->z, player->x, player->z,
-                                distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1),
-                                npc->combat_target);
                 }
                 SELFTEST_CHECK(distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1) <= 1,
                                "and catches a player who stops, at %d,%d vs %d,%d", npc->x, npc->z,

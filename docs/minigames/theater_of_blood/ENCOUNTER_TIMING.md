@@ -438,7 +438,14 @@ retargets a player**. All four → instant team death. Per-pillar hitpoints are 
 longer `[M7]`: Jagex published **130 at five players and 330 solo**
 ([21 June 2018](https://oldschool.runescape.wiki/w/Update:Theatre_of_Blood_Changes_%26_Deadman_Summer_Finals)),
 so the curve is `380 − 50 × party` and pillars get *bigger* as the party shrinks.
-`[M7]` now covers only the damage one nylocas does per swing.
+`[M7]` is **fully closed** as of 19 August 2026. The damage one nylocas takes off a
+support is a **max hit of 2 rolled `0..2`, mean 1.0, the same for a big** — measured at
+**0.90 per bite** (sd 1 %, bracket 0.83–0.93) over 14 observed collapses in 145 recorded
+rooms, by counting the chewers and the tick a support stopped being chewed rather than
+reading a support's hitpoints, which no recorder carries. See
+[`NYLO_PILLARS.md`](../../NYLO_PILLARS.md), [`TOB_RESEARCH.md`](../../TOB_RESEARCH.md)
+M7 sixth pass, and
+[`tools/measure_tob_pillar_damage.py`](../../../tools/measure_tob_pillar_damage.py).
 
 ### 4.6 Nylocas Prinkipas — correction
 

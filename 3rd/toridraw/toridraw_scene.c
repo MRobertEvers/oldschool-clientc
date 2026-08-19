@@ -1609,17 +1609,6 @@ ToriDraw_SceneElementApplyAnimation(
         }
 
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
-        if( getenv("TORIRS_TMP_YSPAN") && model->vertex_count > 0 )
-        {
-            int lo = model->vertices_y[0], hi = lo;
-            for( int i = 0; i < model->vertex_count; i++ )
-            {
-                if( model->vertices_y[i] < lo ) lo = model->vertices_y[i];
-                if( model->vertices_y[i] > hi ) hi = model->vertices_y[i];
-            }
-            fprintf(stderr, "tmp_yspan: element=%d seq=%d frame=%d verts=%d y=%d..%d\n",
-                    element_id, element->anim_seq_id, frame, model->vertex_count, lo, hi);
-        }
 
         /*
          * TORIRS_ANIM_STACK: how far this pose moved the model off its own bind
@@ -1685,8 +1674,16 @@ ToriDraw_SceneElementApplyAnimation(
                 if( p > pose_hi ) pose_hi = p;
                 if( d > worst_d ) { worst_d = d; worst_v = i; }
             }
-            int const bind_span = bind_hi - bind_lo;
+            /* The bind pose is the AUTHORED size and the pose has already had
+             * the model's post-resize applied (see post_resize), so the two
+             * spans are in different scales -- a half-size npc would never trip
+             * the ratio below and a double-size one would trip it on every
+             * healthy frame. Compare the bind span the pose was actually built
+             * from. */
+            int bind_span = bind_hi - bind_lo;
             int const pose_span = pose_hi - pose_lo;
+            if( model->post_resize )
+                bind_span = bind_span * model->post_resize_height / 128;
             /* Her wake sequence legitimately reaches ~5x the bind span (she
              * rears up out of a coiled rest pose), which is why this is 8x and
              * not the 3x that looked generous on paper -- 3x reported every

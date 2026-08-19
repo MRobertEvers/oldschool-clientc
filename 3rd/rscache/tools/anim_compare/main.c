@@ -31,6 +31,13 @@
  *                      must be the same colour on both sides.
  *   --sheet            also write one contact sheet of every rendered frame
  *
+ * ANIM_YRANGE=1 in the environment also prints each frame's vertical extent for
+ * both sides, plus the bind pose's. That is the reading that answers "is this
+ * sequence lifting the model off the ground, or is the client doing it?" -- a
+ * pose whose maximum y is ~0 stands on its own tile no matter how tall it is,
+ * and a floating entity in the game with a grounded reading here is a renderer
+ * fault rather than bad animation data. World units, negative up.
+ *
  * Writes `frame_NNN.bmp` per frame plus `sheet.bmp`, into --out.
  */
 
