@@ -7467,13 +7467,31 @@ mock230_script_command(
     case SS_OP_IF_SETCOLOUR:
     {
         int32_t values[2];
+        int colour;
 
         for( int i = 1; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setcolour(srv->active_player, values[0], values[1]);
+        /*
+         * CONTENT WRITES 24-BIT, THE WIRE CARRIES 15. `IF_SETCOLOUR` is two
+         * bytes on every revision this server speaks and the client expands
+         * them as RGB555 (`rs15_to_rgb`, rs_gameproto_exec.c), so a script
+         * colour has to be packed here — LostCity's `ifSetColour` does the same
+         * conversion at the same seam.
+         *
+         * Without it the low sixteen bits were sent raw, which is a silent
+         * black for every colour whose bottom two bytes are zero: 0xa00000 and
+         * 0x300000, the Theatre's title card and its wash, both arrived as 0 —
+         * and a rect that is asked for black over a dark room is a rect nobody
+         * can see. Content writes `0x8f0000` here for the same reason it writes
+         * `<col=8f0000>` in a message: one spelling of a colour in one tree.
+         */
+        colour = (((values[1] >> 16) & 0xff) >> 3) << 10;
+        colour |= (((values[1] >> 8) & 0xff) >> 3) << 5;
+        colour |= ((values[1] & 0xff) >> 3);
+        mock230_send_if_setcolour(srv->active_player, values[0], colour);
         return 1;
     }
 

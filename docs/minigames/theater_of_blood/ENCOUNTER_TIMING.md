@@ -696,10 +696,23 @@ T-1   The melee player must ALREADY have left the adjacent tile.
 T     SCAN   pick the next target in orb order.
              Read that player's tile AS OF THE END OF T-1.
       TURN   set orientation to face that tile.  <-- the visible telegraph,
-                                                     same tick as the fire
-      FIRE   seq tob_xarpus_attack_ranged 8059;
-             sound tob_xarpus_attack_ranged_projectile_5 3290 (the "chirp");
+                                                     same tick as the wind-up
+      WIND-UP seq tob_xarpus_attack_ranged 8059 starts.
+
+T+27c FIRE   sound tob_xarpus_attack_ranged_projectile_5 3290 (the "chirp");
              projectile tob_xarpus_acidspit 1555 -> the locked tile.
+
+      Scan, turn and wind-up are one tick; the RELEASE is 27 client cycles
+      later, and the difference is a whole tick to anybody counting them. Seq
+      8059 is 21 frames totalling exactly 60 cycles (two ticks) and the cache
+      hangs 3290 on **frame 10**, which begins at cycle 27 - so the chirp and
+      the ball belong to the second half of T, not to its start. This section
+      used to put all three on T, which is true at tick granularity and wrong
+      at the granularity a melee player actually hears: firing on T put the
+      chirp a full tick ahead of the mouth opening. The projectile carries the
+      same 27 as `^tob_xarpus_spit_proj_delay`, the script no longer plays 3290
+      itself (the seq does, positionally), and the impact clock below inherits
+      the offset because `~map_projectile` returns delay + flight.
 
 T+f   IMPACT sound tob_xarpus_acid_floor_hit 4005, graphic
              tob_xarpus_acidsplash 1556; place ground object 32744 on the
@@ -775,17 +788,40 @@ P3 retaliation (base 50–75, × `1 + 0.4 × stat uplift`).
 
 ## 7. Room 6 — Verzik
 
-### 7.1 Phase 1 — 14 ticks, pillar-aware
+### 7.1 Phase 1 — opens on 18, then 14 ticks, pillar-aware
 
 ```
-T     SCAN  for each pillar that is hiding >=1 player, target that PILLAR;
-            for each player not behind a pillar, target the PLAYER.
-      FIRE  seq verzik_phase1_attack_magic 8109, projectile 1580.
-T+f   IMPACT  pillar: exactly ONE hit however many players hid behind it.
++18   WIND-UP   seq verzik_phase1_attack_magic 8109 (6 ticks long; its
+                tob_verzik_human_magic_attack sound is on frame 7, i.e. one
+                tick in, which is where the bolt leaves her hands).
++19   SCAN+FIRE  ** the dangerous tick. **
+                for each pillar that is hiding >=1 player, target that PILLAR;
+                for each player not behind a pillar, target the PLAYER.
+                Cover, Protect from Magic and the damage roll are ALL settled
+                here - the wiki's "as long as one player hides behind the
+                pillar before the attack is launched" and "having Protect from
+                Magic active before the projectile is launched".
+                Projectile 1580, delay 20 + duration 90 client cycles.
++21   IMPACT  pillar: exactly ONE hit however many players hid behind it.
               player: up to 137, halved to 68 by Protect from Magic,
-                      NOT tick-eatable.
-T+14  next SCAN
+                      NOT tick-eatable - the number was fixed at +19.
+then  wind-up every 14: 32, 46, 60 ... firing on 33, 47, 61 ...
 ```
+
+**The opening is 18, not one attack period.** [M16] Blert's streams for 29
+completed Verzik rooms put the first auto on room tick 19 (12 rooms) or 20 (17),
+then a flat 14; blert reports a P1 auto one tick *after* seq 8109
+(`nextVerzikAttackTick = tick + 1`), so the wind-up is 18 and the bolt is 19.
+spoontob arms its P1 counter at **18** the tick it first sees npc 8370 and
+re-arms it to 14 on 8109, reaching zero on the wind-up from the other direction.
+Room tick 0 is the first tick she is 8370 — she is already transformed in the
+tick-0 snapshot of every stream, and the earliest player attack is tick 1 in
+both the 19 and the 20 group, so the spread is not a recorder shift.
+
+The Wiki states the same opening in swings: *"The player can safely attack four
+times with a 4-tick weapon, or 3 times with a 5-tick weapon"* before hiding.
+Four 4-tick swings land on 0, 4, 8, 12 and leave seven ticks to reach the
+pillar. At 14 the swing on 12 would have two, and the Wiki would say three.
 
 Damage cap while shielded: **10 melee / 3 ranged / 3 magic per hitsplat**.
 Dawnbringer is exempt from both the cap and the accuracy roll (75–150).

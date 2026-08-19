@@ -55,7 +55,17 @@ struct TilePaint
      *  while a far neighbour was still pending. The tile's scenery and completion then wait for the plain
      *  reference gate (see painter_paint_bucket). Cleared in the classify pass. */
     uint8_t seam_relaxed;
+    /** Bucket painter: memoized seam-exception scan of THIS tile as a
+     *  neighbour. 0 = not yet scanned this paint (cleared in classify).
+     *  Else 1 + clamped max near-corner distance of this tile's pending
+     *  scenery, or SEAM_SCAN_DISQUALIFIED for "has walls / nothing pending".
+     *  Elements only leave the pending set as they draw, so the cached max is
+     *  an upper bound: a stale value can only delay a relaxation (the gate
+     *  blocks and the tile retries), never grant one wrongly. */
+    uint8_t seam_scan;
 };
+
+#define SEAM_SCAN_DISQUALIFIED 255
 
 struct ElementPaint
 {

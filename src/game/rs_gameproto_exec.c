@@ -666,10 +666,21 @@ RS_GameProto_Exec(
                 ctx->tree, packet->_if_sethide.component_id, packet->_if_sethide.hide);
         break;
     case PKT_NAME_IF_SETCOLOUR:
-        UITree_ApplyColour(
-            ctx->tree,
-            packet->_if_setcolour.component_id,
-            rs15_to_rgb(packet->_if_setcolour.colour));
+        /* Persisting, like IF_SETTEXT and IF_SETHIDE above, and for the same
+         * reason: a colour written in the tick its interface is mounted has no
+         * node to land on yet. This applied straight to the tree, so it was the
+         * one setter of the family that could be silently dropped — and it was,
+         * every time, for an overlay the server opens and colours together. */
+        if( ctx->app )
+            App_IfColourSet(
+                ctx->app,
+                packet->_if_setcolour.component_id,
+                rs15_to_rgb(packet->_if_setcolour.colour));
+        else
+            UITree_ApplyColour(
+                ctx->tree,
+                packet->_if_setcolour.component_id,
+                rs15_to_rgb(packet->_if_setcolour.colour));
         break;
     case PKT_NAME_IF_SETMODEL:
         /* A wire model id addresses the cache, not the renderer's scene. The

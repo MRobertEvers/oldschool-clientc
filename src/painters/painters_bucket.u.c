@@ -189,35 +189,55 @@ static int
 bucket_neighbour_holds_only_nearer_scenery(
     struct Painter* painter,
     const struct PaintersTile* other_tile,
-    const struct TilePaint* other_paint,
+    struct TilePaint* other_paint,
     int camera_sx,
     int camera_sz,
     int dist,
     int lateral_gate)
 {
-    int pending = 0;
-
     if( !lateral_gate )
         return 0; /* the neighbour is behind this tile along the view ray */
     if( other_paint->step == PAINT_STEP_READY )
         return 0; /* ground not down yet — nothing to relax */
-    if( other_tile->scenery_head == -1 )
-        return 0;
-    if( other_tile->wall_a != -1 || other_tile->wall_b != -1 ||
-        other_tile->wall_decor_a != -1 )
-        return 0;
 
-    for( int32_t sn = other_tile->scenery_head; sn != -1;
-         sn = painter->scenery_pool[sn].next )
+    /* Memoized: the scan depends only on the neighbour and the camera (both
+     * fixed for the paint), except that elements leave the pending set as
+     * they draw — which can only LOWER the max, so the cached value is a
+     * sound upper bound (see TilePaint.seam_scan). One chain walk per
+     * neighbour per paint instead of one per retry of every gated tile. */
+    if( other_paint->seam_scan == 0 )
     {
-        int si = painter->scenery_pool[sn].element_idx;
-        if( painter->element_paints[si].drawn )
-            continue;
-        if( scenery_near_corner_dist(&painter->elements[si], camera_sx, camera_sz) >= dist )
-            return 0;
-        pending = 1;
+        int max_near = -1;
+        if( other_tile->scenery_head == -1 || other_tile->wall_a != -1 ||
+            other_tile->wall_b != -1 || other_tile->wall_decor_a != -1 )
+        {
+            other_paint->seam_scan = SEAM_SCAN_DISQUALIFIED;
+        }
+        else
+        {
+            for( int32_t sn = other_tile->scenery_head; sn != -1;
+                 sn = painter->scenery_pool[sn].next )
+            {
+                int si = painter->scenery_pool[sn].element_idx;
+                int d;
+                if( painter->element_paints[si].drawn )
+                    continue;
+                d = scenery_near_corner_dist(&painter->elements[si], camera_sx, camera_sz);
+                if( d > max_near )
+                    max_near = d;
+            }
+            if( max_near < 0 )
+                other_paint->seam_scan = SEAM_SCAN_DISQUALIFIED; /* nothing pending */
+            else if( max_near >= SEAM_SCAN_DISQUALIFIED - 1 )
+                other_paint->seam_scan = SEAM_SCAN_DISQUALIFIED - 1;
+            else
+                other_paint->seam_scan = (uint8_t)(1 + max_near);
+        }
     }
-    return pending;
+
+    if( other_paint->seam_scan == SEAM_SCAN_DISQUALIFIED )
+        return 0;
+    return other_paint->seam_scan - 1 < dist;
 }
 
 /* One direction of the reference adjacency gate. Non-zero = this tile must
@@ -362,6 +382,200 @@ bucket_emit_terrain_pick_only(
         },
     };
     (*cur)++;
+}
+
+/* Everything 3-dimensional the reference emits in a tile's front pass: the
+ * bridge underpass wall and scenery, the tile's far-side walls, ground decor,
+ * ground objects and wall decor. Split out of the ground pass so a tile the
+ * seam exception releases early can put its TERRAIN down at once (which is
+ * what a waiting multi-tile loc's footprint check needs) while these — the
+ * features that could wrongly cover a still-pending far neighbour — wait for
+ * the plain reference gate, exactly as painter_paint_world3d orders them. */
+/* Forced inline: two call sites (the ground pass for every ordinary tile, the
+ * release site for the rare relaxed one); as an outlined call it cost the hot
+ * path ~5% of the paint stage. */
+static inline void __attribute__((always_inline))
+bucket_emit_tile_features(
+    struct Painter* painter,
+    struct PaintersElementCommand** cmd_cur_p,
+    struct PaintersElementCommand* cmd_end,
+    struct PaintersTile* tile,
+    int e_tile,
+    int camera_sx,
+    int camera_sz)
+{
+    struct PaintersTile* tiles = painter->tiles;
+    struct PaintersElement* elements = painter->elements;
+    struct ElementPaint* element_paints = painter->element_paints;
+    struct SceneryNode* scenery_pool = painter->scenery_pool;
+    struct SceneOccluders* occ = painter->occluders;
+    struct PaintersElementCommand* cmd_cur = *cmd_cur_p;
+    int tile_sx = tile->sx;
+    int tile_sz = tile->sz;
+    int occlusion_level = painters_tile_get_mesh_level(tile);
+    int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
+
+    (void)tiles;
+    if( tile->bridge_tile != -1 )
+    {
+        struct PaintersTile* bridge_underpass_tile = &tiles[tile->bridge_tile];
+        (void)bridge_underpass_tile;
+        if( bridge_underpass_tile->wall_a != -1 )
+        {
+            struct PaintersElement* element = &elements[bridge_underpass_tile->wall_a];
+            assert(element->kind == PNTRELEM_WALL_A);
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+            painter_wedgelog_paint(
+                tile->bridge_tile,
+                "wall:bridge",
+                (int)element->source_level,
+                element->_wall.entity,
+                bridge_underpass_tile->wall_a);
+        }
+
+        for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
+             sn = scenery_pool[sn].next )
+        {
+            int scenery_element = scenery_pool[sn].element_idx;
+            struct ElementPaint* ep = &element_paints[scenery_element];
+            if( ep->drawn )
+                continue;
+
+            struct PaintersElement* element = &elements[scenery_element];
+            assert(element->kind == PNTRELEM_SCENERY);
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
+            painter_wedgelog_paint(
+                tile->bridge_tile,
+                scenery_element >= painter->static_element_count ? "entity:bridge"
+                                                                : "loc:bridge",
+                (int)element->source_level,
+                element->_scenery.entity,
+                scenery_element);
+
+            ep->drawn = true;
+        }
+    }
+
+    if( tile->wall_a != -1 )
+    {
+        struct PaintersElement* element = &elements[tile->wall_a];
+        assert(element->kind == PNTRELEM_WALL_A);
+        if( (element->_wall.side & far_walls) != 0 &&
+            !(occ && scene_occluders_wall_hidden(
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+        {
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+            painter_wedgelog_paint(
+                e_tile, "wall_a", (int)element->source_level, element->_wall.entity,
+                tile->wall_a);
+        }
+    }
+
+    if( tile->wall_b != -1 )
+    {
+        struct PaintersElement* element = &elements[tile->wall_b];
+        assert(element->kind == PNTRELEM_WALL_B);
+        if( (element->_wall.side & far_walls) != 0 &&
+            !(occ && scene_occluders_wall_hidden(
+                         occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
+        {
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
+            painter_wedgelog_paint(
+                e_tile, "wall_b", (int)element->source_level, element->_wall.entity,
+                tile->wall_b);
+        }
+    }
+
+    if( tile->ground_decor != -1 && painter_ground_decor_enabled() )
+    {
+        struct PaintersElement* element = &elements[tile->ground_decor];
+        assert(element->kind == PNTRELEM_GROUND_DECOR);
+        if( !(occ && scene_occluders_column_hidden(
+                         occ, occlusion_level, tile_sx, tile_sz, 0)) )
+        {
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
+            painter_wedgelog_paint(
+                e_tile, "grounddecor", (int)element->source_level,
+                element->_ground_decor.entity, tile->ground_decor);
+        }
+    }
+
+    if( tile->ground_object_bottom != -1 )
+    {
+        struct PaintersElement* element = &elements[tile->ground_object_bottom];
+        assert(element->kind == PNTRELEM_GROUND_OBJECT);
+        if( !(occ && scene_occluders_column_hidden(
+                         occ, occlusion_level, tile_sx, tile_sz, 0)) )
+        {
+            bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
+            painter_wedgelog_paint(
+                e_tile, "item", (int)element->source_level,
+                element->_ground_object.entity, tile->ground_object_bottom);
+        }
+    }
+
+    if( tile->wall_decor_a != -1 )
+    {
+        struct PaintersElement* element = &elements[tile->wall_decor_a];
+        assert(element->kind == PNTRELEM_WALL_DECOR);
+        int decor_hidden =
+            occ &&
+            scene_occluders_column_hidden(
+                occ, occlusion_level, tile_sx, tile_sz, element->_wall_decor.model_height);
+        if( element->_wall_decor._bf_through_wall_flags != 0 )
+        {
+            int x_diff = element->sx - camera_sx;
+            int z_diff = element->sz - camera_sz;
+
+            int x_near = x_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                x_near = -x_diff;
+
+            int z_near = z_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                z_near = -z_diff;
+
+            if( z_near < x_near )
+            {
+                if( !decor_hidden )
+                {
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "decor", (int)element->source_level,
+                        element->_wall_decor.entity, tile->wall_decor_a);
+                }
+            }
+            else if( tile->wall_decor_b != -1 )
+            {
+                element = &elements[tile->wall_decor_b];
+                assert(element->kind == PNTRELEM_WALL_DECOR);
+                if( !decor_hidden )
+                {
+                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                    painter_wedgelog_paint(
+                        e_tile, "decor_alt", (int)element->source_level,
+                        element->_wall_decor.entity, tile->wall_decor_b);
+                }
+            }
+        }
+        else if( (element->_wall_decor._bf_side & far_walls) != 0 )
+        {
+            if( !decor_hidden )
+            {
+                bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
+                painter_wedgelog_paint(
+                    e_tile, "decor", (int)element->source_level,
+                    element->_wall_decor.entity, tile->wall_decor_a);
+            }
+        }
+    }
+    else
+    {
+        assert(tile->wall_decor_b == -1);
+    }
+    *cmd_cur_p = cmd_cur;
 }
 
 int
@@ -515,6 +729,7 @@ painter_paint_bucket(
                 tp->occlusion = TILE_OCCLUSION_UNKNOWN;
                 tp->scenery_sorted = 0;
                 tp->seam_relaxed = 0;
+                tp->seam_scan = 0;
 
                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
                 if( tile_excluded_by_bridge_or_draw_mask(
@@ -783,40 +998,6 @@ painter_paint_bucket(
                         }
                 }
 
-                if( bridge_underpass_tile->wall_a != -1 )
-                {
-                    struct PaintersElement* element = &elements[bridge_underpass_tile->wall_a];
-                    assert(element->kind == PNTRELEM_WALL_A);
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
-                        tile->bridge_tile,
-                        "wall:bridge",
-                        (int)element->source_level,
-                        element->_wall.entity,
-                        bridge_underpass_tile->wall_a);
-                }
-
-                for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
-                     sn = scenery_pool[sn].next )
-                {
-                    int scenery_element = scenery_pool[sn].element_idx;
-                    struct ElementPaint* ep = &element_paints[scenery_element];
-                    if( ep->drawn )
-                        continue;
-
-                    struct PaintersElement* element = &elements[scenery_element];
-                    assert(element->kind == PNTRELEM_SCENERY);
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_scenery.entity);
-                    painter_wedgelog_paint(
-                        tile->bridge_tile,
-                        scenery_element >= painter->static_element_count ? "entity:bridge"
-                                                                        : "loc:bridge",
-                        (int)element->source_level,
-                        element->_scenery.entity,
-                        scenery_element);
-
-                    ep->drawn = true;
-                }
             }
 
             {
@@ -840,125 +1021,14 @@ painter_paint_bucket(
                     }
             }
 
-            if( tile->wall_a != -1 )
-            {
-                struct PaintersElement* element = &elements[tile->wall_a];
-                assert(element->kind == PNTRELEM_WALL_A);
-                if( (element->_wall.side & far_walls) != 0 &&
-                    !(occ && scene_occluders_wall_hidden(
-                                 occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
-                {
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
-                        e_tile, "wall_a", (int)element->source_level, element->_wall.entity,
-                        tile->wall_a);
-                }
-            }
+            /* The 3D features. A tile the seam exception let through defers
+             * them — its terrain is what the waiting loc needed; walls and
+             * decor hold with the scenery until the reference gate passes
+             * (world3d order). Emitted at the release site below. */
+            if( !tile_paint->seam_relaxed )
+                bucket_emit_tile_features(
+                    painter, &cmd_cur, cmd_end, tile, e_tile, camera_sx, camera_sz);
 
-            if( tile->wall_b != -1 )
-            {
-                struct PaintersElement* element = &elements[tile->wall_b];
-                assert(element->kind == PNTRELEM_WALL_B);
-                if( (element->_wall.side & far_walls) != 0 &&
-                    !(occ && scene_occluders_wall_hidden(
-                                 occ, occlusion_level, tile_sx, tile_sz, element->_wall.side)) )
-                {
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_wall.entity);
-                    painter_wedgelog_paint(
-                        e_tile, "wall_b", (int)element->source_level, element->_wall.entity,
-                        tile->wall_b);
-                }
-            }
-
-            if( tile->ground_decor != -1 && painter_ground_decor_enabled() )
-            {
-                struct PaintersElement* element = &elements[tile->ground_decor];
-                assert(element->kind == PNTRELEM_GROUND_DECOR);
-                if( !(occ && scene_occluders_column_hidden(
-                                 occ, occlusion_level, tile_sx, tile_sz, 0)) )
-                {
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_decor.entity);
-                    painter_wedgelog_paint(
-                        e_tile, "grounddecor", (int)element->source_level,
-                        element->_ground_decor.entity, tile->ground_decor);
-                }
-            }
-
-            if( tile->ground_object_bottom != -1 )
-            {
-                struct PaintersElement* element = &elements[tile->ground_object_bottom];
-                assert(element->kind == PNTRELEM_GROUND_OBJECT);
-                if( !(occ && scene_occluders_column_hidden(
-                                 occ, occlusion_level, tile_sx, tile_sz, 0)) )
-                {
-                    bucket_emit_entity(&cmd_cur, cmd_end, element->_ground_object.entity);
-                    painter_wedgelog_paint(
-                        e_tile, "item", (int)element->source_level,
-                        element->_ground_object.entity, tile->ground_object_bottom);
-                }
-            }
-
-            if( tile->wall_decor_a != -1 )
-            {
-                struct PaintersElement* element = &elements[tile->wall_decor_a];
-                assert(element->kind == PNTRELEM_WALL_DECOR);
-                int decor_hidden =
-                    occ &&
-                    scene_occluders_column_hidden(
-                        occ, occlusion_level, tile_sx, tile_sz, element->_wall_decor.model_height);
-                if( element->_wall_decor._bf_through_wall_flags != 0 )
-                {
-                    int x_diff = element->sx - camera_sx;
-                    int z_diff = element->sz - camera_sz;
-
-                    int x_near = x_diff;
-                    if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
-                        element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
-                        x_near = -x_diff;
-
-                    int z_near = z_diff;
-                    if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
-                        element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
-                        z_near = -z_diff;
-
-                    if( z_near < x_near )
-                    {
-                        if( !decor_hidden )
-                        {
-                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
-                                e_tile, "decor", (int)element->source_level,
-                                element->_wall_decor.entity, tile->wall_decor_a);
-                        }
-                    }
-                    else if( tile->wall_decor_b != -1 )
-                    {
-                        element = &elements[tile->wall_decor_b];
-                        assert(element->kind == PNTRELEM_WALL_DECOR);
-                        if( !decor_hidden )
-                        {
-                            bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                            painter_wedgelog_paint(
-                                e_tile, "decor_alt", (int)element->source_level,
-                                element->_wall_decor.entity, tile->wall_decor_b);
-                        }
-                    }
-                }
-                else if( (element->_wall_decor._bf_side & far_walls) != 0 )
-                {
-                    if( !decor_hidden )
-                    {
-                        bucket_emit_entity(&cmd_cur, cmd_end, element->_wall_decor.entity);
-                        painter_wedgelog_paint(
-                            e_tile, "decor", (int)element->source_level,
-                            element->_wall_decor.entity, tile->wall_decor_a);
-                    }
-                }
-            }
-            else
-            {
-                assert(tile->wall_decor_b == -1);
-            }
 
             tile_paint->step = PAINT_STEP_GROUND;
 
@@ -1010,6 +1080,17 @@ painter_paint_bucket(
                         &perf_push_dedup);
                 }
             }
+
+            /* A pop the seam exception just let through cannot pass the
+             * reference re-check below in the same pop — nothing has changed
+             * since the gate ran. Skip the scenery walk and the four-gate
+             * check; the far neighbour's completion (or a footprint push)
+             * re-queues this tile. */
+            if( tile_paint->seam_relaxed )
+            {
+                BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                continue;
+            }
         }
 
         /* PAINT_STEP_GROUND == reference PAINTER_STEP_BASE for scenery / completion. */
@@ -1030,6 +1111,11 @@ painter_paint_bucket(
                 continue;
             }
             tile_paint->seam_relaxed = 0;
+            /* The reference gate finally passes: put down the walls, decor
+             * and objects the relaxed ground pass deferred, then fall through
+             * to scenery — the order world3d's front pass produces. */
+            bucket_emit_tile_features(
+                painter, &cmd_cur, cmd_end, tile, e_tile, camera_sx, camera_sz);
         }
 
         /* Reference emission order (class112.java:1030-1058 + method3971),

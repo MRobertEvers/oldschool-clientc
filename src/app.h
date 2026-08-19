@@ -557,6 +557,22 @@ struct App
     int if_hide_cap;
     uint32_t if_hide_applied_gen;
 
+    /* Persistent IF_SETCOLOUR store, for the reason the two above exist: a
+     * colour written before its interface has mounted has no node to land on,
+     * and IF_SETCOLOUR used to be the one setter in this family that applied
+     * straight to the tree and was lost when it missed. The Theatre's title
+     * card is what found it — server mounts the overlay and writes the red in
+     * the same tick, and the red never arrived, so the card came up in the
+     * cache's authored black. */
+    struct AppIfColour
+    {
+        int com_id;
+        int colour;
+    }* if_colours;
+    int if_colour_count;
+    int if_colour_cap;
+    uint32_t if_colour_applied_gen;
+
     /* Persistent IF_SETEVENTS store. At rev 230 nothing is clickable by
      * default — the server declares which slots of which component accept
      * input, and it does so before the interface finishes mounting, so the
@@ -1390,6 +1406,13 @@ App_IfTextSet(
     int com_id,
     char const* text);
 
+/** IF_SETCOLOUR: persist (same reasoning as text/hide) + apply if mounted. */
+void
+App_IfColourSet(
+    struct App* app,
+    int com_id,
+    int colour);
+
 /** IF_SETHIDE: persist (reference IfType.list semantics) + apply if mounted. */
 void
 App_IfHideSet(
@@ -1528,10 +1551,17 @@ App_WorldSpawnSyncedPlayer(
     int scene_z,
     int level);
 
+/** Spawn a synced npc. `npc_id` is the type whose MODEL is drawn -- already
+ * resolved through the multiNpc table -- and `base_npc_id` is the id the wire
+ * sent. They differ only for a multinpc, and the split matters: the reference
+ * builds the entity's size, turn speed, ready animation and walk animations
+ * out of the WIRE's type and transforms only for the body (Client.ts NPC add).
+ * Pass -1 for `base_npc_id` when there is no separate shell. */
 int
 App_WorldSpawnSyncedNpc(
     struct App* app,
     int npc_id,
+    int base_npc_id,
     int scene_x,
     int scene_z,
     int level);
@@ -1583,13 +1613,16 @@ App_WorldApplyPlayerAppearance(
     struct PktPlayerAppearance const* appearance);
 
 /** NPC transmog (CHANGE_TYPE): rebuild the model + apply the new config's
- * size/anims/menu data (assets already cached). */
+ * size/anims/menu data (assets already cached). `npc_type` is the resolved
+ * drawn type and `base_npc_type` the wire's id, split for the reason
+ * App_WorldSpawnSyncedNpc gives; -1 when there is no separate shell. */
 void
 App_WorldApplyNpcType(
     struct App* app,
     int world_idx,
     int element_id,
-    int npc_type);
+    int npc_type,
+    int base_npc_type);
 
 /* Ground item stacks (zone OBJ_* packets; objtype/model already cached). */
 int

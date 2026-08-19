@@ -1124,7 +1124,8 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     int idx;
 
     npc_local_tile(self, &tile_x, &tile_z, &level);
-    idx = App_WorldSpawnSyncedNpc(app, self->pending_npc_type, tile_x, tile_z, level);
+    idx = App_WorldSpawnSyncedNpc(
+        app, self->pending_npc_type, self->pending_npc_base_type, tile_x, tile_z, level);
     if( idx < 0 )
     {
         /* The one failure with no retry: npc_add fires once per spawn, so an
@@ -1662,7 +1663,11 @@ Task_ExecNpcInfo_Run(
                             npc->multinpc_hidden = self->pending_npc_hidden != 0;
                         }
                         App_WorldApplyNpcType(
-                            app, world_idx, element_id, self->pending_npc_type);
+                            app,
+                            world_idx,
+                            element_id,
+                            self->pending_npc_type,
+                            self->pending_npc_base_type);
                         BD_ADD(g_bd_retype, bd_t);
                     }
                 }

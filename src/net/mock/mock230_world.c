@@ -36138,7 +36138,7 @@ mock230_world_selftest(void)
                 {
                     int arrived = 0;
 
-                    for( int t = 0; t < 20; t++ )
+                    for( int t = 0; t < 3; t++ )
                     {
                         mock230_world_tick(srv);
                         if( player->x == sx + 3 && player->z == sz + 3 )
@@ -38468,7 +38468,7 @@ mock230_world_selftest(void)
              * [ai_timer], and the arena's mirror is written by the runner's own
              * watchdog on the tick after they arrive.
              */
-            for( int t = 0; t < 3; t++ )
+            for( int t = 0; t < 20; t++ )
                 mock230_world_tick(srv);
 
             mock230_capture_begin(srv, &maze);
@@ -39394,6 +39394,89 @@ mock230_world_selftest(void)
             mock230_combat_sync_hitpoints(player);
         }
 
+        /*
+         * THE DAWNBRINGER, AND THAT THERE IS EXACTLY ONE OF IT.
+         *
+         * It used to be an `obj_add` onto the floor by the exit door on
+         * Xarpus' death. It is not a drop: the corridor out of his arena has a
+         * skeleton standing in it still holding the sword, and the cache says
+         * so in two records - `tob_skeleton_with_weapon` (32741, model 35724,
+         * `op1=Search`) placed at plane 1 (35,45) of m49_68, and
+         * `tob_skeleton_without_weapon` (32742), the same pose with the plain
+         * model and no op at all. Searching swaps the placement from the first
+         * to the second, which is what limits a raid to one Dawnbringer with
+         * no flag anywhere saying so.
+         *
+         * Both halves are checked, because either alone passes for the wrong
+         * reason: a search that gives nothing looks the same as a skeleton
+         * that is not there, and a search that gives one looks the same as a
+         * search that would give five.
+         *
+         * `::tobdawn` runs `~tob_dawnbringer_take` - the state half of the
+         * search, deliberately the half WITHOUT `~objbox` in it, because the
+         * dialogue parks the script on `p_pausebutton` until somebody clicks
+         * continue and this harness has nobody to do that.
+         */
+        {
+            const int k_dawnbringer = 22516;
+            int held_before;
+            int held_after;
+            int held_again;
+
+            fprintf(stderr, "mock230 selftest: Xarpus Dawnbringer\n");
+            mock230_scripts_run_debugproc(srv, "tob 5");
+            /*
+             * The room is built and the player teleported into it, and NEITHER
+             * is visible to `loc_find` yet: the scene is rebuilt on the tick
+             * boundary, so a search run in the same breath as the build looks
+             * at the square the player was standing on before. Ticking first
+             * costs three ticks and is the difference between this fixture
+             * finding the skeleton and finding nothing anywhere in the square.
+             */
+            for( int t = 0; t < 3; t++ )
+                mock230_world_tick(srv);
+            {
+                int bx = mock230_scene_base_x();
+                int bz = mock230_scene_base_z();
+                int hits = 0;
+                fprintf(stderr, "  probe: player %d,%d,%d scene base %d,%d\n",
+                        player->x, player->z, player->level, bx, bz);
+                for( int lvl = 0; lvl < 4; lvl++ )
+                    for( int x = 6400 + 30; x <= 6400 + 40; x++ )
+                        for( int z = 6400 - 6400 + 64 + 40; z <= 64 + 50; z++ )
+                        {
+                            int slot = mock230_scene_find_loc(x, z, lvl, -1);
+                            if( slot >= 0 )
+                            {
+                                const struct Mock230SceneLoc* l = mock230_scene_loc(slot);
+                                fprintf(stderr, "  probe: loc %d at %d,%d lvl %d (corner %d,%d shape %d)\n",
+                                        l ? l->loc_id : -1, x, z, lvl, l ? l->x : -1, l ? l->z : -1,
+                                        l ? l->shape : -1);
+                                hits++;
+                            }
+                        }
+                fprintf(stderr, "  probe: skeleton hits %d\n", hits);
+            }
+            held_before = selftest_count(player, k_dawnbringer);
+            mock230_scripts_run_debugproc(srv, "tobdawn");
+            held_after = selftest_count(player, k_dawnbringer);
+            mock230_scripts_run_debugproc(srv, "tobdawn");
+            held_again = selftest_count(player, k_dawnbringer);
+
+            fprintf(stderr,
+                    "  Dawnbringer: held %d -> %d -> %d over two searches\n",
+                    held_before, held_after, held_again);
+            SELFTEST_CHECK(held_after == held_before + 1,
+                           "searching the skeleton in the Xarpus corridor must give "
+                           "the Dawnbringer, held %d -> %d",
+                           held_before, held_after);
+            SELFTEST_CHECK(held_again == held_after,
+                           "and the emptied skeleton must give no second one, held "
+                           "%d -> %d",
+                           held_after, held_again);
+            mock230_scripts_run_debugproc(srv, "tobout");
+        }
+
 
 
         /*
@@ -39584,6 +39667,38 @@ mock230_world_selftest(void)
              * The predicate itself is exercised for real by Verzik's phase-3
              * attack path, which the cadence harness runs.
              */
+            /* TEMP PILLAR PROBE */
+            {
+                static struct Mock230Capture pc;
+                mock230_capture_begin(srv, &pc);
+                mock230_scripts_run_debugproc(srv, "tobpillars 0");
+                mock230_scripts_run_debugproc(srv, "tobpillars 1");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&pc, 90, 0); i >= 0;
+                     i = mock230_capture_find(&pc, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &pc.packets[i];
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    if( strstr((const char*)pk->data + 1, "tobpillars") )
+                        fprintf(stderr, "  PROBE-A %s\n", (const char*)pk->data + 1);
+                }
+                for( int t = 0; t < 3; t++ )
+                    mock230_world_tick(srv);
+                mock230_capture_begin(srv, &pc);
+                mock230_scripts_run_debugproc(srv, "tobpillars 0");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&pc, 90, 0); i >= 0;
+                     i = mock230_capture_find(&pc, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &pc.packets[i];
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    if( strstr((const char*)pk->data + 1, "tobpillars") )
+                        fprintf(stderr, "  PROBE-B %s\n", (const char*)pk->data + 1);
+                }
+            }
+            /* END TEMP PILLAR PROBE */
             mock230_scripts_run_debugproc(srv, "tobout");
         }
 

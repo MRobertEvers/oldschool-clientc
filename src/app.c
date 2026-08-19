@@ -3690,7 +3690,8 @@ Task_AppNpcTransform_Run(
             int hidden = self->resolved_npc_id < 0;
             int effective = hidden ? self->base_npc_id : self->resolved_npc_id;
             if( npc->npc_id != effective )
-                App_WorldApplyNpcType(app, world_idx, npc->element_id, effective);
+                App_WorldApplyNpcType(
+                    app, world_idx, npc->element_id, effective, self->base_npc_id);
             npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
             if( npc )
                 npc->multinpc_hidden = hidden != 0;
@@ -11678,17 +11679,112 @@ app_warn_once_npc(int npc_id)
     return 0;
 }
 
+/*
+ * The entity's own facts, for a multinpc, are the RUNG's where it states them
+ * and the SHELL's where it does not.
+ *
+ * A multinpc is one shell record plus a rung per state, and this client
+ * resolves the rung BEFORE it spawns anything (Task_AppSpawn,
+ * Task_ExecNpcInfo) -- so without this the whole entity was built out of the
+ * rung, defaults and all. Rungs are not authored to stand alone: they are
+ * deltas. `verzik_initial_base` states a name, a model, a chathead, two ops and
+ * nothing else, while its shell `verzik_initial` carries `size=5` and
+ * `readyanim=verzik_phase1_idle`. Read straight off the rung, Verzik was size
+ * 1 -- which puts her draw origin at `tile * 128 + 64` instead of
+ * `tile * 128 + 5 * 64`, two tiles south-west of her own dais -- and readyanim
+ * -1, so no sequence ever bound to the element and she sat in the model's bind
+ * pose for the whole of phase one. One record's absent fields, two bugs that
+ * looked unrelated.
+ *
+ * Across this cache the gap is 102 rungs silently size 1 under a shell that
+ * states a size, and 526 silently animation-less under a shell that states a
+ * readyanim. NOTHING here changes a rung that states the field itself: the 49
+ * records whose readyanim genuinely disagrees with their shell keep the rung's,
+ * and no rung anywhere disagrees about size.
+ *
+ * That last point is a deliberate deviation, flagged rather than hidden. The
+ * reference reads these off ONE record -- `npc.type`, the id the WIRE sent,
+ * i.e. the shell -- at both the NPC add and the CHANGETYPE mask (Client.ts
+ * 8344-8353, 8455-8464), and `transform()` is called later and only where the
+ * MODEL, the name and the ops are chosen. By that rule the shell would win
+ * outright and those 49 rungs' readyanims would be dead data. There is no
+ * revision-239 client in this tree to confirm it against, and taking the shell
+ * outright would silently restyle the 674 rungs whose shell states nothing, so
+ * this fills gaps and never overrides. Revisit with a rev-239 deob in hand.
+ *
+ * `turn_speed` is deliberately absent: its default is 32 rather than a
+ * sentinel, so "absent" and "authored 32" are the same value and gap-filling
+ * cannot be expressed for it.
+ */
+struct AppNpcEntityFacts
+{
+    int size;
+    int readyanim;
+    int walkanim;
+    int walkanim_b;
+    int walkanim_l;
+    int walkanim_r;
+};
+
+static void
+app_npc_entity_facts(
+    struct App* app,
+    int base_npc_id,
+    struct ToriRS_Npctype const* drawn,
+    struct AppNpcEntityFacts* out)
+{
+    struct ToriRS_Npctype* shell;
+
+    assert(app);
+    assert(drawn);
+    assert(out);
+
+    out->size = drawn->size > 0 ? drawn->size : 1;
+    out->readyanim = drawn->readyanim;
+    out->walkanim = drawn->walkanim;
+    out->walkanim_b = drawn->walkanim_b;
+    out->walkanim_l = drawn->walkanim_l;
+    out->walkanim_r = drawn->walkanim_r;
+
+    if( base_npc_id < 0 )
+        return;
+    shell = CacheProvider_NpctypeGet(app->provider, base_npc_id);
+    if( !shell || shell == drawn )
+        return;
+
+    if( out->size <= 1 && shell->size > 1 )
+        out->size = shell->size;
+    if( out->readyanim < 0 )
+        out->readyanim = shell->readyanim;
+    if( out->walkanim < 0 )
+        out->walkanim = shell->walkanim;
+    if( out->walkanim_b < 0 )
+        out->walkanim_b = shell->walkanim_b;
+    if( out->walkanim_l < 0 )
+        out->walkanim_l = shell->walkanim_l;
+    if( out->walkanim_r < 0 )
+        out->walkanim_r = shell->walkanim_r;
+}
+
 /* Hotkey 8 body: npc on the hovered tile. SYNCHRONOUS — the npc config and
  * its models must be resident (Task_AppSpawn awaits them first).
+ *
+ * `npc_id` is the type whose MODEL is drawn (a multinpc rung, once resolved);
+ * `base_npc_id` is the id the wire sent, and is what `app_npc_entity_facts`
+ * fills the entity's own facts from. Pass -1 when there is no separate
+ * shell.
+ *
  * Returns the world npc-pool index, or -1. */
 static int
 app_world_spawn_npc_now(
     struct App* app,
     int npc_id,
+    int base_npc_id,
     int tile_x,
     int tile_z,
     int level)
 {
+    struct AppNpcEntityFacts facts;
     struct ToriRS_Npctype* npctype;
     struct ToriDraw_Model* model;
     int size;
@@ -11777,7 +11873,8 @@ app_world_spawn_npc_now(
      * opted in earlier under a different npc id. */
     app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc_id, npctype));
 
-    size = npctype->size > 0 ? npctype->size : 1;
+    app_npc_entity_facts(app, base_npc_id, npctype, &facts);
+    size = facts.size;
     world_x = tile_x * 128 + size * 64;
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
@@ -11799,13 +11896,13 @@ app_world_spawn_npc_now(
         /* Config movement anims (dat1 has no turn/run for npcs; the reference
          * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
         struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = npctype->readyanim,
-            .walkanim = npctype->walkanim,
+            .readyanim = facts.readyanim,
+            .walkanim = facts.walkanim,
             .turnanim = -1,
             .runanim = -1,
-            .walkanim_b = npctype->walkanim_b,
-            .walkanim_r = npctype->walkanim_l,
-            .walkanim_l = npctype->walkanim_r,
+            .walkanim_b = facts.walkanim_b,
+            .walkanim_r = facts.walkanim_l,
+            .walkanim_l = facts.walkanim_r,
         };
         idx = World_NpcSpawn(app->world, element_id, npc_id, level, tile_x, tile_z, size, idle);
     }
@@ -11818,7 +11915,7 @@ app_world_spawn_npc_now(
         bd_world = PlatformSDL2_TicksUs() - bd_t;
 
     bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
-    app_world_apply_seq(app, element_id, npctype->readyanim);
+    app_world_apply_seq(app, element_id, facts.readyanim);
     if( bd_us )
         bd_seq = PlatformSDL2_TicksUs() - bd_t;
     /* Spawn does not carry menu data; the minimenu rows read it off the
@@ -12351,7 +12448,8 @@ Task_AppSpawn_Run(
         {
             int effective = self->model_id >= 0 ? self->model_id : self->npc_id;
             int idx =
-                app_world_spawn_npc_now(app, effective, self->tile_x, self->tile_z, self->level);
+                app_world_spawn_npc_now(
+                    app, effective, self->npc_id, self->tile_x, self->tile_z, self->level);
             struct WorldEntity_NPC* npc =
                 idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
             if( npc )
@@ -18107,6 +18205,21 @@ App_RunOnce(
                         app->tree->generation);
             }
         }
+        if( app->if_colour_count > 0 && app->tree->generation != app->if_colour_applied_gen )
+        {
+            app->if_colour_applied_gen = app->tree->generation;
+            for( int i = 0; i < app->if_colour_count; i++ )
+            {
+                bool ok = UITree_ApplyColour(
+                    app->tree, app->if_colours[i].com_id, app->if_colours[i].colour);
+                if( !ok && getenv("TORIRS_NET_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "if_setcolour: reapply com=%d gen=%u missed\n",
+                        app->if_colours[i].com_id,
+                        app->tree->generation);
+            }
+        }
         /* Rebind persistent models onto their (possibly newly mounted) nodes. */
         app_if_head_poll(app);
         app_if_player_model_poll(app);
@@ -18226,6 +18339,40 @@ App_IfTextSet(
                 "if_settext: com=%d text='%s' applied=%d\n",
                 com_id,
                 text ? text : "",
+                (int)applied);
+    }
+    app->need_redraw = 1;
+}
+
+void
+App_IfColourSet(
+    struct App* app,
+    int com_id,
+    int colour)
+{
+    int i;
+    assert(app);
+    for( i = 0; i < app->if_colour_count; i++ )
+        if( app->if_colours[i].com_id == com_id )
+            break;
+    if( i == app->if_colour_count )
+    {
+        if( app->if_colour_count == app->if_colour_cap )
+        {
+            int cap = app->if_colour_cap ? app->if_colour_cap * 2 : 64;
+            app->if_colours = realloc(app->if_colours, (size_t)cap * sizeof(*app->if_colours));
+            assert(app->if_colours);
+            app->if_colour_cap = cap;
+        }
+        app->if_colours[i].com_id = com_id;
+        app->if_colour_count++;
+    }
+    app->if_colours[i].colour = colour;
+    {
+        bool applied = UITree_ApplyColour(app->tree, com_id, colour);
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr, "if_setcolour: com=%d colour=%06x applied=%d\n", com_id, colour,
                 (int)applied);
     }
     app->need_redraw = 1;
@@ -18851,11 +18998,12 @@ int
 App_WorldSpawnSyncedNpc(
     struct App* app,
     int npc_id,
+    int base_npc_id,
     int scene_x,
     int scene_z,
     int level)
 {
-    return app_world_spawn_npc_now(app, npc_id, scene_x, scene_z, level);
+    return app_world_spawn_npc_now(app, npc_id, base_npc_id, scene_x, scene_z, level);
 }
 
 /* See the declaration in app.h. This is the resident-config half of the
@@ -19219,15 +19367,21 @@ App_WorldApplyNpcType(
     struct App* app,
     int world_idx,
     int element_id,
-    int npc_type)
+    int npc_type,
+    int base_npc_type)
 {
     struct ToriRS_Npctype* npctype;
+    struct AppNpcEntityFacts facts;
     struct ToriDraw_Model* model;
 
     assert(app);
     npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
     if( !npctype )
         return;
+    /* Same gap-fill as the spawn path: the rung draws the body and names the
+     * ops, the shell supplies the size and idle animation it does not state.
+     * See app_npc_entity_facts. */
+    app_npc_entity_facts(app, base_npc_type, npctype, &facts);
     if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
             stderr,
@@ -19288,16 +19442,16 @@ App_WorldApplyNpcType(
     {
         /* Reference CHANGETYPE swaps walkanim_l/r (Client.ts 8460-8462). */
         struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = npctype->readyanim,
-            .walkanim = npctype->walkanim,
+            .readyanim = facts.readyanim,
+            .walkanim = facts.walkanim,
             .turnanim = -1,
             .runanim = -1,
-            .walkanim_b = npctype->walkanim_b,
-            .walkanim_r = npctype->walkanim_l,
-            .walkanim_l = npctype->walkanim_r,
+            .walkanim_b = facts.walkanim_b,
+            .walkanim_r = facts.walkanim_l,
+            .walkanim_l = facts.walkanim_r,
         };
         World_NpcSetType(
-            app->world, world_idx, npc_type, npctype->size > 0 ? npctype->size : 1, &idle);
+            app->world, world_idx, npc_type, facts.size, &idle);
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
@@ -19326,7 +19480,7 @@ App_WorldApplyNpcType(
 
         if( model && !primary_live && element_id >= 0 &&
             ToriDraw_SceneElementIsLive(app->scene, element_id) )
-            app_world_apply_seq(app, element_id, npctype->readyanim);
+            app_world_apply_seq(app, element_id, facts.readyanim);
         if( npc )
         {
             npc->combat_level = npctype->combat_level;
