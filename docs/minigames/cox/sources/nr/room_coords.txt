@@ -1,0 +1,552 @@
+===== EntranceRoom
+  room RAID_START  staticChunkY=648  height=0
+
+  --- as RAID_START (chunkY 648, plane 0)
+    (no coordinates)
+===== FloorEdgeRoom
+  room FLOOR_END_DOWNSTAIRS  staticChunkY=644  height=0
+  room FLOOR_START_UPSTAIRS  staticChunkY=712  height=0
+
+  --- as FLOOR_END_DOWNSTAIRS (chunkY 644, plane 0)
+    storageUnits: 2 coords, 2 inside the room box
+      (3287,5168) -> ccw(0) lx= 23 lz= 16
+      (3308,5164) -> thru(1) lx= 12 lz= 12
+
+  --- as FLOOR_START_UPSTAIRS (chunkY 712, plane 0)
+    storageUnits: 2 coords, 0 inside the room box
+      (3287,5168) -- not this room at all; belongs to another row
+      (3308,5164) -- not this room at all; belongs to another row
+===== SmallScavengerRoom
+  room SMALL_SCAVENGER_RUNT  staticChunkY=652  height=0
+
+  --- as SMALL_SCAVENGER_RUNT (chunkY 652, plane 0)
+    (no coordinates)
+===== LargeScavengerRoom
+  room LARGE_SCAVENGER_BEAST  staticChunkY=652  height=1
+
+  --- as LARGE_SCAVENGER_BEAST (chunkY 652, plane 1)
+    blockingObjectTiles: 3 coords, 3 inside the room box
+      (3272,5222) -> ccw(0) lx=  8 lz=  6
+      (3314,5238) -> thru(1) lx= 18 lz= 22
+      (3353,5224) -> cw(2) lx= 25 lz=  8
+===== LizardmanShamanRoom
+  room LIZARDMEN_SHAMAN  staticChunkY=656  height=0
+
+  --- as LIZARDMEN_SHAMAN (chunkY 656, plane 0)
+    lizardmanSpawnLocations: 12 coords, 12 inside the room box
+      (3273,5270) -> ccw(0) lx=  9 lz= 22
+      (3281,5269) -> ccw(0) lx= 17 lz= 21
+      (3278,5262) -> ccw(0) lx= 14 lz= 14
+      (3273,5255) -> ccw(0) lx=  9 lz=  7
+      (3306,5260) -> thru(1) lx= 10 lz= 12
+      (3306,5267) -> thru(1) lx= 10 lz= 19
+      (3315,5267) -> thru(1) lx= 19 lz= 19
+      (3316,5259) -> thru(1) lx= 20 lz= 11
+      (3340,5258) -> cw(2) lx= 12 lz= 10
+      (3346,5259) -> cw(2) lx= 18 lz= 11
+      (3341,5268) -> cw(2) lx= 13 lz= 20
+      (3347,5270) -> cw(2) lx= 19 lz= 22
+    spiritTendrilSpawnLocations: 6 coords, 6 inside the room box
+      (3279,5249) -> ccw(0) lx= 15 lz=  1
+      (3280,5249) -> ccw(0) lx= 16 lz=  1
+      (3311,5251) -> thru(1) lx= 15 lz=  3
+      (3310,5251) -> thru(1) lx= 14 lz=  3
+      (3342,5251) -> cw(2) lx= 14 lz=  3
+      (3343,5251) -> cw(2) lx= 15 lz=  3
+    safePolygons: 18 coords, 12 inside the room box
+      (3290,5263) -> ccw(0) lx= 26 lz= 15
+      (3290,5261) -> ccw(0) lx= 26 lz= 13
+      (3291,5260) -> ccw(0) lx= 27 lz= 12
+      (3291,5259) -> ccw(0) lx= 27 lz= 11
+      (3292,5258) -> ccw(0) lx= 28 lz= 10
+      (3292,5250) -> ccw(0) lx= 28 lz=  2
+      (3267,5250) -> ccw(0) lx=  3 lz=  2
+      (3267,5244) -> ccw(0) lx=  3 lz= -4*
+      (3294,5244) -> ccw(0) lx= 30 lz= -4*  thru(1) lx= -2 lz= -4*   <-- AMBIGUOUS, needs the field's index
+      (3294,5263) -> ccw(0) lx= 30 lz= 15
+      (3305,5251) -> thru(1) lx=  9 lz=  3
+      (3305,5246) -> thru(1) lx=  9 lz= -2*
+      (3318,5246) -> thru(1) lx= 22 lz= -2*
+      (3318,5251) -> thru(1) lx= 22 lz=  3
+      (3333,5251) -> cw(2) lx=  5 lz=  3
+      (3333,5246) -> thru(1) lx= 37 lz= -2*  cw(2) lx=  5 lz= -2*   <-- AMBIGUOUS, needs the field's index
+      (3353,5246) -> cw(2) lx= 25 lz= -2*
+      (3353,5251) -> cw(2) lx= 25 lz=  3
+    extraSpiritTendrils: 2 coords, 2 inside the room box
+      (3289,5262) -> ccw(0) lx= 25 lz= 14
+      (3289,5261) -> ccw(0) lx= 25 lz= 13
+    blockingExitLocations: 12 coords, 12 inside the room box
+      (3268,5263) -> ccw(0) lx=  4 lz= 15
+      (3269,5263) -> ccw(0) lx=  5 lz= 15
+      (3268,5264) -> ccw(0) lx=  4 lz= 16
+      (3269,5264) -> ccw(0) lx=  5 lz= 16
+      (3311,5275) -> thru(1) lx= 15 lz= 27
+      (3311,5274) -> thru(1) lx= 15 lz= 26
+      (3312,5275) -> thru(1) lx= 16 lz= 27
+      (3312,5274) -> thru(1) lx= 16 lz= 26
+      (3353,5265) -> cw(2) lx= 25 lz= 17
+      (3352,5265) -> cw(2) lx= 24 lz= 17
+      (3353,5264) -> cw(2) lx= 25 lz= 16
+      (3352,5264) -> cw(2) lx= 24 lz= 16
+===== DarkAltarRoom
+  room DARK_ALTAR_ROOM  staticChunkY=656  height=1
+
+  --- as DARK_ALTAR_ROOM (chunkY 656, plane 1)
+    spawnLocations: 18 coords, 18 inside the room box
+      (3278,5261) -> ccw(0) lx= 14 lz= 13
+      (3286,5265) -> ccw(0) lx= 22 lz= 17
+      (3284,5271) -> ccw(0) lx= 20 lz= 23
+      (3277,5273) -> ccw(0) lx= 13 lz= 25
+      (3273,5265) -> ccw(0) lx=  9 lz= 17
+      (3278,5270) -> ccw(0) lx= 14 lz= 22
+      (3315,5262) -> thru(1) lx= 19 lz= 14
+      (3318,5259) -> thru(1) lx= 22 lz= 11
+      (3309,5258) -> thru(1) lx= 13 lz= 10
+      (3301,5256) -> thru(1) lx=  5 lz=  8
+      (3306,5264) -> thru(1) lx= 10 lz= 16
+      (3312,5259) -> thru(1) lx= 16 lz= 11
+      (3342,5262) -> cw(2) lx= 14 lz= 14
+      (3342,5266) -> cw(2) lx= 14 lz= 18
+      (3340,5268) -> cw(2) lx= 12 lz= 20
+      (3338,5274) -> cw(2) lx= 10 lz= 26
+      (3337,5268) -> cw(2) lx=  9 lz= 20
+      (3338,5260) -> cw(2) lx= 10 lz= 12
+    markOfPowerLocations: 3 coords, 3 inside the room box
+      (3270,5264) -> ccw(0) lx=  6 lz= 16
+      (3309,5272) -> thru(1) lx= 13 lz= 24
+      (3348,5268) -> cw(2) lx= 20 lz= 20
+    portalLocations: 9 coords, 9 inside the room box
+      (3278,5250) -> ccw(0) lx= 14 lz=  2
+      (3283,5266) -> ccw(0) lx= 19 lz= 18
+      (3272,5267) -> ccw(0) lx=  8 lz= 19
+      (3311,5250) -> thru(1) lx= 15 lz=  2
+      (3308,5260) -> thru(1) lx= 12 lz= 12
+      (3307,5270) -> thru(1) lx= 11 lz= 22
+      (3341,5255) -> cw(2) lx= 13 lz=  7
+      (3342,5268) -> cw(2) lx= 14 lz= 20
+      (3348,5271) -> cw(2) lx= 20 lz= 23
+===== GuardiansRoom
+  room GUARDIANS  staticChunkY=656  height=2
+
+  --- as GUARDIANS (chunkY 656, plane 2)
+    guardianSpawnTiles: 12 coords, 12 inside the room box
+      (3276,5265) -> ccw(0) lx= 12 lz= 17
+      (3276,5269) -> ccw(0) lx= 12 lz= 21
+      (3276,5267) -> ccw(0) lx= 12 lz= 19
+      (3276,5268) -> ccw(0) lx= 12 lz= 20
+      (3312,5271) -> thru(1) lx= 16 lz= 23
+      (3308,5271) -> thru(1) lx= 12 lz= 23
+      (3310,5271) -> thru(1) lx= 14 lz= 23
+      (3311,5271) -> thru(1) lx= 15 lz= 23
+      (3344,5268) -> cw(2) lx= 16 lz= 20
+      (3344,5272) -> cw(2) lx= 16 lz= 24
+      (3344,5271) -> cw(2) lx= 16 lz= 23
+      (3344,5270) -> cw(2) lx= 16 lz= 22
+    faceTiles: 6 coords, 0 inside the room box
+      (4000,5265) -- not this room at all; belongs to another row
+      (4000,5269) -- not this room at all; belongs to another row
+      (3312,4000) -- not this room at all; belongs to another row
+      (3308,4000) -- not this room at all; belongs to another row
+      (2000,5268) -- not this room at all; belongs to another row
+      (2000,5272) -- not this room at all; belongs to another row
+    preventedTiles: 6 coords, 6 inside the room box
+      (3275,5267) -> ccw(0) lx= 11 lz= 19
+      (3275,5268) -> ccw(0) lx= 11 lz= 20
+      (3310,5273) -> thru(1) lx= 14 lz= 25
+      (3311,5273) -> thru(1) lx= 15 lz= 25
+      (3346,5271) -> cw(2) lx= 18 lz= 23
+      (3346,5270) -> cw(2) lx= 18 lz= 22
+===== VasaNistirioRoom
+  room VASA_NISTIRIO  staticChunkY=660  height=0
+
+  --- as VASA_NISTIRIO (chunkY 660, plane 0)
+    crystalLocations: 12 coords, 12 inside the room box
+      (3270,5285) -> ccw(0) lx=  6 lz=  5
+      (3270,5303) -> ccw(0) lx=  6 lz= 23
+      (3287,5303) -> ccw(0) lx= 23 lz= 23
+      (3287,5285) -> ccw(0) lx= 23 lz=  5
+      (3301,5285) -> thru(1) lx=  5 lz=  5
+      (3301,5302) -> thru(1) lx=  5 lz= 22
+      (3319,5302) -> thru(1) lx= 23 lz= 22
+      (3319,5285) -> thru(1) lx= 23 lz=  5
+      (3333,5285) -> cw(2) lx=  5 lz=  5
+      (3333,5303) -> cw(2) lx=  5 lz= 23
+      (3350,5303) -> cw(2) lx= 22 lz= 23
+      (3350,5285) -> cw(2) lx= 22 lz=  5
+    blockingCrystalLocations: 6 coords, 6 inside the room box
+      (3268,5295) -> ccw(0) lx=  4 lz= 15
+      (3268,5296) -> ccw(0) lx=  4 lz= 16
+      (3311,5307) -> thru(1) lx= 15 lz= 27
+      (3312,5307) -> thru(1) lx= 16 lz= 27
+      (3355,5296) -> cw(2) lx= 27 lz= 16
+      (3355,5295) -> cw(2) lx= 27 lz= 15
+    fireLocations: 3 coords, 3 inside the room box
+      (3279,5281) -> ccw(0) lx= 15 lz=  1
+      (3311,5281) -> thru(1) lx= 15 lz=  1
+      (3343,5281) -> cw(2) lx= 15 lz=  1
+    npcCenterLocations: 3 coords, 3 inside the room box
+      (3278,5293) -> ccw(0) lx= 14 lz= 13
+      (3309,5293) -> thru(1) lx= 13 lz= 13
+      (3341,5294) -> cw(2) lx= 13 lz= 14
+    absoluteCenterLocations: 3 coords, 3 inside the room box
+      (3280,5296) -> ccw(0) lx= 16 lz= 16
+      (3312,5296) -> thru(1) lx= 16 lz= 16
+      (3344,5296) -> cw(2) lx= 16 lz= 16
+===== TektonRoom
+  room TEKTON  staticChunkY=660  height=1
+
+  --- as TEKTON (chunkY 660, plane 1)
+    anvilTiles: 3 coords, 3 inside the room box
+      (3279,5298) -> ccw(0) lx= 15 lz= 18
+      (3307,5294) -> thru(1) lx= 11 lz= 14
+      (3341,5298) -> cw(2) lx= 13 lz= 18
+    smokePillarTiles: 14 coords, 14 inside the room box
+      (3286,5289) -> ccw(0) lx= 22 lz=  9
+      (3275,5288) -> ccw(0) lx= 11 lz=  8
+      (3275,5301) -> ccw(0) lx= 11 lz= 21
+      (3286,5301) -> ccw(0) lx= 22 lz= 21
+      (3287,5296) -> ccw(0) lx= 23 lz= 16
+      (3318,5288) -> thru(1) lx= 22 lz=  8
+      (3307,5288) -> thru(1) lx= 11 lz=  8
+      (3308,5301) -> thru(1) lx= 12 lz= 21
+      (3319,5300) -> thru(1) lx= 23 lz= 20
+      (3348,5289) -> cw(2) lx= 20 lz=  9
+      (3340,5287) -> cw(2) lx= 12 lz=  7
+      (3336,5291) -> cw(2) lx=  8 lz= 11
+      (3337,5301) -> cw(2) lx=  9 lz= 21
+      (3349,5300) -> cw(2) lx= 21 lz= 20
+    blockingCrystalTiles: 3 coords, 3 inside the room box
+      (3270,5294) -> ccw(0) lx=  6 lz= 14
+      (3310,5304) -> thru(1) lx= 14 lz= 24
+      (3352,5296) -> cw(2) lx= 24 lz= 16
+    sparkTiles: 16 coords, 16 inside the room box
+      (3273,5288) -> ccw(0) lx=  9 lz=  8
+      (3273,5302) -> ccw(0) lx=  9 lz= 22
+      (3280,5305) -> ccw(0) lx= 16 lz= 25
+      (3289,5303) -> ccw(0) lx= 25 lz= 23
+      (3288,5289) -> ccw(0) lx= 24 lz=  9
+      (3320,5289) -> thru(1) lx= 24 lz=  9
+      (3321,5303) -> thru(1) lx= 25 lz= 23
+      (3317,5302) -> thru(1) lx= 21 lz= 22
+      (3303,5295) -> thru(1) lx=  7 lz= 15
+      (3305,5288) -> thru(1) lx=  9 lz=  8
+      (3305,5301) -> thru(1) lx=  9 lz= 21
+      (3350,5289) -> cw(2) lx= 22 lz=  9
+      (3334,5288) -> cw(2) lx=  6 lz=  8
+      (3335,5302) -> cw(2) lx=  7 lz= 22
+      (3343,5304) -> cw(2) lx= 15 lz= 24
+      (3350,5303) -> cw(2) lx= 22 lz= 23
+    fireTiles: 3 coords, 3 inside the room box
+      (3279,5281) -> ccw(0) lx= 15 lz=  1
+      (3311,5281) -> thru(1) lx= 15 lz=  1
+      (3343,5281) -> cw(2) lx= 15 lz=  1
+    safeTiles: 3 coords, 3 inside the room box
+      (3280,5280) -> ccw(0) lx= 16 lz=  0
+      (3312,5280) -> thru(1) lx= 16 lz=  0
+      (3344,5280) -> cw(2) lx= 16 lz=  0
+===== VespulaRoom
+  room VESPULA  staticChunkY=660  height=2
+
+  --- as VESPULA (chunkY 660, plane 2)
+    luxGrubs: 12 coords, 12 inside the room box
+      (3287,5289) -> ccw(0) lx= 23 lz=  9
+      (3285,5294) -> ccw(0) lx= 21 lz= 14
+      (3277,5286) -> ccw(0) lx= 13 lz=  6
+      (3278,5294) -> ccw(0) lx= 14 lz= 14
+      (3312,5289) -> thru(1) lx= 16 lz=  9
+      (3304,5291) -> thru(1) lx=  8 lz= 11
+      (3312,5297) -> thru(1) lx= 16 lz= 17
+      (3304,5297) -> thru(1) lx=  8 lz= 17
+      (3344,5294) -> cw(2) lx= 16 lz= 14
+      (3337,5286) -> cw(2) lx=  9 lz=  6
+      (3337,5294) -> cw(2) lx=  9 lz= 14
+      (3334,5290) -> cw(2) lx=  6 lz= 10
+    vespineSoldiers: 12 coords, 12 inside the room box
+      (3284,5289) -> ccw(0) lx= 20 lz=  9
+      (3285,5291) -> ccw(0) lx= 21 lz= 11
+      (3277,5289) -> ccw(0) lx= 13 lz=  9
+      (3278,5291) -> ccw(0) lx= 14 lz= 11
+      (3309,5289) -> thru(1) lx= 13 lz=  9
+      (3307,5291) -> thru(1) lx= 11 lz= 11
+      (3309,5297) -> thru(1) lx= 13 lz= 17
+      (3307,5297) -> thru(1) lx= 11 lz= 17
+      (3344,5291) -> cw(2) lx= 16 lz= 11
+      (3337,5289) -> cw(2) lx=  9 lz=  9
+      (3337,5291) -> cw(2) lx=  9 lz= 11
+      (3337,5290) -> cw(2) lx=  9 lz= 10
+    boilLocations: 6 coords, 6 inside the room box
+      (3267,5295) -> ccw(0) lx=  3 lz= 15
+      (3267,5296) -> ccw(0) lx=  3 lz= 16
+      (3311,5308) -> thru(1) lx= 15 lz= 28
+      (3312,5308) -> thru(1) lx= 16 lz= 28
+      (3356,5296) -> cw(2) lx= 28 lz= 16
+      (3356,5295) -> cw(2) lx= 28 lz= 15
+    tendrilLocations: 6 coords, 6 inside the room box
+      (3279,5280) -> ccw(0) lx= 15 lz=  0
+      (3280,5280) -> ccw(0) lx= 16 lz=  0
+      (3311,5280) -> thru(1) lx= 15 lz=  0
+      (3312,5280) -> thru(1) lx= 16 lz=  0
+      (3343,5280) -> cw(2) lx= 15 lz=  0
+      (3344,5280) -> cw(2) lx= 16 lz=  0
+    portalLocations: 3 coords, 3 inside the room box
+      (3281,5300) -> ccw(0) lx= 17 lz= 20
+      (3318,5291) -> thru(1) lx= 22 lz= 11
+      (3339,5300) -> cw(2) lx= 11 lz= 20
+    vespulaLocations: 3 coords, 3 inside the room box
+      (3281,5290) -> ccw(0) lx= 17 lz= 10
+      (3308,5292) -> thru(1) lx= 12 lz= 12
+      (3341,5290) -> cw(2) lx= 13 lz= 10
+    portalProjectileStartLocations: 3 coords, 3 inside the room box
+      (3282,5302) -> ccw(0) lx= 18 lz= 22
+      (3320,5292) -> thru(1) lx= 24 lz= 12
+      (3341,5302) -> cw(2) lx= 13 lz= 22
+    portalHitTiles: 6 coords, 6 inside the room box
+      (3281,5293) -> ccw(0) lx= 17 lz= 13
+      (3282,5293) -> ccw(0) lx= 18 lz= 13
+      (3311,5293) -> thru(1) lx= 15 lz= 13
+      (3311,5292) -> thru(1) lx= 15 lz= 12
+      (3340,5293) -> cw(2) lx= 12 lz= 13
+      (3341,5293) -> cw(2) lx= 13 lz= 13
+===== VanguardRoom
+  room VANGUARD  staticChunkY=664  height=0
+
+  --- as VANGUARD (chunkY 664, plane 0)
+    vanguardPositions: 9 coords, 9 inside the room box
+      (3285,5329) -> ccw(0) lx= 21 lz= 17
+      (3277,5334) -> ccw(0) lx= 13 lz= 22
+      (3276,5324) -> ccw(0) lx= 12 lz= 12
+      (3317,5330) -> thru(1) lx= 21 lz= 18
+      (3309,5334) -> thru(1) lx= 13 lz= 22
+      (3309,5324) -> thru(1) lx= 13 lz= 12
+      (3347,5325) -> cw(2) lx= 19 lz= 13
+      (3341,5334) -> cw(2) lx= 13 lz= 22
+      (3337,5325) -> cw(2) lx=  9 lz= 13
+    crystalLocations: 3 coords, 3 inside the room box
+      (3268,5327) -> ccw(0) lx=  4 lz= 15
+      (3311,5339) -> thru(1) lx= 15 lz= 27
+      (3350,5328) -> cw(2) lx= 22 lz= 16
+===== MuttadileRoom
+  room MUTTADILES  staticChunkY=664  height=1
+
+  --- as MUTTADILES (chunkY 664, plane 1)
+    treeSpawnLocations: 3 coords, 3 inside the room box
+      (3269,5320) -> ccw(0) lx=  5 lz=  8
+      (3301,5320) -> thru(1) lx=  5 lz=  8
+      (3350,5317) -> cw(2) lx= 22 lz=  5
+    tendrilSpawnLocations: 6 coords, 6 inside the room box
+      (3279,5314) -> ccw(0) lx= 15 lz=  2
+      (3280,5314) -> ccw(0) lx= 16 lz=  2
+      (3311,5314) -> thru(1) lx= 15 lz=  2
+      (3312,5314) -> thru(1) lx= 16 lz=  2
+      (3343,5313) -> cw(2) lx= 15 lz=  1
+      (3344,5313) -> cw(2) lx= 16 lz=  1
+    ignoredTiles: 3 coords, 3 inside the room box
+      (3280,5312) -> ccw(0) lx= 16 lz=  0
+      (3311,5312) -> thru(1) lx= 15 lz=  0
+      (3343,5312) -> cw(2) lx= 15 lz=  0
+    crystalSpawnLocations: 3 coords, 3 inside the room box
+      (3270,5328) -> ccw(0) lx=  6 lz= 16
+      (3308,5335) -> thru(1) lx= 12 lz= 23
+      (3352,5327) -> cw(2) lx= 24 lz= 15
+    largeMuttadileSpawnLocations: 3 coords, 3 inside the room box
+      (3282,5332) -> ccw(0) lx= 18 lz= 20
+      (3314,5330) -> thru(1) lx= 18 lz= 18
+      (3336,5330) -> cw(2) lx=  8 lz= 18
+    smallMuttadileSpawnLocations: 3 coords, 3 inside the room box
+      (3276,5328) -> ccw(0) lx= 12 lz= 16
+      (3307,5325) -> thru(1) lx= 11 lz= 13
+      (3344,5323) -> cw(2) lx= 16 lz= 11
+===== IceDemonRoom
+  room ICE_DEMON  staticChunkY=668  height=0
+
+  --- as ICE_DEMON (chunkY 668, plane 0)
+    iceDemonLocations: 9 coords, 9 inside the room box
+      (3271,5365) -> ccw(0) lx=  7 lz= 21
+      (3272,5365) -> ccw(0) lx=  8 lz= 21
+      (3278,5365) -> ccw(0) lx= 14 lz= 21
+      (3310,5368) -> thru(1) lx= 14 lz= 24
+      (3310,5367) -> thru(1) lx= 14 lz= 23
+      (3310,5361) -> thru(1) lx= 14 lz= 17
+      (3349,5362) -> cw(2) lx= 21 lz= 18
+      (3348,5362) -> cw(2) lx= 20 lz= 18
+      (3342,5363) -> cw(2) lx= 14 lz= 19
+    brazierSpawnLocations: 12 coords, 12 inside the room box
+      (3272,5362) -> ccw(0) lx=  8 lz= 18
+      (3275,5364) -> ccw(0) lx= 11 lz= 20
+      (3275,5367) -> ccw(0) lx= 11 lz= 23
+      (3272,5369) -> ccw(0) lx=  8 lz= 25
+      (3307,5368) -> thru(1) lx= 11 lz= 24
+      (3309,5365) -> thru(1) lx= 13 lz= 21
+      (3312,5365) -> thru(1) lx= 16 lz= 21
+      (3314,5368) -> thru(1) lx= 18 lz= 24
+      (3349,5366) -> cw(2) lx= 21 lz= 22
+      (3346,5364) -> cw(2) lx= 18 lz= 20
+      (3346,5361) -> cw(2) lx= 18 lz= 17
+      (3349,5359) -> cw(2) lx= 21 lz= 15
+    icefiendSpawnLocations: 12 coords, 12 inside the room box
+      (3273,5362) -> ccw(0) lx=  9 lz= 18
+      (3275,5365) -> ccw(0) lx= 11 lz= 21
+      (3275,5366) -> ccw(0) lx= 11 lz= 22
+      (3273,5369) -> ccw(0) lx=  9 lz= 25
+      (3307,5367) -> thru(1) lx= 11 lz= 23
+      (3310,5365) -> thru(1) lx= 14 lz= 21
+      (3311,5365) -> thru(1) lx= 15 lz= 21
+      (3314,5367) -> thru(1) lx= 18 lz= 23
+      (3348,5366) -> cw(2) lx= 20 lz= 22
+      (3346,5363) -> cw(2) lx= 18 lz= 19
+      (3346,5362) -> cw(2) lx= 18 lz= 18
+      (3348,5359) -> cw(2) lx= 20 lz= 15
+    storageUnits: 3 coords, 3 inside the room box
+      (3285,5366) -> ccw(0) lx= 21 lz= 22
+      (3310,5356) -> thru(1) lx= 14 lz= 12
+      (3336,5362) -> cw(2) lx=  8 lz= 18
+===== DeathlyRoom
+  room DEATHLY_ROOM  staticChunkY=668  height=1
+
+  --- as DEATHLY_ROOM (chunkY 668, plane 1)
+    mageSpawnLocations: 6 coords, 6 inside the room box
+      (3285,5363) -> ccw(0) lx= 21 lz= 19
+      (3287,5363) -> ccw(0) lx= 23 lz= 19
+      (3317,5363) -> thru(1) lx= 21 lz= 19
+      (3319,5363) -> thru(1) lx= 23 lz= 19
+      (3340,5365) -> cw(2) lx= 12 lz= 21
+      (3340,5367) -> cw(2) lx= 12 lz= 23
+    rangerSpawnLocations: 6 coords, 6 inside the room box
+      (3284,5370) -> ccw(0) lx= 20 lz= 26
+      (3286,5370) -> ccw(0) lx= 22 lz= 26
+      (3316,5370) -> thru(1) lx= 20 lz= 26
+      (3318,5370) -> thru(1) lx= 22 lz= 26
+      (3333,5364) -> cw(2) lx=  5 lz= 20
+      (3333,5366) -> cw(2) lx=  5 lz= 22
+===== CrabPuzzleRoom
+  room CRAB_PUZZLE  staticChunkY=668  height=2
+
+  --- as CRAB_PUZZLE (chunkY 668, plane 2)
+    lightFocusSpawnLocations: 3 coords, 3 inside the room box
+      (3277,5353) -> ccw(0) lx= 13 lz=  9
+      (3318,5363) -> thru(1) lx= 22 lz= 19
+      (3346,5358) -> cw(2) lx= 18 lz= 14
+    crabSpawnLocations: 12 coords, 12 inside the room box
+      (3286,5354) -> ccw(0) lx= 22 lz= 10
+      (3280,5358) -> ccw(0) lx= 16 lz= 14
+      (3281,5365) -> ccw(0) lx= 17 lz= 21
+      (3287,5361) -> ccw(0) lx= 23 lz= 17
+      (3306,5358) -> thru(1) lx= 10 lz= 14
+      (3311,5353) -> thru(1) lx= 15 lz=  9
+      (3313,5361) -> thru(1) lx= 17 lz= 17
+      (3318,5356) -> thru(1) lx= 22 lz= 12
+      (3337,5356) -> cw(2) lx=  9 lz= 12
+      (3335,5362) -> cw(2) lx=  7 lz= 18
+      (3341,5366) -> cw(2) lx= 13 lz= 22
+      (3344,5361) -> cw(2) lx= 16 lz= 17
+    crystalSpawnLocations: 3 coords, 3 inside the room box
+      (3272,5365) -> ccw(0) lx=  8 lz= 21
+      (3308,5366) -> thru(1) lx= 12 lz= 22
+      (3349,5366) -> cw(2) lx= 21 lz= 22
+===== CreatureKeeperRoom
+  room CREATURE_KEEPER  staticChunkY=672  height=0
+
+  --- as CREATURE_KEEPER (chunkY 672, plane 0)
+    scavengerPositions: 15 coords, 15 inside the room box
+      (3271,5390) -> ccw(0) lx=  7 lz= 14
+      (3272,5390) -> ccw(0) lx=  8 lz= 14
+      (3272,5391) -> ccw(0) lx=  8 lz= 15
+      (3271,5391) -> ccw(0) lx=  7 lz= 15
+      (3271,5394) -> ccw(0) lx=  7 lz= 18
+      (3318,5397) -> thru(1) lx= 22 lz= 21
+      (3319,5397) -> thru(1) lx= 23 lz= 21
+      (3319,5398) -> thru(1) lx= 23 lz= 22
+      (3318,5398) -> thru(1) lx= 22 lz= 22
+      (3321,5398) -> thru(1) lx= 25 lz= 22
+      (3350,5397) -> cw(2) lx= 22 lz= 21
+      (3351,5397) -> cw(2) lx= 23 lz= 21
+      (3351,5398) -> cw(2) lx= 23 lz= 22
+      (3350,5398) -> cw(2) lx= 22 lz= 22
+      (3351,5394) -> cw(2) lx= 23 lz= 18
+    storageUnits: 3 coords, 3 inside the room box
+      (3274,5388) -> ccw(0) lx= 10 lz= 12
+      (3316,5395) -> thru(1) lx= 20 lz= 19
+      (3348,5400) -> cw(2) lx= 20 lz= 24
+===== ResourcesRoom
+  room RESOURCES_A  staticChunkY=680  height=0
+  room RESOURCES_B  staticChunkY=680  height=1
+
+  --- as RESOURCES_A (chunkY 680, plane 0)
+    bats: 9 coords, 9 inside the room box
+      (3282,5463) -> ccw(0) lx= 18 lz= 23
+      (3288,5461) -> ccw(0) lx= 24 lz= 21
+      (3285,5457) -> ccw(0) lx= 21 lz= 17
+      (3308,5455) -> thru(1) lx= 12 lz= 15
+      (3301,5458) -> thru(1) lx=  5 lz= 18
+      (3305,5462) -> thru(1) lx=  9 lz= 22
+      (3348,5455) -> cw(2) lx= 20 lz= 15
+      (3344,5459) -> cw(2) lx= 16 lz= 19
+      (3343,5464) -> cw(2) lx= 15 lz= 24
+    fishObjects: 9 coords, 9 inside the room box
+      (3274,5457) -> ccw(0) lx= 10 lz= 17
+      (3280,5451) -> ccw(0) lx= 16 lz= 11
+      (3281,5454) -> ccw(0) lx= 17 lz= 14
+      (3302,5459) -> thru(1) lx=  6 lz= 19
+      (3308,5449) -> thru(1) lx= 12 lz=  9
+      (3306,5461) -> thru(1) lx= 10 lz= 21
+      (3337,5453) -> cw(2) lx=  9 lz= 13
+      (3345,5445) -> cw(2) lx= 17 lz=  5
+      (3343,5461) -> cw(2) lx= 15 lz= 21
+    snakeCenterTiles: 9 coords, 9 inside the room box
+      (3275,5457) -> ccw(0) lx= 11 lz= 17
+      (3279,5451) -> ccw(0) lx= 15 lz= 11
+      (3280,5454) -> ccw(0) lx= 16 lz= 14
+      (3302,5458) -> thru(1) lx=  6 lz= 18
+      (3309,5449) -> thru(1) lx= 13 lz=  9
+      (3306,5460) -> thru(1) lx= 10 lz= 20
+      (3338,5453) -> cw(2) lx= 10 lz= 13
+      (3345,5446) -> cw(2) lx= 17 lz=  6
+      (3343,5460) -> cw(2) lx= 15 lz= 20
+    resourcesAStorageUnits: 3 coords, 3 inside the room box
+      (3275,5465) -> ccw(0) lx= 11 lz= 25
+      (3312,5463) -> thru(1) lx= 16 lz= 23
+      (3335,5458) -> cw(2) lx=  7 lz= 18
+    resourcesBStorageUnits: 3 coords, 3 inside the room box
+      (3276,5465) -> ccw(0) lx= 12 lz= 25
+      (3317,5456) -> thru(1) lx= 21 lz= 16
+      (3342,5456) -> cw(2) lx= 14 lz= 16
+
+  --- as RESOURCES_B (chunkY 680, plane 1)
+    bats: 9 coords, 9 inside the room box
+      (3282,5463) -> ccw(0) lx= 18 lz= 23
+      (3288,5461) -> ccw(0) lx= 24 lz= 21
+      (3285,5457) -> ccw(0) lx= 21 lz= 17
+      (3308,5455) -> thru(1) lx= 12 lz= 15
+      (3301,5458) -> thru(1) lx=  5 lz= 18
+      (3305,5462) -> thru(1) lx=  9 lz= 22
+      (3348,5455) -> cw(2) lx= 20 lz= 15
+      (3344,5459) -> cw(2) lx= 16 lz= 19
+      (3343,5464) -> cw(2) lx= 15 lz= 24
+    fishObjects: 9 coords, 9 inside the room box
+      (3274,5457) -> ccw(0) lx= 10 lz= 17
+      (3280,5451) -> ccw(0) lx= 16 lz= 11
+      (3281,5454) -> ccw(0) lx= 17 lz= 14
+      (3302,5459) -> thru(1) lx=  6 lz= 19
+      (3308,5449) -> thru(1) lx= 12 lz=  9
+      (3306,5461) -> thru(1) lx= 10 lz= 21
+      (3337,5453) -> cw(2) lx=  9 lz= 13
+      (3345,5445) -> cw(2) lx= 17 lz=  5
+      (3343,5461) -> cw(2) lx= 15 lz= 21
+    snakeCenterTiles: 9 coords, 9 inside the room box
+      (3275,5457) -> ccw(0) lx= 11 lz= 17
+      (3279,5451) -> ccw(0) lx= 15 lz= 11
+      (3280,5454) -> ccw(0) lx= 16 lz= 14
+      (3302,5458) -> thru(1) lx=  6 lz= 18
+      (3309,5449) -> thru(1) lx= 13 lz=  9
+      (3306,5460) -> thru(1) lx= 10 lz= 20
+      (3338,5453) -> cw(2) lx= 10 lz= 13
+      (3345,5446) -> cw(2) lx= 17 lz=  6
+      (3343,5460) -> cw(2) lx= 15 lz= 20
+    resourcesAStorageUnits: 3 coords, 3 inside the room box
+      (3275,5465) -> ccw(0) lx= 11 lz= 25
+      (3312,5463) -> thru(1) lx= 16 lz= 23
+      (3335,5458) -> cw(2) lx=  7 lz= 18
+    resourcesBStorageUnits: 3 coords, 3 inside the room box
+      (3276,5465) -> ccw(0) lx= 12 lz= 25
+      (3317,5456) -> thru(1) lx= 21 lz= 16
+      (3342,5456) -> cw(2) lx= 14 lz= 16

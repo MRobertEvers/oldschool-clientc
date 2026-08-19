@@ -536,3 +536,139 @@ A section appended to this document, in the shape of §13.2/§13.3:
 - what was built,
 - the gates added and how each was mutation-proved,
 - what is still missing.
+
+---
+
+## 10. Pass 1 — stage A, and the position port — 2026-08-18
+
+Branch `worktree-cox-nr-port`. Written in the format §9 asks for.
+
+### 10.1 The finding that shaped the pass
+
+**No encounter could know which room it was in.** Every CoX room ships in three
+authored door variants and `~cox_layout_build_floor` picks one when it stamps —
+then discarded the choice. `~cox_layout_populate_floor` called
+`~cox_room_populate(room, rx, rz, level)` with no variant, so nothing that
+populated a room could name a spawn tile: the same `(lx, lz)` is a wall in one
+layout and open floor in another.
+
+The consequence was that **every encounter added its whole pack at the room's
+south-west corner** — four shamans deep on one tile, two guardians inside each
+other, Vespula on top of her own portal. Nothing was red. A stack of npcs is a
+legal state, they were all alive, and each fight ran; the guardians' entire
+mechanic — walk between them, get stomped — simply had no gap to walk into.
+
+This is the same shape as §13.1's "the raid was one room": a subsystem whose
+output nothing checks, failing in a way that is not an error anywhere.
+
+### 10.2 The conversion is exact, and that is the enabling fact
+
+`RaidArea.getLocation` subtracts `staticChunkX * 8` and `staticChunkY * 8`
+before use, `staticChunkY` is published per room in `RaidRoom.java`, and the
+three `staticChunkX` values 408 / 412 / 416 **are** the CCW / THRU / CW
+variants. So a Zenyte absolute coordinate is a room-local tile, and it belongs
+to whichever of the three bases puts it inside the 32×32 box.
+
+`tools/cox_nr_locs.py` does that conversion and refuses to guess: if no base
+fits, or more than one does, it says so. Across all 17 room classes the dump
+(`sources/nr/room_coords.txt`) has two ambiguous entries — both polygon corners,
+resolvable by field index — and eight non-hits, all explained.
+
+`tools/cox_template_survey.py --find <loc>` is the other half: where a named loc
+sits inside its template cell **in the cache we ship**. That gives the port a
+corroboration step, and it immediately earned its place (P4 below).
+
+### 10.3 Corrections made against the sources
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| P1 | Every pack added at the room corner | Zenyte authors per-variant positions for all of them | ten spawn procs |
+| P2 | **The crab room spawned nothing at all.** `~cox_room_populate` listed it among rooms that "hold no npcs at load", on the reasoning that the crabs appear when the crystal is struck | They do not — the crabs are in the room from the start and are what the beam bounces off. The only `npc_add` for a crab was in a debugproc, so a generated crab room was empty with an unsolvable puzzle in it | `cox_crabs.rs2`, `cox_layout.rs2` |
+| P3 | Vasa lit the same corner crystal every time | "will run to **one of the four** corners" — the other three were decorative and the room was a fixed read | `cox_vasa.rs2`, `%cox_vasa_crystal_index` |
+| P4 | One anvil tile served all three Tekton variants | `--find raids_tekton_anvil` reads (14,22) / (7,13) / (12,22) out of m51_82 and m52_82. The single value was the CCW one, so two layouts in three sent him to hammer empty floor — and `npc_walk` to an empty tile succeeds | `cox.constant`, `cox_tekton.rs2` |
+| P5 | The meat tree was one hardcoded tile | Per-variant. In two layouts of three the large Muttadile walked to open water to feed, and ate, because nothing on the feeding path checks a tree is there | `cox_muttadiles.rs2` |
+| P6 | Four icefiends at every scale | Zenyte: `min(party, 4)`. Each guards **its** brazier, so a solo raid contests one, not four | `cox_icedemon.rs2` |
+| P7 | Rangers and mages shared one count | They scale on **separate** ladders — rangers step at 4 and 7, mages at 4 and above 9 — so a team of eight meets four rangers and three mages. One shared count is wrong for one of the two at every scale from 7 to 9. The wiki's "groups of 2-4" bounds both | `cox_puzzles.rs2` |
+| P8 | Shamans and mystics spawned only the `_a` id | Zenyte rolls across the id set per spawn (`random(7604, 7606)` for mystics). One id made every pack move in lockstep | `cox_minions.rs2` |
+| P9 | Zenyte's mystic count caps at 6, because it *removes* tiles from a list of six | The official table runs to 12. Kept the official count and cycled the positions, with the derived tiles marked as ours | `cox_minions.rs2` |
+| P10 | `ScalingMechanics`' stat multipliers | **Not adopted.** Its normal-mode multiplier is 0.8, so its base stats are calibrated 1.25× — porting the shape onto this tree's wiki-calibrated bases would make every monster 0.8× wrong at solo, contradicting the Tekton page's stated 300 | unchanged |
+| P11 | Zenyte's `getShamanCount` (`<4→2, ≤7→3, else 4`) | Unchanged from §13.2 P9: the official table ends at 5 and this tree already matched it | unchanged |
+
+**A provenance note worth recording.** `cox_scaling.rs2` attributes its formulas
+to the wiki's Talk page. That page was re-fetched this pass and contains none of
+them — it is four unrelated threads and a stack of feedback templates. The
+formulas may have been there once; today they are uncorroborated. They were left
+in place (nothing better exists, and they at least anchor solo exactly) but the
+citation should not be read as live.
+
+### 10.4 What was built
+
+- `~cox_room_variant_at(rx, rz, level)` recovers the variant from the cell, and
+  `~cox_here_variant` from wherever an npc is standing — so an `[ai_timer]` can
+  ask too, which matters because an encounter needs its geometry long after the
+  tick that spawned it.
+- `~cox_pack_local` / `~cox_room_packed` carry a spawn table as single ints.
+  Two parallel x/z tables that drift place an npc on a tile no author wrote.
+- Per-variant positions for **ten rooms**: shamans, mystics, guardians, Tekton's
+  anvil, Vespula (plus her portal, four grubs and four soldier spawns), the
+  three Vanguards, both Muttadiles and the meat tree, Vasa and his four
+  crystals, the ice demon with four braziers and their icefiends, the tightrope
+  pairs, and the crabs with their light focus and crystal.
+- `tools/cox_nr_locs.py`, `--find` on the template survey, and the full dump.
+
+### 10.5 The harness was reporting false passes
+
+Mutating `^cox_points_per_damage` from 5 to 7 — the exact mutation whose escape
+is documented in `mock230_world.c` beside the `::coxrun` check — left
+`tools/cox_verify.sh` **green**. So did collapsing a spawn table.
+
+The cause was not in the checks. `mock230 --selftest` was segfaulting in the
+collision section hundreds of lines earlier, because a fresh worktree has no
+`cache.osrs239` (an untracked artifact at the repo root). No scene loaded, so
+nothing CoX ever executed — and `cox_verify.sh`'s only test was that no CoX
+failure line appeared in the log. None had.
+
+"Passed" and "never ran" have to be distinguishable:
+
+- the selftest now prints `mock230 selftest: Chambers of Xeric` before the
+  block, the way every other section already announces itself;
+- `cox_verify.sh` requires that marker and refuses to report a result without
+  it, printing the tail of the run instead;
+- and it fails up front when `cache.osrs239` is missing.
+
+**Everything verified before this fix was verified against nothing.** Any green
+result in this tree's CoX history that predates a check of the marker should be
+treated as unknown rather than as a pass.
+
+### 10.6 Verification
+
+`tools/cox_verify.sh` — 45 checks green (was 39). `tools/cox_check_timers.py` —
+37 timer npcs, 39 armed. `tools/cox_sim.sh` — green.
+
+Six new gates, every one mutation-proved after the harness fix:
+
+| # | What it pins | Mutation that turns it red |
+| --- | --- | --- |
+| 40 | No two members of a pack share a tile | collapse any table to one tile |
+| 41 | Every authored tile is inside the 32×32 box | push one to `lx 40` |
+| 42 | The three variants are three *different* rooms | alias two of them |
+| 43 | The `(lx,lz)` packing round-trips and is asymmetric | make it additive |
+| 44 | Tekton's anvil matches what **this** cache places | move it one tile |
+| 45 | Puzzle-room counts stay inside their published bounds across parties 1-20, and the two tightrope ladders differ | alias the mage step to the ranger step |
+
+Check 40 is the one that would have caught the bug this pass exists to fix.
+
+### 10.7 Still missing after this pass
+
+1. **Nothing here has been played.** The gates are arithmetic and table shape;
+   none of them stands in a room and looks. A monster now spawns at an authored
+   tile, but whether that tile is walkable *in this cache* is unchecked for
+   every room without a marker loc — which is every combat room.
+2. Stage B's actual mechanics: the fights themselves are still the thin versions
+   in §1's table. This pass moved the monsters; it did not port `processNPC`.
+3. Stage A's remaining items: `CombatPointCapCalculator` (per-room point caps),
+   `RoomController`'s lifecycle seam, and `FloorEdgeRoom` / floor progression.
+4. The 77 non-CoX failures in `mock230 --selftest` on this branch. They are the
+   *absence* of another session's uncommitted `src/world` and `src/net/mock`
+   work rather than a regression from this pass — the worktree branched from
+   HEAD — but that has not been A/B'd against the shared checkout.

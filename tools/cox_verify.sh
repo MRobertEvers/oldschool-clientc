@@ -86,6 +86,17 @@ if ! grep -q "^compiled " /tmp/cox_verify_compile.log; then
     CONTENT_ROOT="$ISO"
 fi
 
+# The osrs239 cache is an untracked build artifact at the repo root, so a fresh
+# worktree does not have one -- and without it the selftest crashes in the
+# collision section long before it reaches CoX. That produced a GREEN result,
+# because the only test below was that no CoX failure line appeared. Refuse to
+# run rather than report on a scene that never loaded.
+if [ ! -e cache.osrs239 ]; then
+    echo "no cache.osrs239 in $ROOT - the selftest cannot load a scene."
+    echo "  ln -s <path to a checkout with one>/cache.osrs239 cache.osrs239"
+    exit 1
+fi
+
 echo "--- selftest (CoX checks only) ---"
 if [ -n "$CONTENT_ROOT" ]; then
     out=$(MOCK230_CONTENT="$CONTENT_ROOT" \
@@ -94,9 +105,21 @@ if [ -n "$CONTENT_ROOT" ]; then
 else
     out=$(./src/build_opt/mock230 --selftest 2>&1 || true)
 fi
+# Positive evidence that the CoX block executed. Grepping only for failures
+# cannot distinguish "passed" from "never ran", and "never ran" is the common
+# case when something upstream in the suite dies: a missing cache, a segfault
+# in the collision section, a content tree that would not load. Every one of
+# those used to be reported here as a CoX pass.
+if ! echo "$out" | grep -q '^mock230 selftest: Chambers of Xeric$'; then
+    echo "the selftest never reached the CoX section - reporting nothing."
+    echo "  last lines of the run:"
+    echo "$out" | tail -5 | sed 's/^/    /'
+    exit 1
+fi
 COX_FAIL='Chambers of Xeric|::cox|entering CoX|leaving CoX'
-if echo "$out" | grep -qE "$COX_FAIL"; then
-    echo "$out" | grep -E "$COX_FAIL"
+cox_lines=$(echo "$out" | grep -E "$COX_FAIL" | grep -v '^mock230 selftest: Chambers of Xeric$' || true)
+if [ -n "$cox_lines" ]; then
+    echo "$cox_lines"
     echo "RESULT: CoX selftest FAILED"
     exit 1
 fi
