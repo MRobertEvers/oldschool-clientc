@@ -38036,6 +38036,136 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Every room names itself on the way in (`~tob_title_card`).
+         *
+         * A red wash over the game view and the room's name over the wash, for
+         * five seconds, the moment the chamber is built. What this asserts is
+         * the half that can be asserted from here: the two overlays are mounted
+         * and the name written onto them is the room's own WAVE name — the
+         * string the live server puts in "Wave '<name>' ... complete!", taken
+         * from blert's `Room.waveName()`. Five of the six are the room name;
+         * Verzik's card is "The Final Challenge" and does not name her at all,
+         * which is exactly the entry a table like this exists to hold onto.
+         *
+         * The mount is checked as well as the text because they fail
+         * separately, and one of those failures is silent: IF_SETTEXT for an
+         * interface nobody opened is a string sent into the dark.
+         */
+        {
+            static const char* const k_card[6] = { "The Maiden of Sugadinti",
+                                                   "The Pestilent Bloat",
+                                                   "The Nylocas",
+                                                   "Sotetseg",
+                                                   "Xarpus",
+                                                   "The Final Challenge" };
+            const int k_text_iface = 837; /* dt2_textoverlay */
+            int carded = 0;
+
+            for( int room = 1; room <= 6; room++ )
+            {
+                static struct Mock230Capture card_capture;
+                char command[32];
+                int said_name = 0;
+                int mounted_text = 0;
+                int mounted_wash = 0;
+
+                snprintf(command, sizeof(command), "tob %d", room);
+                mock230_scripts_run_debugproc(srv, command);
+                mock230_capture_begin(srv, &card_capture);
+                /* The card is armed for the next tick and shows its name two
+                 * ticks after that — it opens over the room, not over the one
+                 * the player was standing in when the click landed. */
+                for( int i = 0; i < 5; i++ )
+                    mock230_world_tick(srv);
+                mock230_capture_end(srv);
+
+                for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, 0);
+                     i >= 0;
+                     i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
+
+                    /* p4 component uid, then the string. */
+                    if( packet->len < 6 )
+                        continue;
+                    if( strstr((const char*)packet->data + 4, k_card[room - 1]) != NULL )
+                        said_name = 1;
+                }
+                for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, 0);
+                     i >= 0;
+                     i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
+                    int iface;
+
+                    if( packet->len < 6 )
+                        continue;
+                    iface = (packet->data[4] << 8) | packet->data[5];
+                    if( iface == k_text_iface )
+                        mounted_text = 1;
+                    /* 97/98/99 are darkness_light / _medium / _dark. The card
+                     * fades by swapping which strength is mounted — there is no
+                     * `if_settrans` in this dialect — so any of the three
+                     * standing up means the wash was raised. */
+                    if( iface >= 97 && iface <= 99 )
+                        mounted_wash = 1;
+                }
+                if( room == 1 )
+                {
+                    fprintf(stderr, "    captured %d packets\n", card_capture.count);
+                    for( int i = 0; i < card_capture.count && i < 60; i++ )
+                        fprintf(stderr, "      op=%d name=%d len=%d\n",
+                                card_capture.packets[i].opcode, card_capture.packets[i].name,
+                                card_capture.packets[i].len);
+                }
+                fprintf(stderr, "  tobcard room %d: wash=%d text=%d name=%d (%s)\n", room,
+                        mounted_wash, mounted_text, said_name, k_card[room - 1]);
+                if( said_name && mounted_text && mounted_wash )
+                    carded++;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            SELFTEST_CHECK(carded == 6, "every ToB room should open on its own title card");
+        }
+
+        /*
+         * Verzik's chamber is entered THROUGH the gate, on foot.
+         *
+         * Every other room is entered from a corridor with the barrier crossed
+         * by hand; hers has one way in and no corridor on this side of it (see
+         * tob.constant), so the arrival stands the player in the gateway and
+         * walks them up the hall. That walk is the assertion: land on the gate
+         * row, be north of it a few ticks later.
+         *
+         * The walk is queued a tick after the teleport and that is the part
+         * worth protecting. `p_walk` routes across the ONE built scene, and the
+         * scene is rebuilt on the tick boundary — so a route asked for in the
+         * teleport's own script is a route across the room the player just left:
+         * `mock230_scene_contains` refuses both ends, the route comes back -1,
+         * and the player stands in the doorway for the whole fight. That is what
+         * it did before the queue, and it is what this catches.
+         */
+        {
+            struct Mock230Player* fixture = srv->active_player;
+            int landed_z;
+            int walked_z;
+
+            mock230_scripts_run_debugproc(srv, "tob 6");
+            landed_z = fixture->z;
+            for( int i = 0; i < 12; i++ )
+                mock230_world_tick(srv);
+            walked_z = fixture->z;
+            fprintf(stderr, "  tobverzik: landed z=%d walked to z=%d (%d tiles)\n", landed_z,
+                    walked_z, walked_z - landed_z);
+            mock230_scripts_run_debugproc(srv, "tobout");
+
+            SELFTEST_CHECK(walked_z > landed_z,
+                           "entering Verzik's chamber should walk the player in through the gate, "
+                           "landed z=%d ended z=%d",
+                           landed_z, walked_z);
+        }
+
+        /*
          * Every ToA room builds, and builds on its own plane (`::toarooms`).
          *
          * The sibling of ::tobrooms, and here for the same reason: every other
@@ -39435,27 +39565,20 @@ mock230_world_selftest(void)
              */
             for( int t = 0; t < 3; t++ )
                 mock230_world_tick(srv);
+            mock230_scripts_run_debugproc(srv, "tobskelsweep");
+            mock230_scripts_run_debugproc(srv, "tobprobe");
             {
                 int bx = mock230_scene_base_x();
                 int bz = mock230_scene_base_z();
-                int hits = 0;
-                fprintf(stderr, "  probe: player %d,%d,%d scene base %d,%d\n",
+                int n = 0;
+                fprintf(stderr, "  cprobe: player %d,%d,%d base %d,%d\n",
                         player->x, player->z, player->level, bx, bz);
                 for( int lvl = 0; lvl < 4; lvl++ )
-                    for( int x = 6400 + 30; x <= 6400 + 40; x++ )
-                        for( int z = 6400 - 6400 + 64 + 40; z <= 64 + 50; z++ )
-                        {
-                            int slot = mock230_scene_find_loc(x, z, lvl, -1);
-                            if( slot >= 0 )
-                            {
-                                const struct Mock230SceneLoc* l = mock230_scene_loc(slot);
-                                fprintf(stderr, "  probe: loc %d at %d,%d lvl %d (corner %d,%d shape %d)\n",
-                                        l ? l->loc_id : -1, x, z, lvl, l ? l->x : -1, l ? l->z : -1,
-                                        l ? l->shape : -1);
-                                hits++;
-                            }
-                        }
-                fprintf(stderr, "  probe: skeleton hits %d\n", hits);
+                    for( int x = bx; x < bx + 104; x++ )
+                        for( int z = bz; z < bz + 104; z++ )
+                            if( mock230_scene_find_loc_id(x, z, lvl, 32741) >= 0 )
+                            { fprintf(stderr, "  cprobe: 32741 at %d,%d lvl %d\n", x, z, lvl); n++; }
+                fprintf(stderr, "  cprobe: 32741 count %d\n", n);
             }
             held_before = selftest_count(player, k_dawnbringer);
             mock230_scripts_run_debugproc(srv, "tobdawn");
@@ -39667,38 +39790,6 @@ mock230_world_selftest(void)
              * The predicate itself is exercised for real by Verzik's phase-3
              * attack path, which the cadence harness runs.
              */
-            /* TEMP PILLAR PROBE */
-            {
-                static struct Mock230Capture pc;
-                mock230_capture_begin(srv, &pc);
-                mock230_scripts_run_debugproc(srv, "tobpillars 0");
-                mock230_scripts_run_debugproc(srv, "tobpillars 1");
-                mock230_capture_end(srv);
-                for( int i = mock230_capture_find(&pc, 90, 0); i >= 0;
-                     i = mock230_capture_find(&pc, 90, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* pk = &pc.packets[i];
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
-                        continue;
-                    if( strstr((const char*)pk->data + 1, "tobpillars") )
-                        fprintf(stderr, "  PROBE-A %s\n", (const char*)pk->data + 1);
-                }
-                for( int t = 0; t < 3; t++ )
-                    mock230_world_tick(srv);
-                mock230_capture_begin(srv, &pc);
-                mock230_scripts_run_debugproc(srv, "tobpillars 0");
-                mock230_capture_end(srv);
-                for( int i = mock230_capture_find(&pc, 90, 0); i >= 0;
-                     i = mock230_capture_find(&pc, 90, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* pk = &pc.packets[i];
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
-                        continue;
-                    if( strstr((const char*)pk->data + 1, "tobpillars") )
-                        fprintf(stderr, "  PROBE-B %s\n", (const char*)pk->data + 1);
-                }
-            }
-            /* END TEMP PILLAR PROBE */
             mock230_scripts_run_debugproc(srv, "tobout");
         }
 
@@ -40755,12 +40846,22 @@ mock230_world_selftest(void)
              * and the half a player triggers by simply attacking the boss.
              * Only the movers: a rooted boss keeps its facing latch when it is
              * hit, which is right, and has no route to lose.
+             *
+             * The Maiden's adds are movers too, and the slugs are the case that
+             * found the gap: `maiden_blood_slug` had neither `retaliate=no` nor
+             * `huntmode=none`, so the engine default latched a target on the
+             * first hit and the slug chased the player swinging its rig's only
+             * attack seq — read from the client as "the blood orb aggroes and
+             * has a defend animation". A blood spawn is a roaming hazard that
+             * never fights back; the trail hurts, the slug does not.
              */
             {
                 static const char* const k_movers[] = {
                     "tob_bloat", "tob_bloat_hard", "tob_bloat_story",
                     "nylocas_boss_melee", "nylocas_boss_magic", "nylocas_boss_ranged",
                     "verzik_phase3",
+                    "maiden_elemental", "maiden_elemental_hard", "maiden_elemental_story",
+                    "maiden_blood_slug", "maiden_blood_slug_hard", "maiden_blood_slug_story",
                 };
                 int retaliating = 0;
 
@@ -40780,6 +40881,41 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(retaliating == 0,
                                "%d script-walked Theatre boss(es) lose their route on the "
                                "first hit", retaliating);
+
+                /*
+                 * And a blood spawn plays nothing when hit. `defend_anim=null`
+                 * is what npc_combat/m/maiden_blood_slug.combat states ("nothing
+                 * on its rig names or implies one"); the flinch the player saw
+                 * was the retaliation swing above, not a block seq, and this
+                 * pins both halves so a regenerated anims file cannot hand it
+                 * one.
+                 */
+                {
+                    static const char* const k_slugs[] = {
+                        "maiden_blood_slug", "maiden_blood_slug_hard", "maiden_blood_slug_story",
+                    };
+                    int flinching = 0;
+
+                    for( size_t i = 0; i < sizeof(k_slugs) / sizeof(k_slugs[0]); i++ )
+                    {
+                        int id = mock230_content_symbol(MOCK230_PACK_NPC, k_slugs[i]);
+                        const struct Mock230NpcDef* def =
+                            id >= 0 ? mock230_content_npc(id) : NULL;
+
+                        SELFTEST_CHECK(def != NULL, "%s should resolve", k_slugs[i]);
+                        if( !def )
+                            continue;
+                        if( def->defend_anim >= 0 )
+                        {
+                            flinching++;
+                            fprintf(stderr, "    %s flinches with seq %d\n", k_slugs[i],
+                                    def->defend_anim);
+                        }
+                    }
+                    SELFTEST_CHECK(flinching == 0,
+                                   "%d Maiden blood spawn(s) have a defend animation",
+                                   flinching);
+                }
 
                 /*
                  * And Bloat walks THROUGH people. Its circuit is a lap of a

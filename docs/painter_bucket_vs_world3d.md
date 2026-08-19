@@ -54,6 +54,8 @@ the object and the span exception applies).
 
 ### The seam exception (bucket only) — narrowed 2026-08-19
 
+Worked examples of the rule, case by case: [painter_seam_rule.md](painter_seam_rule.md).
+
 The first version relaxed the gate on *either* axis and misordered ToB: a large loc
 also straddles rings in depth, so Xarpus' 6x5 ledge at `x[43,48] z[67,71]` seen from
 `(50,43)` (near corner ring 26) let the floor directly in front of its z=67 row —
@@ -775,6 +777,17 @@ bucket (old)       p50 206-228 µs   p95 ~222-225 µs
 
 Maiden: world3d p50 288 µs vs bucket 228 µs. So the live cost of the narrowed rule is
 within noise, and the bucket painter is ~18-21% faster than world3d at p50 in ToB.
+
+**Later the same day — exact parity + memoization.** Deferring a relaxed tile's 3D
+features (far walls, decor, objects, underpass wall/scenery — `bucket_emit_tile_features`)
+along with its scenery closed the last residual (Nylocas, 38 px): every scene tried is now
+0 px against world3d. Two perf changes went in with it: the neighbour's pending-scenery
+scan is memoized per paint in `TilePaint.seam_scan` (a sound upper bound — elements only
+leave the pending set), and the lateral flags are computed once per pop from the `adx/adz`
+already in hand. `bucket_emit_tile_features` is `always_inline`: outlined, it cost the
+paint stage ~5%. Final: bench ratio 0.77–0.85 (old 0.75–0.82, same session; the machine
+was noisy enough that the world3d column itself moved ±15% between runs — read the
+ratios); live Xarpus paint p50 221–224 µs (old rule ≈ 211 µs, world3d ≈ 260 µs).
 `painter_commands` ≈ 1603/frame in Xarpus, 1345 in Maiden. `TORIRS_PAINTER_W3D=1`
 selects world3d in the live client; the default is the bucket painter.
 

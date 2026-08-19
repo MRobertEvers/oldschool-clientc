@@ -1337,9 +1337,23 @@ frame_loop_step(void)
                     slot);
                 /* Retry on the next frame while the npc has not arrived yet:
                  * the caller picks a frame, the server picks the tick its spawn
-                 * lands on, and a one-shot would race that. */
+                 * lands on, and a one-shot would race that.
+                 *
+                 * TORIRS_SIM_OPNPC_EVERY=N re-issues the op every N frames
+                 * after it first lands — a target that walks away from the
+                 * player (a Nylocas Matomenos heading for the Maiden) is never
+                 * reached by a single click, and "the player chases it and
+                 * kills it" is the scenario a death-animation probe needs. */
                 if( slot >= 0 )
-                    sim_opnpc_frame = -1;
+                {
+                    static long every = -1;
+                    if( every < 0 )
+                    {
+                        char const* e = getenv("TORIRS_SIM_OPNPC_EVERY");
+                        every = (e && *e) ? strtol(e, NULL, 0) : 0;
+                    }
+                    sim_opnpc_frame = every > 0 ? frame_count + every : -1;
+                }
             }
         }
 
