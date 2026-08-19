@@ -126,6 +126,15 @@ ev_build_player_model(
  * lighting, so trying a different one is a config change and not a model edit —
  * and being able to try it without editing anything is the point.
  *
+ * `free_yaw` is a further rotation about y, 0..2047, applied in the same place
+ * and for the same reason: it must land BEFORE the lighting bake, because RS
+ * lighting is per-face from the geometry's orientation and a mesh turned after
+ * the bake is lit for a pose it is no longer in. It exists for the graphic that
+ * is NOT attached to an entity — a `spotanim_map` sits on a tile in world
+ * space, so to reproduce one inside a model that the renderer will then turn by
+ * the player's yaw, it has to be pre-turned by the inverse. Pass 0 for the
+ * attached case, where the record's own angle is the whole rotation.
+ *
  * `out_seq_id` receives the record's animation id (-1 when it has none).
  * Returns an owned model or NULL.
  */
@@ -135,6 +144,7 @@ ev_build_spotanim_model(
     int spotanim_id,
     const char* model_file_override,
     int angle_override,
+    int free_yaw,
     int* out_seq_id);
 
 /*

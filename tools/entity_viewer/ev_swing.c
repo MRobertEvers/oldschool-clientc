@@ -488,6 +488,36 @@ project_top_down(struct Vec3 v, int side, int zoom, int lift, int* out_x, int* o
     *out_y = side / 2 + (int)(-v.z * (double)TORIDRAW_PROJ_SCALE_DEFAULT / cam_z);
 }
 
+/*
+ * A measured point carried from the player's local space into the world, which
+ * is the same rotation the renderer applies to the model.
+ *
+ * Everything measured above is in the player's own space, because that is where
+ * a merged graphic lives: `spotanim_pl` puts the arc inside the player's model
+ * and the scene draws the result at the element's yaw, so the arc's placement
+ * relative to the blade cannot depend on which way the player is turned. That
+ * is the mechanism, and it is exactly the claim "regardless of the angle the
+ * player is facing" asks about — so it is worth being able to CHECK rather than
+ * assert, at facings the game actually produces.
+ *
+ * The rotation is `project_orthographic`'s own, verbatim
+ * (v1/toridraw/graphics/projection.u.c): x' = x*cos + z*sin, z' = z*cos - x*sin.
+ * Using the renderer's formula rather than a re-derived one is the point: a
+ * marker drawn from a sign-flipped copy would land somewhere plausible and
+ * wrong, which is the failure this whole harness exists to avoid.
+ */
+static struct Vec3
+rotate_by_yaw(struct Vec3 v, int yaw)
+{
+    double a = (double)(yaw & 2047) * 2.0 * M_PI / 2048.0;
+    double s = sin(a), c = cos(a);
+    struct Vec3 out;
+    out.x = v.x * c + v.z * s;
+    out.y = v.y;
+    out.z = v.z * c - v.x * s;
+    return out;
+}
+
 int
 main(int argc, char** argv)
 {
@@ -511,6 +541,11 @@ main(int argc, char** argv)
     int markers = 1;
     int yaw = 0;
     int pitch = 100;
+    const char* csv_path = NULL;
+    const char* facing_label = NULL;
+    int tile_dx = 0;
+    int tile_dz = 0;
+    int tile_mode = 0;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -554,6 +589,16 @@ main(int argc, char** argv)
             side = atoi(argv[++i]);
         else if( strcmp(argv[i], "--columns") == 0 && i + 1 < argc )
             columns = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--csv") == 0 && i + 1 < argc )
+            csv_path = argv[++i];
+        else if( strcmp(argv[i], "--facing") == 0 && i + 1 < argc )
+            facing_label = argv[++i];
+        else if( strcmp(argv[i], "--tile") == 0 && i + 2 < argc )
+        {
+            tile_dx = atoi(argv[++i]);
+            tile_dz = atoi(argv[++i]);
+            tile_mode = 1;
+        }
         else if( strcmp(argv[i], "--wear") == 0 && i + 1 < argc )
         {
             if( extra_worn_count < EV_PLAYER_MAX_WORN - 1 )
@@ -607,7 +652,19 @@ main(int argc, char** argv)
             "                        The measurements are taken in the player's local\n"
             "                        space and do not change with it; only the pictures do\n"
             "  --pitch <0-2047>      camera pitch for the _side sheet (default 100).\n"
-            "                        The _top sheet is always 512, straight down\n",
+            "                        The _top sheet is always 512, straight down\n"
+            "  --csv <file>          write one row per client cycle: the blade and the lit\n"
+            "                        graphic, in the player's local space AND rotated into\n"
+            "                        world space by --yaw, so several facings concatenate\n"
+            "                        into one sheet\n"
+            "  --facing <name>       the label that CSV's first column carries (default:\n"
+            "                        the yaw, as a number)\n"
+            "  --tile <dx> <dz>      measure a `spotanim_map` instead of a `spotanim_pl`:\n"
+            "                        the graphic stands on the tile <dx>,<dz> from the\n"
+            "                        player, in WORLD space, and does not turn with them.\n"
+            "                        It is reproduced by pre-turning the graphic by the\n"
+            "                        inverse of --yaw before the merge, so the picture and\n"
+            "                        the numbers are the game's. +x east, +z north\n",
             argv[0],
             DEF_WEAPON_OBJ,
             DEF_ATTACK_SEQ,
@@ -679,9 +736,26 @@ main(int argc, char** argv)
         return 1;
     }
 
+    /*
+     * A tile graphic is world-fixed; a merged one is not.
+     *
+     * `spotanim_map` puts the arc on a TILE — it never enters the player's
+     * model and the player's yaw does nothing to it. This harness only has one
+     * way to draw and measure two things at once, which is the merge, so the
+     * tile case is reproduced inside it: turn the graphic by the INVERSE of the
+     * player's yaw and offset it by the tile, both before the merge, and the
+     * renderer's own turn by that yaw puts it back exactly where the world says
+     * it stands. Every measurement below is then in the player's local space
+     * for both cases, which is what makes them comparable.
+     *
+     * The inverse turn has to precede the lighting bake, which is why it is a
+     * parameter of the builder rather than something applied out here beside
+     * the trial shift.
+     */
+    int inverse_yaw = tile_mode ? ((2048 - yaw) & 2047) : 0;
     int spot_seq = -1;
-    struct ToriDraw_Model* spot =
-        ev_build_spotanim_model(&cache, spotanim_id, arc_model_file, orient, &spot_seq);
+    struct ToriDraw_Model* spot = ev_build_spotanim_model(&cache, spotanim_id, arc_model_file,
+                                                          orient, inverse_yaw, &spot_seq);
     if( !spot )
     {
         fprintf(stderr, "spotanim %d did not build\n", spotanim_id);
@@ -698,6 +772,24 @@ main(int argc, char** argv)
      * geometry without turning it. A rotation could not be applied here, which
      * is why --orient goes in ahead of the lighting instead.
      */
+    /*
+     * The tile offset joins the trial shift rather than being applied
+     * separately: both are pure translations of the same mesh, and doing them
+     * in one call keeps a single ModelSetBoundsCylinder/CaptureOriginalVertices
+     * pair. The tile vector is in WORLD units and the mesh is already in the
+     * player's local frame, so it takes the same inverse turn the mesh did.
+     */
+    if( tile_mode )
+    {
+        struct Vec3 t = { tile_dx * 128.0, 0, tile_dz * 128.0 };
+        struct Vec3 l = rotate_by_yaw(t, inverse_yaw);
+        shift_x += (int)(l.x + (l.x < 0 ? -0.5 : 0.5));
+        shift_z += (int)(l.z + (l.z < 0 ? -0.5 : 0.5));
+        printf("tile graphic: %+d,%+d tiles in world space, held there against a player\n"
+               "              facing yaw %d — the mesh is pre-turned by %d and moved\n"
+               "              (%+d, %+d) in the player's frame to stand still in the world\n",
+               tile_dx, tile_dz, yaw, inverse_yaw, shift_x, shift_z);
+    }
     if( shift_x || shift_z )
     {
         ToriDraw_ModelTranslate(spot, shift_x, 0, shift_z);
@@ -911,6 +1003,71 @@ main(int argc, char** argv)
     else
         printf("graphic is never lit anywhere in the swing at delay %d\n", delay);
     printf("\n");
+
+    /* ---- the same thing, as a sheet -------------------------------------- */
+
+    /*
+     * One row per client cycle, at the shipped delay — the table above, in a
+     * form that can be diffed between two candidates and stacked across
+     * facings.
+     *
+     * It carries both spaces on purpose. The LOCAL columns are the measurement:
+     * they are what the merge produces, and they are identical at every facing
+     * because the arc lives inside the player's model. The WORLD columns are
+     * those same points turned by the player's yaw, which is what the renderer
+     * does to the merged mesh — so a reader who does not already believe the
+     * paragraph above can check it by concatenating several facings and seeing
+     * the local columns repeat while the world columns rotate.
+     *
+     * `gap` is between the blade head and the lit centroid, in the xz plane, at
+     * this delay. It is the number the whole fix moves.
+     */
+    if( csv_path )
+    {
+        FILE* csv = fopen(csv_path, "w");
+        if( !csv )
+        {
+            fprintf(stderr, "could not write %s\n", csv_path);
+            return 1;
+        }
+        fprintf(csv,
+                "facing,yaw,cycle,body_frame,blade_x,blade_y,blade_z,blade_travel,"
+                "blade_world_x,blade_world_z,spot_frame,lit_faces,total_faces,alpha_min,"
+                "alpha_max,arc_x,arc_y,arc_z,arc_world_x,arc_world_z,gap_xz\n");
+        char facing_default[16];
+        snprintf(facing_default, sizeof(facing_default), "yaw%d", yaw);
+        const char* facing = facing_label ? facing_label : facing_default;
+        struct Vec3 csv_prev = { 0, 0, 0 };
+        int csv_have_prev = 0;
+        for( int t = 0; t < body_total && t < MAX_CYCLES; t++ )
+        {
+            int b = frame_at_cycle(body_delays, body_frames, t);
+            int f = frame_at_cycle(spot_delays, spot_frames, t - delay);
+            if( b < 0 )
+                break;
+            double travel = csv_have_prev ? dist3(blade[b].head, csv_prev) : 0;
+            csv_prev = blade[b].head;
+            csv_have_prev = 1;
+            struct Vec3 bw = rotate_by_yaw(blade[b].head, yaw);
+            fprintf(csv, "%s,%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f", facing, yaw, t, b,
+                    blade[b].head.x, blade[b].head.y, blade[b].head.z, travel, bw.x, bw.z);
+            if( f < 0 )
+                fprintf(csv, ",,,,,,,,,,,\n");
+            else if( arc[f].visible_faces == 0 )
+                fprintf(csv, ",%d,0,%d,%d,%d,,,,,,\n", f, arc[f].total_faces, arc[f].alpha_min,
+                        arc[f].alpha_max);
+            else
+            {
+                struct Vec3 aw = rotate_by_yaw(arc[f].centroid, yaw);
+                fprintf(csv, ",%d,%d,%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n", f,
+                        arc[f].visible_faces, arc[f].total_faces, arc[f].alpha_min,
+                        arc[f].alpha_max, arc[f].centroid.x, arc[f].centroid.y,
+                        arc[f].centroid.z, aw.x, aw.z, dist_xz(blade[b].head, arc[f].centroid));
+            }
+        }
+        fclose(csv);
+        printf("wrote %s — one row per client cycle at delay %d\n\n", csv_path, delay);
+    }
 
     /* ---- what the graphic's own sequence does ---------------------------- */
 
@@ -1381,17 +1538,28 @@ main(int argc, char** argv)
              * sit on the blade means the vertex slice is wrong, and every number
              * downstream of it is describing the wrong geometry.
              */
-            /* project_top_down solves the framing for yaw 0 only. At any other
-             * facing the crosses would land somewhere plausible and wrong,
-             * which is worse than no crosses at all — so they are dropped and
-             * said to be dropped rather than drawn approximately. */
-            if( markers && yaw == 0 )
+            /*
+             * The measured points, marked at whatever facing the sheet is
+             * drawn at.
+             *
+             * `project_top_down` frames the camera and nothing else; the yaw is
+             * a rotation of the MODEL, which the renderer applies before that
+             * framing. So the marker at any facing is the same projection of
+             * the rotated point — `rotate_by_yaw` is the renderer's own
+             * formula, not a re-derived one. This used to be dropped at every
+             * facing but south, which left the three sheets that most needed a
+             * check (does the arc still lie along the swing when the player is
+             * turned?) with nothing on them to check against.
+             */
+            if( markers )
             {
-                project_top_down(blade[b].head, side, zoom, player_height / 2, &mx, &my);
+                project_top_down(rotate_by_yaw(blade[b].head, yaw), side, zoom,
+                                 player_height / 2, &mx, &my);
                 cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FFFF); /* blade: cyan */
                 if( f >= 0 && arc[f].visible_faces )
                 {
-                    project_top_down(arc[f].centroid, side, zoom, player_height / 2, &mx, &my);
+                    project_top_down(rotate_by_yaw(arc[f].centroid, yaw), side, zoom,
+                                     player_height / 2, &mx, &my);
                     cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FF00); /* arc: green */
                 }
                 /* The player's own origin, so the two crosses can be read as
@@ -1422,21 +1590,29 @@ main(int argc, char** argv)
             int pw = 720, ph = 720;
             int* pix = calloc((size_t)pw * ph, sizeof(int));
             /* Fit the diagram to whatever the two paths and the arc mesh span. */
+            /*
+             * Fit on each point's RADIUS from the player, not on its x and z
+             * extents. The trace is drawn rotated by the facing, and a rotation
+             * moves a point anywhere on its own circle — fitting the unrotated
+             * extents would frame the south sheet correctly and crop the other
+             * three, differently each time, so four facings could not be
+             * compared against each other.
+             */
             double span = 8;
             for( int f = 0; f < spot_frames; f++ )
                 if( arc[f].visible_faces )
                 {
-                    if( fabs(arc[f].centroid.x) > span )
-                        span = fabs(arc[f].centroid.x);
-                    if( fabs(arc[f].centroid.z) > span )
-                        span = fabs(arc[f].centroid.z);
+                    double r = sqrt(arc[f].centroid.x * arc[f].centroid.x +
+                                    arc[f].centroid.z * arc[f].centroid.z);
+                    if( r > span )
+                        span = r;
                 }
             for( int b = 0; b < body_frames; b++ )
             {
-                if( fabs(blade[b].head.x) > span )
-                    span = fabs(blade[b].head.x);
-                if( fabs(blade[b].head.z) > span )
-                    span = fabs(blade[b].head.z);
+                double r = sqrt(blade[b].head.x * blade[b].head.x +
+                                blade[b].head.z * blade[b].head.z);
+                if( r > span )
+                    span = r;
             }
             span *= 1.15;
             double sc = (pw / 2) / span;
@@ -1469,8 +1645,12 @@ main(int argc, char** argv)
                 int first = ev_spot_vertex_first();
                 if( m && first >= 0 )
                     for( int v = first; v < m->vertex_count; v++ )
-                        plot(pix, pw, ph, PX((double)m->vertices_x[v]),
-                             PY((double)m->vertices_z[v]), 0x00803038);
+                    {
+                        struct Vec3 mv = { (double)m->vertices_x[v], 0,
+                                           (double)m->vertices_z[v] };
+                        struct Vec3 mw = rotate_by_yaw(mv, yaw);
+                        plot(pix, pw, ph, PX(mw.x), PY(mw.z), 0x00803038);
+                    }
             }
 
             /* Blade path (cyan) and lit-graphic path (green), cycle by cycle. */
@@ -1481,7 +1661,8 @@ main(int argc, char** argv)
                 int f = frame_at_cycle(spot_delays, spot_frames, t - delay);
                 if( b < 0 )
                     break;
-                int nx = PX(blade[b].head.x), ny = PY(blade[b].head.z);
+                struct Vec3 bwp = rotate_by_yaw(blade[b].head, yaw);
+                int nx = PX(bwp.x), ny = PY(bwp.z);
                 if( have_b )
                     line(pix, pw, ph, bx, by, nx, ny, 0x0000C0D0);
                 bx = nx;
@@ -1489,7 +1670,8 @@ main(int argc, char** argv)
                 have_b = 1;
                 if( f >= 0 && arc[f].visible_faces )
                 {
-                    int gx = PX(arc[f].centroid.x), gy = PY(arc[f].centroid.z);
+                    struct Vec3 awp = rotate_by_yaw(arc[f].centroid, yaw);
+                    int gx = PX(awp.x), gy = PY(awp.z);
                     if( have_a )
                         line(pix, pw, ph, ax, ay, gx, gy, 0x0000C000);
                     /* A tie line each cycle: its length IS the gap the table
@@ -1516,9 +1698,6 @@ main(int argc, char** argv)
         bmp_write_file(path, top, sheet_w, sheet_h);
         snprintf(path, sizeof(path), "%s_side.bmp", out_prefix);
         bmp_write_file(path, sid, sheet_w, sheet_h);
-        if( markers && yaw != 0 )
-            printf("\n(markers omitted: they are solved for yaw 0 and this sheet is yaw %d)\n",
-                   yaw);
         printf("\nwrote %s_top.bmp / _side.bmp (%d cells, every %d cycle(s), %dx%d)\n"
                "  and %s_plot.bmp — the overhead trace, one-tile grid,\n"
                "  cyan = blade head, green = lit graphic, white = the player's own origin\n",

@@ -2527,6 +2527,52 @@ struct Mock230Npc
     int block_seq;
     int death_seq;
     /**
+     * 1 once `death_seq` has been played on this life, by anyone.
+     *
+     * A death animation goes out ONCE per life. The client does not restart a
+     * seq it is already on unless the seq's own replyMode says so (rev-239
+     * readExtendedInfo; death seqs are mode 2 by default), so a second send
+     * while the corpse is parked on the last frame changes nothing on screen
+     * — and a corpse whose pose never moves reads as "it just disappeared".
+     * Two senders can collide: a script's `npc_anim(<death>)` (a Matomenos
+     * absorbed at the Maiden, a red at Verzik) and `npc_death_step` ARRIVE on
+     * a hit that lands inside the scripted death. The engine owns the rule
+     * rather than every script remembering it. Cleared with the life.
+     */
+    int death_seq_sent;
+    /**
+     * The tick `death_seq` was played on, or -1. Paired with `death_seq_sent`
+     * so a removal can be held until the corpse has actually outlived its own
+     * death animation — see `mock230_world_npc_free`.
+     */
+    int death_seq_tick;
+    /**
+     * Non-zero while a SCRIPT has just played `death_seq` on an npc that was
+     * alive and not dying — see `mock230_world.c`'s phase cleanup. Such a
+     * script has one tick to make the npc actually dead; still standing on the
+     * next tick is the precondition for a double-booked death.
+     */
+    int scripted_death_pending;
+    /**
+     * 1 while a removal is being held back for one phase so the animation
+     * queued on this npc THIS tick can reach the wire first.
+     *
+     * `mock230_world_npc_free` clears `active` immediately, and the npc
+     * encoders read `active` to decide keep-vs-remove — so a free issued in
+     * the npc phase, on the same tick a script played the npc's death
+     * animation, sends the client a REMOVE and never the animation. The mask
+     * is set, the seq is right, nothing errors, and the player watches the
+     * monster blink out instead of die. Deferring to phase cleanup (which runs
+     * after every observer's NPC_INFO has gone out) costs one tick of corpse
+     * and makes "a death is always seen" a property of the engine rather than
+     * of every script's arithmetic.
+     */
+    int free_deferred_for_anim;
+    /** A removal that was asked for and held back (for the animation, or for
+     *  the corpse's death-animation window). Phase cleanup retries it every
+     *  tick until it goes through, so a held free is never a lost one. */
+    int free_wanted;
+    /**
      * The sound that goes with each of the three, as a synth id; -1 = silent.
      *
      * Sound rides animation: an npc's flinch noise and its flinch animation are
@@ -3920,6 +3966,13 @@ struct Mock230Server
     int loot_credit_npc_type;
     int loot_credit_event_id;
     int loot_credit_seq;
+    /** Scripts that showed a death and left the npc alive — see
+     *  `Mock230Npc.scripted_death_pending`. Selftest asserts zero. */
+    int scripted_death_violations;
+    /** Npcs removed at 0 hitpoints whose `death_seq` never reached the wire —
+     *  the direct measure of "it vanished instead of dying". Counted in
+     *  `mock230_world_npc_free`; selftest asserts zero. */
+    int silent_death_removals;
     unsigned char loot_credit_players[MOCK230_PLAYER_MAX];
 };
 

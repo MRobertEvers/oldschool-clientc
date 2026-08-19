@@ -1,0 +1,166 @@
+tile graphic: +0,-1 tiles in world space, held there against a player
+              facing yaw 0 — the mesh is pre-turned by 0 and moved
+              (+0, -128) in the player's frame to stand still in the world
+trial shift: graphic moved dx +0, dz -128 before merging
+weapon obj 22325      wear model vertices 288..677 of 678
+attack seq 8056     22 frames, 77 client cycles, rig 0
+spotanim 1891       model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_south_red.model, seq 1204: 16 frames, 67 cycles, rig 899
+shipped placement: height 96, delay 0 cycles
+
+weapon sweep: 110 of 390 vertices move within 40% of the fastest, and the
+              fastest travels 1575 units over the swing. That set spans 219
+              units — the streak is being compared against a region this
+              size, not a point, so expect a residual of the same order.
+
+independence check at body frame 11 / graphic frame 8: graphic moved 0.00, blade moved 0.00 -> PASS (the two are separable)
+
+cycle  bfrm  blade head (x,y,z)    travel   gfrm  lit/all  arc centroid (x,z)   gap
+-----  ----  --------------------  -------  ----  -------  -------------------  ------
+    0     0     -39   -201    -43      0.0     0    0/ 22      (nothing drawn)       -
+    1     1     -30   -190    -76     36.1     0    0/ 22      (nothing drawn)       -
+    2     1     -30   -190    -76      0.0     0    0/ 22      (nothing drawn)       -
+    3     2     -20   -172   -113     42.3     1    0/ 22      (nothing drawn)       -
+    4     2     -20   -172   -113      0.0     1    0/ 22      (nothing drawn)       -
+    5     3     -31   -181   -131     22.4     1    0/ 22      (nothing drawn)       -
+    6     3     -31   -181   -131      0.0     2    0/ 22      (nothing drawn)       -
+    7     4     -53   -187   -138     24.4     2    0/ 22      (nothing drawn)       -
+    8     4     -53   -187   -138      0.0     3    0/ 22      (nothing drawn)       -
+    9     5     -63   -167   -141     22.5     3    0/ 22      (nothing drawn)       -
+   10     5     -63   -167   -141      0.0     4    1/ 22       -154       -88     105
+   11     6    -103   -158   -113     49.2     4    1/ 22       -154       -88      57
+   12     6    -103   -158   -113      0.0     5    3/ 22       -137      -105      35
+   13     7    -118   -166    -86     31.7     5    3/ 22       -137      -105      27
+   14     8    -145   -173    -41     53.1     6    9/ 22        -96      -137     108
+   15     9    -149   -184      8     50.5     6    9/ 22        -96      -137     154
+   16     9    -149   -184      8      0.0     7   13/ 22        -64      -147     177
+   17    10    -145   -180     55     47.4     7   13/ 22        -64      -147     218
+   18    10    -145   -180     55      0.0     7   13/ 22        -64      -147     218
+   19    10    -145   -180     55      0.0     8   17/ 22        -34      -149     232
+   20    10    -145   -180     55      0.0     8   17/ 22        -34      -149     232
+   21    10    -145   -180     55      0.0     8   17/ 22        -34      -149     232
+   22    11    -126   -182     97     46.9     8   17/ 22        -34      -149     263
+   23    11    -126   -182     97      0.0     8   17/ 22        -34      -149     263
+   24    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   25    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   26    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   27    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   28    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   29    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   30    11    -126   -182     97      0.0     9   22/ 22          1      -139     268
+   31    12     -93   -157   -110    211.5     9   22/ 22          1      -139      98
+   32    12     -93   -157   -110      0.0     9   22/ 22          1      -139      98
+   33    12     -93   -157   -110      0.0     9   22/ 22          1      -139      98
+   34    12     -93   -157   -110      0.0    10   22/ 22          1      -139      98
+   35    13     -21   -122   -142     86.2    10   22/ 22          1      -139      22
+   36    13     -21   -122   -142      0.0    10   22/ 22          1      -139      22
+   37    13     -21   -122   -142      0.0    10   22/ 22          1      -139      22
+   38    13     -21   -122   -142      0.0    10   22/ 22          1      -139      22
+   39    14      62    -64   -110    105.8    10   22/ 22          1      -139      68
+   40    14      62    -64   -110      0.0    11   19/ 22         22      -144      52
+   41    14      62    -64   -110      0.0    11   19/ 22         22      -144      52
+   42    14      62    -64   -110      0.0    11   19/ 22         22      -144      52
+   43    14      62    -64   -110      0.0    11   19/ 22         22      -144      52
+   44    15      37    -64   -131     31.9    11   19/ 22         22      -144      20
+   45    15      37    -64   -131      0.0    12   13/ 22         67      -140      31
+   46    15      37    -64   -131      0.0    12   13/ 22         67      -140      31
+   47    15      37    -64   -131      0.0    12   13/ 22         67      -140      31
+   48    15      37    -64   -131      0.0    12   13/ 22         67      -140      31
+   49    15      37    -64   -131      0.0    12   13/ 22         67      -140      31
+   50    16      -1    -76   -143     41.8    13    7/ 22        106      -116     111
+   51    16      -1    -76   -143      0.0    13    7/ 22        106      -116     111
+   52    16      -1    -76   -143      0.0    13    7/ 22        106      -116     111
+   53    16      -1    -76   -143      0.0    13    7/ 22        106      -116     111
+   54    16      -1    -76   -143      0.0    14    3/ 22        128       -91     139
+   55    16      -1    -76   -143      0.0    14    3/ 22        128       -91     139
+   56    16      -1    -76   -143      0.0    14    3/ 22        128       -91     139
+   57    16      -1    -76   -143      0.0    14    3/ 22        128       -91     139
+   58    17     -68    -84   -130     69.3    14    3/ 22        128       -91     200
+   59    17     -68    -84   -130      0.0    15    0/ 22      (nothing drawn)       -
+   60    17     -68    -84   -130      0.0    15    0/ 22      (nothing drawn)       -
+   61    17     -68    -84   -130      0.0    15    0/ 22      (nothing drawn)       -
+   62    18     -87   -126   -112     48.3    15    0/ 22      (nothing drawn)       -
+   63    18     -87   -126   -112      0.0    15    0/ 22      (nothing drawn)       -
+   64    18     -87   -126   -112      0.0    15    0/ 22      (nothing drawn)       -
+   65    18     -87   -126   -112      0.0    15    0/ 22      (nothing drawn)       -
+   66    19     -84   -165    -74     54.9    15    0/ 22      (nothing drawn)       -
+   67    19     -84   -165    -74      0.0     -        -                    -       -
+   68    19     -84   -165    -74      0.0     -        -                    -       -
+   69    19     -84   -165    -74      0.0     -        -                    -       -
+   70    20     -70   -171    -76     15.5     -        -                    -       -
+   71    20     -70   -171    -76      0.0     -        -                    -       -
+   72    20     -70   -171    -76      0.0     -        -                    -       -
+   73    20     -70   -171    -76      0.0     -        -                    -       -
+   74    21     -33   -187    -52     46.6     -        -                    -       -
+   75    21     -33   -187    -52      0.0     -        -                    -       -
+   76    21     -33   -187    -52      0.0     -        -                    -       -
+
+largest pose change at cycle 31 (211 units in one cycle) — the strike
+graphic is lit over cycles 10..58; closest approach 20 units at cycle 44
+
+wrote docs/scythe_animation/fixed/frames_south.csv — one row per client cycle at delay 0
+
+graphic frame table (its own timeline, before the delay is applied)
+gfrm  cycles      lit/all  alpha lo..hi  centroid (x,z)
+   0    0..3        0/ 22    255..255    (nothing drawn)
+   1    3..6        0/ 22    255..255    (nothing drawn)
+   2    6..8        0/ 22    255..255    (nothing drawn)
+   3    8..10       0/ 22    255..255    (nothing drawn)
+   4   10..12       1/ 22     64..255       -154     -88
+   5   12..14       3/ 22     64..255       -137    -105
+   6   14..16       9/ 22     48..255        -96    -137
+   7   16..19      13/ 22     48..255        -64    -147
+   8   19..24      17/ 22     48..255        -34    -149
+   9   24..34      22/ 22     48..176          1    -139
+  10   34..40      22/ 22     48..232          1    -139
+  11   40..45      19/ 22     48..255         22    -144
+  12   45..50      13/ 22    104..255         67    -140
+  13   50..54       7/ 22    160..255        106    -116
+  14   54..59       3/ 22    216..255        128     -91
+  15   59..67       0/ 22    255..255    (nothing drawn)
+
+graphic axis: (+1.00, +0.03) in model xz, centred at (-0, -133)
+graphic pose: axis is TANGENT — across the swing, as a slash should lie (100% across the facing direction)
+              centre sits 133 units IN FRONT and 0 units to the player's right
+
+delay sweep — mean ALONG-axis mismatch, which is timing alone
+(candidates overlapping fewer than 29 of a possible 49 cycles are not judged)
+delay  paired  along err  across (const)  total gap
+    0      49       78.1            89.7      129.0  <- shipped
+    4      49       75.1            81.9      128.5
+    8      49       74.9            66.8      123.5
+   12      49       75.3            52.4      112.1
+   16      49       73.6            38.8       95.7
+   20      47       78.3            27.9       86.2
+   24      43       83.3            32.1       90.4
+   28      39       85.8            32.6       95.0
+   32      35       83.0            33.3       94.5
+   36      31       79.9            37.9       93.7
+
+best delay 16 (49 paired cycles, mean along-axis error 73.6 units)
+
+landmark check — two events, each checkable by hand in the tables above
+  the wind-up peaks at cycle 22 (blade furthest back, z +97) and the blade
+  comes in front at cycle 31 (z past -71, half its -143 reach); the graphic
+  first shows anything 10 cycles in, so they meet at delay 21
+  the strike (largest pose change, 211 units) is at cycle 31;
+  the graphic is fully lit 24 cycles in (22/22 segments), so they meet at delay 7
+  the along-axis sweep independently chose 16; shipped is 0
+  direction along that axis — blade over its swing (cycles 22..50) +117,
+  streak over its own lit span +281 -> SAME WAY
+
+residual offset at delay 16, averaged over 49 cycles:
+  raw mean       dx   -45.1  dz   +36.4  dy   -20.5
+  across-axis      +37.8 units (+0.30 tiles) -> dx -1.2, dz +37.8
+  along-axis       -44.0 units, left to the delay rather than the asset
+  height         96 -> 117 (dy -20.5, and height subtracts)
+
+  the graphic must move to the player's RIGHT (-x)
+  and BACK (+z)
+
+to apply the lateral part:  python3 tools/shift_halberd_arc.py -1
+  (that script only moves x; a dz of +38 needs the z stream too)
+to apply the timing and height: spotanim_pl(..., 117, 16)
+
+wrote docs/scythe_animation/fixed/south_top.bmp / _side.bmp (77 cells, every 1 cycle(s), 160x160)
+  and docs/scythe_animation/fixed/south_plot.bmp — the overhead trace, one-tile grid,
+  cyan = blade head, green = lit graphic, white = the player's own origin

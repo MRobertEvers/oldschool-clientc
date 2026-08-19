@@ -1193,7 +1193,7 @@ handle_spot_model(int fd, int spotanim_id, const char* query)
     }
 
     struct ToriDraw_Model* model =
-        ev_build_spotanim_model(&g_cache, spotanim_id, file, orient, &seq);
+        ev_build_spotanim_model(&g_cache, spotanim_id, file, orient, 0, &seq);
     if( !model )
     {
         send_404(fd);
@@ -1220,7 +1220,7 @@ handle_spot_json(int fd, int spotanim_id)
 {
     int seq = -1;
     struct ToriDraw_Model* model =
-        ev_build_spotanim_model(&g_cache, spotanim_id, NULL, -1, &seq);
+        ev_build_spotanim_model(&g_cache, spotanim_id, NULL, -1, 0, &seq);
     if( !model )
     {
         send_404(fd);

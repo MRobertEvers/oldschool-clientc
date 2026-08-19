@@ -42,6 +42,7 @@ enum RS_CS2SocialSendKind
     RS_CS2_SOCIAL_SEND_IGNORE_DEL,
     RS_CS2_SOCIAL_SEND_CHAT_SETMODE,
     RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE,
+    RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC,
     RS_CS2_SOCIAL_SEND_CHEAT,
     /** RESUME_COUNTDIALOG (3104) — not social, and neither is CHEAT above.
      *  What this queue actually is, and has been since CHEAT joined it, is
@@ -160,10 +161,13 @@ struct RS_CS2SocialSend
     int kind; /* enum RS_CS2SocialSendKind */
     /** Target player: the four list ops and MESSAGE_PRIVATE. */
     char name[RS_CS2_HOST_SOCIAL_NAME_LEN];
-    /** Message body: MESSAGE_PRIVATE and CHEAT. */
+    /** Message body: MESSAGE_PRIVATE, MESSAGE_PUBLIC and CHEAT. */
     char text[RS_CS2_HOST_SOCIAL_TEXT_LEN];
     /** public / private / trade: CHAT_SETMODE only. */
     int modes[3];
+    /** Packed colour/effect the line is spoken in: MESSAGE_PUBLIC only. High
+     *  byte colour, low byte effect. */
+    int colour_effect;
 };
 
 /** A CC_TRIGGEROP request: which component's on_op to run, and the op index

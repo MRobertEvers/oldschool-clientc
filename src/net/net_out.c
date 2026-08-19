@@ -1326,9 +1326,10 @@ net_out_message_public(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    char const* text)
+    char const* text,
+    int colour_effect)
 {
-    /* MESSAGE_PUBLIC: var-u8 length, body = colour(0) effect(0) wordpacked. */
+    /* MESSAGE_PUBLIC: var-u8 length, body = colour effect wordpacked. */
     struct RSCache_Buffer b;
     int len_pos;
     int start;
@@ -1338,8 +1339,8 @@ net_out_message_public(
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
-    p1(&b, 0); /* colour */
-    p1(&b, 0); /* effect */
+    p1(&b, (colour_effect >> 8) & 0xff); /* colour */
+    p1(&b, colour_effect & 0xff);        /* effect */
     wordpack_pack(&b, text);
     buf[1 + len_pos] = (uint8_t)((int)b.position - start);
     return 1 + (int)b.position;

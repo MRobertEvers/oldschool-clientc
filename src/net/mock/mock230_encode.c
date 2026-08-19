@@ -3775,6 +3775,17 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            if( player->masks & MOCK230_PMASK_CHAT )
+            {
+                /* Straight across: the block holds the packed bytes the client
+                 * sent, and the v5 writer's only difference from the classic
+                 * one is that it emits them back to front. */
+                ext.has_chat = 1;
+                ext.chat_colour_effect = player->chat_colour_effect;
+                ext.chat_type = player->chat_type;
+                ext.chat_data = player->chat_data;
+                ext.chat_len = player->chat_len;
+            }
             if( player->masks & MOCK230_PMASK_SPOTANIM )
             {
                 /* The classic script/runtime surface has one attached-graphic

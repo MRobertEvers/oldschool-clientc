@@ -357,13 +357,18 @@ net_out_opplayeru(
     int use_component_id);
 
 /* -- chat / social ------------------------------------------------------ */
+/** `colour_effect` is the pair the wire carries as two bytes and every other
+ *  surface carries as one int: high byte the chat colour, low byte the effect
+ *  (the same packing PLAYER_INFO's inbound chat block uses). 0 is plain
+ *  yellow, which is what a client with no chat-style selector always sends. */
 int
 net_out_message_public(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    char const* text);
+    char const* text,
+    int colour_effect);
 int
 net_out_message_private(
     struct GameProtoRevTable const* rev,

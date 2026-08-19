@@ -701,7 +701,12 @@ mock239_inbound_translate(
      *   CLOSE_MODAL         empty
      *   WINDOW_STATUS       g1, g2, g2
      *   CHAT_SETMODE        three bytes
+     *   MESSAGE_PUBLIC      g1 colour, g1 effect, Huffman tail -- the client
+     *                       writes one body for both revisions
+     *                       (net_out_message_public has no 239 branch, unlike
+     *                       its private twin, whose recipient changed form)
      */
+    case PKTOUT_NAME_MESSAGE_PUBLIC:
     case PKTOUT_NAME_IF_BUTTON:
     case PKTOUT_NAME_INV_BUTTOND:
     case PKTOUT_NAME_RESUME_P_COUNTDIALOG:

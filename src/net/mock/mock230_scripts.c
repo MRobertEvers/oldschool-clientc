@@ -7256,8 +7256,9 @@ mock230_script_command(
         if( getenv("TORIRS_ANIM_DEBUG") )
             fprintf(
                 stderr,
-                "srv: npc_anim tick=%d seq=%d delay=%d\n",
+                "srv: npc_anim tick=%d slot=%d seq=%d delay=%d\n",
                 srv->tick,
+                (int)(npc - srv->npcs),
                 values[0],
                 values[1]);
         mock230_anim_play_npc(npc, values[0], values[1]);

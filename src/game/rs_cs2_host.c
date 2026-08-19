@@ -6206,6 +6206,24 @@ exec_chat(
         return CS2VM_EXECNO_OK;
     }
 
+    case CS2_OP_CHAT_SENDPUBLIC:
+    {
+        struct RS_CS2SocialSend send;
+
+        /* An empty line is not a message. The reference's own submit path
+         * never calls this with one -- script 73 tests the typed string first
+         * -- so this is the same "nothing to say" no-op the private send
+         * above makes, not a guard against a caller bug. */
+        if( !req->text || !req->text[0] )
+            return CS2VM_EXECNO_OK;
+        memset(&send, 0, sizeof(send));
+        send.kind = RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC;
+        send.colour_effect = req->colour_effect;
+        snprintf(send.text, sizeof(send.text), "%s", req->text);
+        rs_cs2_social_send_push(host, &send);
+        return CS2VM_EXECNO_OK;
+    }
+
     case CS2_OP_DOCHEAT:
     {
         struct RS_CS2SocialSend send;

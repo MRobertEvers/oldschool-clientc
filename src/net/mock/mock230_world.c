@@ -2935,6 +2935,96 @@ mock230_world_npc_free(
     if( !npc->active )
         return; /* already dead (or already queued) — do not double-queue */
 
+    /*
+     * A CORPSE THAT WAS NEVER SEEN TO DIE.
+     *
+     * The invariant behind every "it just disappeared", stated at the one
+     * place every removal passes through. An npc that reached zero hitpoints
+     * — the engine's death, a script's `npc_statsub`, anything — and is now
+     * being taken off every client having never had its own `death_seq` put
+     * on the wire is a death the player watched as a vanishing. Counting
+     * animations ISSUED proves some played; only this counts the ones missed.
+     *
+     * Not an assert, and not conditional on HOW it died: an npc with no death
+     * animation (`death_seq < 0`) and a room teardown removing living npcs
+     * (`hitpoints > 0`) are both excluded rather than excused.
+     */
+    if( getenv("MOCK230_ANIM_LOST") )
+        fprintf(stderr,
+                "mock230: npc_free type=%d slot=%d tick=%d hp=%d death_tick=%d "
+                "stage=%d death_seq=%d sent=%d\n",
+                npc->type, slot, srv->tick, npc->hitpoints, npc->death_tick,
+                npc->death_stage, npc->death_seq, npc->death_seq_sent);
+    /*
+     * NOT WHILE ITS ANIMATION IS STILL QUEUED.
+     *
+     * See `Mock230Npc.free_deferred_for_anim`. The encoders decide keep vs
+     * remove from `active`, which the line below clears, so a removal issued
+     * in the npc phase on the tick an animation was played takes the animation
+     * off the wire with it. Held for one phase instead: NPC_INFO ships the
+     * animation in phase 10, phase cleanup completes the free, and the client
+     * sees the remove on the next tick. Once only — the flag stops the
+     * deferred call from deferring again.
+     */
+    /*
+     * AND NOT BEFORE THE CORPSE HAS OUTLIVED ITS OWN DEATH ANIMATION.
+     *
+     * `death_delay` is the engine's answer to "how long does a corpse lie
+     * there" and it is tuned to the death sequence's length (2 ticks = 60
+     * client cycles against `elemental_death`'s 59). The engine's own death
+     * path honours it; a SCRIPT that plays the death itself and removes the
+     * npc on its own clock does not, and its arithmetic was measured wrong —
+     * a Nylocas Matomenos absorbed at the Maiden was removed on the very tick
+     * its animation was played, so the client had one tick of a two-tick
+     * animation, or none.
+     *
+     * Held here rather than corrected in each script: "a death animation is
+     * seen in full" is a property of the engine, and the next encounter to
+     * schedule its own death will not remember. The npc is already at zero
+     * hitpoints and out of the fight; the only thing this extends is how long
+     * the corpse is drawn.
+     */
+    /* `death_seq_tick < 0` means the stamp (phase cleanup) has not run yet,
+     * which is to say the animation was played on THIS tick — the worst case
+     * and the one that produced a removal in the same tick as the seq. */
+    if( npc->death_seq_sent &&
+        (npc->death_seq_tick < 0 ||
+         srv->tick <
+             npc->death_seq_tick +
+                 (npc->def ? npc->def : mock230_content_npc_default())->death_delay) )
+    {
+        if( getenv("MOCK230_ANIM_LOST") )
+            fprintf(stderr,
+                    "mock230: npc_free HELD for the death animation: type=%d slot=%d "
+                    "tick=%d (seq %d played at %d, needs %d tick(s))\n",
+                    npc->type, slot, srv->tick, npc->death_seq, npc->death_seq_tick,
+                    (npc->def ? npc->def : mock230_content_npc_default())->death_delay);
+        npc->free_wanted = 1;
+        return;
+    }
+
+    if( (npc->masks & MOCK230_NMASK_ANIM) && !npc->free_deferred_for_anim )
+    {
+        npc->free_deferred_for_anim = 1;
+        npc->free_wanted = 1;
+        if( getenv("MOCK230_ANIM_LOST") )
+            fprintf(stderr,
+                    "mock230: npc_free HELD one phase: type=%d slot=%d tick=%d has "
+                    "seq %d queued and would have been removed before it shipped\n",
+                    npc->type, slot, srv->tick, npc->anim_id);
+        return;
+    }
+
+    if( npc->hitpoints == 0 && npc->death_seq >= 0 && !npc->death_seq_sent )
+    {
+        srv->silent_death_removals++;
+        fprintf(stderr,
+                "mock230: SILENT DEATH: npc type %d (slot %d) removed at 0 hp "
+                "without its death animation (seq %d) ever being sent — the player "
+                "saw it vanish\n",
+                npc->type, slot, npc->death_seq);
+    }
+
     npc->active = 0;
     npc->pending_free = 1;
 
@@ -8340,6 +8430,67 @@ handle_message_private(
     free(text);
 }
 
+/*
+ * MESSAGE_PUBLIC: p1 colour, p1 effect, then the wordpacked text.
+ *
+ * The opposite decision to MESSAGE_PRIVATE above: the packed bytes are stored
+ * and re-emitted verbatim rather than unpacked and re-packed. A public line is
+ * not addressed to anybody, so there is no recipient to resolve and nothing for
+ * the server to decide — and PLAYER_INFO's chat block carries exactly these
+ * bytes, so a decode/encode round trip would be a Huffman table's worth of work
+ * to arrive at the same buffer. (The reference does the same thing here, and
+ * for the same reason: only the private path has an addressee to look up.)
+ *
+ * The sender is in its own view, so this is also the line's echo: the client
+ * adds the chatbox row and the overhead bubble from the PLAYER_INFO block it
+ * gets back, not from what it typed. Nothing here is sent to the sender
+ * specially.
+ */
+static void
+handle_message_public(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    struct Mock230Player* player = srv->active_player;
+    int packed_len;
+
+    (void)name;
+    if( !player )
+        return;
+    /* Two header bytes and at least one packed byte. Under that there is no
+     * message, which is a malformed frame rather than an empty one: the
+     * client's own submit path never sends a blank line. */
+    if( len < 3 )
+        return;
+    packed_len = len - 2;
+    if( packed_len > (int)sizeof(player->chat_data) )
+        return;
+
+    player->chat_colour_effect = (payload[0] << 8) | payload[1];
+    player->chat_type = 0; /* 0 = ordinary public chat; 1 = the staff variant */
+    memcpy(player->chat_data, payload + 2, (size_t)packed_len);
+    player->chat_len = packed_len;
+    player->masks |= MOCK230_PMASK_CHAT;
+
+    if( srv->verbose )
+    {
+        struct RSCache_Buffer packed;
+        char* text;
+
+        RSCache_BufferInit(&packed, (uint8_t*)payload + 2, (uint32_t)packed_len);
+        text = wordpack_unpack(&packed, packed_len);
+        fprintf(
+            stderr,
+            "mock230: <- MESSAGE_PUBLIC colour=%d effect=%d \"%s\"\n",
+            payload[0],
+            payload[1],
+            text ? text : "");
+        free(text);
+    }
+}
+
 typedef void (*Mock230PacketHandler)(
     struct Mock230Server* srv,
     int name,
@@ -8480,6 +8631,7 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_IGNORELIST_DEL, handle_social_list },
     { PKTOUT_NAME_CHAT_SETMODE, handle_chat_setmode },
     { PKTOUT_NAME_MESSAGE_PRIVATE, handle_message_private },
+    { PKTOUT_NAME_MESSAGE_PUBLIC, handle_message_public },
     { PKTOUT_NAME_WINDOW_STATUS, handle_window_status },
 };
 
@@ -11760,6 +11912,42 @@ phase_cleanup(struct Mock230Server* srv)
         srv->npcs[i].tele = 0;
         srv->npcs[i].anim_id = -1;
         srv->npcs[i].anim_delay = 0;
+        /*
+         * A DEATH SHOWN IS A DEATH OWED.
+         *
+         * A script that plays an npc's own death seq on a living npc has one
+         * tick to make it dead — hitpoints to zero, or a real death armed. If
+         * it is still standing on the tick after, with its death already on
+         * every client's screen, the next hit double-books the death and the
+         * client shows a frozen corpse. Caught for every npc in the world
+         * rather than in one encounter's test, because the next encounter to
+         * make this mistake will not be the Maiden.
+         */
+        /* Stamp the tick the death seq was played on. `mock230_anim_play_npc`
+         * has no server pointer to read the clock from, and cleanup runs at the
+         * end of the very tick it was played, so this is that tick. */
+        if( srv->npcs[i].death_seq_sent && srv->npcs[i].death_seq_tick < 0 )
+            srv->npcs[i].death_seq_tick = srv->tick;
+        /* The held removal, now that this tick's NPC_INFO has gone out. */
+        if( (srv->npcs[i].free_deferred_for_anim ||
+             srv->npcs[i].free_wanted) && srv->npcs[i].active )
+            mock230_world_npc_free(srv, i);
+        if( srv->npcs[i].scripted_death_pending > 0 && srv->npcs[i].active )
+        {
+            if( --srv->npcs[i].scripted_death_pending == 0 &&
+                srv->npcs[i].hitpoints > 0 && srv->npcs[i].death_tick < 0 )
+            {
+                srv->scripted_death_violations++;
+                fprintf(stderr,
+                        "mock230: CONTENT CONTRACT: npc type %d (slot %d) was shown "
+                        "its death animation (seq %d) by a script and is still alive "
+                        "a tick later (%d hp, not dying) — a hit now double-books the "
+                        "death and the client shows a frozen corpse. Zero its "
+                        "hitpoints (npc_statsub) or arm a real death.\n",
+                        srv->npcs[i].type, i, srv->npcs[i].death_seq,
+                        srv->npcs[i].hitpoints);
+            }
+        }
     }
 
     /* Shared shop stock, one nudge per baseline slot toward its target count
@@ -38036,6 +38224,63 @@ mock230_world_selftest(void)
         }
 
         /*
+         * ...and WALKING INTO the passage does the same thing as clicking it.
+         *
+         * The passage is a clickbox — an invisible model at the mouth of a dark
+         * corridor — and a raid whose only way on is finding one is a raid that
+         * gets stuck in front of it. Reported from a real run of the Maiden
+         * room: "there is no door to click". So the room watchdog also ends the
+         * room for a player standing in the mouth of it, and this is that path:
+         * no OPLOC, no click, just a player put down beside the passage.
+         *
+         * `::tobgo` rather than `::tobin`, because the WATCHDOG is what asks —
+         * and it is armed by `~tob_start_room`, i.e. by crossing the barrier. A
+         * room cleared without ever having started (which only the debug
+         * command can do) has nothing running to notice.
+         */
+        {
+            static struct Mock230Capture walkin_capture;
+            struct Mock230Player* fixture = srv->active_player;
+            int saved_god = fixture->godmode;
+            int arrived = 0;
+
+            fixture->godmode = 1;
+            mock230_scripts_run_debugproc(srv, "tob 1");
+            mock230_world_tick(srv);
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobclear");
+            mock230_world_tick(srv);
+            /* The mouth of the Maiden's south passage: one tile north of the
+             * clickbox, which is the nearest a player can stand to it. */
+            mock230_scripts_run_debugproc(srv, "tobwarp 41 7");
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(srv);
+
+            mock230_capture_begin(srv, &walkin_capture);
+            mock230_scripts_run_debugproc(srv, "tobwhere");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&walkin_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&walkin_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &walkin_capture.packets[i];
+                int now = -1;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                if( sscanf((const char*)packet->data + 1, "tobwhere room=%d", &now) != 1 )
+                    continue;
+                fprintf(stderr, "  tobwalkin: standing in the passage -> room %d\n", now);
+                if( now == 2 )
+                    arrived = 1;
+            }
+            mock230_scripts_run_debugproc(srv, "tobout");
+            fixture->godmode = saved_god;
+
+            SELFTEST_CHECK(arrived,
+                           "standing in the exit passage should open the next chamber too");
+        }
+
+        /*
          * Every room names itself on the way in (`~tob_title_card`).
          *
          * A red wash over the game view and the room's name over the wash, for
@@ -38058,7 +38303,6 @@ mock230_world_selftest(void)
                                                    "Sotetseg",
                                                    "Xarpus",
                                                    "The Final Challenge" };
-            const int k_text_iface = 837; /* dt2_textoverlay */
             int carded = 0;
 
             for( int room = 1; room <= 6; room++ )
@@ -38066,8 +38310,6 @@ mock230_world_selftest(void)
                 static struct Mock230Capture card_capture;
                 char command[32];
                 int said_name = 0;
-                int mounted_text = 0;
-                int mounted_wash = 0;
 
                 snprintf(command, sizeof(command), "tob %d", room);
                 mock230_scripts_run_debugproc(srv, command);
@@ -38079,68 +38321,52 @@ mock230_world_selftest(void)
                  * drops everything after the build and reads as "no card was
                  * ever sent". It cost an hour of looking at the wrong half.
                  *
-                 * The card is armed for the next tick and shows its name two
-                 * ticks after that; five ticks covers it with room to spare.
+                 * The card is armed for the next tick and steps once a tick
+                 * from there — `queue` with delay 0, because delay 1 is two
+                 * ticks (SS_OP_QUEUE stores delay+1). Ten covers the whole card
+                 * with enough slack that a stanza added ahead of this one
+                 * cannot shift the name out of the window.
                  */
-                for( int t = 0; t < 5; t++ )
+                for( int t = 0; t < 10; t++ )
                 {
                     mock230_capture_begin(srv, &card_capture);
                     mock230_world_tick(srv);
                     mock230_capture_end(srv);
-                    if( room == 1 )
-                        for( int i = 0; i < card_capture.count; i++ )
-                            fprintf(stderr, "      t%d op=%d name=%d len=%d\n", t,
-                                    card_capture.packets[i].opcode,
-                                    card_capture.packets[i].name,
-                                    card_capture.packets[i].len);
-
-                    for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, 0);
+                    /*
+                     * The card goes out as a RUNCLIENTSCRIPT: the room name is
+                     * handed to the cache's own ToB HUD clientscript, which
+                     * builds the crimson and the name into `tob_hud:atmospheric`
+                     * itself. So the assertion is on the STRING reaching the
+                     * client, which is the half that is this raid's to get
+                     * right — the drawing belongs to the cache.
+                     *
+                     * Scanned rather than indexed because a clientscript's
+                     * arguments are a type-tagged list: the string is in there,
+                     * behind a count and a signature, and its offset is not
+                     * worth pinning.
+                     */
+                    for( int i = mock230_capture_find_named(&card_capture,
+                                                            PKT_NAME_RUNCLIENTSCRIPT, 0);
                          i >= 0;
-                         i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_SETTEXT, i + 1) )
+                         i = mock230_capture_find_named(&card_capture, PKT_NAME_RUNCLIENTSCRIPT,
+                                                        i + 1) )
                     {
                         const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
+                        int want = (int)strlen(k_card[room - 1]);
 
-                        /* rev239 IfSetTextEncoder: the string FIRST, then the
-                         * component uid — the other way round from 230. */
-                        if( packet->len < 2 )
-                            continue;
-                        if( memmem(packet->data, (size_t)packet->len, k_card[room - 1],
-                                   strlen(k_card[room - 1])) != NULL )
-                            said_name = 1;
-                    }
-                    for( int i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, 0);
-                         i >= 0;
-                         i = mock230_capture_find_named(&card_capture, PKT_NAME_IF_OPENSUB, i + 1) )
-                    {
-                        const struct Mock230CapturedPacket* packet = &card_capture.packets[i];
-                        int iface;
-
-                        /*
-                         * `p1 type, p2Alt2 group, p4Alt3 uid` — the fixture's
-                         * layout, straight out of `mock230_send_if_opensub`,
-                         * and worth spelling out because every field of it is
-                         * scrambled: alt2 writes the HIGH byte first and the
-                         * low byte PLUS 128 second. Read as a plain big-endian
-                         * pair it yields a number that is never any real
-                         * interface id — an assertion that cannot pass rather
-                         * than one that cannot fail, and identical from outside.
-                         */
-                        if( packet->len < 7 )
-                            continue;
-                        iface = (packet->data[1] << 8) | ((packet->data[2] - 128) & 0xff);
-                        if( iface == k_text_iface )
-                            mounted_text = 1;
-                        /* 97/98/99 are darkness_light / _medium / _dark. The
-                         * card fades by swapping which strength is mounted —
-                         * there is no `if_settrans` in this dialect — so any of
-                         * the three standing up means the wash was raised. */
-                        if( iface >= 97 && iface <= 99 )
-                            mounted_wash = 1;
+                        for( int at = 0; at + want <= packet->len; at++ )
+                        {
+                            if( memcmp(packet->data + at, k_card[room - 1], (size_t)want) == 0 )
+                            {
+                                said_name = 1;
+                                break;
+                            }
+                        }
                     }
                 }
-                fprintf(stderr, "  tobcard room %d: wash=%d text=%d name=%d (%s)\n", room,
-                        mounted_wash, mounted_text, said_name, k_card[room - 1]);
-                if( said_name && mounted_text && mounted_wash )
+                fprintf(stderr, "  tobcard room %d: name=%d (%s)\n", room, said_name,
+                        k_card[room - 1]);
+                if( said_name )
                     carded++;
             }
             mock230_scripts_run_debugproc(srv, "tobout");
@@ -55273,6 +55499,19 @@ mock230_world_selftest(void)
             mock230_scripts_free(srv);
         }
     }
+
+    /* Across the WHOLE suite — see the two counters' fields. Asserted here
+     * rather than inside one encounter's stanza because the next encounter to
+     * make either mistake will not be the one that found it. */
+    SELFTEST_CHECK(srv->silent_death_removals == 0,
+                   "%d npc(s) were removed at 0 hitpoints without their death "
+                   "animation ever reaching the wire — see the SILENT DEATH line(s) "
+                   "above; each is a monster the player saw vanish instead of die",
+                   srv->silent_death_removals);
+    SELFTEST_CHECK(srv->scripted_death_violations == 0,
+                   "%d npc(s) were shown their death animation by a script and left "
+                   "alive a tick later — see the CONTENT CONTRACT line(s) above",
+                   srv->scripted_death_violations);
 
     if( g_selftest_failures )
         fprintf(stderr, "mock230 selftest: %d failure(s)\n", g_selftest_failures);

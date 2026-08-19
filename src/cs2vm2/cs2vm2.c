@@ -8979,6 +8979,24 @@ CS2VM2_Op_Chat(
         if( CS2VM2_PopStr(vm, &request.u.chat.name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         break;
+    case CS2_OP_CHAT_SENDPUBLIC:
+        /*
+         * chat_sendpublic(string mes, int colour_effect) — the decompiler's
+         * prototype (cs2_command.gen.h arg pool: STRING then INT).
+         *
+         * One of each, which is the asymmetry with chat_sendprivate above,
+         * whose two arguments are both strings. The ints and the strings are
+         * separate stacks, so these two pops do not race each other for a
+         * slot and their order here is free; what is NOT free is the count on
+         * each stack. Reading this the way its private twin reads — two
+         * strings — pops a string that was never pushed and aborts the submit
+         * with the message still in the box.
+         */
+        if( CS2VM2_PopInt(vm, &request.u.chat.colour_effect) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
     case CS2_OP_DOCHEAT:
         /* docheat(text): the chatbox's own "::foo" handler, distinct from
          * app.c's native shortcut — pops the string with "::" already
@@ -10615,6 +10633,7 @@ CS2VM2_RunOp(
     case CS2_OP_CHAT_GETFILTER_TRADE:
     case CS2_OP_CHAT_SETFILTER:
     case CS2_OP_CHAT_SENDPRIVATE:
+    case CS2_OP_CHAT_SENDPUBLIC:
     case CS2_OP_CHAT_PLAYERNAME:
     case CS2_OP_DOCHEAT:
         return CS2VM2_Op_Chat(vm, opcode);

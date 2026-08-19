@@ -300,12 +300,40 @@ ev_spotanim_model_id(
     return id;
 }
 
+/*
+ * Turn a model about y by an arbitrary angle, the renderer's own way.
+ *
+ * `ToriDraw_ModelOrient` only does quarter turns, which is all a spotanim
+ * record can carry. A tile graphic reproduced inside a player-attached model
+ * needs the inverse of the player's yaw, and that is any angle at all.
+ *
+ * The formula is `project_orthographic`'s
+ * (v1/toridraw/graphics/projection.u.c): x' = x*cos + z*sin, z' = z*cos -
+ * x*sin, with toridraw's own 16.16 sin/cos tables rather than libm — so a mesh
+ * turned here and a mesh turned by the renderer land on the same integers.
+ */
+static void
+rotate_model_y(struct ToriDraw_Model* m, int yaw)
+{
+    assert(m);
+    int s = ToriDraw_Sin(yaw & 2047);
+    int c = ToriDraw_Cos(yaw & 2047);
+    for( int v = 0; v < m->vertex_count; v++ )
+    {
+        int x = m->vertices_x[v];
+        int z = m->vertices_z[v];
+        m->vertices_x[v] = (vertexint_t)(((int64_t)x * c + (int64_t)z * s) >> 16);
+        m->vertices_z[v] = (vertexint_t)(((int64_t)z * c - (int64_t)x * s) >> 16);
+    }
+}
+
 struct ToriDraw_Model*
 ev_build_spotanim_model(
     struct Tool_Dat2Cache* c,
     int spotanim_id,
     const char* model_file_override,
     int angle_override,
+    int free_yaw,
     int* out_seq_id)
 {
     struct RSCache_Dat2ConfigSpotanim* spot;
@@ -347,6 +375,8 @@ ev_build_spotanim_model(
         ToriDraw_ModelOrient(model, angle_override & 3);
     else if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
+    if( (free_yaw & 2047) != 0 )
+        rotate_model_y(model, free_yaw);
 
     if( model->face_textures )
         for( int face = 0; face < model->face_count; face++ )

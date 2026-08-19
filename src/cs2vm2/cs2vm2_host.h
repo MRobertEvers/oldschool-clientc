@@ -556,14 +556,18 @@ struct CS2VM_HostRequest_ResumePauseButton
     int component_id;
 };
 
-/** Chat filter get/set and the private send (5000/5001/5005/5009/5016).
- *  `name`/`text` are borrowed for CHAT_SENDPRIVATE only. */
+/** Chat filter get/set and the two sends (5000/5001/5005/5008/5009/5016).
+ *  `name` is borrowed for CHAT_SENDPRIVATE, `text` for either send. */
 struct CS2VM_HostRequest_Chat
 {
     int opcode;
     int public_mode;
     int private_mode;
     int trade_mode;
+    /** CHAT_SENDPUBLIC's second argument: the packed colour/effect the line is
+     *  spoken in — high byte colour, low byte effect, the same pairing the
+     *  inbound PLAYER_INFO chat block carries (`colour_effect`). */
+    int colour_effect;
     char* name;
     char* text;
 };

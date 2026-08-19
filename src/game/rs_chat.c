@@ -18,6 +18,11 @@ enum
     CHAT_COLOR_DARKRED = 0x800000,
     CHAT_COLOR_TRADE = 0x800080,
     CHAT_COLOR_DUEL = 0x7E3200,
+    /* Not a reference colour: the unfocused prompt, muted against the
+     * chatbox's tan so it reads as chrome rather than as a message. Matches
+     * the widget chatbox's APP_CHAT_PROMPT_TEXT, so the two eras' prompts are
+     * the same prompt. */
+    CHAT_COLOR_PROMPT = 0x4A443A,
 };
 
 void
@@ -224,6 +229,7 @@ RS_Chat_BuildView(
     struct UITreeHost const* ui_host,
     int font_id,
     int dialog_mounted,
+    int focused,
     struct UIChatView* out)
 {
     assert(chat && filters && out);
@@ -286,6 +292,16 @@ RS_Chat_BuildView(
         char buf[128];
         out->has_input_line = 1;
         out->input_line.baseline_y = 90;
+        /* Unfocused, the line says what to press instead of showing a name and
+         * a caret it is not collecting anything into. Same wording as the
+         * widget chatbox's prompt (app.c APP_CHAT_PROMPT_TEXT) -- one prompt,
+         * two renderers, because the eras differ in who draws the line and in
+         * nothing the player can see. */
+        if( !focused )
+        {
+            line_add_span(&out->input_line, 4, CHAT_COLOR_PROMPT, "Press Enter to chat...");
+            return;
+        }
         snprintf(buf, sizeof(buf), "%s:", chat->username);
         line_add_span(&out->input_line, 4, CHAT_COLOR_BLACK, buf);
         {

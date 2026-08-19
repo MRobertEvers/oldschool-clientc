@@ -473,6 +473,7 @@ app_chat_build_view(struct App* app)
         &app->ui_host,
         font_id,
         app->slots.chat_com_id != -1,
+        app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
         &app->chat_view);
 }
 
@@ -8433,6 +8434,27 @@ app_logic_tick(struct App* app)
                     RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
                 }
                 app->need_redraw = 1;
+                break;
+            /*
+             * chat_sendpublic from the chatbox's own submit path (script 73 ->
+             * ~script5517 at rev 230).
+             *
+             * No local echo, unlike the private send above: a public line comes
+             * back in the sender's own PLAYER_INFO extended info, and
+             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
+             * the chatbox row and the overhead bubble for it. Echoing here as
+             * well would print every line the player says twice.
+             */
+            case RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC:
+                APP_NET_SEND(
+                    app,
+                    net_out_message_public(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.text,
+                        send.colour_effect));
                 break;
             case RS_CS2_SOCIAL_SEND_CHEAT:
                 if( strncmp(send.text, "lootkill ", 9) == 0 )
@@ -18217,7 +18239,8 @@ App_RunOnce(
                                 app->net->random_out,
                                 _nsbuf,
                                 sizeof(_nsbuf),
-                                app->chat.messages[0].text));
+                                app->chat.messages[0].text,
+                                0));
 
                         /* Reference sets localPlayer.chatMessage on submit
                          * (Client.ts:3405) so our own overhead line shows

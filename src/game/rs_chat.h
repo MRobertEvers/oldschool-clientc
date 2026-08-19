@@ -116,6 +116,10 @@ RS_Chat_AddMessage(
  * p12 lines bottom-up at 14px, baseline y = scroll + 70 - line*14, input line
  * at y 90). `dialog_mounted` suppresses message drawing while a chat
  * interface occupies the region. ui_host is used only for MEASURE_TEXT.
+ *
+ * `focused` is the chat input's focus state: unfocused, the input line is the
+ * "Press Enter to chat..." prompt rather than `name: typed*`, since the caret
+ * would otherwise sit under a line that is not collecting keys.
  */
 void
 RS_Chat_BuildView(
@@ -124,6 +128,7 @@ RS_Chat_BuildView(
     struct UITreeHost const* ui_host,
     int font_id,
     int dialog_mounted,
+    int focused,
     struct UIChatView* out);
 
 /**

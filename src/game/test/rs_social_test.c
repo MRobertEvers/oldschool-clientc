@@ -309,6 +309,37 @@ test_vm_dispatch(void)
         CHECK(strcmp(host.seen_text, "hi there") == 0, "with the second as the body, got \"%s\"", host.seen_text);
     }
 
+    /*
+     * CHAT_SENDPUBLIC(mes, colour_effect) — the mixed-arity twin of the test
+     * above.
+     *
+     * The transposition the case above guards cannot happen here: ints and
+     * strings are separate stacks, so a string argument and an int argument
+     * never contend for a slot. What this pins instead is that the opcode is
+     * read as one of EACH — copying its private twin's two-string shape pops a
+     * string nobody pushed, and the submit aborts with the line still in the
+     * box — and that the int lands in the field the outbound packet reads as
+     * colour/effect rather than being dropped on the floor, which is how a
+     * message would go out in the wrong colour with nothing to show for it.
+     */
+    {
+        struct RecordingHost host;
+        int const pushes[2] = { STR_PUSH, 0x0102 };
+        char const* strs[1] = { "hi there" };
+        memset(&host, 0, sizeof(host));
+        run_op(&host, CS2_OP_CHAT_SENDPUBLIC, 0, pushes, 2, strs, NULL, NULL);
+        CHECK(host.calls == 1, "chat_sendpublic reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT, "as a CHAT request");
+        CHECK(
+            strcmp(host.seen_text, "hi there") == 0,
+            "with the first argument as the body, got \"%s\"",
+            host.seen_text);
+        CHECK(
+            host.chat.colour_effect == 0x0102,
+            "and the second as the packed colour/effect, got 0x%X",
+            host.chat.colour_effect);
+    }
+
     /* CHAT_SETFILTER(public, private, trade) — three ints in source order. */
     {
         struct RecordingHost host;
@@ -590,6 +621,7 @@ test_stack_table(void)
         { CS2_OP_IGNORE_GETNAME, "ignore_getname(index) -> name, prev", 1, 0, 0, 2 },
         { CS2_OP_CHAT_SETFILTER, "chat_setfilter(public, private, trade)", 3, 0, 0, 0 },
         { CS2_OP_CHAT_SENDPRIVATE, "chat_sendprivate(username, mes)", 0, 2, 0, 0 },
+        { CS2_OP_CHAT_SENDPUBLIC, "chat_sendpublic(mes, colour_effect)", 1, 1, 0, 0 },
         { CS2_OP_DOCHEAT, "docheat(text)", 0, 1, 0, 0 },
     };
 

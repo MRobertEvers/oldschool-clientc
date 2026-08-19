@@ -307,6 +307,18 @@ mock230_anim_play_npc(
     npc->anim_id = seq_id;
     npc->anim_delay = delay;
     npc->masks |= MOCK230_NMASK_ANIM;
+    /* Whoever played the death seq, it has now been played this life — see the
+     * field. A script that shows a death and the engine's own death step must
+     * agree on that, or the client is sent it twice and shows it once. */
+    if( seq_id == npc->death_seq && npc->death_seq >= 0 )
+    {
+        npc->death_seq_sent = 1;
+        /* Played by a SCRIPT on a living npc: the engine's own death step only
+         * reaches here with `death_tick` already armed. Recorded so phase
+         * cleanup can check the script also made it dead. */
+        if( npc->hitpoints > 0 && npc->death_tick < 0 )
+            npc->scripted_death_pending = 2;
+    }
     return 1;
 }
 
@@ -1734,8 +1746,26 @@ npc_death_step(
          * the flinch, so the death animation overwrote the flinch in one mask
          * and the two noises arrived together.
          */
-        npc_sound_nearby(srv, npc, npc->death_sound, 0);
-        play_npc_seq(npc, npc->death_seq);
+        /*
+         * ONCE PER LIFE. If a script already showed this death — a Matomenos
+         * absorbed at the Maiden's feet, a red at Verzik — and a hit then
+         * landed inside it, the client is already on `death_seq` and most
+         * likely parked on its last frame. A second send does not restart it
+         * (replyMode 2), so what it produces is a corpse that never moved and
+         * then vanished. The sound goes with it: one death, one noise. The
+         * stage machinery below still runs, so the corpse is held and reaped
+         * on the engine's clock either way.
+         */
+        if( !npc->death_seq_sent )
+        {
+            npc_sound_nearby(srv, npc, npc->death_sound, 0);
+            play_npc_seq(npc, npc->death_seq);
+        }
+        else if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr,
+                    "srv: npc death_seq %d already sent this life — not re-sent "
+                    "(a script played it first)\n",
+                    npc->death_seq);
         npc->death_stage = MOCK230_DEATH_CORPSE;
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
         return;
@@ -2215,6 +2245,10 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * hits went missing too. */
         npc->delayed_until = 0;
         npc->frozen_ticks = 0;
+        /* A new life: its death has not been shown yet. */
+        npc->death_seq_sent = 0;
+        npc->death_seq_tick = -1;
+        npc->scripted_death_pending = 0;
         npc->poison_severity = 0;
         npc->poison_clock = 0;
         npc->poison_source_pid = -1;
