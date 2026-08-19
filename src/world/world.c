@@ -1745,6 +1745,65 @@ world_seq_duplicate_behavior(
     return -1;
 }
 
+/*
+ * The readyanim's loop point is where an action animation is authored to start.
+ *
+ * A creature's attack clip is not drawn in isolation: the animator builds it as
+ * a departure from the ready loop and brings it back, so its first frame is the
+ * ready loop's first frame and its last is the frame before that. Xarpus is the
+ * case that proves it — seq 8059 frame 0 poses model 35383 IDENTICALLY to seq
+ * 8058 frame 0 (bit-identical render), and 8058 is 120 cycles long, which is
+ * exactly his four-tick attack cadence. The clip only reads as one motion if
+ * the ready loop is at its start when the clip takes over.
+ *
+ * Nothing kept it there. The ready track free-runs underneath the action (it
+ * has to — its frame sounds keep playing, and the reference steps it every
+ * cycle regardless), so whatever phase it happened to be in when the fight
+ * started is the phase every attack cut in at, forever. Measured on Xarpus
+ * before this: the spit began with the ready loop at frame 39 of 52, cycle 87
+ * of 120, on every spit of the fight.
+ *
+ * Restarting it here is invisible at the moment it happens, which is the whole
+ * reason it is safe: while an un-delayed action animation is playing over the
+ * readyanim, the readyanim is not drawn at all — `getModel` passes null for the
+ * movement sequence (reference NPC.getModel; ours is
+ * app_world_apply_entity_anim_tracks, which binds a secondary only when it is
+ * NOT the readyanim). The reset chooses where the ready loop RESUMES, nothing
+ * more, and it resumes at a fixed offset into the loop rather than a drifting
+ * one.
+ *
+ * Three conditions, and each earns its place:
+ *
+ *   - the secondary has to BE the readyanim. A walk animation is drawn while
+ *     an action plays (that is the walkmerge blend), and restarting it would
+ *     stutter the gait mid-stride.
+ *   - the action has to start driving THIS cycle (`delay == 0`). A delayed
+ *     action leaves the readyanim on screen until the delay expires, so a reset
+ *     now would be a visible jump.
+ *   - it is a fresh action, not a re-application of one already playing — that
+ *     branch returns above.
+ *
+ * This is the same rule the reference states at the far end: NpcType opcode 130
+ * restarts the readyanim when an action animation FINISHES (33 npcs in the
+ * rev-239 cache carry it; Xarpus is not one of them). Jagex put the restart on
+ * the exit and left the entry to chance. The entry is the seam the animation
+ * data is authored around, so this client locks that one.
+ */
+static void
+world_restart_readyanim_under_action(
+    struct WorldEntityFacet_Animation* animation,
+    int readyanim,
+    int delay)
+{
+    if( delay != 0 || readyanim < 0 )
+        return;
+    if( animation->secondary.anim_id != (uint16_t)readyanim )
+        return;
+    animation->secondary.frame = 0;
+    animation->secondary.cycle = 0;
+    animation->secondary.loop = 0;
+}
+
 /* Reference readExtendedInfo ANIM application (Client.ts 8401-8430):
  * same-anim RestartMode RESET restarts frame/cycle/loop; RESETLOOP resets
  * only the loop counter; a different anim applies when no primary is playing
@@ -1754,6 +1813,7 @@ world_apply_primary_animation(
     struct World* world,
     struct WorldEntityFacet_Animation* animation,
     struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim,
     int seq_id,
     int delay)
 {
@@ -1818,10 +1878,13 @@ world_apply_primary_animation(
     if( getenv("TORIRS_ANIM_DEBUG") )
         fprintf(
             stderr,
-            "anim: seq %d (prio %d) applied over %d\n",
+            "anim: seq %d (prio %d) applied over %d [idle seq %d frame %d cycle %d]\n",
             seq_id,
             world_seq_priority(world, seq_id),
-            (int)animation->primary.anim_id);
+            (int)animation->primary.anim_id,
+            (int)(int16_t)animation->secondary.anim_id,
+            (int)animation->secondary.frame,
+            (int)animation->secondary.cycle);
 
     animation->primary.anim_id = (uint16_t)seq_id;
     animation->primary.frame = 0;
@@ -1829,6 +1892,7 @@ world_apply_primary_animation(
     animation->primary.delay = (uint8_t)delay;
     animation->primary.loop = 0;
     animation->preanim_route_length = pathing->route_length;
+    world_restart_readyanim_under_action(animation, readyanim, delay);
 }
 
 void
@@ -1842,7 +1906,13 @@ World_PlayerSetPrimaryAnimation(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolGet(pool, idx);
-    world_apply_primary_animation(world, &player->animation, &player->pathing, seq_id, delay);
+    world_apply_primary_animation(
+        world,
+        &player->animation,
+        &player->pathing,
+        player->idle_animations.readyanim,
+        seq_id,
+        delay);
 }
 
 void
@@ -1856,7 +1926,13 @@ World_NpcSetPrimaryAnimation(
     struct World_EntityPool* pool = &world->entities.npc;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, idx);
-    world_apply_primary_animation(world, &npc->animation, &npc->pathing, seq_id, delay);
+    world_apply_primary_animation(
+        world,
+        &npc->animation,
+        &npc->pathing,
+        npc->idle_animations.readyanim,
+        seq_id,
+        delay);
 }
 
 void

@@ -4779,7 +4779,7 @@ d3d9_animation_load(
          * post-animation resize; the rest pose is the one path that has not,
          * and it still has to be baked at render scale. */
         if( !posed )
-            ToriDraw_ModelApplyPostResize(baked);
+            ToriDraw_ModelApplyPostTransforms(baked);
         memset(&handle, 0, sizeof(handle));
         handle.kind = TORIDRAWMK_MODEL;
         handle.u.model.model = baked;

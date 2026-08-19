@@ -149,25 +149,43 @@ struct ToriDraw_Model
     vertexint_t* original_vertices_z;
 
     /*
-     * The resize the reference applies AFTER animating, not before.
+     * Placement the reference applies AFTER animating, not before.
      *
-     * NpcType.getModel and MapSpotAnim.getModel both copy the base, animate the
-     * copy, and only then call resize() -- so the keyframe is authored against,
-     * and applied to, the model at its AUTHORED size. original_vertices_* is
-     * that authored bind pose, which means the resize has to be re-applied to
-     * every pose the animation produces; baking it into the bind pose instead
-     * leaves the frame's translations and ORIGIN pivots at full magnitude
-     * against a model that is no longer full size, and the pose lands somewhere
-     * the animator never put it. Xarpus (resizeh/resizev 64, i.e. half size)
-     * came out floating several tiles above his own arena.
+     * A model's keyframes are authored against the model at its own size, in
+     * its own frame, about its own origin. Every getModel in the rev-239 deob
+     * therefore animates first and places afterwards:
      *
-     * `post_resize` false is identity. The three factors are 128-based and in
-     * ToriDraw_ModelScale's (x, z, height) argument order.
+     *   npc      Statics.method9204   animate -> resize
+     *   spotanim Statics.method8758   animate -> resize -> rotate90 x n
+     *   loc      class393.method8916  animate -> rotate90 x n -> resize -> translate
+     *
+     * original_vertices_* holds that authored bind pose, so the placement has
+     * to be re-derived on every pose. Baking it into the bind instead leaves a
+     * frame's translations and its type-0 ORIGIN pivots at full magnitude
+     * against geometry that has been moved, turned or shrunk out from under
+     * them. Xarpus (resizeh/resizev 64) came out floating several tiles above
+     * his own arena; `whirlpool` is a loc resized to 1/128 of its height.
+     *
+     * Applied in ONE canonical order -- orient, resize, translate -- which is
+     * the loc order verbatim. It is also exact for a spotanim despite the deob
+     * resizing first there, because a spotanim's resize is (h, h, v): x and z
+     * scale by the same factor, and a quarter turn only ever exchanges those
+     * two axes.
+     *
+     * `post_transform` is the "any of these is not identity" fast path, and it
+     * is also the contract: ToriDraw_ModelApplyPostTransforms must run exactly
+     * ONCE per pose (or once at build for a model that is never posed), or the
+     * placement compounds.
      */
-    bool post_resize;
+    bool post_transform;
+    bool post_resize; /* post_resize_* are meaningful (identity is 128, not 0) */
     int post_resize_x;
     int post_resize_z;
     int post_resize_height;
+    int post_orient; /* quarter turns, 0..3 */
+    int post_offset_x;
+    int post_offset_y;
+    int post_offset_z;
 
     alphaint_t* face_alphas;
     alphaint_t* original_face_alphas;

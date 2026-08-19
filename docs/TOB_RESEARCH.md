@@ -35,7 +35,7 @@ records which figures are observations and which are another project's constants
 **Outcome: 21 questions closed, 3 partially closed. M6's stun length is the only one still
 genuinely open.** M7 was the other, and the sixth pass closed it — not with a client-side
 capture, which is what this document kept saying it needed, but by measuring the *supports*
-out of blert's ordinary event stream. See [M7's sixth pass](#m7-sixth-pass--damage-per-swing-measured-090-per-bite).
+out of blert's ordinary event stream. See [M7's sixth pass](#m7-sixth-pass--damage-per-swing-measured--090-per-bite-and-a-big-bites-no-harder-than-a-small).
 Sections are appended by pass; where a later pass overturned an earlier one, the earlier section
 carries a forward pointer.
 
@@ -885,7 +885,7 @@ counts, so this needs a small capture plugin, not another API query.
 
 ---
 
-## M7 — Nylocas pillars. **HP CLOSED BY JAGEX; damage per swing CLOSED BY MEASUREMENT** (see the [sixth pass](#m7-sixth-pass--damage-per-swing-measured-090-per-bite))
+## M7 — Nylocas pillars. **HP CLOSED BY JAGEX; damage per swing CLOSED BY MEASUREMENT** (see the [sixth pass](#m7-sixth-pass--damage-per-swing-measured--090-per-bite-and-a-big-bites-no-harder-than-a-small))
 
 A separate pass ([`NYLO_PILLARS.md`](NYLO_PILLARS.md)) found the source that three passes of
 plugin and server reading had missed: **Jagex published both ends of the pillar HP curve

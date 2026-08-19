@@ -49,13 +49,19 @@ ToriDraw_ModelScale(
     int height);
 
 /*
- * Record the resize that must be applied AFTER every animation frame, rather
- * than applying it now. See `post_resize` in struct ToriDraw_Model for why the
- * two are not interchangeable. (128, 128, 128) clears the record.
+ * Record placement that must be applied AFTER every animation frame rather than
+ * now: the resize, the quarter-turn orientation, and the offset. See
+ * `post_transform` in struct ToriDraw_Model for why the two orders are not
+ * interchangeable and what the canonical order is. Identity arguments
+ * ((128,128,128), 0, (0,0,0)) clear their part of the record.
  *
- * Callers still have to put the model into render scale once themselves --
- * ToriDraw_ModelApplyPostResize -- because a model that is never animated is
- * never posed, and nothing else would ever apply it.
+ * A model that records placement must ALSO have its bind pose captured before
+ * anything is applied (ToriDraw_ModelCaptureOriginalVertices), or the placed
+ * geometry becomes the bind and every pose compounds.
+ *
+ * Callers still put the model into its placed state once themselves --
+ * ToriDraw_ModelApplyPostTransforms -- because a model that is never animated
+ * is never posed, and nothing else would ever apply it.
  */
 void
 ToriDraw_ModelSetPostResize(
@@ -64,9 +70,23 @@ ToriDraw_ModelSetPostResize(
     int z,
     int height);
 
-/** Put the model's live vertices into render scale. No-op with none recorded. */
+/** Quarter turns (0..3), the reference's rotate90 repeated. */
 void
-ToriDraw_ModelApplyPostResize(struct ToriDraw_Model* model);
+ToriDraw_ModelSetPostOrient(
+    struct ToriDraw_Model* model,
+    int quarter_turns);
+
+void
+ToriDraw_ModelSetPostOffset(
+    struct ToriDraw_Model* model,
+    int x,
+    int y,
+    int z);
+
+/** Place the model's live vertices: orient, then resize, then translate.
+ *  No-op with nothing recorded. Exactly once per pose -- see post_transform. */
+void
+ToriDraw_ModelApplyPostTransforms(struct ToriDraw_Model* model);
 
 void
 ToriDraw_ModelTranslate(

@@ -1231,6 +1231,68 @@ test_obj_raise(void)
 }
 
 /*
+ * An action animation puts the readyanim back on its loop point.
+ *
+ * The readyanim free-runs underneath an action animation -- it has to, its
+ * frame sounds keep playing -- and it is not drawn while the action covers it.
+ * Which frame it resumes on is therefore free, and the animation data says what
+ * it should be: an attack clip is authored as a departure from the ready loop
+ * and back, so its first frame IS the ready loop's first frame. Xarpus proves
+ * it in the rev-239 cache -- seq 8059 frame 0 poses model 35383 identically to
+ * seq 8058 frame 0, and 8058 runs 120 cycles, exactly his four-tick attack
+ * cadence -- and before this rule his spit cut in at ready frame 39 of 52 on
+ * every spit of the fight.
+ *
+ * The walk case is the one that must NOT reset: a walk animation is blended
+ * with the action rather than hidden by it, so restarting it would stutter the
+ * gait mid-stride.
+ */
+void
+test_action_anim_restarts_the_readyanim(void)
+{
+    printf("TEST: an action animation restarts the readyanim under it\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    /* The ready loop, mid-cycle -- where free-running leaves it. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    npc->animation.secondary.loop = 1;
+
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8059, "the action animation lands");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "and does not disturb which sequence the ready track holds");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "but puts it back on its loop point, which is where 8059 starts from");
+
+    /* A walk animation is drawn WITH the action (the walkmerge blend), so the
+     * same call must leave it exactly where it was. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.walkanim;
+    npc->animation.secondary.frame = 7;
+    npc->animation.secondary.cycle = 1;
+    World_NpcSetPrimaryAnimation(world, ni, 8060, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 7 && npc->animation.secondary.cycle == 1,
+                "a walk animation keeps its stride under an action animation");
+
+    /* A DELAYED action leaves the readyanim on screen until the delay expires,
+     * so resetting it now would be a visible jump rather than a hidden one. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    World_NpcSetPrimaryAnimation(world, ni, 8061, 4);
+    TEST_ASSERT(npc->animation.secondary.frame == 39 && npc->animation.secondary.cycle == 2,
+                "a delayed action leaves the visible readyanim alone");
+
+    World_Free(world);
+}
+
+/*
  * A transmog keeps whatever one-shot is already playing.
  *
  * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk

@@ -127,6 +127,19 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->walkanim_b = src->walkanim_b;
     npctype->walkanim_r = src->walkanim_r;
     npctype->walkanim_l = src->walkanim_l;
+    /* dat1 genuinely has no turn/run/crawl opcodes -- the claim the dat2 path
+     * inherited by accident is true here. -1 across the set so the mover's
+     * `!= -1` tests fall back to walkanim, as they did before any of this. */
+    npctype->turnanim_l = -1;
+    npctype->turnanim_r = -1;
+    npctype->runanim = -1;
+    npctype->runanim_b = -1;
+    npctype->runanim_r = -1;
+    npctype->runanim_l = -1;
+    npctype->crawlanim = -1;
+    npctype->crawlanim_b = -1;
+    npctype->crawlanim_r = -1;
+    npctype->crawlanim_l = -1;
     npctype->turn_speed = src->turnspeed;
     npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
@@ -255,6 +268,23 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->walkanim_b = src->rotate180_animation > 0 ? src->rotate180_animation : -1;
     npctype->walkanim_r = src->rotate_right_animation > 0 ? src->rotate_right_animation : -1;
     npctype->walkanim_l = src->rotate_left_animation > 0 ? src->rotate_left_animation : -1;
+    /* The rest of the set, decoded since forever and dropped here until now. */
+    npctype->turnanim_l =
+        src->idle_rotate_left_animation > 0 ? src->idle_rotate_left_animation : -1;
+    npctype->turnanim_r =
+        src->idle_rotate_right_animation > 0 ? src->idle_rotate_right_animation : -1;
+    npctype->runanim = src->run_animation > 0 ? src->run_animation : -1;
+    npctype->runanim_b = src->run_rotate180_animation > 0 ? src->run_rotate180_animation : -1;
+    npctype->runanim_r =
+        src->run_rotate_right_animation > 0 ? src->run_rotate_right_animation : -1;
+    npctype->runanim_l = src->run_rotate_left_animation > 0 ? src->run_rotate_left_animation : -1;
+    npctype->crawlanim = src->crawl_animation > 0 ? src->crawl_animation : -1;
+    npctype->crawlanim_b =
+        src->crawl_rotate180_animation > 0 ? src->crawl_rotate180_animation : -1;
+    npctype->crawlanim_r =
+        src->crawl_rotate_right_animation > 0 ? src->crawl_rotate_right_animation : -1;
+    npctype->crawlanim_l =
+        src->crawl_rotate_left_animation > 0 ? src->crawl_rotate_left_animation : -1;
     /* They do carry it: opcode 103, decoded as `rotation_speed`, defaulted to 32
      * by the decoder itself — this line used to say dat2 had no such field and
      * pinned 32, which silently overrode every record that states one. `0` means

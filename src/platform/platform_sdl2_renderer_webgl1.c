@@ -3621,7 +3621,7 @@ webgl1_ev_anim_load(
          * post-animation resize; the rest pose is the one path that has not,
          * and it still has to be baked at render scale. */
         if( !posed )
-            ToriDraw_ModelApplyPostResize(baked);
+            ToriDraw_ModelApplyPostTransforms(baked);
 
         struct ToriDraw_ModelHandle baked_handle = {
             .kind = TORIDRAWMK_MODEL,

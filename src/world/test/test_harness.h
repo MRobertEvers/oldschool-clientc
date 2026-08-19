@@ -147,6 +147,7 @@ void test_tile_stack_dedup(void);
 void test_minusedlevel_entity_draw(void);
 void test_rebuild_shift(void);
 void test_obj_raise(void);
+void test_action_anim_restarts_the_readyanim(void);
 void test_npc_retype_keeps_animation(void);
 void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);

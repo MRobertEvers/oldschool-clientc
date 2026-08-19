@@ -345,13 +345,46 @@ struct ToriRS_Npctype
     int* retextures_from;
     int* retextures_to;
     int retexture_count;
-    /* Movement animation set (dat1 config; -1 = none). This rev's NPC config
-     * has no turnanim/runanim — turning falls back to walkanim. */
+    /*
+     * Movement animation set (-1 = none).
+     *
+     * The comment that used to sit here said "this rev's NPC config has no
+     * turnanim/runanim — turning falls back to walkanim". That is true of dat1
+     * and it quietly became the rule for dat2 as well, where the whole set
+     * exists: opcodes 15/16 are the turn-on-the-spot pair, 114/115 the run set
+     * and 116/117 the crawl set, and `dat2_config_npc.c` has decoded all of
+     * them for as long as it has existed. They stopped here.
+     *
+     * The cost was not theoretical. `World_UpdateMoverMovementAndAnimation`
+     * already picks `runanim` over `walkanim` at move_speed >= 8, and
+     * `World_EntityFace` already prefers `turnanim` — both have worked for
+     * players the whole time — so every one of the 347 npcs that states a run
+     * animation ran with its walking legs, and none of the 65 that state a turn
+     * animation ever turned on the spot.
+     */
     int readyanim;
     int walkanim;
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** Opcodes 15/16: turn-on-the-spot, left and right. The world facet carries
+     *  one `turnanim`; the reference picks by turn direction, which this client
+     *  does not model, so the left one is the entity's turn animation and the
+     *  right is carried for the day it does. */
+    int turnanim_l;
+    int turnanim_r;
+    /** Opcodes 114/115: the run set, chosen by the mover at speed. */
+    int runanim;
+    int runanim_b;
+    int runanim_r;
+    int runanim_l;
+    /** Opcodes 116/117: the crawl set. Decoded and carried; this client's mover
+     *  has no crawl speed band to select it with, so nothing reads these yet --
+     *  stated here so that the next person finds a field rather than a gap. */
+    int crawlanim;
+    int crawlanim_b;
+    int crawlanim_r;
+    int crawlanim_l;
     /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
      *  turns — Client-TS entityFace returns immediately for those. */
     int turn_speed;

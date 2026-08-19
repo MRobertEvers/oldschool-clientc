@@ -11720,7 +11720,7 @@ app_world_build_model(
      * function is about to capture. Applying it here instead put every
      * keyframe's translations and ORIGIN pivots -- authored at full size --
      * against a shrunken model, which is what threw Xarpus (resizeh/resizev 64)
-     * into the air above his arena. ToriDraw_ModelApplyPostResize below puts
+     * into the air above his arena. ToriDraw_ModelApplyPostTransforms below puts
      * this instance into render scale for the un-animated case; every pose
      * re-applies it.
      *
@@ -11749,7 +11749,7 @@ app_world_build_model(
     }
     /* Capture first: the bind pose is the authored-size model. */
     ToriDraw_ModelCaptureOriginalVertices(model);
-    ToriDraw_ModelApplyPostResize(model);
+    ToriDraw_ModelApplyPostTransforms(model);
     ToriDraw_ModelSetBoundsCylinder(model);
     return model;
 }
@@ -11891,7 +11891,7 @@ app_world_build_spotanim_model(
         ToriDraw_LightModelActor(hnd, spot->contrast, spot->ambient);
     }
     ToriDraw_ModelCaptureOriginalVertices(model);
-    ToriDraw_ModelApplyPostResize(model);
+    ToriDraw_ModelApplyPostTransforms(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 
     /* Cache the lit base; return a copy so the scene owns a mutable instance. */
@@ -12046,6 +12046,11 @@ struct AppNpcEntityFacts
     int walkanim_b;
     int walkanim_l;
     int walkanim_r;
+    int turnanim;
+    int runanim;
+    int runanim_b;
+    int runanim_l;
+    int runanim_r;
 };
 
 static void
@@ -12067,6 +12072,11 @@ app_npc_entity_facts(
     out->walkanim_b = drawn->walkanim_b;
     out->walkanim_l = drawn->walkanim_l;
     out->walkanim_r = drawn->walkanim_r;
+    out->turnanim = drawn->turnanim_l;
+    out->runanim = drawn->runanim;
+    out->runanim_b = drawn->runanim_b;
+    out->runanim_l = drawn->runanim_l;
+    out->runanim_r = drawn->runanim_r;
 
     if( base_npc_id < 0 )
         return;
@@ -12084,6 +12094,16 @@ app_npc_entity_facts(
         out->walkanim_b = shell->walkanim_b;
     if( out->walkanim_l < 0 )
         out->walkanim_l = shell->walkanim_l;
+    if( out->turnanim < 0 )
+        out->turnanim = shell->turnanim_l;
+    if( out->runanim < 0 )
+        out->runanim = shell->runanim;
+    if( out->runanim_b < 0 )
+        out->runanim_b = shell->runanim_b;
+    if( out->runanim_l < 0 )
+        out->runanim_l = shell->runanim_l;
+    if( out->runanim_r < 0 )
+        out->runanim_r = shell->runanim_r;
     if( out->walkanim_r < 0 )
         out->walkanim_r = shell->walkanim_r;
 }
@@ -12220,8 +12240,15 @@ app_world_spawn_npc_now(
         struct WorldEntityFacet_IdleAnimations idle = {
             .readyanim = facts.readyanim,
             .walkanim = facts.walkanim,
-            .turnanim = -1,
-            .runanim = -1,
+            /* Opcodes 15/114 rather than the -1 pair that used to sit here.
+             * `World_EntityFace` takes turnanim over walkanim and
+             * `World_UpdateMoverMovementAndAnimation` takes runanim over
+             * walkanim at speed; both were already written and neither had
+             * anything to read. The run set gets the same left/right swap the
+             * walk set does -- it is the same reference line (Client.ts
+             * 8460-8462), which swaps the pair for every movement set. */
+            .turnanim = facts.turnanim,
+            .runanim = facts.runanim,
             .walkanim_b = facts.walkanim_b,
             .walkanim_r = facts.walkanim_l,
             .walkanim_l = facts.walkanim_r,
@@ -19772,8 +19799,15 @@ App_WorldApplyNpcType(
         struct WorldEntityFacet_IdleAnimations idle = {
             .readyanim = facts.readyanim,
             .walkanim = facts.walkanim,
-            .turnanim = -1,
-            .runanim = -1,
+            /* Opcodes 15/114 rather than the -1 pair that used to sit here.
+             * `World_EntityFace` takes turnanim over walkanim and
+             * `World_UpdateMoverMovementAndAnimation` takes runanim over
+             * walkanim at speed; both were already written and neither had
+             * anything to read. The run set gets the same left/right swap the
+             * walk set does -- it is the same reference line (Client.ts
+             * 8460-8462), which swaps the pair for every movement set. */
+            .turnanim = facts.turnanim,
+            .runanim = facts.runanim,
             .walkanim_b = facts.walkanim_b,
             .walkanim_r = facts.walkanim_l,
             .walkanim_l = facts.walkanim_r,

@@ -692,9 +692,6 @@ obj_decode_op_rs2_634(
     int opcode,
     struct RSCache_Buffer* buffer)
 {
-        if( getenv("RSCACHE_OPCODE_CENSUS") )
-            fprintf(stderr, "census OBJ %d\n", opcode);
-
     switch( opcode )
     {
     case 18: /* multi stack size */

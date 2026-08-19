@@ -1430,7 +1430,7 @@ ToriDraw_SceneElementSetAnimation(
                 /* The reset restores the AUTHORED bind pose; a model with a
                  * post-resize has to be put back into render scale or it
                  * springs to full size the moment its animation is dropped. */
-                ToriDraw_ModelApplyPostResize(element->model.u.model.model);
+                ToriDraw_ModelApplyPostTransforms(element->model.u.model.model);
                 ToriDraw_ModelSetBoundsCylinder(element->model.u.model.model);
             }
         }
@@ -1486,7 +1486,7 @@ ToriDraw_SceneElementSetAnimationSeq(
         /* Capture before the resize: the bind pose every keyframe is applied to
          * is the model at its AUTHORED size (see post_resize). */
         ToriDraw_ModelCaptureOriginalVertices(model);
-        ToriDraw_ModelApplyPostResize(model);
+        ToriDraw_ModelApplyPostTransforms(model);
         ToriDraw_ModelSetBoundsCylinder(model);
     }
 }
@@ -1579,7 +1579,7 @@ ToriDraw_SceneElementApplyAnimation(
         if( animation->frames[frame].length <= 0 )
         {
             ToriDraw_ModelAnimateReset(model);
-            ToriDraw_ModelApplyPostResize(model);
+            ToriDraw_ModelApplyPostTransforms(model);
             ToriDraw_ModelSetBoundsCylinder(model);
             return;
         }
