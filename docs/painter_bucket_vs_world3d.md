@@ -747,6 +747,37 @@ Differential `fuzz_real 1 200` passes (bucket ⊇ world3d). `make test-world` an
 Live check after the cullmap fix: one bake (`near=50`, `slice_vis≈1226`), then
 `commands≈6100` per frame (nocull was ~12950 — the frustum is doing real work).
 
+**Re-measured 2026-08-19, after the seam exception was narrowed** (lateral gate +
+ground-only release, `TilePaint.seam_relaxed`). `scripts/painter/c/fuzz_real` needed two
+bit-rot fixes to build (`ToriDraw_Init*Table`, the `camera_cot16` argument of
+`painters_cullmap_build_toridraw`); the 200-seed superset run passes, and the one
+`occlusion subsequence` failure (seed 2, 47 vs 47 commands) is pre-existing — the
+HEAD~1 painters fail it identically.
+
+`fuzz_real 1 500 bench 100`, three runs each, same machine:
+
+```
+world3d: ~13.5-13.9 µs/iter  |  bucket (new): 11.0-11.5 µs/iter  |  ratio 0.81-0.83  |  slower: 70-74/500
+world3d: ~13.5-13.7 µs/iter  |  bucket (old): 10.7-10.8 µs/iter  |  ratio 0.79-0.80  |  slower: 51-56/500
+```
+
+The narrowed rule costs the synthetic bench ~2-3% against the old bucket (the extra
+lateral test and the relaxed-tile re-check) and stays ~19% faster than world3d.
+
+Live, `TORIRS_PERF=1 TORIRS_PERF_WINDOW=200`, ToB Xarpus via the headless recipe, paint
+stage p50 over the in-scene windows (frames 600-1600), two runs each:
+
+```
+world3d            p50 249-277 µs   p95 ~280-290 µs (outside spike windows)
+bucket (new)       p50 207-215 µs   p95 ~224-229 µs
+bucket (old)       p50 206-228 µs   p95 ~222-225 µs
+```
+
+Maiden: world3d p50 288 µs vs bucket 228 µs. So the live cost of the narrowed rule is
+within noise, and the bucket painter is ~18-21% faster than world3d at p50 in ToB.
+`painter_commands` ≈ 1603/frame in Xarpus, 1345 in Maiden. `TORIRS_PAINTER_W3D=1`
+selects world3d in the live client; the default is the bucket painter.
+
 ---
 
 ## Round 4 — Zoom-aware analytic cullspan (2026-08-03)

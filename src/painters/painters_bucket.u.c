@@ -240,11 +240,11 @@ bucket_reference_gate_blocks(
 }
 
 /* The ground-pass gate: the reference gate plus the seam exception. Non-zero =
- * this tile must wait. `span_flag` names the direction; the W/E gates are
- * lateral when the tile sits more ahead of the eye than beside it
- * (|dz| > |dx|), the N/S gates when the reverse holds. When the exception is
- * what lets the tile through, `*relaxed` is set so the tile's scenery and
- * completion can still wait for the reference gate. */
+ * this tile must wait. `lateral_gate` says whether this direction is across
+ * the eye->tile ray (the caller computes it once per tile from |dx|, |dz|:
+ * the W/E gates are lateral when |dz| > |dx|, the N/S gates when |dx| > |dz|).
+ * When the exception is what lets the tile through, `*relaxed` is set so the
+ * tile's scenery and completion can still wait for the reference gate. */
 static inline int
 bucket_gate_blocks(
     struct Painter* painter,
@@ -254,25 +254,23 @@ bucket_gate_blocks(
     int camera_sx,
     int camera_sz,
     int dist,
+    int lateral_gate,
     int* relaxed)
 {
-    const struct PaintersTile* other_tile = &painter->tiles[neighbour_idx];
-    const struct TilePaint* other = &painter->tile_paints[neighbour_idx];
-
     if( !bucket_reference_gate_blocks(painter, tile, neighbour_idx, span_flag) )
         return 0;
+    if( lateral_gate &&
+        bucket_neighbour_holds_only_nearer_scenery(
+            painter,
+            &painter->tiles[neighbour_idx],
+            &painter->tile_paints[neighbour_idx],
+            camera_sx,
+            camera_sz,
+            dist,
+            lateral_gate) )
     {
-        int adx = abs((int)tile->sx - camera_sx);
-        int adz = abs((int)tile->sz - camera_sz);
-        int lateral_gate = (span_flag == SPAN_FLAG_WEST || span_flag == SPAN_FLAG_EAST)
-                               ? (adz > adx)
-                               : (adx > adz);
-        if( bucket_neighbour_holds_only_nearer_scenery(
-                painter, other_tile, other, camera_sx, camera_sz, dist, lateral_gate) )
-        {
-            *relaxed = 1;
-            return 0;
-        }
+        *relaxed = 1;
+        return 0;
     }
     return 1;
 }
@@ -711,10 +709,13 @@ painter_paint_bucket(
                 /* Match painter_paint_world3d draw_front adjacent deps, plus
                  * the seam exception (bucket_gate_blocks). */
                 int relaxed = 0;
+                /* Which gates cross the eye->tile ray (adx/adz from above). */
+                int lateral_we = adz > adx;
+                int lateral_ns = adx > adz;
                 if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile - 1, SPAN_FLAG_WEST, camera_sx, camera_sz,
-                        tile_dist, &relaxed) )
+                        tile_dist, lateral_we, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -722,7 +723,7 @@ painter_paint_bucket(
                 if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile + 1, SPAN_FLAG_EAST, camera_sx, camera_sz,
-                        tile_dist, &relaxed) )
+                        tile_dist, lateral_we, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -730,7 +731,7 @@ painter_paint_bucket(
                 if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile - width, SPAN_FLAG_SOUTH, camera_sx, camera_sz,
-                        tile_dist, &relaxed) )
+                        tile_dist, lateral_ns, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;
@@ -738,7 +739,7 @@ painter_paint_bucket(
                 if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
                     bucket_gate_blocks(
                         painter, tile, e_tile + width, SPAN_FLAG_NORTH, camera_sx, camera_sz,
-                        tile_dist, &relaxed) )
+                        tile_dist, lateral_ns, &relaxed) )
                 {
                     BUCKET_PERF_INCREMENT(perf_gate_rejects);
                     continue;

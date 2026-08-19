@@ -100,8 +100,10 @@ app_debug_key_held(
 }
 #include <time.h>
 
-/* A/B probe: non-zero routes the world paint through the bucket painter. */
-int g_torirs_painter_bucket = 0;
+/* A/B probe for the world painter: 0 = default (bucket, or world3d under
+ * TORIRS_PAINTER_W3D=1), 1 = force world3d, 2 = force bucket. Set by the
+ * TORIRS_PAINTER_ALT same-frame BMP pair in main.c. */
+int g_torirs_painter_force = 0;
 
 enum
 {
@@ -9608,8 +9610,10 @@ app_world_paint(struct App* app)
      * in the live client instead of the distance-bucket drain. A draw-order
      * bug is either in the traversal or in the geometry it orders, and this is
      * what separates the two: same scene, same frame, the other painter. Pair
-     * it with TORIRS_PIXOWNER to name what changed hands. */
-    else if( !getenv("TORIRS_PAINTER_BUCKET") && false )
+     * it with TORIRS_PIXOWNER to name what changed hands, or
+     * TORIRS_PAINTER_ALT=1 + TORIRS_BMP_SERIES for a same-frame image pair. */
+    else if( g_torirs_painter_force == 1 ||
+             (g_torirs_painter_force == 0 && getenv("TORIRS_PAINTER_W3D")) )
         painter_paint_world3d(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);
     else
         painter_paint_bucket(app->world->painter, app->painter_buffer, cam_sx, cam_sz, cam_slevel);

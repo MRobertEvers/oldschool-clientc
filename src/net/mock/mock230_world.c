@@ -37890,6 +37890,36 @@ mock230_world_selftest(void)
             const int k_passage_loc = 33113;
             const int k_xarpus_exit_loc = 32751;
             int walked_out = 0;
+            struct Mock230Player* fixture = srv->active_player;
+            int saved_hp = fixture->hitpoints;
+            int saved_dying = fixture->dying;
+            int saved_level = fixture->stat_level[MOCK230_STAT_HITPOINTS];
+            int saved_boost = fixture->stat_boosted[MOCK230_STAT_HITPOINTS];
+            int saved_god = fixture->godmode;
+
+            /*
+             * On its feet, and kept there. This stanza ticks the world a
+             * hundred times over five rooms, and whatever ran before it can
+             * still land damage on the first of those ticks — the Maiden's
+             * room, first time through, killed the fixture outright at full
+             * hitpoints and respawned it in Lumbridge, where every click after
+             * that answers about a player who is not in the raid. It read as
+             * "the Maiden's room has no exit".
+             *
+             * God mode rather than a bigger heal, because what is under test
+             * here is doors: whether the fixture could have survived the walk
+             * is a question for the stanzas that fight.
+             */
+            fixture->dying = 0;
+            fixture->godmode = 1;
+            fixture->stat_level[MOCK230_STAT_HITPOINTS] = 20;
+            fixture->stat_boosted[MOCK230_STAT_HITPOINTS] = 20;
+            fixture->hitpoints = 20;
+            mock230_combat_sync_hitpoints(fixture);
+            /* Let whatever the fighting stanzas left queued land BEFORE the
+             * first room is built, rather than on top of it. */
+            for( int i = 0; i < 4; i++ )
+                mock230_world_tick(srv);
 
             for( int room = 1; room <= 5; room++ )
             {
@@ -37904,11 +37934,24 @@ mock230_world_selftest(void)
                 snprintf(command, sizeof(command), "tob %d", room);
                 mock230_scripts_run_debugproc(srv, command);
                 mock230_world_tick(srv);
-                /* Inside the arena, and cleared: the exit corridor is on the
-                 * far side of the barrier, so a player still in the entry
-                 * corridor cannot path to it at all. */
-                mock230_scripts_run_debugproc(srv, "tobgo");
+                /*
+                 * Into the arena, win the room, and pass the gate on the way
+                 * out — the player's own sequence, in the player's own order.
+                 *
+                 * `::tobin` rather than `::tobgo` because starting the fight
+                 * means a real boss with a real attack clock, and it kills the
+                 * fixture partway through the walk; a dead fixture standing in
+                 * Lumbridge then reads as a broken exit in every later room.
+                 *
+                 * `::tobgate` because a barrier is blockwalk=1 in both
+                 * directions: four of the five rooms cannot be walked out of
+                 * until it has been passed, and "I can't reach that" is what a
+                 * test that skips it gets. The Maiden has no exit gate and the
+                 * command says so and does nothing.
+                 */
+                mock230_scripts_run_debugproc(srv, "tobin");
                 mock230_scripts_run_debugproc(srv, "tobclear");
+                mock230_scripts_run_debugproc(srv, "tobgate");
                 mock230_world_tick(srv);
 
                 mock230_capture_begin(srv, &walk_capture);
@@ -37942,20 +37985,21 @@ mock230_world_selftest(void)
                 mock230_world_handle(srv->active_player, PKTOUT_NAME_OPLOC1, payload, 6);
                 int settled = selftest_settle(srv, 120);
                 mock230_capture_end(srv);
-                fprintf(stderr, "  tobwalk room %d: click %d,%d loc=%d settled=%d\n", room, tile_x, tile_z, loc_id, settled);
+                /* The walk itself, and what the game said about it: "I can't
+                 * reach that" is the shape a broken exit takes, and it is worth
+                 * printing whether this passes or fails. */
                 for( int i = mock230_capture_find(&walk_capture, 90, 0); i >= 0;
                      i = mock230_capture_find(&walk_capture, 90, i + 1) )
                 {
                     const struct Mock230CapturedPacket* packet = &walk_capture.packets[i];
                     if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
                         continue;
-                    fprintf(stderr, "    say: %s\n", (const char*)packet->data + 1);
+                    fprintf(stderr, "    %s\n", (const char*)packet->data + 1);
                 }
+                fprintf(stderr, "  tobwalk room %d: %d ticks from the arena to its exit passage at %d,%d\n",
+                        room, settled, tile_x, tile_z);
                 if( settled < 0 )
-                {
-                    fprintf(stderr, "  tobwalk room %d: never reached its exit passage\n", room);
                     continue;
-                }
 
                 mock230_capture_begin(srv, &walk_capture);
                 mock230_scripts_run_debugproc(srv, "tobwhere");
@@ -37980,6 +38024,12 @@ mock230_world_selftest(void)
                     walked_out++;
             }
             mock230_scripts_run_debugproc(srv, "tobout");
+            fixture->godmode = saved_god;
+            fixture->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+            fixture->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_boost;
+            fixture->hitpoints = saved_hp;
+            fixture->dying = saved_dying;
+            mock230_combat_sync_hitpoints(fixture);
 
             SELFTEST_CHECK(walked_out == 5,
                            "walking out through the exit passage should open the next chamber");

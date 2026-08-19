@@ -882,22 +882,26 @@ frame_loop_step(void)
             char path[600];
             if( getenv("TORIRS_ANIM_DEBUG") )
                 fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
-            extern int g_torirs_painter_bucket;
+            extern int g_torirs_painter_force;
+            /* TORIRS_PAINTER_ALT=1: write frame_N.bmp painted by world3d AND
+             * frame_N_bucket.bmp painted by the bucket painter, from the SAME
+             * frame — same scene, same camera, same animation phase, so a
+             * pixel diff is the painter alone. Without it, frame_N.bmp is the
+             * default painter. */
+            int alt = getenv("TORIRS_PAINTER_ALT") != NULL;
+            g_torirs_painter_force = alt ? 1 : 0;
             App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
-            /* TORIRS_PAINTER_ALT=1: also write frame_N_bucket.bmp, the SAME
-             * frame painted by the bucket painter — same scene, same camera,
-             * same animation phase, so a pixel diff is the painter alone. */
             bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( getenv("TORIRS_PAINTER_ALT") )
+            if( alt )
             {
                 char path_b[600];
-                g_torirs_painter_bucket = 1;
+                g_torirs_painter_force = 2;
                 App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                g_torirs_painter_bucket = 0;
                 snprintf(path_b, sizeof(path_b), "%s/frame_%05ld_bucket.bmp", series_dir, frame_count);
                 bmp_write_file(path_b, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
+            g_torirs_painter_force = 0;
             free(pixels);
             series_written++;
         }
