@@ -11,6 +11,12 @@
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
 #include "graphics/convex_hull.h"
+
+/* Highlight colours. The model silhouette is the brighter of the two because it
+ * is the "this is the thing" mark; the ground footprint under it is supporting
+ * information and reads as such. */
+#define APP_OUTLINE_COLOR_HOVER 0xFFFFFF00u
+#define APP_OUTLINE_COLOR_FOOTPRINT 0xFFFF0000u
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -2457,6 +2463,101 @@ app_overlay_push_polygon(
     }
 }
 
+/**
+ * Outline the MODEL of a scene element: a silhouette that wraps the thing in
+ * three dimensions, not a quad on the ground under it.
+ *
+ * Renderer-independent by construction, which is the constraint that shapes it.
+ * The projection is the app's own integer camera transform and the output is
+ * the LINE primitives the overlay pass already carries, so soft3d, gl3 and
+ * gl3zb all draw this without knowing it exists. Anything that reached into a
+ * renderer — a stencil pass, an edge filter over the depth buffer, a shader —
+ * would have to be written three times and would not exist at all in the
+ * software rasteriser.
+ *
+ * The shape projected is the model's bounds CYLINDER as an eight-corner box:
+ * `radius` either way in x and z, `min_y`..`max_y` vertically. The cylinder is
+ * what the renderer itself culls and sorts against, so an outline drawn from it
+ * agrees with what is on screen; and because a cylinder has no orientation in
+ * xz, this needs no yaw and is correct for a loc at any angle and for an npc
+ * mid-turn.
+ *
+ * Hulling eight corners rather than the mesh's vertices is a deliberate stop:
+ * it is one outline that always wraps the model, at fixed cost per entity per
+ * frame. Hugging the mesh exactly means projecting every vertex, which is the
+ * same code with a bigger input — see ToriDraw_ConvexHullScratch, which exists
+ * for that and has no point cap.
+ *
+ * @return 1 when an outline was emitted.
+ */
+static int
+app_overlay_outline_element_model(
+    struct App* app,
+    int element_id,
+    uint32_t color)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_BoundsCylinder* bounds;
+    int px[8];
+    int py[8];
+    int hull_x[8];
+    int hull_y[8];
+    int count = 0;
+    int hull_size;
+    int ox;
+    int oy;
+    int oz;
+    int radius;
+
+    assert(app);
+
+    if( !app->scene || element_id < 0 )
+        return 0;
+    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return 0;
+
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !element )
+        return 0;
+
+    bounds = ToriDraw_ModelGetBoundsCylinder(element->model);
+    /* No bounds is not a failure: a handle that is not a full model (a sprite
+     * billboard, an empty slot) has none, and there is nothing to outline. */
+    if( !bounds )
+        return 0;
+
+    ox = element->world_position.x;
+    oy = element->world_position.y;
+    oz = element->world_position.z;
+    radius = bounds->radius;
+    if( radius <= 0 )
+        return 0;
+
+    for( int corner = 0; corner < 8; corner++ )
+    {
+        /* Bit 0 = east, bit 1 = south, bit 2 = the model's top edge. `min_y` is
+         * the TOP in scene space, where y grows downward. */
+        int const wx = ox + ((corner & 1) ? radius : -radius);
+        int const wz = oz + ((corner & 2) ? radius : -radius);
+        int const wy = oy + ((corner & 4) ? bounds->min_y : bounds->max_y);
+        int screen_x;
+        int screen_y;
+
+        if( !app_world_project_at(app, wx, wz, wy, &screen_x, &screen_y) )
+            continue;
+        px[count] = screen_x;
+        py[count] = screen_y;
+        count++;
+    }
+
+    if( count < 2 )
+        return 0;
+
+    hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    return 1;
+}
+
 static void
 app_overlay_outline_scenery(
     struct App* app,
@@ -2551,7 +2652,7 @@ app_overlay_outline_scenery(
                 size_z,
                 count,
                 hull_size);
-        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, 0xFFFF0000u);
+        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_FOOTPRINT);
     }
 }
 
@@ -2573,18 +2674,39 @@ app_overlay_build_hover_footprint(struct App* app)
 
     if( mode == 1 )
     {
-        /* The pickset is this frame's under-mouse set, nearest hits first
-         * (the same order the minimenu consumes). Take the first scenery. */
+        /*
+         * The pickset is this frame's under-mouse set, nearest hits first (the
+         * same order the minimenu consumes), so the first loc or npc in it is
+         * the one the cursor is actually on.
+         *
+         * Npcs are outlined as well as locs because an editor is placing both
+         * against each other, and "what am I about to act on" is the same
+         * question for either. The model outline is the same call for both —
+         * they are both scene elements — which is why this does not need to
+         * know what kind of entity it found beyond where to read the id.
+         */
         struct World_Picked const* hit = NULL;
-        struct WorldEntity_Scenery* scenery;
         for( int i = 0; i < app->world_pickset.count && !hit; i++ )
-            if( app->world_pickset.items[i].type == WORLD_PICK_SCENERY )
+        {
+            enum World_PickType const type = app->world_pickset.items[i].type;
+            if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
                 hit = &app->world_pickset.items[i];
+        }
         if( !hit )
             return;
-        scenery = World_SceneryGetByElementId(app->world, hit->element_id);
-        if( scenery )
-            app_overlay_outline_scenery(app, scenery);
+
+        /* Model silhouette first. It is the outline that reads as "this thing
+         * is selected"; the ground footprint below says which TILES it owns,
+         * which is what an editor needs when placing something beside it. */
+        app_overlay_outline_element_model(app, hit->element_id, APP_OUTLINE_COLOR_HOVER);
+
+        if( hit->type == WORLD_PICK_SCENERY )
+        {
+            struct WorldEntity_Scenery* scenery =
+                World_SceneryGetByElementId(app->world, hit->element_id);
+            if( scenery )
+                app_overlay_outline_scenery(app, scenery);
+        }
         return;
     }
 
@@ -2594,7 +2716,15 @@ app_overlay_build_hover_footprint(struct App* app)
     {
         struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
         if( scenery && scenery->loc_id == mode )
+        {
+            /* Both marks, the same pair the hover path draws. The two modes
+             * showing different things would make the by-id form useless for
+             * checking the hover form — which is what it is for, since a
+             * headless run has no cursor to hover with. */
+            app_overlay_outline_element_model(
+                app, scenery->element_id, APP_OUTLINE_COLOR_HOVER);
             app_overlay_outline_scenery(app, scenery);
+        }
     }
 }
 
