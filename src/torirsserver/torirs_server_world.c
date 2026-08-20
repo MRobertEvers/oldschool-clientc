@@ -44346,6 +44346,9 @@ ToriRSServer_WorldSelftest(void)
             int saved_boost[TORIRSSERVER_STAT_COUNT];
             int saved_worn[TORIRSSERVER_WORN_SLOTS];
             int saved_worn_count[TORIRSSERVER_WORN_SLOTS];
+            static int saved_inv[TORIRSSERVER_INV_SLOTS];
+            static int saved_inv_count[TORIRSSERVER_INV_SLOTS];
+            static int32_t saved_varps[TORIRSSERVER_VARP_COUNT];
 
             /*
              * ::gearrun is a cheat ladder in a trenchcoat: it equips gear,
@@ -44366,25 +44369,47 @@ ToriRSServer_WorldSelftest(void)
                 saved_worn[i] = player->worn[i].obj_id;
                 saved_worn_count[i] = player->worn[i].count;
             }
+            /*
+             * The inventory and the varps were the two the comment below said
+             * were "not restored, and chasing every one of them is a bigger
+             * job than this change". They are both plain arrays on the player,
+             * so the honest fix is to save and restore them the same way the
+             * stats and worn slots already are -- there is nothing to chase.
+             *
+             * This is what kept ::gearrun, ::runecraftrun and ::miningrun
+             * opt-in: not that the harness cannot carry equipment, which was my
+             * own wrong reading of the gate earlier today, but that the ladder
+             * leaked state into the stanzas after it.
+             */
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+            {
+                saved_inv[i] = player->inv[i].obj_id;
+                saved_inv_count[i] = player->inv[i].count;
+            }
+            memcpy(saved_varps, player->varps, sizeof(saved_varps));
 
             /*
-             * OPT-IN, via TORIRSSERVER_GEARRUN=1, and that is a retreat rather than
-             * a design.
+             * DEFAULT-ON since 2026-08-20. It was opt-in because `::gearrun` is
+             * a cheat ladder — it equips gear, raises four skills to 99, spawns
+             * fixtures and writes a dozen varps — and only the stats and worn
+             * slots were saved and restored, so the inventory it fills with
+             * runes and the varps it sets leaked into every stanza after it,
+             * worth three failures a run. The note here said chasing those was
+             * "a bigger job than this change".
              *
-             * `::gearrun` is a cheat ladder: it equips gear, raises four skills
-             * to 99, spawns fixtures and writes a dozen varps. Stats and worn
-             * slots are saved and restored above, and it was still worth three
-             * failures a run to the stanzas after it — the inventory it fills
-             * with runes and the varps it sets are not restored, and chasing
-             * every one of them is a bigger job than this change.
+             * It was not. `inv[]` and `varps[]` are plain arrays on the player,
+             * saved and restored above exactly as the stats and worn slots
+             * already were. Verified by running the whole suite with and
+             * without this leg on the same pack: identical failure sets, so it
+             * leaks nothing.
              *
-             * So the suite does not run it by default and is exactly where it
-             * was; `TORIRSSERVER_GEARRUN=1 ./build/dev_torirsserver --selftest` runs it
-             * on demand, and `::gearrun` in a live session is unaffected and is
-             * the way it is meant to be used. Making it default-on needs the
-             * restore finished first.
+             * This matters well beyond gear. The same leak is why
+             * ::runecraftrun and ::miningrun are still gated, and why I
+             * mis-diagnosed the harness this morning as unable to carry
+             * equipment at all — it can; it just could not clean up. 75
+             * assertions come back into every build with this line.
              */
-            if( getenv("TORIRSSERVER_GEARRUN") == NULL )
+            if( 0 )
             {
                 said_ok = 1;
             }
@@ -44412,6 +44437,13 @@ ToriRSServer_WorldSelftest(void)
                     fprintf(stderr, "  %s\n", text);
                 }
             }
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+            {
+                player->inv[i].obj_id = saved_inv[i];
+                player->inv[i].count = saved_inv_count[i];
+            }
+            memcpy(player->varps, saved_varps, sizeof(saved_varps));
+            player->inv_dirty = 0xffffffffu;
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             {
                 player->stat_level[i] = saved_level[i];
@@ -51924,6 +51956,18 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_diary_promote]", 8,
                   "finishing a diary tier's tasks must set the flag its perks "
                   "read; an unknown tier must never read as finished" },
+                { "[proc,selftest_diary_karamja_easy]", 6,
+                  "re-entering the Fight Cave must not credit its diary task "
+                  "twice, and finishing easy must not set the elite flag" },
+                { "[proc,selftest_diary_karamja_medium]", 8,
+                  "a second karambwan credits nothing, and two hooks in one "
+                  "tier stay independent" },
+                { "[proc,selftest_diary_counted]", 6,
+                  "a counted diary task awards on the Nth action and never "
+                  "again, and its progress stops once claimed" },
+                { "[proc,selftest_diary_rockcrab]", 5,
+                  "killing rock crabs forever credits the diary once and "
+                  "stops the saved progress at five" },
                 /* Five herblore stanzas were written, compiled and never
                  * run -- registered nowhere and called by nothing. Found by
                  * tools/check_selftest_registration.py. They use this file's
@@ -56547,6 +56591,183 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::upassrun\n");
+    {
+        /*
+         * Underground Pass (2026-08-20 audit). This quest is almost entirely
+         * a maze of hard-coordinate obstacle transitions and parked dialogue
+         * (~chatnpc_anim/~mesbox/~p_choice*), the same dialogue-gated-state-
+         * machine shape every other quest audit in this loop mirrors rather
+         * than replays tile-by-tile -- so `upassrun` does not attempt a full
+         * walkthrough. It exists to pin the two real regressions this audit
+         * found and fixed, both sourced from the wiki's own Changes section
+         * for the 25 July 2019 (Song of the Elves) revision:
+         *
+         *   - Kamen's home-brew (`kamen.rs2`) used to cost 3-5 hitpoints on
+         *     the "Okay then" branch -- a stale pre-2019 LostCity carryover.
+         *     The wiki: "Kamen's homemade brew no longer damages the player
+         *     between 3-5 Hitpoints." Driven through a REAL `[opnpc1,
+         *     upassdwarf3]` dispatch and real dialogue/choice-menu clicks
+         *     (not a source read), asserting hitpoints are unchanged.
+         *   - The paladins (`upass_encounters.rs2`'s `upass_spawn_paladins`)
+         *     respawned as long as `%upass_paladinbadge_N` had not yet been
+         *     set -- which only happens when the badge is THROWN AT THE
+         *     WELL, much later than when it is looted -- so a player
+         *     carrying an already-looted badge back past the kill spot
+         *     would find the "dead" paladin alive again. The wiki: "non-
+         *     respawning paladins." Driven through a real `[proc,
+         *     upass_spawn_paladins]` dispatch with the badge sitting in the
+         *     player's own inventory.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* player = srv->active_player;
+            int npc_kamen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "upassdwarf3");
+            int npc_paladin1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "upass_paladin1");
+            int obj_badge1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "paladinbadge1");
+            int obj_meatpie = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "meat_pie");
+            int varp_upass = ToriRSServer_WorldVarp("upass");
+            /* upass_paladinbadge_1 is a named VARBIT (configs/all.varbit), not a
+             * top-level varp -- ToriRSServer_WorldVarp resolves TORIRSSERVER_PACK_VARP
+             * only, so this needs the varbit registry and the Varbit{Get,Set}
+             * accessors instead of player->varps[]/WorldSetVarp directly. */
+            int varbit_badge1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                                            "upass_paladinbadge_1");
+            int c_entered_second_area =
+                ToriRSServer_ContentConstantInt("upass_entered_second_area", -1);
+            int c_defeated_iban = ToriRSServer_ContentConstantInt("upass_defeated_iban", -1);
+
+            SELFTEST_CHECK(npc_kamen > 0, "upassrun: npc_kamen should resolve, got %d", npc_kamen);
+            SELFTEST_CHECK(npc_paladin1 > 0, "upassrun: npc_paladin1 should resolve, got %d",
+                           npc_paladin1);
+            SELFTEST_CHECK(obj_badge1 > 0, "upassrun: obj_badge1 should resolve, got %d", obj_badge1);
+            SELFTEST_CHECK(obj_meatpie > 0, "upassrun: obj_meatpie should resolve, got %d",
+                           obj_meatpie);
+            SELFTEST_CHECK(varp_upass >= 0, "upassrun: varp_upass should resolve, got %d",
+                           varp_upass);
+            SELFTEST_CHECK(varbit_badge1 >= 0, "upassrun: varbit_badge1 should resolve, got %d",
+                           varbit_badge1);
+            SELFTEST_CHECK(c_entered_second_area >= 0 && c_defeated_iban >= 0,
+                           "upassrun: every %%upass ladder constant used below should resolve");
+
+            /* ---- Kamen's brew: real dialogue dispatch, no hitpoint cost ---- */
+            if( npc_kamen > 0 )
+            {
+                int slot;
+                int hp_before;
+                int guard;
+
+                /* Full HP, not just a teleport -- a prior stanza's leftover damage
+                 * would otherwise make hp_before/after read close to (or at) zero
+                 * and the assertion below fragile rather than a clean 0-cost check. */
+                selftest_park_player(srv, 2452, 9800);
+                ToriRSServer_WorldTick(srv);
+                slot = npc_spawn(srv, npc_kamen, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(slot >= 0, "upassdwarf3 (Kamen) should be spawnable");
+                if( slot >= 0 )
+                {
+                    hp_before = player->hitpoints;
+                    SELFTEST_CHECK(
+                        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kamen, -1, slot) ==
+                            TORIRSSERVER_TRIGGER_RAN,
+                        "[opnpc1,upassdwarf3] should run");
+                    /* Drain the whole conversation: click whatever resume button is
+                     * armed (selftest_click_through always answers row 1, "Okay
+                     * then." -- the branch that used to carry the damage), and tick
+                     * the world past the script's own p_delay pauses in between. */
+                    for( guard = 0; guard < 40 && player->active_script; guard++ )
+                    {
+                        if( player->resume_button_count > 0 )
+                            selftest_click_through(srv, 1);
+                        else
+                            ToriRSServer_WorldTick(srv);
+                    }
+                    SELFTEST_CHECK(player->active_script == NULL,
+                                   "Kamen's conversation should finish, not stay parked");
+                    {
+                        int got_food = 0;
+                        int s;
+
+                        for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                        {
+                            if( player->inv[s].obj_id == obj_meatpie )
+                                got_food = 1;
+                        }
+                        SELFTEST_CHECK(
+                            got_food,
+                            "Kamen's conversation should have taken the 'Okay then' branch "
+                            "(food handed out) -- did the click-through take the wrong row?");
+                    }
+                    SELFTEST_CHECK(player->hitpoints == hp_before,
+                                   "Kamen's home brew must not cost hitpoints any more "
+                                   "(wiki Changes, 25 Jul 2019) -- went %d -> %d",
+                                   hp_before, player->hitpoints);
+                    ToriRSServer_WorldNpcFree(srv, slot);
+                    ToriRSServer_WorldNpcReap(srv);
+                }
+            }
+
+            /* ---- paladins: real [proc] dispatch must not respawn a looted badge ---- */
+            if( npc_paladin1 > 0 )
+            {
+                int i;
+
+                ToriRSServer_WorldTeleport(srv, 0, 2424, 9721);
+                ToriRSServer_WorldTick(srv);
+                ToriRSServer_WorldSetVarp(srv, varp_upass, c_entered_second_area);
+
+                /* Control: with no badge held or used, the proc really does spawn
+                 * the paladin -- otherwise the assertion below would be vacuous. */
+                for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+                ToriRSServer_VarbitSet(srv, varbit_badge1, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,upass_spawn_paladins]", NULL, 0);
+                SELFTEST_CHECK(selftest_find_npc(srv, npc_paladin1) >= 0,
+                               "upassrun control: with no badge held or used, "
+                               "upass_spawn_paladins should really spawn upass_paladin1");
+                for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                {
+                    if( srv->npcs[i].active && srv->npcs[i].type == npc_paladin1 )
+                    {
+                        ToriRSServer_WorldNpcFree(srv, i);
+                        break;
+                    }
+                }
+                ToriRSServer_WorldNpcReap(srv);
+
+                /* The real regression: badge looted (held in inv) but not yet
+                 * thrown at the well (varp still 0) must NOT bring the paladin
+                 * back -- the wiki's "non-respawning paladins". */
+                for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+                inv_set(player, 0, obj_badge1, 1);
+                ToriRSServer_VarbitSet(srv, varbit_badge1, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,upass_spawn_paladins]", NULL, 0);
+                SELFTEST_CHECK(selftest_find_npc(srv, npc_paladin1) < 0,
+                               "upassrun: a looted-but-not-yet-used badge must suppress the "
+                               "paladin respawn (wiki Changes, 25 Jul 2019, non-respawning "
+                               "paladins) -- upass_paladin1 came back anyway");
+                for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                {
+                    if( srv->npcs[i].active && srv->npcs[i].type == npc_paladin1 )
+                        ToriRSServer_WorldNpcFree(srv, i);
+                }
+                ToriRSServer_WorldNpcReap(srv);
+            }
+
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::fishingcomporun\n");
     {
         /*
@@ -57908,6 +58129,249 @@ ToriRSServer_WorldSelftest(void)
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     inv_set(player, i, -1, 0);
                 player->varps[varp_grail] = 0;
+            }
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: ::itgronigenrun\n");
+    {
+        /*
+         * Observatory Quest (2026-08-20 audit). The whole "view telescope /
+         * identify the constellation / get the reward" finale was unwired:
+         * [opnpc1,observatory_professor] jumped straight from
+         * itgronigen_sent_telescope to quest completion off a hardcoded
+         * descriptive-text-only reward line ("875 Crafting XP" -- also the
+         * wrong number, the wiki's Rewards table says 2,250), with no
+         * stat_advance/inv_add behind it at all, and the cache's own
+         * qip_obs_tele_gear_upper_multi View op (wiki-confirmed, cache-
+         * shipped) had no [oploc1] anywhere in the tree. Fixed in
+         * observatory_telescope.rs2 (roll + reward grant) and
+         * observatory_professor.rs2 (the wiki transcript's own 4-page
+         * "which constellation did you see" ladder, next/previous nav).
+         * Also: itkeepgatelock -- the carrier varp for observatory_
+         * starsign/scopelooked/cutscene_seen -- had no transmit
+         * declaration anywhere in the tree, so the telescope's own
+         * multiloc model swap would never have reached the client even
+         * with the mechanic wired; fixed in quest_itgronigen.varp.
+         *
+         * itgronigenrun (observatory_telescope.rs2) covers the pure roll/
+         * reward-mapping logic, which is safe to call from a debugproc.
+         * The dialogue ladder itself parks on p_choice5/p_choice3
+         * (p_pausebutton), so per the field guide it cannot be driven from
+         * inside a debugproc -- checked here C-side instead, through the
+         * real [opnpc1] dispatch and real button clicks, the same way the
+         * Hans p_choice5 dialogue test above does.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct ToriRSServerCapture itgronigenrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            ToriRSServer_CaptureBegin(srv, &itgronigenrun_capture);
+            ToriRSServer_ScriptsRunDebugproc(srv, "itgronigenrun");
+            ToriRSServer_CaptureEnd(srv);
+
+            for( int i = ToriRSServer_CaptureFind(&itgronigenrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = ToriRSServer_CaptureFind(&itgronigenrun_capture, 90, i + 1) )
+            {
+                const struct ToriRSServerCapturedPacket* packet = &itgronigenrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "ITGRONIGENRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "ITGRONIGENRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::itgronigenrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::itgronigenrun should reach its OK line");
+
+            /* itkeepgatelock transmit fix. */
+            {
+                int carrier = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "itkeepgatelock");
+
+                SELFTEST_CHECK(carrier >= 0,
+                               "itkeepgatelock should resolve in configs/all.varp.compack");
+                SELFTEST_CHECK(carrier >= 0 && ToriRSServer_ContentVarp(carrier) != NULL &&
+                                   ToriRSServer_ContentVarp(carrier)->transmit,
+                               "itkeepgatelock (observatory_starsign/scopelooked/cutscene_seen "
+                               "carrier) should be declared transmit=yes, or the telescope's "
+                               "multiloc swap never reaches the client");
+            }
+
+            /* C-side: real [opnpc1] dispatch through the wiki's 4-page
+             * choice ladder to a sign that needs paging all the way to
+             * page 4 (Pisces) -- proves both the pagination and the
+             * terminal page's p_choice3, not just the first page's
+             * p_choice5. A wrong first guess is checked first, proving a
+             * mismatched sign does NOT complete the quest. */
+            {
+                int npc_professor =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "observatory_professor");
+                int varp_itgronigen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "itgronigen");
+                int vb_starsign =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "observatory_starsign");
+                int vb_scopelooked =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "observatory_scopelooked");
+                int obj_sapphire = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "uncut_sapphire");
+                int obj_tuna = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "tuna");
+                int stat_crafting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
+                int rows_uid =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+                int continue_uid = (231 << 16) | 5;
+
+                SELFTEST_CHECK(npc_professor >= 0 && varp_itgronigen >= 0 && vb_starsign >= 0 &&
+                                   vb_scopelooked >= 0 && obj_sapphire >= 0 && obj_tuna >= 0 &&
+                                   stat_crafting >= 0 && rows_uid > 0,
+                               "the ::itgronigenrun C-side names should all resolve: "
+                               "professor=%d itgronigen=%d starsign=%d scopelooked=%d "
+                               "sapphire=%d tuna=%d crafting=%d rows=%d",
+                               npc_professor, varp_itgronigen, vb_starsign, vb_scopelooked,
+                               obj_sapphire, obj_tuna, stat_crafting, rows_uid);
+
+                if( npc_professor >= 0 && varp_itgronigen >= 0 && vb_starsign >= 0 &&
+                    vb_scopelooked >= 0 && obj_sapphire >= 0 && obj_tuna >= 0 &&
+                    stat_crafting >= 0 && rows_uid > 0 )
+                {
+                    int slot = npc_spawn(srv, npc_professor, player->x + 1, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0,
+                                   "observatory_professor should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        uint8_t opnpc[2];
+                        uint8_t resume[4];
+                        uint8_t button[6];
+                        int craft_xp_before;
+                        int sapphire_before;
+                        int tuna_before;
+                        int qp_before;
+
+                        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                            inv_set(player, i, -1, 0);
+
+                        player->varps[varp_itgronigen] = 6; /* itgronigen_sent_telescope */
+                        ToriRSServer_VarbitSetOn(srv, player, vb_scopelooked, 1);
+                        ToriRSServer_VarbitSetOn(srv, player, vb_starsign, 11); /* sign_pisces */
+
+                        resume[0] = (uint8_t)(continue_uid >> 24);
+                        resume[1] = (uint8_t)(continue_uid >> 16);
+                        resume[2] = (uint8_t)(continue_uid >> 8);
+                        resume[3] = (uint8_t)continue_uid;
+                        button[4] = 0;
+
+                        selftest_npc_payload(player, slot, opnpc);
+
+                        /* Wrong first guess: Aquarius, page 1 slot 1. The
+                         * assigned sign is Pisces, so this must NOT
+                         * complete the quest. */
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
+                        SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
+                                       "the walk to observatory_professor should complete");
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                        SELFTEST_CHECK(player->active_script != NULL,
+                                       "p_choice5 (page 1) should park on p_pausebutton");
+
+                        button[0] = (uint8_t)(rows_uid >> 24);
+                        button[1] = (uint8_t)(rows_uid >> 16);
+                        button[2] = (uint8_t)(rows_uid >> 8);
+                        button[3] = (uint8_t)rows_uid;
+                        button[5] = 1; /* Aquarius -- wrong */
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+
+                        SELFTEST_CHECK(player->varps[varp_itgronigen] == 6,
+                                       "a wrong constellation guess must not complete the quest, "
+                                       "itgronigen=%d",
+                                       player->varps[varp_itgronigen]);
+                        SELFTEST_CHECK(selftest_count_obj(player, obj_sapphire) == 0,
+                                       "a wrong guess must not grant the uncut sapphire");
+
+                        /* Close whatever the wrong-guess reply parked on,
+                         * then talk to the professor again and page all
+                         * the way to Pisces (page 4, slot 3). */
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+
+                        craft_xp_before = player->stat_xp_tenths[stat_crafting];
+                        sapphire_before = selftest_count_obj(player, obj_sapphire);
+                        tuna_before = selftest_count_obj(player, obj_tuna);
+                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")];
+
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
+                        SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
+                                       "the second walk to observatory_professor should complete");
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+                        SELFTEST_CHECK(player->active_script != NULL,
+                                       "p_choice5 (page 1, second visit) should park again");
+
+                        /* page 1 -> page 2 -> page 3 -> page 4 via "~ next ~" (slot 5). */
+                        for( int page = 0; page < 3; page++ )
+                        {
+                            button[5] = 5;
+                            ToriRSServer_WorldHandle(
+                                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                            SELFTEST_CHECK(player->active_script != NULL,
+                                           "~ next ~ should page to the next choice menu (page %d)",
+                                           page + 2);
+                        }
+                        /* page 4 is a p_choice3: "~ previous ~", "Aries", "Pisces". */
+                        button[5] = 3; /* Pisces -- correct */
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+
+                        SELFTEST_CHECK(player->varps[varp_itgronigen] == 7 /* itgronigen_complete */,
+                                       "the correct constellation guess should complete the quest, "
+                                       "itgronigen=%d",
+                                       player->varps[varp_itgronigen]);
+                        SELFTEST_CHECK(
+                            player->stat_xp_tenths[stat_crafting] ==
+                                craft_xp_before + 22500,
+                            "completing via Pisces should grant 2250 Crafting XP, went %d -> %d",
+                            craft_xp_before,
+                            player->stat_xp_tenths[stat_crafting]);
+                        SELFTEST_CHECK(
+                            selftest_count_obj(player, obj_sapphire) == sapphire_before + 1,
+                            "completing should grant an uncut sapphire, went %d -> %d",
+                            sapphire_before,
+                            selftest_count_obj(player, obj_sapphire));
+                        SELFTEST_CHECK(
+                            selftest_count_obj(player, obj_tuna) == tuna_before + 3,
+                            "Pisces should grant 3 tuna, went %d -> %d",
+                            tuna_before,
+                            selftest_count_obj(player, obj_tuna));
+                        SELFTEST_CHECK(
+                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")] ==
+                                qp_before + 2,
+                            "completing the quest should award +2 QP, went %d -> %d",
+                            qp_before,
+                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp")]);
+
+                        ToriRSServer_WorldNpcFree(srv, slot);
+                        ToriRSServer_WorldNpcReap(srv);
+                        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                            inv_set(player, i, -1, 0);
+                        player->varps[varp_itgronigen] = 0;
+                        ToriRSServer_VarbitSetOn(srv, player, vb_scopelooked, 0);
+                        ToriRSServer_VarbitSetOn(srv, player, vb_starsign, 0);
+                    }
+                }
             }
             ToriRSServer_ScriptsFree(srv);
         }
@@ -59695,6 +60159,538 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::shilovillagerun\n");
+    {
+        /*
+         * Shilo Village (2026-08-20 audit). Static read found the entire
+         * quest apart from the Nazastarool fight (rashiliyia.rs2,
+         * nazastarool.rs2) and the journal unwired: zero oploc/opnpcu/opheld
+         * triggers existed anywhere in quest_zombiequeen/ before this pass,
+         * `%zombiequeen` was never assigned outside comparisons, and
+         * mosol_rei.rs2's own header admitted "belt->Trufitus start chain
+         * deferred". The cache ships every loc/obj the wiki names (mound,
+         * fissure, all 4 Ah Za Rhoon item locs, Bervirius' dolmen, the
+         * carved/bone doors, the fight dolmen) -- confirmed by grep before
+         * writing a line, same "wire what's already shipped" shape as Lost
+         * City/Scorpion Catcher. New files: ahzarhoon.rs2 (mound + dungeon +
+         * exit), bervirius_and_rashtomb.rs2 (Cairn Isle, necklace, door
+         * puzzle, completion); edits: mosol_rei.rs2 (belt grant was
+         * genuinely missing -- the old code only ever checked whether the
+         * player already held the belt, never granted it), trufitus.rs2
+         * (belt delivery / item hand-in / bone shard arms), uncut_gem.rs2
+         * (two new chisel cases), nazastarool.rs2 (defeat_nazastarool3
+         * never wrote %zombiequeen at all -- the corpse dropped but the
+         * quest could never see it as retrieved).
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+        int npc_mosol = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "mosol_rei");
+        int npc_trufitus = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "trufitus");
+        int varp_zq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "zombiequeen");
+        int varp_zqmech = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "zq_map_mechanisms");
+        int varp_jp2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "junglepotion");
+        int obj_belt = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "mosol_wampum_belt");
+        int obj_spade = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "spade");
+        int obj_chisel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "chisel");
+        int obj_rope = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rope");
+        int obj_torch = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "torch_lit");
+        int obj_bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bones");
+        int obj_wire = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronzecraftwire");
+        int obj_plaque = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqplaque");
+        int obj_tattered = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqberviriusscroll");
+        int obj_crumpled = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqrashiliyiascroll");
+        int obj_zadimus = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqzadimusbones");
+        int obj_shard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqboneshard");
+        int obj_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqbonekey");
+        int obj_pommel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqbevsword");
+        int obj_bonebeads = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqbonebeads");
+        int obj_beads = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqdeadbeads");
+        int obj_crystal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqcrystal");
+        int obj_corpse = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "zqcorpse");
+        int loc_mound = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahzarhoon_entrance");
+        int loc_fissure = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahzarhoon_entrance_fissure");
+        int loc_fissurerope =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ahzarhoon_entrance_fissure_withrope");
+        int loc_stone = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqsecretstone");
+        int loc_looserocks = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "secretrubblebook");
+        int loc_sacks = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqsacks");
+        int loc_gallows = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqgallows");
+        int loc_table = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqtableraft");
+        int loc_raft = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqlograft");
+        int loc_cairnrocks = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqrocks");
+        int loc_dolmen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqdolmen");
+        int loc_statue = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zq_tribal_statue");
+        int loc_carveddoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "hillsideclosedl");
+        int loc_bonedoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "thzq_tombrooml1");
+        int loc_fightdolmen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "zqrashdolmen");
+        int stat_crafting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
+        int stat_agility = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "agility");
+        int junglepotion_complete_val = 12;
+
+        SELFTEST_CHECK(npc_mosol >= 0 && npc_trufitus >= 0 && varp_zq >= 0 && varp_zqmech >= 0 &&
+                           obj_belt >= 0 && obj_spade >= 0 && obj_chisel >= 0 && obj_rope >= 0 &&
+                           obj_torch >= 0 && obj_bones >= 0 && obj_wire >= 0 && obj_plaque >= 0 &&
+                           obj_tattered >= 0 && obj_crumpled >= 0 && obj_zadimus >= 0 &&
+                           obj_shard >= 0 && obj_key >= 0 && obj_pommel >= 0 &&
+                           obj_bonebeads >= 0 && obj_beads >= 0 && obj_crystal >= 0 &&
+                           obj_corpse >= 0 && loc_mound >= 0 && loc_fissure >= 0 &&
+                           loc_fissurerope >= 0 && loc_stone >= 0 && loc_looserocks >= 0 &&
+                           loc_sacks >= 0 && loc_gallows >= 0 && loc_table >= 0 && loc_raft >= 0 &&
+                           loc_cairnrocks >= 0 && loc_dolmen >= 0 && loc_statue >= 0 &&
+                           loc_carveddoor >= 0 && loc_bonedoor >= 0 && loc_fightdolmen >= 0 &&
+                           stat_crafting >= 0 && stat_agility >= 0,
+                       "the ::shilovillagerun C-side names should all resolve");
+
+        if( npc_mosol >= 0 && npc_trufitus >= 0 && varp_zq >= 0 && varp_zqmech >= 0 &&
+            obj_belt >= 0 && loc_mound >= 0 && loc_fissure >= 0 && loc_fissurerope >= 0 &&
+            loc_stone >= 0 && loc_looserocks >= 0 && loc_sacks >= 0 && loc_gallows >= 0 &&
+            loc_table >= 0 && loc_raft >= 0 && loc_cairnrocks >= 0 && loc_dolmen >= 0 &&
+            loc_statue >= 0 && loc_carveddoor >= 0 && loc_bonedoor >= 0 && loc_fightdolmen >= 0 &&
+            stat_crafting >= 0 && stat_agility >= 0 )
+        {
+            int s;
+            int npc_slot;
+            int loc_slot;
+
+            for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                inv_set(player, s, -1, 0);
+            player->varps[varp_zq] = 0;
+            player->varps[varp_zqmech] = 0;
+            player->varps[varp_jp2] = junglepotion_complete_val;
+            player->stat_level[stat_crafting] = 99;
+            player->stat_boosted[stat_crafting] = 99;
+            player->stat_level[stat_agility] = 99;
+            player->stat_boosted[stat_agility] = 99;
+
+            /* ---- Mosol Rei: the belt was never actually granted before this pass ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2881, 2951);
+            ToriRSServer_WorldTick(srv);
+            npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_mosol, 2881, 2951, 0);
+            SELFTEST_CHECK(npc_slot >= 0, "mosol_rei should spawn for the belt-grant check");
+            if( npc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_mosol, -1, npc_slot);
+                selftest_click_through(srv, 20);
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_belt || player->last_item == obj_belt ||
+                                   selftest_count_obj(player, obj_belt) > 0,
+                               "mosol_rei's full belt dialogue should grant mosol_wampum_belt, "
+                               "inv[0]=%d",
+                               player->inv[0].obj_id);
+                SELFTEST_CHECK(player->varps[varp_zq] == 0,
+                               "the quest should not be ^zombiequeen_started until the belt "
+                               "reaches Trufitus, got %d",
+                               player->varps[varp_zq]);
+                ToriRSServer_WorldNpcFree(srv, npc_slot);
+                ToriRSServer_WorldNpcReap(srv);
+            }
+
+            /* ---- Trufitus: belt delivery starts the quest for real ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2809, 3086);
+            ToriRSServer_WorldTick(srv);
+            npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_trufitus, 2809, 3086, 0);
+            SELFTEST_CHECK(npc_slot >= 0, "trufitus should spawn for the belt hand-in check");
+            if( npc_slot >= 0 )
+            {
+                inv_set(player, 0, obj_belt, 1);
+                player->last_useitem = obj_belt;
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
+                selftest_click_through(srv, 20);
+                SELFTEST_CHECK(player->varps[varp_zq] == 1 /* zombiequeen_started */,
+                               "the legend dialogue should advance zombiequeen to "
+                               "zombiequeen_started, got %d",
+                               player->varps[varp_zq]);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_belt) == 0,
+                               "the belt should be consumed on delivery");
+                ToriRSServer_WorldNpcFree(srv, npc_slot);
+                ToriRSServer_WorldNpcReap(srv);
+            }
+
+            /* ---- the mound / fissure ladder ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2922, 3000);
+            ToriRSServer_WorldTick(srv);
+            /* (2921,2999) is ahzarhoon_entrance's real SW corner, found by a live scene
+             * scan -- the wiki's own coordinate (2922,3000) is one tile off and
+             * SceneFindLocId needs an exact corner match. */
+            loc_slot = ToriRSServer_SceneFindLocId(2921, 2999, 0, loc_mound);
+            SELFTEST_CHECK(loc_slot >= 0, "ahzarhoon_entrance should resolve to a real scene slot");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mound, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 2 /* zombiequeen_found_mound */,
+                               "looking at the mound should advance to found_mound, got %d",
+                               player->varps[varp_zq]);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_mound, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 3 /* zombiequeen_searched_mound */,
+                               "searching the mound should advance to searched_mound, got %d",
+                               player->varps[varp_zq]);
+
+                inv_set(player, 0, obj_spade, 1);
+                player->last_useitem = obj_spade;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mound, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 4 /* zombiequeen_dug_mound */,
+                               "digging with the spade should advance to dug_mound, got %d",
+                               player->varps[varp_zq]);
+                loc_slot = ToriRSServer_SceneFindLocId(2921, 2999, 0, loc_fissure);
+                SELFTEST_CHECK(loc_slot >= 0, "the mound should have loc_change'd to the fissure");
+            }
+            if( loc_slot >= 0 )
+            {
+                inv_set(player, 0, obj_torch, 1);
+                player->last_useitem = obj_torch;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 5 /* zombiequeen_lit_mound */,
+                               "lighting the fissure should advance to lit_mound, got %d",
+                               player->varps[varp_zq]);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_torch) == 0,
+                               "the light source should be consumed");
+
+                inv_set(player, 0, obj_rope, 1);
+                player->last_useitem = obj_rope;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 6 /* zombiequeen_roped_mound */,
+                               "roping the fissure should advance to roped_mound, got %d",
+                               player->varps[varp_zq]);
+                loc_slot = ToriRSServer_SceneFindLocId(2921, 2999, 0, loc_fissurerope);
+                SELFTEST_CHECK(loc_slot >= 0, "the fissure should have loc_change'd to the roped variant");
+            }
+            if( loc_slot >= 0 )
+            {
+                int state_before;
+                player->stat_level[stat_agility] = 10;
+                player->stat_boosted[stat_agility] = 10;
+                state_before = player->varps[varp_zq];
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == state_before,
+                               "climbing down below Agility 32 should NOT advance the quest, "
+                               "got %d -> %d",
+                               state_before, player->varps[varp_zq]);
+                player->stat_level[stat_agility] = 99;
+                player->stat_boosted[stat_agility] = 99;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 7 /* zombiequeen_entered_ah_za_rhoon */,
+                               "climbing down at Agility 32+ should advance to "
+                               "entered_ah_za_rhoon, got %d",
+                               player->varps[varp_zq]);
+            }
+
+            /* ---- the four Ah Za Rhoon items, each a real search on a real cache loc ----
+             * Spread across the cavern (Quest Helper's own coordinates), so each gets its
+             * own teleport+tick rather than sharing one anchor -- confirmed live that a
+             * single shared anchor only ever found 2 of 5 (stone, table), the other three
+             * are simply outside that one scene window. SceneFindLoc (footprint-tolerant),
+             * not SceneFindLocId (exact SW corner only) -- these are Quest Helper's click
+             * coordinates, not verified corners. */
+            ToriRSServer_WorldTeleport(srv, 0, 2888, 9373);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2888, 9373, 0, loc_stone);
+            SELFTEST_CHECK(loc_slot >= 0, "zqsecretstone should resolve near the dungeon entry");
+            if( loc_slot >= 0 )
+            {
+                inv_set(player, 0, obj_chisel, 1);
+                player->last_useitem = obj_chisel;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_stone, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
+                               "chiselling the strange stone should grant zqplaque");
+            }
+
+            ToriRSServer_WorldTeleport(srv, 0, 2885, 9318);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2885, 9318, 0, loc_looserocks);
+            SELFTEST_CHECK(loc_slot >= 0, "secretrubblebook should resolve near the dungeon entry");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_looserocks, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_tattered) > 0,
+                               "searching the loose rocks should grant zqberviriusscroll");
+            }
+
+            ToriRSServer_WorldTeleport(srv, 0, 2939, 9285);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2939, 9285, 0, loc_sacks);
+            SELFTEST_CHECK(loc_slot >= 0, "zqsacks should resolve near the dungeon entry");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_sacks, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_crumpled) > 0,
+                               "searching the sacks should grant zqrashiliyiascroll");
+            }
+
+            ToriRSServer_WorldTeleport(srv, 0, 2935, 9326);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2935, 9326, 0, loc_gallows);
+            SELFTEST_CHECK(loc_slot >= 0, "zqgallows should resolve near the dungeon entry");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_gallows, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) > 0,
+                               "searching the gallows should grant zqzadimusbones");
+            }
+
+            ToriRSServer_WorldTeleport(srv, 0, 2896, 9377);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2896, 9377, 0, loc_table);
+            SELFTEST_CHECK(loc_slot >= 0, "zqtableraft should resolve near the dungeon entry");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                loc_slot = ToriRSServer_SceneFindLoc(2896, 9377, 0, loc_raft);
+                SELFTEST_CHECK(loc_slot >= 0, "crafting the table should loc_change to zqlograft");
+                if( loc_slot >= 0 )
+                {
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_raft, -1, loc_slot);
+                    selftest_click_through(srv, 5);
+                    SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
+                                   "disembarking the raft should advance to "
+                                   "left_ah_za_rhoon, got %d",
+                                   player->varps[varp_zq]);
+                }
+            }
+
+            /* ---- show Trufitus the four items ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2809, 3086);
+            ToriRSServer_WorldTick(srv);
+            npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_trufitus, 2809, 3086, 0);
+            SELFTEST_CHECK(npc_slot >= 0, "trufitus should spawn for the item hand-in check");
+            if( npc_slot >= 0 )
+            {
+                player->last_useitem = obj_plaque;
+                ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
+                selftest_click_through(srv, 20);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
+                               "showing Trufitus the items should set zq_used_dolmen_paper, got "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
+                ToriRSServer_WorldNpcFree(srv, npc_slot);
+                ToriRSServer_WorldNpcReap(srv);
+            }
+
+            /* ---- bury Zadimus' corpse at the tribal statue ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2795, 3089);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2795, 3089, 0, loc_statue);
+            SELFTEST_CHECK(loc_slot >= 0, "zq_tribal_statue should resolve near Trufitus' village");
+            if( loc_slot >= 0 )
+            {
+                player->last_useitem = obj_zadimus;
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_statue, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_shard) > 0,
+                               "burying the corpse should grant zqboneshard");
+                SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) == 0,
+                               "burying the corpse should consume zqzadimusbones");
+            }
+
+            /* ---- Tomb of Bervirius: Cairn Isle, the dolmen, the necklace ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2762, 2990);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2762, 2990, 0, loc_cairnrocks);
+            SELFTEST_CHECK(loc_slot >= 0, "zqrocks should resolve on Cairn Isle");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_cairnrocks, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 9 /* zombiequeen_entered_tomb_bervirius */,
+                               "entering the crawl-way should advance to "
+                               "entered_tomb_bervirius, got %d",
+                               player->varps[varp_zq]);
+            }
+            /* Quest Helper's own ZQDOLMEN coordinate -- the in-script p_telejump target
+             * (0_43_146_8_26) is close but not guaranteed exact, so re-teleport here rather
+             * than trust it landed within the same scene window as the dolmen. */
+            ToriRSServer_WorldTeleport(srv, 0, 2767, 9365);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2767, 9365, 0, loc_dolmen);
+            SELFTEST_CHECK(loc_slot >= 0, "zqdolmen should resolve inside the tomb of Bervirius");
+            if( loc_slot >= 0 )
+            {
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_dolmen, -1, loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_crystal) > 0 &&
+                                   selftest_count_obj(player, obj_pommel) > 0,
+                               "searching the dolmen should grant the crystal and the "
+                               "sword pommel");
+            }
+
+            /* ---- craft the bone beads and the bone key (shared uncut_gem.rs2 switch) ---- */
+            {
+                uint8_t payload[16];
+                struct RSAreaBuf out;
+
+                inv_set(player, 0, obj_chisel, 1);
+                inv_set(player, 1, obj_pommel, 1);
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, obj_chisel);
+                rsab_p2(&out, 0);
+                rsab_p4(&out, 0);
+                rsab_p2(&out, obj_pommel);
+                rsab_p2(&out, 1);
+                rsab_p4(&out, 0);
+                ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_bonebeads) > 0,
+                               "chisel + sword pommel should craft zqbonebeads");
+
+                inv_set(player, 0, obj_wire, 1);
+                inv_set(player, 1, obj_bonebeads, 1);
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, obj_bonebeads);
+                rsab_p2(&out, 1);
+                rsab_p4(&out, 0);
+                rsab_p2(&out, obj_wire);
+                rsab_p2(&out, 0);
+                rsab_p4(&out, 0);
+                ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_beads) > 0,
+                               "bronze wire + bone beads should craft zqdeadbeads");
+
+                worn_set(player, TORIRSSERVER_WEAR_AMULET, obj_beads, 1);
+                SELFTEST_CHECK(player->worn[TORIRSSERVER_WEAR_AMULET].obj_id == obj_beads,
+                               "the necklace should be wearable, worn obj=%d",
+                               player->worn[TORIRSSERVER_WEAR_AMULET].obj_id);
+
+                inv_set(player, 0, obj_chisel, 1);
+                inv_set(player, 1, obj_shard, 1);
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, obj_chisel);
+                rsab_p2(&out, 0);
+                rsab_p4(&out, 0);
+                rsab_p2(&out, obj_shard);
+                rsab_p2(&out, 1);
+                rsab_p4(&out, 0);
+                player->stat_level[stat_crafting] = 5;
+                player->stat_boosted[stat_crafting] = 5;
+                ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
+                               "the bone key should require Crafting 20, not craft below it");
+                player->stat_level[stat_crafting] = 99;
+                player->stat_boosted[stat_crafting] = 99;
+                ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_key) > 0,
+                               "chisel + bone shard at Crafting 20+ should craft zqbonekey");
+            }
+
+            /* ---- Rashiliyia's Tomb: carved door, bone door, the fight dolmen ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2916, 3091);
+            ToriRSServer_WorldTick(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2916, 3091, 0, loc_carveddoor);
+            SELFTEST_CHECK(loc_slot >= 0, "hillsideclosedl should resolve near the palm trees");
+            if( loc_slot >= 0 )
+            {
+                int px, pz;
+
+                player->last_useitem = obj_key;
+                worn_set(player, TORIRSSERVER_WEAR_AMULET, -1, 0); /* unequip the beads: block-without-protection check */
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] != 10 /* zombiequeen_unlocked_rashliyia_tomb */,
+                               "entering without the beads worn should NOT unlock the tomb, got %d",
+                               player->varps[varp_zq]);
+
+                worn_set(player, TORIRSSERVER_WEAR_AMULET, obj_beads, 1);
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
+                                                    loc_slot);
+                selftest_click_through(srv, 5);
+                SELFTEST_CHECK(player->varps[varp_zq] == 10 /* zombiequeen_unlocked_rashliyia_tomb */,
+                               "the bone key with beads worn should unlock the tomb, got %d",
+                               player->varps[varp_zq]);
+
+                /* Quest Helper's own coordinates for the bone door and fight dolmen --
+                 * re-teleport directly rather than trust the in-script p_telejump
+                 * (0_45_148_10_10) landed within the same scene window as either. */
+                px = 2892;
+                pz = 9480;
+                ToriRSServer_WorldTeleport(srv, 0, px, pz);
+                ToriRSServer_WorldTick(srv);
+                loc_slot = ToriRSServer_SceneFindLoc(px, pz, 0, loc_bonedoor);
+                SELFTEST_CHECK(loc_slot >= 0, "thzq_tombrooml1 should resolve after the carved-door teleport");
+                if( loc_slot >= 0 )
+                {
+                    inv_set(player, 0, obj_bones, 3);
+                    player->last_useitem = obj_bones;
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
+                                                        loc_slot);
+                    selftest_click_through(srv, 5);
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
+                                                        loc_slot);
+                    selftest_click_through(srv, 5);
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
+                                                        loc_slot);
+                    selftest_click_through(srv, 5);
+                    SELFTEST_CHECK(player->varps[varp_zq] == 12 /* zombiequeen_unlocked_tombdoor */,
+                                   "placing three bones should unlock the tomb door, got %d",
+                                   player->varps[varp_zq]);
+                    SELFTEST_CHECK(selftest_count_obj(player, obj_bones) == 0,
+                                   "each bone placement should consume one bone");
+                }
+
+                px = 2893;
+                pz = 9488;
+                ToriRSServer_WorldTeleport(srv, 0, px, pz);
+                ToriRSServer_WorldTick(srv);
+                loc_slot = ToriRSServer_SceneFindLoc(px, pz, 0, loc_fightdolmen);
+                SELFTEST_CHECK(loc_slot >= 0, "zqrashdolmen should resolve in Rashiliyia's Tomb");
+                if( loc_slot >= 0 )
+                {
+                    int npc_naz1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "zq_mainzombie1");
+                    int naz_slot = -1;
+                    int i;
+
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fightdolmen, -1,
+                                                        loc_slot);
+                    selftest_click_through(srv, 5);
+                    for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                    {
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_naz1 )
+                        {
+                            naz_slot = i;
+                            break;
+                        }
+                    }
+                    SELFTEST_CHECK(naz_slot >= 0,
+                                   "searching the fight dolmen should summon the first "
+                                   "Nazastarool form");
+                }
+            }
+
+            for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                inv_set(player, s, -1, 0);
+            player->varps[varp_zq] = 0;
+            player->varps[varp_zqmech] = 0;
+        }
+        ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::waterfallrun\n");
     {
         /*
@@ -61200,7 +62196,14 @@ ToriRSServer_WorldSelftest(void)
              * Ungated it would paint a harness limit as a content
              * bug on every build.
              */
-            if( getenv("TORIRSSERVER_RUNECRAFTRUN") == NULL )
+            /*
+             * DEFAULT-ON since 2026-08-20. Gated when it was first wired
+             * because it failed, and I read that as the harness being unable
+             * to carry equipment. It was not: the stanza equipped its tiara
+             * with `inv_add(worn, ...)`, which fills the first free slot rather
+             * than the hat slot the varbit proc reads. 24 assertions.
+             */
+            if( 0 )
             {
                 said_ok = 1;
             }
@@ -61308,6 +62311,95 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(!said_fail, "::miningrun should report no failures");
             SELFTEST_CHECK(said_ok, "::miningrun should reach its OK line");
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: diary hook reached by a real kill\n");
+    {
+        /*
+         * The seam stanzas prove `~diary_task_award` and friends. They cannot
+         * prove that a hook is actually CALLED from the content it belongs to:
+         * deleting `~diary_count_rockcrab` from `[label,rockcrab_drops]` left
+         * the whole suite green, which is the one failure mode that matters
+         * across 492 hooks.
+         *
+         * So this leg stages a real death. The kill half spawns a rock crab,
+         * makes it active and damages it through `CombatHitNpc` -- the same
+         * path a player's hit takes. `[ai_queue3]` is QUEUED rather than
+         * synchronous, so the world is ticked before the check half reads the
+         * progress varp the hook writes.
+         */
+        const struct SSVM_Script* kill_script = NULL;
+        const struct SSVM_Script* check_script = NULL;
+        int loaded = ToriRSServer_ScriptsLoad(
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            kill_script = SSVM_ProviderGetByName(
+                srv->scripts, "[proc,selftest_diary_rockcrab_trigger_kill]");
+            check_script = SSVM_ProviderGetByName(
+                srv->scripts, "[proc,selftest_diary_rockcrab_trigger_check]");
+            SELFTEST_CHECK(kill_script != NULL,
+                           "the rock crab kill stanza should be in the pack");
+            SELFTEST_CHECK(check_script != NULL,
+                           "the rock crab check stanza should be in the pack");
+            if( kill_script && check_script )
+            {
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_ScriptsRunScript(srv, kill_script->id);
+                SELFTEST_CHECK(
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                    "spawning and killing a rock crab should reach step 2, got %d",
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                for( int i = 0; i < 4; i++ )
+                    ToriRSServer_WorldTick(srv);
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_ScriptsRunScript(srv, check_script->id);
+                SELFTEST_CHECK(
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                    "a real rock crab death must reach the diary hook in its "
+                    "drop label, got %d",
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                /* The same shape over the single-kill hooks. */
+                {
+                    const struct SSVM_Script* k = SSVM_ProviderGetByName(
+                        srv->scripts, "[proc,selftest_diary_kills_kill]");
+                    const struct SSVM_Script* c = SSVM_ProviderGetByName(
+                        srv->scripts, "[proc,selftest_diary_kills_check]");
+
+                    SELFTEST_CHECK(k && c,
+                                   "the diary kill stanzas should be in the pack");
+                    if( k && c )
+                    {
+                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                        ToriRSServer_ScriptsRunScript(srv, k->id);
+                        SELFTEST_CHECK(
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                            "spawning and killing a ghoul and a kalphite queen "
+                            "should reach step 2, got %d",
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                        for( int t = 0; t < 4; t++ )
+                            ToriRSServer_WorldTick(srv);
+                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                        ToriRSServer_ScriptsRunScript(srv, c->id);
+                        SELFTEST_CHECK(
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                            "real ghoul and kalphite queen deaths must reach "
+                            "their diary hooks, got %d",
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    }
+                }
+            }
             ToriRSServer_ScriptsFree(srv);
         }
     }

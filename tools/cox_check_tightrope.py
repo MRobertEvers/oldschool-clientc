@@ -69,14 +69,37 @@ def proc_body(text: str, header: str) -> str:
 
 
 def npc_block(text: str, name: str) -> str:
-    """Text of the [name] npc record, up to the next [record] header."""
-    return proc_body(text, f"[{name}]")
+    """Text of the [name] npc record: its field lines only, stopping at the
+    first blank line. An .npc record's fields are always contiguous with no
+    blank lines between them (every record in this file is separated from
+    the next by a blank line, sometimes followed by a comment block
+    documenting the NEXT record) -- stopping only at the next literal `[...]`
+    header, as proc_body does for multi-line proc bodies, pulls that trailing
+    comment prose into this record's text. A false positive bit exactly this
+    way: raids_tightrope_mage's parsed "block" ran through the crab section's
+    leading comment (which discusses `huntmode=aggressive` for a DIFFERENT
+    npc) and the substring check flagged it against the wrong record."""
+    lines = text.splitlines()
+    start = None
+    header = f"[{name}]"
+    for i, line in enumerate(lines):
+        if line.strip() == header:
+            start = i + 1
+            break
+    if start is None:
+        return ""
+    body = []
+    for line in lines[start:]:
+        if line.startswith("[") or line.strip() == "":
+            break
+        body.append(line)
+    return "\n".join(body)
 
 
 def check_triggers(puzzles_text: str) -> list:
     failures = []
     headers = {m.group(2) for m in TRIGGER.finditer(puzzles_text) if m.group(1) == "oploc1"}
-    for loc in ("raids_tightrope_end", "raids_tightrope_keystone_loc"):
+    for loc in ("raids_tightrope_end", "raids_tightrope_keystone_loc", "raids_tightrope_barrier"):
         if loc not in headers:
             failures.append(f"MISSING TRIGGER: no [oploc1,{loc}] block in {PUZZLES.name}")
     return failures

@@ -200,10 +200,18 @@ class Profile:
         return self.ini.get_all("args", "arg")
 
     @property
-    def extra_services(self):
-        """Services this profile wants beyond the ones its client implies."""
+    def services(self):
+        """The processes this profile starts, in start order.
+
+        Declared, not inferred: a dependency is listed before whatever needs
+        it, and reading this line tells you the whole process set.
+        """
         raw = self.ini.get("profile", "services") or ""
         return [part.strip() for part in raw.split(",") if part.strip()]
+
+    def service_config(self, name):
+        """The `[service:<name>]` block — ports and paths for one service."""
+        return dict(self.ini.items("service:%s" % name))
 
     def overrides(self):
         """`[override:<section>]` blocks as (section, [(key, value)…])."""
@@ -291,7 +299,15 @@ def generate_resolved_manifest(profile, out_dir):
         if stripped and stripped[0] not in ";#" and "=" in stripped:
             key = stripped.split("=", 1)[0].strip()
             if (section, key) in pending:
-                out_lines.append("%s=%s" % (key, pending[(section, key)]))
+                value = pending[(section, key)]
+                # An OVERRIDDEN path key needs the same absolute rewrite as an
+                # inherited one. A profile author writes `dir=../cache.x`
+                # against the manifest they are overriding, not against
+                # build/manifests/ where the copy lands — resolving it here is
+                # what keeps those two frames from disagreeing.
+                if key in MANIFEST_RELATIVE_KEYS:
+                    value = manifest.resolve_path(value)
+                out_lines.append("%s=%s" % (key, value))
                 applied.add((section, key))
                 continue
             if key in MANIFEST_RELATIVE_KEYS:
@@ -313,7 +329,10 @@ def generate_resolved_manifest(profile, out_dir):
             out_lines.append("")
             out_lines.append("[%s]" % section_name)
             for key in keys:
-                out_lines.append("%s=%s" % (key, pending[(section_name, key)]))
+                value = pending[(section_name, key)]
+                if key in MANIFEST_RELATIVE_KEYS:
+                    value = manifest.resolve_path(value)
+                out_lines.append("%s=%s" % (key, value))
 
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "%s.ini" % profile.name)

@@ -2177,7 +2177,14 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
-torirsserver: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# $(TORIRSSERVER_SRCS) is listed as a prerequisite, not just on the command
+# line. Without it this target depends only on the third-party .o files, which
+# almost never change -- so editing the server's own C left `make torirsserver`
+# reporting "up to date" and the old binary in place. That is worse than a slow
+# build: a selftest row added to torirs_server_world.c was silently absent from
+# the binary that ran, and an absent row cannot fail, so it reads exactly like
+# a passing one. Found after a mutation refused to bite twice.
+torirsserver: $(OBJ_DIR) $(TORIRSSERVER_SRCS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \

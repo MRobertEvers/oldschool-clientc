@@ -1,0 +1,691 @@
+"""`./launch` — one entry point for every way this tree can be run.
+
+The launcher RESOLVES and DISPATCHES. It deliberately does not re-implement
+what already works: content preparation stays in run-live.sh (reached through
+its TORIRS_PREPARE_ONLY seam, or replaced per-world by `[derived:*]` blocks),
+jar patching stays in run-runelite.sh, and the flavor objdir scheme stays in
+src/makefile. What is new here is a NAME for a runnable configuration, and
+ownership of the processes that name implies.
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+import time
+import urllib.parse
+
+from . import services as services_mod
+from . import staleness, supervisor
+from .profiles import (LaunchError, generate_resolved_manifest, list_profiles,
+                       load_profile)
+
+REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def say(message):
+    print("launch: %s" % message, file=sys.stderr)
+
+
+# ----------------------------------------------------------------- flavor
+def flavor_make_args(flavors, embed):
+    """Flavor names -> make variables + the binary the link lands in.
+
+    Each flavor already owns an object directory in src/makefile; nothing here
+    invents a naming scheme, it only states which variables select which one.
+    """
+    make_args = []
+    binary = "src/torirs"
+    target = "torirs"
+
+    if "debug" in flavors:
+        make_args.append("OPT=0")
+    if "nosimd" in flavors and "asan" not in flavors:
+        make_args.append("TORIDRAW_NO_SIMD=1")
+    if "tdo" in flavors:
+        make_args.append("TORIDRAW_OPT=1")
+    if "memtrace" in flavors:
+        make_args.append("MEMTRACE=1")
+        binary = "src/torirs_mt"
+        target = "torirs_mt"
+    if "asan" in flavors:
+        # ASan on this tree is a package deal, and the parts are not optional:
+        # UBSan rides along, NO_SIMD goes with it because UBSan cannot see
+        # inside the vector kernels, and the whole thing gets its own objdir so
+        # an unsanitized src/torirs is never clobbered.
+        make_args += [
+            "ENABLE_ASAN=1", "ENABLE_UBSAN=1", "TORIDRAW_NO_SIMD=1",
+            "PLATFORM_OBJ_BASE=build_asan", "PLATFORM_TARGET=torirs_asan",
+        ]
+        binary = "src/torirs_asan"
+        target = "torirs_asan"
+    if embed:
+        make_args.append("EMBED_SERVER=1")
+    return make_args, binary, target
+
+
+def asan_env():
+    return {
+        "ASAN_OPTIONS": os.environ.get(
+            "ASAN_OPTIONS",
+            "detect_leaks=0:halt_on_error=0:abort_on_error=0"
+            ":print_stacktrace=1:log_path=stderr"),
+        "UBSAN_OPTIONS": os.environ.get(
+            "UBSAN_OPTIONS", "print_stacktrace=1"),
+    }
+
+
+def _expected_port(service_name, profile, manifest):
+    """Where an undeclared service would be expected to answer, if anywhere."""
+    config = profile.service_config(service_name)
+    if config.get("port"):
+        return config["port"]
+    if service_name == "torirsserver":
+        transport = (manifest.transport or "").strip()
+        if transport in ("tcp", "ws") and manifest.net_port:
+            return manifest.net_port
+        return services_mod.DEFAULT_GAME_PORT
+    if service_name == "js5_server":
+        return services_mod.DEFAULT_JS5_PORT
+    if service_name == "torirsmaped":
+        return manifest.editor_port
+    return None
+
+
+def _check_declared_services(profile, manifest, service_list):
+    """Refuse a profile whose declared services cannot run its frontend.
+
+    Services are declared, never inferred — but an omission must not be left to
+    surface as a tab that never loads or a client stuck on "Connecting to
+    server...". The check names the missing service, says why the run needs it,
+    and prints the line to add.
+    """
+    declared = {service.name for service in service_list}
+
+    # Advisory: probably wanted, but a server somebody else runs is a normal
+    # setup here, so this only speaks up when the port is genuinely silent.
+    for name, why in services_mod.advisory_services(
+            profile, manifest, declared).items():
+        expected = _expected_port(name, profile, manifest)
+        if expected and supervisor.port_listening(expected):
+            continue
+        say("note: no %s declared and nothing is listening%s — %s"
+            % (name, " on %s" % expected if expected else "", why))
+
+    missing = [
+        (name, why)
+        for name, why in services_mod.required_services(profile, manifest).items()
+        if name not in declared]
+    if not missing:
+        return
+    lines = [
+        "profile '%s' declares services=%s, which cannot run client=%s:"
+        % (profile.name, ", ".join(profile.services) or "(none)", profile.client)]
+    for name, why in missing:
+        lines.append("    missing %-14s %s" % (name, why))
+    complete = list(profile.services) + [name for name, _ in missing]
+    lines.append("")
+    lines.append("  add to [profile] in %s:"
+                 % os.path.relpath(profile.path, REPO_ROOT))
+    lines.append("    services=%s" % ", ".join(complete))
+    raise LaunchError("\n".join(lines))
+
+
+# ------------------------------------------------------------------- plan
+class Plan:
+    """Everything one `run` needs, resolved before anything is started."""
+
+    def __init__(self, profile, manifest, manifest_path, client, flavors,
+                 service_list, client_argv, env, binary, make_args, target,
+                 url=None, delegate=None, base_manifest_path=None):
+        self.profile = profile
+        self.manifest = manifest
+        self.manifest_path = manifest_path
+        # The world as authored, kept separate from the file actually booted:
+        # once overrides generate a copy, `manifest` describes the copy, and
+        # reporting that as the world would hide which manifest to go edit.
+        self.base_manifest_path = base_manifest_path or manifest_path
+        self.client = client
+        self.flavors = flavors
+        self.services = service_list
+        self.client_argv = client_argv
+        self.env = env
+        self.binary = binary
+        self.make_args = make_args
+        self.target = target
+        self.url = url
+        self.delegate = delegate
+
+    def to_json(self):
+        return {
+            "profile": self.profile.name,
+            "description": self.profile.description,
+            "world": os.path.relpath(self.base_manifest_path, REPO_ROOT),
+            "manifest_used": os.path.relpath(self.manifest_path, REPO_ROOT),
+            "client": self.client,
+            "flavors": self.flavors,
+            "binary": self.binary,
+            "make_args": self.make_args,
+            "client_argv": self.client_argv,
+            "env": self.env,
+            "url": self.url,
+            "delegate": self.delegate,
+            "services": [service.to_json() for service in self.services],
+            "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+
+def build_plan(profile, client_override=None, flavor_override=None,
+               extra_args=()):
+    manifest = profile.manifest()
+    manifest_path = generate_resolved_manifest(
+        profile, os.path.join(REPO_ROOT, "build", "manifests"))
+    # Re-read through the generated file when one was written, so every later
+    # question (transport, cache dir, ports) is answered by the file the run
+    # actually boots rather than the base it came from.
+    if manifest_path != profile.world_path:
+        from .profiles import Manifest
+        manifest = Manifest.load(manifest_path)
+
+    client = client_override or profile.client
+    flavors = (
+        [part.strip() for part in flavor_override.split(",") if part.strip()]
+        if flavor_override else profile.flavor)
+
+    transport = (manifest.transport or "").strip()
+    embed = transport == "embed" and client in ("native", "headless")
+    make_args, binary, target = flavor_make_args(flavors, embed)
+
+    service_list = []
+    delegate = None
+    if client == "runelite":
+        # run-runelite.sh owns the jar surgery AND its own service lifecycle,
+        # with pidfiles of its own. Deriving javconfig/torirsserver here too
+        # would mean two supervisors racing for the same two ports, so this
+        # frontend delegates wholesale rather than half-managing it.
+        delegate = "run-runelite.sh"
+    else:
+        # Services run with cwd=repo root, so they get the same repo-relative
+        # manifest path the client is given. Keeping the two identical is what
+        # makes io_server's GET /boot/<path> serve the page the very file the
+        # native client would have opened.
+        service_list = services_mod.build_services(
+            profile, manifest, os.path.relpath(manifest_path, REPO_ROOT),
+            REPO_ROOT)
+        _check_declared_services(profile, manifest, service_list)
+
+    session = profile.session
+    user = session.get("user") or manifest.user or "asdf"
+    password = session.get("pass") or manifest.password or "a"
+
+    manifest_rel = os.path.relpath(manifest_path, REPO_ROOT)
+    client_argv = []
+    url = None
+    env = dict(profile.env)
+
+    if client in ("native", "headless"):
+        client_argv = [
+            "./" + binary,
+            "--manifest", manifest_rel,
+            "--user", user,
+            "--pass", password,
+        ] + list(profile.client_args) + list(extra_args)
+        if embed:
+            env.setdefault("TORIRS_TRANSPORT", "embed")
+        if client == "headless":
+            # A headless run must terminate on its own, or it is a hung job
+            # rather than a capture. Give it a frame cap unless one is stated.
+            env.setdefault("SDL_VIDEODRIVER", "dummy")
+            env.setdefault("TORIRS_MAX_FRAMES", "60")
+    elif client in ("web", "web-idb"):
+        args = ["--manifest", manifest_rel, "--user", user, "--pass", password]
+        args += list(profile.client_args) + list(extra_args)
+        # The page is served by the io_server this profile declared, so the URL
+        # takes that service's port rather than a second copy of the number.
+        web_port = next(
+            (service.port for service in service_list
+             if service.name == "io_server"),
+            services_mod.DEFAULT_WEB_PORT)
+        query = urllib.parse.urlencode({"args": ",".join(args)})
+        url = "http://localhost:%s/?%s" % (web_port, query)
+        target = "web-idb" if client == "web-idb" else "web"
+        make_args = []
+
+    if "asan" in flavors:
+        env.update(asan_env())
+
+    return Plan(profile, manifest, manifest_path, client, flavors,
+                service_list, client_argv, env, binary, make_args, target,
+                url=url, delegate=delegate,
+                base_manifest_path=profile.world_path)
+
+
+# --------------------------------------------------------------- commands
+def cmd_list(args):
+    profiles = list_profiles(REPO_ROOT)
+    if not profiles:
+        say("no profiles in %s" % os.path.join(REPO_ROOT, "profiles"))
+        return 1
+    width = max(len(profile.name) for profile in profiles)
+    for profile in profiles:
+        try:
+            client = profile.client
+        except LaunchError:
+            client = "?"
+        print("  %-*s  %-9s  %s"
+              % (width, profile.name, client, profile.description))
+    return 0
+
+
+def cmd_show(args):
+    profile = load_profile(REPO_ROOT, args.profile)
+    plan = build_plan(profile, args.client, args.flavor, args.args)
+    print("profile     %s" % profile.name)
+    print("description %s" % profile.description)
+    print("world       %s" % os.path.relpath(plan.base_manifest_path, REPO_ROOT))
+    if plan.manifest_path != profile.world_path:
+        print("resolved    %s  (overrides applied)"
+              % os.path.relpath(plan.manifest_path, REPO_ROOT))
+    print("client      %s" % plan.client)
+    print("flavor      %s" % (",".join(plan.flavors) or "(default)"))
+    print("transport   %s" % (plan.manifest.transport or "(none)"))
+    print("cache       %s" % (plan.manifest.cache_dir or "(none)"))
+    lanes = plan.manifest.lanes
+    print("lanes       %s" % (", ".join(lanes) if lanes else "(tree defaults)"))
+
+    derived = plan.manifest.derived()
+    print("derived     %s"
+          % (", ".join(name for name, _ in derived) if derived
+             else "(none declared — prepared via run-live.sh)"))
+
+    if plan.delegate:
+        print("delegate    %s (owns its own services)" % plan.delegate)
+    print("services    %s"
+          % ("none" if not plan.services else ""))
+    for service in plan.services:
+        print("    %-14s port %-6s %s"
+              % (service.name, service.port or "-", service.description))
+        print("        %s" % " ".join(service.argv))
+    if plan.make_args or plan.target:
+        print("build       make -C src %s %s"
+              % (" ".join(plan.make_args), plan.target))
+    if plan.client_argv:
+        print("client      %s" % " ".join(plan.client_argv))
+    if plan.url:
+        print("url         %s" % plan.url)
+    if plan.env:
+        print("env         %s"
+              % " ".join("%s=%s" % item for item in sorted(plan.env.items())))
+    return 0
+
+
+def _run_make(target, make_args, extra_env=None):
+    argv = ["make", "-C", "src"] + list(make_args) + [target]
+    say(" ".join(argv))
+    env = dict(os.environ)
+    if extra_env:
+        env.update({str(k): str(v) for k, v in extra_env.items()})
+    return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode
+
+
+def _prepare(plan, skip_checks, force):
+    if skip_checks:
+        say("--skip-checks: running the cache and script pack as they stand")
+        return True
+    if plan.manifest.derived():
+        for name, where in staleness.coverage_gaps(plan.manifest):
+            say("warning: %s declares [derived:*] blocks but none for '%s'"
+                % (os.path.relpath(plan.base_manifest_path, REPO_ROOT), name))
+            say("  %s is named but will NOT be checked for staleness by anything"
+                % where)
+        results, ok = staleness.prepare_derived(
+            plan.manifest, REPO_ROOT, force=force)
+        for result in results:
+            say("%s: %s%s"
+                % (result.name, result.action,
+                   " — %s" % result.detail if result.detail else ""))
+        return ok
+    ok, detail = staleness.prepare_via_run_live(
+        os.path.relpath(plan.manifest_path, REPO_ROOT), REPO_ROOT, plan.env)
+    say(detail)
+    return ok
+
+
+def _ensure_services_built(plan):
+    for service in plan.services:
+        if not service.build_target:
+            continue
+        binary = service.binary_candidates[0] if service.binary_candidates else None
+        if binary and os.path.isfile(os.path.join(REPO_ROOT, binary)):
+            continue
+        say("building %s (%s)" % (service.name, service.build_target))
+        if _run_make(service.build_target, []) != 0:
+            say("failed to build %s" % service.name)
+            return False
+    return True
+
+
+def _start_services(plan):
+    started = []
+    for service in plan.services:
+        say("starting %s%s"
+            % (service.name,
+               " on port %s" % service.port if service.port else ""))
+        pid, reason = supervisor.start_service(
+            REPO_ROOT, plan.profile.name, service, env=plan.env)
+        if pid is None:
+            say("%s did not come up: %s" % (service.name, reason))
+            tail = supervisor.log_tail(REPO_ROOT, plan.profile.name, service.name)
+            if tail:
+                # Print the reason here rather than pointing at a file. These
+                # servers explain themselves clearly when they refuse to start,
+                # and that explanation is the whole answer.
+                say("  last lines of its log:")
+                for line in tail:
+                    print("      %s" % line, file=sys.stderr)
+            say("  full log: %s"
+                % os.path.relpath(
+                    supervisor.logfile_path(
+                        REPO_ROOT, plan.profile.name, service.name), REPO_ROOT))
+            for done in reversed(started):
+                supervisor.stop_pid(done)
+            return False
+        started.append(pid)
+        say("  %s up (pid %d)" % (service.name, pid))
+    return True
+
+
+def cmd_run(args):
+    profile = load_profile(REPO_ROOT, args.profile)
+    plan = build_plan(profile, args.client, args.flavor, args.args)
+
+    existing = supervisor.run_status(REPO_ROOT, profile.name)
+    live = [row for row in existing["services"] if row["state"] == "running"]
+    if live:
+        say("this profile already has services running: %s"
+            % ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in live))
+        say("stop them first:  ./launch stop %s" % profile.name)
+        return 1
+
+    if not _prepare(plan, args.skip_checks, args.force_bake):
+        return 1
+
+    if plan.delegate:
+        say("delegating to %s (it owns jar patching and its own services)"
+            % plan.delegate)
+        argv = ["./" + plan.delegate,
+                os.path.relpath(plan.manifest_path, REPO_ROOT)]
+        env = dict(os.environ)
+        env["TORIRS_NO_PREPARE"] = "1"
+        env.update({str(k): str(v) for k, v in plan.env.items()})
+        return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode
+
+    if plan.target and not args.no_build:
+        if _run_make(plan.target, plan.make_args, plan.env) != 0:
+            say("client build failed")
+            return 1
+
+    if not _ensure_services_built(plan):
+        return 1
+
+    supervisor.write_plan(REPO_ROOT, profile.name, plan.to_json())
+
+    if not _start_services(plan):
+        return 1
+
+    if args.no_client:
+        say("services up; --no-client, so nothing else is started")
+        say("status:  ./launch status %s" % profile.name)
+        say("stop:    ./launch stop %s" % profile.name)
+        return 0
+
+    try:
+        if plan.url:
+            say(plan.url)
+            if not args.no_open:
+                _open_browser(plan.url)
+            say("serving — Ctrl-C to stop (services stop with it)")
+            return _supervise_until_interrupt(plan)
+
+        if args.detach:
+            say("--detach with a native client would leave nothing to watch; "
+                "starting the client in the foreground")
+        env = dict(os.environ)
+        env.update({str(k): str(v) for k, v in plan.env.items()})
+        say(" ".join(plan.client_argv))
+        return subprocess.run(plan.client_argv, cwd=REPO_ROOT, env=env).returncode
+    finally:
+        if not args.detach and not args.no_client:
+            _stop_quietly(profile.name)
+
+
+def _open_browser(url):
+    for opener in ("open", "xdg-open"):
+        try:
+            subprocess.run([opener, url], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except FileNotFoundError:
+            continue
+
+
+def _supervise_until_interrupt(plan):
+    """Hold a web run open, and take the whole run down if a service dies.
+
+    A page server still answering while the game server behind it is gone is
+    worse than a stopped run: the tab loads, the world never arrives, and
+    nothing says why.
+    """
+    try:
+        while True:
+            time.sleep(1.0)
+            status = supervisor.run_status(REPO_ROOT, plan.profile.name)
+            for row in status["services"]:
+                if row["state"] in ("dead", "orphan"):
+                    say("%s stopped unexpectedly — stopping the run"
+                        % row["name"])
+                    say("  log: %s"
+                        % os.path.relpath(
+                            supervisor.logfile_path(
+                                REPO_ROOT, plan.profile.name, row["name"]),
+                            REPO_ROOT))
+                    return 1
+    except KeyboardInterrupt:
+        say("interrupted")
+        return 130
+
+
+def _stop_quietly(profile_name):
+    for name, outcome in supervisor.stop_run(REPO_ROOT, profile_name):
+        if outcome.startswith("stopped"):
+            say("stopped %s" % name)
+
+
+def cmd_status(args):
+    names = [args.profile] if args.profile else supervisor.known_runs(REPO_ROOT)
+    if not names:
+        print("no runs on record (build/run/ is empty)")
+        return 0
+    any_live = False
+    for name in names:
+        status = supervisor.run_status(REPO_ROOT, name)
+        rows = status["services"]
+        plan = status["plan"] or {}
+        header = "%s  [%s]" % (name, plan.get("client", "?"))
+        print(header)
+        if plan.get("url"):
+            print("    url  %s" % plan["url"])
+        if not rows:
+            print("    (no services — client-only run)")
+        for row in rows:
+            mark = {"running": "up", "dead": "DEAD", "orphan": "ORPHAN",
+                    "stopped": "--"}.get(row["state"], row["state"])
+            if row["state"] == "running":
+                any_live = True
+            print("    %-14s %-7s pid %-8s port %-6s %s"
+                  % (row["name"], mark, row["pid"] or "-", row["port"] or "-",
+                     row["description"]))
+        print()
+    return 0 if any_live or args.profile else 0
+
+
+def cmd_stop(args):
+    if args.all:
+        names = supervisor.known_runs(REPO_ROOT)
+    elif args.profile:
+        names = [args.profile]
+    else:
+        say("name a profile, or pass --all")
+        return 1
+    if not names:
+        print("nothing to stop")
+        return 0
+    for name in names:
+        results = supervisor.stop_run(REPO_ROOT, name)
+        if not results:
+            continue
+        print("%s:" % name)
+        for service_name, outcome in results:
+            print("    %-14s %s" % (service_name, outcome))
+    return 0
+
+
+def cmd_logs(args):
+    directory = supervisor.run_dir(REPO_ROOT, args.profile)
+    if not os.path.isdir(directory):
+        say("no run state for '%s'" % args.profile)
+        return 1
+    logs = sorted(name for name in os.listdir(directory)
+                  if name.endswith(".log"))
+    if not logs:
+        say("no logs for '%s'" % args.profile)
+        return 1
+    if args.service:
+        wanted = args.service + ".log"
+        if wanted not in logs:
+            say("no log '%s' (have: %s)"
+                % (args.service, ", ".join(name[:-4] for name in logs)))
+            return 1
+        logs = [wanted]
+    paths = [os.path.join(directory, name) for name in logs]
+    if args.follow:
+        return subprocess.run(["tail", "-f"] + paths).returncode
+    return subprocess.run(["tail", "-n", str(args.lines)] + paths).returncode
+
+
+def cmd_doctor(args):
+    problems = []
+    checks = []
+
+    submodule = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
+    if os.path.isdir(submodule):
+        checks.append(("content submodule", "present"))
+    else:
+        problems.append("OSRS-Content is not checked out — "
+                        "git submodule update --init")
+
+    if os.path.isdir(os.path.join(REPO_ROOT, "profiles")):
+        checks.append(("profile registry",
+                       "%d profiles" % len(list_profiles(REPO_ROOT))))
+    else:
+        problems.append("no profiles/ directory")
+
+    profiles = [load_profile(REPO_ROOT, args.profile)] if args.profile \
+        else list_profiles(REPO_ROOT)
+    for profile in profiles:
+        try:
+            manifest = profile.manifest()
+        except LaunchError as error:
+            problems.append("%s: %s" % (profile.name, error))
+            continue
+        cache = manifest.cache_dir
+        if cache and not os.path.isdir(cache):
+            problems.append(
+                "%s: cache '%s' does not exist"
+                % (profile.name, os.path.relpath(cache, REPO_ROOT)))
+        scripts = manifest.server_scripts
+        if scripts and not os.path.isdir(scripts):
+            problems.append(
+                "%s: script pack '%s' not built"
+                % (profile.name, os.path.relpath(scripts, REPO_ROOT)))
+
+    for name, detail in checks:
+        print("  ok    %-22s %s" % (name, detail))
+    for problem in problems:
+        print("  FAULT %s" % problem)
+    if not problems:
+        print("\nno problems found")
+    return 1 if problems else 0
+
+
+# ------------------------------------------------------------------ entry
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="launch",
+        description="Run a named configuration of this tree.")
+    sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("list", help="every profile in the registry")
+
+    show = sub.add_parser("show", help="the resolved plan, without running it")
+    show.add_argument("profile")
+    show.add_argument("--client")
+    show.add_argument("--flavor")
+    show.add_argument("args", nargs="*")
+
+    run = sub.add_parser("run", help="prepare, build, start services, launch")
+    run.add_argument("profile")
+    run.add_argument("--client", help="override the profile's frontend")
+    run.add_argument("--flavor", help="override the profile's build flavor")
+    run.add_argument("--skip-checks", action="store_true",
+                     help="run the cache and script pack exactly as they are")
+    run.add_argument("--force-bake", action="store_true",
+                     help="rebuild every [derived:*] artifact without asking")
+    run.add_argument("--no-build", action="store_true",
+                     help="skip the client build")
+    run.add_argument("--no-client", action="store_true",
+                     help="start the services and stop there")
+    run.add_argument("--detach", action="store_true",
+                     help="leave services running after this command exits")
+    run.add_argument("--no-open", action="store_true",
+                     help="print the URL instead of opening a browser")
+    run.add_argument("args", nargs="*", help="extra client arguments")
+
+    status = sub.add_parser("status", help="what is running")
+    status.add_argument("profile", nargs="?")
+
+    stop = sub.add_parser("stop", help="stop a run's services")
+    stop.add_argument("profile", nargs="?")
+    stop.add_argument("--all", action="store_true")
+
+    logs = sub.add_parser("logs", help="a run's service logs")
+    logs.add_argument("profile")
+    logs.add_argument("service", nargs="?")
+    logs.add_argument("-f", "--follow", action="store_true")
+    logs.add_argument("-n", "--lines", type=int, default=40)
+
+    doctor = sub.add_parser("doctor", help="preflight this checkout")
+    doctor.add_argument("profile", nargs="?")
+
+    args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help()
+        return 1
+
+    handlers = {
+        "list": cmd_list, "show": cmd_show, "run": cmd_run,
+        "status": cmd_status, "stop": cmd_stop, "logs": cmd_logs,
+        "doctor": cmd_doctor,
+    }
+    try:
+        return handlers[args.command](args)
+    except LaunchError as error:
+        say(str(error))
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())

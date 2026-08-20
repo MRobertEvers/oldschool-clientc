@@ -81,19 +81,73 @@ struct IoServer
 };
 
 /* Resolve a client-named cache directory under the server's root. The name
- * arrives from another process, so it is input: no absolute paths, no
- * traversal, no escaping the tree the server was pointed at. */
+ * arrives from another process, so it is input: no absolute paths, and nothing
+ * that escapes the tree the server was pointed at.
+ *
+ * A `..` SEGMENT is not itself the danger, and refusing every one of them
+ * refuses a legitimate cache: manifests live in manifests/ and name their
+ * cache relative to themselves, so the honest spelling of the ordinary rev-239
+ * cache is `manifests/../cache.osrs239`. What must be refused is a path that
+ * LEAVES the root — a property of the resolved path, not of any segment in it.
+ * So resolve first and judge after: a `..` with nothing left to pop is exactly
+ * that escape, and is the one this rejects.
+ *
+ * Writes the resolved directory to `out`. Returns 0 (and leaves `out` empty)
+ * for anything refused. */
 static int
-cache_dir_is_safe(char const* dir)
+cache_dir_normalize(char const* dir, char* out, size_t cap)
 {
+    char const* cursor = dir;
+    size_t used = 0;
+
     assert(dir);
+    assert(out);
+    assert(cap > 0);
+
+    out[0] = '\0';
     if( !dir[0] )
         return 0;
     if( dir[0] == '/' )
         return 0;
-    if( strstr(dir, "..") )
-        return 0;
-    return 1;
+
+    while( *cursor )
+    {
+        char const* end = strchr(cursor, '/');
+        size_t len = end ? (size_t)(end - cursor) : strlen(cursor);
+
+        if( len == 0 || (len == 1 && cursor[0] == '.') )
+        {
+            /* "" and "." resolve to the directory already held. */
+        }
+        else if( len == 2 && cursor[0] == '.' && cursor[1] == '.' )
+        {
+            char* last;
+            if( used == 0 )
+                return 0; /* nothing left to pop: this leaves the root */
+            last = strrchr(out, '/');
+            if( last )
+                *last = '\0';
+            else
+                out[0] = '\0';
+            used = strlen(out);
+        }
+        else
+        {
+            if( used + len + 2 > cap )
+                return 0;
+            if( used )
+                out[used++] = '/';
+            memcpy(out + used, cursor, len);
+            used += len;
+            out[used] = '\0';
+        }
+
+        if( !end )
+            break;
+        cursor = end + 1;
+    }
+
+    return out[0] != '\0';
 }
 
 static struct CacheSlot*
@@ -104,18 +158,28 @@ io_server_cache_for(
     struct CacheSlot* slot = NULL;
     char path[1024];
     char quirks[32];
+    char dir[IOWIRE_CACHE_DIR_MAX];
 
-    for( int i = 0; i < server->cache_count; i++ )
-    {
-        if( strcmp(server->caches[i].dir, want->dir) == 0 )
-            return server->caches[i].failed_open ? NULL : &server->caches[i];
-    }
+    assert(server);
+    assert(want);
 
-    if( !cache_dir_is_safe(want->dir) )
+    if( !cache_dir_normalize(want->dir, dir, sizeof(dir)) )
     {
         fprintf(stderr, "io_server: refusing cache directory '%s'\n", want->dir);
         return NULL;
     }
+
+    /* Keyed on the RESOLVED directory, not the spelling that arrived. The page
+     * names its cache relative to its own manifest and the --manifest preopen
+     * names it relative to the boot root, so one cache reaches here spelled two
+     * ways; matching on the raw string would open it twice and spend the
+     * second slot on a cache already held. */
+    for( int i = 0; i < server->cache_count; i++ )
+    {
+        if( strcmp(server->caches[i].dir, dir) == 0 )
+            return server->caches[i].failed_open ? NULL : &server->caches[i];
+    }
+
     if( server->cache_count >= IO_SERVER_MAX_CACHES )
     {
         fprintf(stderr, "io_server: no room for another cache (%d open)\n", server->cache_count);
@@ -124,7 +188,7 @@ io_server_cache_for(
 
     slot = &server->caches[server->cache_count++];
     memset(slot, 0, sizeof(*slot));
-    snprintf(slot->dir, sizeof(slot->dir), "%s", want->dir);
+    snprintf(slot->dir, sizeof(slot->dir), "%s", dir);
     slot->profile = RSCache_ProfileForIdentity(
         (enum RSCache_Game)want->game,
         (enum RSCache_Epoch)want->epoch,

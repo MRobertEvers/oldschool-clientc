@@ -162,6 +162,8 @@ struct Editor_Panel
     int cb_flag_roof;
     int cb_flag_below;
     int dd_level;
+    int dd_vis;
+    int cb_vis_solo;
     int dd_loc_shape;
     int dd_loc_rot;
     /** The File/Edit bar across the top of the screen. */
@@ -346,6 +348,22 @@ struct Editor_Panel
      */
     int edit_level;
 
+    /**
+     * Vis level: which planes the world VIEW draws. -1 shows every level.
+     *
+     * Distinct from edit_level, which says what a click means. Editing an
+     * upper floor is unworkable while the floors above it are still painted
+     * over it, and the roof check that caps the mask in the game has no
+     * player to read here, so the editor states the cap itself.
+     *
+     * 0..3 means the levels 0..vis_level, cumulative exactly as the client's
+     * view floor is -- VIS_BELOW's "revealed from the level below" only reads
+     * correctly against a cumulative mask. `vis_solo` narrows it to the one
+     * plane, for the case the floors underneath are the clutter.
+     */
+    int vis_level;
+    int vis_solo;
+
     /*
      * Session spawn list: what Place stamped, what Save writes.
      *
@@ -469,6 +487,13 @@ int
 Editor_PanelEditLevel(
     struct Editor_Panel const* panel,
     struct App const* app);
+
+/** The painter level mask the Vis row asks for: a bit per drawn plane, or 0
+ *  for "no opinion, draw them all". The paint path ORs nothing onto this --
+ *  a mask of 0 leaves the viewport's own mask alone. */
+uint8_t
+Editor_PanelVisLevelMask(
+    struct Editor_Panel const* panel);
 
 /** Stamp the catalog's picked loc at a scene tile: document command + the live
  *  scene change. 0 when nothing is picked, or the square is not open. */

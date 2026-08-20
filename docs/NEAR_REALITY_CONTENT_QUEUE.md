@@ -4436,6 +4436,317 @@ with and without, and what was explicitly deferred with its reason.
   stanza also pins that masks are per (area, tier) — a shared mask would
   complete tasks in tiers the player never entered.
 
+- 2026-08-20 — **A7b, third pass: the counts were never connected to the flags.**
+  The award seam credits a tier's count. Separately, twelve completion FLAGS
+  gate real perks in real content — `minigame_fightcave` on Karamja elite,
+  `minigame_zulrah` on Western elite, `minigame_pestcontrol` on Western hard,
+  `area_desert/magic_carpet` on Desert hard, `minigame_wildy_bosses` on
+  Wilderness medium. **Nothing joined the two.** The only writers set flags
+  directly as a side effect of unrelated scripts, so finishing every task in a
+  tier by playing left its flag at zero and every perk behind it unreachable.
+  `~diary_tier_finished` and `~diary_tier_promote` are that join, called from
+  `~diary_task_award`. One rule per (area, tier), not 492.
+
+  **The zero-total guard is load-bearing and is the thing under test.** An
+  unknown area falls through `~diary_tier_total` to 0, and `0 >= 0` reads as
+  complete — handing every gated perk to a caller that passed a bad area.
+  Verified by mutation: removing it fails at 0 of 8.
+
+  **[ours] The completion varp names are not uniform, and guessing them was
+  caught by the compiler.** Karamja's easy, medium and hard flags are
+  `%atjun_easy_done`, `%atjun_med_done`, `%atjun_hard_done`; its elite is
+  `%karamja_diary_elite_complete` like the other eleven areas. My first version
+  generated all 48 names from the pattern the other areas follow and the
+  compiler rejected `%karamja_diary_easy_complete` as an unknown variable. That
+  is the good outcome — a generated name that happened to collide with a real
+  varp would have written the wrong flag silently. The names now come from
+  `~diary_tier_complete_flag`, which is the tree's own reader of them.
+
+- 2026-08-20 — **Two process failures this turn worth recording, both mine.**
+  * **A file I wrote was deleted by the concurrent session's commit seconds
+    later**, and `diary_award.rs2` was left calling procs that no longer
+    existed. Recreating it revealed they had implemented `~diary_tier_total`
+    and `~diary_tier_count` themselves in that same commit, so my versions were
+    duplicates — I dropped mine and kept only the join, which is what was
+    actually missing. Checking what they had built before re-adding mine is the
+    step that turned a collision into a smaller correct change.
+  * **`tools/check_selftest_registration.py` crashed the build for everyone.**
+    The content tree briefly contained self-referential symlinks while their
+    file move was in flight, and my tool raised `OSError: Too many levels of
+    symbolic links` out of a precondition check — so nothing could compile,
+    including their work. Unreadable files are now reported and skipped rather
+    than fatal. A tool that gates the build must not be the reason the build
+    cannot run; that is worth more care than I gave it when I added it.
+  * A related trap: for several attempts I ran `make ... >/dev/null 2>&1` in a
+    retry loop and read the selftest's "stale pack" complaint as the concurrent
+    session rebuilding. It was my own compile failing, silently, so the pack
+    never updated. **A mutation that "does not bite" against a stale pack looks
+    exactly like a test that does not work.** Checking make's exit status, not
+    just the log, is what separated the two.
+
+- 2026-08-20 — **A7b: the first real task hook, and a build defect that had been faking my results.**
+  With the seam correct, the first content condition is wired: **Karamja easy
+  task 9, "Attempt the TzHaar Fight Pits or Fight Cave"**, hooked into
+  `~fightcave_enter`. The task says ATTEMPT, so entering is the whole condition
+  and no wave has to be survived. It carries no flag of its own — entering the
+  cave is something a player does hundreds of times, and `~diary_task_award`
+  refusing the second claim is exactly what makes a hook on a repeatable action
+  safe. That is the pattern the remaining 491 follow.
+
+  Karamja easy's ten tasks now have named constants, so a hook credits by name
+  and a registry renumber breaks the build instead of silently crediting a
+  different row. The stanza pins that re-entry credits nothing, that easy
+  completing sets `%atjun_easy_done` and NOT
+  `%karamja_diary_elite_complete` — the flag the Fight Cave's own elite perk
+  reads — and that one task is not a tier.
+
+  **[ours] `make torirsserver` never rebuilt when the server's own C changed.**
+  The target's prerequisites were `$(OBJ_DIR)` and a handful of third-party
+  `.o` files; `$(TORIRSSERVER_SRCS)` appeared only on the command line. Those
+  objects almost never change, so editing `torirs_server_world.c` left make
+  reporting "up to date" and the previous binary in place. **A selftest row
+  added to that file was therefore absent from the binary that ran — and an
+  absent row cannot fail, so it reads exactly like a passing one.** This is the
+  same false-pass shape as the lost registration earlier today, from a
+  completely different cause, and it had been quietly weakening results for an
+  unknown stretch of this session: at least two mutations that "refused to
+  bite" are explained by it rather than by the stale-pack theory I reached for
+  at the time. Fixed by listing the sources as prerequisites.
+
+  Worth drawing out: three separate mechanisms this session produced the
+  identical symptom of a test that cannot fail — a registration edit clobbered
+  by a concurrent commit, a compile failing silently behind `>/dev/null`, and a
+  link step that never ran. Each time the only thing that exposed it was a
+  mutation that should have failed and did not. A green run remains the weakest
+  evidence available; the mutation is the test.
+
+- 2026-08-20 — **A7b: second task hook, and an honest limit on what these stanzas prove.**
+  **Karamja medium 10, "Catch a karambwan"**, hooked at the fishing catch site.
+  Two things made it the right second choice:
+    * **No location test is needed.** Karambwan are fished only at Karamja, so
+      the catch alone is the condition — unlike the teak and mahogany tasks
+      beside it in the same tier, which name trees that also grow on Ape Atoll
+      and in Prifddinas. A hook on those two would credit the Karamja task for a
+      Prifddinas cut, and I left them for someone who can settle the location
+      test rather than ship the ambiguity.
+    * **The obj is `tbwt_raw_karambwan`**, found through `tools/cache_find.py`
+      rather than guessed. Not `raw_karambwan`, which does not exist, and not
+      `tbwt_raw_karambwanji` — the bait, one row away in the same table.
+  One hook covers it: the file's other `inv_add(inv, $product, 1)` is the big
+  fishing net junk table, and karambwan are taken with a vessel.
+
+  **[ours] What these hook stanzas do NOT prove.** I mutated the hook's obj
+  test to the karambwanji bait — a hook that fires on the wrong item — and the
+  stanza still passed. That is not a flaw in the stanza so much as a boundary
+  worth naming: **these stanzas exercise the award seam, not the trigger.**
+  They prove idempotence, tier separation and flag promotion; they cannot prove
+  that the hook fires on the right item at the right place, because that needs
+  a live fishing action and the selftest player cannot perform one — the same
+  live-state limit that gates `::gearrun`, `::runecraftrun` and `::miningrun`
+  behind env vars.
+
+  So for every one of the 492 hooks, the plumbing is machine-checked and the
+  **trigger placement is reviewed, not tested**. That is a real gap and the
+  thing most likely to let a wrong hook through. Closing it needs the
+  equipment/live-state problem solved for the harness, which is already the open
+  question blocking three other test suites — it is now blocking 492 more, which
+  makes it considerably more valuable than it looked this morning.
+
+  Two of 492 wired. Karamja easy 9 (Fight Cave entry) and Karamja medium 10.
+
+- 2026-08-20 — **The harness could always carry equipment. 99 assertions come back.**
+  I recorded this morning that the selftest player "cannot carry equipment" and
+  that this blocked three suites. **That was wrong**, and the correction is
+  worth more than the guess was.
+
+  **::gearrun (75 assertions) was gated for STATE LEAKAGE, not capability.**
+  Its own comment said so: stats and worn slots were saved and restored, but
+  the inventory it fills with runes and the varps it sets were not, "and
+  chasing every one of them is a bigger job than this change". It was not a
+  bigger job — `inv[]` and `varps[]` are plain arrays on the player, saved and
+  restored exactly as the stats and worn slots already were. Verified by running
+  the whole suite with and without the leg on one pack: **identical failure
+  sets**, so it leaks nothing. Now default-on, and the proof it really runs is
+  structural — with the gate replaced by `if(0)`, `said_ok` can only be set by
+  gearrun's own OK message.
+
+  **::runecraftrun (24 assertions) was failing on a genuine bug in its own
+  setup.** It equipped its tiara with `inv_add(worn, tiara_air, 1)`, which fills
+  the first FREE slot rather than the hat slot `~rc_refresh_ruins_varbits`
+  reads, so the varbit never flipped. Fixed with `inv_setslot`; now default-on.
+
+  **I had already written that exact fix earlier today and watched it fail.**
+  It failed because the binary under test was stale — the `make torirsserver`
+  defect found later in the same session. So a correct fix was discarded as
+  wrong, and a harness limit was invented to explain it. That is the fourth
+  distinct consequence of a build that did not reflect the source, and the most
+  expensive: the others cost a false green, this one cost a real fix and sent
+  me down a wrong explanation for hours.
+
+  **Still gated: ::miningrun (13).** It reaches no OK line and prints no FAIL,
+  which means it returns early from a sub-check that reports nothing, or aborts.
+  Four of its six sub-checks read worn/inventory/stat state. Now that the two
+  neighbouring theories are dead — the harness can carry equipment, and the
+  build is honest — it deserves a fresh diagnosis rather than another guess.
+
+- 2026-08-20 — **A7b: third hook, and the two tasks I declined to guess.**
+  **Karamja medium 6, "Cook a spider on a stick"**, hooked at the cooking
+  success site. Two things the hook depends on:
+    * **Only a successful cook counts.** The branch is guarded on
+      `$passes_roll`, so a burnt spider credits nothing — which is what the
+      task's wording requires and what a hook placed one line earlier would get
+      wrong.
+    * **`tbw_spider_on_stick_cooked` and `tbw_spider_on_stick_raw` carry the
+      SAME display name**, "Spider on stick". A name-based lookup picks between
+      them by luck. Found with `tools/cache_find.py`, which prints both and
+      makes the collision visible.
+  The stanza now pins that two hooks in one tier stay independent — crediting
+  the spider must not advance the karambwan and the count must reflect both.
+  Verified by mutation: crediting the karambwan's number from the spider's hook,
+  which is exactly what a copy-pasted hook does, fails at 4 of 8.
+
+  **Declined: Karamja easy 1, "Pick 5 bananas from the plantation east of the
+  volcano".** Two separate problems, either of which would have made a wrong
+  hook. The banana trees in this tree are `mm_bananatreefull` and friends —
+  Monkey Madness locs on **Ape Atoll**, not the Karamja plantation, so a naive
+  hook credits the Karamja task for an Ape Atoll pick. And "Pick 5" needs a
+  running count, which the per-task bit deliberately does not carry: the bit
+  answers "done or not", and a count-to-N task needs its own progress varp
+  beside it. That is a real shape in the registry — several tasks say "5" or
+  "100%" — and it wants a decision about where those counters live before the
+  first one is written, not after.
+
+  Three of 492 wired: Karamja easy 9, Karamja medium 6 and 10.
+
+- 2026-08-20 — **A7b: counted tasks, and the seven that only look counted.**
+  Last entry I declined "Pick 5 bananas" partly because count-to-N tasks had
+  nowhere to keep progress, and said that wanted deciding before the first one
+  was written. Decided.
+
+  **A number in a task's text does not mean a counter.** Twenty-one of the 492
+  name a quantity and they split three ways:
+    * **One action yielding N — seven tasks, all runecrafting.** "Craft 56
+      Nature runes SIMULTANEOUSLY from Essence without the use of Extras." The
+      condition is a single craft that produced 56 at once. A running counter
+      credits it after 56 separate crafts, which is a far easier task than the
+      one written; the word carrying the whole meaning is "simultaneously".
+      Mind 140, Air 252, Astral 56, Cosmic 56, Water 140, Earth 100 are the
+      others.
+    * **A genuine running count** — "Pick 5 bananas", "Kill 5 Rock crabs",
+      "Collect 5 Snape grass", "Mine 5 clay". These need progress kept between
+      actions.
+    * **A threshold on a value the game already tracks** — "Obtain 100% support
+      from your kingdom subjects" reads an existing varp and stores nothing.
+  Only the middle kind gets a carrier. Treating the first kind as the middle one
+  is the mistake worth naming, because the text reads identically at a glance.
+
+  `~diary_count_advance` is the seam: it advances a task's progress, awards on
+  the target action, and returns true only there so a caller can message once.
+  **The claimed bit short-circuits before the counter is touched**, so a player
+  who keeps killing crabs neither re-completes the task nor drifts the saved
+  progress upward forever. Progress lives in a named varp per task rather than a
+  packed field — there are few of them and a name is readable in a save dump
+  where a bitfield is not. Verified by mutation: awarding on the first action
+  fails at 0 of 6.
+
+  Three hooks wired, and the seam for a fourth class in place.
+
+- 2026-08-20 — **A7b: fourth hook, first counted one — and the limit demonstrated rather than asserted.**
+  **Fremennik easy 3, "Kill 5 Rock crabs"**, wired through the counted seam.
+    * Both `horror_rockcrab` and `horror_rockcrab_small` route through one
+      `[label,rockcrab_drops]`, so a single call covers the pair — and
+      `giant_rockcrab` does NOT reach it, which is correct: the task says Rock
+      crabs, and the giant is a different monster sharing most of a display
+      name. Another case where the cache's names would have misled a
+      name-based lookup and the tree's own routing settled it.
+    * Placed AFTER `npc_findhero`, so a crab that despawns unkilled credits
+      nothing.
+    * `~diary_count_rockcrab` owns the varp so the call site is one line, which
+      is the shape every counted hook should take.
+    * A varp cannot be the target of a multi-assignment in this dialect, so the
+      returned pair lands in locals and the varp is written after. Worth
+      knowing before writing the next twelve.
+  The stanza drives it end to end through the varp: four kills credit nothing,
+  the fifth credits, and **twenty more credit nothing and leave the saved
+  progress at five**. Rock crabs are the canonical grind spot, so that last case
+  is the one that matters.
+
+  **The trigger-placement gap, shown concretely.** I deleted the
+  `~diary_count_rockcrab` call from the drop label entirely and the suite stayed
+  green. That is the limit I have been describing in the abstract for three
+  entries: these stanzas prove the seam and the proc, and cannot see whether the
+  call is present at the right place, because reaching it needs a real npc death
+  the harness cannot stage. Every one of the remaining 488 hooks carries the
+  same exposure. It is not fixed by more stanzas of this kind — it needs the
+  harness able to kill an npc, which is a bigger piece of work than any single
+  hook and worth more than several of them.
+
+  Four of 492 wired: Karamja easy 9, Karamja medium 6 and 10, Fremennik easy 3.
+
+- 2026-08-20 — **The trigger-placement gap is closed. A real kill now tests a real hook.**
+  For four entries I recorded that these stanzas prove the seam and cannot see
+  whether a hook is CALLED from the content it belongs to — and demonstrated it
+  by deleting `~diary_count_rockcrab` from `[label,rockcrab_drops]` and watching
+  the whole suite stay green. I said closing it needed the harness able to kill
+  an npc and was "a bigger piece of work than any single hook". It was about an
+  hour, and it was the right hour.
+
+  **The harness could already do every part of it.** `npc_add` places an npc,
+  `npc_find` makes it active — `selftest.rs2` has used both for a long time —
+  and `npc_damage` routes through `ToriRSServer_CombatHitNpc`, the same path a
+  player's hit takes. Nothing new was needed in the engine at all.
+
+  Two things had to be got right:
+    * **`[ai_queue3]` is queued, not synchronous.** The death script runs on a
+      later tick than the damage, so a single stanza reads the varp before the
+      hook has written it — it failed at 2 of 4 and looked exactly like a
+      missing hook. The test is split in half, and the C leg ticks the world
+      four times between them.
+    * **Each selftest section loads and frees its own script pack.** A leg that
+      assumes `srv->scripts` is populated gets `SKIP no compiled script pack`,
+      which reads as a pass.
+
+  **Verified the only way that counts:** with the hook deleted from the drop
+  label, the new leg fails at `got 0` while every seam stanza stays green. That
+  is the failure mode which was invisible an hour ago, and it is now the first
+  thing to break.
+
+  This is a template, not a one-off. Any hook on an npc death can be tested the
+  same way — spawn, find, damage, tick, check — and that covers the largest
+  single class of the remaining 488, the 55 tasks beginning "Kill".
+
+  Four of 492 wired, one of them now tested end to end through real content.
+
+- 2026-08-20 — **A7b: two more kill hooks, both trigger-tested, and a phase trap.**
+  Using the template from the previous entry on the largest class — 46 of the
+  492 tasks begin "Kill", and 18 of those name no location, which makes them the
+  cheapest correct hooks available.
+
+  **Morytania easy 7, "Kill a Ghoul".** The ghoul had no death script at all, so
+  the trigger is created in `interface_diaries/scripts/diary_kill_hooks.rs2`
+  rather than adding a bare file to a drop-table directory that would then hold
+  no drop table. Bound to `ghoul` by symbol: `champions_ghoul` is the Champion's
+  Challenge monster and a different fight, and binding by symbol rather than by
+  display name is what keeps them apart.
+
+  **[ours] Desert hard 4, "Kill the Kalphite Queen" — and the obvious hook site
+  is the wrong one.** `[ai_queue3,kalphite_queen]` is not a death script: it
+  `npc_changetype`s to `kalphite_flyingqueen` and heals to full. It is the form
+  change. A hook there credits the task when phase one ends, so **a player who
+  drops phase one and walks away has the kill**. The death is
+  `[ai_queue3,kalphite_flyingqueen]`, in the drop-table file, and that is where
+  the hook went. Any multi-phase boss in the remaining tasks carries the same
+  trap — Zulrah, the Dagannoth Kings and the Chaos Elemental are all still to
+  wire.
+
+  Both are tested through a real death, not just through the seam: spawn, find,
+  damage, tick, check. Verified by mutation — deleting the Kalphite Queen hook
+  fails the leg at `got 1`, catching exactly the case that was invisible two
+  entries ago.
+
+  Six of 492 wired: Karamja easy 9, Karamja medium 6 and 10, Fremennik easy 3,
+  Morytania easy 7, Desert hard 4. Three of the six are trigger-tested.
+
 ## 7. Open questions to settle before Wave E
 
 These change what gets built and are the user's call, not the port's:

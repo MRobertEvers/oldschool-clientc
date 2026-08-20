@@ -139,6 +139,12 @@ static enum Editor_Tool const editor_tool_ids[] = {
 static char const* const editor_level_names[] = { "auto", "0", "1", "2", "3" };
 #define EDITOR_LEVEL_COUNT ((int)(sizeof(editor_level_names) / sizeof(editor_level_names[0])))
 
+/** Vis-level choices, sharing the edit row's shape: index 0 is "every level",
+ *  the rest cap the view at that plane. Named separately so the two rows can
+ *  drift -- "auto" and "all" are different statements. */
+static char const* const editor_vis_names[] = { "all", "0", "1", "2", "3" };
+#define EDITOR_VIS_COUNT ((int)(sizeof(editor_vis_names) / sizeof(editor_vis_names[0])))
+
 /* Loc shapes worth offering when placing. The full 0..22 space is mostly roof
  * pieces; these are the ones a hand-placed loc is nearly always one of. */
 static char const* const editor_loc_shape_names[] = {
@@ -502,6 +508,12 @@ Editor_PanelInit(
     panel->dd_rotation = ToriRSChrome_Dropdown(ui, panel->panel, "Rot", editor_rotation_names, 4, 0);
     panel->dd_level =
         ToriRSChrome_Dropdown(ui, panel->panel, "Level", editor_level_names, EDITOR_LEVEL_COUNT, 0);
+    /* A VIEW row, not an edit one: it changes which planes are painted and
+     * touches no document. It sits next to Level because the two are read
+     * together -- pin the plane you are shaping, then cap what hides it. */
+    panel->dd_vis =
+        ToriRSChrome_Dropdown(ui, panel->panel, "Vis", editor_vis_names, EDITOR_VIS_COUNT, 0);
+    panel->cb_vis_solo = ToriRSChrome_Checkbox(ui, panel->panel, "vis solo", 0);
     panel->dd_loc_shape = ToriRSChrome_Dropdown(
         ui, panel->panel, "LocSh", editor_loc_shape_names, EDITOR_LOC_SHAPE_COUNT, 0);
     panel->dd_loc_rot =
@@ -626,6 +638,7 @@ Editor_PanelInit(
 
     panel->cat_picked_id = -1;
     panel->edit_level = -1;
+    panel->vis_level = -1;
     panel->cat_kind = CACHEPROVIDER_CATALOG_LOC;
     panel->cat_shown_kind = -1;
     panel->cat_var_shown_id = -1;
@@ -1586,6 +1599,22 @@ editor_loc_panel_refresh(
  * kind. What each needs is the matching App_WorldLocChange so the scene shows
  * it immediately, and a document write so it survives a reload.
  */
+
+uint8_t
+Editor_PanelVisLevelMask(
+    struct Editor_Panel const* panel)
+{
+    assert(panel);
+
+    if( panel->vis_level < 0 )
+        return 0;
+    if( panel->vis_solo )
+        return (uint8_t)(1u << panel->vis_level);
+    /* Cumulative: levels 0..vis_level, which is how the game's own view floor
+     * builds its mask and the only reading VIS_BELOW tiles come out right
+     * under (a tile physically on 2 is revealed while viewing 1). */
+    return (uint8_t)((1u << (panel->vis_level + 1)) - 1);
+}
 
 int
 Editor_PanelEditLevel(
@@ -2587,6 +2616,19 @@ Editor_PanelTick(
             panel->sel_level = panel->edit_level;
             app->need_redraw = 1;
         }
+    }
+    else if( activated == panel->dd_vis || activated == panel->cb_vis_solo )
+    {
+        /* Row 0 is "all"; rows 1..4 are planes 0..3. The checkbox narrows the
+         * same choice rather than being a second selector, so the two can
+         * never disagree about WHICH plane is meant. */
+        int const choice = ToriRSChrome_DropdownSelected(ui, panel->dd_vis);
+        panel->vis_level = (choice > 0 && choice < EDITOR_VIS_COUNT) ? choice - 1 : -1;
+        panel->vis_solo = ToriRSChrome_Checked(ui, panel->cb_vis_solo) ? 1 : 0;
+        /* The mask is read by the paint path, so nothing else has to change
+         * for the world to come back with fewer floors on it -- but a still
+         * frame would not repaint on its own. */
+        app->need_redraw = 1;
     }
     else if( activated == panel->menu_view )
     {

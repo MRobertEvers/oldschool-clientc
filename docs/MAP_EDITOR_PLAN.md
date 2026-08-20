@@ -14,6 +14,7 @@ only the feature list.
 |---|---|---|---|
 | A | Map-square browser | **✓ built** | `square_list` host op → Squares panel |
 | B | Level selector (0–3) | **✓ built** | `Editor_PanelEditLevel`, `Level` row |
+| B2 | View-level cap (vis level) | **✓ built** | `Editor_PanelVisLevelMask`, `Vis` row |
 | C | Display toggles (locs/npcs/objs) | ✗ | needs a painter filter — see below |
 | D | Export / save | ✓ | `Editor_SaveAll` |
 | E | Tile inspect readout | ✓ | `panel_refresh` |
@@ -81,6 +82,23 @@ picks the **cache** level — the plane the map authored, which is what the
 `.jm2` stores and therefore the only one an edit can mean. The readout should
 show all three (it already can: `World_TerrainDrawLevel` is in the debug row),
 so a surprising bridge tile explains itself instead of looking broken.
+
+**The `Vis` row is its view-side twin, and is deliberately a second control.**
+`Level` says what a click *means*; `Vis` says which planes are *painted* —
+"all" (the default), or levels 0..N, cumulative exactly as the game's own view
+floor is, because VIS_BELOW only reads correctly against a cumulative mask. The
+`vis solo` checkbox narrows the same choice to that one plane, for when the
+floors underneath are the clutter. It lands on the painter's level mask in
+app.c's paint path (`Editor_PanelVisLevelMask`), *replacing* the viewport's own
+mask rather than ANDing with it: the point of the row is to see a plane the
+ordinary rules hide, and an AND could only ever take levels away. Nothing here
+touches the document — it is a view setting, and so is not shared over the
+panel channel; each connection caps its own camera.
+
+One consequence worth knowing rather than working around: picking follows what
+is drawn, so with `vis solo` on an upper floor the ground below it cannot be
+hovered or selected. That is the same rule the world view already lives by, not
+a separate limitation of the row.
 
 ## C. Display toggles
 

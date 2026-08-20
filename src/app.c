@@ -11518,6 +11518,16 @@ app_world_paint(struct App* app)
     /* Roof hiding: the per-frame camera->player roofCheck caps the top drawn
      * level; config (RevConfig levels=) can still restrict further. */
     level_mask &= (uint8_t)((1u << (app_world_roof_check(app) + 1)) - 1);
+    /* The map editor's Vis row REPLACES the mask rather than narrowing it: the
+     * point of the row is to see a plane the ordinary rules would hide, and an
+     * AND could only ever take levels away. 0 is "all levels", the default,
+     * and leaves everything above untouched. */
+    if( app->editor )
+    {
+        uint8_t const vis_mask = Editor_PanelVisLevelMask(&app->editor_panel);
+        if( vis_mask )
+            level_mask = vis_mask;
+    }
     /* CAM_SHAKE jitter (reference Client-TS 4448): each axis is a sine plus a
      * random spread, and all five compound. It displaces the camera for this
      * frame's draw only — the base position is restored below, or the y axis
