@@ -6,6 +6,7 @@
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
+#include "editor/editor_panel.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "features/features.h"
@@ -60,6 +61,7 @@ struct ToriRS_CmdBus;
 struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
+struct Editor;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -118,6 +120,8 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
     APP_DEBUG_HOTKEY_LOC_EDITOR,
     APP_DEBUG_HOTKEY_HOVER_FOOTPRINT,
+    /** Show/hide the map editor panel. Only does anything in an editor boot. */
+    APP_DEBUG_HOTKEY_MAP_EDITOR,
     APP_DEBUG_HOTKEY_COUNT
 };
 
@@ -136,6 +140,12 @@ struct AppConfig
     char const* cache_dir;
     char const* config_dir;
     char const* script_dir;
+    /** [editor:boot] content_dir — the content root whose `maps/` the world map
+     *  editor edits. NULL = no editor this boot, which is every normal client
+     *  run. Borrowed from the BootManifest, which outlives the App. */
+    char const* editor_content_dir;
+    /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
+    char const* editor_repo_root;
     int interface_id;
     enum AppCacheKind cache_kind;
     /** Cache identity from [cache:boot]. All four stated; used by
@@ -448,6 +458,22 @@ struct App
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
 
+    /**
+     * World map editor session, or NULL — which is every boot that did not ask
+     * for one, i.e. every normal client run.
+     *
+     * Owned. Present only when `[editor:boot] content_dir=` named a content
+     * tree. While it exists the squares the world builder meshes come from that
+     * tree's `.jm2`/`.jl2` text rather than from the baked cache, and edits are
+     * saved back as text. It never speaks to a game server: an editor boot
+     * states no `[net:boot]`, so the whole net stack is simply not constructed.
+     */
+    struct Editor* editor;
+    /** The editor's panel. Inline rather than behind the pointer above: it is
+     *  ToriDbgUI widget handles and palette storage, and the dropdowns BORROW
+     *  that storage, so it must not move once the widgets point into it. */
+    struct Editor_Panel editor_panel;
+
     /* Baked world map the minimap widget blits (rebaked on every world load).
      * scene_id is -1 until the first bake; w/h are the sprite's pixel size,
      * which minimap_compute_camera_src_anchor needs to place the camera. */
@@ -481,7 +507,12 @@ struct App
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
      * frame's draw. Reference drawEntities budget: each entity contributes at
      * most 2 bar rects + 4 hitsplats x 3 primitives. */
-    struct UITreeEntityOverlay entity_overlays[512];
+    /* 2048, not 512: a filled polygon is a begin/point.../end RUN of items, so
+     * one highlighted entity now costs a dozen entries rather than one. At 512
+     * the fill runs starved the outlines that follow them -- the buffer filled
+     * and every later push was dropped, which looks like a broken outline
+     * rather than a full buffer. */
+    struct UITreeEntityOverlay entity_overlays[2048];
     int entity_overlay_count;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then

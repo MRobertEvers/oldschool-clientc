@@ -177,7 +177,17 @@ enum ToriDbgWidgetKind
     TORIDBG_W_TEXTINPUT,
     TORIDBG_W_SEPARATOR,
     TORIDBG_W_MENUITEM,
+    /**
+     * A closed row showing the current choice; clicking it opens the shared
+     * popup list. See `dropdown_open` on struct ToriDbgUI for why the list is
+     * shared rather than per-widget.
+     */
+    TORIDBG_W_DROPDOWN,
 };
+
+/** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
+ *  palette of several hundred entries stays inside TORIDBG_MAX_PRIMS. */
+#define TORIDBG_DROPDOWN_ROWS 10
 
 /** Editing keys ToriDbgUI_KeyEdit understands. Printable input goes through
  *  ToriDbgUI_KeyChar so ui/ never has to own a keymap. */
@@ -210,6 +220,23 @@ struct ToriDbgWidget
     int h;
     char label[TORIDBG_LABEL_MAX];
     char text[TORIDBG_INPUT_MAX];
+
+    /**
+     * DROPDOWN options. BORROWED, not copied — the array and the strings it
+     * points at must outlive the widget.
+     *
+     * Borrowed rather than copied because the lists this exists for are
+     * palettes: every underlay in the cache, every loc name in a search. Those
+     * are hundreds of entries the caller already holds, and copying them into a
+     * fixed-size POD would either cap the palette or make this module allocate,
+     * and it deliberately never allocates.
+     */
+    char const* const* options;
+    int option_count;
+    /** Index into `options`, or -1 for "nothing chosen". */
+    int selected;
+    /** First visible row while the list is open. */
+    int scroll;
 };
 
 struct ToriDbgPanel
@@ -251,6 +278,20 @@ struct ToriDbgUI
     int press;
     /** Latched by input, drained by ToriDbgUI_TakeActivated. -1 = none. */
     int activated;
+    /**
+     * The dropdown whose list is open, or -1.
+     *
+     * ONE list for the whole overlay, not one per dropdown — the same shape the
+     * cache's own settings panel uses, where interface 134 owns a single list
+     * component that every dropdown borrows and repositions rather than each
+     * shipping its own. It costs nothing per widget, it makes "only one list
+     * can be open" true by construction instead of by bookkeeping, and the open
+     * list draws after every panel so it is never buried under one.
+     */
+    int dropdown_open;
+    /** Row of the open list under the pointer, or -1. List-local, not a widget
+     *  handle: the rows are not widgets, they are a view on `options`. */
+    int dropdown_hover_row;
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
@@ -303,6 +344,38 @@ ToriDbgUI_Checkbox(struct ToriDbgUI* ui, int panel, char const* label, int check
 int
 ToriDbgUI_TextInput(struct ToriDbgUI* ui, int panel, char const* label, char const* text);
 
+/**
+ * A dropdown over `options`, which is BORROWED and must outlive the widget.
+ *
+ * @param selected index into `options`, or -1 for none.
+ * @return widget handle, or -1 when full / panel invalid.
+ */
+int
+ToriDbgUI_Dropdown(
+    struct ToriDbgUI* ui,
+    int panel,
+    char const* label,
+    char const* const* options,
+    int option_count,
+    int selected);
+
+/** Point a dropdown at a different list. Clamps the selection and closes the
+ *  list if this widget's was open, since the rows under it just changed. */
+void
+ToriDbgUI_DropdownSetOptions(
+    struct ToriDbgUI* ui,
+    int widget,
+    char const* const* options,
+    int option_count,
+    int selected);
+
+/** Selected index, or -1. */
+int
+ToriDbgUI_DropdownSelected(struct ToriDbgUI const* ui, int widget);
+
+void
+ToriDbgUI_DropdownSetSelected(struct ToriDbgUI* ui, int widget, int selected);
+
 int
 ToriDbgUI_Separator(struct ToriDbgUI* ui, int panel);
 
@@ -350,6 +423,14 @@ ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y);
 /** Fires checkbox toggles and menu activations. @see ToriDbgUI_TakeActivated. */
 int
 ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y);
+
+/**
+ * Scroll the open dropdown list. @param delta rows, negative = up.
+ * @return 1 when the overlay consumed it (a list was open under the pointer),
+ * so the caller can leave the camera zoom alone.
+ */
+int
+ToriDbgUI_MouseWheel(struct ToriDbgUI* ui, int x, int y, int delta);
 
 /** Insert a printable byte into the focused input. @return 1 if consumed. */
 int

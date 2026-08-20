@@ -15,6 +15,7 @@
  * no TORIRS_GL_ES2 here and no fallback to keep in step.
  */
 
+#include "render/torirs_polygon.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 
 #include "core/trspk_atlas.h"
@@ -322,6 +323,16 @@ struct GL3ModelGroup
 
 struct ToriRS_GL3
 {
+    /* Polygon run state: points accumulate between POLYGON_BEGIN and
+     * POLYGON_END and the fill happens on END. Held on the renderer because a
+     * run spans several commands by design -- see TORIRSRC_POLYGON_* in
+     * torirs_render.h. */
+    struct ToriRS_RenderCommand_PolygonBegin polygon;
+    int polygon_open;
+    int polygon_x[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_y[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_count;
+
     struct ToriDraw_Scene* scene;
     SDL_Window* window;
     SDL_GLContext gl_context;

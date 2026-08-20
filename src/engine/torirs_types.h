@@ -149,10 +149,35 @@ struct ToriRS_MapFloor
 {
     uint16_t overlay_id;
     uint8_t underlay_id;
+    /**
+     * The RESOLVED height the renderer meshes from: scaled by the tile-height
+     * basis, generated from Perlin noise where the file authored none, and
+     * carrying the level below where it sits above level 0.
+     *
+     * Nothing writable survives in this field — see the authored pair below.
+     */
     int16_t height;
     uint8_t settings;
     uint8_t shape;
     uint8_t rotation;
+
+    /**
+     * What the FILE said about this tile's height, kept beside what the
+     * renderer uses.
+     *
+     * The height fixup rewrites `height` for every tile, so after it has run
+     * "the file gave no height" and "the file gave this height" are the same
+     * state as far as `height` is concerned. Anything that has to write terrain
+     * back — the map editor — needs the difference: a tile whose height was
+     * never authored must stay unauthored on disk, or a save bakes generated
+     * terrain into the source and the square stops being procedural forever.
+     *
+     * `has_authored_height` records that the height opcode was present;
+     * `authored_height` keeps the raw byte, because a tile that genuinely
+     * authored zero is spelled `h1` in text and would otherwise be lost.
+     */
+    uint8_t has_authored_height;
+    uint8_t authored_height;
 };
 
 struct ToriRS_MapTerrain

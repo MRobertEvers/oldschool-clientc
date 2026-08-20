@@ -7,6 +7,8 @@
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
 
+#include "render/torirs_polygon.h"
+
 #define TORIRS_SOFT3D_BG 0xFF202428
 
 struct ToriRS_Soft3D
@@ -16,6 +18,16 @@ struct ToriRS_Soft3D
     int width;
     int height;
     int stride;
+
+    /* Polygon run state: points accumulate between POLYGON_BEGIN and
+     * POLYGON_END, and the fill happens on END. Held here rather than passed
+     * through because a run spans several commands by design -- see the
+     * TORIRSRC_POLYGON_* note in torirs_render.h. */
+    struct ToriRS_RenderCommand_PolygonBegin polygon;
+    int polygon_open;
+    int polygon_x[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_y[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_count;
 
     bool has_3d;
     struct ToriDraw_ViewPort view_port_3d;

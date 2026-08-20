@@ -455,6 +455,10 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
+	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
+	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
+	editor/editor_panel.c \
+	render/torirs_polygon.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -1389,6 +1393,88 @@ run: $(TARGET)
 test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
+
+# ---- map editor ------------------------------------------------------------
+#
+# The content root the editor edits. Both map-editor tests are read-only over
+# it; neither writes into a content tree.
+EDITOR_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
+
+# Document and command layer: undo restoring an authored *absence*, strokes
+# undoing as one step, edits at a square edge reaching the neighbour. Pure
+# data — no cache, no window, runs in milliseconds.
+test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	./$(OBJ_DIR)/editor_cmd_test
+
+# Codec fidelity over the whole content tree: every .jm2/.jl2 must survive
+# parse -> emit byte for byte. The editor's save path rewrites the file it
+# loaded, so any asymmetry here is a diff the user never asked for, landing
+# across thousands of squares at once.
+test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
+		editor/test/editor_jm2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/test/editor_jm2_test.c
+	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
+
+# The editor renders what the game renders: a square loaded from text derives
+# to exactly the terrain the cache decodes, resolved heights included. This is
+# the one test that exercises the Perlin height fixup end to end.
+test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_derive_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
+
+# The save path through the real host: only the dirty half is written, the
+# untouched half stays byte-identical, the file reloads, no .tmp is stranded,
+# and a session without the lock cannot write at all.
+test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
+	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
+	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
+# Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
+# degenerate shapes real footprints produce -- edge-on, collinear, duplicated
+# corners shared between adjacent tiles.
+test-convex-hull: $(OBJ_DIR) $(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/convex_hull_test \
+		$(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	./$(OBJ_DIR)/convex_hull_test
+
+# Convex polygon span decomposition -- the geometry all four renderers share, so
+# a bug in it is a bug in every backend at once.
+test-polygon-fill: $(OBJ_DIR) render/torirs_polygon.c render/test/torirs_polygon_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_polygon_test \
+		render/torirs_polygon.c render/test/torirs_polygon_test.c
+	./$(OBJ_DIR)/torirs_polygon_test
+
+# ToriDbgUI dropdown interaction, driven through the real input entry points:
+# opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
+# and swapping the option list out from under an open one.
+test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_test_dropdown \
+		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	./$(OBJ_DIR)/uitree_test_dropdown
+
+test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
+	test-convex-hull test-polygon-fill test-editor-save
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

@@ -42,6 +42,16 @@ enum UITreeEntityOverlayKind
      *  bottom-right, 1 bottom-left to top-right (TORIRSRC_LINE's contract).
      *  Any projected world segment fits by picking box + direction. */
     UITREE_ENTITY_OVERLAY_LINE,
+    /* Convex polygon, as a begin / point... / end run.
+     *
+     * Bracketed rather than one item carrying an array so that each item is
+     * still ONE render command: the emit walk produces one command per step,
+     * and this keeps a variable-length primitive from needing a sub-step
+     * counter threaded through the walk and every backend. `color` and `trans`
+     * ride on the BEGIN; the POINTs carry only x and y. */
+    UITREE_ENTITY_OVERLAY_POLY_BEGIN,
+    UITREE_ENTITY_OVERLAY_POLY_POINT,
+    UITREE_ENTITY_OVERLAY_POLY_END,
 };
 
 /* Long enough for a full overhead chat line (reference chatMessage); hitsplat

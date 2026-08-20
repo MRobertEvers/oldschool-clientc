@@ -46,6 +46,20 @@ enum ToriRS_RenderCommandKind
     TORIRSRC_SPRITE,
     TORIRSRC_FONT,
     TORIRSRC_LINE,
+    /* Convex polygon, as a begin / point... / end run.
+     *
+     * A run rather than one command carrying an array: the emit layer produces
+     * exactly one command per step, so a primitive whose size varies has to be
+     * spelled as a sequence or the walk needs a sub-step counter threaded
+     * through it and every backend. The overlay stream is bracketed the same
+     * way, so one overlay item maps to one command the whole way down.
+     *
+     * Backends accumulate points between BEGIN and END and draw on END. A run
+     * that is never closed draws nothing, which is the right failure: a
+     * truncated command list should lose the polygon, not paint a half one. */
+    TORIRSRC_POLYGON_BEGIN,
+    TORIRSRC_POLYGON_POINT,
+    TORIRSRC_POLYGON_END,
 
     /* --- BATCHING (3D) — reserved for GPU; Soft3D no-ops --- */
     TORIRSRC_BATCH3D_BEGIN,
@@ -277,6 +291,24 @@ struct ToriRS_RenderCommand_Font
     int scissor_h;
 };
 
+struct ToriRS_RenderCommand_PolygonBegin
+{
+    int argb;
+    /** 0..255, 0 = opaque. Highlights are drawn as a wash over the model, so
+     *  the fill is nearly always translucent. */
+    int trans;
+    int scissor_x;
+    int scissor_y;
+    int scissor_w;
+    int scissor_h;
+};
+
+struct ToriRS_RenderCommand_PolygonPoint
+{
+    int x;
+    int y;
+};
+
 struct ToriRS_RenderCommand_Line
 {
     int x;
@@ -311,6 +343,8 @@ struct ToriRS_RenderCommand
         struct ToriRS_RenderCommand_FillRect fill_rect;
         struct ToriRS_RenderCommand_Font font;
         struct ToriRS_RenderCommand_Line line;
+        struct ToriRS_RenderCommand_PolygonBegin polygon_begin;
+        struct ToriRS_RenderCommand_PolygonPoint polygon_point;
     } u;
 };
 

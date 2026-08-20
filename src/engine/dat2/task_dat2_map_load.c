@@ -114,12 +114,31 @@ Task_Dat2MapTerrainLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    /* Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209), so
-     * the profile picks them — not the container, which is dat2 for both widths.
-     * Region-grouped archives are split inside MapTerrainNewFromArchiveProfile. */
-    rscache_terrain = RSCache_MapTerrainNewFromArchiveProfile(
-        archive, task->map_x, task->map_z, CacheProvider_Profile(&task->bc->base));
+    /*
+     * Decoded raw, then resolved — two steps rather than one.
+     *
+     * The height fixup overwrites `height` for every tile: procedurally where
+     * the file gave none, scaled by the tile-height basis where it did. Letting
+     * the decode do it inline leaves no moment at which the square holds what
+     * the FILE said, and the client needs that moment — `authored_height` /
+     * `has_authored_height` ride across into ToriRS_MapFloor so anything that
+     * writes terrain back (the map editor) can tell "no height here, generate
+     * one" from "height zero". Resolving afterwards is what the renderer wants,
+     * and it is the same function the decode would have called.
+     *
+     * Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209),
+     * so the profile picks them — not the container, which is dat2 for both.
+     * Region-grouped archives are split inside the archive decoder.
+     */
+    rscache_terrain = RSCache_MapTerrainNewFromArchiveProfileFlags(
+        archive,
+        task->map_x,
+        task->map_z,
+        CacheProvider_Profile(&task->bc->base),
+        RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP);
     RSCache_Dat2DiskArchiveFree(archive);
+    if( rscache_terrain )
+        RSCache_MapTerrainFixup(rscache_terrain, task->map_x, task->map_z);
     if( !rscache_terrain )
     {
         fprintf(stderr, "Failed to decode terrain for map (%d,%d)\n", task->map_x, task->map_z);

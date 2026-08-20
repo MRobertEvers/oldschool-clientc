@@ -33,8 +33,8 @@ generate_height(
     return n;
 }
 
-static void
-fixup_terrain(
+void
+RSCache_MapTerrainFixup(
     struct RSCache_MapTerrain* map_terrain,
     int map_x,
     int map_z)
@@ -321,6 +321,17 @@ RSCache_MapTerrainNewFromArchiveProfile(
     int map_z,
     const struct RSCache* cache)
 {
+    return RSCache_MapTerrainNewFromArchiveProfileFlags(archive, map_x, map_z, cache, 0);
+}
+
+struct RSCache_MapTerrain*
+RSCache_MapTerrainNewFromArchiveProfileFlags(
+    struct RSCache_Dat2DiskArchive* archive,
+    int map_x,
+    int map_z,
+    const struct RSCache* cache,
+    int extra_flags)
+{
     char* data;
     int size;
     struct RSCache_FileList* files = NULL;
@@ -335,7 +346,7 @@ RSCache_MapTerrainNewFromArchiveProfile(
         size,
         map_x,
         map_z,
-        RSCache_MapTerrainFlags(cache));
+        RSCache_MapTerrainFlags(cache) | extra_flags);
     RSCache_FileListFree(files);
     if( !map_terrain )
     {
@@ -504,9 +515,9 @@ RSCache_MapTerrainNewFromDecodeFlags(
             map_terrain->trailing_size = 0;
     }
 
-    /* fixup_terrain sets is_fixedup itself. */
+    /* RSCache_MapTerrainFixup sets is_fixedup itself. */
     if( !(flags & RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP) )
-        fixup_terrain(map_terrain, map_x, map_z);
+        RSCache_MapTerrainFixup(map_terrain, map_x, map_z);
 
     return map_terrain;
 }

@@ -4125,6 +4125,70 @@ webgl1_ev_clear_rect(
         0, 0, 1, 1, rgba);
 }
 
+
+/* ---- convex polygon ------------------------------------------------------ *
+ *
+ * The shared decomposition (render/torirs_polygon.c) turns the polygon into
+ * horizontal runs and this draws each as a one-pixel-tall quad, on the same
+ * white-texture path the line primitive already uses. Spans rather than a
+ * triangle fan so that all four backends run the SAME geometry: a highlight
+ * that covers different pixels in the GL and software paths is the kind of
+ * difference nobody goes looking for.
+ */
+
+struct webgl1_span_ctx
+{
+    struct ToriRS_GL3* renderer;
+    float rgba[4];
+};
+
+static void
+webgl1_polygon_span(
+    void* user_data,
+    int x,
+    int y,
+    int count)
+{
+    struct webgl1_span_ctx* ctx = user_data;
+    if( count <= 0 )
+        return;
+    webgl1_draw_textured_quad(
+        ctx->renderer, ctx->renderer->white_texture, 0, false, NULL,
+        (float)x, (float)y, (float)(x + count), (float)(y + 1), 0, 0, 1, 1, ctx->rgba);
+}
+
+static void
+webgl1_polygon_end(struct ToriRS_GL3* renderer)
+{
+    struct webgl1_span_ctx ctx;
+    int alpha;
+
+    if( !renderer->polygon_open )
+        return;
+    renderer->polygon_open = 0;
+    if( !renderer->in2d )
+        return;
+
+    webgl1_set_draw_scissor(
+        renderer, renderer->polygon.scissor_x, renderer->polygon.scissor_y,
+        renderer->polygon.scissor_w, renderer->polygon.scissor_h);
+    trspk_color_argb_to_rgba(renderer->polygon.argb, ctx.rgba);
+    /* `trans` is the sprite path's sense: 0 opaque, 255 invisible. A highlight
+     * is a wash over the model it marks, so this is normally well under 255. */
+    alpha = 255 - (renderer->polygon.trans & 0xFF);
+    ctx.rgba[3] = (float)alpha / 255.0f;
+    ctx.renderer = renderer;
+
+    webgl1_flush_2d_batch(renderer);
+    ToriRS_PolygonFillConvex(
+        renderer->polygon_x, renderer->polygon_y, renderer->polygon_count,
+        renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_x : 0,
+        renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_y : 0,
+        renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_w : 1 << 15,
+        renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_h : 1 << 15,
+        webgl1_polygon_span, &ctx);
+}
+
 static void
 webgl1_ev_line(
     struct ToriRS_GL3* renderer,
@@ -4636,6 +4700,29 @@ handle_render_command(
 
     case TORIRSRC_LINE:
         webgl1_ev_line(renderer, command);
+        break;
+
+    case TORIRSRC_POLYGON_BEGIN:
+        renderer->polygon = command->u.polygon_begin;
+        renderer->polygon_count = 0;
+        renderer->polygon_open = 1;
+        break;
+
+    case TORIRSRC_POLYGON_POINT:
+        /* Points past the cap are dropped rather than growing the run: the cap
+         * is far above any highlight, so reaching it means something upstream
+         * is wrong, and a dropped tail distorts the shape less than a wrapped
+         * write would destroy memory. */
+        if( renderer->polygon_open && renderer->polygon_count < TORIRS_POLYGON_MAX_POINTS )
+        {
+            renderer->polygon_x[renderer->polygon_count] = command->u.polygon_point.x;
+            renderer->polygon_y[renderer->polygon_count] = command->u.polygon_point.y;
+            renderer->polygon_count++;
+        }
+        break;
+
+    case TORIRSRC_POLYGON_END:
+        webgl1_polygon_end(renderer);
         break;
 
     case TORIRSRC_NONE:

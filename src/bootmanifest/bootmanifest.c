@@ -168,6 +168,7 @@ enum bm_section
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
     BM_SECTION_CONTENT,
+    BM_SECTION_EDITOR,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
      * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
      * file for them, because only the RevConfig parser knows that dialect. */
@@ -202,6 +203,8 @@ bm_section_of(char const* header)
         return BM_SECTION_RENDER;
     if( strncmp(header, "content:", 8) == 0 )
         return BM_SECTION_CONTENT;
+    if( strncmp(header, "editor:", 7) == 0 )
+        return BM_SECTION_EDITOR;
     if( strncmp(header, "revconfig:", 10) == 0 )
         return BM_SECTION_REVCONFIG;
     return BM_SECTION_NONE;
@@ -266,6 +269,27 @@ bm_set_kv(
                 "%s",
                 value);
             bm->lane_count++;
+            return;
+        }
+        break;
+
+    case BM_SECTION_EDITOR:
+        /* The map editor edits the content tree's `.jm2`/`.jl2` map sources, so
+         * it needs to be pointed at one. Stating the directory is what turns
+         * the editor on — there is no separate enable, because an editor with
+         * nothing to edit is not a mode worth booting into. */
+        if( strcmp(key, "content_dir") == 0 )
+        {
+            bm_join_path(
+                bm->editor_content_dir, sizeof(bm->editor_content_dir), manifest_dir, value);
+            return;
+        }
+        /* Where a bake would run from. Absent means baking is unavailable this
+         * session, which is the right default for a manifest that only wants to
+         * look at the map. */
+        if( strcmp(key, "repo_root") == 0 )
+        {
+            bm_join_path(bm->editor_repo_root, sizeof(bm->editor_repo_root), manifest_dir, value);
             return;
         }
         break;
@@ -643,7 +667,8 @@ bm_set_kv(
             "paint_toggle",     "paint_more",     "paint_less",      "paint_more_100",
             "paint_less_100",   "spawn_player",   "spawn_npc",       "spawn_obj",
             "spawn_projectile", "spawn_spotanim", "entity_spotanim", "damage_test",
-            "debug_overlay",    "loc_editor_toggle", "hover_footprint"
+            "debug_overlay",    "loc_editor_toggle", "hover_footprint",
+            "map_editor_toggle"
         };
         char const* name = section_name + 7;
         struct BootManifestDebugAction* action = NULL;
@@ -1083,6 +1108,10 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->cache_kind = (enum AppCacheKind)bm->cache_kind;
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
+    if( bm->editor_content_dir[0] )
+        cfg->editor_content_dir = bm->editor_content_dir;
+    if( bm->editor_repo_root[0] )
+        cfg->editor_repo_root = bm->editor_repo_root;
 
     if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
         bm->cache_revision >= 0 )

@@ -9,6 +9,16 @@
 #include "bootmanifest/bootmanifest.h"
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
+#include "editor/editor.h"
+#include "graphics/convex_hull.h"
+
+/* Highlight colours. The model silhouette is the brighter of the two because it
+ * is the "this is the thing" mark; the ground footprint under it is supporting
+ * information and reads as such. */
+#define APP_OUTLINE_COLOR_HOVER 0xFFFFFF00u
+#define APP_OUTLINE_COLOR_FOOTPRINT 0xFFFF0000u
+/* 0 opaque .. 255 invisible. High enough that the model reads through it. */
+#define APP_OUTLINE_FILL_TRANS 205
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -2411,6 +2421,201 @@ app_overlay_push_segment(
  * Each footprint tile is outlined at terrain height through the same
  * projector the health bars use, so the outline hugs the contour.
  */
+/**
+ * Emit a convex polygon as a closed outline.
+ *
+ * The overlay's own primitives are boxes and box-diagonals, so a polygon is
+ * expanded here into one LINE per edge rather than reaching the draw layer as a
+ * single command. That keeps the emit walk's one-item-one-command stepping
+ * intact — a real multi-segment render command would need a sub-step counter
+ * threaded through every backend, which is worth doing only when a highlight
+ * needs to be FILLED rather than outlined.
+ *
+ * Degenerate hulls are drawn as what they are: two points are a single
+ * segment (a footprint seen edge-on), and one point draws nothing rather than a
+ * zero-length line the rasteriser would have to special-case.
+ */
+/**
+ * Emit a convex polygon as a FILL: a begin / point... / end run.
+ *
+ * The run is three kinds of overlay item rather than one item holding an array
+ * so that each still maps to exactly one render command — the emit walk is one
+ * command per step, and bracketing is what lets a variable-length primitive
+ * through it without a sub-step counter in the walk and in all four backends.
+ *
+ * @param trans 0 opaque .. 255 invisible. A highlight is a wash over the model
+ *        it marks, so an opaque fill would hide the thing being highlighted.
+ */
+static void
+app_overlay_push_polygon_filled(
+    struct App* app,
+    const int* points_x,
+    const int* points_y,
+    int point_count,
+    uint32_t color,
+    int trans)
+{
+    struct UITreeEntityOverlay item;
+
+    assert(app);
+    assert(points_x);
+    assert(points_y);
+
+    /* Under three points there is no area to fill. The caller still draws the
+     * outline, so a hull seen edge-on degrades to a line rather than vanishing. */
+    if( point_count < 3 )
+        return;
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_POLY_BEGIN;
+    item.color = color;
+    item.trans = trans;
+    app_overlay_push(app, &item);
+
+    for( int i = 0; i < point_count; i++ )
+    {
+        memset(&item, 0, sizeof(item));
+        item.kind = UITREE_ENTITY_OVERLAY_POLY_POINT;
+        item.x = points_x[i];
+        item.y = points_y[i];
+        app_overlay_push(app, &item);
+    }
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_POLY_END;
+    app_overlay_push(app, &item);
+}
+
+static void
+app_overlay_push_polygon(
+    struct App* app,
+    const int* points_x,
+    const int* points_y,
+    int point_count,
+    uint32_t color)
+{
+    assert(app);
+    assert(points_x);
+    assert(points_y);
+    assert(point_count >= 0);
+
+    if( point_count < 2 )
+        return;
+
+    if( point_count == 2 )
+    {
+        app_overlay_push_segment(app, points_x[0], points_y[0], points_x[1], points_y[1], color);
+        return;
+    }
+
+    for( int i = 0; i < point_count; i++ )
+    {
+        int const next = (i + 1) % point_count;
+        app_overlay_push_segment(
+            app, points_x[i], points_y[i], points_x[next], points_y[next], color);
+    }
+}
+
+/**
+ * Outline the MODEL of a scene element: a silhouette that wraps the thing in
+ * three dimensions, not a quad on the ground under it.
+ *
+ * Renderer-independent by construction, which is the constraint that shapes it.
+ * The projection is the app's own integer camera transform and the output is
+ * the LINE primitives the overlay pass already carries, so soft3d, gl3 and
+ * gl3zb all draw this without knowing it exists. Anything that reached into a
+ * renderer — a stencil pass, an edge filter over the depth buffer, a shader —
+ * would have to be written three times and would not exist at all in the
+ * software rasteriser.
+ *
+ * The shape projected is the model's bounds CYLINDER as an eight-corner box:
+ * `radius` either way in x and z, `min_y`..`max_y` vertically. The cylinder is
+ * what the renderer itself culls and sorts against, so an outline drawn from it
+ * agrees with what is on screen; and because a cylinder has no orientation in
+ * xz, this needs no yaw and is correct for a loc at any angle and for an npc
+ * mid-turn.
+ *
+ * Hulling eight corners rather than the mesh's vertices is a deliberate stop:
+ * it is one outline that always wraps the model, at fixed cost per entity per
+ * frame. Hugging the mesh exactly means projecting every vertex, which is the
+ * same code with a bigger input — see ToriDraw_ConvexHullScratch, which exists
+ * for that and has no point cap.
+ *
+ * @return 1 when an outline was emitted.
+ */
+static int
+app_overlay_outline_element_model(
+    struct App* app,
+    int element_id,
+    uint32_t color)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_BoundsCylinder* bounds;
+    int px[8];
+    int py[8];
+    int hull_x[8];
+    int hull_y[8];
+    int count = 0;
+    int hull_size;
+    int ox;
+    int oy;
+    int oz;
+    int radius;
+
+    assert(app);
+
+    if( !app->scene || element_id < 0 )
+        return 0;
+    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return 0;
+
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !element )
+        return 0;
+
+    bounds = ToriDraw_ModelGetBoundsCylinder(element->model);
+    /* No bounds is not a failure: a handle that is not a full model (a sprite
+     * billboard, an empty slot) has none, and there is nothing to outline. */
+    if( !bounds )
+        return 0;
+
+    ox = element->world_position.x;
+    oy = element->world_position.y;
+    oz = element->world_position.z;
+    radius = bounds->radius;
+    if( radius <= 0 )
+        return 0;
+
+    for( int corner = 0; corner < 8; corner++ )
+    {
+        /* Bit 0 = east, bit 1 = south, bit 2 = the model's top edge. `min_y` is
+         * the TOP in scene space, where y grows downward. */
+        int const wx = ox + ((corner & 1) ? radius : -radius);
+        int const wz = oz + ((corner & 2) ? radius : -radius);
+        int const wy = oy + ((corner & 4) ? bounds->min_y : bounds->max_y);
+        int screen_x;
+        int screen_y;
+
+        if( !app_world_project_at(app, wx, wz, wy, &screen_x, &screen_y) )
+            continue;
+        px[count] = screen_x;
+        py[count] = screen_y;
+        count++;
+    }
+
+    if( count < 2 )
+        return 0;
+
+    hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+    /* Fill first, outline over it: the wash says "this one" at a glance and the
+     * outline gives it a definite edge, which a translucent fill alone does not
+     * have against busy ground. */
+    app_overlay_push_polygon_filled(
+        app, hull_x, hull_y, hull_size, color, APP_OUTLINE_FILL_TRANS);
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    return 1;
+}
+
 static void
 app_overlay_outline_scenery(
     struct App* app,
@@ -2429,37 +2634,83 @@ app_overlay_outline_scenery(
      * meant to describe. */
     plane_y = app_world_height(app, base_x * 128, base_z * 128, scenery->grid_position.level);
 
-    for( int tz = base_z; tz < base_z + size_z; tz++ )
+    /*
+     * The SILHOUETTE of the footprint, not a box per tile.
+     *
+     * Outlining each tile separately draws every internal edge — a 3x3 loc came
+     * out as nine overlapping quads, which reads as a grid laid over the loc
+     * rather than as the loc being highlighted. Hulling the projected corners
+     * collapses that to the one closed outline the eye is looking for, and it
+     * costs less to draw: four segments instead of thirty-six.
+     *
+     * The corners are projected first and hulled in SCREEN space, not hulled on
+     * the ground and then projected. A footprint is convex on the ground, but
+     * "convex after projection" is what makes the outline enclose the pixels,
+     * and the two only agree for an axis-aligned camera.
+     */
     {
-        for( int tx = base_x; tx < base_x + size_x; tx++ )
-        {
-            /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
-            static const int corner[4][2] = {
-                { 0, 0 },
-                { 1, 0 },
-                { 1, 1 },
-                { 0, 1 }
-            };
-            int px[4];
-            int py[4];
-            int visible = 1;
+        /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
+        static const int corner[4][2] = {
+            { 0, 0 },
+            { 1, 0 },
+            { 1, 1 },
+            { 0, 1 }
+        };
+        int px[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int py[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int hull_x[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int hull_y[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int count = 0;
+        int hull_size;
 
-            for( int c = 0; c < 4 && visible; c++ )
-                visible = app_world_project_at(
-                    app,
-                    (tx + corner[c][0]) * 128,
-                    (tz + corner[c][1]) * 128,
-                    plane_y,
-                    &px[c],
-                    &py[c]);
-            if( !visible )
-                continue;
-            for( int c = 0; c < 4; c++ )
+        for( int tz = base_z; tz < base_z + size_z; tz++ )
+        {
+            for( int tx = base_x; tx < base_x + size_x; tx++ )
             {
-                int next = (c + 1) & 3;
-                app_overlay_push_segment(app, px[c], py[c], px[next], py[next], 0xFFFF0000u);
+                for( int c = 0; c < 4; c++ )
+                {
+                    int screen_x;
+                    int screen_y;
+
+                    if( count >= TORIDRAW_CONVEX_HULL_MAX_POINTS )
+                        break;
+                    /* A corner behind the camera projects to nothing usable, so
+                     * it is dropped rather than clamped: the hull of what IS in
+                     * front is still the right outline for the visible part,
+                     * where a clamped point would drag an edge across the
+                     * screen. */
+                    if( !app_world_project_at(
+                            app,
+                            (tx + corner[c][0]) * 128,
+                            (tz + corner[c][1]) * 128,
+                            plane_y,
+                            &screen_x,
+                            &screen_y) )
+                        continue;
+                    px[count] = screen_x;
+                    py[count] = screen_y;
+                    count++;
+                }
             }
         }
+
+        if( count == 0 )
+            return;
+
+        hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+        /* Why an outline looks wrong, in one line: too few corners means the
+         * projection dropped some (behind the camera), and hull < corners is
+         * the interior points being discarded, which is the point. */
+        if( getenv("TORIRS_HULL_DEBUG") )
+            fprintf(
+                stderr,
+                "hull: loc %d footprint %dx%d corners=%d hull=%d\n",
+                scenery->loc_id,
+                size_x,
+                size_z,
+                count,
+                hull_size);
+        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_FOOTPRINT);
     }
 }
 
@@ -2481,18 +2732,39 @@ app_overlay_build_hover_footprint(struct App* app)
 
     if( mode == 1 )
     {
-        /* The pickset is this frame's under-mouse set, nearest hits first
-         * (the same order the minimenu consumes). Take the first scenery. */
+        /*
+         * The pickset is this frame's under-mouse set, nearest hits first (the
+         * same order the minimenu consumes), so the first loc or npc in it is
+         * the one the cursor is actually on.
+         *
+         * Npcs are outlined as well as locs because an editor is placing both
+         * against each other, and "what am I about to act on" is the same
+         * question for either. The model outline is the same call for both —
+         * they are both scene elements — which is why this does not need to
+         * know what kind of entity it found beyond where to read the id.
+         */
         struct World_Picked const* hit = NULL;
-        struct WorldEntity_Scenery* scenery;
         for( int i = 0; i < app->world_pickset.count && !hit; i++ )
-            if( app->world_pickset.items[i].type == WORLD_PICK_SCENERY )
+        {
+            enum World_PickType const type = app->world_pickset.items[i].type;
+            if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
                 hit = &app->world_pickset.items[i];
+        }
         if( !hit )
             return;
-        scenery = World_SceneryGetByElementId(app->world, hit->element_id);
-        if( scenery )
-            app_overlay_outline_scenery(app, scenery);
+
+        /* Model silhouette first. It is the outline that reads as "this thing
+         * is selected"; the ground footprint below says which TILES it owns,
+         * which is what an editor needs when placing something beside it. */
+        app_overlay_outline_element_model(app, hit->element_id, APP_OUTLINE_COLOR_HOVER);
+
+        if( hit->type == WORLD_PICK_SCENERY )
+        {
+            struct WorldEntity_Scenery* scenery =
+                World_SceneryGetByElementId(app->world, hit->element_id);
+            if( scenery )
+                app_overlay_outline_scenery(app, scenery);
+        }
         return;
     }
 
@@ -2502,7 +2774,15 @@ app_overlay_build_hover_footprint(struct App* app)
     {
         struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
         if( scenery && scenery->loc_id == mode )
+        {
+            /* Both marks, the same pair the hover path draws. The two modes
+             * showing different things would make the by-id form useless for
+             * checking the hover form — which is what it is for, since a
+             * headless run has no cursor to hover with. */
+            app_overlay_outline_element_model(
+                app, scenery->element_id, APP_OUTLINE_COLOR_HOVER);
             app_overlay_outline_scenery(app, scenery);
+        }
     }
 }
 
@@ -4654,6 +4934,22 @@ app_loc_editor_nudge(
         -1,
         app->locedit_shape,
         app->locedit_angle);
+    /* The scene edit above is client-side only; this records the same move
+     * against the authored loc list so it survives a reload and can be saved.
+     * Recorded BEFORE the coordinates advance, since the command needs both
+     * ends of the move. */
+    Editor_PanelRecordLocEdit(
+        &app->editor_panel,
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle,
+        app->locedit_scene_x + dx,
+        app->locedit_scene_z + dz,
+        app->locedit_angle);
     app->locedit_scene_x += dx;
     app->locedit_scene_z += dz;
     App_WorldLocChange(
@@ -4675,6 +4971,19 @@ app_loc_editor_rotate(struct App* app)
 {
     if( app->locedit_loc_id < 0 )
         return;
+    /* Same pair as a nudge: the authored record first, then the scene. */
+    Editor_PanelRecordLocEdit(
+        &app->editor_panel,
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        (app->locedit_angle + 1) % 4);
     app->locedit_angle = (app->locedit_angle + 1) % 4;
     App_WorldLocChange(
         app,
@@ -4685,6 +4994,45 @@ app_loc_editor_rotate(struct App* app)
         app->locedit_shape,
         app->locedit_angle);
     app_loc_editor_refresh_labels(app);
+}
+
+
+/**
+ * OSRS key code -> the overlay's editing key, or TORIDBG_KEY_NONE.
+ *
+ * The overlay deliberately owns no keymap (see uitree_debug_overlay.h), so the
+ * translation lives here, where the client's own key codes already are.
+ * Printable characters do not come through this at all — they arrive as
+ * `key_pressed` and go straight to ToriDbgUI_KeyChar.
+ */
+
+
+static int
+app_dbgui_key_edit_from_osrs(int osrs_key)
+{
+    switch( osrs_key )
+    {
+    case TORIRS_OSRSKEY_BACKSPACE:
+        return TORIDBG_KEY_BACKSPACE;
+    case TORIRS_OSRSKEY_DELETE:
+        return TORIDBG_KEY_DELETE;
+    case TORIRS_OSRSKEY_ENTER:
+        return TORIDBG_KEY_ENTER;
+    case TORIRS_OSRSKEY_ESCAPE:
+        return TORIDBG_KEY_ESCAPE;
+    /* Arrows and home/end have no named constants; the keymap table spells
+     * them (src/input/torirs_keymap.c: 96 left, 97 right, 102 home, 103 end). */
+    case 96:
+        return TORIDBG_KEY_LEFT;
+    case 97:
+        return TORIDBG_KEY_RIGHT;
+    case 102:
+        return TORIDBG_KEY_HOME;
+    case 103:
+        return TORIDBG_KEY_END;
+    default:
+        return TORIDBG_KEY_NONE;
+    }
 }
 
 static void
@@ -4720,6 +5068,17 @@ app_loc_editor_tick(
         fprintf(stderr, "hover_footprint: %d\n", app->hover_footprint);
     }
 
+    /* Map editor panel. Gated on the session existing, so binding this key in a
+     * manifest with no [editor:boot] is inert rather than a panel with nothing
+     * behind it. */
+    if( app->editor && !app_text_input_focused(app) &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
+    {
+        Editor_PanelSetVisible(
+            &app->editor_panel, &app->dbg_ui, !app->editor_panel.visible);
+        app->need_redraw = 1;
+    }
+
     /* Both tools inspect locs the pick classifier drops by default — walls,
      * fences, gravel, ground decor: everything with no ops on it, which is
      * most of what a placement or footprint question is actually about. Told
@@ -4740,7 +5099,16 @@ app_loc_editor_tick(
         app->locedit_hover_z = app->world_hover_tile_z;
     }
 
-    if( app->locedit_visible )
+    /*
+     * Overlay input, for ANY visible overlay panel.
+     *
+     * This used to be gated on the loc editor alone, which was invisible while
+     * it was the only panel with controls. It is not: the map editor's
+     * dropdowns and buttons sit in the same ToriDbgUI instance, and with the
+     * loc editor closed they received no clicks at all -- every control was
+     * inert, which reads as a broken panel rather than an unrouted one.
+     */
+    if( app->locedit_visible || app->editor_panel.visible )
     {
         /* A chat line stealing W/A/S/D/R/Space/Backspace would make the panel
          * unusable, so force it (and the modal chat variants) closed for as
@@ -4763,6 +5131,45 @@ app_loc_editor_tick(
         if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
             ToriDbgUI_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
+
+        /* The wheel, so an open dropdown scrolls. Consumed when the overlay
+         * takes it, or the camera would zoom behind the list at the same time. */
+        if( input->curr.mouse_wheel_y != 0 &&
+            ToriDbgUI_MouseWheel(
+                &app->dbg_ui,
+                input->curr.mouse_x,
+                input->curr.mouse_y,
+                input->curr.mouse_wheel_y) )
+            app->input_frame_consumed = 1;
+
+        /*
+         * Typing, so text inputs work at all.
+         *
+         * Nothing routed keys to the overlay before this: the loc editor is
+         * menu rows only, so its inputs were never exercised and the gap did
+         * not show. A height field you cannot type into is the whole of what
+         * that costs.
+         *
+         * `key_typed` carries the OSRS key code and `key_pressed` the typed
+         * character (see torirs_input.h), so editing keys and printable bytes
+         * come off different fields of the same event.
+         */
+        for( int i = 0; i < input->key_event_count; i++ )
+        {
+            struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
+            int consumed = 0;
+
+            if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
+                consumed = ToriDbgUI_KeyChar(&app->dbg_ui, ev->key_pressed);
+            else
+            {
+                int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
+                if( edit != TORIDBG_KEY_NONE )
+                    consumed = ToriDbgUI_KeyEdit(&app->dbg_ui, edit);
+            }
+            if( consumed )
+                app->input_frame_consumed = 1;
+        }
 
         /* Keyboard control, the fast path the menu rows advertise. IsKeyDown
          * (edge, not held) so one press moves one tile rather than a nudge
@@ -4792,7 +5199,12 @@ app_loc_editor_tick(
             ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
         }
 
-        activated = ToriDbgUI_TakeActivated(&app->dbg_ui);
+        /* Only when the LOC editor is open. The block above widened to route
+         * input for any visible panel, but this half is loc-editor rows, and
+         * draining the shared activation latch here swallowed the map editor's
+         * clicks -- its dropdown showed the new value while its tool never
+         * changed, because the activation was taken before its tick ran. */
+        activated = app->locedit_visible ? ToriDbgUI_TakeActivated(&app->dbg_ui) : -1;
         if( activated >= 0 )
         {
             if( activated == app->locedit_item_xplus )
@@ -5317,6 +5729,36 @@ App_Init(
         app->bridge.player_head_light_ambient = app->player_head_light_ambient;
     }
 
+    /*
+     * Phase 5b: the world map editor (opt-in, and mutually exclusive with a
+     * server in practice).
+     *
+     * Constructed before the networking phase below on purpose: an editor boot
+     * states no `[net:boot]`, so that phase does not run at all and this is the
+     * last thing built. The editor is the second writer of world state — the
+     * first being the packet layer that is absent here — and it reaches the
+     * world through the same seams that layer would.
+     */
+    if( cfg->editor_content_dir && cfg->editor_content_dir[0] )
+    {
+        app->editor = malloc(sizeof(*app->editor));
+        assert(app->editor);
+        Editor_Open(
+            app->editor,
+            cfg->editor_content_dir,
+            cfg->editor_repo_root,
+            CacheProvider_Profile(app->provider));
+        fprintf(
+            stderr,
+            "app: map editor over %s (%s)\n",
+            cfg->editor_content_dir,
+            app->editor->writable ? "writable" : "read-only, another session holds it");
+        /* Open on boot: this manifest asked for an editor, so the panel is the
+         * point of the session rather than a debug aid to go find. */
+        Editor_PanelInit(&app->editor_panel, &app->dbg_ui);
+        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
+    }
+
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
     if( cfg->connect_target && cfg->connect_target[0] )
@@ -5417,6 +5859,17 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     app_prefs_flush(app);
+    if( app->editor )
+    {
+        /* Releases the content-tree lock. Unsaved edits are NOT written here:
+         * a save is something the user asks for, and silently flushing on exit
+         * would put edits on disk that were abandoned on purpose. */
+        if( Editor_DocHasUnsaved(&app->editor->doc) )
+            fprintf(stderr, "app: map editor closing with unsaved edits\n");
+        Editor_Close(app->editor);
+        free(app->editor);
+        app->editor = NULL;
+    }
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -5993,6 +6446,26 @@ app_world_load_begin(
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
     App_WorldDrainEntityRemoved(app);
+
+    /*
+     * Editor boots seed the provider from the content tree before the load
+     * runs, so what gets meshed is the `.jm2`/`.jl2` text being edited rather
+     * than the last bake. Task_WorldLoad skips a square the provider already
+     * holds, so the text wins simply by being there first — the editor never
+     * has to invalidate or race the cache path, and an unsaved edit is visible
+     * without a bake.
+     *
+     * A square the content tree does not carry is left alone and loads from the
+     * cache as usual, which is what lets an editor session sit at the edge of
+     * authored content and still see the world around it.
+     */
+    if( app->editor )
+    {
+        for( int i = 0; i < chunk_pair_count; i++ )
+            Editor_LoadSquare(
+                app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
+    }
+
     task = CreateTask_WorldLoad(
         app->provider,
         app->world_builder,
@@ -6004,6 +6477,92 @@ app_world_load_begin(
         app_world_load_finish_cb,
         app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
+    app->need_redraw = 1;
+}
+
+/**
+ * A click in the world applies the current tool, as one undoable edit.
+ *
+ * Gated on `input_frame_consumed` so a click that landed on the panel does not
+ * also paint the tile behind it -- the overlay sets that flag when it takes a
+ * press, and this runs after it for exactly that reason.
+ *
+ * The tile is the one under the cursor THIS frame. The pickset and hover are
+ * refreshed by the render pass, so they are at most one frame stale, which at
+ * mouse speed is the tile the user is looking at.
+ */
+static void
+app_map_editor_world_click(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(input);
+
+    if( !app->editor || !app->editor_panel.visible )
+        return;
+    if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
+        return;
+    if( app->input_frame_consumed )
+    {
+        if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
+            fprintf(stderr, "edit: click swallowed (input_frame_consumed)\n");
+        return;
+    }
+    if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
+        return;
+    if( getenv("TORIRS_EDIT_DEBUG") )
+        fprintf(
+            stderr,
+            "edit: click tool=%d consumed=%d hover=%d,%d\n",
+            (int)app->editor_panel.tool,
+            app->input_frame_consumed,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z);
+    if( app->world_hover_tile_x < 0 )
+        return;
+
+    /* One click is one undo step. A drag would open the stroke on press and
+     * close it on release; this is the single-click case, which is a stroke of
+     * one and needs no bracketing. */
+    Editor_PanelApplyToolAt(
+        &app->editor_panel,
+        app,
+        app->world_hover_tile_x,
+        app->world_hover_tile_z,
+        app->world_hover_tile_level);
+}
+
+/**
+ * Push the frame's edits back into the provider and rebuild what they changed.
+ *
+ * Once per frame, not once per edit: a brush drag produces a command per tile,
+ * and remeshing a square for each of them would spend the frame rebuilding
+ * terrain nobody has seen yet. Draining here coalesces them, so a drag costs
+ * one rebuild per square per frame however fast the mouse moves.
+ */
+static void
+app_map_editor_drain(struct App* app)
+{
+    int squares[EDITOR_REBUILD_QUEUE_MAX * 2];
+    int count;
+
+    assert(app);
+
+    if( !app->editor || app->editor->rebuild_count == 0 )
+        return;
+    if( app->world_load_inflight )
+        return; /* A load is already rewriting the scene; let it land first. */
+
+    count = Editor_DrainRebuilds(
+        app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
+    if( count <= 0 )
+        return;
+
+    /* The chunklist rebuild path -- the same one an offline world load uses,
+     * given only the squares whose meshes the edit invalidated. */
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, squares, count);
     app->need_redraw = 1;
 }
 
@@ -17504,6 +18063,15 @@ App_RunOnce(
     /* Loc editor next, same reasoning -- and it has to run before anything
      * downstream reads input_frame_consumed for click-to-walk. */
     app_loc_editor_tick(app, input);
+    /* Map editor panel after the loc editor, for the same reason and in the
+     * same order it is drawn: both read this frame's hover, and the map editor
+     * acts on activations the overlay latched during the two calls above. */
+    if( app->editor )
+    {
+        Editor_PanelTick(&app->editor_panel, app);
+        app_map_editor_world_click(app, input);
+        app_map_editor_drain(app);
+    }
 
     /*
      * Is the link still worth talking to?

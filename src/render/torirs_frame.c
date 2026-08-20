@@ -1176,6 +1176,23 @@ translate_ui_cmd(
             out->u.line.scissor_w = clip_w;
             out->u.line.scissor_h = clip_h;
             return true;
+        case UITREE_ENTITY_OVERLAY_POLY_BEGIN:
+            out->kind = TORIRSRC_POLYGON_BEGIN;
+            out->u.polygon_begin.argb = (int)item->color;
+            out->u.polygon_begin.trans = item->trans;
+            out->u.polygon_begin.scissor_x = clip_x;
+            out->u.polygon_begin.scissor_y = clip_y;
+            out->u.polygon_begin.scissor_w = clip_w;
+            out->u.polygon_begin.scissor_h = clip_h;
+            return true;
+        case UITREE_ENTITY_OVERLAY_POLY_POINT:
+            out->kind = TORIRSRC_POLYGON_POINT;
+            out->u.polygon_point.x = item->x;
+            out->u.polygon_point.y = item->y;
+            return true;
+        case UITREE_ENTITY_OVERLAY_POLY_END:
+            out->kind = TORIRSRC_POLYGON_END;
+            return true;
         case UITREE_ENTITY_OVERLAY_RECT:
         default:
             out->kind = TORIRSRC_FILL_RECT;
