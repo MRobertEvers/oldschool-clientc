@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11081] = {
+static const char* const g_ss_opcode_names[11084] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -492,6 +492,9 @@ static const char* const g_ss_opcode_names[11081] = {
     [11078] = "NPC_SETMOVESPEED",
     [11079] = "MAP_INSTANCE_FINDFLAG",
     [11080] = "NPC_HITMARK",
+    [11081] = "P_STUN",
+    [11082] = "P_STUNNED",
+    [11083] = "MAP_CANSTEP",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -501,7 +504,7 @@ static const char* const g_ss_opcode_names[11081] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11081] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11084] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -987,6 +990,9 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11081] = {
     [11078] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_SETMOVESPEED */
     [11079] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_FINDFLAG */
     [11080] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x020 }, /* NPC_HITMARK */
+    [11081] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_STUN */
+    [11082] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_STUNNED */
+    [11083] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_CANSTEP */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

@@ -799,6 +799,30 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # whole of phase one while the raid HUD tracked him correctly.
     "NPC_HITMARK": (11080, 2, 0, 0, 0),
 
+    # p_stun(ticks) / p_stunned()(int) — OldSchool's stun as player state.
+    #
+    # There was no primitive for it. Content approximated with `%action_delay`,
+    # an ordinary varp that only gates the scripts choosing to read it, so a
+    # "stunned" player still walked and still attacked. A stun stops movement
+    # and world interaction and deliberately leaves the inventory, equipment
+    # and prayer book alone — see `stun_ticks` in mock230.h.
+    #
+    # `ticks <= 0` clears; otherwise the longer stun wins, as `npc_freeze` does.
+    "P_STUN": (11081, 1, 0, 0, 0),
+    "P_STUNNED": (11082, 0, 0, 1, 0),
+
+    # map_canstep(coord, dx, dz)(boolean) — can a size-1 actor on `coord` take
+    # one step by (dx, dz)?
+    #
+    # `map_blocked` answers "is that tile blocked", which cannot see a wall
+    # between two open tiles nor the corner rule on a diagonal. Anything
+    # resolving where a shove or a slide comes to rest needs the step question,
+    # and approximating it with `map_blocked` pushes actors through walls.
+    #
+    # Terrain only: npcs and players are not collision here, which is what a
+    # knockback wants.
+    "MAP_CANSTEP": (11083, 3, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1126,6 +1150,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
         1 << POINTER_BITS["active_npc"],
         1 << POINTER_BITS["active_npc2"],
     ),
+    # Stunning needs somebody to stun. `map_canstep` is a pure map query and
+    # correctly takes no pointer at all.
+    "P_STUN": (1 << POINTER_BITS["active_player"], 0),
+    "P_STUNNED": (1 << POINTER_BITS["active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

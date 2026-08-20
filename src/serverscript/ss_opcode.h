@@ -507,9 +507,12 @@
 #define SS_OP_NPC_SETMOVESPEED 11078
 #define SS_OP_MAP_INSTANCE_FINDFLAG 11079
 #define SS_OP_NPC_HITMARK 11080
+#define SS_OP_P_STUN 11081
+#define SS_OP_P_STUNNED 11082
+#define SS_OP_MAP_CANSTEP 11083
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11081
+#define SS_OPCODE_MAX 11084
 /** Opcodes the reference actually defines (the table is sparse). */
 #define SS_OPCODE_COUNT 485
 

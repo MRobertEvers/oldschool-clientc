@@ -275,10 +275,26 @@ def render_inv(shop_key: str, shop: dict, stock_rows: list[dict], cache_inv: str
         f"[{cache_inv}]",
         "scope=shared",
         "restock=yes",
+        # Every shop stacks, general store or not. A shop's stock line is a
+        # *count*, not a pile of physical items: the wiki writes "Bronze axe
+        # x10" for a shop that has never held ten cells, and OSRS itself
+        # merges a sold-back axe into the line it already shows. Without this
+        # an unstackable item has nowhere to go — `inv_itemspace` asks for one
+        # free slot per unit, and a specialty shop's cache inv is sized to its
+        # stock table exactly (Bob's is 7 slots for 7 lines), so every sale to
+        # every non-general shop died on "The shop has run out of space."
+        # LostCity states `stackall=yes` on all 121 of its shop invs for the
+        # same reason.
+        "stackall=yes",
     ]
+    # `allstock` is the *acceptance* rule and stays general-store-only: a
+    # general store "usually accept[s] all tradeable items", a specialty shop
+    # buys only what it already stocks
+    # (https://oldschool.runescape.wiki/w/General_store,
+    # https://oldschool.runescape.wiki/w/Shop). It also gates the one-per-minute
+    # destock of a line the shop never had a baseline for.
     if shop.get("special", "").lower() == "general store":
         lines.append("allstock=yes")
-        lines.append("stackall=yes")
     for i, row in enumerate(stock_rows, start=1):
         lines.append(f"stock{i}={row['obj_gameval']},{row['stock']},{row['restock']}")
     lines.append("")

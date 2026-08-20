@@ -4213,12 +4213,12 @@ npc_changetype_rehydrate(
          *
          * `turnspeed = 0` is not a rate, it is a veto: `mock230_npc_face_player`,
          * `mock230_npc_face_npc` and `npc_facesquare` all return early on it, so
-         * an npc carrying a stale 0 cannot be turned by ANY facing source —
+         * an npc carrying a stale 0 cannot be turned by ANY facing source -
          * silently, because every one of those sites is a no-op rather than an
          * error.
          *
          * Verzik is the case that found it. `verzik_phase1` is `turnspeed=0` in
-         * the cache and correctly so — she is bolted to a throne for phase one —
+         * the cache and correctly so - she is bolted to a throne for phase one -
          * and she SPAWNS as that record. `verzik_phase2` and `verzik_phase3`
          * state no turnspeed at all, i.e. the default 32, but the phase-one veto
          * outlived both transforms: her `npc_facesquare` on landing and every
@@ -4229,14 +4229,8 @@ npc_changetype_rehydrate(
          * Resolved exactly as the spawn does it (mock230_world.c): a stated
          * server overlay wins, an unstated one defers to the cache record.
          */
-        {
-            const struct Mock230NpcDef* new_def = npc->def;
-            int turnspeed = new_def->turnspeed >= 0
-                                ? new_def->turnspeed
-                                : (info ? info->turnspeed : 32);
-
-            npc->turnspeed = turnspeed;
-        }
+        npc->turnspeed = def->turnspeed >= 0 ? def->turnspeed
+                                             : (info ? info->turnspeed : 32);
     }
 }
 
@@ -8645,6 +8639,90 @@ mock230_script_command(
         player->interaction.ap_range = (int)range;
         player->interaction.ap_range_called = 1;
         player->interaction.ap_tried = 0;
+        return 1;
+    }
+
+    /*
+     * `p_stun(ticks)` — OldSchool's stun, as a first-class player state.
+     *
+     * There was no primitive for this, and the workaround content reached for
+     * (`%action_delay`) is not one: it is an ordinary varp that only gates the
+     * scripts which choose to read it, so a "stunned" player kept walking and
+     * kept attacking. Zulrah's tail is the case that made that visible — the
+     * swing is supposed to root you for five ticks, and rooting is most of
+     * what makes the crimson phase dangerous.
+     *
+     * What a stun stops is movement and world interaction. It deliberately
+     * does NOT stop the inventory, the equipment or the prayer book: eating
+     * and flicking a prayer through a stun is how the mechanic is survived in
+     * OldSchool, and a stun that blocked those would be strictly harsher than
+     * the thing being modelled. See `stun_ticks` in mock230.h for how that
+     * splits from `delayed_until` and `action_locked`.
+     *
+     * The longer stun wins, matching `npc_freeze` — a second swing landing on
+     * an already-stunned player must not shorten the first one. Which leaves
+     * no way to end one early, so `ticks <= 0` is the cure: it clears outright
+     * rather than being a no-op that loses to whatever is already running.
+     * Death and a Freedom-style effect both need that, and a second opcode for
+     * it would be a worse answer than a documented argument.
+     */
+    case SS_OP_P_STUN:
+    {
+        int32_t ticks;
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( ticks <= 0 )
+            player->stun_ticks = 0;
+        else if( ticks > player->stun_ticks )
+            player->stun_ticks = (int)ticks;
+        /*
+         * Applied here rather than left to the phase gate, because a stun that
+         * only took effect next tick would let the route this tick already
+         * planned carry the player out of the swing that stunned them.
+         */
+        if( player->stun_ticks > 0 )
+            mock230_world_stun_interrupt(player);
+        return 1;
+    }
+
+    case SS_OP_P_STUNNED:
+        SSVM_PushInt(state, player->stun_ticks);
+        return 1;
+
+    /*
+     * `map_canstep(coord, dx, dz)` — can a size-1 actor standing on `coord`
+     * take one step by (dx, dz)?
+     *
+     * `map_blocked` answers "is that tile blocked", which is not the same
+     * question and is the wrong one for anything that walks: it cannot see a
+     * wall between two open tiles, and it cannot see the corner rule that
+     * stops a diagonal from cutting past one. Content that needed to know
+     * where a shove or a slide would come to rest had to approximate with
+     * `map_blocked` and got pushed through walls.
+     *
+     * TERRAIN ONLY — npcs and players are not collision here. That is
+     * deliberate and is what a knockback wants: being shoved into somebody
+     * does not stop the shove. Entity occupancy is a separate question with
+     * separate opcodes.
+     */
+    case SS_OP_MAP_CANSTEP:
+    {
+        int32_t coord;
+        int32_t dx;
+        int32_t dz;
+
+        if( !SSVM_PopInt(state, &dz) )
+            return 1;
+        if( !SSVM_PopInt(state, &dx) )
+            return 1;
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state,
+                     mock230_scene_can_travel(coord_level(coord), coord_x(coord),
+                                              coord_z(coord), (int)dx, (int)dz, 1, 0)
+                         ? 1
+                         : 0);
         return 1;
     }
 

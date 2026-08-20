@@ -3329,6 +3329,37 @@ struct Mock230Player
     struct SSVM_State* active_script;
     /** Tick at which the player stops being delayed. */
     int delayed_until;
+
+    /**
+     * Ticks of stun remaining — `p_stun(ticks)`.
+     *
+     * A stun is not `delayed_until` and not `action_locked`, and the three are
+     * deliberately separate:
+     *
+     *   `delayed_until`  the player's own script is parked. It gates the queue
+     *                    drain and the script phases; it does not stop a walk.
+     *   `action_locked`  a cutscene-grade time-stop. Everything the player
+     *                    could send is refused, interface clicks included.
+     *   `stun_ticks`     OldSchool's stun. Movement and every WORLD
+     *                    interaction stop; the inventory, the equipment and
+     *                    the prayer book keep working.
+     *
+     * That last distinction is the whole reason this is not just a lock with a
+     * timer on it. A stunned player in OldSchool can still eat, drink and flick
+     * a protection prayer — it is what makes a stun survivable rather than a
+     * death sentence — and `player_action_packet` (which `action_locked` uses)
+     * refuses INV_BUTTON and IF_BUTTON along with everything else. Stuns get
+     * their own, narrower predicate: `player_stun_blocks_packet`.
+     *
+     * A countdown rather than an expiry tick, matching `Mock230Npc::frozen_ticks`
+     * and for the same reason — the gate is evaluated where the server tick is
+     * not always in hand. Decremented once per player phase.
+     *
+     * The longer stun wins on re-application, exactly as `npc_freeze` does: a
+     * second tail swing landing on an already-stunned player must not shorten
+     * what the first one bought.
+     */
+    int stun_ticks;
     /**
      * Script id of the armed `[walktrigger,…]`, or -1.
      * LostCity `PathingEntity.walktrigger` — set by `walktrigger(X)`, cleared
@@ -5016,6 +5047,18 @@ void
 mock230_world_player_lock(struct Mock230Server* srv);
 void
 mock230_world_player_unlock(struct Mock230Server* srv);
+
+/**
+ * Abandon what a landing stun takes away: the route, the facing, outgoing
+ * combat, and the latched interaction.
+ *
+ * Called by `p_stun` when the stun lands and again on every stunned tick, so
+ * an interaction that arrived through some path the inbound gate does not
+ * cover cannot sit waiting for the stun to lift. Acts on the player passed,
+ * not on `active_player`, because the tick phase already holds one.
+ */
+void
+mock230_world_stun_interrupt(struct Mock230Player* player);
 
 /** The player's plane changed: drop entity/zone tracking for the old plane so
  *  the new one is FULL_FOLLOWSed. Does **not** queue a scene rebuild — LOC_*

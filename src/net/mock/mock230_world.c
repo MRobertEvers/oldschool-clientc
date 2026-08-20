@@ -346,6 +346,24 @@ player_cancel_locked_actions(struct Mock230Player* player)
     mock230_combat_stop_player_at(player);
 }
 
+/*
+ * What a stun cancels the moment it lands.
+ *
+ * The same route/facing teardown a lock does, plus the latched interaction —
+ * `player_cancel_locked_actions` leaves that to the lock's own gate, which a
+ * stun does not go through. Without the interaction clear, a stunned player
+ * with a pending "Attack" resumed it the instant the stun expired, having
+ * queued it during the stun.
+ */
+void
+mock230_world_stun_interrupt(struct Mock230Player* player)
+{
+    assert(player);
+    player_cancel_locked_actions(player);
+    player->interaction.kind = MOCK230_INTERACT_NONE;
+    player->interaction.npc_slot = -1;
+}
+
 void
 mock230_world_player_lock(struct Mock230Server* srv)
 {
@@ -3110,7 +3128,7 @@ mock230_world_npc_free(
      * this function later, and an npc still being drawn through its death
      * animation should still occupy its tile.
      */
-    /*CTRL*/
+    npc_set_occupancy(npc, 0);
 
     npc->active = 0;
     npc->pending_free = 1;
@@ -8631,6 +8649,42 @@ player_action_packet(int name)
 }
 
 /*
+ * The subset of the above a STUN refuses.
+ *
+ * Narrower than `player_action_packet` on purpose, and the difference is the
+ * point of having two predicates. A stunned player in OldSchool can still eat,
+ * drink, switch gear and flick a protection prayer — those are inventory,
+ * equipment and interface clicks, and surviving a stun is exactly what they
+ * are for. What a stun takes away is the ability to go anywhere or touch
+ * anything in the world: movement and the four world-interaction families.
+ *
+ * OPHELD is on the allowed side deliberately: it is "use the thing in my
+ * inventory" (eat, wield, drink), while using an item ON something in the
+ * world arrives as OPOBJU / OPNPCU / OPLOCU / OPPLAYERU, which are refused
+ * with the rest of their families.
+ */
+static int
+player_stun_blocks_packet(int name)
+{
+    if( (name >= PKTOUT_NAME_OPOBJ1 && name <= PKTOUT_NAME_OPOBJU) ||
+        (name >= PKTOUT_NAME_OPNPC1 && name <= PKTOUT_NAME_OPNPCU) ||
+        (name >= PKTOUT_NAME_OPLOC1 && name <= PKTOUT_NAME_OPLOCU) ||
+        (name >= PKTOUT_NAME_OPPLAYER1 && name <= PKTOUT_NAME_OPPLAYERU) )
+        return 1;
+
+    switch( name )
+    {
+    case PKTOUT_NAME_MOVE_OPCLICK:
+    case PKTOUT_NAME_MOVE_MINIMAPCLICK:
+    case PKTOUT_NAME_MOVE_GAMECLICK:
+    case PKTOUT_NAME_CLICK_WORLD_MAP:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
  * The routing table. Adding a packet is a line here plus a handler; nothing
  * else in the file has to change, which is the whole point of it being a table.
  */
@@ -8760,6 +8814,14 @@ mock230_world_handle(
         if( srv->verbose )
             fprintf(stderr, "mock230: <- player action packet name %d dropped while locked\n",
                     name);
+        return;
+    }
+
+    if( player->stun_ticks > 0 && player_stun_blocks_packet(name) )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- player packet name %d dropped while stunned (%d)\n",
+                    name, player->stun_ticks);
         return;
     }
 
@@ -10807,6 +10869,28 @@ phase_player(struct Mock230Player* player)
         advance_player(srv);
         run_energy_tick(srv, 0);
         mock230_combat_player_tick(srv);
+        PP_MARK(bd_on, bd_t, PP_LOCKED);
+        return;
+    }
+
+    /*
+     * A stun sits below the script phases for the same reason the action lock
+     * does — a queued projectile still lands, a queued heal still heals — and
+     * above pathing and interaction, which are exactly what it takes away.
+     *
+     * Unlike the lock this does not return early: combat still ticks, so a
+     * stunned player is still a target being hit, and the tick's ordinary
+     * bookkeeping below still runs. What it skips is the approach and the
+     * interaction, and `advance_player` walks nowhere because the interrupt
+     * cleared the route and the inbound gate refuses new ones.
+     */
+    if( player->stun_ticks > 0 )
+    {
+        mock230_world_stun_interrupt(player);
+        advance_player(srv);
+        run_energy_tick(srv, 0);
+        mock230_combat_player_tick(srv);
+        player->stun_ticks--;
         PP_MARK(bd_on, bd_t, PP_LOCKED);
         return;
     }
@@ -14035,6 +14119,25 @@ selftest_count(
     return total;
 }
 
+/** Total of `obj_id` across a shop's world container. -1 if there is no such
+ *  container at all, which is a different answer from "the shop holds none". */
+static int
+selftest_shop_total(
+    struct Mock230Server* srv,
+    int inv_id,
+    int obj_id)
+{
+    struct Mock230Container* row = mock230_container_resolve(srv, NULL, inv_id);
+    int total = 0;
+
+    if( !row )
+        return -1;
+    for( int i = 0; i < row->slots; i++ )
+        if( row->items[i].obj_id == obj_id )
+            total += row->items[i].count;
+    return total;
+}
+
 /*
  * Drive one "use A on B" all the way through the packet handler.
  *
@@ -14463,152 +14566,6 @@ mock230_world_selftest(void)
      * reason; it runs the real procedures in the VM against the same booted
      * world, and is not a second source-text contract.
      */
-    /*
-     * A focused, live Zulrah fight. `::zulrahrun` reads the phase table; this
-     * runs the encounter and reports what the player would actually see, tick
-     * by tick: which boss record is standing, where its south-west corner is,
-     * how many snakelings are alive, and the player's hitpoints.
-     *
-     *   MOCK230_SELFTEST_ZULRAH_ONLY=1 ./src/build_opt/mock230 --selftest
-     */
-    if( getenv("MOCK230_SELFTEST_ZULRAH_ONLY") )
-    {
-        int zul_loaded = mock230_scripts_load(
-            srv, "OSRS-Content/osrs239-content/server/scripts/build");
-        int forms[3];
-        int minions[2];
-
-        if( !zul_loaded )
-            zul_loaded = mock230_scripts_load(
-                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
-        fprintf(stderr, "mock230 selftest: Zulrah focused live fight\n");
-        SELFTEST_CHECK(zul_loaded, "the focused Zulrah lane loads a compiled script pack");
-
-        forms[0] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_ranged");
-        forms[1] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_melee");
-        forms[2] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_magic");
-        minions[0] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_melee");
-        minions[1] = mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_magic");
-        fprintf(stderr, "  forms=%d/%d/%d minions=%d/%d\n",
-                forms[0], forms[1], forms[2], minions[0], minions[1]);
-
-        if( zul_loaded )
-        {
-            int last_form = -2;
-            int last_x = -1;
-            int last_z = -1;
-            int last_snakes = -1;
-            static struct Mock230Capture zul_capture;
-
-            selftest_reset_world(srv, player, 35 * 8, 47 * 8);
-            /* `hitpoints` and `stat_boosted[HITPOINTS]` are one number; a
-             * bare write to the first leaves `stat(hitpoints)` at its old
-             * value, and the fight then reads a player on 1 hp. */
-            player->stat_level[MOCK230_STAT_HITPOINTS] = 5000;
-            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 5000;
-            player->max_hitpoints = 5000;
-            player->hitpoints = 5000;
-            /* A named rotation, so the walk can be diffed against the table
-             * rather than against whichever of the four came up. */
-            mock230_scripts_run_debugproc(srv, "zulrahrotation 1");
-            /* `~zulrah_enter` opens with a `~mesbox` before it teleports, so
-             * the script is suspended on a continue the moment it starts. */
-            selftest_click_through(srv, 8);
-            fprintf(stderr, "  entered: player at %d,%d,%d\n",
-                    player->x, player->z, player->level);
-            /*
-             * Step off the arrival tile before the barrage lands.
-             *
-             * The opening phase's first cloud is centred one tile north-east
-             * of where the boat drops the player, and a 3x3 cloud centred
-             * there covers the arrival tile itself — in the reference as much
-             * as here. Standing still through the opening is therefore
-             * supposed to hurt; the fight starts by making you move. This is
-             * the nearest clear tile, and what it buys the probe is the
-             * ability to tell "the clouds are unavoidable" (the defect) from
-             * "the player did not move" (the player).
-             */
-            mock230_world_teleport(srv, player->level, player->x + 1, player->z + 3);
-            if( player->rebuild_scene_pending )
-                mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-            fprintf(stderr, "  stepped to %d,%d\n", player->x, player->z);
-
-            for( int tick = 0; tick < 900; tick++ )
-            {
-                int slot;
-                int form = -1;
-                int bx = -1;
-                int bz = -1;
-                int snakes = 0;
-
-                /* Topped up every tick: the point of this probe is to watch
-                 * all ten phases, and an unarmoured, unprayed player standing
-                 * in the open does not live through three of them. */
-                player->stat_level[MOCK230_STAT_HITPOINTS] = 5000;
-                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 5000;
-                player->max_hitpoints = 5000;
-                player->hitpoints = 5000;
-                mock230_capture_begin(srv, &zul_capture);
-                mock230_world_tick(srv);
-                mock230_capture_end(srv);
-                if( player->rebuild_scene_pending )
-                    mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-                selftest_click_through(srv, 4);
-                for( int i = mock230_capture_find(&zul_capture, 90, 0); i >= 0;
-                     i = mock230_capture_find(&zul_capture, 90, i + 1) )
-                {
-                    const struct Mock230CapturedPacket* pk = &zul_capture.packets[i];
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
-                        continue;
-                    fprintf(stderr, "      t=%3d msg: %s\n", tick, (const char*)pk->data + 1);
-                }
-
-                for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                {
-                    if( !srv->npcs[i].active )
-                        continue;
-                    for( int f = 0; f < 3; f++ )
-                    {
-                        if( srv->npcs[i].type == forms[f] )
-                        {
-                            form = f;
-                            bx = srv->npcs[i].x;
-                            bz = srv->npcs[i].z;
-                        }
-                    }
-                    if( srv->npcs[i].type == minions[0] || srv->npcs[i].type == minions[1] )
-                        snakes++;
-                }
-                (void)slot;
-                if( form != last_form || bx != last_x || bz != last_z || snakes != last_snakes )
-                {
-                    int clouds = 0;
-                    int cloud_id = mock230_content_symbol(
-                        MOCK230_PACK_LOC, "snakeboss_poisoncloud");
-
-                    for( int dx = -6; dx <= 6; dx++ )
-                    {
-                        for( int dz = -6; dz <= 6; dz++ )
-                        {
-                            if( mock230_scene_find_loc_id(player->x + dx, player->z + dz,
-                                                          player->level, cloud_id) >= 0 )
-                                clouds++;
-                        }
-                    }
-                    fprintf(stderr,
-                            "  t=%3d form=%2d at %4d,%4d snakelings=%d clouds=%d "
-                            "player=%d,%d hp=%d\n",
-                            tick, form, bx, bz, snakes, clouds, player->x, player->z,
-                            player->hitpoints);
-                    last_form = form;
-                    last_x = bx;
-                    last_z = bz;
-                    last_snakes = snakes;
-                }
-            }
-        }
-    }
-
     if( getenv("MOCK230_SELFTEST_TD_ONLY") )
     {
         static struct Mock230Capture td_only_capture;
@@ -24525,10 +24482,10 @@ mock230_world_selftest(void)
                      * TURN SPEED FOLLOWS THE NEW TYPE, and this line used to
                      * pin the opposite.
                      *
-                     * `turnspeed = 0` is a veto rather than a rate — every
+                     * `turnspeed = 0` is a veto rather than a rate - every
                      * facing site (`mock230_npc_face_player`,
                      * `mock230_npc_face_npc`, `npc_facesquare`) returns early on
-                     * it — so an npc that keeps its SPAWN type's 0 through a
+                     * it - so an npc that keeps its SPAWN type's 0 through a
                      * transform can never be turned again by anything, in
                      * silence. Verzik spawns as `verzik_phase1` (`turnspeed=0`,
                      * a boss bolted to a throne) and fought phases two and three
@@ -24839,6 +24796,247 @@ mock230_world_selftest(void)
                 player->max_hitpoints = saved_max_hp;
                 player->stat_dirty = saved_stat_dirty;
                 selftest_park_player(srv, player->x, player->z);
+            }
+
+            /*
+             * The player stun, and the step probe a knockback resolves with.
+             *
+             * Both are new engine primitives, added because two encounters had
+             * written the same disclosed gap into their comments: Zulrah's tail
+             * and the Theatre's Verzik bounce are supposed to root the player,
+             * and the nearest thing the tree had was `%action_delay` — an
+             * ordinary varp that only gates the scripts choosing to read it. A
+             * "stunned" player walked away and kept attacking.
+             *
+             * The assertion that carries the design is the pair: a stun refuses
+             * movement and world interaction, and STILL ACCEPTS inventory and
+             * interface input. A stun that blocked eating and prayer switching
+             * would be far harsher than the thing being modelled, and it is the
+             * one way this could be wrong while looking right — which is why it
+             * is checked in both directions rather than only the blocking one.
+             */
+            fprintf(stderr, "mock230 selftest: player stun\n");
+            {
+                uint16_t stun_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_P_STUN, SS_OP_RETURN,
+                };
+                int32_t stun_operands[] = { 4, 0, 0 };
+                char* stun_strings[] = { NULL, NULL, NULL };
+                struct SSVM_Script stun_script = {
+                    .id = -1,
+                    .name = "[selftest,player_stun]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 3,
+                    .opcodes = stun_ops,
+                    .int_operands = stun_operands,
+                    .string_operands = stun_strings,
+                };
+                int npc_slot;
+                int target_x;
+                int start_x;
+                uint8_t move[5];
+                uint8_t opnpc[2];
+                struct RSAreaBuf walk;
+
+                selftest_park_player(srv, player->x, player->z);
+                player->login_scene_pending = 0;
+                player->rebuild_scene_pending = 0;
+                player->action_locked = 0;
+                player->stun_ticks = 0;
+                start_x = player->x;
+                npc_slot = mock230_world_npc_spawn(
+                    srv, 1, player->x + 8, player->z, player->level);
+                SELFTEST_CHECK(npc_slot >= 0,
+                               "the stun fixture should spawn an interaction target");
+
+                target_x = player->x + 2;
+                mock230_world_walk_to(srv, target_x, player->z);
+                if( npc_slot >= 0 )
+                {
+                    struct Mock230Npc* npc = &srv->npcs[npc_slot];
+                    const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+                    int size = info ? info->size : 1;
+
+                    player->combat_target = npc_slot;
+                    mock230_world_interaction_set(
+                        srv, MOCK230_INTERACT_NPC, 2, npc_slot, npc->type,
+                        npc->x, npc->z, npc->level, size, size);
+                }
+
+                SELFTEST_CHECK(mock230_scripts_run_hook(srv, &stun_script, NULL, 0),
+                               "P_STUN executes through the host VM");
+                SELFTEST_CHECK(player->stun_ticks == 4,
+                               "p_stun(4) should leave four ticks of stun, got %d",
+                               player->stun_ticks);
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0 &&
+                                   player->dest_z < 0,
+                               "a landing stun clears the queued movement route");
+                SELFTEST_CHECK(player->combat_target < 0 &&
+                                   player->interaction.kind == MOCK230_INTERACT_NONE,
+                               "a landing stun clears outgoing combat and interaction");
+
+                /* The route the stun took away must not come back by asking. */
+                rsab_wrap(&walk, move, sizeof(move));
+                rsab_p1(&walk, 0);
+                rsab_p2(&walk, target_x);
+                rsab_p2(&walk, player->z);
+                mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
+                                     (int)rsab_len(&walk));
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
+                               "movement input is rejected while stunned");
+
+                if( npc_slot >= 0 )
+                {
+                    selftest_npc_payload(player, npc_slot, opnpc);
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc,
+                                         sizeof(opnpc));
+                    SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE &&
+                                       player->combat_target < 0,
+                                   "world interaction is rejected while stunned");
+                }
+
+                /*
+                 * And the half that separates a stun from a lock. These are the
+                 * packets that carry eating, drinking, gear switches and prayer
+                 * flicks; the lock refuses all of them and a stun must not.
+                 */
+                SELFTEST_CHECK(!player_stun_blocks_packet(PKTOUT_NAME_OPHELD1) &&
+                                   !player_stun_blocks_packet(PKTOUT_NAME_INV_BUTTON1) &&
+                                   !player_stun_blocks_packet(PKTOUT_NAME_IF_BUTTON) &&
+                                   !player_stun_blocks_packet(PKTOUT_NAME_IF_BUTTON1),
+                               "a stun must leave inventory, equipment and interface "
+                               "input alone — eating and praying through one is the "
+                               "point of it");
+                SELFTEST_CHECK(player_action_packet(PKTOUT_NAME_INV_BUTTON1) &&
+                                   player_action_packet(PKTOUT_NAME_IF_BUTTON1),
+                               "the action LOCK still refuses interface input — the two "
+                               "predicates are supposed to differ");
+                SELFTEST_CHECK(player_stun_blocks_packet(PKTOUT_NAME_MOVE_GAMECLICK) &&
+                                   player_stun_blocks_packet(PKTOUT_NAME_OPNPC1) &&
+                                   player_stun_blocks_packet(PKTOUT_NAME_OPLOC1) &&
+                                   player_stun_blocks_packet(PKTOUT_NAME_OPOBJ1) &&
+                                   player_stun_blocks_packet(PKTOUT_NAME_OPPLAYER1),
+                               "a stun refuses movement and every world-interaction "
+                               "family");
+
+                /*
+                 * It roots, and it counts down.
+                 *
+                 * The route is armed HERE, after the stun and through
+                 * `mock230_world_walk_to` rather than through a packet — the
+                 * inbound gate would simply refuse a packet, which proves the
+                 * gate and says nothing about the mover. Planting a live route
+                 * under a stunned player is the only way to ask whether the
+                 * tick phase itself declines to walk it.
+                 */
+                {
+                    int stunned_ticks = 0;
+
+                    mock230_world_walk_to(srv, target_x, player->z);
+                    SELFTEST_CHECK(player->dest_x == target_x,
+                                   "the fixture should have planted a route to walk");
+
+                    for( int tick = 0; tick < 4; tick++ )
+                    {
+                        if( player->stun_ticks > 0 )
+                            stunned_ticks++;
+                        mock230_world_tick(srv);
+                        mock230_world_set_active(srv, player);
+                    }
+                    SELFTEST_CHECK(stunned_ticks == 4,
+                                   "a four-tick stun should hold for four ticks, held %d",
+                                   stunned_ticks);
+                    SELFTEST_CHECK(player->stun_ticks == 0,
+                                   "the stun should have expired, %d left",
+                                   player->stun_ticks);
+                    SELFTEST_CHECK(player->x == start_x,
+                                   "a stunned player takes no steps, moved from %d to %d",
+                                   start_x, player->x);
+                }
+
+                /* The longer stun wins; a re-stun cannot shorten one. */
+                player->stun_ticks = 0;
+                mock230_scripts_run_hook(srv, &stun_script, NULL, 0);
+                stun_operands[0] = 2;
+                mock230_scripts_run_hook(srv, &stun_script, NULL, 0);
+                SELFTEST_CHECK(player->stun_ticks == 4,
+                               "a shorter stun must not cut a longer one short, got %d",
+                               player->stun_ticks);
+                /* ...and zero is the cure, or nothing could ever end one early. */
+                stun_operands[0] = 0;
+                mock230_scripts_run_hook(srv, &stun_script, NULL, 0);
+                SELFTEST_CHECK(player->stun_ticks == 0,
+                               "p_stun(0) should clear a running stun, %d left",
+                               player->stun_ticks);
+                stun_operands[0] = 4;
+
+                if( npc_slot >= 0 )
+                {
+                    mock230_world_npc_occupancy(&srv->npcs[npc_slot], 0);
+                    srv->npcs[npc_slot].active = 0;
+                    srv->npcs[npc_slot].respawn_tick = -1;
+                    mock230_zone_npc_refile(srv, npc_slot);
+                }
+                player->stun_ticks = 0;
+                selftest_park_player(srv, player->x, player->z);
+            }
+
+            /*
+             * `map_canstep` — the step question, which is not the tile question.
+             *
+             * A knockback resolves where it comes to rest by walking a line and
+             * stopping at the first step that will not go. `map_blocked` cannot
+             * answer that: it sees tiles, not the wall between two open ones,
+             * and it does not know the corner rule that stops a diagonal
+             * cutting past a blocked neighbour. This asserts the new opcode
+             * agrees with the mover the player's own walk uses, which is the
+             * only agreement that matters.
+             */
+            fprintf(stderr, "mock230 selftest: map_canstep\n");
+            {
+                int px = player->x;
+                int pz = player->z;
+                int level = player->level;
+                static const int dxs[8] = { 1, -1, 0, 0, 1, 1, -1, -1 };
+                static const int dzs[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+                int agreed = 1;
+
+                for( int i = 0; i < 8; i++ )
+                {
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_MAP_CANSTEP, SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        (int32_t)mock230_coord_pack(level, px, pz), dxs[i], dzs[i], 0, 0,
+                    };
+                    char* strings[] = { NULL, NULL, NULL, NULL, NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,map_canstep]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 5,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    int wanted =
+                        mock230_scene_can_travel(level, px, pz, dxs[i], dzs[i], 1, 0) ? 1 : 0;
+                    int32_t got = -1;
+
+                    if( !mock230_scripts_run_hook_int(srv, &script, NULL, 0, &got) )
+                    {
+                        agreed = 0;
+                        break;
+                    }
+                    if( got != wanted )
+                        agreed = 0;
+                }
+                SELFTEST_CHECK(agreed,
+                               "map_canstep should answer every one of the eight steps "
+                               "exactly as the player's own mover does");
             }
 
             fprintf(stderr, "mock230 selftest: cosmetic player hitmark\n");
@@ -38068,6 +38266,192 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Zulrah's fight, actually run (minigames/minigame_zulrah/).
+         *
+         * `::zulrahrun` above reads the rotation table. This stands in the
+         * shrine and lets the encounter play, because the defect this section
+         * exists to catch was invisible to every table test ever written:
+         * venom clouds and snakelings used to be placed on a tile computed
+         * from the PLAYER (`map_findsquare(coord, 2, 2)`) rather than on the
+         * charted tiles the rotation names. The table was correct, the runner
+         * walked it correctly, and the opening phase — four cloud barrages and
+         * no attack at all — still killed a 99-hitpoint player in 24 ticks
+         * with nowhere to stand.
+         *
+         * So the assertion that matters is the survivability one: a player who
+         * steps one tile clear of the arrival tile takes NO damage for the
+         * whole of phase 1. Everything else here is scaffolding for that.
+         *
+         * Rotation 1 is forced, so the walk can be diffed against the table
+         * rather than against whichever of the four came up.
+         */
+        {
+            static struct Mock230Capture zulrah_live;
+            int forms[3] = {
+                mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_ranged"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_melee"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_boss_magic"),
+            };
+            int minions[2] = {
+                mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_melee"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "snakeboss_minion_magic"),
+            };
+            int cloud_loc = mock230_content_symbol(MOCK230_PACK_LOC, "snakeboss_poisoncloud");
+            /* Phase 1 is four cloud barrages at 3 ticks each and then a dive;
+             * 15 ticks covers the barrage with the dive still to come. */
+            const int OPENING_TICKS = 15;
+            int spawn_x = -1;
+            int spawn_z = -1;
+            int opening_damage = 0;
+            int clouds_seen = 0;
+            int snakelings_seen = 0;
+            int forms_seen = 0;
+            int positions_seen = 0;
+            int last_x = -1;
+            int last_z = -1;
+
+            selftest_reset_world(srv, player, 35 * 8, 47 * 8);
+            /*
+             * `hitpoints` and `stat_boosted[HITPOINTS]` are one number, and a
+             * bare write to the first leaves `stat(hitpoints)` where it was —
+             * which is how the first draft of this section measured a player
+             * on 1 hitpoint and blamed the clouds for killing them.
+             */
+            player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+            player->max_hitpoints = 99;
+            player->hitpoints = 99;
+
+            mock230_scripts_run_debugproc(srv, "zulrahrotation 1");
+            /* `~zulrah_enter` opens with a `~mesbox`, so the script is
+             * suspended on a continue before it has even teleported. */
+            selftest_click_through(srv, 8);
+
+            SELFTEST_CHECK(player->x > 0 && player->level >= 0,
+                           "::zulrahrotation should put the player in the shrine instance");
+
+            {
+                int slot = selftest_find_npc(srv, forms[0]);
+                SELFTEST_CHECK(slot >= 0,
+                               "Zulrah should rise as the green form when the fight opens");
+                if( slot >= 0 )
+                {
+                    spawn_x = srv->npcs[slot].x;
+                    spawn_z = srv->npcs[slot].z;
+                    /* The middle position's south-west corner is two tiles west
+                     * and five north of where the boat lands the player. */
+                    SELFTEST_CHECK(spawn_x == player->x - 2 && spawn_z == player->z + 5,
+                                   "Zulrah should open in the middle channel at the player's "
+                                   "tile + (-2, +5), got (%d, %d) against a player at (%d, %d)",
+                                   spawn_x, spawn_z, player->x, player->z);
+                }
+            }
+
+            /*
+             * Step one tile clear.
+             *
+             * The opening barrage's first cloud is centred one tile north-east
+             * of the arrival tile, and a 3x3 cloud centred there covers the
+             * arrival tile itself — in the reference as much as here. Standing
+             * still through the opening is supposed to hurt; the fight begins
+             * by making you move. Moving is what separates "the clouds cannot
+             * be escaped", which is the bug, from "the player did not move",
+             * which is the player.
+             */
+            mock230_world_teleport(srv, player->level, player->x + 1, player->z + 3);
+            if( player->rebuild_scene_pending )
+                mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+
+            for( int tick = 0; tick < OPENING_TICKS; tick++ )
+            {
+                int before = player->hitpoints;
+
+                mock230_capture_begin(srv, &zulrah_live);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
+                if( player->rebuild_scene_pending )
+                    mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                selftest_click_through(srv, 4);
+                if( player->hitpoints < before )
+                    opening_damage += before - player->hitpoints;
+            }
+
+            /* The clouds really did land — an opening that threw nothing would
+             * also take no damage, and would pass the check that matters. */
+            for( int dx = -12; dx <= 12; dx++ )
+            {
+                for( int dz = -12; dz <= 12; dz++ )
+                {
+                    if( mock230_scene_find_loc_id(player->x + dx, player->z + dz,
+                                                  player->level, cloud_loc) >= 0 )
+                        clouds_seen++;
+                }
+            }
+            SELFTEST_CHECK(clouds_seen >= 4,
+                           "the opening phase should put venom clouds on the platform, saw %d",
+                           clouds_seen);
+            SELFTEST_CHECK(opening_damage == 0,
+                           "a player one tile clear of the arrival tile should take nothing "
+                           "from the opening barrage, took %d over %d ticks",
+                           opening_damage, OPENING_TICKS);
+
+            /*
+             * And then the rotation walks. Rotation 1's first four phases are
+             * green in the middle, crimson in the middle, tanzanite in the
+             * middle, green in the SOUTH — so both the form and the position
+             * have to move, and the south dive is the one that proves the
+             * table's position column is being read at all.
+             */
+            for( int tick = 0; tick < 120; tick++ )
+            {
+                mock230_capture_begin(srv, &zulrah_live);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
+                if( player->rebuild_scene_pending )
+                    mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                selftest_click_through(srv, 4);
+                /* Kept upright: three phases of an unarmoured, unprayed player
+                 * standing in the open is not a survivable thing, and this
+                 * stretch is about where Zulrah goes, not about damage. */
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->hitpoints = 99;
+
+                for( int f = 0; f < 3; f++ )
+                {
+                    int slot = selftest_find_npc(srv, forms[f]);
+                    if( slot < 0 )
+                        continue;
+                    forms_seen |= 1 << f;
+                    if( srv->npcs[slot].x != last_x || srv->npcs[slot].z != last_z )
+                    {
+                        last_x = srv->npcs[slot].x;
+                        last_z = srv->npcs[slot].z;
+                        positions_seen++;
+                    }
+                }
+                for( int m = 0; m < 2; m++ )
+                {
+                    if( selftest_find_npc(srv, minions[m]) >= 0 )
+                        snakelings_seen = 1;
+                }
+            }
+
+            SELFTEST_CHECK(forms_seen == 0x7,
+                           "rotation 1's first phases should show all three forms, saw mask %d",
+                           forms_seen);
+            SELFTEST_CHECK(positions_seen >= 2,
+                           "Zulrah should surface somewhere other than the middle, "
+                           "saw %d distinct positions",
+                           positions_seen);
+            SELFTEST_CHECK(snakelings_seen,
+                           "rotation 1 phase 4 should put snakelings on the platform");
+
+            /* Leave nothing standing for the next section. */
+            mock230_scripts_run_debugproc(srv, "zulrah");
+            selftest_click_through(srv, 8);
+        }
+
+        /*
          * The Theatre of Blood's data tables (`::tobrun`,
          * minigames/minigame_tob/scripts/tob_selftest.rs2).
          *
@@ -38783,6 +39167,125 @@ mock230_world_selftest(void)
                            "entering Verzik's chamber should walk the player in through the gate, "
                            "landed z=%d ended z=%d",
                            landed_z, walked_z);
+        }
+
+        /*
+         * ====================================================================
+         * Verzik's SECOND PHASE turns to face the player she is attacking
+         * ====================================================================
+         *
+         * Reported as "Verzik P2 is stuck facing south", and it was two bugs
+         * wearing one symptom.
+         *
+         *   1. `verzik_phase1` is `turnspeed=0` in the cache — correct, she is
+         *      bolted to a throne — and she SPAWNS as that record. `turnspeed`
+         *      is a VETO, not a rate: every facing site returns early on 0. The
+         *      server used to keep the spawn type's value through
+         *      `npc_changetype`, so the veto outlived both her transforms and
+         *      neither her landing `npc_facesquare` nor any latch after it did
+         *      anything. The client, which re-reads the field off the drawn
+         *      type, was drawing a P2 that could turn perfectly well and never
+         *      being asked to.
+         *
+         *   2. Nothing asked. Near Reality faces her combat target every tick
+         *      (`NPCCombat.process` → `setFaceEntity`), a path this server does
+         *      not have for her because all three forms are `retaliate=no`, so
+         *      her attacks set the latch themselves now.
+         *
+         * Both halves have to hold or the phase looks the same from outside, so
+         * this asserts them separately: the record's turn speed reaches the npc
+         * she has BECOME, and the latch is actually on a player once she starts
+         * throwing.
+         *
+         * She is put into phase two rather than fought there. Her P1 pool is
+         * 2437 x 2 hitpoints deep and the fixture is a lone godmoded player
+         * with a debug command, not a team — `~tob_verzik_phase_hp <= 0` is the
+         * script's own gate for the hop, and writing the hitpoints under it is
+         * the same event the raid would produce, seventeen ticks of transition
+         * included.
+         */
+        {
+            struct Mock230Player* fixture = srv->active_player;
+            int saved_god = fixture->godmode;
+            int p2_type = mock230_content_symbol(MOCK230_PACK_NPC, "verzik_phase2");
+            int boss = -1;
+            int turnspeed = -1;
+            int became_p2 = 0;
+            int face_hits = 0;
+            int face_saw = -2;
+            int want_face = MOCK230_FACE_PLAYER_BASE + fixture->pid;
+
+            fixture->godmode = 1;
+            mock230_scripts_run_debugproc(srv, "tob 6");
+            mock230_scripts_run_debugproc(srv, "tobgo");
+            mock230_scripts_run_debugproc(srv, "tobstand");
+            for( int t = 0; t < 3; t++ )
+                mock230_world_tick(srv);
+            boss = tob_harness_boss(srv, player);
+            if( boss >= 0 )
+            {
+                /*
+                 * EXACTLY the P1 share of the bar, and exact matters in both
+                 * directions.
+                 *
+                 * Her three phases share one 8500-point pool and each phase
+                 * reads its own slice of it: P1 ends when
+                 * `hitpoints - 2 * p23_pool` reaches zero, P2 when
+                 * `hitpoints - p23_pool` does. Nothing heals her in between -
+                 * `~tob_verzik_enter_p2` sets a clock and a Defence level and
+                 * leaves the bar alone - so a harness that writes 1 here spends
+                 * all three slices at once and she transforms P1 -> P2 -> P3 on
+                 * consecutive ticks. Measured: type 8372 for exactly one tick.
+                 *
+                 * Twice the <=3-player pool (2437) is the boundary: it ends
+                 * phase one and leaves phase two's own slice whole.
+                 */
+                srv->npcs[boss].hitpoints = 2 * 2437;
+                /* Three ticks of hop, one to launch, thirteen of flight, and
+                 * then her P2 clock: first attack at +5, one every 4 after. */
+                for( int t = 0; t < 60; t++ )
+                {
+                    mock230_world_tick(srv);
+                    mock230_scripts_run_debugproc(srv, "tobstand");
+                    if( srv->npcs[boss].type == p2_type )
+                    {
+                        became_p2 = 1;
+                        turnspeed = srv->npcs[boss].turnspeed;
+                        if( srv->npcs[boss].face_entity == want_face )
+                            face_hits++;
+                        else if( face_saw == -2 )
+                            face_saw = srv->npcs[boss].face_entity;
+                    }
+                    if( getenv("MOCK230_TOB_FACE") )
+                        fprintf(stderr,
+                                "    verzik t=%2d type=%d hp=%d mode=%d "
+                                "face_entity=%d (want %d) turnspeed=%d\n",
+                                t, srv->npcs[boss].type, srv->npcs[boss].hitpoints,
+                                srv->npcs[boss].mode, srv->npcs[boss].face_entity,
+                                want_face, srv->npcs[boss].turnspeed);
+                }
+            }
+            fprintf(stderr,
+                    "  Verzik P2: became_p2=%d turnspeed=%d latched on %d tick(s)\n",
+                    became_p2, turnspeed, face_hits);
+            mock230_scripts_run_debugproc(srv, "tobout");
+            fixture->godmode = saved_god;
+
+            SELFTEST_CHECK(became_p2,
+                           "spending Verzik's phase-one pool should put her in "
+                           "verzik_phase2 within 40 ticks");
+            if( became_p2 )
+            {
+                SELFTEST_CHECK(turnspeed != 0,
+                               "phase two must carry ITS OWN turn speed, not phase "
+                               "one's throne-bound 0 — got %d",
+                               turnspeed);
+                SELFTEST_CHECK(face_hits > 0,
+                               "phase two must face the player she is attacking, "
+                               "held the latch on %d tick(s) (first miss faced %d, "
+                               "wanted %d)",
+                               face_hits, face_saw, want_face);
+            }
         }
 
         /*
@@ -44089,6 +44592,135 @@ mock230_world_selftest(void)
             player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = hp_xp_before;
             mock230_combat_sync_hitpoints(player);
             player->hitpoints = player->max_hitpoints;
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: selling to a shop\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded =
+                mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        selftest_reset_world(srv, player, 402, 402);
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static const struct
+            {
+                const char* shop;
+                const char* obj;
+                int want_sold;
+                const char* label;
+            } k_cases[] = {
+                { "generalshop1", "pot_empty", 1, "a general store buys back a pot it stocks" },
+                { "generalshop1", "bronze_sword", 1,
+                  "an allstock general store buys an item it does not stock" },
+                { "axeshop", "bronze_axe", 1, "an axe shop buys an axe it stocks" },
+                { "axeshop", "bronze_sword", 0, "an axe shop refuses a sword it does not stock" },
+                { "generalshop1", "coins", 0, "no shop buys coins" },
+            };
+            static struct Mock230Capture capture;
+            int side = mock230_content_symbol(MOCK230_PACK_COMPONENT, "shopside:items");
+            int main_grid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "shopmain:items");
+            int coins = mock230_content_symbol(MOCK230_PACK_OBJ, "coins");
+            int inv_full = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_INV_FULL);
+            int inv_partial = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_INV_PARTIAL);
+
+            SELFTEST_CHECK(side > 0, "the cache should name shopside:items");
+            SELFTEST_CHECK(main_grid > 0, "the cache should name shopmain:items");
+            for( size_t c = 0; c < sizeof(k_cases) / sizeof(k_cases[0]); c++ )
+            {
+                int shop = mock230_content_symbol(MOCK230_PACK_INV, k_cases[c].shop);
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, k_cases[c].obj);
+                int32_t open_args[4];
+                const char* title[1] = { "Selftest Store" };
+                uint8_t button[6];
+                struct RSAreaBuf out;
+                int before;
+                int after;
+
+                if( shop <= 0 || obj <= 0 || side <= 0 )
+                {
+                    SELFTEST_CHECK(0, "the pack should name %s and %s", k_cases[c].shop,
+                                   k_cases[c].obj);
+                    continue;
+                }
+                open_args[0] = shop;
+                open_args[1] = 400;
+                open_args[2] = 1300;
+                open_args[3] = 30;
+                selftest_clear_inv(player);
+                selftest_give(player, obj, 1);
+                mock230_scripts_run_proc_sv(srv, "[proc,openshop]", open_args, 4, title, 1);
+
+                before = selftest_shop_total(srv, shop, obj);
+                rsab_wrap(&out, button, sizeof(button));
+                rsab_p4(&out, side);
+                rsab_p2(&out, 0);
+                /* The tick is inside the capture because a shared row is
+                 * flushed once per tick from `phase_clients_out`, not at the
+                 * moment of the write — so "the shop's own stock changed" and
+                 * "the player was told" are two separate facts, and only the
+                 * second is what the player in front of the store sees. */
+                mock230_capture_begin(srv, &capture);
+                mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, (int)rsab_len(&out));
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
+                after = selftest_shop_total(srv, shop, obj);
+
+                {
+                    struct Mock230Container* row = mock230_container_resolve(srv, NULL, shop);
+                    int used = 0;
+
+                    for( int i = 0; row && i < row->slots; i++ )
+                        if( row->items[i].obj_id >= 0 )
+                            used++;
+                    fprintf(stderr,
+                            "  SHOPPROBE %s(%d slots, %d used) %s: shop %d -> %d, backpack %d, "
+                            "coins %d\n",
+                            k_cases[c].shop, row ? row->slots : -1, used, k_cases[c].obj, before,
+                            after, selftest_count(player, obj), selftest_count(player, coins));
+                }
+                SELFTEST_CHECK(after == before + k_cases[c].want_sold,
+                               "%s: the shop should hold %d more, held %d and now holds %d",
+                               k_cases[c].label, k_cases[c].want_sold, before, after);
+                SELFTEST_CHECK(selftest_count(player, obj) == 1 - k_cases[c].want_sold,
+                               "%s: the backpack should keep %d, kept %d", k_cases[c].label,
+                               1 - k_cases[c].want_sold, selftest_count(player, obj));
+                {
+                    int repaints = 0;
+
+                    for( int i = 0; i < capture.count; i++ )
+                    {
+                        int32_t pkt_com;
+                        int pkt_inv;
+
+                        if( capture.packets[i].opcode != inv_full &&
+                            capture.packets[i].opcode != inv_partial )
+                            continue;
+                        if( capture.packets[i].len < 6 )
+                            continue;
+                        pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
+                                  ((int32_t)capture.packets[i].data[1] << 16) |
+                                  ((int32_t)capture.packets[i].data[2] << 8) |
+                                  (int32_t)capture.packets[i].data[3];
+                        pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
+                        if( pkt_inv == shop && pkt_com == main_grid )
+                            repaints++;
+                    }
+                    SELFTEST_CHECK(!capture.overflow, "%s: the sale capture overflowed",
+                                   k_cases[c].label);
+                    SELFTEST_CHECK((repaints > 0) == (k_cases[c].want_sold > 0),
+                                   "%s: the buy grid should be repainted %s the sale, saw %d "
+                                   "UPDATE_INV for it",
+                                   k_cases[c].label, k_cases[c].want_sold ? "after" : "by nothing",
+                                   repaints);
+                }
+            }
         }
     }
 
