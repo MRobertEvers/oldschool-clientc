@@ -1,0 +1,399 @@
+{{External|rs}}
+{{Redirect2|Bh|the pet|Bloodhound|the Hunter activity|Bird house trapping}}
+{{Dangerous|pvp=yes}}
+{{Infobox Activity
+|name = Bounty Hunter
+|image = [[File:Bounty Hunter.png|300px]]
+|release = [[18 September]] [[2014]]
+|update = Bounty Hunter
+|aka = Target World
+|type = Minigame
+|members = Yes
+|location = [[Daimon's Crater]]
+|players = 2+ (11+ for continuous targets)
+|skills = [[Combat]]
+|requirements = {{SCP|Combat|32}} [[combat level]]<br>{{SCP|Time|12}} hours play time
+|currency = N/A
+|tutorial = No
+|music = N/A
+|map = {{Map|name=Daimon's Crater|3426,4064|zoom=1}}
+|leagueRegion = No
+}}
+[[File:Bounty Hunter logo (Minigame Teleport).png|left]]
+'''Bounty Hunter''', commonly abbreviated as '''BH''', is a [[player killing]] [[minigame]] located in the [[Wilderness]] at [[Daimon's Crater]]. Upon entering the crater, the player will be given another player within 5 (adjustable to 10 or 15 by speaking with the [[Emblem Trader]]) combat levels of them as a target. Besides the usual items dropped on death, players who successfully kill their target will be rewarded with Bounty Hunter points, which can be used at the Emblem Trader's [[Bounty Hunter Store]].
+
+Bounty Hunter can be accessed via the Bounty Hunter portal in the [[Ferox Enclave]].
+
+==Mechanics==
+===Coffer===
+To participate in Bounty Hunter, players are required to put minimum deposit of [[coins]] into the [[Coffer (Bounty Hunter)|Bounty Hunter coffer]]. The minimum deposit depends on the player's combat level:
+{| class="wikitable"
+!Combat Level
+!Minimum Deposit 
+|-
+|32-60
+|{{Coins|30,000}}
+|-
+|61-88
+|{{Coins|50,000}}
+|-
+|89-110
+|{{Coins|100,000}}
+|-
+|111-126
+|{{Coins|150,000}}
+|}
+Upon a player's death, on top of the standard item loss to [[PvP]] death, an amount of coins are deducted from the coffer. Non-skulled players lose coins equal to their minimum deposit, while [[Skull (status)|skulled]] players only lose {{Coins|10,000}}.
+
+===Skulls===
+Bounty Hunter uses unique versions of the skull symbol that indicates how much a player is currently risking. A skull with yellow eyes indicates a player is also [[Skull (status)|skulled]].
+
+[[File:Skull (Bounty Hunter) icon (1).png]][[File:Skull (Bounty Hunter, skulled) icon (1).png]] — Bronze skull, risking up to {{Coins|200,000}}
+
+[[File:Skull (Bounty Hunter) icon (2).png]][[File:Skull (Bounty Hunter, skulled) icon (2).png]] — Iron skull, risking between {{Coins|200,001}} and {{Coins|800,000}}
+
+[[File:Skull (Bounty Hunter) icon (3).png]][[File:Skull (Bounty Hunter, skulled) icon (3).png]] — Green skull, risking between {{Coins|800,001}} and {{Coins|2,000,000}}
+
+[[File:Skull (Bounty Hunter) icon (4).png]][[File:Skull (Bounty Hunter, skulled) icon (4).png]] — Blue skull, risking between {{Coins|2,000,001}} and {{Coins|8,000,000}}
+
+[[File:Skull (Bounty Hunter) icon (5).png]][[File:Skull (Bounty Hunter, skulled) icon (5).png]] — Red skull, risking  {{Coins|8,000,001}} or more
+
+{{Bug|Currently, skulls do not take into account the value of untradeable items, such as degraded Barrows equipment.}}
+
+===Fighting===
+When you enter the crater, you will spawn somewhere in the arena and be given a target from amongst the other players in the minigame. While in the crater, [[teleportation]] is blocked, though [[Teleport to Target]] may be used if the player has not been in combat within the last 12 seconds. Additionally, [[protection prayers]] cannot be used, [[phoenix necklace]]s will not activate, and binding spells such as [[ice spells|ice]] and [[grasp spells]] will not stop players' movement.
+
+Players may create bounty supply crates to bring in more supplies. These come in two variants: [[Bounty supply crate (manta ray)|manta ray crates]] and [[Bounty supply crate (anglerfish)|anglerfish crates]]. Crates are filled with eight [[blighted manta ray]]s/[[blighted anglerfish]], two [[blighted karambwan]], one [[blighted super restore(4)]], and 1,000 coins. Up to two crates may be brought inside Bounty Hunter at a time, although players may make and store these crates en masse.
+
+[[(bh)|Equipment]] ending in the (bh) [[suffix]] can only be used in PvP minigames including Bounty Hunter, providing very strong bonuses and [[special attacks]]. These weapons and armour (most being variants of [[Ancient Warriors' equipment]]) can be obtained from the [[Bounty Hunter Store]] by either purchasing directly, or by purchasing an imbue scroll to upgrade a regular item. These items (excluding the imbued items) must be charged with {{Coins|5000000}} (armour, Vesta's spear, Zuriel's staff, Morrigan's throwing axe), {{Coins|10000000}} (Statius's warhammer, Morrigan's javelin), or {{Coins|50000000}} (Vesta's longsword) before they can be used. Upon dying in PvP, the coins used to activate the item are given to the killer, and players are left with the inactive item.
+
+Players who do not have the level 78 Defence requirement to wear Ancient Warriors' equipment can talk to the [[Corrupted Warrior (Bounty Hunter)|Corrupted Warrior]] to convert the item to its corrupted variant and vice versa. Corrupted Ancient Warriors' equipment only requires 20 Defence, but has far lower bonuses than its uncorrupted variant.
+
+===Earning Potential===
+Earning Potential (also known as EP) can be gained by spending time inside the crater. Your EP value increases by 1% every 30 seconds you spend in the crater, capping at 100%. When unskulled, you receive 50% less EP per minute. If you have a target and are risking at least {{Coins|50000}}, your EP value will increase by twice as much, resulting in 2% EP gained per 30 seconds. The higher your EP, the higher tier [[Bounty crate]] you can receive as a drop upon defeating an opponent. Upon receiving a bounty crate, your EP is reset back to 0%. 
+
+{{Bounty crate values|fullname=yes}}
+
+===Bounty Hunter points===
+Each target kill will earn you two Bounty Hunter points, which can be traded for rewards at the [[Bounty Hunter Store]]. In addition, bonus points are rewarded for milestone kills:
+{| class="wikitable"
+!Total Kill Count
+!Bonus Points
+|-
+|Per 10th
+|3
+|-
+|Per 50th
+|5
+|-
+|Per 100th
+|10
+|-
+|Per 500th
+|25
+|}
+Besides the points earned from kills, players can earn extra points by levelling up and trading in [[esoteric emblem]]s. A tier 1 emblem will drop on your first target kill, or it can be bought from the Bounty Hunter Store for two points. [[Ironman Mode|Ironman]] players can only obtain a tier 1 emblem from the store. Each target kill will rank up your own emblem. Dying with an emblem will reduce its tier by 1. If the emblem has a tier of 1 upon death, it will be removed. If unskulled, your emblem cannot be upgraded past tier 5.
+
+The following table shows how many points each emblem is worth:
+{| class="wikitable"
+!Emblem Tier
+!BH Point Value
+|-
+|1
+|2
+|-
+|2
+|4
+|-
+|3
+|7
+|-
+|4
+|11
+|-
+|5
+|16
+|-
+|6
+|22
+|-
+|7
+|29
+|-
+|8
+|37
+|-
+|9
+|46
+|-
+|10
+|56
+|}
+
+===Target Skipping & Penalties===
+A player may skip up to two skulled targets within a thirty-minute window without incurring a penalty. Once a player skips their third skulled target, they will be blocked from matchmaking for thirty minutes. (You can skip unskulled targets without penalty) After the thirty minutes, the points rewarded after the first target killed will be halved and an esoteric emblem will not be dropped (if they don't already have one). If the player has an esoteric emblem in their inventory instead, it will not be upgraded.
+
+==Official worlds==
+{{#vardefine:weekly|{{#expr:floor(floor(({{#time:U}}-{{#time:U|31 December 2025 10:30:00 UTC}})/(60*60*24))/7) mod 2}}}}
+Unlike most minigames, Bounty Hunter can only be played on certain [[worlds]]. As with PvP worlds, Bounty Hunter worlds are often [[PvP world#Rotation|rotated]] to provide fairer [[lag]] associated with ping/server latency to players across the world. The current active PvP world rotation is {{#switch:{{#var:weekly}}|0=[[Server#Rotation_A|Rotation A]]|1=[[Server#Rotation_B|Rotation B]]}}.{{purge|tag=sup}}<!-- #switch strings are used for automatically updating weekly rotations. 0 = rotation A; 1 = rotation B. The date listed in the string is when the rotation switches to A. --> Worlds 318 (UK) and 569 (AUS) are available on rotation A, and world 319 (US West) is available on rotation B.
+
+{| class="wikitable sortable" style="text-align: center;"
+!World
+!Location
+!Members
+!Activity
+|-{{#switch:{{#var:weekly}}|0={{WorldLine|318|United Kingdom|mems=yes|Bounty Hunter}}|1=}}<!-- World only available oriented during rotation A -->
+|-{{#switch:{{#var:weekly}}|0=|1={{WorldLine|319|United States (west)|mems=yes|Bounty Hunter}}}}<!-- World only available oriented during rotation B -->
+|-{{#switch:{{#var:weekly}}|0={{WorldLine|569|Australia|mems=yes|Bounty Hunter}}|1=}}<!-- World only BH oriented during rotation A -->
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 July 2026
+|update = The Blood Moon Rises & Bank Tags Tweaks
+|change = In Bounty Hunter worlds, we've moved the dispenser fee to the entrance gate of the Wilderness Agility Course to ensure players trying to engage with the course are not constantly attacked by players with little to no risk.
+}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = * While unskulled in Bounty Hunter, you will receive 50% less EP per minute and your Archaic Emblem will not upgrade past tier 5.
+* Players dying in the Bounty Hunter lobby will now be considered as skipping their target.
+}}
+{{Subject changes
+|date = 11 March 2026
+|update = More from the Getting Around Poll
+|change = A minigame teleport option was added to the Ferox Enclave.
+}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = The PvP rota was accidentally reverted to Period B.
+}}
+{{Subject changes
+|date = 24 September 2025
+|update = Interface Uplift
+|change = The PvP rota did not rotate as expected, so it stayed Period A.
+}}
+{{Subject changes
+|date = 5 February 2025
+|update = Royal Titans
+|change = 
+* The skull icons used in Bounty Hunter to represent risk values will now have golden eyes if a player is [[Skull (status)|skulled]].
+* The [[Emblem Trader]] now has a new option to discuss the values of different skulls.
+* Items from [[bounty supply crate]]s will now be released into the inventory in a more varied order.
+* The Bounty Hunter ancient warrior weapon values have been updated to reflect their new charge costs.
+}}
+{{Subject changes
+|date = 29 January 2025
+|update = Bounty Hunter Changes, Collection Log Updates & Emote Improvements
+|change =
+* Many Bounty Hunter-exclusive weapons and armour had their stats adjusted.
+* All Ancient Warriors' weapons (except Vesta's longsword) had their charge costs reduced.
+* [[Phoenix necklace]]s can no longer be used inside the Crater.
+* Players will now gain double the amount of EP than normal when they have a target and are risking at least 50,000 coins.
+* Skulls now indicate how much a player is risking.
+* Players can now create [[bounty supply crate]]s for use within Bounty Hunter.
+}}
+{{Subject changes
+|date = 13 November 2024
+|update = Guardians of the Rift Changes Out Now!
+|change = [[Grasp spells]] from the [[Arceuus spellbook]] will no longer bind players inside the Crater.
+}}
+{{Subject changes
+|date = 19 June 2024
+|update = Hallowed Sepulchre Instances & More
+|change = Players can now control whether the combat levels of their targets are up to 5, 10 or 15 levels higher than their own, without it affecting the minimum level of their targets, which will now always be 15 levels below their own.
+}}
+{{Subject changes
+|date = 7 February 2024
+|update = Poll 80 Wilderness Changes & More
+|change = 
+* The chance of rolling the [[ancient artefacts]] sub-table upon opening [[bounty crates]] has been increased from 1/15 to 1/10.
+* Combat experience purchased from the [[Bounty Hunter Store]] has been increased by 2.5x.
+}}
+{{Subject changes
+|update = Desert Treasure II - Further Changes
+|date = 9 August 2023
+|change = The required amount of game time played required to access Bounty Hunter has been reduced from 48 to 12 hours.
+}}
+{{Subject changes
+|date = 5 July 2023
+|update = Forestry: Part One - Feedback Changes
+|change = Players who die in Bounty Hunter will no longer be assigned new targets for 1 minute.
+}}
+{{Subject changes
+|date = 14 June 2023
+|update = Ruinous Powers Beta v2
+|change = * [[Ancient statuettes]] have been added to the [[Bounty crates]] drop table.
+* The quantity of [[Blighted]] supplies received from Bounty crates has been increased.
+* Players may now find out their Earning Potential by talking to any [[Corrupted Warrior (Bounty Hunter)|corrupted warrior]].
+* Upon entering [[Daimon's Crater]] for the first time, players will now be given a dialogue about Bounty Hunter rules.
+* Killing a target who has an [[Esoteric emblem]] no longer rewards additional bonus points.
+* Dying with an Esoteric emblem will reduce its tier by 1, rather than deleting it outright.
+}}
+{{Subject changes
+|date = 7 June 2023
+|update = Pride Event 2023
+|change = * Players will now be able to [[Teleport to Target]] while inside the [[Daimon's Crater|Crater]] if they have not been in combat within the last 12 seconds.
+* Players should now receive the correct warning when skipping their final target before incurring a penalty.
+* Players will no longer be able to leave the Crater immediately after using a [[special attack]], similar to the special attack delay present on [[PvP Worlds]].
+* When a target goes into combat with their target, rogues will no longer have the priority for receiving the loot.
+* Players are no longer able to leave the Crater while dying. This is to resolve an issue where leaving the Crater would take priority over the death.
+* A chat message has been added upon entering/exiting the Crater to let you know that you have a penalty timer if you've skipped too many targets. A reminder message will also be sent approximately every 5 minutes.
+* The 'Target' dialogue with [[Corrupted Warrior (Bounty Hunter)|corrupted warriors]] will now fittingly inform player that a penalty of 30 minutes will be given after skipping 3 [[Skulled]] targets.
+}}
+{{Subject changes
+|date = 1 June 2023
+|update = Bounty Hunter Changes & Forestry Beta
+|change = * Increased the time added back to players’ 2:00 timer when re-entering the Crater from 6 seconds to 15 seconds.
+* Skipping an unskulled target no longer contributes to matchmaking penalties.
+* The UI will now indicate that you have a matchmaking penalty. Speak to the Corrupted Warrior to see your current penalty timer.
+* Perdu can now be found in the lobby area.
+* Players now have 6 seconds of immunity from rogue players after entering the Crater. Your target can still attack you, and you will lose immunity upon attacking another player.
+* Blighted supplies are now usable in the lobby area.
+* Bounty Hunter World 541 (US West) has been replaced with World 573 (US East).
+}}
+{{Subject changes
+|date = 24 May 2023
+|update = Bounty Hunter is Back!
+|change = Bounty Hunter reworked significantly into a minigame located at Daimon's Crater, Target Worlds removed.
+}}
+{{Subject changes
+|date = 15 March 2023
+|update = The Last of Poll 78
+|poll = New Skill: Community Consultation and Poll 78
+|change = Target worlds no longer have misleading messages about the non-existence of PJ timers.
+}}
+{{Subject changes
+|date = 13 January 2021
+|update = God Wars Instancing and Soul Wars Improvements
+|change = The Bounty Hunter Reward Shop has now closed and all existing Archaic and Antique Emblems have been removed, although you may still encounter the former on Deadman Worlds, where you will still be able to trade them as before.
+}}
+{{Subject changes
+|date = 6 August 2020
+|update = PVP Changes
+|change = *Hotspots and tasks were removed. 
+*Players are now protected for 20 seconds after killing their target.
+*Bounty Hunter worlds were renamed to 'Target world'.
+}}
+{{Subject changes
+|date = 12 June 2020
+|update = Darkmeyer Improvements
+|change = Bounty Hunter emblem upgrades are now capped at ten per day in order to limit farming.
+}}
+{{Subject changes
+|date = 23 April 2020
+|update = Bounty Hunter Returns
+|change = Bounty Hunter is re-enabled.
+}}
+{{Subject changes
+|date = 23 January 2020
+|update = Wiki Integration
+|change = Bounty Hunter was temporarily disabled due to concerns with gold farming.
+}}
+{{Subject changes
+|date = 28 November 2019
+|update = Ashihama Rewards Beta and Sire Changes
+|poll = 
+|change = *The Bounty Hunter messages warning you that you've failed certain types of tasks are now less spammy.
+*The Bounty Hunter tasks for finishing off a target with a specific combat style have been adjusted to better handle unusual attacks that apply damage simultaneously.
+}}
+{{Subject changes
+|date = 14 November 2019
+|update = The Twisted League
+|poll = 
+|change = *The Bounty Hunter minigame now requires a player to have 48 hours of in-game time, 20 quest points and a combat level of 40.
+*In various Bounty Tasks, players are asked to deal the finishing blow with a specific combat style. These tasks are now better able to detect that they've done so, if the finishing blow is part of a flurry of other hits that they're dealing at the same time.
+*Bounty Hunter now waits slightly longer after your previous target kill before assigning you a new one, since players had concerns of not getting enough time after a kill.
+*The duration permitted for a Bounty Hunter task is now 20 minutes, reduced from 30.
+*Prices for [[bounty crate]]s, [[looting bag]]s and [[rune pouch]]es have been changed.
+}}
+{{Subject changes
+|date = 8 November 2019
+|type = hotfix
+|change = In order to reduce player boosting, only one emblem from the target and killer will be upgraded, rather than up to three.
+}}
+{{Subject changes
+|date = 7 November 2019
+|update = Bounty Hunter Rework
+|poll = Bounty Hunter Rework rewards
+|change = *The Bounty Hunter interface has been updated, giving more details about the target and other minigame-related info.
+*Points are no longer granted from exchanging [[mysterious emblem]]s, now being earned from killing targets.
+*Mysterious emblems that existed prior to [[17 October]] were transformed into [[archaic emblem]]s, which can still be exchanged to purchase items from the original [[Bounty Hunter Shop]].
+*Bounty Tasks have been added, giving additional points if successfully completed.
+*Hotspots have been added, giving additional benefits if killing targets there.
+*New items have been added to the store: [[bounty crate (discontinued)|bounty crate]]s, [[target teleport]]s, [[decorative emblem]]s and [[bounty hunter hat]]s.
+}}
+{{Subject changes
+|date = 25 February 2016
+|update = Grapes & PvP poll features
+|poll = Quality of Life - Top 10 PvP Suggestions
+|change = * The Bounty Hunter timer for a new target is now 60 seconds so that it is possible to collect the loot from your last victim.
+* Monsters in the low-level Wilderness north of Edgeville are now unaggressive on the Bounty world (world 18).
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = The Bounty Hunter Rogue hat will now be kept as expected upon death under the current temporary death system.
+}}
+{{Subject changes
+|date = 18 December 2014
+|update = Christmas 2014
+|change = The Bounty Hunter streak overlay can once again be toggled on or off.
+}}
+{{Subject changes
+|date = 6 November 2014
+|update = Amulet of the Damned & CWA
+|poll = Old_School_Bounty_Hunter_Rewards_2
+|change = *The Hunter's Honour is added to the game for 2,500,000 bounties.
+*The Granite Clamp is added to the game for 250,000 bounties as a cosmetic for the Granite Maul
+}}
+{{Subject changes
+|date = 9 October 2014
+|update = New Bounty Hunter Rewards
+|poll = Old School Bounty Hunter Rewards 2
+|change = Wilderness bosses and demi-bosses on a Bounty Hunter world now have a chance of dropping tier 1 mysterious emblems.
+}}
+{{Subject changes
+|date = 25 September 2014
+|update = Bounty Hunter Tweaks & Goblins
+|change = *After killing a target players will now receive a 1 minute timer before being assigned another.
+*Emblems now downgrade when dropped on death.
+*Players can now attack their targets even if their target is already in combat with a monster or another player.
+*The Bounty Hunter Kill streak overlay toggle setting is now remembered over logout.
+}}
+{{Subject changes
+|date = 19 September 2014
+|update = Bounty Hunter Changes
+|change = In order to discourage players from selling lives, several [[game integrity updates]] were made to the Bounty Hunter system and some items in the Bounty Hunter rewards shop were tripled in price.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+<gallery>
+File:Bounty Hunter skulls.png|The old Bounty Hunter skulls before the change in the {{UD|Bounty Hunter Return}} update.
+File:Bounty Hunter - hotspot marker.png|Old hotspot markers.
+</gallery>
+
+Historical bounty [[skull (status)|skull]]s that appeared depending on the tier of Antique Emblem that the player held:
+{|
+|[[File:Bounty Hunter skull (1).png]]
+|[[File:Bounty Hunter skull (2).png]]
+|[[File:Bounty Hunter skull (3).png]]
+|[[File:Bounty Hunter skull (4).png]]
+|[[File:Bounty Hunter skull (5).png]]
+|[[File:Bounty Hunter skull (6).png]]
+|[[File:Bounty Hunter skull (7).png]]
+|[[File:Bounty Hunter skull (8).png]]
+|[[File:Bounty Hunter skull (9).png]]
+|[[File:Bounty Hunter skull (10).png]]
+|}
+
+==Trivia==
+*Originally released in December 2007 as part of the highly controversial update that saw the removal of PvP from the Wilderness, Bounty Hunter's first incarnation was confined to a single {{RSL|Wilderness Volcano|crater}} and was intended as a substitute for Wilderness player-killing. Although the [[August 2007 Archive of RuneScape|August 2007 archive of RuneScape]] that ''Old School RuneScape''{{'}}s servers were based on predated the Bounty Hunter update, both players and the development team expressed interest in bringing it back in a revised form. It was subsequently released in 2014 as a single-world activity that existed separately from and alongside traditional Wilderness PvP. Likewise, the current version of Bounty Hunter also did not replace traditional PvP combat, instead serving as an optional minigame.
+*The [[Emblem Trader]] manages the Bounty Hunter minigame, and talking to him in free-to-play reveals that he was entrusted this responsibility by his "master in [[the north]]", who is likely a [[Mahjarrat]].
+
+{{Bounty Hunter}}
+{{Activities}}
+[[Category:Player vs Player arenas]]

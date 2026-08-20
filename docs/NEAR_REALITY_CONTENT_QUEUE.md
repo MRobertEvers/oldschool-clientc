@@ -328,7 +328,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
 | D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
 | D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **partial** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage raised from 16 to **26 of 34**; the last 8 need their base monster identified by something other than its display name. |
-| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 | pending | |
+| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + Hespori | **partial** | The Hespori fight is in and verified — buds, invulnerability, the entangle's six clicks. Farming contracts and the seed vault remain; the contract wiki page is a redirect that this cache's era may not have. |
 | D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 + gilded altar | **partial** | The gilded altar's 250/300/350 ladder and its two-burner message are in and verified. The Chaos Altar's 50% bone-save and the libation bowl remain. |
 | D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
 | D12 | **Mining** + **Smithing** completion | 2627 | 1817 + 3 contracts | **done** | All three data tables under contract: 19 rocks, 8 bars, and 158 anvil rows checked against the wiki's stated per-bar rule. |
@@ -347,13 +347,13 @@ to leave it out.
 | E3 | **Boons** | 3469 | — | pending | `content/boons/` + impl |
 | E4 | **Middleman trading** | 2038 | — | pending | staff-mediated trade, history, offers |
 | E5 | **Wilderness Vault** + Queen Reaver | 1982 | — | pending | |
-| E6 | **Bounty Hunter** | 1773 | — | pending | tasks, teleport, targets |
+| E6 | **Bounty Hunter** | — | 160 | **partial** | Target range settings, the coffer's four deposit bands, the five skull tiers and the teleport gate are in and verified. The Emblem Trader's store and the (bh) equipment charges remain. |
 | E7 | **Follower / pet system** | 1531 | partial (summoning familiars) | pending | registry gates B-wave pet drops |
 | E8 | **Commands** (staff + player command surface) | 1499 | partial | pending | audit which are engine vs content |
 | E9 | **Magic storage unit** | 1262 | — | pending | |
-| E10 | **Alternate drop tables** | 1176 | — | pending | provider indirection; gates every B slice's drops |
+| E10 | **Flower poker** | — | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake are not — staking needs the asset decision the rest of Wave E needs. |
 | E11 | **Flower poker** | 1109 | — | pending | incl. gamble ban |
-| E12 | **Loot keys** | 1104 | — | pending | + Skully NPC |
+| E12 | **Loot keys** | — | 130 | **partial** | Who gets a key, when they get none, the destroy cap and the disengage rule are in and verified. Skully, the chest and the per-player filters remain. |
 | E13 | **Universal shop** | 989 | — | pending | |
 | E14 | **Clans** | 977 | — | pending | |
 | E15 | **Presets** | 825 | — | pending | gates E1, E2 |
@@ -2959,6 +2959,126 @@ with and without, and what was explicitly deferred with its reason.
   This is the same trap as `cache_find.py`'s, inverted: **a display name is a
   reliable way to FIND a record and an unreliable way to CHOOSE one**, because
   ducks, pets and league variants share names with the monsters they depict.
+
+- 2026-08-20 — **D9 Hespori — the lane had the cave and not the boss.**
+
+  `minigame_hespori` was 50 lines: the entrance, the exit and a death hook. The
+  fight — what makes the Hespori a boss rather than a plant — was absent.
+
+  * **Four flower buds keep it INVULNERABLE**, not resistant. They are the only
+    way through, so treating them as optional adds makes the boss unkillable
+    rather than merely harder. The test asserts one surviving bud is as good as
+    four: a port that scales damage by surviving buds lets a strong player
+    ignore the mechanic entirely.
+  * **They open exactly three times — at 100%, 66% and 33%** — and not a fourth
+    however low the health goes.
+  * **A bud "will die in one hit from any weapon."** Its 10 hitpoints are
+    nominal; modelling them as real leaves a weak player unable to open a bud
+    the game says they always can. The test asserts a 1-damage hit kills it.
+  * **Six clicks break the entangle, not five.** The wiki says five produce the
+    "You feel the vines loosen slightly" message and *"after the 5th such
+    message, clicking again will prevent the special attack"* — so the sixth is
+    what frees you. Off by one and a player who did everything right still eats
+    40 damage. The test pins both sides: five clicks still takes the full 40.
+
+  Left **partial**: farming contracts and the seed vault. The contract wiki page
+  is a 31-byte redirect, so pinning it needs the real title first — noted rather
+  than guessed at.
+
+- 2026-08-20 — **E10 Flower poker — the one Wave E slice that needs no substituted assets.**
+
+  Wave E is NR-custom, so the ladder starts at rank 4 and NR is the
+  specification. Flower poker is the exception to the wave's blocker: **mithril
+  seeds and every flower colour it plants are ordinary OSRS items this cache
+  already ships**, so the mechanic ports exactly as written with nothing
+  invented.
+
+  The whole game is `FlowerPokerRank.has(pairsList, pairs, count)`:
+
+  ```
+  pairsList.size() == pairs && sum of their sizes == count
+  ```
+
+  — a rank is identified by **both** how many colours repeat and how many
+  flowers those groups hold, and neither number is sufficient alone:
+
+  * **Four of a kind and two doubles both total FOUR.** One group against two.
+    Checking only the total collapses them into one hand.
+  * **Four of a kind and a plain double both have ONE group.** Checking only the
+    group count collapses those instead.
+
+  The test asserts both collapses explicitly rather than just checking each rank
+  maps correctly, because a table that happens to be right for the six cases can
+  still be wrong about *why*.
+
+  Two more worth pinning:
+
+  * **Four of a kind beats a full house**, which is real poker's order — worth a
+    test because the intuition that a full house is stronger is common and
+    wrong.
+  * **`bestOf` returns null on equal ranks: a DRAW is its own outcome.** A port
+    that breaks the tie by any rule at all — first planted, higher colour —
+    invents a winner the game does not name. That is the outcome a port is most
+    likely to legislate away.
+
+- 2026-08-20 — **E12 Loot keys — filed under Wave E, but it is real OSRS content.**
+
+  The cache ships `wildy_loot_key0`..`wildy_loot_key3`. This was filed in the
+  NR-custom wave because NR implements it; the **wiki is rank 2 and outranks NR
+  here**, so it is pinned and ported from the game rather than from Zenyte. That
+  also means it needs no substituted assets — the second Wave E slice in a row
+  where the wave's supposed blocker turned out not to apply.
+
+  **The rule most likely to be merged into one:** a full inventory and five keys
+  already held are *different* outcomes.
+
+  * Full inventory -> "the key will drop to the ground instead" — you still get
+    a key.
+  * Five keys held -> "the loot will drop to the ground **as if the option was
+    turned off**" — **no key at all**.
+
+  A port that treats both as "drop the key" hands out a sixth key the game
+  refuses to make. The test asserts the two cases differ, not merely that each
+  is handled.
+
+  Two more:
+
+  * **The destroy cap is ABOVE a million, not at it.** A key worth exactly
+    1,000,000 can be destroyed in the Wilderness; 1,000,001 cannot. The test
+    pins both sides of the boundary.
+  * **[jagex] Mod Ash, 27 February 2023:** after a disengagement, the key goes
+    to whoever finishes the kill if **more than 30 ticks** have passed, "even if
+    player B has dealt a majority of the damage total". Damage majority stops
+    deciding once the clock runs out — the opposite of every other kill-credit
+    rule in the game, which is exactly why it is worth pinning. Exactly 30 ticks
+    does not qualify.
+
+- 2026-08-20 — **E6 Bounty Hunter — the third Wave E slice that needed no substituted assets.**
+
+  `bh_crate`, `bh_hat_tier1`..`tier3` and `amulet_of_bounty` are all in the
+  cache. Like the loot keys, this is **real OSRS content filed under Wave E
+  because NR implements it**, and the wiki outranks NR.
+
+  That is now three for three, and it retires an assumption I had been treating
+  as a blocker for the whole wave: **"NR implements it" does not mean "NR
+  invented it"**. Every remaining Wave E slice gets the cache checked before the
+  asset question is even asked.
+
+  Four rules pinned:
+
+  * **The target range is a SETTING with three values — 5, 10 or 15 — and the
+    default is the TIGHTEST.** A port that hardcodes one gets the other two
+    wrong, and hardcoding the widest makes finding a fight far easier than it is
+    by default. The test asserts a level-78 target is refused at the default and
+    admitted at the medium setting.
+  * **The coffer's minimum deposit has four bands** and the boundary belongs to
+    the lower one: combat 60 pays 30,000 and 61 pays 50,000.
+  * **The five skull tiers are exclusive at the bottom.** "Risking up to
+    200,000" is bronze; "between 200,001 and 800,000" is iron — so **the
+    boundary coin belongs to the lower tier**. Reading them as inclusive shifts
+    every tier by one coin, which the test pins at all four boundaries.
+  * **"Within N combat levels" is symmetric** — N above or N below — and
+    Teleport to Target needs twelve seconds (20 ticks) clear of combat.
 
 ## 7. Open questions to settle before Wave E
 

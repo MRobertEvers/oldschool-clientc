@@ -1,0 +1,280 @@
+{{Infobox Scenery
+|name = Seed vault
+|image = [[File:Seed vault.png|260px]]
+|release = [[28 March]] [[2019]]
+|update = The Seed Vault
+|members = Yes
+|quest = No
+|location = [[Farming Guild]]
+|options = Open
+|examine = Perfect for storing a large quantity of seeds.
+|map = {{Map|name=Seed vault|x=1247|y=3740|plane=0|r=2|mtype=square}}
+|id = 26206
+}}
+The '''seed vault''' is a storage system found in the [[Farming Guild]], directly west of the [[bank chest]]. It functions much like a [[bank]], being able to store all common types of [[seeds]] and [[saplings]] used in [[Farming]], but not seeds or sapling given through quests. The seed vault does not store [[seedling]]s that have not grown into saplings.
+
+The vault has a "Favourite Slots" tab where players can place up to eight types of seeds they frequently use, readily accessible for convenience. Similar to banks, it can also leave placeholders and it has a search function. Players can manually organize their seeds. Because placeholders keep your custom layout in place, players can use this to remember the seeds' level unlock order. The required seed for an active [[Farming contracts|Farming contract]] will appear at the top of the seed vault.
+
+In addition, if players receive seeds from [[Managing Miscellania]] that are already present in the seed vault, they will automatically be transferred to the vault rather than the player's bank. For seeds that the player receives that aren't present in the vault, it will be placed in their bank instead.
+
+The seed vault can store a maxiumum of 2,147,483,647 of each type seed. [[Ultimate ironmen]] '''cannot''' use the seed vault.
+[[File:Seed vault interface.png|thumb|left|The interface that opens when opening the seed vault.]]
+{{clear|left}}
+
+==Use==
+The seed vault's primary usage is to reduce the amount of bank space used by seeds and saplings. Seeds or saplings stored in the vault are only accessible by interacting with the vault itself, so players may not want to store any farming or tree run supplies within. The seed vault is ideally used for storing seeds and saplings that are not commonly needed, or for storing those that may be necessary for [[farming contract]]s.
+
+==Seeds that can be stored==
+
+===Allotment===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Allotment seeds
+|-
+|{{plink|Potato seed|txt=Potato}}
+|{{plink|Onion seed|txt=Onion}}
+|{{plink|Cabbage seed|txt=Cabbage}}
+|{{plink|Tomato seed|txt=Tomato}}
+|{{plink|Sweetcorn seed|txt=Sweetcorn}}
+|-
+|{{plink|Strawberry seed|txt=Strawberry}}
+|{{plink|Watermelon seed|txt=Watermelon}}
+|{{plink|Snape grass seed|txt=Snape grass}}
+|{{NA|colspan="2"|-}}
+|}
+===Flowers===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Flower seeds
+|-
+|{{plink|Marigold seed|txt=Marigold}}
+|{{plink|Rosemary seed|txt=Rosemary}}
+|{{plink|Nasturtium seed|txt=Nasturtium}}
+|{{plink|Woad seed|txt=Woad}}
+|{{plink|Limpwurt seed|txt=Limpwurt}}
+|-
+|{{plink|White lily seed|txt=White lily}}
+|{{NA|colspan="4"|-}}
+|}
+===Herbs===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Herb seeds
+|-
+|{{plink|Guam seed|txt=Guam leaf}}
+|{{plink|Marrentill seed|txt=Marrentill}}
+|{{plink|Tarromin seed|txt=Tarromin}}
+|{{plink|Harralander seed|txt=Harralander}}
+|{{plink|Ranarr seed|txt=Ranarr weed}}
+|-
+|{{plink|Toadflax seed|txt=Toadflax}}
+|{{plink|Irit seed|txt=Irit leaf}}
+|{{plink|Avantoe seed|txt=Avantoe}}
+|{{plink|Kwuarm seed|txt=Kwuarm}}
+|{{plink|Snapdragon seed|txt=Snapdragon}}
+|-
+|{{plink|Huasca seed|txt=Huasca}}
+|{{plink|Cadantine seed|txt=Cadantine}}
+|{{plink|Lantadyme seed|txt=Lantadyme}}
+|{{plink|Dwarf weed seed|txt=Dwarf weed}}
+|{{plink|Torstol seed|txt=Torstol}}
+|}
+===Hops===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Hop seeds
+|-
+|{{plink|Barley seed|txt=Barley}}
+|{{plink|Hammerstone seed|txt=Hammerstone}}
+|{{plink|Asgarnian seed|txt=Asgarnian}}
+|{{plink|Jute seed|txt=Jute}}
+|{{plink|Yanillian seed|txt=Yanillian}}
+|-
+|{{plink|Flax seed|txt=Flax}}
+|{{plink|Krandorian seed|txt=Krandorian}}
+|{{plink|Wildblood seed|txt=Wildblood}}
+|{{plink|Hemp seed|txt=Hemp}}
+|{{plink|Cotton seed|txt=Cotton}}
+|}
+
+===Bushes===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Bush seeds
+|-
+|{{plink|Redberry seed|txt=Redberry}}
+|{{plink|Cadavaberry seed|txt=Cadava berry}}
+|{{plink|Dwellberry seed|txt=Dwellberry}}
+|{{plink|Jangerberry seed|txt=Jangerberry}}
+|{{plink|Whiteberry seed|txt=White berry}}
+|-
+|{{plink|Poison ivy seed|txt=Poison ivy berry}}
+|{{NA|colspan="4"|-}}
+|}
+===Trees===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Tree seeds
+|-
+|{{plink|Acorn}}
+|{{plink|Willow seed|txt=Willow}}
+|{{plink|Teak seed|txt=Teak}}
+|{{plink|Maple seed|txt=Maple}}
+|{{plink|Mahogany seed|txt=Mahogany}}
+|-
+|{{plink|Yew seed|txt=Yew}}
+|{{plink|Camphor seed|txt=Camphor}}
+|{{plink|Magic seed|txt=Magic}}
+|{{plink|Ironwood seed|txt=Ironwood}}
+|{{plink|Redwood tree seed|txt=Redwood}}
+|-
+|{{plink|Rosewood seed|txt=Rosewood}}
+|{{NA|colspan="4"|-}}
+|}
+
+===Fruit Trees===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Fruit tree seeds
+|-
+|{{plink|Apple tree seed|txt=Apple}}
+|{{plink|Banana tree seed|txt=Banana}}
+|{{plink|Orange tree seed|txt=Orange}}
+|{{plink|Curry tree seed|txt=Curry}}
+|{{plink|Pineapple seed|txt=Pineapple}}
+|-
+|{{plink|Papaya tree seed|txt=Papaya}}
+|{{plink|Palm tree seed|txt=Palm}}
+|{{plink|Dragonfruit tree seed|txt=Dragonfruit}}
+|{{NA|colspan="2"|-}}
+|}
+===Exotic===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Exotic seeds
+|-
+|{{plink|Seaweed spore|txt=Seaweed}}
+|{{plink|Grape seed|txt=Grape}}
+|{{plink|Mushroom spore|txt=Mushroom}}
+|{{plink|Cactus seed|txt=Cactus}}
+|{{plink|Belladonna seed|txt=Belladonna}}
+|-
+|{{plink|Potato cactus seed|txt=Potato cactus}}
+|{{plink|Hespori seed|txt=Hespori}}
+|{{plink|Calquat tree seed|txt=Calquat}}
+|{{plink|Crystal acorn|txt=Crystal}}
+|{{plink|Spirit seed|txt=Spirit}}
+|-
+|{{plink|Celastrus seed|txt=Celastrus}}
+|{{NA|colspan="4"|-}}
+|}
+===Anima===
+{| class="wikitable lighttable individual"
+|-
+! colspan="3" |Anima seeds
+|-
+|{{plink|Attas seed|txt=Attas}}
+|{{plink|Iasor seed|txt=Iasor}}
+|{{plink|Kronos seed|txt=Kronos}}
+|}
+===Saplings===
+{| class="wikitable lighttable individual"
+|-
+! colspan="5" |Saplings
+|-
+|{{plink|Oak sapling|txt=Oak}}
+|{{plink|Apple sapling|txt=Apple}}
+|{{plink|Willow sapling|txt=Willow}}
+|{{plink|Banana sapling|txt=Banana}}
+|{{plink|Teak sapling|txt=Teak}}
+|-
+|{{plink|Orange sapling|txt=Orange}}
+|{{plink|Curry sapling|txt=Curry}}
+|{{plink|Maple sapling|txt=Maple}}
+|{{plink|Pineapple sapling|txt=Pineapple}}
+|{{plink|Mahogany sapling|txt=Mahogany}}
+|-
+|{{plink|Papaya sapling|txt=Papaya}}
+|{{plink|Yew sapling|txt=Yew}}
+|{{plink|Camphor sapling|txt=Camphor}}
+|{{plink|Palm sapling|txt=Palm}}
+|{{plink|Calquat sapling|txt=Calquat}}
+|-
+|{{plink|Crystal sapling|txt=Crystal}}
+|{{plink|Magic sapling|txt=Magic}}
+|{{plink|Ironwood sapling|txt=Ironwood}}
+|{{plink|Dragonfruit sapling|txt=Dragonfruit}}
+|{{plink|Spirit sapling|txt=Spirit}}
+|-
+|{{plink|Celastrus sapling|txt=Celastrus}}
+|{{plink|Redwood sapling|txt=Redwood}}
+|{{plink|Rosewood sapling|txt=Rosewood}}
+|{{NA|colspan="2"|-}}
+|}
+
+===Coral===
+{| class="wikitable lighttable individual"
+! colspan="3" |Coral
+|-
+|{{Plink|Elkhorn frag}}
+|{{Plink|Pillar frag}}
+|{{Plink|Umbral frag}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2026
+|update = New Regional Worlds Launch TODAY!
+|poll = Gathering Efficiencies & More Lock-in Poll
+|change = The required seed for an active [[Farming contracts|Farming contract]] now appears at the top of the seed vault.
+}}
+{{Subject changes
+|date = 21 January 2026
+|update = Holy Moleys and the Hooded Slayer Helm are Here!
+|change = Increased the capacity of the Seed Vault up to 104.
+}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = A "Coral" section has been added to the vault.
+}}
+{{Subject changes
+|date = 6 August 2025
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|change =
+* Clearing all placeholders in the seed vault no longer changes which seeds you have favourited.
+* The first option on placeholders in the seed vault is now correctly labelled as 'Remove-placeholder'.
+}}
+{{Subject changes
+|date = 1 December 2021
+|update = PJ Timer Beta & Chat Changes
+|change = The 'X' amount in the seed vault will now be remembered.
+}}
+{{Subject changes
+|date = 3 November 2021
+|update = Android Beta Signup & Small QoL Changes
+|change = The seed vault's capacity has been increased.
+}}
+{{Subject changes
+|date = 12 September 2019
+|update = POH Board and PvP Balancing
+|change = The seed vault can now accommodate all 90 possible contents simultaneously.
+}}
+{{Subject changes
+|date = 16 May 2019
+|update = Farming Improvements and Rebalancing Existing Content
+|poll = Old School Content Poll 67: Small Old Content Changes
+|change = Additions were made to the seed vault, allowing it to store saplings and hold placeholders and giving it a search function. It now also scales with the interface in resizable mode.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Seed vault seeds.png|thumb|right|The assortment of seeds visible in the seed vault.]]
+*The name is a reference to the {{WP|Svalbard Global Seed Vault}}, which serves a similar function.
+*The vault displays various seeds, including [[onion seed]]s, [[marigold seed]]s, [[cabbage seed]]s, [[acorn]]s, and [[Kronos seed]]s. In addition, despite being unable to be stored, [[Grand seed pod]]s and [[Ent's roots]] can be seen inside the vault.
+
+{{Farming Guild}}
+{{Farming tools}}
+
+[[Category:Bank PIN protection]]

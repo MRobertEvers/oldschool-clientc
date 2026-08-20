@@ -14460,7 +14460,8 @@ mock230_toa_read_dbg(
     int* wave,
     int* shield,
     int* hp,
-    int* type)
+    int* type,
+    int* done)
 {
     static struct Mock230Capture cap;
     int room = 0;
@@ -14481,9 +14482,9 @@ mock230_toa_read_dbg(
             continue;
         if( sscanf((const char*)pk->data + 1,
                    "toazdbg %d started=%d clock=%d now=%d attacks=%d phase=%d "
-                   "wave=%d shield=%d bosshp=%d bosstype=%d",
+                   "wave=%d shield=%d done=%d bosshp=%d bosstype=%d",
                    &room, &started, &clock, &now, &attacks, phase, wave, shield,
-                   hp, type) == 10 )
+                   done, hp, type) == 11 )
             return;
     }
 }
@@ -37083,33 +37084,33 @@ mock230_world_selftest(void)
             mock230_world_tick(srv);
 
             /* Pull leverg (2722,9710): down -> up. */
-            slot = mock230_scene_find_loc(2722, 9710, 0, loc_leverg);
+            slot = mock230_scene_find_loc_id(2722, 9710, 0, loc_leverg);
             SELFTEST_CHECK(slot >= 0, "leverg should be placed at its wiki coordinate");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverg,
                                                     mock230_loc_category(loc_leverg), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2722, 9710, 0, loc_leverg2) >= 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2722, 9710, 0, loc_leverg2) >= 0,
                            "pulling leverg should swap it to leverg2 (up)");
 
             /* Pull leverh (2724,9669): down -> up. */
-            slot = mock230_scene_find_loc(2724, 9669, 0, loc_leverh);
+            slot = mock230_scene_find_loc_id(2724, 9669, 0, loc_leverh);
             SELFTEST_CHECK(slot >= 0, "leverh should be placed at its wiki coordinate");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverh,
                                                     mock230_loc_category(loc_leverh), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2724, 9669, 0, loc_leverh2) >= 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2724, 9669, 0, loc_leverh2) >= 0,
                            "pulling leverh should swap it to leverh2 (up)");
 
             /* Pull leveri (2722,9718): down -> up. */
-            slot = mock230_scene_find_loc(2722, 9718, 0, loc_leveri);
+            slot = mock230_scene_find_loc_id(2722, 9718, 0, loc_leveri);
             SELFTEST_CHECK(slot >= 0, "leveri should be placed at its wiki coordinate");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leveri,
                                                     mock230_loc_category(loc_leveri), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2722, 9718, 0, loc_leveri2) >= 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2722, 9718, 0, loc_leveri2) >= 0,
                            "pulling leveri should swap it to leveri2 (up)");
 
             /*
@@ -37117,32 +37118,32 @@ mock230_world_selftest(void)
              * gate must refuse and stay closed. Negative-path proof that the
              * unlock check is not a rubber stamp.
              */
-            slot = mock230_scene_find_loc(2727, 9690, 0, loc_gate);
+            slot = mock230_scene_find_loc_id(2727, 9690, 0, loc_gate);
             SELFTEST_CHECK(slot >= 0, "the gate should still be closed with the wrong combination");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     mock230_loc_category(loc_gate), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2727, 9690, 0, loc_gate_open) < 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2727, 9690, 0, loc_gate_open) < 0,
                            "the gate must not open on the wrong combination");
 
             /* Pull leverh again: up -> down. Combination is now correct. */
-            slot = mock230_scene_find_loc(2724, 9669, 0, loc_leverh2);
+            slot = mock230_scene_find_loc_id(2724, 9669, 0, loc_leverh2);
             SELFTEST_CHECK(slot >= 0, "leverh2 should still be up before the second pull");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverh2,
                                                     mock230_loc_category(loc_leverh2), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2724, 9669, 0, loc_leverh) >= 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2724, 9669, 0, loc_leverh) >= 0,
                            "pulling leverh2 should swap it back to leverh (down)");
 
-            slot = mock230_scene_find_loc(2727, 9690, 0, loc_gate);
+            slot = mock230_scene_find_loc_id(2727, 9690, 0, loc_gate);
             SELFTEST_CHECK(slot >= 0, "the gate should still be the closed record before the real combination");
             if( slot >= 0 )
                 mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     mock230_loc_category(loc_gate), slot);
             mock230_world_tick(srv);
-            SELFTEST_CHECK(mock230_scene_find_loc(2727, 9690, 0, loc_gate_open) >= 0,
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2727, 9690, 0, loc_gate_open) >= 0,
                            "the gate should open once leverh reads down and leveri2 reads up");
 
             /*
@@ -40081,6 +40082,7 @@ mock230_world_selftest(void)
                 int toa_shield = -1;
                 int toa_hp = -1;
                 int toa_type = -1;
+                int toa_done = -1;
                 int kephri = -1;
                 int shield_hp_at_start = 0;
 
@@ -40119,7 +40121,7 @@ mock230_world_selftest(void)
                         srv->npcs[kephri].hitpoints = 0;
                         mock230_world_tick(srv);
                         mock230_toa_read_dbg(srv, &toa_phase, &toa_wave, &toa_shield,
-                                             &toa_hp, &toa_type);
+                                             &toa_hp, &toa_type, &toa_done);
                         fprintf(stderr,
                                 "  Kephri shield %d broken: phase=%d wave=%d "
                                 "shield=%d hp=%d type=%d\n",
@@ -40145,7 +40147,7 @@ mock230_world_selftest(void)
                             mock230_world_tick(srv);
                             mock230_world_tick(srv);
                             mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
-                                                 &toa_shield, &toa_hp, &toa_type);
+                                                 &toa_shield, &toa_hp, &toa_type, &toa_done);
                             SELFTEST_CHECK(toa_type == 11720,
                                            "Kephri should be dazed (11720) two ticks "
                                            "into intermission %d, saw %d",
@@ -40158,7 +40160,7 @@ mock230_world_selftest(void)
                             for( int t = 0; t < 60; t++ )
                                 mock230_world_tick(srv);
                             mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
-                                                 &toa_shield, &toa_hp, &toa_type);
+                                                 &toa_shield, &toa_hp, &toa_type, &toa_done);
                             fprintf(stderr,
                                     "  Kephri intermission %d over: phase=%d "
                                     "shield=%d hp=%d type=%d\n",
@@ -40195,6 +40197,46 @@ mock230_world_selftest(void)
                                            "which is below her shield's: saw %d of a "
                                            "%d shield",
                                            toa_hp, shield_hp_at_start);
+                            /*
+                             * AND THE LAST ONE KILLS HER, which is the only way
+                             * to reach a ToA boss's death path at all.
+                             *
+                             * Until 2026-08-20 no boss in this raid had one:
+                             * `~toa_boss_complete` — which counts the path, sets
+                             * the Nexus door's bit and sends the party back —
+                             * had no caller anywhere in the tree, because
+                             * nothing watched a boss's hitpoints. So the whole
+                             * end of every fight was untested by construction,
+                             * and the first attempt at wiring it up reached for
+                             * `npc_del` and would have shipped five bosses that
+                             * vanish instead of dying.
+                             *
+                             * That is what the suite-wide `silent_death_removals`
+                             * counter is for, and it can only fire on a run
+                             * where something actually dies. This is that run.
+                             */
+                            srv->npcs[kephri].hitpoints = 0;
+                            for( int t = 0; t < 4; t++ )
+                                mock230_world_tick(srv);
+                            mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
+                                                 &toa_shield, &toa_hp, &toa_type,
+                                                 &toa_done);
+                            fprintf(stderr,
+                                    "  Kephri killed: done=%d type=%d hp=%d\n",
+                                    toa_done, toa_type, toa_hp);
+                            SELFTEST_CHECK(toa_done == 1,
+                                           "killing Kephri should bank the room "
+                                           "(`~toa_boss_complete`), saw done=%d",
+                                           toa_done);
+                            /*
+                             * And she leaves a BODY. NR transforms her to
+                             * 11722 and leaves it standing rather than reaping
+                             * her, which is why this one is a corpse check and
+                             * not a "the npc is gone" check.
+                             */
+                            SELFTEST_CHECK(toa_type == 11722,
+                                           "a dead Kephri is the finished body "
+                                           "11722, saw %d", toa_type);
                         }
                     }
                 }
@@ -40403,6 +40445,50 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(said_ok,
                                "a chamber's barrier should exist and start the room "
                                "when it is passed");
+            }
+
+            /*
+             * And every boss stands on ITS OWN tile (`::toabosses`).
+             *
+             * Six of the eight rooms spawned their boss on `^toa_*_fight_*` —
+             * NR's `challengeSpawnLocation`, the tile the RAID is teleported to
+             * — because it was the only tile each room had a constant for.
+             * Akkha stood 16 tiles from his arena, Ba-Ba 15, Het's Seal in the
+             * doorway, the obelisk 13 tiles from the rings it fires, and both
+             * Wardens 10.
+             *
+             * This runs where the arithmetic in `::toarun` cannot: it BUILDS
+             * each chamber, starts it, and reads `npc_coord` back off whatever
+             * npc the spawn produced. `::toarun` compares the two constants and
+             * stays green if a room defines the right tile and then quotes the
+             * wrong one at `~toa_boss_at` — which is the bug that was actually
+             * made, and was measured staying green through it.
+             */
+            {
+                static struct Mock230Capture bosses;
+                int said_ok = 0;
+
+                mock230_capture_begin(srv, &bosses);
+                mock230_scripts_run_debugproc(srv, "toabosses");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&bosses, 90, 0); w >= 0;
+                     w = mock230_capture_find(&bosses, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &bosses.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toabosses") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toabosses OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok,
+                               "every ToA boss should spawn on its own tile, not on the "
+                               "tile the party is teleported to");
             }
 
             /*
@@ -51069,6 +51155,21 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_seed_vault]", 6,
+                  "the seed vault refuses seedlings for their stage and quest "
+                  "seeds for their origin" },
+                { "[proc,selftest_bountyhunter]", 10,
+                  "Bounty Hunter's skull boundary coin belongs to the lower "
+                  "tier" },
+                { "[proc,selftest_lootkeys]", 8,
+                  "a full inventory still makes a loot key; five held makes "
+                  "none" },
+                { "[proc,selftest_flowerpoker]", 8,
+                  "four of a kind and two doubles both total four and are "
+                  "different hands" },
+                { "[proc,selftest_hespori]", 7,
+                  "the Hespori's buds make it invulnerable and six clicks "
+                  "break the entangle" },
                 { "[proc,selftest_gilded_altar]", 6,
                   "the gilded altar is 250/300/350, not a doubling" },
                 { "[proc,selftest_bird_nests]", 7,
