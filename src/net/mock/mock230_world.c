@@ -37187,6 +37187,97 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Clock Tower -- rat-cage levers/gates (quest_cog_gates_and_levers.rs2),
+         * real [oploc1] dispatch, not mirrored. This file had the exact same
+         * `loc_del` -> read-`loc_coord`-after bug the Family Crest audit found
+         * and fixed above, in four places -- every lever/gate in this quest's
+         * own rat-cage puzzle. Coordinates are the Quest Helper worldpoints
+         * (ClockTower.java: CTLEVERA/CTLEVERA2 (2591,9661), CTLEVERB
+         * (2593,9661)); ctratgatea/prisondooropen at (2595,9657)/(2596,9657)
+         * come from this file's own switch_coord/loc_find literals
+         * (0_40_150_35_57 / 0_40_150_36_57), decoded the same way.
+         */
+        {
+            int loc_ctlevera = mock230_content_symbol(MOCK230_PACK_LOC, "ctlevera");
+            int loc_ctlevera2 = mock230_content_symbol(MOCK230_PACK_LOC, "ctlevera2");
+            int loc_ctleverb = mock230_content_symbol(MOCK230_PACK_LOC, "ctleverb");
+            int loc_ctleverb2 = mock230_content_symbol(MOCK230_PACK_LOC, "ctleverb2");
+            int loc_ctratgatea = mock230_content_symbol(MOCK230_PACK_LOC, "ctratgatea");
+            int loc_prisondooropen = mock230_content_symbol(MOCK230_PACK_LOC, "prisondooropen");
+            int slot;
+
+            fprintf(stderr, "mock230 selftest: Clock Tower rat-cage levers\n");
+
+            mock230_world_teleport(srv, 0, 2593, 9659);
+            mock230_world_tick(srv);
+
+            /* Pull ctlevera: down -> up, and it should auto-open ctratgatea
+             * (swap to prisondooropen) as a side effect, per the file's own
+             * logic. */
+            slot = mock230_scene_find_loc_id(2591, 9661, 0, loc_ctlevera);
+            SELFTEST_CHECK(slot >= 0, "ctlevera should be placed at its wiki coordinate");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_ctlevera,
+                                                    mock230_loc_category(loc_ctlevera), slot);
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2591, 9661, 0, loc_ctlevera2) >= 0,
+                           "pulling ctlevera should swap it to ctlevera2 (up)");
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2596, 9657, 0, loc_prisondooropen) >= 0,
+                           "pulling ctlevera should also open the rat-cage door");
+
+            /* Pull ctlevera2 back down: should re-close the door too. */
+            slot = mock230_scene_find_loc_id(2591, 9661, 0, loc_ctlevera2);
+            SELFTEST_CHECK(slot >= 0, "ctlevera2 should still be up before the second pull");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_ctlevera2,
+                                                    mock230_loc_category(loc_ctlevera2), slot);
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2591, 9661, 0, loc_ctlevera) >= 0,
+                           "pulling ctlevera2 should swap it back to ctlevera (down)");
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2595, 9657, 0, loc_ctratgatea) >= 0,
+                           "pulling ctlevera back down should re-close the rat-cage door");
+
+            /* ctleverb/ctleverb2: cosmetic-only pair (no gate reacts to it,
+             * per both Quest Helper's own unused secondLeverUp condition and
+             * this file's "dummy" naming), but must still toggle cleanly. */
+            slot = mock230_scene_find_loc_id(2593, 9661, 0, loc_ctleverb);
+            SELFTEST_CHECK(slot >= 0, "ctleverb should be placed at its wiki coordinate");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_ctleverb,
+                                                    mock230_loc_category(loc_ctleverb), slot);
+            SELFTEST_CHECK(mock230_scene_find_loc_id(2593, 9661, 0, loc_ctleverb2) >= 0,
+                           "pulling ctleverb should swap it to ctleverb2 (up)");
+
+            /*
+             * The food trough (quest_cog_food_trough.rs2, [oplocu,ctfoodtrough])
+             * has no loc_del/loc_add of its own -- lower risk than the levers
+             * -- but it is the trigger the entire rest of the white-cog path
+             * (the door unhinging, the western gate) is gated behind
+             * (%cogquest's quest_cog_rat_door_bit), so it is worth proving
+             * for real too rather than just reading the source.
+             */
+            {
+                int loc_ctfoodtrough = mock230_content_symbol(MOCK230_PACK_LOC, "ctfoodtrough");
+                int obj_rat_poison = mock230_content_symbol(MOCK230_PACK_OBJ, "rat_poison");
+                int varp_cogquest = mock230_content_symbol(MOCK230_PACK_VARP, "cogquest");
+                /* ^quest_cog_rat_door_bit = 4, quest_cog.constant. */
+                const int rat_door_bit = 4;
+
+                player->last_useitem = obj_rat_poison;
+                slot = mock230_scene_find_loc_id(2587, 9654, 0, loc_ctfoodtrough);
+                SELFTEST_CHECK(slot >= 0, "ctfoodtrough should be placed at its wiki coordinate");
+                SELFTEST_CHECK(varp_cogquest >= 0 &&
+                                   !(player->varps[varp_cogquest] & (1 << rat_door_bit)),
+                               "the rat-door bit should not be set before poisoning");
+                if( slot >= 0 )
+                    mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_ctfoodtrough,
+                                                        mock230_loc_category(loc_ctfoodtrough), slot);
+                SELFTEST_CHECK(varp_cogquest >= 0 &&
+                                   (player->varps[varp_cogquest] & (1 << rat_door_bit)),
+                               "poisoning the food trough should set the rat-door bit");
+                player->last_useitem = -1;
+            }
+        }
+
+        /*
          * H.A.M. Storerooms' reward table and spatial contracts live in
          * content, but they include every one of the 150 reward rolls plus the
          * host-backed NPC front-arc query. Run that content test here so a
@@ -51205,6 +51296,9 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_deaths_office]", 8,
+                  "the ironman discount is 50% off the FEE, and ultimates are "
+                  "excluded" },
                 { "[proc,selftest_glider]", 5,
                   "Lemanto Andra is a glider destination and never a "
                   "departure" },

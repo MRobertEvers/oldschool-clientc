@@ -362,7 +362,7 @@ to leave it out.
 | E19 | **Drops** framework + rewards + larran's key | 571+465 | +90 | **partial** | Larran's three-branch key rate is in and verified against Mod Ash's published formula. The drops framework itself remains. |
 | E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | — | pending | one slice, seven small systems |
 | E21 | **Donation / donator / vote** | 417+108+58 | partial (vote) | pending | |
-| E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | partial | pending | audit-and-fill sweep, closes the tail |
+| E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | +170 | **partial** | Gliders and Death's Office are in and verified. Ground items, imbue, sailing and the shims remain. |
 
 ### Wave F — seasonal and event content
 
@@ -3281,6 +3281,56 @@ with and without, and what was explicitly deferred with its reason.
   **80** here against brimstone's **100**, and the constants differ throughout.
   Two similar formulae is exactly the situation where copying the first one's
   numbers looks right.
+
+- 2026-08-20 — **E22 gnome gliders — one site is a destination and never a departure.**
+
+  [cache] `gnome_glider`, `gnome_glidercrashed` and the per-site locs are all
+  present. **The sixth Wave E slice that turned out to be real OSRS content**
+  behind an NR label.
+
+  **Lemanto Andra is one-way** — "the glider will crash and you cannot fly back
+  from here" — so it is a destination and never a departure point. A symmetric
+  transport table, every site reachable from every other, cannot express that at
+  all; the cache ships `gnome_glidercrashed` for exactly this trip. The test
+  asserts the asymmetry in both directions and confirms every *other* pair does
+  fly both ways, so a blanket one-way rule fails too.
+
+  **The 153-kudos Varrock Museum gate is a SEPARATE condition** and it does not
+  stop the flight — it gates the nearest gate *out of where the glider lands*.
+  Folding it into the flight check strands a player who flew there legitimately
+  and has no way back by design.
+
+  That pattern — two conditions on one trip, one of which is not about the trip
+  — is the same shape as Xamphur's Mark of Darkness (damage *and* corruption
+  from one cause) and the loot key's follower-plus-inventory rule. Three slices
+  today have turned on separating conditions a port would naturally merge.
+
+- 2026-08-20 — **E22 Death's Office — what happens after the gravestone expires.**
+
+  This tree fills a gravestone and arms its timer. What happens when the timer
+  runs out was not here at all.
+
+  **Three boundaries, each inverted by the obvious reading:**
+
+  * **"Items worth less than 100,000 are free"** — so exactly 100,000 **is**
+    charged. The boundary belongs to the fee band, not the free one. And the
+    test is per ITEM, so a cheap item stays free beside an expensive one.
+  * **"ironmen (with the exception of ultimate ironmen) are given a 50%
+    discount, giving them a 2.5% reclamation fee."** Two merges to avoid at
+    once: the discount is **50% off the FEE** (5% -> 2.5%), not a 50% fee — a
+    port reading it the other way charges twenty times too much — and
+    **ultimate ironmen are excluded**, so `is ironman` is the wrong test. The
+    test asserts the ultimate pays the full fee and that the two ironman cases
+    differ.
+  * **The coffer takes items worth MORE THAN 10,000** — exactly 10,000 is
+    refused — and pays **105%**, which is more than the item is worth. It is a
+    deliberate premium, not a sale at value, so a port that pays 100% quietly
+    removes the incentive the feature exists for.
+
+  And the rule that actually loses items, stated exactly because of that:
+  **no more than 120 items or stacks** may sit in retrieval, "causing items from
+  an expired gravestone to be **deleted** when the limit is reached". Deleted —
+  not queued, not bounced back to the grave.
 
 ## 7. Open questions to settle before Wave E
 

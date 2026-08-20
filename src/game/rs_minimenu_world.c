@@ -7,6 +7,8 @@
 #include "world/world.h"
 #include "world/world_pickset.h"
 
+#include <datatypes/dat2_config_loc.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -491,6 +493,39 @@ add_scenery_debug_row(
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, -1, pick);
 }
 
+/* The map editor SELECT tool's row label: which LAYER a loc occupies, since
+ * that (not the loc's own name) is what a tile-tool session cares about --
+ * "Select Wall" says which of a stacked wall + wall-decor + ground-decor the
+ * row will latch, the way the loc's own actions row already says what it is. */
+static char const*
+mapedit_select_category(int shape)
+{
+    switch( shape )
+    {
+    case RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE:
+    case RSCACHE_LOC_SHAPE_WALL_TRI_CORNER:
+    case RSCACHE_LOC_SHAPE_WALL_TWO_SIDES:
+    case RSCACHE_LOC_SHAPE_WALL_RECT_CORNER:
+    case RSCACHE_LOC_SHAPE_WALL_DIAGONAL:
+        return "Wall";
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_INSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_OUTSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+    case RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+        return "Wall Decor";
+    case RSCACHE_LOC_SHAPE_SCENERY:
+    case RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL:
+        return "Object";
+    case RSCACHE_LOC_SHAPE_FLOOR_DECORATION:
+        return "Ground Decor";
+    default:
+        /* Roof shapes (12-21): rare on a right-click menu, and share no
+         * single-word name worth inventing one for. */
+        return "Loc";
+    }
+}
+
 static void
 add_scenery_rows(
     struct UIMinimenu* menu,
@@ -498,7 +533,8 @@ add_scenery_rows(
     struct World* world,
     struct WorldEntity_Scenery const* scenery,
     struct World_Picked const* picked,
-    bool locedit_active)
+    bool locedit_active,
+    bool mapedit_select_active)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char name_buf[UITREE_MINIMENU_OPTION_LEN];
@@ -540,6 +576,18 @@ add_scenery_rows(
     {
         snprintf(text, sizeof(text), "Select @cya@ %s", name);
         UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_LOCEDIT_SELECT, 0, pick);
+    }
+
+    /* Map editor's own twin, labeled by shape category rather than name --
+     * see mapedit_select_category. Both tools may be open at once, on
+     * different subjects, so this is additive to the row above, not a
+     * replacement for it. */
+    if( mapedit_select_active )
+    {
+        snprintf(
+            text, sizeof(text), "Select %s @cya@ %s", mapedit_select_category(scenery->shape),
+            name);
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT, 0, pick);
     }
 }
 
@@ -997,6 +1045,12 @@ RS_Minimenu_AddWorldRows(
                 UIMinimenu_AddOption(
                     menu, "Select @whi@terrain", RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN, 0,
                     pick);
+
+            /* Map editor's own twin -- same pick, different tool, both may be
+             * open at once. */
+            if( ctx->mapedit_select_active )
+                UIMinimenu_AddOption(
+                    menu, "Select Terrain", RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN, 0, pick);
         }
         else
         {
@@ -1048,7 +1102,9 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(ctx->world, picked->element_id);
             if( scenery )
-                add_scenery_rows(menu, sel, ctx->world, scenery, picked, ctx->locedit_active);
+                add_scenery_rows(
+                    menu, sel, ctx->world, scenery, picked, ctx->locedit_active,
+                    ctx->mapedit_select_active);
             break;
         }
         case WORLD_PICK_OBJSTACK:

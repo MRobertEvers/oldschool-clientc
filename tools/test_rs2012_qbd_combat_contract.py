@@ -173,6 +173,26 @@ def check(root: Path) -> list[str]:
             f"{QBD_CONSTANTS}: {name} expected {expected}, got {qbd_constants.get(name)}",
         )
 
+    # Pool sizes: mock230's own HP scale throughout, not a separate 2012-LP
+    # domain. `rs2012_qbd_lp_scale` must not exist at all.
+    expected_pools = {
+        "rs2012_qbd_phase_lp": 1875,
+        "rs2012_qbd_hit_cap_lp": 100,
+        "rs2012_qbd_soul_hp": 50,
+        "rs2012_qbd_worm_hp": 65,
+        "rs2012_qbd_siphon_drain": 2,
+        "rs2012_qbd_siphon_heal": 4,
+    }
+    for name, expected in expected_pools.items():
+        require(
+            qbd_constants.get(name) == expected,
+            f"{QBD_CONSTANTS}: {name} expected {expected}, got {qbd_constants.get(name)}",
+        )
+    require(
+        "rs2012_qbd_lp_scale" not in qbd_constants,
+        f"{QBD_CONSTANTS}: rs2012_qbd_lp_scale must stay retired",
+    )
+
     npcs = config_blocks((root / QBD_NPCS).read_text(encoding="utf-8"))
     attack_bonus_names = ("stabattack", "slashattack", "crushattack", "magicattack", "rangeattack")
     defence_bonus_names = ("stabdefence", "slashdefence", "crushdefence", "magicdefence", "rangedefence")
@@ -280,6 +300,12 @@ def check(root: Path) -> list[str]:
     claws = (root / DRAGON_CLAWS).read_text(encoding="utf-8")
     selftest = (root / QBD_SELFTEST).read_text(encoding="utf-8")
 
+    # QBD, souls and worms are all authored directly on mock230's own HP
+    # scale, the same as every other NPC in the tree — there is no separate
+    # 2012-LP domain or ^rs2012_qbd_lp_scale conversion factor for any of
+    # them. `rs2012_qbd_is_add_type` survives only because
+    # rs2012_dragon_claws.rs2 still calls it directly; the shared funnel and
+    # QBD's own combat script must NOT reference it or the retired scale.
     add_predicate = re.search(
         r"^\[proc,rs2012_qbd_is_add_type\]\(\)\(boolean\)\s*$\n(.*?)(?=^\[|\Z)",
         shared_hit,
@@ -289,32 +315,22 @@ def check(root: Path) -> list[str]:
     for add_name in ("rs2012_qbd_tortured_soul", "rs2012_qbd_giant_worm"):
         require(
             add_predicate is not None and f"npc_type = {add_name}" in add_predicate.group(1),
-            f"{TD_PLAYER_HIT}: {add_name} bypasses the revision-727 LP predicate",
+            f"{TD_PLAYER_HIT}: {add_name} bypasses the QBD-add predicate",
         )
-    for fragment in (
-        "def_boolean $qbd_add = ~rs2012_qbd_is_add_type;",
-        "$prepared = ~rs2012_qbd_prepare_add_player_hit($rolled_damage, $hit_success);",
-        "else if ($qbd = true | $qbd_add = true)",
-    ):
-        require(fragment in shared_hit, f"{TD_PLAYER_HIT}: missing QBD-add funnel contract: {fragment!r}")
-
-    add_prepare = re.search(
-        r"^\[proc,rs2012_qbd_prepare_add_player_hit\].*?$\n(.*?)(?=^\[|\Z)",
-        combat,
-        re.MULTILINE | re.DOTALL,
-    )
-    require(add_prepare is not None, f"{QBD_COMBAT}: missing mortal QBD-add LP adapter")
-    if add_prepare is not None:
-        body = add_prepare.group(1)
+    for forbidden in ("$qbd_add", "rs2012_qbd_prepare_add_player_hit", "rs2012_qbd_lp_scale"):
         require(
-            "return(multiply($rolled_damage, ^rs2012_qbd_lp_scale));" in body,
-            f"{QBD_COMBAT}: QBD adds must convert old HP to revision-727 LP",
+            forbidden not in shared_hit,
+            f"{TD_PLAYER_HIT}: QBD adds must not re-grow a separate LP-domain funnel: {forbidden!r}",
         )
-        for forbidden in ("rs2012_qbd_hit_cap_lp", "rs2012_qbd_intermission", "sub(npc_stat(hitpoints), 1)"):
-            require(
-                forbidden not in body,
-                f"{QBD_COMBAT}: mortal QBD adds inherited Queen-only rule {forbidden!r}",
-            )
+    require(
+        "rs2012_qbd_prepare_add_player_hit" not in combat and "rs2012_qbd_lp_scale" not in combat,
+        f"{QBD_COMBAT}: mortal QBD adds must not re-grow the old LP-scale adapter",
+    )
+    for name in ("rs2012_qbd_tortured_soul", "rs2012_qbd_giant_worm"):
+        require(
+            re.search(rf"^\[ai_queue2,{name}\]\s*$", combat, re.MULTILINE) is None,
+            f"{QBD_COMBAT}: {name} must fall through to the ordinary [ai_queue2,_] default, not override it",
+        )
 
     claws_queue = re.search(
         r"^\[proc,rs2012_claws_queue_hit\].*?$\n(.*?)(?=^\[|\Z)",
@@ -329,8 +345,8 @@ def check(root: Path) -> list[str]:
             f"{DRAGON_CLAWS}: each claw splat must enter the shared hook exactly once",
         )
         require(
-            "~rs2012_qbd_is_add_type = true" in body,
-            f"{DRAGON_CLAWS}: remaining-HP clamp loses the QBD-add XP domain",
+            "rs2012_qbd_lp_scale" not in body and "rs2012_qbd_is_add_type" not in body,
+            f"{DRAGON_CLAWS}: remaining-HP clamp must not re-grow a QBD-add LP domain",
         )
 
     host_probe = re.search(
@@ -443,12 +459,12 @@ def check(root: Path) -> list[str]:
             f"{QBD_ADDS}: {add_name} deletes before post-drop kill credit",
         )
     require(
-        npcs.get("rs2012_qbd_tortured_soul", {}).get("hitpoints") == 500,
-        f"{QBD_NPCS}: tortured soul must retain its 500-LP interrupt pool",
+        npcs.get("rs2012_qbd_tortured_soul", {}).get("hitpoints") == 50,
+        f"{QBD_NPCS}: tortured soul must retain its 50-LP interrupt pool",
     )
     require(
-        npcs.get("rs2012_qbd_giant_worm", {}).get("hitpoints") == 650,
-        f"{QBD_NPCS}: giant worm must retain the 21-Jun-2012 650-LP pool",
+        npcs.get("rs2012_qbd_giant_worm", {}).get("hitpoints") == 65,
+        f"{QBD_NPCS}: giant worm must retain its 65-LP pool (the 21-Jun-2012 650-LP figure at 1/10 scale)",
     )
     worm_death = re.search(
         r"^\[ai_queue3,rs2012_qbd_giant_worm\]\s*$\n(.*?)(?=^\[|\Z)",

@@ -132,6 +132,16 @@ struct RS_MinimenuBuildCtx
      * the real OPLOC dispatch. False in every build path that predates the
      * tool, so this changes nothing when it is closed. */
     bool locedit_active;
+
+    /* The map editor's SELECT tool (src/editor/editor_panel.h,
+     * `app->editor_panel`) wants the same disambiguated-target rows
+     * locedit_active earns above, but latches into the editor panel's own
+     * sel_kind/sel_scene_x/z/sel_element_id rather than locedit_loc_id --
+     * the two tools can be open together, on different subjects. Labeled by
+     * loc SHAPE category ("Select Wall", "Select Ground Decor", ...) rather
+     * than by name, since the map editor's tile tools care which layer they
+     * would be affecting, not which loc it is. */
+    bool mapedit_select_active;
 };
 
 /* Custom, client-only minimenu action id: never sent to a server, and picked
@@ -153,6 +163,12 @@ struct RS_MinimenuBuildCtx
  * the loc alone — and the terrain pick is already in the set, so selecting one
  * costs a row rather than a second mechanism. */
 #define RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 1)
+
+/* The map editor SELECT tool's pair of the same two ids -- one action id
+ * covers every loc shape category, since the row TEXT is what varies
+ * ("Select Wall" vs "Select Ground Decor"), not the handler. */
+#define RS_MINIMENU_ACTION_MAPEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 2)
+#define RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 3)
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */

@@ -116,21 +116,21 @@ dbg_advance_table(int font_slot)
 }
 
 int
-ToriDbgUI_FontLineHeight(int font_slot)
+ToriRSChrome_FontLineHeight(int font_slot)
 {
     return font_slot == TORIDBG_FONT_MENU ? ToriDbgFont_Menu_LINE_HEIGHT
                                           : ToriDbgFont_Small_LINE_HEIGHT;
 }
 
 int
-ToriDbgUI_FontLineBox(int font_slot)
+ToriRSChrome_FontLineBox(int font_slot)
 {
     return font_slot == TORIDBG_FONT_MENU ? ToriDbgFont_Menu_LINE_BOX
                                           : ToriDbgFont_Small_LINE_BOX;
 }
 
 int
-ToriDbgUI_MeasureText(int font_slot, char const* text)
+ToriRSChrome_MeasureText(int font_slot, char const* text)
 {
     int const* adv = dbg_advance_table(font_slot);
     int w = 0;
@@ -163,13 +163,13 @@ dbg_max(int a, int b)
 }
 
 static int
-dbg_valid_panel(struct ToriDbgUI const* ui, int panel)
+dbg_valid_panel(struct ToriRSChrome const* ui, int panel)
 {
     return ui && panel >= 0 && panel < ui->panel_count;
 }
 
 static int
-dbg_valid_widget(struct ToriDbgUI const* ui, int widget)
+dbg_valid_widget(struct ToriRSChrome const* ui, int widget)
 {
     return ui && widget >= 0 && widget < ui->widget_count;
 }
@@ -186,7 +186,7 @@ dbg_copy(char* dst, int cap, char const* src)
 
 /** Mark a panel for relayout. Also flags the model so Build stops being a no-op. */
 static void
-dbg_dirty_panel(struct ToriDbgUI* ui, int panel)
+dbg_dirty_panel(struct ToriRSChrome* ui, int panel)
 {
     if( !dbg_valid_panel(ui, panel) )
         return;
@@ -195,7 +195,7 @@ dbg_dirty_panel(struct ToriDbgUI* ui, int panel)
 }
 
 static void
-dbg_dirty_widget(struct ToriDbgUI* ui, int widget)
+dbg_dirty_widget(struct ToriRSChrome* ui, int widget)
 {
     if( dbg_valid_widget(ui, widget) )
         dbg_dirty_panel(ui, ui->widgets[widget].panel);
@@ -203,7 +203,7 @@ dbg_dirty_widget(struct ToriDbgUI* ui, int widget)
 
 /** Union `r` into the accumulated invalid region. Empty boxes contribute nothing. */
 static void
-dbg_damage_add(struct ToriDbgUI* ui, struct ToriDbgRect r)
+dbg_damage_add(struct ToriRSChrome* ui, struct ToriDbgRect r)
 {
     int x0;
     int y0;
@@ -230,7 +230,7 @@ dbg_damage_add(struct ToriDbgUI* ui, struct ToriDbgRect r)
 /* ---- lifecycle ----------------------------------------------------------- */
 
 void
-ToriDbgUI_Init(struct ToriDbgUI* ui)
+ToriRSChrome_Init(struct ToriRSChrome* ui)
 {
     assert(ui);
     memset(ui, 0, sizeof(*ui));
@@ -244,7 +244,7 @@ ToriDbgUI_Init(struct ToriDbgUI* ui)
 }
 
 void
-ToriDbgUI_Reset(struct ToriDbgUI* ui)
+ToriRSChrome_Reset(struct ToriRSChrome* ui)
 {
     assert(ui);
     /* Everything on screen is going away, so all of it is invalid. */
@@ -264,7 +264,7 @@ ToriDbgUI_Reset(struct ToriDbgUI* ui)
 }
 
 void
-ToriDbgUI_SetTheme(struct ToriDbgUI* ui, struct ToriDbgTheme const* theme)
+ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriDbgTheme const* theme)
 {
     assert(ui);
     assert(theme);
@@ -278,7 +278,7 @@ ToriDbgUI_SetTheme(struct ToriDbgUI* ui, struct ToriDbgTheme const* theme)
 /* ---- building ------------------------------------------------------------ */
 
 int
-ToriDbgUI_PanelAdd(struct ToriDbgUI* ui, int style, int x, int y, int fixed_w, char const* title)
+ToriRSChrome_PanelAdd(struct ToriRSChrome* ui, int style, int x, int y, int fixed_w, char const* title)
 {
     struct ToriDbgPanel* p;
     int const handle = ui ? ui->panel_count : -1;
@@ -306,7 +306,7 @@ ToriDbgUI_PanelAdd(struct ToriDbgUI* ui, int style, int x, int y, int fixed_w, c
 }
 
 void
-ToriDbgUI_PanelMove(struct ToriDbgUI* ui, int panel, int x, int y)
+ToriRSChrome_PanelMove(struct ToriRSChrome* ui, int panel, int x, int y)
 {
     if( !dbg_valid_panel(ui, panel) )
         return;
@@ -318,7 +318,7 @@ ToriDbgUI_PanelMove(struct ToriDbgUI* ui, int panel, int x, int y)
 }
 
 void
-ToriDbgUI_PanelSetVisible(struct ToriDbgUI* ui, int panel, int visible)
+ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible)
 {
     if( !dbg_valid_panel(ui, panel) )
         return;
@@ -330,7 +330,7 @@ ToriDbgUI_PanelSetVisible(struct ToriDbgUI* ui, int panel, int visible)
 }
 
 struct ToriDbgRect
-ToriDbgUI_PanelRect(struct ToriDbgUI const* ui, int panel)
+ToriRSChrome_PanelRect(struct ToriRSChrome const* ui, int panel)
 {
     struct ToriDbgRect none = { 0, 0, 0, 0 };
     if( !dbg_valid_panel(ui, panel) )
@@ -339,7 +339,7 @@ ToriDbgUI_PanelRect(struct ToriDbgUI const* ui, int panel)
 }
 
 static int
-dbg_widget_add(struct ToriDbgUI* ui, int panel, int kind)
+dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
 {
     struct ToriDbgWidget* w;
     int handle;
@@ -368,13 +368,13 @@ dbg_widget_add(struct ToriDbgUI* ui, int panel, int kind)
 }
 
 int
-ToriDbgUI_Label(struct ToriDbgUI* ui, int panel, char const* text)
+ToriRSChrome_Label(struct ToriRSChrome* ui, int panel, char const* text)
 {
-    return ToriDbgUI_LabelColored(ui, panel, text, 0);
+    return ToriRSChrome_LabelColored(ui, panel, text, 0);
 }
 
 int
-ToriDbgUI_LabelColored(struct ToriDbgUI* ui, int panel, char const* text, uint32_t color)
+ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, uint32_t color)
 {
     int const h = dbg_widget_add(ui, panel, TORIDBG_W_LABEL);
     if( h < 0 )
@@ -385,7 +385,7 @@ ToriDbgUI_LabelColored(struct ToriDbgUI* ui, int panel, char const* text, uint32
 }
 
 int
-ToriDbgUI_Checkbox(struct ToriDbgUI* ui, int panel, char const* label, int checked)
+ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int checked)
 {
     int const h = dbg_widget_add(ui, panel, TORIDBG_W_CHECKBOX);
     if( h < 0 )
@@ -396,7 +396,7 @@ ToriDbgUI_Checkbox(struct ToriDbgUI* ui, int panel, char const* label, int check
 }
 
 int
-ToriDbgUI_TextInput(struct ToriDbgUI* ui, int panel, char const* label, char const* text)
+ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text)
 {
     int const h = dbg_widget_add(ui, panel, TORIDBG_W_TEXTINPUT);
     if( h < 0 )
@@ -426,8 +426,8 @@ dbg_dropdown_clamp(struct ToriDbgWidget* w)
 }
 
 int
-ToriDbgUI_Dropdown(
-    struct ToriDbgUI* ui,
+ToriRSChrome_Dropdown(
+    struct ToriRSChrome* ui,
     int panel,
     char const* label,
     char const* const* options,
@@ -450,8 +450,8 @@ ToriDbgUI_Dropdown(
 }
 
 void
-ToriDbgUI_DropdownSetOptions(
-    struct ToriDbgUI* ui,
+ToriRSChrome_DropdownSetOptions(
+    struct ToriRSChrome* ui,
     int widget,
     char const* const* options,
     int option_count,
@@ -475,7 +475,7 @@ ToriDbgUI_DropdownSetOptions(
 }
 
 int
-ToriDbgUI_DropdownSelected(struct ToriDbgUI const* ui, int widget)
+ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget)
 {
     if( !dbg_valid_widget(ui, widget) )
         return -1;
@@ -483,7 +483,7 @@ ToriDbgUI_DropdownSelected(struct ToriDbgUI const* ui, int widget)
 }
 
 void
-ToriDbgUI_DropdownSetSelected(struct ToriDbgUI* ui, int widget, int selected)
+ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected)
 {
     struct ToriDbgWidget* w;
 
@@ -498,13 +498,13 @@ ToriDbgUI_DropdownSetSelected(struct ToriDbgUI* ui, int widget, int selected)
 }
 
 int
-ToriDbgUI_Separator(struct ToriDbgUI* ui, int panel)
+ToriRSChrome_Separator(struct ToriRSChrome* ui, int panel)
 {
     return dbg_widget_add(ui, panel, TORIDBG_W_SEPARATOR);
 }
 
 int
-ToriDbgUI_MenuItem(struct ToriDbgUI* ui, int panel, char const* text)
+ToriRSChrome_MenuItem(struct ToriRSChrome* ui, int panel, char const* text)
 {
     int const h = dbg_widget_add(ui, panel, TORIDBG_W_MENUITEM);
     if( h < 0 )
@@ -516,7 +516,7 @@ ToriDbgUI_MenuItem(struct ToriDbgUI* ui, int panel, char const* text)
 /* ---- mutation ------------------------------------------------------------ */
 
 void
-ToriDbgUI_SetText(struct ToriDbgUI* ui, int widget, char const* text)
+ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text)
 {
     struct ToriDbgWidget* w;
     char buf[TORIDBG_INPUT_MAX];
@@ -537,7 +537,7 @@ ToriDbgUI_SetText(struct ToriDbgUI* ui, int widget, char const* text)
 }
 
 void
-ToriDbgUI_SetLabel(struct ToriDbgUI* ui, int widget, char const* label)
+ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
 {
     struct ToriDbgWidget* w;
     char buf[TORIDBG_LABEL_MAX];
@@ -553,7 +553,7 @@ ToriDbgUI_SetLabel(struct ToriDbgUI* ui, int widget, char const* label)
 }
 
 void
-ToriDbgUI_SetColor(struct ToriDbgUI* ui, int widget, uint32_t color)
+ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color)
 {
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].color == color )
         return;
@@ -562,7 +562,7 @@ ToriDbgUI_SetColor(struct ToriDbgUI* ui, int widget, uint32_t color)
 }
 
 void
-ToriDbgUI_SetChecked(struct ToriDbgUI* ui, int widget, int checked)
+ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
 {
     checked = checked ? 1 : 0;
     if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].checked == checked )
@@ -572,19 +572,19 @@ ToriDbgUI_SetChecked(struct ToriDbgUI* ui, int widget, int checked)
 }
 
 int
-ToriDbgUI_Checked(struct ToriDbgUI const* ui, int widget)
+ToriRSChrome_Checked(struct ToriRSChrome const* ui, int widget)
 {
     return dbg_valid_widget(ui, widget) ? ui->widgets[widget].checked : 0;
 }
 
 char const*
-ToriDbgUI_Text(struct ToriDbgUI const* ui, int widget)
+ToriRSChrome_Text(struct ToriRSChrome const* ui, int widget)
 {
     return dbg_valid_widget(ui, widget) ? ui->widgets[widget].text : "";
 }
 
 void
-ToriDbgUI_SetCaretVisible(struct ToriDbgUI* ui, int visible)
+ToriRSChrome_SetCaretVisible(struct ToriRSChrome* ui, int visible)
 {
     visible = visible ? 1 : 0;
     assert(ui);
@@ -600,38 +600,38 @@ ToriDbgUI_SetCaretVisible(struct ToriDbgUI* ui, int visible)
 
 /** Natural content width of one row, before the panel's padding. */
 static int
-dbg_widget_width(struct ToriDbgUI const* ui, struct ToriDbgWidget const* w)
+dbg_widget_width(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w)
 {
     (void)ui;
     switch( w->kind )
     {
     case TORIDBG_W_LABEL:
-        return w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0;
+        return w->text ? ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0;
     case TORIDBG_W_CHECKBOX:
         return DBG_CHECK_SIZE + DBG_CHECK_GAP +
-               (w->label ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0);
+               (w->label ? ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0);
     case TORIDBG_W_TEXTINPUT:
     {
         int const label_w =
-            w->label ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
-        int box_w = (w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0) +
+            w->label ? ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
+        int box_w = (w->text ? ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->text) : 0) +
                     2 * DBG_INPUT_PAD_X + 2;
         if( box_w < DBG_INPUT_MIN_W )
             box_w = DBG_INPUT_MIN_W;
         return label_w + (label_w > 0 ? DBG_CHECK_GAP : 0) + box_w;
     }
     case TORIDBG_W_MENUITEM:
-        return w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, w->text) : 0;
+        return w->text ? ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, w->text) : 0;
     case TORIDBG_W_DROPDOWN:
     {
-        int const label_w = w->label[0] ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
+        int const label_w = w->label[0] ? ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
         int box_w = DBG_INPUT_MIN_W;
         /* Sized to the widest option, so choosing one never resizes the panel
          * under the cursor. Palettes are built once, so this walk is not per
          * frame -- dbg_widget_width only runs on a dirty build. */
         for( int i = 0; i < w->option_count; i++ )
         {
-            int const ow = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->options[i]);
+            int const ow = ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->options[i]);
             if( ow > box_w )
                 box_w = ow;
         }
@@ -667,7 +667,7 @@ dbg_widget_height(struct ToriDbgWidget const* w)
 /* ---- display list -------------------------------------------------------- */
 
 static struct ToriDbgPrim*
-dbg_prim_push(struct ToriDbgUI* ui)
+dbg_prim_push(struct ToriRSChrome* ui)
 {
     struct ToriDbgPrim* p;
     if( ui->prim_count >= TORIDBG_MAX_PRIMS )
@@ -682,7 +682,7 @@ dbg_prim_push(struct ToriDbgUI* ui)
 
 static void
 dbg_push_rect(
-    struct ToriDbgUI* ui,
+    struct ToriRSChrome* ui,
     int x,
     int y,
     int w,
@@ -710,7 +710,7 @@ dbg_push_rect(
 /** @param y the text baseline (ToriDraw2D_DrawString's y), not a box top. */
 static void
 dbg_push_text(
-    struct ToriDbgUI* ui,
+    struct ToriRSChrome* ui,
     int x,
     int y,
     char const* text,
@@ -741,7 +741,7 @@ dbg_push_text(
  * face, then one row per widget in the small face.
  */
 static void
-dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
+dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
 {
     struct ToriDbgTheme const* th = &ui->theme;
     int const title_h = p->title[0] ? ToriDbgFont_Menu_LINE_BOX : 0;
@@ -762,7 +762,7 @@ dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
         content_h -= DBG_ROW_GAP;
     if( p->title[0] )
     {
-        int const tw = ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, p->title);
+        int const tw = ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, p->title);
         if( tw > content_w )
             content_w = tw;
     }
@@ -895,7 +895,7 @@ dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
 
         case TORIDBG_W_DROPDOWN:
         {
-            int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+            int const label_w = ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label);
             int const box_x = row_x + label_w + (label_w > 0 ? DBG_CHECK_GAP : 0);
             int const box_w = row_x + w->w - box_x;
             int const open = ui->dropdown_open == widget;
@@ -969,7 +969,7 @@ dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
 
         case TORIDBG_W_TEXTINPUT:
         {
-            int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+            int const label_w = ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label);
             int const box_x = row_x + label_w + (label_w > 0 ? DBG_CHECK_GAP : 0);
             int const box_w = row_x + w->w - box_x;
             int const focused = ui->focus == widget;
@@ -1049,7 +1049,7 @@ dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
  * rows top-to-bottom.
  */
 static void
-dbg_build_menu(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
+dbg_build_menu(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
 {
     struct ToriDbgTheme const* th = &ui->theme;
     struct DbgMenuLayout const l = dbg_menu_layout(ToriDbgFont_Menu_LINE_BOX);
@@ -1061,14 +1061,14 @@ dbg_build_menu(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
 
     for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
     {
-        int const w = ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, ui->widgets[widget].text);
+        int const w = ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, ui->widgets[widget].text);
         if( w > content_w )
             content_w = w;
         rows++;
     }
     if( p->title[0] )
     {
-        int const tw = ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, p->title);
+        int const tw = ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, p->title);
         if( tw > content_w )
             content_w = tw;
     }
@@ -1136,12 +1136,12 @@ dbg_build_menu(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
 }
 
 static void
-dbg_build_dropdown_list(struct ToriDbgUI* ui);
+dbg_build_dropdown_list(struct ToriRSChrome* ui);
 static struct ToriDbgRect
-dbg_dropdown_rect(struct ToriDbgUI const* ui);
+dbg_dropdown_rect(struct ToriRSChrome const* ui);
 
 int
-ToriDbgUI_Build(struct ToriDbgUI* ui)
+ToriRSChrome_Build(struct ToriRSChrome* ui)
 {
     assert(ui);
     /* The retained-mode payoff: a frame in which nothing moved does no
@@ -1201,7 +1201,7 @@ ToriDbgUI_Build(struct ToriDbgUI* ui)
 
 /** Screen rect of the open list, or a zero rect when none is open. */
 static struct ToriDbgRect
-dbg_dropdown_rect(struct ToriDbgUI const* ui)
+dbg_dropdown_rect(struct ToriRSChrome const* ui)
 {
     struct ToriDbgRect rect = { 0, 0, 0, 0 };
     struct ToriDbgWidget const* w;
@@ -1216,7 +1216,7 @@ dbg_dropdown_rect(struct ToriDbgUI const* ui)
         return rect;
 
     {
-        int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+        int const label_w = ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, w->label);
         rect.x = w->x + label_w + (label_w > 0 ? DBG_CHECK_GAP : 0);
         rect.w = w->x + w->w - rect.x;
     }
@@ -1226,7 +1226,7 @@ dbg_dropdown_rect(struct ToriDbgUI const* ui)
 }
 
 static void
-dbg_build_dropdown_list(struct ToriDbgUI* ui)
+dbg_build_dropdown_list(struct ToriRSChrome* ui)
 {
     struct ToriDbgTheme const* th = &ui->theme;
     struct ToriDbgWidget const* w;
@@ -1289,7 +1289,7 @@ dbg_build_dropdown_list(struct ToriDbgUI* ui)
 }
 
 struct ToriDbgPrim const*
-ToriDbgUI_Prims(struct ToriDbgUI const* ui, int* out_count)
+ToriRSChrome_Prims(struct ToriRSChrome const* ui, int* out_count)
 {
     if( out_count )
         *out_count = ui ? ui->prim_count : 0;
@@ -1297,7 +1297,7 @@ ToriDbgUI_Prims(struct ToriDbgUI const* ui, int* out_count)
 }
 
 int
-ToriDbgUI_Damage(struct ToriDbgUI const* ui, struct ToriDbgRect* out)
+ToriRSChrome_Damage(struct ToriRSChrome const* ui, struct ToriDbgRect* out)
 {
     assert(ui);
     if( ui->damage.w <= 0 || ui->damage.h <= 0 )
@@ -1308,7 +1308,7 @@ ToriDbgUI_Damage(struct ToriDbgUI const* ui, struct ToriDbgRect* out)
 }
 
 void
-ToriDbgUI_DamageClear(struct ToriDbgUI* ui)
+ToriRSChrome_DamageClear(struct ToriRSChrome* ui)
 {
     assert(ui);
     ui->damage.x = 0;
@@ -1327,7 +1327,7 @@ dbg_point_in(int x, int y, int rx, int ry, int rw, int rh)
 
 /** Topmost panel under the point, or -1. Later panels are drawn later, so they win. */
 static int
-dbg_panel_at(struct ToriDbgUI const* ui, int x, int y)
+dbg_panel_at(struct ToriRSChrome const* ui, int x, int y)
 {
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
@@ -1341,7 +1341,7 @@ dbg_panel_at(struct ToriDbgUI const* ui, int x, int y)
 }
 
 int
-ToriDbgUI_HitTest(struct ToriDbgUI const* ui, int x, int y)
+ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y)
 {
     int panel;
 
@@ -1370,7 +1370,7 @@ ToriDbgUI_HitTest(struct ToriDbgUI const* ui, int x, int y)
  * over whatever panel is beneath it and must take the click.
  */
 static int
-dbg_dropdown_row_at(struct ToriDbgUI const* ui, int x, int y)
+dbg_dropdown_row_at(struct ToriRSChrome const* ui, int x, int y)
 {
     struct ToriDbgRect rect;
     struct ToriDbgWidget const* w;
@@ -1393,7 +1393,7 @@ dbg_dropdown_row_at(struct ToriDbgUI const* ui, int x, int y)
 
 /** Close the open list, damaging the area it occupied. */
 static void
-dbg_dropdown_close(struct ToriDbgUI* ui)
+dbg_dropdown_close(struct ToriRSChrome* ui)
 {
     if( ui->dropdown_open < 0 )
         return;
@@ -1405,7 +1405,7 @@ dbg_dropdown_close(struct ToriDbgUI* ui)
 }
 
 int
-ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y)
+ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
 {
     int hit;
 
@@ -1424,7 +1424,7 @@ ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y)
             return 1;
     }
 
-    hit = ToriDbgUI_HitTest(ui, x, y);
+    hit = ToriRSChrome_HitTest(ui, x, y);
     if( hit != ui->hover )
     {
         /* Both rows repaint: the one losing the highlight and the one gaining it. */
@@ -1436,7 +1436,7 @@ ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y)
 }
 
 int
-ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y)
+ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
 {
     int hit;
 
@@ -1455,7 +1455,7 @@ ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y)
         dbg_dropdown_close(ui);
     }
 
-    hit = ToriDbgUI_HitTest(ui, x, y);
+    hit = ToriRSChrome_HitTest(ui, x, y);
     ui->press = hit;
     if( hit >= 0 && ui->widgets[hit].kind == TORIDBG_W_TEXTINPUT )
     {
@@ -1476,7 +1476,7 @@ ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y)
 }
 
 int
-ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
+ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
 {
     int hit;
 
@@ -1499,7 +1499,7 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
         }
     }
 
-    hit = ToriDbgUI_HitTest(ui, x, y);
+    hit = ToriRSChrome_HitTest(ui, x, y);
     /* Press and release must land on the same widget, so a drag off a checkbox
      * cancels rather than toggles. */
     if( hit >= 0 && hit == ui->press )
@@ -1537,7 +1537,7 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
 
 
 int
-ToriDbgUI_MouseWheel(struct ToriDbgUI* ui, int x, int y, int delta)
+ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
 {
     struct ToriDbgWidget* w;
     int before;
@@ -1568,7 +1568,7 @@ ToriDbgUI_MouseWheel(struct ToriDbgUI* ui, int x, int y, int delta)
 }
 
 int
-ToriDbgUI_KeyChar(struct ToriDbgUI* ui, int ch)
+ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
 {
     struct ToriDbgWidget* w;
     int len;
@@ -1594,7 +1594,7 @@ ToriDbgUI_KeyChar(struct ToriDbgUI* ui, int ch)
 }
 
 int
-ToriDbgUI_KeyEdit(struct ToriDbgUI* ui, int key)
+ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
 {
     struct ToriDbgWidget* w;
     int len;
@@ -1667,7 +1667,7 @@ ToriDbgUI_KeyEdit(struct ToriDbgUI* ui, int key)
 }
 
 int
-ToriDbgUI_TakeActivated(struct ToriDbgUI* ui)
+ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
 {
     int const fired = ui ? ui->activated : -1;
     if( ui )

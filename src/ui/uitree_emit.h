@@ -88,7 +88,7 @@ struct UITreeEmitDesc
     int worldmap_tile_count;
     /** DEBUG_OVERLAY: the retained display list, handed on by pointer — it is
      * rebuilt only when a widget changed, so a steady overlay costs one pointer
-     * copy per frame. Owned by the host's ToriDbgUI. */
+     * copy per frame. Owned by the host's ToriRSChrome. */
     struct ToriDbgPrim const* debug_prims;
     int debug_prim_count;
     /** DEBUG_OVERLAY: scene font per enum ToriDbgFontSlot. A prim names a slot,

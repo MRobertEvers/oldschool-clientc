@@ -470,7 +470,7 @@ struct App
      */
     struct Editor* editor;
     /** The editor's panel. Inline rather than behind the pointer above: it is
-     *  ToriDbgUI widget handles and palette storage, and the dropdowns BORROW
+     *  ToriRSChrome widget handles and palette storage, and the dropdowns BORROW
      *  that storage, so it must not move once the widgets point into it. */
     struct Editor_Panel editor_panel;
 
@@ -816,7 +816,7 @@ struct App
      * host call and paints nothing, which is why it can stay declared in a
      * manifest permanently. The ring below keeps filling while it is hidden,
      * so the average is already settled the frame it is shown. */
-    struct ToriDbgUI dbg_ui;
+    struct ToriRSChrome dbg_ui;
     /** Panel / frame-time row handles, -1 until App_Init built them. */
     int dbg_panel;
     int dbg_frame_row;

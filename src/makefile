@@ -1465,7 +1465,7 @@ test-polygon-fill: $(OBJ_DIR) render/torirs_polygon.c render/test/torirs_polygon
 		render/torirs_polygon.c render/test/torirs_polygon_test.c
 	./$(OBJ_DIR)/torirs_polygon_test
 
-# ToriDbgUI dropdown interaction, driven through the real input entry points:
+# ToriRSChrome dropdown interaction, driven through the real input entry points:
 # opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
 # and swapping the option list out from under an open one.
 test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c

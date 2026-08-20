@@ -42,7 +42,7 @@ struct TestHostState
     int camera_yaw;
     /** When set, GET_DEBUG_OVERLAY hands back its display list. NULL = the
      * normal case, no overlay, and the pass emits nothing. */
-    struct ToriDbgUI const* debug_overlay;
+    struct ToriRSChrome const* debug_overlay;
     /** When set, GET_ENTITY_OVERLAYS hands back this list and reports the
      * world rect below as the scene clip. NULL = no entity overlays, and the
      * builtin emits nothing. */
@@ -95,7 +95,7 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         struct ToriDbgPrim const* prims;
         if( !st->debug_overlay || !req->u.get_debug_overlay.out_prims )
             return 0;
-        prims = ToriDbgUI_Prims(st->debug_overlay, &count);
+        prims = ToriRSChrome_Prims(st->debug_overlay, &count);
         *req->u.get_debug_overlay.out_prims = prims;
         return count;
     }

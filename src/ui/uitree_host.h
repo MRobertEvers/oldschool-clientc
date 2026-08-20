@@ -245,7 +245,7 @@ enum UITreeHostRequestKind
      * Writes the debug overlay's display list to u.get_debug_overlay.out_prims
      * and returns the primitive count (0 = no overlay, which is the normal
      * case — the pass then costs one host call and nothing else). The array is
-     * host-owned and lives as long as the ToriDbgUI, so unlike the other
+     * host-owned and lives as long as the ToriRSChrome, so unlike the other
      * host-owned arrays here it is not same-frame-only; it is still only read
      * during the frame it was fetched for.
      */

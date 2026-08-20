@@ -4,10 +4,10 @@
 /**
  * The map editor's panel: tool, brush, palettes, save and bake.
  *
- * Built entirely on ToriDbgUI, and that is a hard rule rather than a
+ * Built entirely on ToriRSChrome, and that is a hard rule rather than a
  * convenience. The editor exists to repair content, so its chrome must not
  * depend on the content being repairable — it has to open on a half-broken
- * bake, a foreign revision, or a square whose configs are mid-edit. ToriDbgUI
+ * bake, a foreign revision, or a square whose configs are mid-edit. ToriRSChrome
  * has its fonts compiled in and reaches no cache, which is exactly that
  * property; a panel built from cache interfaces would go dark precisely when
  * it is needed.
@@ -21,7 +21,7 @@
 
 #include "editor.h"
 
-struct ToriDbgUI;
+struct ToriRSChrome;
 struct App;
 
 /** Which edit the next click makes. */
@@ -116,12 +116,12 @@ struct Editor_Panel
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
-    struct ToriDbgUI* ui);
+    struct ToriRSChrome* ui);
 
 void
 Editor_PanelSetVisible(
     struct Editor_Panel* panel,
-    struct ToriDbgUI* ui,
+    struct ToriRSChrome* ui,
     int visible);
 
 /**

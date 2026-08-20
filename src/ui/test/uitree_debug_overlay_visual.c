@@ -1,7 +1,7 @@
 /*
  * Visual (raster) tests for the debug overlay — one scene per feature.
  *
- * These go all the way down: ToriDbgUI_Build produces the display list, the
+ * These go all the way down: ToriRSChrome_Build produces the display list, the
  * list travels as one UITREE_EMIT_DEBUG_OVERLAY desc exactly as the emit pass
  * builds it, ToriRS_Frame expands it one primitive per multi-step, and Soft3D
  * rasterises with the *baked* fonts. So a break anywhere in that chain — a
@@ -11,7 +11,7 @@
  * Every scene writes a BMP to build/ so it can be eyeballed, and every scene
  * also asserts on the pixels. The BMP is the artefact; the assertions are the
  * test. Assertions are written against the theme colours and the module's own
- * reported geometry (ToriDbgUI_PanelRect, the widget boxes), never against
+ * reported geometry (ToriRSChrome_PanelRect, the widget boxes), never against
  * hardcoded pixel coordinates, so re-baking the fonts at a different size
  * moves the picture without breaking the test.
  *
@@ -138,7 +138,7 @@ World_PickSetAdd(
 #define BG_RGB (TORIRS_SOFT3D_BG & 0xFFFFFF)
 
 static int g_failures;
-static struct ToriDbgUI g_ui;
+static struct ToriRSChrome g_ui;
 static struct ToriDraw_Scene* g_scene;
 static int g_pixels[CANVAS_W * CANVAS_H];
 
@@ -208,7 +208,7 @@ render(char const* name)
 
     memset(&desc, 0, sizeof(desc));
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
-    desc.debug_prims = ToriDbgUI_Prims(&g_ui, &count);
+    desc.debug_prims = ToriRSChrome_Prims(&g_ui, &count);
     desc.debug_prim_count = count;
     desc.debug_font_id[TORIDBG_FONT_SMALL] = FONT_ID_SMALL;
     desc.debug_font_id[TORIDBG_FONT_MENU] = FONT_ID_MENU;
@@ -271,14 +271,14 @@ visual_bordered_background(void)
     int panel;
 
     printf("VISUAL: bordered background\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 0, "Renderer");
-    ToriDbgUI_Label(&g_ui, panel, "backend  soft3d");
-    ToriDbgUI_Label(&g_ui, panel, "canvas   400x260");
-    ToriDbgUI_Separator(&g_ui, panel);
-    ToriDbgUI_LabelColored(&g_ui, panel, "vsync    off", t->accent);
-    ToriDbgUI_Build(&g_ui);
-    r = ToriDbgUI_PanelRect(&g_ui, panel);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 0, "Renderer");
+    ToriRSChrome_Label(&g_ui, panel, "backend  soft3d");
+    ToriRSChrome_Label(&g_ui, panel, "canvas   400x260");
+    ToriRSChrome_Separator(&g_ui, panel);
+    ToriRSChrome_LabelColored(&g_ui, panel, "vsync    off", t->accent);
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
     render("01_bordered_background");
 
     VT_ASSERT(r.w > 0 && r.h > 0, "panel resolved a box");
@@ -317,21 +317,21 @@ visual_menu(void)
     int plain_band;
 
     printf("VISUAL: menu-like interface\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 40, 30, 0, "Choose Option");
-    rows[0] = ToriDbgUI_MenuItem(&g_ui, panel, "Toggle wireframe");
-    rows[1] = ToriDbgUI_MenuItem(&g_ui, panel, "Dump emit buffer");
-    rows[2] = ToriDbgUI_MenuItem(&g_ui, panel, "Reload interface");
-    rows[3] = ToriDbgUI_MenuItem(&g_ui, panel, "Cancel");
-    ToriDbgUI_Build(&g_ui);
-    r = ToriDbgUI_PanelRect(&g_ui, panel);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 40, 30, 0, "Choose Option");
+    rows[0] = ToriRSChrome_MenuItem(&g_ui, panel, "Toggle wireframe");
+    rows[1] = ToriRSChrome_MenuItem(&g_ui, panel, "Dump emit buffer");
+    rows[2] = ToriRSChrome_MenuItem(&g_ui, panel, "Reload interface");
+    rows[3] = ToriRSChrome_MenuItem(&g_ui, panel, "Cancel");
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
 
     /* Hover the second row, the way the pointer would. */
-    ToriDbgUI_MouseMove(
+    ToriRSChrome_MouseMove(
         &g_ui,
         g_ui.widgets[rows[1]].x + 2,
         g_ui.widgets[rows[1]].y + g_ui.widgets[rows[1]].h / 2);
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_Build(&g_ui);
     render("02_menu");
 
     VT_ASSERT(g_ui.hover == rows[1], "the pointer is on row 1");
@@ -399,12 +399,12 @@ visual_checkbox(void)
     int w_off;
 
     printf("VISUAL: checkboxes\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 170, "Toggles");
-    w_on = ToriDbgUI_Checkbox(&g_ui, panel, "show fps", 1);
-    w_off = ToriDbgUI_Checkbox(&g_ui, panel, "show tile grid", 0);
-    ToriDbgUI_Checkbox(&g_ui, panel, "freeze camera", 0);
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 170, "Toggles");
+    w_on = ToriRSChrome_Checkbox(&g_ui, panel, "show fps", 1);
+    w_off = ToriRSChrome_Checkbox(&g_ui, panel, "show tile grid", 0);
+    ToriRSChrome_Checkbox(&g_ui, panel, "freeze camera", 0);
+    ToriRSChrome_Build(&g_ui);
     render("03_checkbox");
 
     on = &g_ui.widgets[w_on];
@@ -426,15 +426,15 @@ visual_checkbox(void)
     VT_ASSERT(count_eq(on->x, on->y, on->w, on->h, t->text) > 0, "checkbox label is drawn");
 
     /* Click the unchecked one: the mark appears where it was absent. */
-    ToriDbgUI_MouseDown(&g_ui, off->x + 2, off->y + off->h / 2);
-    ToriDbgUI_MouseUp(&g_ui, off->x + 2, off->y + off->h / 2);
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_MouseDown(&g_ui, off->x + 2, off->y + off->h / 2);
+    ToriRSChrome_MouseUp(&g_ui, off->x + 2, off->y + off->h / 2);
+    ToriRSChrome_Build(&g_ui);
     render("04_checkbox_toggled");
-    VT_ASSERT(ToriDbgUI_Checked(&g_ui, w_off) == 1, "the click toggled it");
+    VT_ASSERT(ToriRSChrome_Checked(&g_ui, w_off) == 1, "the click toggled it");
     VT_ASSERT(
         count_eq(off->x, off->y, off->w, off->h, t->check_mark) > 0,
         "the toggled box now draws its mark");
-    VT_ASSERT(ToriDbgUI_TakeActivated(&g_ui) == w_off, "the toggle latched an activation");
+    VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == w_off, "the toggle latched an activation");
 }
 
 /* ---- 4. text input ------------------------------------------------------- */
@@ -458,26 +458,26 @@ visual_textinput(void)
     int caret_off;
 
     printf("VISUAL: text input\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 260, "Console");
-    w_focus = ToriDbgUI_TextInput(&g_ui, panel, "cmd", "");
-    w_plain = ToriDbgUI_TextInput(&g_ui, panel, "arg", "1024");
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 260, "Console");
+    w_focus = ToriRSChrome_TextInput(&g_ui, panel, "cmd", "");
+    w_plain = ToriRSChrome_TextInput(&g_ui, panel, "arg", "1024");
+    ToriRSChrome_Build(&g_ui);
 
     focused = &g_ui.widgets[w_focus];
     plain = &g_ui.widgets[w_plain];
 
     /* Focus the first field and type into it. */
-    ToriDbgUI_MouseDown(&g_ui, focused->x + 2, focused->y + focused->h / 2);
-    ToriDbgUI_MouseUp(&g_ui, focused->x + 2, focused->y + focused->h / 2);
+    ToriRSChrome_MouseDown(&g_ui, focused->x + 2, focused->y + focused->h / 2);
+    ToriRSChrome_MouseUp(&g_ui, focused->x + 2, focused->y + focused->h / 2);
     for( char const* s = "setpos 3200"; *s; s++ )
-        ToriDbgUI_KeyChar(&g_ui, *s);
-    ToriDbgUI_SetCaretVisible(&g_ui, 1);
-    ToriDbgUI_Build(&g_ui);
+        ToriRSChrome_KeyChar(&g_ui, *s);
+    ToriRSChrome_SetCaretVisible(&g_ui, 1);
+    ToriRSChrome_Build(&g_ui);
     render("05_textinput_caret_on");
 
     VT_ASSERT(g_ui.focus == w_focus, "the click focused the field");
-    VT_ASSERT(strcmp(ToriDbgUI_Text(&g_ui, w_focus), "setpos 3200") == 0, "the typing landed");
+    VT_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, w_focus), "setpos 3200") == 0, "the typing landed");
     VT_ASSERT(
         count_eq(focused->x, focused->y, focused->w, focused->h, t->input_border_focus) > 0,
         "focused field is outlined in the focus colour");
@@ -496,8 +496,8 @@ visual_textinput(void)
     caret_on = count_eq(focused->x, focused->y, focused->w, focused->h, t->input_text);
 
     /* Blink off. Only the caret goes; the border and the text must stay. */
-    ToriDbgUI_SetCaretVisible(&g_ui, 0);
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_SetCaretVisible(&g_ui, 0);
+    ToriRSChrome_Build(&g_ui);
     render("06_textinput_caret_off");
     caret_off = count_eq(focused->x, focused->y, focused->w, focused->h, t->input_text);
     VT_ASSERT(caret_off < caret_on, "the caret disappears on the off phase");
@@ -510,7 +510,7 @@ visual_textinput(void)
 /* ---- 5. damage rectangles ------------------------------------------------ */
 
 /*
- * The XP-era half of the design: after a change, ToriDbgUI_Damage is the union
+ * The XP-era half of the design: after a change, ToriRSChrome_Damage is the union
  * of the panel's old and new bounds — the smallest box a WM_PAINT would have
  * to repaint. The BMP marks it in magenta so it can be checked by eye that it
  * really does cover both positions and not the whole screen.
@@ -524,17 +524,17 @@ visual_damage(void)
     int panel;
 
     printf("VISUAL: damage rectangles\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 40, 40, 150, "Moves");
-    ToriDbgUI_Label(&g_ui, panel, "drag me");
-    ToriDbgUI_Build(&g_ui);
-    before = ToriDbgUI_PanelRect(&g_ui, panel);
-    ToriDbgUI_DamageClear(&g_ui);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 40, 40, 150, "Moves");
+    ToriRSChrome_Label(&g_ui, panel, "drag me");
+    ToriRSChrome_Build(&g_ui);
+    before = ToriRSChrome_PanelRect(&g_ui, panel);
+    ToriRSChrome_DamageClear(&g_ui);
 
-    ToriDbgUI_PanelMove(&g_ui, panel, 150, 120);
-    VT_ASSERT(ToriDbgUI_Build(&g_ui) == 1, "a move rebuilds");
-    after = ToriDbgUI_PanelRect(&g_ui, panel);
-    VT_ASSERT(ToriDbgUI_Damage(&g_ui, &dmg) == 1, "a move damages");
+    ToriRSChrome_PanelMove(&g_ui, panel, 150, 120);
+    VT_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "a move rebuilds");
+    after = ToriRSChrome_PanelRect(&g_ui, panel);
+    VT_ASSERT(ToriRSChrome_Damage(&g_ui, &dmg) == 1, "a move damages");
 
     render("07_damage");
 
@@ -575,11 +575,11 @@ visual_clipping(void)
     int panel;
 
     printf("VISUAL: content clipped to the panel\n");
-    ToriDbgUI_Init(&g_ui);
-    panel = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 40, 90, "Narrow");
-    ToriDbgUI_Label(&g_ui, panel, "this label is far wider than ninety pixels");
-    ToriDbgUI_Build(&g_ui);
-    r = ToriDbgUI_PanelRect(&g_ui, panel);
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 40, 90, "Narrow");
+    ToriRSChrome_Label(&g_ui, panel, "this label is far wider than ninety pixels");
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
     render("08_clipping");
 
     VT_ASSERT(r.w == 90, "fixed_w wins over the content width");
@@ -609,38 +609,38 @@ visual_kitchen_sink(void)
     struct ToriDbgRect r_menu;
 
     printf("VISUAL: kitchen sink\n");
-    ToriDbgUI_Init(&g_ui);
+    ToriRSChrome_Init(&g_ui);
 
-    stats = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 8, 150, "Stats");
-    ToriDbgUI_Label(&g_ui, stats, "fps      60");
-    ToriDbgUI_Label(&g_ui, stats, "prims    128");
-    ToriDbgUI_LabelColored(&g_ui, stats, "draws    41", g_ui.theme.accent);
-    ToriDbgUI_Separator(&g_ui, stats);
-    ToriDbgUI_Label(&g_ui, stats, "cache    osrs239");
+    stats = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 8, 150, "Stats");
+    ToriRSChrome_Label(&g_ui, stats, "fps      60");
+    ToriRSChrome_Label(&g_ui, stats, "prims    128");
+    ToriRSChrome_LabelColored(&g_ui, stats, "draws    41", g_ui.theme.accent);
+    ToriRSChrome_Separator(&g_ui, stats);
+    ToriRSChrome_Label(&g_ui, stats, "cache    osrs239");
 
-    toggles = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 120, 190, "Debug");
-    ToriDbgUI_Checkbox(&g_ui, toggles, "wireframe", 0);
-    ToriDbgUI_Checkbox(&g_ui, toggles, "show hitboxes", 1);
-    ToriDbgUI_Separator(&g_ui, toggles);
-    input = ToriDbgUI_TextInput(&g_ui, toggles, "goto", "3222 3218");
+    toggles = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 120, 190, "Debug");
+    ToriRSChrome_Checkbox(&g_ui, toggles, "wireframe", 0);
+    ToriRSChrome_Checkbox(&g_ui, toggles, "show hitboxes", 1);
+    ToriRSChrome_Separator(&g_ui, toggles);
+    input = ToriRSChrome_TextInput(&g_ui, toggles, "goto", "3222 3218");
 
-    menu = ToriDbgUI_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 215, 60, 0, "Choose Option");
-    rows[0] = ToriDbgUI_MenuItem(&g_ui, menu, "Teleport here");
-    rows[1] = ToriDbgUI_MenuItem(&g_ui, menu, "Copy coordinates");
-    rows[2] = ToriDbgUI_MenuItem(&g_ui, menu, "Cancel");
+    menu = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 215, 60, 0, "Choose Option");
+    rows[0] = ToriRSChrome_MenuItem(&g_ui, menu, "Teleport here");
+    rows[1] = ToriRSChrome_MenuItem(&g_ui, menu, "Copy coordinates");
+    rows[2] = ToriRSChrome_MenuItem(&g_ui, menu, "Cancel");
     (void)rows;
     (void)input;
 
-    ToriDbgUI_Build(&g_ui);
-    ToriDbgUI_MouseMove(
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChrome_MouseMove(
         &g_ui,
         g_ui.widgets[rows[0]].x + 2,
         g_ui.widgets[rows[0]].y + g_ui.widgets[rows[0]].h / 2);
-    ToriDbgUI_SetCaretVisible(&g_ui, 1);
-    ToriDbgUI_Build(&g_ui);
+    ToriRSChrome_SetCaretVisible(&g_ui, 1);
+    ToriRSChrome_Build(&g_ui);
     render("09_kitchen_sink");
 
-    r_menu = ToriDbgUI_PanelRect(&g_ui, menu);
+    r_menu = ToriRSChrome_PanelRect(&g_ui, menu);
     VT_ASSERT(g_ui.overflow == 0, "the whole scene fit the display list");
     VT_ASSERT(
         px(r_menu.x + r_menu.w, r_menu.y + r_menu.h / 2) == BG_RGB,

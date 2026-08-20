@@ -1,4 +1,4 @@
-# Debug overlay (`ToriDbgUI`)
+# Debug overlay (`ToriRSChrome`)
 
 A developer overlay for the C client: bordered windows, minimenu-styled menus,
 checkboxes, text inputs, labels and separators, drawn with two fonts baked out
@@ -44,7 +44,7 @@ Five libc symbols and nothing else. That is what baking the fonts bought:
 layout needs glyph advances, and advances that are compiled in need no cache, no
 decoder and no init step. You can bring the overlay up before a cache is open.
 
-No allocation either — `struct ToriDbgUI` is a fixed-size POD. On the i686 lane
+No allocation either — `struct ToriRSChrome` is a fixed-size POD. On the i686 lane
 it measures **54272 bytes**, of which 30720 is the `prims` array. Heap or
 static, not a stack local.
 
@@ -56,7 +56,7 @@ only when the app changes a widget — not once per frame. So:
 * the model persists across frames;
 * every mutator compares before it sets, so `SetText` with the same string is
   free and does not dirty anything;
-* `ToriDbgUI_Build` returns `0` and does no work at all on a frame where
+* `ToriRSChrome_Build` returns `0` and does no work at all on a frame where
   nothing moved;
 * the display list is handed to the emit layer **by pointer**. On a steady
   frame the entire overlay costs one host call and one pointer copy.
@@ -76,12 +76,12 @@ bounds are kept: moving a panel invalidates where it *was* as much as where it
 ```c
 struct ToriDbgRect dirty;
 
-ToriDbgUI_PanelMove(&ui, panel, 40, 40);   /* was at 8,8 */
-ToriDbgUI_Build(&ui);
-if( ToriDbgUI_Damage(&ui, &dirty) )
+ToriRSChrome_PanelMove(&ui, panel, 40, 40);   /* was at 8,8 */
+ToriRSChrome_Build(&ui);
+if( ToriRSChrome_Damage(&ui, &dirty) )
 {
     /* dirty covers both 8,8 and 40,40 — repaint that box, present, then: */
-    ToriDbgUI_DamageClear(&ui);
+    ToriRSChrome_DamageClear(&ui);
 }
 ```
 
@@ -120,7 +120,7 @@ convenience.
 ```c
 #include "ui/uitree_debug_overlay.h"
 
-static struct ToriDbgUI g_dbg;   /* ~53 KB — static or heap, not a local */
+static struct ToriRSChrome g_dbg;   /* ~53 KB — static or heap, not a local */
 static int g_wireframe, g_pos, g_cmd;
 
 void
@@ -128,14 +128,14 @@ debug_ui_init(void)
 {
     int panel;
 
-    ToriDbgUI_Init(&g_dbg);
+    ToriRSChrome_Init(&g_dbg);
 
-    panel = ToriDbgUI_PanelAdd(&g_dbg, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Debug");
-    ToriDbgUI_Label(&g_dbg, panel, "fps 60");
-    ToriDbgUI_Separator(&g_dbg, panel);
-    g_wireframe = ToriDbgUI_Checkbox(&g_dbg, panel, "wireframe", 0);
-    g_pos       = ToriDbgUI_Checkbox(&g_dbg, panel, "show pos", 1);
-    g_cmd       = ToriDbgUI_TextInput(&g_dbg, panel, "cmd", "");
+    panel = ToriRSChrome_PanelAdd(&g_dbg, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Debug");
+    ToriRSChrome_Label(&g_dbg, panel, "fps 60");
+    ToriRSChrome_Separator(&g_dbg, panel);
+    g_wireframe = ToriRSChrome_Checkbox(&g_dbg, panel, "wireframe", 0);
+    g_pos       = ToriRSChrome_Checkbox(&g_dbg, panel, "show pos", 1);
+    g_cmd       = ToriRSChrome_TextInput(&g_dbg, panel, "cmd", "");
 }
 ```
 
@@ -194,7 +194,7 @@ case UITREE_HOST_GET_DEBUG_OVERLAY:
     struct ToriDbgPrim const* prims;
     if( !req->u.get_debug_overlay.out_prims )
         return 0;
-    prims = ToriDbgUI_Prims(&g_dbg, &count);
+    prims = ToriRSChrome_Prims(&g_dbg, &count);
     *req->u.get_debug_overlay.out_prims = prims;
     return count;
 }
@@ -206,9 +206,9 @@ one host call and emits nothing at all.
 ### 4.5 Per-frame
 
 ```c
-ToriDbgUI_SetText(&g_dbg, g_fps_label, fps_string);  /* no-op if unchanged */
-ToriDbgUI_SetCaretVisible(&g_dbg, (ticks / 15) & 1); /* the app owns the clock */
-ToriDbgUI_Build(&g_dbg);                             /* returns 0 if nothing moved */
+ToriRSChrome_SetText(&g_dbg, g_fps_label, fps_string);  /* no-op if unchanged */
+ToriRSChrome_SetCaretVisible(&g_dbg, (ticks / 15) & 1); /* the app owns the clock */
+ToriRSChrome_Build(&g_dbg);                             /* returns 0 if nothing moved */
 ```
 
 `ui/` owns no clock, so the caret blink is app-driven — same reason the module
@@ -225,9 +225,9 @@ to the panel's inner rect, so an over-long label is cut at the border rather
 than spilling onto the scene.
 
 ```c
-int p = ToriDbgUI_PanelAdd(&ui, TORIDBG_PANEL_WINDOW, 8, 8, 120, "Stats");
-ToriDbgUI_Label(&ui, p, "fps 60");
-ToriDbgUI_LabelColored(&ui, p, "draws 812", 0x50FF50);
+int p = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_WINDOW, 8, 8, 120, "Stats");
+ToriRSChrome_Label(&ui, p, "fps 60");
+ToriRSChrome_LabelColored(&ui, p, "draws 812", 0x50FF50);
 ```
 
 An outline needs no new render command: a `TORIDBG_PRIM_RECT` with `filled == 0`
@@ -242,10 +242,10 @@ The minimenu's chrome: body fill, black title bar, black separator and
 side/bottom border strips, shadowed rows that go accent-coloured on hover.
 
 ```c
-int m = ToriDbgUI_PanelAdd(&ui, TORIDBG_PANEL_MENU, 100, 40, 0, "Choose Option");
-ToriDbgUI_MenuItem(&ui, m, "Teleport");
-ToriDbgUI_MenuItem(&ui, m, "Toggle roofs");
-ToriDbgUI_MenuItem(&ui, m, "Cancel");
+int m = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_MENU, 100, 40, 0, "Choose Option");
+ToriRSChrome_MenuItem(&ui, m, "Teleport");
+ToriRSChrome_MenuItem(&ui, m, "Toggle roofs");
+ToriRSChrome_MenuItem(&ui, m, "Cancel");
 ```
 
 Geometry is not re-invented: `dbg_menu_layout()` recomputes
@@ -270,10 +270,10 @@ Visual: `build/debug_overlay_02_menu.bmp`.
 ### 5.3 Checkboxes
 
 ```c
-int wf = ToriDbgUI_Checkbox(&ui, p, "wireframe", 0);
+int wf = ToriRSChrome_Checkbox(&ui, p, "wireframe", 0);
 ...
-if( ToriDbgUI_TakeActivated(&ui) == wf )
-    renderer_set_wireframe(ToriDbgUI_Checked(&ui, wf));
+if( ToriRSChrome_TakeActivated(&ui) == wf )
+    renderer_set_wireframe(ToriRSChrome_Checked(&ui, wf));
 ```
 
 A click toggles on mouse-up and latches the widget as activated. The mark is a
@@ -284,10 +284,10 @@ Visual: `build/debug_overlay_03_checkbox.bmp`, `..._04_checkbox_toggled.bmp`.
 ### 5.4 Text inputs
 
 ```c
-int cmd = ToriDbgUI_TextInput(&ui, p, "cmd", "");
+int cmd = ToriRSChrome_TextInput(&ui, p, "cmd", "");
 ...
-if( ToriDbgUI_TakeActivated(&ui) == cmd )       /* Enter committed it */
-    console_run(ToriDbgUI_Text(&ui, cmd));
+if( ToriRSChrome_TakeActivated(&ui) == cmd )       /* Enter committed it */
+    console_run(ToriRSChrome_Text(&ui, cmd));
 ```
 
 A labelled box with a caret. Focus follows mouse-down; the border switches to
@@ -301,8 +301,8 @@ Visual: `build/debug_overlay_05_textinput_caret_on.bmp`,
 
 ### 5.5 Labels and separators
 
-`ToriDbgUI_Label` / `ToriDbgUI_LabelColored` (colour `0` = the theme's `text`),
-and `ToriDbgUI_Separator` — a 1px rule with air above and below. Neither is
+`ToriRSChrome_Label` / `ToriRSChrome_LabelColored` (colour `0` = the theme's `text`),
+and `ToriRSChrome_Separator` — a 1px rule with air above and below. Neither is
 hit-testable: `HitTest` skips both, so a click passes through to whatever is
 underneath.
 
@@ -315,22 +315,22 @@ be a dependency, and printable-byte decoding is the platform layer's job
 anyway.
 
 ```c
-if( ToriDbgUI_MouseMove(&ui, mx, my) )  return; /* consumed: pointer over a panel */
-if( ToriDbgUI_MouseDown(&ui, mx, my) )  return;
-if( ToriDbgUI_MouseUp(&ui, mx, my) )    return;
+if( ToriRSChrome_MouseMove(&ui, mx, my) )  return; /* consumed: pointer over a panel */
+if( ToriRSChrome_MouseDown(&ui, mx, my) )  return;
+if( ToriRSChrome_MouseUp(&ui, mx, my) )    return;
 
-if( ToriDbgUI_KeyEdit(&ui, TORIDBG_KEY_BACKSPACE) ) return;
-if( ToriDbgUI_KeyChar(&ui, ch) )                    return;   /* printable byte */
+if( ToriRSChrome_KeyEdit(&ui, TORIDBG_KEY_BACKSPACE) ) return;
+if( ToriRSChrome_KeyChar(&ui, ch) )                    return;   /* printable byte */
 
 {
-    int w = ToriDbgUI_TakeActivated(&ui);   /* one latch, -1 when nothing fired */
+    int w = ToriRSChrome_TakeActivated(&ui);   /* one latch, -1 when nothing fired */
     if( w >= 0 )
         handle_activation(w);
 }
 ```
 
 Each returns `1` when it consumed the event, so routing is "overlay first, then
-the game". `ToriDbgUI_HitTest(&ui, x, y)` answers the same question without
+the game". `ToriRSChrome_HitTest(&ui, x, y)` answers the same question without
 mutating anything — useful for a cursor change or a "is the pointer over debug
 chrome" check.
 
@@ -346,8 +346,8 @@ and puts the caret at the end; mouse-down anywhere else drops focus.
 ## 7. The pipeline
 
 ```
-ToriDbgUI (retained model)
-  |  ToriDbgUI_Build            relayout + rebuild the prim array, only when dirty
+ToriRSChrome (retained model)
+  |  ToriRSChrome_Build            relayout + rebuild the prim array, only when dirty
   v
 struct ToriDbgPrim[]            flat POD display list, absolute pixels, per-prim clip
   |  UITREE_HOST_GET_DEBUG_OVERLAY     host hands back the pointer + count
@@ -381,8 +381,8 @@ follows (`y -= font->line_height`).
 
 ## 8. Theme
 
-18 `0xRRGGBB` fields. `ToriDbgUI_Init` installs `toridbg_theme_default`;
-`ToriDbgUI_SetTheme` swaps it wholesale.
+18 `0xRRGGBB` fields. `ToriRSChrome_Init` installs `toridbg_theme_default`;
+`ToriRSChrome_SetTheme` swaps it wholesale.
 
 | Group | Fields |
 | --- | --- |
@@ -502,6 +502,6 @@ if you are generating panels programmatically.
 | **Input** | `MouseMove` `MouseDown` `MouseUp` `KeyChar` `KeyEdit` `TakeActivated` |
 | **Display list** | `Build` `Prims` `Damage` `DamageClear` |
 
-All prefixed `ToriDbgUI_`. Full documentation is in
+All prefixed `ToriRSChrome_`. Full documentation is in
 [uitree_debug_overlay.h](uitree_debug_overlay.h) — this file is the tour, the
 header is the reference.

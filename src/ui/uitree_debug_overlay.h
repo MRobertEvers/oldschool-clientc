@@ -2,7 +2,7 @@
 #define SRC_UITREE_DEBUG_OVERLAY_H
 
 /*
- * ToriDbgUI — the developer debug overlay's widget model and display list.
+ * ToriRSChrome — the developer debug overlay's widget model and display list.
  *
  * This is client chrome, not content: it has no counterpart in the server
  * tree, the same way uitree_minimenu.c and uitree_hovertext.c are chrome. It
@@ -13,14 +13,14 @@
  * RETAINED, not immediate. The overlay's cost is dominated by text
  * measurement and layout, and both change only when the app changes a widget
  * — not once per frame. So the model persists, mutators compare-then-set, and
- * ToriDbgUI_Build is a no-op on a frame where nothing moved. The display list
+ * ToriRSChrome_Build is a no-op on a frame where nothing moved. The display list
  * it produces is a flat array of ToriDbgPrim that the emit layer hands to the
  * renderer by pointer: on a clean frame the whole overlay costs one pointer
  * copy. An immediate-mode overlay would re-measure every label every frame,
  * which is exactly the work this avoids. See src/ui/README_DEBUG_OVERLAY.md.
  *
  * DAMAGE RECTANGLES, the XP-era half. Every mutation marks its panel dirty;
- * Build unions the panel's *old* and *new* bounds into ToriDbgUI_Damage. That
+ * Build unions the panel's *old* and *new* bounds into ToriRSChrome_Damage. That
  * is the invalid region in the classic WM_PAINT sense — the smallest box that
  * has to be repainted for the frame to be correct. Callers that can present a
  * partial frame (or want to skip presenting at all) read it; callers that
@@ -34,7 +34,7 @@
  * That is what baking the fonts bought: layout needs glyph advances, and
  * advances that are compiled in need no cache, no decoder and no init.
  *
- * No allocation either: struct ToriDbgUI is a fixed-size POD (54272 bytes on
+ * No allocation either: struct ToriRSChrome is a fixed-size POD (54272 bytes on
  * the i686 lane — heap or static, not a stack local). Nothing here calls
  * malloc, so it is safe to bring up before any cache is open and cheap to tear
  * down.
@@ -76,15 +76,15 @@ enum ToriDbgFontSlot
 /** Pixel width of a NUL-terminated string in `font_slot`, from the baked
  *  advance tables. Plain bytes only — no markup tokens. */
 int
-ToriDbgUI_MeasureText(int font_slot, char const* text);
+ToriRSChrome_MeasureText(int font_slot, char const* text);
 
 /** Baseline offset from the top of a line box (the font's ascent). */
 int
-ToriDbgUI_FontLineHeight(int font_slot);
+ToriRSChrome_FontLineHeight(int font_slot);
 
 /** Row pitch for `font_slot` (the tallest glyph's bottom edge). */
 int
-ToriDbgUI_FontLineBox(int font_slot);
+ToriRSChrome_FontLineBox(int font_slot);
 
 enum ToriDbgPrimKind
 {
@@ -104,7 +104,7 @@ struct ToriDbgRect
  * One entry of the display list. Deliberately flat and POD: the emit layer
  * passes the array through by pointer and the render layer walks it one step
  * at a time, so nothing here may own memory. `text` points into the widget
- * that produced it, which lives as long as the ToriDbgUI does.
+ * that produced it, which lives as long as the ToriRSChrome does.
  */
 struct ToriDbgPrim
 {
@@ -179,7 +179,7 @@ enum ToriDbgWidgetKind
     TORIDBG_W_MENUITEM,
     /**
      * A closed row showing the current choice; clicking it opens the shared
-     * popup list. See `dropdown_open` on struct ToriDbgUI for why the list is
+     * popup list. See `dropdown_open` on struct ToriRSChrome for why the list is
      * shared rather than per-widget.
      */
     TORIDBG_W_DROPDOWN,
@@ -189,8 +189,8 @@ enum ToriDbgWidgetKind
  *  palette of several hundred entries stays inside TORIDBG_MAX_PRIMS. */
 #define TORIDBG_DROPDOWN_ROWS 10
 
-/** Editing keys ToriDbgUI_KeyEdit understands. Printable input goes through
- *  ToriDbgUI_KeyChar so ui/ never has to own a keymap. */
+/** Editing keys ToriRSChrome_KeyEdit understands. Printable input goes through
+ *  ToriRSChrome_KeyChar so ui/ never has to own a keymap. */
 enum ToriDbgKey
 {
     TORIDBG_KEY_NONE = 0,
@@ -258,7 +258,7 @@ struct ToriDbgPanel
     char title[TORIDBG_LABEL_MAX];
 };
 
-struct ToriDbgUI
+struct ToriRSChrome
 {
     struct ToriDbgTheme theme;
     struct ToriDbgPanel panels[TORIDBG_MAX_PANELS];
@@ -276,7 +276,7 @@ struct ToriDbgUI
     int focus;
     int hover;
     int press;
-    /** Latched by input, drained by ToriDbgUI_TakeActivated. -1 = none. */
+    /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /**
      * The dropdown whose list is open, or -1.
@@ -302,14 +302,14 @@ struct ToriDbgUI
 
 /** Zero the model and install toridbg_theme_default. No allocation. */
 void
-ToriDbgUI_Init(struct ToriDbgUI* ui);
+ToriRSChrome_Init(struct ToriRSChrome* ui);
 
 /** Drop every panel and widget. The theme survives; the vacated area is damaged. */
 void
-ToriDbgUI_Reset(struct ToriDbgUI* ui);
+ToriRSChrome_Reset(struct ToriRSChrome* ui);
 
 void
-ToriDbgUI_SetTheme(struct ToriDbgUI* ui, struct ToriDbgTheme const* theme);
+ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriDbgTheme const* theme);
 
 /* ---- building ----------------------------------------------------------- */
 
@@ -318,31 +318,31 @@ ToriDbgUI_SetTheme(struct ToriDbgUI* ui, struct ToriDbgTheme const* theme);
  * @return panel handle, or -1 when full.
  */
 int
-ToriDbgUI_PanelAdd(struct ToriDbgUI* ui, int style, int x, int y, int fixed_w, char const* title);
+ToriRSChrome_PanelAdd(struct ToriRSChrome* ui, int style, int x, int y, int fixed_w, char const* title);
 
 void
-ToriDbgUI_PanelMove(struct ToriDbgUI* ui, int panel, int x, int y);
+ToriRSChrome_PanelMove(struct ToriRSChrome* ui, int panel, int x, int y);
 
 void
-ToriDbgUI_PanelSetVisible(struct ToriDbgUI* ui, int panel, int visible);
+ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible);
 
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
 struct ToriDbgRect
-ToriDbgUI_PanelRect(struct ToriDbgUI const* ui, int panel);
+ToriRSChrome_PanelRect(struct ToriRSChrome const* ui, int panel);
 
 /** @return widget handle, or -1 when full / panel invalid. */
 int
-ToriDbgUI_Label(struct ToriDbgUI* ui, int panel, char const* text);
+ToriRSChrome_Label(struct ToriRSChrome* ui, int panel, char const* text);
 
-/** As ToriDbgUI_Label with an explicit colour (0 = theme). */
+/** As ToriRSChrome_Label with an explicit colour (0 = theme). */
 int
-ToriDbgUI_LabelColored(struct ToriDbgUI* ui, int panel, char const* text, uint32_t color);
-
-int
-ToriDbgUI_Checkbox(struct ToriDbgUI* ui, int panel, char const* label, int checked);
+ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, uint32_t color);
 
 int
-ToriDbgUI_TextInput(struct ToriDbgUI* ui, int panel, char const* label, char const* text);
+ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int checked);
+
+int
+ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);
 
 /**
  * A dropdown over `options`, which is BORROWED and must outlive the widget.
@@ -351,8 +351,8 @@ ToriDbgUI_TextInput(struct ToriDbgUI* ui, int panel, char const* label, char con
  * @return widget handle, or -1 when full / panel invalid.
  */
 int
-ToriDbgUI_Dropdown(
-    struct ToriDbgUI* ui,
+ToriRSChrome_Dropdown(
+    struct ToriRSChrome* ui,
     int panel,
     char const* label,
     char const* const* options,
@@ -362,8 +362,8 @@ ToriDbgUI_Dropdown(
 /** Point a dropdown at a different list. Clamps the selection and closes the
  *  list if this widget's was open, since the rows under it just changed. */
 void
-ToriDbgUI_DropdownSetOptions(
-    struct ToriDbgUI* ui,
+ToriRSChrome_DropdownSetOptions(
+    struct ToriRSChrome* ui,
     int widget,
     char const* const* options,
     int option_count,
@@ -371,58 +371,58 @@ ToriDbgUI_DropdownSetOptions(
 
 /** Selected index, or -1. */
 int
-ToriDbgUI_DropdownSelected(struct ToriDbgUI const* ui, int widget);
+ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget);
 
 void
-ToriDbgUI_DropdownSetSelected(struct ToriDbgUI* ui, int widget, int selected);
+ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected);
 
 int
-ToriDbgUI_Separator(struct ToriDbgUI* ui, int panel);
+ToriRSChrome_Separator(struct ToriRSChrome* ui, int panel);
 
 int
-ToriDbgUI_MenuItem(struct ToriDbgUI* ui, int panel, char const* text);
+ToriRSChrome_MenuItem(struct ToriRSChrome* ui, int panel, char const* text);
 
 /* ---- mutation (compare-then-set; a no-op change does not dirty) ---------- */
 
 void
-ToriDbgUI_SetText(struct ToriDbgUI* ui, int widget, char const* text);
+ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text);
 
 void
-ToriDbgUI_SetLabel(struct ToriDbgUI* ui, int widget, char const* label);
+ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label);
 
 void
-ToriDbgUI_SetColor(struct ToriDbgUI* ui, int widget, uint32_t color);
+ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color);
 
 void
-ToriDbgUI_SetChecked(struct ToriDbgUI* ui, int widget, int checked);
+ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked);
 
 int
-ToriDbgUI_Checked(struct ToriDbgUI const* ui, int widget);
+ToriRSChrome_Checked(struct ToriRSChrome const* ui, int widget);
 
 /** Live text of a TEXTINPUT / LABEL / MENUITEM. Never NULL. */
 char const*
-ToriDbgUI_Text(struct ToriDbgUI const* ui, int widget);
+ToriRSChrome_Text(struct ToriRSChrome const* ui, int widget);
 
 /** Show/hide the caret of the focused input. App-driven so ui/ owns no clock. */
 void
-ToriDbgUI_SetCaretVisible(struct ToriDbgUI* ui, int visible);
+ToriRSChrome_SetCaretVisible(struct ToriRSChrome* ui, int visible);
 
 /* ---- input -------------------------------------------------------------- */
 
 /** @return widget handle under (x,y), or -1. Only hits visible panels. */
 int
-ToriDbgUI_HitTest(struct ToriDbgUI const* ui, int x, int y);
+ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y);
 
 /** @return 1 when the overlay consumed the event (pointer was over a panel). */
 int
-ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y);
+ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y);
 
 int
-ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y);
+ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y);
 
-/** Fires checkbox toggles and menu activations. @see ToriDbgUI_TakeActivated. */
+/** Fires checkbox toggles and menu activations. @see ToriRSChrome_TakeActivated. */
 int
-ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y);
+ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y);
 
 /**
  * Scroll the open dropdown list. @param delta rows, negative = up.
@@ -430,22 +430,22 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y);
  * so the caller can leave the camera zoom alone.
  */
 int
-ToriDbgUI_MouseWheel(struct ToriDbgUI* ui, int x, int y, int delta);
+ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta);
 
 /** Insert a printable byte into the focused input. @return 1 if consumed. */
 int
-ToriDbgUI_KeyChar(struct ToriDbgUI* ui, int ch);
+ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch);
 
 /** @param key enum ToriDbgKey. @return 1 if consumed. */
 int
-ToriDbgUI_KeyEdit(struct ToriDbgUI* ui, int key);
+ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key);
 
 /**
  * Handle of the widget activated since the last call (menu item clicked,
  * checkbox toggled, input committed with Enter), then clears it. -1 = none.
  */
 int
-ToriDbgUI_TakeActivated(struct ToriDbgUI* ui);
+ToriRSChrome_TakeActivated(struct ToriRSChrome* ui);
 
 /* ---- display list ------------------------------------------------------- */
 
@@ -454,17 +454,17 @@ ToriDbgUI_TakeActivated(struct ToriDbgUI* ui);
  * something changed. @return 1 when it rebuilt, 0 when the cached list stood.
  */
 int
-ToriDbgUI_Build(struct ToriDbgUI* ui);
+ToriRSChrome_Build(struct ToriRSChrome* ui);
 
 /** The display list. Valid until the next Build. */
 struct ToriDbgPrim const*
-ToriDbgUI_Prims(struct ToriDbgUI const* ui, int* out_count);
+ToriRSChrome_Prims(struct ToriRSChrome const* ui, int* out_count);
 
 /** @return 1 and writes the invalid region when there is one. */
 int
-ToriDbgUI_Damage(struct ToriDbgUI const* ui, struct ToriDbgRect* out);
+ToriRSChrome_Damage(struct ToriRSChrome const* ui, struct ToriDbgRect* out);
 
 void
-ToriDbgUI_DamageClear(struct ToriDbgUI* ui);
+ToriRSChrome_DamageClear(struct ToriRSChrome* ui);
 
 #endif

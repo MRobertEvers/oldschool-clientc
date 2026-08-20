@@ -155,7 +155,7 @@ UITree_ComponentIsPassThrough(
         /* Pass-through here even though the overlay *is* clickable: its node is
          * an unsized late root sibling, so making it interactive would shadow
          * the whole interface (see the note below). The overlay owns its own
-         * hit test instead — the app offers the event to ToriDbgUI_Mouse* first
+         * hit test instead — the app offers the event to ToriRSChrome_Mouse* first
          * and only falls through to the tree when that returns 0. That also
          * keeps the module free of any dependency on ui/ input. */
         return true;

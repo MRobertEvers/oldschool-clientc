@@ -46,10 +46,10 @@ Timing conventions used throughout:
 The Queen Black Dragon is a strictly solo boss. She is a colossal, mostly
 stationary serpent at the north end of a dragonkin platform; the player fights
 from the platform south of her. She is never killed: the player drains four
-18,750-LP life-force pools (75,000 LP total, player hits capped at 1,000 LP)
-and, after each drained pool, restores a dragonkin artefact while she is
-dormant and grotworms erupt around the arena. The fourth artefact forces her
-back to sleep and opens the stairs to the Dragonkin coffer.
+1,875-LP life-force pools (7,500 LP total, player hits capped at 100 LP) and,
+after each drained pool, restores a dragonkin artefact while she is dormant
+and grotworms erupt around the arena. The fourth artefact forces her back to
+sleep and opens the stairs to the Dragonkin coffer.
 
 The fight escalates across the four pools ("phases"). Phase 1 is a pure
 positioning fight (melee zone, ranged sweep, dragonfire, one moving fire
@@ -144,7 +144,7 @@ whole family without fighting for it.
    untargetable and inert; artefact n gains its `Activate` option; she coughs
    a grotworm **every 5 ticks** (§5.11) until the artefact is restored.
    Surviving souls/worms persist and keep fighting throughout.
-5. **Restoration**: activating artefact n heals a fresh 18,750-LP pool,
+5. **Restoration**: activating artefact n heals a fresh 1,875-LP pool,
    reveals the next raw-platform path (n=1 south-west, n=2 south-east, n=3
    south-centre — §2.1), plays the stop-cough (16748), and
    resumes combat in phase n+1 — her **first attack comes 20 ticks after the
@@ -183,16 +183,16 @@ whole family without fighting for it.
 
 ## 4. The cast
 
-| Actor | Type(s) | Level | LP (2012) | Notes |
+| Actor | Type(s) | Level | LP | Notes |
 |---|---|---:|---:|---|
-| Queen Black Dragon | `rs2012_qbd_sleeping` / `default` / `crystal` / `hardened` | 2,100 | 4 × 18,750 | never dies; forms swap via `npc_changetype`, phase 3+ |
-| Tortured soul | `rs2012_qbd_tortured_soul` | 147 | 500 | slow (1 tile per 2 ticks); casts a homing shadow, then weak melee; weak to slash |
-| Giant worm | `rs2012_qbd_giant_worm` | 123 | 650 | intermission add; melee in reach, accurate magic bolt otherwise; drops bones |
+| Queen Black Dragon | `rs2012_qbd_sleeping` / `default` / `crystal` / `hardened` | 2,100 | 4 × 1,875 | never dies; forms swap via `npc_changetype`, phase 3+ |
+| Tortured soul | `rs2012_qbd_tortured_soul` | 147 | 50 | slow (1 tile per 2 ticks); casts a homing shadow, then weak melee; weak to slash |
+| Giant worm | `rs2012_qbd_giant_worm` | 123 | 65 | intermission add; melee in reach, accurate magic bolt otherwise; drops bones |
 
 Souls per phase (target population): 0 / 1 / 2 / 4 — and phase 4 opens with
 all four summoned at once. Fire-wall waves per phase: 1 / 2 / 3 / 3. Souls
-and worms are ordinary mortal NPCs in the 2012-LP domain (player rolls ×10 on
-their pools; XP stays on the raw roll); they bypass QBD's hit cap and
+and worms are ordinary mortal NPCs on mock230's own HP scale, the same as
+every other NPC in the tree; they bypass QBD's hit cap and
 intermission immunity.
 
 ## 5. Attack compendium
@@ -286,12 +286,12 @@ The signature attack. Full specification in §6.
 - Tell: `The Queen Black Dragon starts to siphon the energy of her mages.`
   (purple).
 - **Channeled drain**, not a one-shot: every 2 ticks, each living idle soul
-  plays 3148 and takes 20 (2012-LP domain), and she heals 40 per soul
-  drained; the adjacent siphon effect 3150 plays on her while the channel
-  runs. The channel ends when no soul remains or after 25 drains (a full
-  500-LP soul drains to death for 1,000 LP healed — "any damage done to them
-  is worth double the health the QBD would restore", so killing siphoned
-  souls quickly is the counterplay).
+  plays 3148 and takes 2, and she heals 4 per soul drained; the adjacent
+  siphon effect 3150 plays on her while the channel runs. The channel ends
+  when no soul remains or after 25 drains (a full 50-LP soul drains to death
+  for 100 LP healed — "any damage done to them is worth double the health
+  the QBD would restore", so killing siphoned souls quickly is the
+  counterplay).
 - Ordinary attacks continue during the channel (it is a background drain).
 - Release profile: no cooldown. 7-Aug profile: 50-tick (~30 s) cooldown.
   Recovery 4–15.

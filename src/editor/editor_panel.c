@@ -99,7 +99,7 @@ palette_rebuild(
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
-    struct ToriDbgUI* ui)
+    struct ToriRSChrome* ui)
 {
     assert(panel);
     assert(ui);
@@ -108,44 +108,44 @@ Editor_PanelInit(
     panel->shown_x = -1;
     panel->shown_z = -1;
 
-    panel->panel = ToriDbgUI_PanelAdd(ui, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Map Editor");
+    panel->panel = ToriRSChrome_PanelAdd(ui, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Map Editor");
     if( panel->panel < 0 )
         return;
 
-    panel->row_status = ToriDbgUI_Label(ui, panel->panel, "no square");
-    panel->row_square = ToriDbgUI_Label(ui, panel->panel, "");
-    panel->row_tile = ToriDbgUI_Label(ui, panel->panel, "");
+    panel->row_status = ToriRSChrome_Label(ui, panel->panel, "no square");
+    panel->row_square = ToriRSChrome_Label(ui, panel->panel, "");
+    panel->row_tile = ToriRSChrome_Label(ui, panel->panel, "");
     /* The authored row is the one that makes the editor honest about terrain:
      * it says whether the FILE gave this tile a height or the noise routine
      * did, which the drawn ground cannot tell you. */
-    panel->row_authored = ToriDbgUI_Label(ui, panel->panel, "");
-    ToriDbgUI_Separator(ui, panel->panel);
+    panel->row_authored = ToriRSChrome_Label(ui, panel->panel, "");
+    ToriRSChrome_Separator(ui, panel->panel);
 
     panel->dd_tool =
-        ToriDbgUI_Dropdown(ui, panel->panel, "Tool", editor_tool_names, EDITOR_TOOL_COUNT, 0);
-    panel->in_height = ToriDbgUI_TextInput(ui, panel->panel, "Height", "0");
-    panel->dd_underlay = ToriDbgUI_Dropdown(ui, panel->panel, "Under", NULL, 0, -1);
-    panel->dd_overlay = ToriDbgUI_Dropdown(ui, panel->panel, "Over", NULL, 0, -1);
-    panel->dd_shape = ToriDbgUI_Dropdown(
+        ToriRSChrome_Dropdown(ui, panel->panel, "Tool", editor_tool_names, EDITOR_TOOL_COUNT, 0);
+    panel->in_height = ToriRSChrome_TextInput(ui, panel->panel, "Height", "0");
+    panel->dd_underlay = ToriRSChrome_Dropdown(ui, panel->panel, "Under", NULL, 0, -1);
+    panel->dd_overlay = ToriRSChrome_Dropdown(ui, panel->panel, "Over", NULL, 0, -1);
+    panel->dd_shape = ToriRSChrome_Dropdown(
         ui, panel->panel, "Shape", editor_shape_names, EDITOR_SHAPE_COUNT, 0);
-    panel->dd_rotation = ToriDbgUI_Dropdown(ui, panel->panel, "Rot", editor_rotation_names, 4, 0);
-    ToriDbgUI_Separator(ui, panel->panel);
+    panel->dd_rotation = ToriRSChrome_Dropdown(ui, panel->panel, "Rot", editor_rotation_names, 4, 0);
+    ToriRSChrome_Separator(ui, panel->panel);
 
-    panel->cb_flag_block = ToriDbgUI_Checkbox(ui, panel->panel, "block", 0);
-    panel->cb_flag_bridge = ToriDbgUI_Checkbox(ui, panel->panel, "link below", 0);
-    panel->cb_flag_roof = ToriDbgUI_Checkbox(ui, panel->panel, "remove roof", 0);
-    panel->cb_flag_below = ToriDbgUI_Checkbox(ui, panel->panel, "vis below", 0);
-    ToriDbgUI_Separator(ui, panel->panel);
+    panel->cb_flag_block = ToriRSChrome_Checkbox(ui, panel->panel, "block", 0);
+    panel->cb_flag_bridge = ToriRSChrome_Checkbox(ui, panel->panel, "link below", 0);
+    panel->cb_flag_roof = ToriRSChrome_Checkbox(ui, panel->panel, "remove roof", 0);
+    panel->cb_flag_below = ToriRSChrome_Checkbox(ui, panel->panel, "vis below", 0);
+    ToriRSChrome_Separator(ui, panel->panel);
 
-    panel->item_undo = ToriDbgUI_MenuItem(ui, panel->panel, "Undo  [Z]");
-    panel->item_redo = ToriDbgUI_MenuItem(ui, panel->panel, "Redo  [Y]");
-    panel->item_save = ToriDbgUI_MenuItem(ui, panel->panel, "Save changed squares");
+    panel->item_undo = ToriRSChrome_MenuItem(ui, panel->panel, "Undo  [Z]");
+    panel->item_redo = ToriRSChrome_MenuItem(ui, panel->panel, "Redo  [Y]");
+    panel->item_save = ToriRSChrome_MenuItem(ui, panel->panel, "Save changed squares");
     /* Deliberately the only thing in the tree that bakes. Saving writes text
      * and stops; the cache the game reads is rebuilt when the user says so. */
-    panel->item_bake = ToriDbgUI_MenuItem(ui, panel->panel, "Bake cache (slow)");
-    panel->item_close = ToriDbgUI_MenuItem(ui, panel->panel, "Close  [8]");
+    panel->item_bake = ToriRSChrome_MenuItem(ui, panel->panel, "Bake cache (slow)");
+    panel->item_close = ToriRSChrome_MenuItem(ui, panel->panel, "Close  [8]");
 
-    ToriDbgUI_PanelSetVisible(ui, panel->panel, 0);
+    ToriRSChrome_PanelSetVisible(ui, panel->panel, 0);
     panel->visible = 0;
     panel->built = 1;
 }
@@ -153,7 +153,7 @@ Editor_PanelInit(
 void
 Editor_PanelSetVisible(
     struct Editor_Panel* panel,
-    struct ToriDbgUI* ui,
+    struct ToriRSChrome* ui,
     int visible)
 {
     assert(panel);
@@ -162,7 +162,7 @@ Editor_PanelSetVisible(
     if( !panel->built )
         return;
     panel->visible = visible;
-    ToriDbgUI_PanelSetVisible(ui, panel->panel, visible);
+    ToriRSChrome_PanelSetVisible(ui, panel->panel, visible);
 }
 
 /* ---- tile addressing ----------------------------------------------------- */
@@ -209,14 +209,20 @@ panel_refresh(
     struct Editor_Panel* panel,
     struct App* app)
 {
-    struct ToriDbgUI* ui = &app->dbg_ui;
+    struct ToriRSChrome* ui = &app->dbg_ui;
     struct Editor* editor = app->editor;
     char line[TORIDBG_LABEL_MAX];
     int map_x;
     int map_z;
     int tile_x;
     int tile_z;
-    int level = app->world ? app->world_hover_tile_level : 0;
+    /* SELECT with a latch pins the readout to what was latched, not wherever
+     * the mouse has since wandered -- the same reason the loc editor reads
+     * locedit_scene_x/z rather than the live hover once a target is set. */
+    int const latched = panel->tool == EDITOR_TOOL_SELECT && panel->sel_kind != EDITOR_SELECTION_NONE;
+    int const probe_x = latched ? panel->sel_scene_x : app->world_hover_tile_x;
+    int const probe_z = latched ? panel->sel_scene_z : app->world_hover_tile_z;
+    int level = latched ? panel->sel_level : (app->world ? app->world_hover_tile_level : 0);
 
     snprintf(
         line,
@@ -224,21 +230,25 @@ panel_refresh(
         "%s%s",
         editor->writable ? "writable" : "READ-ONLY",
         Editor_DocHasUnsaved(&editor->doc) ? "  *unsaved*" : "");
-    ToriDbgUI_SetText(ui, panel->row_status, line);
+    ToriRSChrome_SetText(ui, panel->row_status, line);
 
-    if( app->world_hover_tile_x < 0 ||
-        !scene_to_square(
-            app, app->world_hover_tile_x, app->world_hover_tile_z, &map_x, &map_z, &tile_x,
-            &tile_z) )
+    if( probe_x < 0 || !scene_to_square(app, probe_x, probe_z, &map_x, &map_z, &tile_x, &tile_z) )
     {
-        ToriDbgUI_SetText(ui, panel->row_square, "no tile under cursor");
-        ToriDbgUI_SetText(ui, panel->row_tile, "");
-        ToriDbgUI_SetText(ui, panel->row_authored, "");
+        ToriRSChrome_SetText(ui, panel->row_square, latched ? "latched tile is off-map" : "no tile under cursor");
+        ToriRSChrome_SetText(ui, panel->row_tile, "");
+        ToriRSChrome_SetText(ui, panel->row_authored, "");
         return;
     }
 
-    snprintf(line, sizeof(line), "m%d_%d  tile %d,%d  level %d", map_x, map_z, tile_x, tile_z, level);
-    ToriDbgUI_SetText(ui, panel->row_square, line);
+    if( latched && panel->sel_kind == EDITOR_SELECTION_LOC )
+        snprintf(
+            line, sizeof(line), "[loc %d] m%d_%d  tile %d,%d  level %d", panel->sel_loc_id, map_x,
+            map_z, tile_x, tile_z, level);
+    else
+        snprintf(
+            line, sizeof(line), "%sm%d_%d  tile %d,%d  level %d", latched ? "[latched] " : "", map_x,
+            map_z, tile_x, tile_z, level);
+    ToriRSChrome_SetText(ui, panel->row_square, line);
 
     {
         struct Editor_Square* square = Editor_DocFindSquare(&editor->doc, map_x, map_z);
@@ -246,8 +256,8 @@ panel_refresh(
 
         if( !square || !square->loaded )
         {
-            ToriDbgUI_SetText(ui, panel->row_tile, "square not open in the editor");
-            ToriDbgUI_SetText(ui, panel->row_authored, "");
+            ToriRSChrome_SetText(ui, panel->row_tile, "square not open in the editor");
+            ToriRSChrome_SetText(ui, panel->row_authored, "");
             return;
         }
 
@@ -261,13 +271,13 @@ panel_refresh(
             tile->shape,
             tile->rotation,
             tile->settings);
-        ToriDbgUI_SetText(ui, panel->row_tile, line);
+        ToriRSChrome_SetText(ui, panel->row_tile, line);
 
         if( tile->has_height )
             snprintf(line, sizeof(line), "height h%d (authored)", tile->height);
         else
             snprintf(line, sizeof(line), "height: generated (no h token)");
-        ToriDbgUI_SetText(ui, panel->row_authored, line);
+        ToriRSChrome_SetText(ui, panel->row_authored, line);
     }
 }
 
@@ -276,16 +286,16 @@ panel_refresh(
 static int
 panel_flags_from_checkboxes(
     struct Editor_Panel* panel,
-    struct ToriDbgUI* ui)
+    struct ToriRSChrome* ui)
 {
     int flags = 0;
-    if( ToriDbgUI_Checked(ui, panel->cb_flag_block) )
+    if( ToriRSChrome_Checked(ui, panel->cb_flag_block) )
         flags |= 0x1;
-    if( ToriDbgUI_Checked(ui, panel->cb_flag_bridge) )
+    if( ToriRSChrome_Checked(ui, panel->cb_flag_bridge) )
         flags |= 0x2;
-    if( ToriDbgUI_Checked(ui, panel->cb_flag_roof) )
+    if( ToriRSChrome_Checked(ui, panel->cb_flag_roof) )
         flags |= 0x4;
-    if( ToriDbgUI_Checked(ui, panel->cb_flag_below) )
+    if( ToriRSChrome_Checked(ui, panel->cb_flag_below) )
         flags |= 0x8;
     return flags;
 }
@@ -298,7 +308,7 @@ Editor_PanelApplyToolAt(
     int scene_z,
     int level)
 {
-    struct ToriDbgUI* ui = &app->dbg_ui;
+    struct ToriRSChrome* ui = &app->dbg_ui;
     struct Editor* editor = app->editor;
     struct Editor_Square* square;
     struct Editor_Cmd command;
@@ -334,7 +344,7 @@ Editor_PanelApplyToolAt(
     {
     case EDITOR_TOOL_HEIGHT:
     {
-        int value = atoi(ToriDbgUI_Text(ui, panel->in_height));
+        int value = atoi(ToriRSChrome_Text(ui, panel->in_height));
         if( value < 0 )
             value = 0;
         if( value > 0xFF )
@@ -342,7 +352,7 @@ Editor_PanelApplyToolAt(
         /* Editing a generated tile makes it authored — that is what the user
          * meant by setting a height on it. Handing it back to the noise
          * routine is a separate act: clear the field to empty. */
-        if( ToriDbgUI_Text(ui, panel->in_height)[0] == '\0' )
+        if( ToriRSChrome_Text(ui, panel->in_height)[0] == '\0' )
         {
             command.tile_after.has_height = 0;
             command.tile_after.height = 0;
@@ -357,7 +367,7 @@ Editor_PanelApplyToolAt(
 
     case EDITOR_TOOL_UNDERLAY:
     {
-        int const choice = ToriDbgUI_DropdownSelected(ui, panel->dd_underlay);
+        int const choice = ToriRSChrome_DropdownSelected(ui, panel->dd_underlay);
         if( choice < 0 || choice >= panel->underlay_count )
             return 0;
         command.tile_after.underlay_id = (uint8_t)panel->underlay_ids[choice];
@@ -366,9 +376,9 @@ Editor_PanelApplyToolAt(
 
     case EDITOR_TOOL_OVERLAY:
     {
-        int const choice = ToriDbgUI_DropdownSelected(ui, panel->dd_overlay);
-        int const shape = ToriDbgUI_DropdownSelected(ui, panel->dd_shape);
-        int const rotation = ToriDbgUI_DropdownSelected(ui, panel->dd_rotation);
+        int const choice = ToriRSChrome_DropdownSelected(ui, panel->dd_overlay);
+        int const shape = ToriRSChrome_DropdownSelected(ui, panel->dd_shape);
+        int const rotation = ToriRSChrome_DropdownSelected(ui, panel->dd_rotation);
         if( choice < 0 || choice >= panel->overlay_count )
             return 0;
         if( panel->overlay_ids[choice] == 0 && shape <= 0 )
@@ -476,6 +486,66 @@ Editor_PanelRecordLocEdit(
     return Editor_Apply(app->editor, &command);
 }
 
+/* ---- select tool ----------------------------------------------------------
+ *
+ * EDITOR_TOOL_SELECT's latch. `panel_refresh` reads it (instead of the live
+ * hover) once one exists, so the readout and the highlight the overlay draws
+ * (app_overlay_build_editor_selection, src/app.c) stay pinned to what the
+ * user actually latched even after the mouse moves off it. */
+
+void
+Editor_PanelSelectTerrain(
+    struct Editor_Panel* panel,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    assert(panel);
+
+    panel->sel_kind = EDITOR_SELECTION_TERRAIN;
+    panel->sel_scene_x = scene_x;
+    panel->sel_scene_z = scene_z;
+    panel->sel_level = level;
+    panel->sel_element_id = -1;
+    panel->sel_loc_id = -1;
+}
+
+void
+Editor_PanelSelectLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int element_id)
+{
+    struct WorldEntity_Scenery* scenery;
+
+    assert(panel);
+    assert(app);
+
+    if( !app->world )
+        return;
+    scenery = World_SceneryGetByElementId(app->world, element_id);
+    if( !scenery )
+        return;
+
+    panel->sel_kind = EDITOR_SELECTION_LOC;
+    panel->sel_scene_x = scenery->grid_position.x;
+    panel->sel_scene_z = scenery->grid_position.z;
+    panel->sel_level = scenery->grid_position.level;
+    panel->sel_element_id = element_id;
+    panel->sel_loc_id = scenery->loc_id;
+}
+
+void
+Editor_PanelClearSelection(
+    struct Editor_Panel* panel)
+{
+    assert(panel);
+
+    panel->sel_kind = EDITOR_SELECTION_NONE;
+    panel->sel_element_id = -1;
+    panel->sel_loc_id = -1;
+}
+
 /* ---- tick ---------------------------------------------------------------- */
 
 static void
@@ -492,7 +562,7 @@ Editor_PanelTick(
     struct Editor_Panel* panel,
     struct App* app)
 {
-    struct ToriDbgUI* ui;
+    struct ToriRSChrome* ui;
     struct Editor* editor;
     int activated;
 
@@ -512,19 +582,19 @@ Editor_PanelTick(
     if( panel->underlay_count == 0 || panel->overlay_count == 0 )
     {
         palette_rebuild(panel, editor);
-        ToriDbgUI_DropdownSetOptions(
+        ToriRSChrome_DropdownSetOptions(
             ui, panel->dd_underlay, panel->underlay_options, panel->underlay_count, 0);
-        ToriDbgUI_DropdownSetOptions(
+        ToriRSChrome_DropdownSetOptions(
             ui, panel->dd_overlay, panel->overlay_options, panel->overlay_count, 0);
     }
 
-    activated = ToriDbgUI_TakeActivated(ui);
+    activated = ToriRSChrome_TakeActivated(ui);
     if( activated < 0 )
         return;
 
     if( activated == panel->dd_tool )
     {
-        int const choice = ToriDbgUI_DropdownSelected(ui, panel->dd_tool);
+        int const choice = ToriRSChrome_DropdownSelected(ui, panel->dd_tool);
         panel->tool = (choice >= 0 && choice < EDITOR_TOOL_COUNT) ? (enum Editor_Tool)choice
                                                                   : EDITOR_TOOL_SELECT;
     }

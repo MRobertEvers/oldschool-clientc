@@ -17,6 +17,9 @@
  * information and reads as such. */
 #define APP_OUTLINE_COLOR_HOVER 0xFFFFFF00u
 #define APP_OUTLINE_COLOR_FOOTPRINT 0xFFFF0000u
+/* The map editor's SELECT latch -- green, so it never reads as the yellow
+ * hover or the red footprint mark it can be drawn alongside. */
+#define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
 #include "engine/dat1/dat1_buildcache.h"
@@ -2787,6 +2790,74 @@ app_overlay_build_hover_footprint(struct App* app)
 }
 
 /**
+ * The map editor SELECT tool's latch (editor_panel.sel_kind) -- distinct from
+ * the hover footprint above: hover follows the mouse every frame, this stays
+ * on what was latched even after the cursor moves off it, matching what
+ * panel_refresh (editor_panel.c) is reading for the readout at the same time.
+ */
+static void
+app_overlay_build_editor_selection(struct App* app)
+{
+    struct Editor_Panel const* panel = &app->editor_panel;
+
+    if( !panel->visible || panel->tool != EDITOR_TOOL_SELECT )
+        return;
+    if( panel->sel_kind == EDITOR_SELECTION_NONE || !app->world )
+        return;
+
+    if( panel->sel_kind == EDITOR_SELECTION_LOC )
+    {
+        struct WorldEntity_Scenery* scenery =
+            World_SceneryGetByElementId(app->world, panel->sel_element_id);
+        if( !scenery )
+            return;
+        app_overlay_outline_element_model(
+            app, panel->sel_element_id, APP_OUTLINE_COLOR_EDITOR_SELECT);
+        app_overlay_outline_scenery(app, scenery);
+        return;
+    }
+
+    /* Terrain: the same single-plane, hulled-corners outline
+     * app_overlay_outline_scenery draws for a loc's footprint, for the one
+     * latched tile -- there is no WorldEntity_Scenery here to read a size
+     * from, so the four corners are built directly instead of looped per
+     * tile. */
+    {
+        int const base_x = panel->sel_scene_x;
+        int const base_z = panel->sel_scene_z;
+        static int const corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+        int px[4];
+        int py[4];
+        int hull_x[4];
+        int hull_y[4];
+        int count = 0;
+        int hull_size;
+        int const plane_y = app_world_height(app, base_x * 128, base_z * 128, panel->sel_level);
+
+        for( int c = 0; c < 4; c++ )
+        {
+            int screen_x;
+            int screen_y;
+
+            if( !app_world_project_at(
+                    app, (base_x + corner[c][0]) * 128, (base_z + corner[c][1]) * 128, plane_y,
+                    &screen_x, &screen_y) )
+                continue;
+            px[count] = screen_x;
+            py[count] = screen_y;
+            count++;
+        }
+        if( count == 0 )
+            return;
+
+        hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+        app_overlay_push_polygon_filled(
+            app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OUTLINE_FILL_TRANS);
+        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT);
+    }
+}
+
+/**
  * Pixel size of a sprite already resident in the scene.
  *
  * The scene is the only place a decoded sprite's dimensions exist -- the
@@ -3227,6 +3298,10 @@ app_build_entity_overlays(
     /* Debug: hovered loc's painter footprint, in red (see the builder). Last
      * so the outline layers above bars/splats/chat. */
     app_overlay_build_hover_footprint(app);
+    /* The map editor's own latch, in green -- separate from the hover mark
+     * above so a select-tool session and TORIRS_HOVER_FOOTPRINT can be on at
+     * once without one drawing over the other's meaning. */
+    app_overlay_build_editor_selection(app);
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
@@ -3499,7 +3574,7 @@ app_host_request(
         int count = 0;
         if( !req->u.get_debug_overlay.out_prims )
             return 0;
-        *req->u.get_debug_overlay.out_prims = ToriDbgUI_Prims(&app->dbg_ui, &count);
+        *req->u.get_debug_overlay.out_prims = ToriRSChrome_Prims(&app->dbg_ui, &count);
         return count;
     }
     default:
@@ -4488,7 +4563,7 @@ app_provider_set_cache_profile(
 
 /* ---- Developer overlay ------------------------------------------------- *
  *
- * One minimenu-styled ToriDbgUI panel (src/ui/README_DEBUG_OVERLAY.md) holding
+ * One minimenu-styled ToriRSChrome panel (src/ui/README_DEBUG_OVERLAY.md) holding
  * the frame time, averaged over the last APP_DEBUG_FRAME_SAMPLES frames. The
  * App feeds the model; the node that draws it is declared by the manifest
  * (`type=debug_overlay`, docs/debug_overlay.md §2) and answered through
@@ -4511,41 +4586,41 @@ app_debug_overlay_init(struct App* app)
 {
     assert(app);
 
-    ToriDbgUI_Init(&app->dbg_ui);
+    ToriRSChrome_Init(&app->dbg_ui);
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
     app->dbg_frame_count = 0;
     app->dbg_panel =
-        ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
-    app->dbg_frame_row = ToriDbgUI_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
-    ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
+        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
+    app->dbg_frame_row = ToriRSChrome_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
 
     app->locedit_panel =
-        ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
+        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
     app->locedit_row_target =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "nothing selected");
-    app->locedit_row_pos = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    app->locedit_row_size = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    app->locedit_row_extra = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    ToriDbgUI_Separator(&app->dbg_ui, app->locedit_panel);
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "nothing selected");
+    app->locedit_row_pos = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    app->locedit_row_size = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    app->locedit_row_extra = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    ToriRSChrome_Separator(&app->dbg_ui, app->locedit_panel);
     /* Rows double as the key reference: chat input is forced off while this
      * panel is open (below), so these letters are always free to use without
      * a message box eating them. Still clickable too -- the key is the fast
      * path, the click is the discoverable one. */
-    app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
+    app->locedit_item_xplus = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
     app->locedit_item_xminus =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
-    app->locedit_item_zplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
+    app->locedit_item_zplus = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
     app->locedit_item_zminus =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
-    app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
+    app->locedit_item_rotate = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
     app->locedit_item_reselect =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
     app->locedit_item_deselect =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect  [Backspace]");
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect  [Backspace]");
     app->locedit_item_close =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
-    ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
     app->locedit_loc_id = -1;
     app->locedit_shape = -1;
@@ -4646,7 +4721,7 @@ app_debug_overlay_tick(
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_DEBUG_OVERLAY) )
     {
         app->dbg_visible = !app->dbg_visible;
-        ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, app->dbg_visible);
+        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, app->dbg_visible);
     }
 
     if( app->dbg_visible )
@@ -4667,16 +4742,16 @@ app_debug_overlay_tick(
             snprintf(text, sizeof(text), "--");
         /* Compare-then-set: an unchanged readout dirties nothing, so a steady
          * client rebuilds no display list and requests no redraw. */
-        ToriDbgUI_SetText(&app->dbg_ui, app->dbg_frame_row, text);
+        ToriRSChrome_SetText(&app->dbg_ui, app->dbg_frame_row, text);
     }
 
     /* Build returns 0 on a frame where nothing moved. When it did rebuild the
      * canvas is stale — including the frame the panel was hidden on, whose
      * vacated pixels are still on screen until something repaints them. */
-    if( ToriDbgUI_Build(&app->dbg_ui) )
+    if( ToriRSChrome_Build(&app->dbg_ui) )
     {
         app->need_redraw = 1;
-        ToriDbgUI_DamageClear(&app->dbg_ui);
+        ToriRSChrome_DamageClear(&app->dbg_ui);
     }
 }
 
@@ -4728,7 +4803,7 @@ app_loc_editor_refresh_labels(struct App* app)
             app->world, app->locedit_scene_x, app->locedit_scene_z, meshes, (int)sizeof(meshes));
 
         snprintf(text, sizeof(text), "terrain tile, mesh on level %d", cache_level);
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_target, text);
         snprintf(
             text,
             sizeof(text),
@@ -4737,7 +4812,7 @@ app_loc_editor_refresh_labels(struct App* app)
             app->locedit_scene_z,
             app->world ? app->world->_base_tile_x + app->locedit_scene_x : -1,
             app->world ? app->world->_base_tile_z + app->locedit_scene_z : -1);
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, text);
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_pos, text);
         snprintf(
             text,
             sizeof(text),
@@ -4747,22 +4822,22 @@ app_loc_editor_refresh_labels(struct App* app)
                 app->world, app->locedit_scene_x, app->locedit_scene_z, cache_level),
             World_LocPaintLevel(
                 app->world, app->locedit_scene_x, app->locedit_scene_z, cache_level));
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, text);
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_size, text);
         snprintf(text, sizeof(text), "s[%s] mesh[%s]", settings, meshes);
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, text);
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_extra, text);
         return;
     }
 
     if( app->locedit_loc_id < 0 )
     {
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "nothing selected");
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, "");
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, "");
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, "");
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_target, "nothing selected");
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_pos, "");
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_size, "");
+        ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_extra, "");
         return;
     }
     snprintf(text, sizeof(text), "loc %d shape %d", app->locedit_loc_id, app->locedit_shape);
-    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
+    ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_target, text);
     snprintf(
         text,
         sizeof(text),
@@ -4770,7 +4845,7 @@ app_loc_editor_refresh_labels(struct App* app)
         app->locedit_scene_x,
         app->locedit_scene_z,
         app->locedit_level);
-    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, text);
+    ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_pos, text);
     snprintf(
         text,
         sizeof(text),
@@ -4778,7 +4853,7 @@ app_loc_editor_refresh_labels(struct App* app)
         app->locedit_size_x,
         app->locedit_size_z,
         app->locedit_angle);
-    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, text);
+    ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_size, text);
     /* A baked-map loc usually has no LocType.name resolved client-side (that
      * lives in the config, not the placed entity), so an empty name is the
      * common case -- fall back to whether it can be clicked at all rather
@@ -4792,7 +4867,7 @@ app_loc_editor_refresh_labels(struct App* app)
             app->locedit_interactive);
     else
         snprintf(text, sizeof(text), "interactive=%d", app->locedit_interactive);
-    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, text);
+    ToriRSChrome_SetText(&app->dbg_ui, app->locedit_row_extra, text);
 }
 
 /* Targets whatever loc sits at locedit_hover_x/z -- the last tile the cursor
@@ -5003,7 +5078,7 @@ app_loc_editor_rotate(struct App* app)
  * The overlay deliberately owns no keymap (see uitree_debug_overlay.h), so the
  * translation lives here, where the client's own key codes already are.
  * Printable characters do not come through this at all — they arrive as
- * `key_pressed` and go straight to ToriDbgUI_KeyChar.
+ * `key_pressed` and go straight to ToriRSChrome_KeyChar.
  */
 
 
@@ -5052,7 +5127,7 @@ app_loc_editor_tick(
         /* Toggling visibility only, never the selection -- a target picked
          * with Reselect stays active across a close/reopen. */
         app->locedit_visible = !app->locedit_visible;
-        ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, app->locedit_visible);
+        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, app->locedit_visible);
     }
 
     /* Footprint outline, toggled here rather than in its own tick because it
@@ -5092,7 +5167,7 @@ app_loc_editor_tick(
      * hover to read -- the live world_hover_tile_x/z cannot be used at click
      * time because reaching the menu item necessarily moved the cursor onto
      * the panel first. */
-    if( ToriDbgUI_HitTest(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) < 0 &&
+    if( ToriRSChrome_HitTest(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) < 0 &&
         app->world_hover_tile_x >= 0 && app->world_hover_tile_z >= 0 )
     {
         app->locedit_hover_x = app->world_hover_tile_x;
@@ -5104,7 +5179,7 @@ app_loc_editor_tick(
      *
      * This used to be gated on the loc editor alone, which was invisible while
      * it was the only panel with controls. It is not: the map editor's
-     * dropdowns and buttons sit in the same ToriDbgUI instance, and with the
+     * dropdowns and buttons sit in the same ToriRSChrome instance, and with the
      * loc editor closed they received no clicks at all -- every control was
      * inert, which reads as a broken panel rather than an unrouted one.
      */
@@ -5123,19 +5198,19 @@ app_loc_editor_tick(
         /* Overlay first, then the game (README_DEBUG_OVERLAY.md §6): a click
          * or drag that lands on this panel must not also reach the world's
          * own click-to-walk handling underneath it. */
-        if( ToriDbgUI_MouseMove(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+        if( ToriRSChrome_MouseMove(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
         if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
-            ToriDbgUI_MouseDown(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+            ToriRSChrome_MouseDown(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
         if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
-            ToriDbgUI_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+            ToriRSChrome_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
 
         /* The wheel, so an open dropdown scrolls. Consumed when the overlay
          * takes it, or the camera would zoom behind the list at the same time. */
         if( input->curr.mouse_wheel_y != 0 &&
-            ToriDbgUI_MouseWheel(
+            ToriRSChrome_MouseWheel(
                 &app->dbg_ui,
                 input->curr.mouse_x,
                 input->curr.mouse_y,
@@ -5160,12 +5235,12 @@ app_loc_editor_tick(
             int consumed = 0;
 
             if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
-                consumed = ToriDbgUI_KeyChar(&app->dbg_ui, ev->key_pressed);
+                consumed = ToriRSChrome_KeyChar(&app->dbg_ui, ev->key_pressed);
             else
             {
                 int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
                 if( edit != TORIDBG_KEY_NONE )
-                    consumed = ToriDbgUI_KeyEdit(&app->dbg_ui, edit);
+                    consumed = ToriRSChrome_KeyEdit(&app->dbg_ui, edit);
             }
             if( consumed )
                 app->input_frame_consumed = 1;
@@ -5196,7 +5271,7 @@ app_loc_editor_tick(
         else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
         {
             app->locedit_visible = 0;
-            ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+            ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
         }
 
         /* Only when the LOC editor is open. The block above widened to route
@@ -5204,7 +5279,7 @@ app_loc_editor_tick(
          * draining the shared activation latch here swallowed the map editor's
          * clicks -- its dropdown showed the new value while its tool never
          * changed, because the activation was taken before its tick ran. */
-        activated = app->locedit_visible ? ToriDbgUI_TakeActivated(&app->dbg_ui) : -1;
+        activated = app->locedit_visible ? ToriRSChrome_TakeActivated(&app->dbg_ui) : -1;
         if( activated >= 0 )
         {
             if( activated == app->locedit_item_xplus )
@@ -5224,15 +5299,15 @@ app_loc_editor_tick(
             else if( activated == app->locedit_item_close )
             {
                 app->locedit_visible = 0;
-                ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+                ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
             }
         }
     }
 
-    if( ToriDbgUI_Build(&app->dbg_ui) )
+    if( ToriRSChrome_Build(&app->dbg_ui) )
     {
         app->need_redraw = 1;
-        ToriDbgUI_DamageClear(&app->dbg_ui);
+        ToriRSChrome_DamageClear(&app->dbg_ui);
     }
 }
 
@@ -6481,6 +6556,19 @@ app_world_load_begin(
 }
 
 /**
+ * Whether the map editor's SELECT tool is the thing the minimenu should be
+ * offering "Select wall/object/decor/terrain" rows for -- panel closed or a
+ * paint tool active both mean no such row belongs on the menu, same as
+ * `app->locedit_visible` gates the loc editor's own Select row.
+ */
+static bool
+app_mapedit_select_active(struct App const* app)
+{
+    assert(app);
+    return app->editor_panel.visible && app->editor_panel.tool == EDITOR_TOOL_SELECT;
+}
+
+/**
  * A click in the world applies the current tool, as one undoable edit.
  *
  * Gated on `input_frame_consumed` so a click that landed on the panel does not
@@ -6501,8 +6589,6 @@ app_map_editor_world_click(
 
     if( !app->editor || !app->editor_panel.visible )
         return;
-    if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
-        return;
     if( app->input_frame_consumed )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
@@ -6521,6 +6607,20 @@ app_map_editor_world_click(
             app->world_hover_tile_z);
     if( app->world_hover_tile_x < 0 )
         return;
+
+    /* SELECT latches the plain-click default: the hovered TILE, unambiguous
+     * even where a wall, a wall-decor and a ground loc share it. Picking one
+     * of those exactly is what the minimenu's "Select wall/object/decor" rows
+     * are for (app_minimenu_run_option) -- this is the one-click fallback for
+     * "just the ground". */
+    if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
+    {
+        Editor_PanelSelectTerrain(
+            &app->editor_panel, app->world_hover_tile_x, app->world_hover_tile_z,
+            app->world_hover_tile_level);
+        app->need_redraw = 1;
+        return;
+    }
 
     /* One click is one undo step. A drag would open the stroke on press and
      * close it on release; this is the single-click case, which is a stroke of
@@ -15809,6 +15909,7 @@ app_hover_text_update(
                 .world_pickset = click_in_world ? &app->world_pickset : NULL,
                 .click_in_world = click_in_world != 0,
                 .locedit_active = app->locedit_visible != 0,
+                .mapedit_select_active = app_mapedit_select_active(app),
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -15900,6 +16001,7 @@ app_minimenu_open(
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
         .locedit_active = app->locedit_visible != 0,
+        .mapedit_select_active = app_mapedit_select_active(app),
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -16370,6 +16472,7 @@ app_run_default_ui_row(
         .world_pickset = NULL,
         .click_in_world = false,
         .locedit_active = app->locedit_visible != 0,
+        .mapedit_select_active = app_mapedit_select_active(app),
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -16959,6 +17062,26 @@ app_minimenu_run_option(
         if( app->locedit_visible )
             app_loc_editor_select_terrain(
                 app, opt.pick.secondary_id, opt.pick.tertiary_id, opt.pick.quaternary_id);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /* Map editor SELECT tool's pair of the two rows above -- same shape, a
+     * different panel's latch. The `app_mapedit_select_active` re-check
+     * guards a row clicked in the one frame the tool closed or switched off
+     * SELECT. */
+    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT )
+    {
+        if( app_mapedit_select_active(app) )
+            Editor_PanelSelectLoc(&app->editor_panel, app, opt.pick.id);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN )
+    {
+        if( app_mapedit_select_active(app) )
+            Editor_PanelSelectTerrain(
+                &app->editor_panel, opt.pick.secondary_id, opt.pick.tertiary_id,
+                opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -18396,6 +18519,7 @@ App_RunOnce(
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
+            .mapedit_select_active = app_mapedit_select_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -18518,6 +18642,7 @@ App_RunOnce(
              * Attack (walk-to-melee "run up"), while the right-click menu cast. */
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
+            .mapedit_select_active = app_mapedit_select_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;

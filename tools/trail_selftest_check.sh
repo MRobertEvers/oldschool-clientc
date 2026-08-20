@@ -106,6 +106,7 @@ the contract seed-pack tiers overlap, so a tier does not name a difficulty
 PoH storage does not hide a holiday item, it is emptied
 Larran's middle branch falls with level; its coefficient is negative
 Lemanto Andra is a glider destination and never a departure
+the ironman discount is 50% off the FEE, and ultimates are excluded
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns
