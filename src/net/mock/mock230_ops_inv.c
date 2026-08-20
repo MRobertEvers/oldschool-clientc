@@ -418,14 +418,13 @@ mock230_ops_inv(
      * body, fail to place it, and it lands at your feet rather than being
      * duplicated or destroyed.
      *
-     * `_cert` / `_uncert` fall into the generic arm too, without their
-     * note conversion, and that is a **stated limit rather than a silent one**:
-     * the note form is `mock230_bank`'s, keyed on the bank's own paired-obj
-     * table, and there is no note conversion outside it in this tree. Nothing
-     * calls the cert forms on a non-bank pair today. If something does, it gets
-     * the plain move — which is the one wrong answer of the three available
-     * (the others being "no-op" and "abort"), because it moves the right item
-     * in the right direction and only its *form* is unconverted.
+     * `_cert` / `_uncert` fall into the generic arm too, and there they DO
+     * convert — see the note-link block inside it. They did not, once, and the
+     * shop sell path is what that cost: `inv_moveitem_uncert(inv, %shop, ...)`
+     * moved the noted id onto the shelf, so content had to uncert the obj
+     * before calling, and then the delete looked for an item the backpack had
+     * never held. Both forms are identity for an obj with no other form, so
+     * every equip, unequip and non-noted move is unchanged.
      */
     case SS_OP_INV_MOVEITEM:
     case SS_OP_INV_MOVEITEM_CERT:
@@ -491,9 +490,35 @@ mock230_ops_inv(
             struct Mock230Item saved;
             int carry_vars = 0;
             int landed_slot = -1;
+            int dest_obj = (int)obj_id;
 
             if( !from || !to )
                 return 1;
+            /*
+             * `_cert` / `_uncert` change the *form* on the way across, and
+             * outside the bank that is the whole point of the two extra
+             * opcodes: `inv_moveitem_uncert(inv, %shop, $obj, $n)` is how a
+             * shop takes a **noted** item off the player and puts the real one
+             * on its shelf. This used to fall into the plain move, which meant
+             * the shop had to be handed an already-uncerted id — and then
+             * `container_del` looked for an obj the backpack was not holding,
+             * took nothing, and the whole sale was a click that did nothing.
+             *
+             * The link itself is the same one `oc_cert` / `oc_uncert` read
+             * (mock230_scripts.c): a note record names the item it stands for,
+             * and `cert_id` is the reverse index. Both are identity for an obj
+             * with no other form, so every non-noted move — every equip,
+             * unequip and ordinary sale — is byte for byte what it was.
+             */
+            {
+                const struct Mock230ObjInfo* info = mock230_objinfo((int)obj_id);
+
+                if( opcode == SS_OP_INV_MOVEITEM_UNCERT && info->noted_template >= 0 &&
+                    info->noted_id >= 0 )
+                    dest_obj = info->noted_id;
+                else if( opcode == SS_OP_INV_MOVEITEM_CERT && info->cert_id >= 0 )
+                    dest_obj = info->cert_id;
+            }
             /* A move of exactly one unstackable unit — every equip/unequip
              * call is this shape — carries that slot's vars to wherever it
              * lands (mock230_item_vars_copy). Snapshot before container_del
@@ -515,8 +540,8 @@ mock230_ops_inv(
             taken = container_del(from, (int)obj_id, (int)count);
             if( taken <= 0 )
                 return 1;
-            moved = mock230_container_add_out_slot(to, (int)obj_id, taken, 0, &landed_slot);
-            spill_to_floor(srv, (int)obj_id, taken - moved, mock230_ids()->lootdrop_duration);
+            moved = mock230_container_add_out_slot(to, dest_obj, taken, 0, &landed_slot);
+            spill_to_floor(srv, dest_obj, taken - moved, mock230_ids()->lootdrop_duration);
             if( carry_vars && landed_slot >= 0 )
                 mock230_item_vars_copy(&to->items[landed_slot], &saved);
         }

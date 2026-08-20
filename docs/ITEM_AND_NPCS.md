@@ -505,6 +505,132 @@ it and are worth knowing, because both were latent:
   the player's row and stood still for thirty ticks. It now parks the player
   off-axis, deliberately, rather than inheriting a position from the block above.
 
+### And then the other half: the world that should *not* wander
+
+Fixing the default fixed the wrong direction as well. `wanderrange = 5` is right
+for an npc nothing describes, and a large minority of the world is described: a
+banker behind a booth, a bench, a cat in a box, the Tool Leprechaun by the
+patch, Count Check by the Lumbridge graveyard. All of them drifted five tiles
+off their post.
+
+**No cache field states it.** Where an npc stands is server state and so is
+whether it stays there; the OSRS Wiki's own *Wander radius* article defines the
+value and names examples but keeps no per-npc table of it. The only public
+record is the set of open servers that have re-derived it npc by npc from the
+live game, so `tools/gen_npc_movement.py` reads five of them and prefers the one
+closest to this cache's revision:
+
+| layer | source | revision | joined by | answers |
+|---|---|---|---|---|
+| m1 | rsmod `NpcEditor` | 231 | gameval — the same names this tree uses | 13 |
+| m0 | rs-map-viewer's spawn dump | 239 | absolute tile | 315 |
+| m2 | Zenyte `spawns.json` `radius` | ~190 | absolute tile | 1735 |
+| m3 | 2009scape `isWalks` | 530 | absolute tile | 1319 |
+| m4 | LostCity `moverestrict`/`wanderrange` | 254 content | gameval | 1451 |
+
+m0 is the dump `gen_spawns.py` already built this roster from — it carries
+`wanderRadius` on 741 rows and that import drops it on the floor. It is
+asymmetric: the field only ever appears as 0, so the layer can say "stationary"
+and can never say "wanders".
+
+m2 and m3 are keyed by their own revision's npc ids, which have drifted from
+ours, so neither is read by id. Both are joined **by absolute tile** against
+this tree's own roster — if another server stands an npc on the exact tile this
+cache's roster does, it is that npc whatever either side calls it. The join is
+deliberately lossy in the safe direction: 16,839 Zenyte spawn rows answer 1,735
+npcs.
+
+Nothing here is trusted because it was found; the layers are graded against each
+other, and `--validate` recomputes the table every run:
+
+```
+m0 vs m2   194/ 202   96%      m2 vs m3   546/ 623   88%
+m0 vs m3   111/ 116   96%      m2 vs m4   421/ 441   95%
+m0 vs m4    35/  35  100%      m3 vs m4   408/ 468   87%
+```
+
+Five servers that share no code and target four different revisions agree
+87–100% of the time on which npcs stand still. That is what makes the answer
+usable: it is a property of the game being copied, not of any one copy of it.
+The wiki's own worked example — the Black Knight Titan — comes out stationary
+here on m2 and m3 without anybody having told the tool about it.
+
+3,292 npcs are described by at least one source; 1,066 come out stationary, 99
+of which already state a movement field in a hand-written block and are left
+alone. The remaining 967 are `npc_movement.generated.npc`.
+
+**One key per block, deliberately.** `load_npc_config` seeds a def once and
+applies every later block naming it to the same record, so this file *overlays*
+`npc_anims.generated.npc` and the area files rather than competing with them —
+no restating, and no chain of generators rewriting each other's output. What it
+must not do is land on top of a deliberate authored `wanderrange`, so an npc
+whose hand-written block already states one is skipped and named in the report.
+`mock230 selftest: a crowdsourced stationary npc reaches the def` pins the
+overlay itself, on Count Check: without the file he comes out at radius 5, which
+is what makes the check able to fail.
+
+### The other half: the ones that wander, indoors
+
+Standing still is one of two answers. rsmod's Lumbridge gives the shop keeper,
+the cook and Father Aereck `moveRestrict = indoors`: they *do* wander, and a
+roof is what stops them leaving the building. The engine has carried that field
+the whole time — `npc_collision_type` maps it to `COLL_TYPE_INDOORS`,
+`collision_map.c` tests `COLL_FLAG_ROOF` and `world_test_route.c` has asserted
+both for as long as they have existed — and **one npc in the tree stated it**.
+
+Unlike `wanderrange`, this cache can check the answer. A `.jm2`'s `==== MAP ====`
+rows carry each tile's raw settings byte as `f<N>`, and bit 2 is `REMOVE_ROOF`,
+the flag the client hides roofs over and the one `apply_terrain_column` stamps
+`COLL_FLAG_ROOF` from. So the same file, read in a different direction, answers
+"is this npc under a roof" for all 2.9 million tiles the roster stands on.
+
+That makes a **gate** before it makes a layer. Every stated answer is checked
+against this cache's own roof, the way `gen_npc_combat.py` puts LostCity's
+animation names through the rig gate — and the measurement is what earns it the
+second job:
+
+| stated | source | passes the roof gate |
+|---|---|---|
+| `indoors` | rsmod (rev 231) | 7 of 7 |
+| `indoors` | LostCity (2004) | 118 of 118 |
+| `outdoors` | LostCity | 10 of 10 |
+| `*_outdoors` in the *gameval* | this cache | 8 of 8 |
+
+Nothing is dropped. A flag that never once contradicts two hand-authored
+sources, seventeen years apart, is describing the same thing they are — so r3
+turns it round and reads it as the answer: **every world spawn of the npc is
+roofed, and its wander square holds a roof edge**. The second clause matters. A
+cave whose every tile is roofed is left alone, because `indoors` there forbids
+no step, and a restriction that cannot change a step is not a statement about
+the npc — 131 npcs drop out on that alone.
+
+r3 is the broad layer (1,447 npcs) and it is only admissible because of where it
+sits in the order. Graded closed-world against the npcs rsmod has edited — the
+only place "the source says nothing" means *normal* rather than *unknown* —
+13 are moot because this tool stops them entirely, 7 are held by a hand-written
+block in this tree, 1 agrees and 1 differs: Millie the Miller, whom rsmod pins
+at `wanderRange = 1` and who is standing in a windmill. Deciding `wanderrange`
+first, and skipping the restriction for anything already stationary, is what
+collapses the rest of that disagreement to nothing.
+
+`outdoors` gets no derived layer. "Not roofed" describes most of the world and
+is not evidence that an npc is forbidden a doorway, so the 9 that carry it are
+the ones rsmod or LostCity states.
+
+The result is 1,171 more blocks, and `mock230 selftest: a crowdsourced indoors
+npc reaches the def` pins them on `man_indoor` (6818) — an npc the *cache*
+names for its restriction, whose spawn tile really does carry `0x4`, and whose
+`moverestrict` reads 0 without the file. Both halves are asserted because either
+alone passes for the wrong reason: the roof flag without the def is a map fact
+about an npc still walking out of the building, and the def without the roof is
+a restriction on a tile nothing restricts.
+
+One thing to know about the field: `cachepack` cannot pack it (`moverestrict:
+1425 value(s) not written — 'indoors' is a name and the register declares no
+'ref' namespace for it`), so it lives in the text overlay the boot keeps beside
+the band. That is where the tree's 254 `nomove` records already lived; it is not
+new, and the selftest above runs against the text path.
+
 ## 7. Doing this for another revision
 
 The method is the tool. `tools/gen_spawns.py` takes the cache side from the
@@ -569,6 +695,11 @@ the reason everyone shares one file.
 | path | what |
 |---|---|
 | `tools/gen_spawns.py` | the generator and the four gates |
+| `tools/gen_npc_movement.py` | which npcs stand still, and the five servers it is joined from |
+| `…/npc_movement/<shard>/<gameval>.move` | one ledger per npc any source describes: every layer's verdict, and `source = authored` to pin one by hand |
+| `…/server/scripts/npc/configs/npc_movement.generated.npc` | 2,138 blocks compiled from those ledgers: 967 `wanderrange=0`, 1,171 `moverestrict` |
+| `…/maps/m<mx>_<mz>.jm2` `==== MAP ====` | read a second time for `f<settings>` bit 2, `REMOVE_ROOF` — the roof gate |
+| `src/engine/world_builder/collision_map.c` `collision_can_move` | what `indoors`/`outdoors` actually do, against `COLL_FLAG_ROOF` |
 | `…/server/scripts/areas/world/configs/m<mx>_<mz>.spawn` | 972 generated files, one per map square, `==== NPC ====` then `==== OBJ ====` |
 | `…/server/scripts/areas/world/spawn_report.txt` | what was dropped and why, including the 93-id drift table |
 | `src/net/mock/mock230_content.c` `load_spawn_config` | the reader and the grammar: `<name> <x> <z> <level> [count]`, absolute world tiles, a name that does not resolve is an error |

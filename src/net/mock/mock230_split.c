@@ -195,15 +195,30 @@ copy_tag(char* dst, size_t dst_size, const char* start, int length)
     dst[length] = '\0';
 }
 
+/*
+ * Colour is the *only* style a continuation row inherits.
+ *
+ * The reference is FontType.split (LostCity src/cache/config/FontType.ts):
+ * it keeps a single `savedCol` across the break and re-emits it, and the
+ * strikethrough code `@str@` explicitly does *not* survive -- it even clears
+ * `savedCol`.  Strike is a per-row style, because that is what journal content
+ * is written against: `^journal_done` is a bare `<str>` opened at the start of
+ * every completed step and never closed, and each step ends at a `|`.  Carry
+ * the strike and the first completed step strikes out every row after it,
+ * including the current objective (which is how this was found: the whole
+ * Restless Ghost journal came up crossed out).
+ *
+ * The cost is that a *soft* wrap of a struck row loses the rule on the
+ * continuation, exactly as the reference does.  Journal rows are hand-broken
+ * with `|` to fit 415px, so that case does not arise in practice.
+ */
 static void
 styles_at(
     const char* text,
     int length,
-    char* colour,
-    char* strike)
+    char* colour)
 {
     colour[0] = '\0';
-    strike[0] = '\0';
     for( int i = 0; i < length && text[i]; i++ )
     {
         if( text[i] == '<' )
@@ -216,10 +231,6 @@ styles_at(
                 copy_tag(colour, SPLIT_STYLE_MAX, text + i, end - i + 1);
             else if( end - i == 5 && strncmp(text + i, "</col>", 6) == 0 )
                 colour[0] = '\0';
-            else if( end - i == 4 && strncmp(text + i, "<str>", 5) == 0 )
-                copy_tag(strike, SPLIT_STYLE_MAX, text + i, end - i + 1);
-            else if( end - i == 5 && strncmp(text + i, "</str>", 6) == 0 )
-                strike[0] = '\0';
             i = end;
         }
     }
@@ -256,7 +267,6 @@ mock230_split_init(
     {
         struct SplitPoint point = find_split(work, metrics, max_width);
         char colour[SPLIT_STYLE_MAX];
-        char strike[SPLIT_STYLE_MAX];
         char* line;
         size_t rest_length;
         size_t prefix_length;
@@ -273,9 +283,9 @@ mock230_split_init(
         if( !work[point.rest_start] || state->split_line_count >= SSVM_SPLIT_MAX_LINES )
             break;
 
-        styles_at(work, point.rest_start, colour, strike);
+        styles_at(work, point.rest_start, colour);
         rest_length = strlen(work + point.rest_start);
-        prefix_length = strlen(colour) + strlen(strike);
+        prefix_length = strlen(colour);
         next = (char*)malloc(prefix_length + rest_length + 1);
         if( !next )
         {
@@ -285,7 +295,6 @@ mock230_split_init(
         }
         next[0] = '\0';
         strcat(next, colour);
-        strcat(next, strike);
         strcat(next, work + point.rest_start);
         free(work);
         work = next;

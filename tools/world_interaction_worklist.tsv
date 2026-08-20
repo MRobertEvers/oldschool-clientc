@@ -1,0 +1,160 @@
+# Curated worklist: cache-declared options with no binding.
+# Derived from `world_interaction_scan.py --coverage`, filtered per
+# docs/WORLD_INTERACTIONS.md S4 (the false-positive classes).  Status is NOT
+# stored here -- `--worklist` re-resolves every row against the script tree,
+# so a row cannot claim done while the binding is absent.
+#
+# family	table	symbol	op	verb	category	name
+weave	loc	regicide_loom	op2	Weave	2299	Loom
+weave	loc	loom	op2	Weave	2299	Loom
+weave	loc	fossil_loom_built	op2	Weave	-	Loom
+weave	loc	amenity_loom_built	op2	Weave	-	Loom
+shear	npc	sheepunsheered	op1	Shear	507	Sheep
+shear	npc	sheepunsheeredg	op1	Shear	507	Sheep
+shear	npc	sheepunsheeredw	op1	Shear	507	Sheep
+shear	npc	sheepunsheered2	op1	Shear	507	Sheep
+shear	npc	sheepunsheered2g	op1	Shear	507	Sheep
+shear	npc	sheepunsheered2w	op1	Shear	507	Sheep
+shear	npc	sheepunsheered3	op1	Shear	507	Sheep
+shear	npc	sheepunsheered3g	op1	Shear	507	Sheep
+shear	npc	sheepunsheered3w	op1	Shear	507	Sheep
+shear	npc	sheepunsheeredshaggy	op1	Shear	507	Sheep
+shear	npc	sheepunsheeredshaggy2	op1	Shear	507	Sheep
+smelt	loc	dwarf_keldagrim_furnace	op2	Smelt	-	Furnace
+smelt	loc	enakh_new_furnace_lit	op2	Smelt	-	Furnace
+smelt	loc	burgh_furnace_fired	op2	Smelt	-	Furnace
+smelt	loc	lovakengj_furnace_large_01	op1	Smelt	-	Lovakite furnace
+smelt	loc	zqfurnace_lit	op2	Smelt	-	Furnace
+smelt	loc	lovaquest_tower_furnace_lit	op2	Smelt	-	Furnace
+smelt	loc	cof_furnace	op2	Smelt	-	Furnace
+smelt	loc	amenity_furnace_built	op2	Smelt	-	Furnace
+churn	loc	dairy_churn	op1	Churn	1175	Dairy churn
+churn	loc	dairy_churn_metal	op1	Churn	1175	Dairy churn
+churn	loc	kr_sin_dairy_churn	op1	Churn	1175	Dairy churn
+churn	loc	kr_sin_dairy_churn_north	op1	Churn	1175	Dairy churn
+fruit_tree	loc	banana_tree_fruit_1	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	banana_tree_fruit_2	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	banana_tree_fruit_3	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	banana_tree_fruit_4	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	banana_tree_fruit_5	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	banana_tree_fruit_6	op1	Pick-banana	-	Banana tree
+fruit_tree	loc	curry_tree_fruit_1	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	curry_tree_fruit_2	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	curry_tree_fruit_3	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	curry_tree_fruit_4	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	curry_tree_fruit_5	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	curry_tree_fruit_6	op1	Pick-leaf	-	Curry tree
+fruit_tree	loc	orange_tree_fruit_1	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	orange_tree_fruit_2	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	orange_tree_fruit_3	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	orange_tree_fruit_4	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	orange_tree_fruit_5	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	orange_tree_fruit_6	op1	Pick-orange	-	Orange tree
+fruit_tree	loc	palm_tree_fruit_1	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	palm_tree_fruit_2	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	palm_tree_fruit_3	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	palm_tree_fruit_4	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	palm_tree_fruit_5	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	palm_tree_fruit_6	op1	Pick-coconut	-	Palm tree
+fruit_tree	loc	calquat_tree_fruit_1	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	calquat_tree_fruit_2	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	calquat_tree_fruit_3	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	calquat_tree_fruit_4	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	calquat_tree_fruit_5	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	calquat_tree_fruit_6	op1	Pick-fruit	-	Calquat tree
+fruit_tree	loc	papaya_tree_fruit_1	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	papaya_tree_fruit_2	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	papaya_tree_fruit_3	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	papaya_tree_fruit_4	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	papaya_tree_fruit_5	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	papaya_tree_fruit_6	op1	Pick-fruit	-	Papaya tree
+fruit_tree	loc	garden_white_tree_fruit_1	op1	Pick-fruit	-	White Tree patch
+fruit_tree	loc	garden_white_tree_fruit_2	op1	Pick-fruit	-	White Tree patch
+fruit_tree	loc	garden_white_tree_fruit_3	op1	Pick-fruit	-	White Tree patch
+fruit_tree	loc	garden_white_tree_fruit_4	op1	Pick-fruit	-	White Tree patch
+ropeswing	loc	agilityarena_ropeswing	op1	Swing-on	-	Rope swing
+ropeswing	loc	royal_ropeswing_mid	op1	Swing-on	-	Ropeswing
+ropeswing	loc	obstical_rockswing_withrope	op1	Swing-on	-	Rope swing
+ropeswing	loc	tree_ropeswing1	op1	Swing-on	-	Ropeswing
+ropeswing	loc	tree_ropeswing2	op1	Swing-on	-	Ropeswing
+ropeswing	loc	tree_ropeswing3	op1	Swing-on	-	Ropeswing
+ropeswing	loc	tree_ropeswing4	op1	Swing-on	-	Ropeswing
+redwood	loc	redwoodtree_l	op1	Cut	953	Redwood tree
+redwood	loc	redwoodtree_r	op1	Cut	953	Redwood tree
+redwood	loc	redwood_tree_fullygrown_1_2	op1	Cut	-	Redwood tree
+redwood	loc	redwood_tree_fullygrown_1_4	op1	Cut	-	Redwood tree
+redwood	loc	redwood_tree_fullygrown_1_6	op1	Cut	-	Redwood tree
+redwood	loc	redwood_tree_fullygrown_1_8	op1	Cut	-	Redwood tree
+crystal_cut	loc	crystaledging	op1	Cut	-	Crystal outcrop
+crystal_cut	loc	largecrystals	op1	Cut	-	Crystal outcrop
+altar	loc	thrantaxaltar	op1	Pray-at	897	Chaos altar
+altar	loc	guthix_altar	op1	Pray-at	897	Altar of Guthix
+altar	loc	regicide_voyage_temple_altar	op1	Pray-at	-	Altar
+altar	loc	clanwars_tournament_altar_spellbook	op1	Pray-at	-	Altar
+altar	loc	elf_village_altar	op1	Pray-at	-	Altar
+altar	loc	elid_statuette_placed	op1	Pray-at	-	Elidinis Statuette
+altar	loc	devious_altar_pouch	op1	Pray-at	-	Altar
+altar	loc	devious_altar_scorched	op1	Pray-at	-	Altar
+altar	loc	fai_varrock_church_altar	op1	Pray-at	897	Altar
+altar	loc	slug2_altar_saradomin	op1	Pray	-	Altar
+altar	loc	contact_high_priest_temple_altar	op1	Pray-at	897	Altar
+altar	loc	castlewars_altar_saradomin	op1	Pray-at	-	Altar
+altar	loc	castlewars_altar_zamorak	op1	Pray-at	-	Chaos altar
+altar	loc	hosidius_altar	op1	Pray	897	Altar
+altar	loc	lovakengj_altar	op1	Pray	897	Altar
+altar	loc	wcguild_shrine	op1	Pray-at	-	Shrine
+altar	loc	tox_xerician_altar	op1	Pray-at	897	Altar
+altar	loc	ds2_guild_altar	op1	Pray-at	897	Altar
+altar	loc	slp_church_altar	op1	Pray-at	897	Altar of Zamorak
+altar	loc	hosdun_altar_cursed	op1	Pray-at	-	Cursed Altar
+altar	loc	hosdun_altar_normal	op1	Pray-at	-	Altar
+altar	loc	hosdun_sun_altar_broken	op1	Pray-at	-	Broken sun altar
+altar	loc	darkm_altar	op1	Pray-at	897	Statue
+altar	loc	wildy_hub_altar	op1	Pray-at	897	Altar
+altar	loc	gh_altar	op1	Pray	897	Altar
+altar	loc	clan_medieval_altar	op1	Pray-at	897	Altar
+altar	loc	shayzien_church_altar	op1	Pray-at	897	Altar
+altar	loc	lotg_temple_altar	op1	Pray-at	1603	Altar
+altar	loc	lotg_temple_altar_mid5	op1	Pray-at	1603	Altar
+altar	loc	lotg_temple_altar_front	op1	Pray-at	1603	Altar
+altar	loc	bcs_tomb_altar_op	op1	Pray-at	897	Altar
+altar	loc	contact_lesser_god_temple_altar_fixed	op1	Pray-at	897	Altar
+altar	loc	ranul_shrine	op1	Pray	897	Shrine of Ranul
+altar	loc	twilight_shrine	op1	Pray	897	Shrine of Twilight
+altar	loc	altar_twilight_default01	op1	Pray-at	897	Altar
+altar	loc	altar_twilight_default02	op1	Pray-at	897	Altar
+altar	loc	altar_talkasti01	op1	Pray-at	897	Altar
+altar	loc	great_conch_shrine	op1	Pray-at	897	Shrine
+spin	loc	murder_qip_spinning_wheel	op2	Spin	-	Spinning wheel
+spin	loc	amenity_spinning_wheel_built	op2	Spin	-	Spinning wheel
+specimen	loc	vm_specimen_table1	op1	Clean	691	Specimen table
+specimen	loc	vm_specimen_table2	op1	Clean	691	Specimen table
+swim	loc	waterfall_swim_point	op1	Swim	-	River
+steam_pump	loc	brew_steam_pump	op1	Pump	-	Steam Pump
+pluck	npc	100_jubbly_bird_dead	op4	Pluck	-	Jubbly bird
+shake	loc	kharazi_bamboo_tree_base_leafy	op1	Shake	-	Leafy Palm Tree
+dig_mud	loc	mdaughter_swampbubbles1	op1	Dig-up	-	Mud
+# REMOVED 2026-08-19, wiki says the interaction does not exist as the cache implies:
+#   drink_from  100_osman_fountain / cauldron_generic_drink -- the Fountain page
+#     lists options as "None"; a container is USED on a fountain, and no
+#     "Drink-from" is documented for The Feud. Implementing one would invent
+#     mechanics. See docs/WORLD_INTERACTIONS.md §3.6.
+#   altar       mm_gorillastatue1 "Gorilla Statue" -- a Monkey Madness prop
+#     whose Pray-at carries quest semantics that could not be verified; a
+#     generic prayer recharge there would be a guess, not a port.
+# BLOCKED: ropeswing (7 rows) -- needs per-obstacle map geometry.
+#   Every Swing-on obstacle moves the player a specific distance in a specific
+#   direction to a specific landing tile (cf. barbarian_course.rs2's
+#   `movecoord($start_pos, 0, 0, -5)` with ^exact_south). That geometry lives in
+#   the cache's binary map squares; nothing in configs/, pack/ or tools/ indexes
+#   loc PLACEMENTS, only loc definitions. `loc_coord` gives the anchor at
+#   runtime but not the direction or span of the gap.
+#   Guessing a landing tile is worse than a dead click: it teleports the player
+#   into a wall or across an unintended gap. The Barbarian Outpost swing is
+#   already implemented under a different symbol (obstical_ropeswing1), so the
+#   machinery -- ~agility_exactmove, loc_anim(ropeswing_long),
+#   human_ropeswing_long -- is all present and only the coordinates are missing.
+#   Unblock by measuring each of the 7 placements in-world or by adding a loc
+#   placement dumper. Numbers that ARE known: Brimhaven swing Agility 10 / 3 xp,
+#   Barbarian Outpost 35 / 22 xp, failure costs a small amount of damage and a
+#   climb back to the start.

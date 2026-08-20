@@ -2520,6 +2520,34 @@ mock230_world_mapinstance_free(
         mock230_world_ground_take(srv, i);
         obj->respawn_tick = -1;
     }
+    /*
+     * And its npcs, for the same reason and with the bigger blast radius.
+     *
+     * Everything above releases something the next tenant would inherit
+     * silently; a surviving npc is one it inherits VISIBLY. The pool re-issues
+     * these coordinates immediately, so the boss of the room somebody just
+     * left is standing in — and attacking inside — the room somebody just
+     * built. Measured: `::toa 5` then `::toa 9` put Kephri in Ba-Ba's arena,
+     * and `::toa 7` then `::toa 10` put Akkha in the Wardens'.
+     *
+     * The Theatre never showed it because every ToB boss `npc_del`s itself as
+     * it dies, so its rooms are empty by the time they are freed. That is a
+     * property of how that raid ends its rooms, not a guarantee the pool can
+     * rely on: a room left early, a wipe, or a debugproc frees a room with its
+     * boss alive. So the release owns it.
+     *
+     * All four levels, deliberately — an instance is a whole square-column and
+     * three ToA rooms live on plane 1.
+     */
+    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    {
+        struct Mock230Npc* npc = &srv->npcs[i];
+
+        if( !npc->active || npc->x < x || npc->x >= x + width || npc->z < z ||
+            npc->z >= z + height )
+            continue;
+        mock230_world_npc_free(srv, i);
+    }
     return mock230_mapinstance_free(handle);
 }
 
@@ -38309,6 +38337,10 @@ mock230_world_selftest(void)
             int positions_seen = 0;
             int last_x = -1;
             int last_z = -1;
+            int tail_stun_seen = 0;
+            int tail_shove_seen = 0;
+            int stand_x = 0;
+            int stand_z = 0;
 
             selftest_reset_world(srv, player, 35 * 8, 47 * 8);
             /*
@@ -38402,8 +38434,29 @@ mock230_world_selftest(void)
              * have to move, and the south dive is the one that proves the
              * table's position column is being read at all.
              */
+            stand_x = player->x;
+            stand_z = player->z;
             for( int tick = 0; tick < 120; tick++ )
             {
+                /*
+                 * Put the player back on their tile before each tick.
+                 *
+                 * Not cosmetic: auto-retaliation walks an idle player toward
+                 * whatever is hitting them, and the tile they drift to decides
+                 * whether the tail's shove has anywhere to send them. A shove
+                 * with its back to the water legitimately moves nobody — the
+                 * reference declines it the same way — so leaving the drift in
+                 * made the knockback assertion pass or fail on where the walk
+                 * happened to stop. Pinning the stand tile makes the geometry
+                 * the same every run.
+                 */
+                if( player->x != stand_x || player->z != stand_z )
+                {
+                    mock230_world_teleport(srv, player->level, stand_x, stand_z);
+                    if( player->rebuild_scene_pending )
+                        mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE,
+                                             NULL, 0);
+                }
                 mock230_capture_begin(srv, &zulrah_live);
                 mock230_world_tick(srv);
                 mock230_capture_end(srv);
@@ -38415,6 +38468,37 @@ mock230_world_selftest(void)
                  * stretch is about where Zulrah goes, not about damage. */
                 player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                 player->hitpoints = 99;
+
+                /*
+                 * The tail, end to end.
+                 *
+                 * Rotation 1's phase 2 is the crimson tail, and a connecting
+                 * swing is supposed to root the player for five ticks and
+                 * shove them clear. Both were disclosed gaps until this pass —
+                 * `%action_delay` gated nothing the engine reads, and there was
+                 * no force-movement in the encounter at all — so a stunned
+                 * player walked away mid-swing and was never moved.
+                 *
+                 * The shove is detected off `exact_end_*`, which only
+                 * `p_exactmove` ever writes, rather than off the player having
+                 * changed tile. "They moved, so they were shoved" looks like
+                 * the obvious test and is wrong: auto-retaliation walks the
+                 * player toward whatever is hitting them, so that version
+                 * passed even with the knockback deleted.
+                 */
+                if( player->stun_ticks > 0 )
+                    tail_stun_seen = 1;
+                if( player->exact_end_x != 0 || player->exact_end_z != 0 )
+                    tail_shove_seen = 1;
+                if( getenv("ZDBG") && player->stun_ticks > 0 )
+                    fprintf(stderr,
+                            "  zt=%3d at=%d,%d stun=%d ex=%d,%d  E=%d W=%d N=%d S=%d\n",
+                            tick, player->x, player->z, player->stun_ticks,
+                            player->exact_end_x, player->exact_end_z,
+                            mock230_scene_can_travel(player->level, player->x, player->z, 1, 0, 1, 0),
+                            mock230_scene_can_travel(player->level, player->x, player->z, -1, 0, 1, 0),
+                            mock230_scene_can_travel(player->level, player->x, player->z, 0, 1, 1, 0),
+                            mock230_scene_can_travel(player->level, player->x, player->z, 0, -1, 1, 0));
 
                 for( int f = 0; f < 3; f++ )
                 {
@@ -38445,6 +38529,12 @@ mock230_world_selftest(void)
                            positions_seen);
             SELFTEST_CHECK(snakelings_seen,
                            "rotation 1 phase 4 should put snakelings on the platform");
+            SELFTEST_CHECK(tail_stun_seen,
+                           "a connecting tail swing should leave the player stunned — "
+                           "`p_stun`, not a varp nothing enforces");
+            SELFTEST_CHECK(tail_shove_seen,
+                           "a connecting tail swing should force-move the player — no "
+                           "`p_exactmove` reached the wire for the whole phase");
 
             /* Leave nothing standing for the next section. */
             mock230_scripts_run_debugproc(srv, "zulrah");
@@ -39327,6 +39417,246 @@ mock230_world_selftest(void)
                     toarooms_said_ok = 1;
             }
             SELFTEST_CHECK(toarooms_said_ok, "::toarooms should reach its OK line");
+        }
+
+        /*
+         * The way in, by hand: `::toa N` then `::toago` (the ToA harness).
+         *
+         * `::toarooms` above proves the twelve instances BUILD. It cannot prove
+         * that anything ever starts in one, because it never starts one: it
+         * walks the entry tiles and frees the room. And starting is exactly
+         * where this raid is thin — `~toa_start_room` has no caller in the
+         * content tree at all (the barrier trigger that its header describes
+         * has not been written), so `::toago` is the only thing anywhere that
+         * spawns a ToA boss. An entry path with no test is an entry path that
+         * silently stops working.
+         *
+         * So: enter each boss chamber the way a person does, start it, and
+         * require an npc to be standing there afterwards.
+         *
+         * The npc scan is written out here rather than borrowing
+         * `tob_harness_boss`, and the difference is not cosmetic: that helper
+         * skips any npc with `timer_interval == 0`, and NO ToA boss has an
+         * [ai_timer] — this raid drives every room from one per-player queue
+         * (`~toa_arm_watchdog`) precisely so that a room with no npc in it can
+         * still tick. Borrowing it would have reported every chamber empty.
+         */
+        {
+            /*
+             * The npc each chamber must hold, by cache id.
+             *
+             * Written here as literals rather than read back from the content
+             * that spawns them, for the reason the Theatre's periods are: a
+             * check that reads the same table the implementation reads agrees
+             * with any value in it. These come from the cache dump
+             * (docs/minigames/tombs_of_amascut/sources/cache_npc_toa.txt) and
+             * are the independent half of the comparison.
+             *
+             * Asserting the ID and not merely "some npc is nearby" matters
+             * more here than it looks: the pool re-issues a released square's
+             * coordinates to the next tenant, so an "any npc" scan in Ba-Ba's
+             * room found Kephri, 0 tiles away, and read as a pass.
+             */
+            static const struct
+            {
+                int room;
+                int npc;
+                const char* name;
+            } k_toa_rooms[] = {
+                { 3,  11730, "Zebak" },
+                { 5,  11719, "Kephri" },
+                { 7,  11790, "Akkha" },
+                { 9,  11778, "Ba-Ba" },
+                { 10, 11751, "Wardens P1" },
+            };
+
+            for( size_t i = 0; i < sizeof(k_toa_rooms) / sizeof(k_toa_rooms[0]); i++ )
+            {
+                char line[32];
+                int found = -1;
+                int found_d = 0;
+                int strays = 0;
+                int stray_type = 0;
+
+                snprintf(line, sizeof(line), "toa %d", k_toa_rooms[i].room);
+                mock230_scripts_run_debugproc(srv, line);
+                mock230_scripts_run_debugproc(srv, "toago");
+                for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                {
+                    int dx;
+                    int dz;
+                    int d;
+
+                    if( !srv->npcs[n].active )
+                        continue;
+                    if( srv->npcs[n].level != player->level )
+                        continue;
+                    dx = srv->npcs[n].x - player->x;
+                    dz = srv->npcs[n].z - player->z;
+                    d = (dx < 0 ? -dx : dx) + (dz < 0 ? -dz : dz);
+                    if( d > 48 )
+                        continue;
+                    if( srv->npcs[n].type == k_toa_rooms[i].npc && found < 0 )
+                    {
+                        found = n;
+                        found_d = d;
+                        continue;
+                    }
+                    strays++;
+                    stray_type = srv->npcs[n].type;
+                }
+                SELFTEST_CHECK(found >= 0,
+                               "::toa %d + ::toago should put npc %d (%s) in the room "
+                               "(player at %d,%d level %d)",
+                               k_toa_rooms[i].room, k_toa_rooms[i].npc, k_toa_rooms[i].name,
+                               player->x, player->z, player->level);
+                if( found >= 0 )
+                    fprintf(stderr, "  %s: npc %d at %d,%d, %d tile(s) away\n",
+                            k_toa_rooms[i].name, srv->npcs[found].type,
+                            srv->npcs[found].x, srv->npcs[found].z, found_d);
+                /*
+                 * Reported, not asserted, and the distinction is deliberate.
+                 *
+                 * `mock230_world_mapinstance_free` clears the released square's
+                 * locs, its loc reverts and its ground objects and says why —
+                 * "the pool can immediately hand those coordinates to another
+                 * encounter" — but it does not touch npcs, so the boss of the
+                 * chamber you just left is standing in the one you just
+                 * entered. The Theatre never sees it because every ToB boss
+                 * `npc_del`s itself on death; this raid frees a room with its
+                 * boss still alive every time `~toa_enter_room` is called.
+                 *
+                 * That is an engine lifetime question rather than a fact about
+                 * the entry path this stanza tests, so it prints. Turning it
+                 * into a check is the right move once it is fixed, and the
+                 * count is here so the fix has something to be measured by.
+                 */
+                if( strays > 0 )
+                    fprintf(stderr,
+                            "  %s: %d stray npc(s) in range, e.g. type %d "
+                            "(a freed instance does not delete its npcs)\n",
+                            k_toa_rooms[i].name, strays, stray_type);
+                /*
+                 * Zebak, watched rather than counted.
+                 *
+                 * The check above proves the chamber HOLDS its boss. It cannot
+                 * prove the boss does anything, and for most of this raid's
+                 * life that was the difference that mattered: every room ran a
+                 * correct clock and drew nothing, threw nothing and hit nobody.
+                 *
+                 * So one room is run for real. Zebak is the one that is ported
+                 * against Near-Reality's own combat script, and what is asserted
+                 * is the two ends of the chain that port added: he ANIMATES (an
+                 * attack seq reached the npc) and the player LOSES HITPOINTS (a
+                 * projectile resolved on arrival). Neither is true of a damage
+                 * clock, which is what this was before.
+                 *
+                 * No god mode, deliberately: the fixture's health falling IS
+                 * the observation. 40 ticks is five of his seven-tick cycles at
+                 * raid level 0, so a miss here is a broken clock and not an
+                 * unlucky window.
+                 */
+                if( found >= 0 )
+                {
+                    int hp_before = player->hitpoints;
+                    int taken = 0;
+                    int attacks = 0;
+                    int room = 0;
+                    int started = 0;
+                    int clock = 0;
+                    int now = 0;
+
+                    /*
+                     * Damage is counted as the SUM OF THE FALLS in the
+                     * fixture's health, never as the difference between the
+                     * ends of the window. Two of these bosses kill a
+                     * 99-hitpoint fixture inside their forty ticks, and a dead
+                     * player respawns at full health in Lumbridge - so the
+                     * net figure for the room that hits hardest comes out
+                     * POSITIVE, which reads exactly like a boss that does
+                     * nothing. Kephri and Akkha were both read that way once.
+                     */
+                    for( int t = 0; t < 40; t++ )
+                    {
+                        int hp = player->hitpoints;
+
+                        mock230_world_tick(srv);
+                        if( player->hitpoints < hp )
+                            taken += hp - player->hitpoints;
+                        if( !srv->npcs[found].active )
+                            break;
+                    }
+                    {
+                        static struct Mock230Capture zc;
+
+                        mock230_capture_begin(srv, &zc);
+                        mock230_scripts_run_debugproc(srv, "toazdbg");
+                        mock230_capture_end(srv);
+                        for( int w = mock230_capture_find(&zc, 90, 0); w >= 0;
+                             w = mock230_capture_find(&zc, 90, w + 1) )
+                        {
+                            const struct Mock230CapturedPacket* pk = &zc.packets[w];
+
+                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                                continue;
+                            if( sscanf((const char*)pk->data + 1,
+                                       "toazdbg %d started=%d clock=%d now=%d attacks=%d",
+                                       &room, &started, &clock, &now, &attacks) == 5 )
+                                fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                        }
+                    }
+                    /*
+                     * Five cycles' worth of window, so four attacks is the
+                     * floor rather than the target: at raid level 0 Zebak is a
+                     * seven-tick monster and 40 ticks holds five of them, but
+                     * the room starts on the tick `::toago` runs and the first
+                     * deadline is a full period out.
+                     */
+                    /*
+                     * Three in forty is the floor, not the cadence. The five
+                     * chambers do not share a rate - Akkha is 6 ticks, Zebak 7,
+                     * and the Wardens' first phase is slower again because its
+                     * clock belongs to the obelisk - so this asserts that the
+                     * room's clock RUNS, and each room's own period is checked
+                     * against its constant in ::toarun.
+                     */
+                    SELFTEST_CHECK(attacks >= 3,
+                                   "%s should keep an attack clock, saw %d in 40 ticks "
+                                   "(started=%d, deadline %d vs now %d)",
+                                   k_toa_rooms[i].name, attacks, started, clock, now);
+                    /*
+                     * And the attacks have to LAND. This is the assertion the
+                     * port exists for: the clock was always right, and until
+                     * the Near-Reality style selection went in the room drew
+                     * nothing, threw nothing and hit nobody.
+                     *
+                     * The animation is deliberately NOT asserted from the npc
+                     * struct: `anim_id` is cleared once its mask reaches the
+                     * wire, so sampling it after a tick reads -1 however many
+                     * animations played. Watch it with TORIRS_ANIM_DEBUG=1
+                     * instead - it prints one line per `npc_anim`.
+                     */
+                    SELFTEST_CHECK(taken > 0,
+                                   "%s should damage the player inside 40 ticks "
+                                   "(took %d over %d attack(s), %d -> %d hp)",
+                                   k_toa_rooms[i].name, taken, attacks,
+                                   hp_before, player->hitpoints);
+                    fprintf(stderr, "  %s: %d attack(s), %d damage taken (%d -> %d hp)\n",
+                            k_toa_rooms[i].name, attacks, taken,
+                            hp_before, player->hitpoints);
+                    /*
+                     * Put the fixture back on its feet between chambers. Five
+                     * bosses in a row on one 99-hitpoint player is a corpse by
+                     * the third, and a dead player is a boss with no target -
+                     * which reads as "this room does not attack" and is really
+                     * the room before it having done its job.
+                     */
+                    player->dying = 0;
+                    player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+                    mock230_combat_sync_hitpoints(player);
+                }
+            }
+            mock230_scripts_run_debugproc(srv, "toaout");
         }
 
         /*
@@ -43793,6 +44123,94 @@ mock230_world_selftest(void)
                                    srv->npcs[bob].x == srv->npcs[bob].spawn_x,
                                "a nomove npc never moves");
         }
+        {
+            /*
+             * Count Check (7414) is the other half of that rule, and the half
+             * no `.npc` file in this tree used to state. He stands by the
+             * Lumbridge graveyard handing out account-security advice; nothing
+             * in the cache says so, so before `npc_movement.generated.npc` he
+             * inherited the default five-tile wander and drifted off his post.
+             *
+             * Asserted here rather than trusted from the generator because the
+             * generated block only works if it *reaches* the def: the npc
+             * loader seeds a record once and overlays every later block onto
+             * it, and that overlay is the mechanism this file's 967 blocks
+             * depend on. A second def would leave the radius at 5 with the
+             * config still on disk, correct and inert.
+             */
+            int count_check = selftest_find_npc(srv, 7414);
+
+            SELFTEST_CHECK(count_check >= 0, "the roster should include Count Check");
+            if( count_check >= 0 )
+                SELFTEST_CHECK(srv->npcs[count_check].wander_radius == 0,
+                               "a crowdsourced stationary npc reaches the def, got "
+                               "wander radius %d",
+                               srv->npcs[count_check].wander_radius);
+        }
+        {
+            /*
+             * And the overlay itself, on an npc two generated files both name.
+             * The Al Kharid banker (3091) carries a block in
+             * npc_anims.generated.npc *and* one in npc_movement.generated.npc,
+             * which only works because `load_npc_config` seeds a def once and
+             * applies every later block naming it to the same record. Under the
+             * older "a repeated header appends another def and the first one
+             * wins" behaviour the wander radius would come out 5 with the
+             * config sitting on disk, correct and inert — the exact failure
+             * that has no symptom anywhere else.
+             */
+            int overlaid = selftest_find_npc(srv, 3091);
+
+            SELFTEST_CHECK(overlaid >= 0, "the roster should include a Banker (3091)");
+            if( overlaid >= 0 )
+                SELFTEST_CHECK(srv->npcs[overlaid].wander_radius == 0,
+                               "a second .npc file overlays a def rather than shadowing "
+                               "it, got wander radius %d",
+                               srv->npcs[overlaid].wander_radius);
+        }
+        {
+            /*
+             * The other half of the same file: an npc that *does* wander, and
+             * stops at the roof line.
+             *
+             * `man_indoor` (6818) is the subject because three independent
+             * things have to agree on him and they do. The cache names him
+             * `_indoors` — Jagex's own word, beside `death_man_outdoors1` and
+             * `farm_chicken_brown_outdoors`, and the naming holds for 13 of the
+             * 14 such gamevals in the roster. His spawn tile carries
+             * REMOVE_ROOF, which is the bit `apply_terrain_column` stamps
+             * COLL_FLAG_ROOF from and the bit `gen_npc_movement.py` reads out of
+             * `maps/*.jm2` to decide the field. And nothing had ever written it
+             * down: one npc in the whole tree stated `moverestrict` as anything
+             * but `nomove` before this.
+             *
+             * Both halves are asserted because either alone passes for the
+             * wrong reason — the roof flag without the def is a map fact about
+             * an npc that still walks out of the building, and the def without
+             * the roof is a restriction on a tile nothing restricts.
+             */
+            int indoors = selftest_find_npc(srv, 6818);
+
+            SELFTEST_CHECK(indoors >= 0, "the roster should include man_indoor (6818)");
+            if( indoors >= 0 && srv->npcs[indoors].def )
+            {
+                int settings;
+
+                SELFTEST_CHECK(srv->npcs[indoors].def->moverestrict == 3 /* indoors */,
+                               "a crowdsourced indoors npc reaches the def, got "
+                               "moverestrict %d",
+                               srv->npcs[indoors].def->moverestrict);
+                settings = mock230_scene_debug_settings(srv->npcs[indoors].level,
+                                                        srv->npcs[indoors].spawn_x,
+                                                        srv->npcs[indoors].spawn_z);
+                /* -1 is "outside the loaded window", not "no roof" — the scene
+                 * is 104 tiles and follows the player. */
+                if( settings >= 0 )
+                    SELFTEST_CHECK((settings & 4 /* REMOVE_ROOF */) != 0,
+                                   "and the roof the restriction reads is really on his "
+                                   "spawn tile, settings 0x%x", settings);
+            }
+        }
     }
 
     fprintf(stderr, "mock230 selftest: a teleported npc is re-added, not left behind\n");
@@ -44612,41 +45030,60 @@ mock230_world_selftest(void)
             static const struct
             {
                 const char* shop;
-                const char* obj;
+                const char* obj; /* NULL: the first untradeable obj the cache names */
+                int noted;       /* hand the player the note and expect the real thing */
                 int want_sold;
                 const char* label;
             } k_cases[] = {
-                { "generalshop1", "pot_empty", 1, "a general store buys back a pot it stocks" },
-                { "generalshop1", "bronze_sword", 1,
+                { "generalshop1", "pot_empty", 0, 1,
+                  "a general store buys back a pot it stocks" },
+                { "generalshop1", "bronze_sword", 0, 1,
                   "an allstock general store buys an item it does not stock" },
-                { "axeshop", "bronze_axe", 1, "an axe shop buys an axe it stocks" },
-                { "axeshop", "bronze_sword", 0, "an axe shop refuses a sword it does not stock" },
-                { "generalshop1", "coins", 0, "no shop buys coins" },
+                { "axeshop", "bronze_axe", 0, 1, "an axe shop buys an axe it stocks" },
+                { "axeshop", "bronze_sword", 0, 0,
+                  "an axe shop refuses a sword it does not stock" },
+                { "generalshop1", "coins", 0, 0, "no shop buys coins" },
+                { "generalshop1", NULL, 0, 0, "no shop buys an untradeable item" },
+                { "generalshop1", "pot_empty", 1, 1,
+                  "a noted pot reaches the shelf as a real pot" },
             };
             static struct Mock230Capture capture;
+            int untradeable = -1;
             int side = mock230_content_symbol(MOCK230_PACK_COMPONENT, "shopside:items");
             int main_grid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "shopmain:items");
             int coins = mock230_content_symbol(MOCK230_PACK_OBJ, "coins");
             int inv_full = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_INV_FULL);
             int inv_partial = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_INV_PARTIAL);
 
+            /* Found in the data rather than written down: `oc_tradeable` is a
+             * cache fact, and any obj id spelled out here would be a second,
+             * staler copy of it. */
+            for( int id = 1; untradeable < 0 && id < mock230_objinfo_count(); id++ )
+                if( !mock230_objinfo(id)->tradeable && mock230_objinfo(id)->cost > 0 )
+                    untradeable = id;
+
+            SELFTEST_CHECK(untradeable > 0, "the cache should name an untradeable obj");
             SELFTEST_CHECK(side > 0, "the cache should name shopside:items");
             SELFTEST_CHECK(main_grid > 0, "the cache should name shopmain:items");
             for( size_t c = 0; c < sizeof(k_cases) / sizeof(k_cases[0]); c++ )
             {
                 int shop = mock230_content_symbol(MOCK230_PACK_INV, k_cases[c].shop);
-                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, k_cases[c].obj);
+                int obj = k_cases[c].obj
+                              ? mock230_content_symbol(MOCK230_PACK_OBJ, k_cases[c].obj)
+                              : untradeable;
+                int held = obj;
                 int32_t open_args[4];
                 const char* title[1] = { "Selftest Store" };
                 uint8_t button[6];
                 struct RSAreaBuf out;
                 int before;
                 int after;
+                int coins_before;
 
                 if( shop <= 0 || obj <= 0 || side <= 0 )
                 {
                     SELFTEST_CHECK(0, "the pack should name %s and %s", k_cases[c].shop,
-                                   k_cases[c].obj);
+                                   k_cases[c].obj ? k_cases[c].obj : "an untradeable obj");
                     continue;
                 }
                 open_args[0] = shop;
@@ -44654,10 +45091,19 @@ mock230_world_selftest(void)
                 open_args[2] = 1300;
                 open_args[3] = 30;
                 selftest_clear_inv(player);
-                selftest_give(player, obj, 1);
+                if( k_cases[c].noted )
+                {
+                    held = mock230_objinfo(obj)->cert_id;
+                    SELFTEST_CHECK(held > 0, "%s: %s should have a note form", k_cases[c].label,
+                                   k_cases[c].obj);
+                    if( held <= 0 )
+                        continue;
+                }
+                selftest_give(player, held, 1);
                 mock230_scripts_run_proc_sv(srv, "[proc,openshop]", open_args, 4, title, 1);
 
                 before = selftest_shop_total(srv, shop, obj);
+                coins_before = selftest_count(player, coins);
                 rsab_wrap(&out, button, sizeof(button));
                 rsab_p4(&out, side);
                 rsab_p2(&out, 0);
@@ -44672,25 +45118,24 @@ mock230_world_selftest(void)
                 mock230_capture_end(srv);
                 after = selftest_shop_total(srv, shop, obj);
 
-                {
-                    struct Mock230Container* row = mock230_container_resolve(srv, NULL, shop);
-                    int used = 0;
-
-                    for( int i = 0; row && i < row->slots; i++ )
-                        if( row->items[i].obj_id >= 0 )
-                            used++;
-                    fprintf(stderr,
-                            "  SHOPPROBE %s(%d slots, %d used) %s: shop %d -> %d, backpack %d, "
-                            "coins %d\n",
-                            k_cases[c].shop, row ? row->slots : -1, used, k_cases[c].obj, before,
-                            after, selftest_count(player, obj), selftest_count(player, coins));
-                }
                 SELFTEST_CHECK(after == before + k_cases[c].want_sold,
                                "%s: the shop should hold %d more, held %d and now holds %d",
                                k_cases[c].label, k_cases[c].want_sold, before, after);
-                SELFTEST_CHECK(selftest_count(player, obj) == 1 - k_cases[c].want_sold,
+                SELFTEST_CHECK(selftest_count(player, held) == 1 - k_cases[c].want_sold,
                                "%s: the backpack should keep %d, kept %d", k_cases[c].label,
-                               1 - k_cases[c].want_sold, selftest_count(player, obj));
+                               1 - k_cases[c].want_sold, selftest_count(player, held));
+                /* A refused sale must not pay. `~sell_item` adds the coins
+                 * *after* the move, so a guard that returns late and a move
+                 * that quietly took nothing look identical from the shop's
+                 * side and differ only here — which is the shape a shop dupe
+                 * has. Nothing asserts the amount: the price is the wiki's
+                 * multipliers through `~calc_shop_value`, and a pot really
+                 * does fetch 0gp at a general store. */
+                if( !k_cases[c].want_sold )
+                    SELFTEST_CHECK(selftest_count(player, coins) == coins_before,
+                                   "%s: a refused sale should pay nothing, paid %d",
+                                   k_cases[c].label,
+                                   selftest_count(player, coins) - coins_before);
                 {
                     int repaints = 0;
 
@@ -53381,6 +53826,275 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::hunterrun should report no failures");
             SELFTEST_CHECK(said_ok, "::hunterrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::cookrun\n");
+    {
+        /*
+         * Cook's Assistant (2026-08-19 audit). `[opnpc1,cook]`'s two choice
+         * points block on `last_slot`, which nothing here ever supplies, so
+         * `cookrun` drives the %cookquest/item/reward state machine
+         * directly rather than through dispatch -- see the debugproc's own
+         * header comment in quests/quest_cook/scripts/quest_cook.rs2 for
+         * exactly which pieces that does and does not exercise for real.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture cookrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &cookrun_capture);
+            mock230_scripts_run_debugproc(srv, "cookrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&cookrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&cookrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &cookrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "COOKRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "COOKRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::cookrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::cookrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::demonrun\n");
+    {
+        /*
+         * Demon Slayer (2026-08-19 audit). `[opnpc1,aris]` / `[opnpc1,
+         * sir_prysin]` / `[opnpc1,captain_rovin]` / `[opnpc1,traiborn]`
+         * all block on `last_slot` dialogue choices, so `demonrun` drives
+         * the %demonstart/item/reward state machine directly rather than
+         * through dispatch, while calling every REAL proc in delrith.rs2
+         * (~demon_slayer_can_attack_delrith, ~demon_slayer_init_incantation,
+         * ~demon_slayer_incantation_word, ~demon_slayer_correct_incantation,
+         * ~demon_slayer_wrong_incantation) for genuine coverage -- see the
+         * debugproc's own header comment in quests/quest_demon/scripts/
+         * demon_slayer.rs2 for exactly which pieces that does and does not
+         * exercise for real.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture demonrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &demonrun_capture);
+            mock230_scripts_run_debugproc(srv, "demonrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&demonrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&demonrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &demonrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "DEMONRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "DEMONRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::demonrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::demonrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::romeojulietrun\n");
+    {
+        /*
+         * Romeo & Juliet (2026-08-19 audit). `[opnpc1,romeo]` / `[opnpc1,
+         * juliet]` / `[opnpc1,father_lawrence]` / `[opnpc1,apothecary]` all
+         * block on `last_slot` dialogue choices, so `romeojulietrun` drives
+         * the %rjquest/item/reward state machine directly rather than
+         * through dispatch -- see the debugproc's own header comment in
+         * quests/quest_romeojuliet/scripts/quest_romeojuliet.rs2 for
+         * exactly which pieces that does and does not exercise for real.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture romeojulietrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &romeojulietrun_capture);
+            mock230_scripts_run_debugproc(srv, "romeojulietrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&romeojulietrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&romeojulietrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &romeojulietrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "ROMEOJULIETRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "ROMEOJULIETRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::romeojulietrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::romeojulietrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::priestrun\n");
+    {
+        /*
+         * The Restless Ghost (2026-08-19 audit). `[opnpc1,father_aereck]` /
+         * `[opnpc1,father_urhney]` / `[opnpc1,ghostx]` all block on
+         * `last_slot` dialogue choices, so `priestrun` drives those three
+         * %prieststart hand-offs directly rather than through dispatch, same
+         * limitation as ::cookrun/::demonrun before it. The altar pickup step
+         * is different: it calls the real ~restless_ghost_take_skull proc,
+         * the exact code [oploc1,restless_ghost_altar_skull] now runs on a
+         * genuine Search click (that binding used to be dead: the pickup body
+         * lived behind an [opobj3,ghostskull] handler for a ground item
+         * nothing ever spawns, so Search only ever printed flavour text and
+         * the quest could never reach ^priest_obtained_skull). See the
+         * debugproc's own header comment in
+         * quests/quest_priest/scripts/quest_priest.rs2 for exactly which
+         * pieces this does and does not exercise for real.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture priestrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &priestrun_capture);
+            mock230_scripts_run_debugproc(srv, "priestrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&priestrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&priestrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &priestrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "PRIESTRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "PRIESTRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::priestrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::priestrun should reach its OK line");
+
+            /*
+             * C-side check the RS2 layer cannot make on its own: after
+             * ~restless_ghost_take_skull's npc_add, the spawned skull_skeleton
+             * (npc type 924, per configs/all.npc.compack) must actually carry
+             * the huntmode/stats quest_priest.npc now authors. Before that
+             * file existed, skull_skeleton had no authored `.npc` block
+             * anywhere, so it silently got engine defaults (hitpoints=10,
+             * attack=1, huntmode=MOCK230_HUNT_NONE) and never ambushed the
+             * player, contradicting the wiki ("the skeleton...comes to life"
+             * and attacks).
+             */
+            {
+                int skel_slot = -1;
+                int i;
+
+                for( i = 0; i < MOCK230_NPC_MAX; i++ )
+                {
+                    if( srv->npcs[i].active && srv->npcs[i].type == 924 )
+                    {
+                        skel_slot = i;
+                        break;
+                    }
+                }
+
+                SELFTEST_CHECK(skel_slot >= 0,
+                                "::priestrun should have spawned skull_skeleton (type 924)");
+                if( skel_slot >= 0 )
+                {
+                    SELFTEST_CHECK(srv->npcs[skel_slot].huntmode == MOCK230_HUNT_AGGRESSIVE,
+                                    "skull_skeleton huntmode=%d, want MOCK230_HUNT_AGGRESSIVE (wiki: ambushes the player)",
+                                    srv->npcs[skel_slot].huntmode);
+                    SELFTEST_CHECK(srv->npcs[skel_slot].max_hitpoints == 18,
+                                    "skull_skeleton max_hitpoints=%d, want 18 (wiki infobox)",
+                                    srv->npcs[skel_slot].max_hitpoints);
+                }
+            }
+
             mock230_scripts_free(srv);
         }
     }

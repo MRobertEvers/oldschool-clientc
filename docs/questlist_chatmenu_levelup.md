@@ -103,8 +103,10 @@ on short journals. Journal rows are 415x20 `p12_full` single-line widgets. The
 authoritative rev-239 renderer (`class671.method14513` → `method14532`) disables
 wrapping when a widget is too short for two lines, so wrapping is necessarily a
 server obligation. `split_init` measures with archive 13's cache font metrics,
-treats `|` as a hard break, and carries active colour/strikethrough markup into
-continuation rows before `if_settext(qjN, split_get(...))`.
+treats `|` as a hard break, and carries the active *colour* into continuation
+rows before `if_settext(qjN, split_get(...))`. Strikethrough is deliberately not
+carried -- `^journal_done` is an unclosed `<str>` per completed step, so a carry
+strikes out every row below the first one (`make -C src test-mock230-split`).
 
 No journal text lives in any dbtable — content paints the lines.
 

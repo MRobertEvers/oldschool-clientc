@@ -2898,6 +2898,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_db.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
+	net/mock/mock230_dbinfo.c net/mock/mock230_healthbarinfo.c \
 	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
 	net/mock/mock230_zone_index.c net/mock/mock230_varbit.c \
@@ -2983,6 +2984,19 @@ test-mock230-mapinstance: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_mapinstance_test
 
+# `split_init`: which markup a continuation row inherits. Links the splitter and
+# the string pool only -- the world and the VM are supplied as two stub seams in
+# the test itself, so this stays instant despite needing the real cache font.
+.PHONY: test-mock230-split
+test-mock230-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/split_test \
+		net/mock/test/split_test.c net/mock/mock230_split.c \
+		serverscript/ssvm_strpool.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/split_test
+
 # The collision map the server routes on, against real map squares: wall bits
 # paired on both tiles of every edge, closed doors blocking their own edge, no
 # diagonal step across any doorway open or shut, and a door that opens and
@@ -3009,6 +3023,20 @@ test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # question authoring an agility course asks nine times per course. Same link
 # line as test-collision-doors (scene builder + collision map, no content, no
 # world), because it asks the same collision map the server routes on.
+.PHONY: loc-placement-probe
+# "Where is this loc placed, and which way does it face?" — the companion to
+# walkable-probe, and the other half of what authoring an obstacle handler
+# needs. Same link line: it builds a real scene out of real map squares.
+loc-placement-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_placement_probe \
+		net/mock/test/loc_placement_probe.c \
+		net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
+		engine/world_builder/collision_map.c features/features.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	@echo "built $(OBJ_DIR)/loc_placement_probe"
+
 .PHONY: walkable-probe
 walkable-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o

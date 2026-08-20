@@ -56,13 +56,42 @@
 > checks fail, which is how they were shown to be able to fail at all.
 > `::zulrahrun` covers the table itself and reports **OK - 8 checks passed**.
 >
+> **Update, 19 August 2026 — the three combat gaps are closed**, two of them by
+> new engine primitives:
+>
+> | Was missing | Now |
+> |---|---|
+> | A player stun. `%action_delay` is an ordinary varp that only gates the scripts choosing to read it, so a "stunned" player walked away and kept attacking. | **`p_stun(ticks)` / `p_stunned()`** — a first-class player state. Stops movement and every world interaction, and deliberately leaves the inventory, equipment and prayer book alone: eating and flicking a prayer through a stun is what makes one survivable. `ticks <= 0` clears; otherwise the longer stun wins, as `npc_freeze` does. |
+> | A knockback. There was no force-movement in the encounter at all. | `p_exactmove` already existed; what was missing was a way to find where a shove comes to rest. **`map_canstep(coord, dx, dz)`** answers the STEP question — the same test the player's own mover uses, corner rule included — where `map_blocked` only answers the tile question and slides actors through wall corners. |
+> | Melee immunity. | No engine change was needed after all: `~player_hit_npc_prepare` already derives `$style` from `%damagetype` and simply was not passing it down. `~zulrah_on_player_hit` now takes it and returns 0 for melee. |
+>
+> Two traps found wiring it up, both worth knowing before reaching for these:
+>
+> - **`p_exactmove` is a protected op and `[softtimer]` has no protected
+>   access.** Zulrah's runner is a softtimer on purpose (it must run while the
+>   player is busy), so issuing the shove from it aborted the script with
+>   *"P_EXACTMOVE requires an active entity the script does not have"* — on the
+>   tick the tail landed, silently. The shove goes through `[queue,…]`, which
+>   drains in phase 5 with protected access, one tick later. That is also when
+>   the reference's own force-move resolves its teleport. `p_stun` is not
+>   protected and works from either.
+> - **`~coord_direction2` cannot answer "directly away from".** With `dx > 0` it
+>   only ever returns east, north-east or south-east, so it can never say
+>   "straight south" however far south the target is. A player one tile east and
+>   five tiles south of Zulrah's middle — the ordinary case — came back as due
+>   EAST, which is off the island, so the shove found its first step blocked and
+>   did nothing. Zulrah computes its own push axes; the shared helper is left
+>   alone, since its other callers may be tuned to it, but it is a real bug and
+>   the Theatre's bounce uses it too.
+>
+> The Theatre of Blood's `~tob_verzik_stun` carried the identical disclosed gap
+> and now uses `p_stun` as well; its bounce walks with `map_canstep` instead of
+> `lineofwalk`.
+>
 > Still knowingly absent, and unchanged by this pass:
 >
 > | Gap | Where |
 > |---|---|
-> | No engine player-stun primitive; the tail plays the animation + `%action_delay` | `~zulrah_stun` |
-> | No knockback on a connecting tail swing (the reference force-moves the player) | `~zulrah_tail_swing` |
-> | Zulrah is not melee-immune here (the reference zeroes melee hits) | `~zulrah_on_player_hit` takes damage, not style |
 > | CA 227 "Snake Rebound" needs a Vengeance damage-source tag | `~zulrah_check_achievements` |
 > | Boss-task Slayer assignment absent tree-wide | `~zulrah_slayer_credit` |
 > | Elite clue drop: cache has only per-step `trail_clue_elite_*` | `~zulrah_roll_tertiary` |

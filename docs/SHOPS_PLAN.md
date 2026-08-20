@@ -1234,3 +1234,91 @@ tree with zero duplicate-trigger warnings and zero content errors.
    `--selftest` cannot: whether `shopmain` draws, whether the buy ladder's
    op1/op6 Value/Buy-N toggle behaves, whether the sell ladder's inferred op
    indices are right.
+
+---
+
+## 9. Selling, as fixed (2026-08-19)
+
+Reported from a live client: *"selling to a general store or any other store
+doesn't change the stock of the store."* Three separate causes, in the order
+the sale hits them.
+
+### 9.1 A shop's stock is a count, not a pile — `stackall` was general-store-only
+
+`tools/gen_shop_scripts.py` emitted `stackall=yes` (and `allstock=yes`) only
+for a shop whose wiki `special=` reads *general store* — 41 of the 275 shop
+invs in the tree. For the other 234 a shop slot held one physical item, so
+`inv_itemspace(%shop, <an unstackable obj>, 1, inv_size(%shop))` asked for a
+**free slot**. A specialty shop's cache inv is sized to its stock table
+exactly (Bob's Brilliant Axes: 7 slots, 7 stock lines, all occupied), so the
+answer was always "no" and `~sell_item` returned on
+
+    The shop has run out of space.
+
+before touching anything. Measured, not inferred — this is the whole of the
+report for every non-general shop: the axe stayed in the backpack, the shelf
+stayed at 10, no coins.
+
+`stackall` is not a general-store trait and was never meant to read as one.
+The wiki writes *Bronze axe x10* for a shop that has never held ten cells, and
+LostCity states `stackall=yes` on all 121 of its shop invs, general or not.
+The generator now emits it for every shop, and the 233 already-generated files
+got the same line (the generator is deliberately write-once per shop, so it
+does not re-render a file it already wrote).
+
+`allstock` is a different question — *acceptance*, not storage — and stays
+general-store-only, which is what the wiki says: a general store "usually
+accept[s] all tradeable items", a specialty shop buys only what it already
+stocks. It also still gates the one-per-minute destock of a line the shop has
+no baseline for.
+
+### 9.2 A noted item could not be sold at all
+
+`~shop_sell_slot` passed `oc_uncert($item)` to `~sell_item`, which LostCity's
+own `shop_request` does not do. Everything downstream then asked the
+*backpack* about an id it was not holding: `inv_total` came back 0,
+`~calculate_items_amount_sold` returned 0, and the click did nothing — no
+message, no coins, no stock. It now hands on the raw obj, the way the
+reference does, and `~sell_item`'s existing `oc_uncert(...)` calls keep
+answering the shop-side questions.
+
+### 9.3 `inv_moveitem_uncert` did not un-note
+
+Which is why §9.2's uncert was there. The generic (non-bank) arm of
+`SS_OP_INV_MOVEITEM_CERT` / `_UNCERT` in `mock230_ops_inv.c` did the plain
+move and left the form alone — a documented limit, on the grounds that nothing
+outside the bank used the cert forms. The shop does. It now converts through
+the same `noted_id` / `cert_id` link `oc_uncert` / `oc_cert` read, which is
+identity for an obj with no other form, so every equip, unequip and non-noted
+move is unchanged.
+
+### 9.4 What now covers it
+
+`mock230 selftest: selling to a shop` (§6's stanza, `mock230_world.c`), seven
+cases driven as real `IF_BUTTON2` packets on `shopside:items` after a real
+`~openshop`:
+
+| case | expected |
+|---|---|
+| general store, a pot it stocks | shelf +1 |
+| general store, an item it does not stock (`allstock`) | shelf +1, paid |
+| axe shop, an axe it stocks | shelf +1, paid |
+| axe shop, a sword it does not stock | refused, item kept, **paid nothing** |
+| any shop, coins | refused |
+| any shop, an untradeable obj (found in the cache, not written down) | refused |
+| general store, a **noted** pot | shelf +1 as a real pot |
+
+Each case also asserts the buy grid was repainted — `UPDATE_INV_*` naming the
+shop inv and `shopmain:items` — inside a capture that spans the click *and* the
+tick, because a shared row flushes from `phase_clients_out` and not at the
+moment of the write. "The shop's stock changed" and "the player was told" are
+two facts and only the second is the one in front of the player. Negative
+control: dropping the tick from the capture turns all three positive repaint
+checks red.
+
+### 9.5 Still open
+
+* §8.3 item 4 stands — none of this is a connected-client playtest, and the
+  sell ladder's op indices are still ours rather than the cache's.
+* Two shop invs (2069, 2070) have a definition and neither a cache size nor a
+  `size=`, so they are parsed and not seeded. Pre-existing, §8.5.

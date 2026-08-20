@@ -19,10 +19,10 @@
 
 | Release date | Quest | Content dir | Status | Date | Note |
 |---|---|---|---|---|---|
-| 04 Jan 2001 | Cook's Assistant | `quest_cook` | in-progress | 2026-08-19 |  |
-| 04 Jan 2001 | Demon Slayer | `quest_demon` | unaudited | |  |
-| 04 Jan 2001 | The Restless Ghost | `quest_priest` | unaudited | |  |
-| 04 Jan 2001 | Romeo & Juliet | `quest_romeojuliet` | unaudited | |  |
+| 04 Jan 2001 | Cook's Assistant | `quest_cook` | fixed | 2026-08-19 | dialogue+reward text fixed to match wiki transcript/rewards table; added `::cookrun` dynamic test; incremental hand-in and post-quest chat option left as disclosed approximations |
+| 04 Jan 2001 | Demon Slayer | `quest_demon` | fixed | 2026-08-19 | journal said "the Gypsy" (unnamed) at 3 states, cache/all dialogue call her Aris -- fixed; added `::demonrun` dynamic test (25 PASS checks incl. real ~demon_slayer_can_attack_delrith/~init_incantation/~incantation_word dispatch); `~mesbox`-opening procs (correct/wrong incantation) silently kill a debugproc -- new engine trap, mirrored instead |
+| 04 Jan 2001 | The Restless Ghost | `quest_priest` | fixed | 2026-08-19 | altar Search was dead (pickup logic lived on an unreachable `[opobj3,ghostskull]`, quest could never complete); skull_skeleton had no combat block (never ambushed, per wiki); minor dialogue drift fixed; added `::priestrun` dynamic test |
+| 04 Jan 2001 | Romeo & Juliet | `quest_romeojuliet` | fixed | 2026-08-19 | Phillipa+Draul Leptoc were wiki-documented talkable NPCs with zero dialogue (silent no-op) -- added; Romeo's final scene skipped the "falls for Phillipa" punchline entirely -- added as narrated dialogue (disclosed approximation: no literal crypt-walk cutscene); added `::romeojulietrun` dynamic test (state ladder + reward, 5 QP) |
 | 04 Jan 2001 | Sheep Shearer | `quest_sheep` | unaudited | |  |
 | 04 Jan 2001 | Shield of Arrav | `quest_blackarmgang` | unaudited | |  |
 | 21 Jan 2001 | Ernest the Chicken | `quest_haunted` | unaudited | | dir=quest_haunted; matched to Ernest the Chicken via piranha/fountain/pressure-gauge puzzle fingerprint, not a direct name match -- confirm at audit time |

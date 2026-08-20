@@ -51,6 +51,23 @@ mock230_world_set_varp(
     assert(!srv);
 }
 
+void
+mock230_world_set_varp_on(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int varp,
+    int value)
+{
+    (void)player;
+    (void)varp;
+    (void)value;
+    /* The named-player sibling of `mock230_world_set_varp`, and reached the same
+     * way: `mock230_varbit_set` writes the carrier varp after patching the bit
+     * range. Same argument, same assert — a non-NULL `srv` means the validator
+     * was handed a live world. */
+    assert(!srv);
+}
+
 struct Mock230Container*
 mock230_container_resolve(
     struct Mock230Server* srv,
