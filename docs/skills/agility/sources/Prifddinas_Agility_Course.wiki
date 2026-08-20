@@ -1,0 +1,178 @@
+{{external|rs=Hefin Agility Course}}
+{{Infobox Location
+|name = Prifddinas Agility Course
+|image = [[File: Prifddinas Agility Course (8).png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|location = [[Prifddinas]]
+|map = {{Map|name=Prifddinas Agility Course|x=3254|y=6109|r=4|mapID=29|mtype=square}}
+|type = agility course
+|leagueRegion = Tirannwn
+}}
+The '''Prifddinas Agility Course''' is an Agility course available to players with 75 [[Agility]] who have completed the [[Song of the Elves]] [[quest]]. It can be started by climbing the ladder just outside of the north-western bank in [[Prifddinas]].
+
+Players can expect an experience rate of approximately 65,000 experience per hour at level 90 Agility with the usage of portal shortcuts, and the course becomes impossible to fail at level 91 Agility.
+
+Players can speak to [[Ystwyth]] after the end of the course to see statistics about the course, including the total number of laps the player has completed as well as their fastest lap completion time, along with global statistics.
+
+==Mechanics==
+===Portals===
+[[File:Prifddinas Agility Course portal.png|thumb|right|The [[Portal (Prifddinas Agility Course)|portal]] that occasionally appears.]]
+The course is unique in that [[Portal (Prifddinas Agility Course)|portals]], which act as shortcuts, appear at various points during the lap. There are a total of 6 possible unique portal locations, and only one can appear per lap. Using these shortcuts, which spawn randomly for each player, slightly increases the experience gained per lap.
+
+It is possible to go through multiple portals, and by extension collect multiple [[Crystal shard|Crystal shards]], between lap completions if the player leaves the course mid-lap. This can occur naturally if a portal appears at the first possible position, and the player subsequently fails the [[Chimney_(Prifddinas_Agility_Course)|Chimney]] obstacle (which requires the player to return to the start of the course). 
+
+{|
+|{{Map|align=left
+|mtype=dot|fill=#00fffb|3257,6111|3270,6116|3282,6138|3267,6147|3272,6157|3273,6171
+
+|mtype:line,3257:6111,3275:6105
+|mtype:media,3275:6105,img:Crystal shard 1.png,outlineColour:#00fffb
+
+|mtype:line,3270:6116,3292:6140
+|mtype:text,3272,6116,label:{{FloorNumber|uk=0|caps=y}},position:right
+|mtype:media,3292:6140,img:Crystal shard 1.png,outlineColour:#00fffb
+
+|mtype:line,3282:6138,3268:6146
+|mtype:media,3268:6146,img:Crystal shard 1.png,outlineColour:#00fffb
+
+|mtype:line,3267:6147,3271:6157
+|mtype:media,3271:6157,img:Crystal shard 1.png,outlineColour:#00fffb
+
+|mtype:line,3272:6157,3277:6167
+|mtype:media,3277:6167,img:Crystal shard 1.png,outlineColour:#00fffb
+
+|mtype:line,3273:6171,3286:6178
+|mtype:media,3286:6178,img:Crystal shard 1.png,outlineColour:#00fffb
+|caption=Portals (dots) and their exits (crystals)|plane=2|mapID=-1}}
+|}
+
+Portal shortcuts bring the lap duration down by around 5–10 seconds depending on the location in which the portal spawns. Using a portal grants 82 experience and, on average, adds an additional 55.4 experience per lap.
+
+===Experience per hour===
+{| class="wikitable"
+!Level
+!XP/HR
+|-
+|75
+|54,000
+|-
+|80
+|58,000
+|-
+|85
+|62,000
+|-
+|90
+|66,000
+|}
+
+===Crystal shards===
+Players can expect to find roughly 45 [[crystal shard]]s per hour (0.94 shard per lap) on this course, with each portal providing one shard. These shards will automatically appear in the player's inventory, and if there is no space available, they will spawn on the ground. ''[[Mark of grace|Marks of grace]] cannot be obtained on this course.''
+
+===Lap times===
+The average lap duration is about 1:14, with the fastest possible completion time without exploits being 1:03.60, and the world record being 0:58.20. The time of 1:03.60 can only be achieved by standing on the tile directly next to the ladder by the bank, and getting the portal spawn on top of the bank. When running to this tile instead, the climbing animation takes an additional [[tick]], resulting in a time of 1:04.20.
+
+==Obstacles==
+{| class="wikitable align-center-3 align-center-4"
+|+ Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Prifddinas Agility Course (1).png|250px]]
+|[[Ladder (Prifddinas Agility Course)#1|Ladder]]
+|{{+=|xp|11.5|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (2).png|250px]]
+|[[Tightrope (Prifddinas Agility Course)#1|Tightrope]]
+|{{+=|xp|30.7|echo=2}}
+|Yes (until 91)
+|-
+|[[File:Prifddinas Agility Course (3).png|250px]]
+|[[Chimney (Prifddinas Agility Course)|Chimney]]
+|{{+=|xp|28.1|echo=2}}
+||Yes (until 91)
+|-
+|[[File:Prifddinas Agility Course (4).png|250px]]
+|[[Roof edge (Prifddinas Agility Course)|Roof edge]]
+|{{+=|xp|23.0|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (5).png|250px]]
+|[[Dark hole (Prifddinas Agility Course)#1|Dark hole]]
+|{{+=|xp|11.5|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (6).png|250px]]
+|[[Ladder (Prifddinas Agility Course)#2|Ladder]]
+|{{+=|xp|0|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (7).png|250px]]
+|[[Rope bridge (Prifddinas Agility Course)#1|Rope bridge]]
+|{{+=|xp|25.6|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (8).png|250px]]
+|[[Tightrope (Prifddinas Agility Course)#2|Tightrope]]
+|{{+=|xp|30.7|echo=2}}
+|Yes (until 91)
+|-
+|[[File:Prifddinas Agility Course (9).png|250px]]
+|[[Rope bridge (Prifddinas Agility Course)#2|Rope bridge]]
+|{{+=|xp|25.6|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (10).png|250px]]
+|[[Tightrope (Prifddinas Agility Course)#3|Tightrope]]
+|{{+=|xp|30.7|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (11).png|250px]]
+|[[Tightrope (Prifddinas Agility Course)#4|Tightrope]]
+|{{+=|xp|30.7|echo=2}}
+|No
+|-
+|[[File:Prifddinas Agility Course (12).png|250px]]
+|[[Dark hole (Prifddinas Agility Course)#2|Dark hole]]
+|{{+=|xp|1037.1|echo=2}}
+|No
+|-
+! colspan="2" style="text-align:right;" |Total
+! {{#var:xp}}<br/>~{{#expr:{{#var:xp}}+55.4}} with portals
+!
+|}
+
+==Trivia==
+* Previously, players have used various exploits to achieve lower times including no longer possible strategies such as lighting fires on the agility course to move 3 tiles in 1 tick, among other unknown strategies.
+** The current world record time is 0:58.20 with unknown strategies.
+<!-- {{Bug|The [[Leagues]] task <q>Complete the Prifddinas Agility Course in 1:10</q> stops tracking time and may be completed without time limitations if the player logs out during the Prifddinas Agility Course.}} Shattered Relics League, Trailblazer Reloaded League-->
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = The [[crystal shard]] drop rate was increased from 1/3 to a 100% drop per portal.
+}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|change = Prifddinas Agility Course portals are now highlighted on the [[Official Client|Steam Client]].
+}}
+{{Subject changes
+|date = 1 August 2019
+|update = SOTE Changes and Small Game Updates
+|poll = Prifddinas Agility & Elena
+|change = The Agility Course experience rates have been increased from 56,000 experience per hour at level 90 when not using shortcuts and 62,000 experience per hour when using shortcuts to 60,000 and 66,000, respectively.
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Prifddinas}}

@@ -1,0 +1,83 @@
+{{External|rs|rsc}}
+{{Infobox Location
+|name = Gnome Stronghold Agility Course
+|image = [[File:Gnome Stronghold Agility Course.png]]
+|release = [[12 December]] [[2002]]
+|update = Agility skill online
+|members = Yes
+|location = [[Tree Gnome Stronghold]]
+|map = {{Map|x=2480|y=3428}}
+|type = agility course
+|leagueRegion = Kandarin
+}}
+The '''Tree Gnome Stronghold Agility Course''' is an [[Agility]] [[Agility course|course]] in which the player must traverse obstacles consisting of a log balance, obstacle nets, tightropes, and pipes. It is located south of the [[Grand Tree]] in the [[Tree Gnome Stronghold]], which is north-west of [[East Ardougne]]. This Agility course is the lowest level course that can be accessed and has no requirements. It is impossible to fail any of the obstacles at this course, so it is not necessary to bring any [[food]]. Players gain 110.5 [[experience]] points for a complete circuit, and can receive [[marks of grace]] during this course.
+
+Completing a lap of the Gnome Stronghold Agility Course is a requirement for the [[easy Western Provinces Diary]].
+
+==Transportation==
+*Use the [[spirit tree]] teleportation, which requires completion of {{SCP|Quest}} [[Tree Gnome Village]], and run south-east.
+*Launch a [[grand seed pod]] or [[royal seed pod]] to get to the Grand Tree and run south.
+
+* Simply walk into the [[Tree Gnome Stronghold]]. Click the front door and [[Femi]] will appear saying "Hey!" you reply "Hi!" and she asks you to help her with some boxes. The character grabs the boxes. Now click the front door again and the door opens.
+
+*Use a [[necklace of passage]] to teleport to the [[Outpost]] and run slightly north-east.
+*Teleport to [[Ardougne]] and run north-west from there.
+*Use a [[games necklace]] to teleport to [[Barbarian Outpost]], dive into the [[Whirlpool (Baxtorian Falls)|whirlpool]] south of it - note that diving into the whirlpool might cause some damage - and walk from there. This cannot be done after unlocking access to the [[Ancient Cavern]].
+
+==Obstacles==
+This Agility course consists of the following obstacles:
+
+{| class="wikitable align-left-2" style="text-align:center;"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Gnome Stronghold Agility Course (1).png|250px]]||[[Log balance (Gnome Stronghold Agility Course)|Log balance]]||{{+=|xp|10|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (2).png|250px]]||[[Obstacle net (Gnome Stronghold Agility Course)|Obstacle net]]||{{+=|xp|10|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (3).png|250px]]||[[Tree branch (Gnome Stronghold Agility Course)|Tree branch]]||{{+=|xp|6.5|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (4).png|250px]]||[[Balancing rope (Gnome Stronghold Agility Course)|Balancing rope]]||{{+=|xp|10|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (5).png|250px]]||[[Tree branch (Gnome Stronghold Agility Course)|Tree branch]]||{{+=|xp|6.5|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (6).png|250px]]||[[Obstacle net (Gnome Stronghold Agility Course)|Obstacle net]]||{{+=|xp|10|echo=2}}
+|-
+|[[File:Gnome Stronghold Agility Course (7).png|250px]]||[[Obstacle pipe (Gnome Stronghold Agility Course)|Obstacle pipe]]||{{+=|xp|7.5|echo=2}}
+|-
+|{{NA}}||Course Completion Bonus||{{+=|xp|50|echo=2}}
+|-
+! colspan=2 |Total
+!{{#var:xp}}
+|}
+
+{{Agility info
+|name = Gnome Stronghold Completion Bonus
+|level = 1
+|xp = 50
+|course = [[Gnome Stronghold Agility Course]]
+|type = Completion Bonus
+}}
+
+A lap will take a minimum of 34 seconds to complete. Therefore the average experience per hour will be around 10,000, depending on the player's concentration.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Players will now receive [[marks of grace]] during the course.
+* The [[experience]] per hour gained at the course has been increased from 9,250 to 10,000.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The [[Gnome trainer]]s will shout either encouraging phrases or insult the player during their [[Agility]] training at this course, mimicking a drill sergeant.
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Tree Gnome Stronghold}}

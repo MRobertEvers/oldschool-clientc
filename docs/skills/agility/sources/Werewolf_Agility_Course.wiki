@@ -1,0 +1,148 @@
+{{External|rs}}
+{{Confuse|Werewolf Skullball}}
+{{Infobox Location
+|name = Werewolf Agility Course
+|image = [[File:Werewolf Agility Course.png]]
+|release = [[31 January]] [[2005]]
+|update = Creature of Fenkenstrain
+|members = Yes
+|location = [[Canifis]]
+|map = {{Map|mapID=-1|3552:9890|plane=0}}
+|type = agility course
+|leagueRegion = Morytania
+}}
+{{Relativelocation
+|location = Werewolf Agility Course
+|north = Fenkenstrain's Castle
+|west = Canifis
+|south = Morytania Graveyard
+|east = Haunted Woods
+}}
+The '''Werewolf Agility course''' is an Agility training area located near [[Canifis]], available to players with level 60 [[Agility]]. Access to this course requires completion of [[Creature of Fenkenstrain]]. To access the Agility course, the player has to wear a [[ring of charos]] to be allowed to climb-down the [[trapdoor (Werewolf Agility Course)|entrance]] by the [[werewolf (Werewolf Agility Course)|werewolf]] nearby.
+
+The Agility course rewards 730 Agility [[experience]] per completed lap, assuming the player hands in the [[Stick (item)|stick]] every time. With an average time of 38 seconds per lap, it is possible to get upwards of 68,500 Agility experience per hour from this course. At lower Agility levels expect to get around 60,000–65,000 Agility experience per hour, depending on concentration levels. In addition to experience, players will also receive [[marks of grace]] during this course.
+
+==Introduction==
+The Werewolf Agility Course requires level 60 Agility and completion of [[Creature of Fenkenstrain]] to access. The Agility course consists of five obstacles that players can pass in return for Agility experience. 380 bonus experience is rewarded at the end of the lap by collecting the [[Stick (item)|stick]] while traversing the course and turning it in at the [[Agility Trainer]]. The deathslide is the only obstacle that can be failed by the player, which can hit over 30 damage. Players with higher Agility and [[Strength]] and lower weight have a higher success rate at passing this obstacle.
+
+Upon logout, the player may be placed back at the entrance (through the trapdoor, not outside) and the stick will disappear from the inventory if the stick was previously obtained.
+
+==Transportation==
+{{Map|3543,3462|mtype=pin|align=right|zoom=1|width=250|height=250|caption=The entrance to the Werewolf Agility Course.}}
+*Take the north-eastern exit out of [[Canifis]] and run south.
+*Walk south-west of [[fairy ring]] {{Fairycode|ALQ}}.
+*Use [[Fenkenstrain's Castle Teleport]] ([[Arceuus spells]]) and run south.
+
+Watch out for the leeches, especially if you leave by the ladder and have low health.
+
+==Strategies==
+===Clothing===
+*Wear a [[ring of charos]] to access the course.
+*Wear [[weight-reducing clothing]] to achieve a weight of 0 kg or lower. This results in a lower run energy depletion rate. The success rate of the deathslide is also affected by the player's weight, with a weight of 0 kg or lower giving the best chance of success - note however that the bonus caps out at 0kg. {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1065720025678524416|date=22 November 2018|archiveurl=https://web.archive.org/save/https://twitter.com/JagexAsh/status/1065720025678524416|archivedate=30 August 2019|quote=Below 0 it makes no further difference.|name="0 kg"}}
+*No item may be worn in the [[head slot]] when attempting the deathslide.
+*A [[regen bracelet]] plus a [[Hitpoints cape]] can prove useful (for 4 Hitpoints per minute regeneration), as it speeds up the [[Hitpoint]]s regeneration rate.
+
+===Inventory===
+*Bring some [[food]] to restore lost [[Hitpoints]] from taking damage from failing Agility obstacles.
+**[[Summer pie]]s are recommended, since they are very lightweight and temporarily boosts the Agility stat with +5 levels.
+*Bring enough [[Energy#Energy-restoring items|energy-restoring items]] for enough [[energy]] to constantly run around the course.
+*At low [[Strength]] levels, [[super strength]] potions or the [[dragon battleaxe]]'s [[special attack]] may be used to reduce the chance of failing the deathslide.
+
+==Obstacles==
+[[File:Werewolf Agility Course map.png|frame|thumb|The Werewolf Agility Course]]
+{| class="wikitable align-left-2 align-left-4" style="text-align:center;"
+|-
+!Image
+!Obstacle
+!Experience
+!Notes
+|-
+|[[File:Werewolf Agility Course (1).png|250px]]
+|[[Stepping stone (Werewolf Agility Course)|Stepping stone]]
+|{{+=|xp|50|echo=2}}
+|First run to the tile directly in front of the first stepping stone, or else attempting to jump on the stepping stone will cause the character to stop running.
+<br/>
+The stepping stones consist of multiple components that need to be clicked on individually. When clicked in the correct rhythm, which is one component per game tick (0.6 seconds), these obstacles can be cleared in a flowing motion.
+|-
+|[[File:Werewolf Agility Course (2).png|250px]]
+|[[Hurdle (Werewolf Agility Course)|Hurdle]]
+|{{+=|xp|60|echo=2}}
+|While passing a hurdle, already click on the next hurdle before the animation is finished to save some time. Always take the middle path.
+|-
+|[[File:Werewolf Agility Course (3).png|250px]]
+|[[Pipe (Werewolf Agility Course)|Pipe]]
+|{{+=|xp|15|echo=2}}
+|After the hurdles, crawl through the pipe that is closest to the [[Stick (item)|stick]].
+|-
+|{{NA}}
+|Stick
+|{{+=|xp|0|echo=2}}
+|Pick up the stick. This requires an empty inventory slot. Without this, the bonus at the end of the course will not be rewarded. It is not possible to have multiple sticks at once.
+<br/>
+'''Note:''' The stick is subject to the time constraints of an item left on the ground. If left on the ground for too long, it will disappear, and no bonus experience will be rewarded for that lap!
+|-
+|[[File:Werewolf Agility Course (4).png|250px]]
+|[[Skull slope (Werewolf Agility Course)|Skull slope]]
+|{{+=|xp|25|echo=2}}
+|Always climb the middle skull slope by clicking on the bottom of the middle slope.
+|-
+|[[File:Werewolf Agility Course (5).png|250px]]
+|[[Zip line (Werewolf Agility Course)|Zip line]]<br/>(Deathslide)
+|{{+=|xp|200|echo=2}}<ref group="d">The deathslide gives a variable amount of experience. The earlier you fall (if you fall) you will only receive 180, 160 or 140 experience per Death Slide, and the farther you go before you fall the larger the amount of experience gained.</ref>
+|This is the only failable obstacle of the course. A fall can deal upwards of 30 damage and does NOT scale with [[Hitpoints]], so players with low HP are at risk of [[death]].<br/>
+This is one of the very few Agility obstacles where the player's weight does affect the success rate of the obstacle. A weight of 0 kg or lower gives the best chance of success.<ref name="0 kg" /><br/>
+Players cannot wear a helmet when attempting this obstacle.
+With level 80 in Agility and [[Strength]] and a weight of 2 kg or lower, this obstacle will never be failed.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1158672314575261697|date=6 August 2019|archiveurl=https://reldo.runescape.wiki/i/97735|archivedate=25 May 2020|quote=If your Agility and Strength are over 80 and your carried weight is under 2kg, it looks like the code will indeed do that.}}
+|-
+|[[File:Werewolf Trainer holding spot.png|250px]]
+|Bonus
+|{{+=|xp|380|echo=2}}
+|Hand in the stick to the [[Agility Trainer]] for the bonus experience reward.
+|-
+! colspan=2 |Total
+!{{#var:xp}}
+!
+|}
+{{Reflist|group="0 kg"}}
+{{Reflist|group="d"}}
+
+==Experience rates==
+Due to the success rate of the obstacles, the experience rates scale with the player's Agility level. At level 80 and higher expect to be able to complete a maximum of 94 laps per hour (~63.62 [[RuneScape clock|tick]]s per lap, assuming an even distribution of stick spawns), resulting in 68,600 Agility experience per hour.
+
+At lower Agility levels expect to get up to 60,000 Agility experience per hour.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Players will now receive [[marks of grace]] during the course.
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = Clicking on the Zip-line before climbing the slope in no longer allows the player to skip climbing the skull slope.
+}}
+{{Subject changes
+|date = 12 July 2018
+|update = Game Integrity: Pickpocketing
+|poll = Revenant Cave Rewards: Revisited & Content Changes Poll
+|change = The Werewolf Agility Course in Canifis now rewards players with twice the number of experience when handing in the stick. This sees the increase in Agility experience rise from 190 to 380.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The stick despawns after around 90 seconds if not picked up.
+*When forgetting to pick up the stick, an [[Agility Trainer]] may taunt the player about it when climbing the skull slope.
+*When forgetting to pick up the stick, the [[Agility Boss]] will throw an additional stick on the next lap. If done quickly enough, a player can reach both sticks before the first despawns, however the player cannot pick up more than one stick at a time. Attempting to pick up a second stick results in a chat message stating: "That's somebody else's stick!"
+*When forgetting to turn in the stick if it was picked up, the Agility Boss will ask you why you forgot to turn in the stick, and will not throw a second stick.
+*The deathslide is the only agility obstacle that can do damage past the player's [[Hitpoints]].
+*The [[Agility Boss]]' outfit may be modelled after the yellow jumpsuit made famous by {{Wp|Bruce Lee}} and the movie {{Wp|Kill Bill}}.
+*The deathslide contains a glitch that, if failed, the character might be seen falling into a black void. Logging out and logging back in (sometimes multiple times) is required to escape the void.
+
+==References==
+{{Reflist}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Canifis}}

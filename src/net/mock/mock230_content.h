@@ -374,6 +374,19 @@ struct Mock230NpcDef
      * wire and only a baked client stops it on screen.
      */
     int turnspeed;
+    /**
+     * The compass direction this npc spawns facing, in the client's turn-angle
+     * index (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE — see `face_dir` on
+     * `struct Mock230Npc`). -1 = not stated, use the engine default (south).
+     *
+     * `npc_spawn` seeds `face_dir` once and nothing revisits it for an npc
+     * that never steps, so a boss with `moverestrict=nomove` is stuck in
+     * whatever orientation it spawned with until something explicitly turns
+     * it (`npc_facesquare`, which drives a separate live-turn mechanism, does
+     * not touch this field — see the field's comment). A stationary boss
+     * whose real spawn orientation is not south has no other way to say so.
+     */
+    int facing;
 
     enum Mock230HuntMode huntmode;
     int huntrange;

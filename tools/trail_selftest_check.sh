@@ -92,6 +92,8 @@ four altars are 100% reduction without a demonbane weapon and 60% with one
 Vorkath's two specials alternate and only the first is random
 Porazdir's ball ignores prayer and only distance stops it
 the Mark of Darkness doubles two things and is opt-in
+a Rise of the Six death heals the survivors and resets the corpses
+the rabbit foot narrows the nest range, it does not reweight the table
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

@@ -314,8 +314,16 @@ the halve-on-hit rule; the crocodiles' three-tier aggression and their flat
 
 `[M10]` The trap **cycle period** is not stated anywhere. The wiki proves it is
 fixed — a 32.4-second no-damage solo clear depends on it — but gives no number.
-Ten `crondis_poison_tile_activate_*` sequences in the cache suggest ten phases;
-that is an inference, not a measurement.
+
+What has since been *measured* off the cache is the sweep's shape, not its
+period: `crondis_poison_tile_activate_01..10` are one eighteen-frame cloud with
+its first frame held 3, 13, 23 … 93 client cycles, so the ten sequences are one
+animation delayed nought to nine ticks and the cloud crosses the corridor's ten
+rows at one row a tick. `crondis_spear_trap_activate` runs 295 cycles (9.83
+ticks) and loops. `^toa_crondis_trap_cycle = 12` is the ten-row sweep plus the
+telegraph tick the last row needs plus one tick of quiet — still an inference,
+now a single number with its reasoning beside it in `toa.constant`, and still
+`[M10]` until somebody counts ticks in a real raid.
 
 ### 5.4 Path of Apmeken — `toa_apmeken.rs2`
 
@@ -451,7 +459,7 @@ phantoms reuse the path bosses' behaviour and invocations.
 | `[M7]` | Warden P3 attack rate: cache says 5 / 1, wiki says 7 | §ASSET_INDEX §2.1 |
 | `[M8]` | the varbit the invocation state is actually stored in | §ASSET_INDEX §8 |
 | `[M9]` | Het mirror/beam **layout generator** | §5.1 |
-| `[M10]` | Crondis trap cycle period | §5.3 |
+| `[M10]` | Crondis trap cycle **period**. The sweep's shape is now measured off the cache (one row a tick, ten rows) and only the period is a guess — `^toa_crondis_trap_cycle = 12` | §5.3 |
 | `[M11]` | Zebak Great Roar rock/jug placement patterns. The clock is built and checked; the specials announce and resolve without geometry rather than placing rocks on invented tiles | §6 |
 | `[M16]` | Zebak's attack-style distribution. Rolled flat across the three; no source states a pattern and the guides describe reacting to the animation | §6 |
 | `[M12]` | Kephri shield charge per swarm | §6 |

@@ -1,0 +1,117 @@
+{{External|rs|rsc}}
+{{Infobox Location
+|name = Barbarian Outpost Agility Course
+|image = [[File:Barbarian Outpost Agility Course.png|300px]]
+|release = [[12 December]] [[2002]]
+|update = Agility skill online
+|members = Yes
+|location = [[Barbarian Outpost]]
+|map = {{Map|2551:3554|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Kandarin
+}}
+{{Relativelocation
+|location = Barbarian Outpost
+|north = Lighthouse
+|west = Tree Gnome Stronghold
+|south = Otto's Grotto
+|east = Coal Trucks
+}}
+The '''Barbarian Outpost Agility Course''' is an Agility training area located in the [[Barbarian Outpost]], available to players with level 35 [[Agility]]. Access to this course requires completion of the [[Alfred Grimhand's Barcrawl]] [[miniquest]].
+
+The Agility course rewards 153.3 Agility [[experience]] and 41.3 [[Strength]] experience per completed lap. With an average time of 32 seconds per lap (49 ticks if using additional clicks for tick-perfect), it is possible to get upwards of 18,000 Agility experience per hour from this course. At lower Agility levels expect to get around 11,000–14,000 Agility experience per hour, depending on concentration levels. In addition to experience, players will also receive [[marks of grace]] on this course.
+
+==Introduction==
+The Barbarian Outpost Agility Course requires level 35 Agility and completion of [[Alfred Grimhand's Barcrawl]] to access. The Agility course consists of eight obstacles that players can pass in return for Agility experience. If all obstacles are passed in the correct order, some bonus experience is rewarded at the end of the lap. Some of the obstacles can be failed by the player, resulting in small amounts of damage. Failed obstacles have to be tried again before going for the next obstacle, in order to become eligible for the bonus experience at the end of the lap. Players with higher Agility have a higher success rate at passing the obstacles, with players unable to fail obstacles at level 93.
+
+==Transportation==
+*Teleport to the [[Barbarian Assault]] minigame using [[Minigame Teleport]], requiring completing the tutorial of the minigame.
+*Teleport to the [[Barbarian Outpost]] using a [[games necklace]].
+*Teleport to the Barbarian Outpost by casting the [[Barbarian Teleport]] spell. This spell is on the [[Lunar spells|Lunar spellbook]] and requires level 75 [[Magic]] and completion of [[Lunar Diplomacy]] to cast.
+*Use the [[shortcut]] to the north-east of the [[Grand Tree]] in the [[Gnome Stronghold]], which requires level 37 Agility.
+*Teleport to the [[Fishing Guild]] using a [[skills necklace]] and walk north.
+*Walk north from [[East Ardougne]].
+
+==Strategies==
+===Clothing===
+*Wear [[weight-reducing clothing]] to achieve a weight of 0 kg or lower. This results in a lower run energy depletion rate.
+
+===Inventory===
+*Bring some [[food]] to restore lost [[Hitpoints]] from taking damage from failing Agility obstacles.
+*Obstacle damage scales with current Hitpoints so only eat at low health.
+*Bring enough [[Energy#Energy-restoring action|energy-restoring items]] for enough [[energy]] to constantly run around the course.
+
+==Obstacles==
+[[File:Barbarian Outpost Agility Course map.png|thumb|300px|right|A map of the Barbarian Outpost Agility Course.]]
+{| class="wikitable align-left-2" style="text-align:center;"
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Barbarian Outpost Agility Course (1).png|250px]]||[[Ropeswing (Barbarian Outpost Agility Course)|Ropeswing]]||{{+=|xp|22|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (2).png|250px]]||[[Log balance (Barbarian Outpost Agility Course)|Log balance]]||{{+=|xp|13.7|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (3).png|250px]]||[[Obstacle net (Barbarian Outpost Agility Course)|Obstacle net]]||{{+=|xp|8.2|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (4).png|250px]]||[[Balancing ledge (Barbarian Outpost Agility Course)|Balancing ledge]]||{{+=|xp|22|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (5).png|250px]]||[[Ladder (Barbarian Outpost Agility Course)|Ladder]]||{{+=|xp|0|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (6).png|250px]]||[[Crumbling wall (Barbarian Outpost Agility Course)|Crumbling wall]]||{{+=|xp|13.7|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (7).png|250px]]||[[Crumbling wall (Barbarian Outpost Agility Course)|Crumbling wall]]||{{+=|xp|13.7|echo=2}}
+|-
+|[[File:Barbarian Outpost Agility Course (8).png|250px]]||[[Crumbling wall (Barbarian Outpost Agility Course)|Crumbling wall]]||{{+=|xp|13.7|echo=2}}
+|-
+|{{NA}}||Course Completion Bonus||{{+=|xp|46.3|echo=2}} + 41.3 [[Strength]] experience
+|-
+! colspan=2 |Total
+!{{#var:xp}} + 41.3 [[Strength]] experience
+|}
+
+{{Agility info
+|name = Barbarian Outpost Completion Bonus
+|skill1name = Agility
+|skill3name = Strength
+|skill1lvl = 35
+|skill1exp = 46.3
+|skill3exp = 41.3
+|course = [[Gnome Stronghold Agility Course]]
+|type = Completion Bonus
+}}
+
+==Experience rates==
+Due to the success rate of the obstacles, the experience rates scale with the player's Agility level. At higher levels, a player can complete a maximum of around 120 laps per hour (49 [[RuneScape clock|tick]]s per lap), resulting in about 18,400 Agility experience per hour. A tick-perfect lap without running is 58 ticks. Tick-perfect laps require manually running to specific tiles between some of the obstacles. The course completion bonus also includes 41.3 [[Strength]] experience, leading to about 5,000 Strength experience per hour.
+
+At lower Agility levels with realistic rates, expect to get around 11,000–14,000 Agility experience per hour.
+
+==Treasure Trails==
+[[Gunnjorn]] is the solution to the [[clue scroll (hard)|hard]] [[Treasure_Trails/Guide/Ciphers|cipher clue]]: '''IWPPLQTP'''. He will challenge the player to complete a [[puzzle box]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Players will now receive [[marks of Grace]] during the course.
+* Players will now receive 5,000 [[Strength]] [[experience]] per hour at the course.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 Skilling Suggestions
+|change = The click-zone has been made larger on the ropeswing.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Only one player may use a rope swing at any one time.
+*The only part of the course that requires level 35 [[Agility]] is the [[Obstacle pipe (Barbarian Outpost)]] at the entrance. (Players with the [[clue compass (item)]] during [[Raging Echoes League]] could bypass this Agility level requirement, but were still required to complete [[Alfred Grimhand's Barcrawl]].)
+
+{{Barbarian Outpost Agility Course}}
+{{Agility courses}}
+{{Agility course obstacles}}
+[[Category:Kandarin]]
+[[Category:Agility]]

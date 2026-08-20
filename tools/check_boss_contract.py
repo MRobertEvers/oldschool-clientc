@@ -32,6 +32,13 @@ WIKI = os.path.join(ROOT, "docs", "bosses", "wiki")
 CONFIGS = [
     os.path.join(CONTENT, "server", "scripts", "bosses", "boss_wilderness_singles",
                  "configs", "bosses.npc"),
+    # The generated combat-stats table carries `attackrate` for 1,277 records,
+    # which is where most bosses outside boss_wilderness_singles get theirs.
+    # Reading only the hand-authored file meant every boss in it reported "no
+    # block in any boss config" -- indistinguishable from a boss with no stats
+    # at all.
+    os.path.join(CONTENT, "server", "scripts", "npc", "configs",
+                 "combat_stats.generated.npc"),
 ]
 
 STYLE_IDS = {"stab": 0, "slash": 1, "crush": 2, "ranged": 3, "magic": 4}
@@ -76,7 +83,16 @@ BOSSES = {
 
 
 def read_configs():
+    """Merge the config files, and REMEMBER where each value came from.
+
+    A record can be declared in more than one file -- `chaos_fanatic` is in both
+    the hand-authored `bosses.npc` and the generated `combat_stats.generated.npc`
+    -- and the two can disagree. Silently letting the last file win reproduces
+    whatever the packer does without ever saying that a choice was made, so a
+    contradiction between two sources reads as a single wrong value.
+    """
     out = {}
+    seen = {}
     for path in CONFIGS:
         text = open(path, encoding="utf-8").read()
         for block in re.split(r"\n(?=\[)", text):
@@ -161,8 +177,22 @@ def main():
                             % (record, speed, rate))
 
         allowed = wiki_styles(page)
+        # `damagetype` may be declared in more than one config file. Five of
+        # the seven records that appear twice write the SAME style two ways
+        # (`^crush_style` and `2`), which is not a conflict; two genuinely
+        # disagree. Normalise to the id before comparing so only the real ones
+        # are reported.
         got = params.get("damagetype", "").lstrip("^").replace("_style", "")
+        # The hand-authored configs spell the style ("crush"); the GENERATED
+        # combat-stats table writes the id ("2"). Both are valid `damagetype`
+        # values and the packer accepts either, so a checker that understands
+        # only one of them reports six correct records as broken -- which is
+        # exactly what happened the first time this file was widened.
         got_id = STYLE_IDS.get(got)
+        if got_id is None and got.isdigit():
+            got_id = int(got)
+            if got_id not in STYLE_IDS.values():
+                got_id = None
         if got_id is None:
             problems.append("%s: damagetype %r is not a style" % (record, got))
         elif allowed and got_id not in allowed:

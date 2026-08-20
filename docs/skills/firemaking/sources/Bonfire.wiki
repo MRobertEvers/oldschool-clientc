@@ -1,0 +1,19 @@
+{{confuse|Forester's Campfire}}
+{{Infobox Scenery
+|name = Bonfire
+|image = [[File:Bonfire.png|250px]]
+|release = [[8 September]] [[2016]]
+|update = The Wintertodt
+|members = Yes
+|quest = No
+|location = [[Wintertodt Camp]]
+|options = None
+|examine = A great place to rest.
+|map = {{Map|name=Bonfire|1631,3939|mapID=0|mtype=pin}}
+|id = 29300
+}}
+The '''bonfire''' is a small permanent [[fire]] burning at the [[Wintertodt Camp]].
+
+==Trivia==
+* The bonfire is a reference to [[wikipedia:Dark Souls|Dark Souls]], where they serve as checkpoints within the game.
+* Esther is possibly a reference to an NPC in Dark Souls II found in Majula.

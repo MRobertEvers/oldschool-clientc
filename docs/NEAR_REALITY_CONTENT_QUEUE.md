@@ -275,7 +275,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | B7 | **Xamphur** | 1031 | 210 | **partial** | The fight A Kingdom Divided soft-skipped: Marks of Darkness, escalating corruption, magic immunity, no-melee. The crushing press and the cutscene remain. |
 | B8 | **Abyssal Sire** | 1540 | 240 | **partial** | Stun ladder, vent damage floor, miasma bands and the once-only explosion gate are in and tested. The lair layout, tentacles and record swapping need a scene. |
 | B9 | **Cerberus** | 1516 | 290 | **done** | The full rotation: three-style attack, souls every 7th under 400hp, lava every 5th under 200hp, and Mod Ash's 10% skip. |
-| B10 | **Phantom Muspah** | 1289 | 290 | **partial** | Form swaps (damage-keyed, not health), the four-hit rule, special ordering, corruption and spike heal are in and tested. Arena, spikes and record swapping need a scene. |
+| B10 | **Rise of the Six** | 895 | 120 | **partial** | The encounter's one rule — a death heals the survivors and resets the corpses — is in and tested. The arena, the entry puzzle and the reward table remain. |
 | B11 | **Skotizo** | 861 | 200 | **partial** | The four awakened altars — two reduction rates, two caps, the one-hit demonbane disable, the 50-129 tick check interval and the one-minute cooldown — are in and tested. The lair, the totem and the drop table remain. |
 | B12 | **Corporeal Beast** | 1284 | 210 | **partial** | The damage rules — corpbane, the stab-only gate, the 100 cap, Protect-from-Magic's 33%, split poison immunity — are in and tested. The dark energy core and the drop table remain. |
 | B13 | **Mage Arena II** | 930 | 168 | pending | `boss/magearenaii/` |
@@ -322,7 +322,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | --- | --- | --- | --- | --- | --- |
 | D1 | **Agility — rooftop courses** (Draynor→Prifddinas, 9 courses) | 5529 | 9 courses, xp verified | **done** | All nine were already implemented; `check-agility-courses` now holds each one's per-obstacle experience to the pinned wiki. The one real gap is the two diary bonuses — see the log. |
 | D2 | Agility — **shortcuts** | 8242 | table generated | **data done, scripts pending** | All 162 shortcuts generated from the wiki with their levels, alternative routes and fractional xp; `check-agility-shortcuts` green. The per-obstacle bindings remain. |
-| D3 | Agility — **Gnome/Barbarian/Wilderness/Pyramid/Pollnivneach courses** | 2995 | part of 3929 | pending | |
+| D3 | Agility — **Gnome/Barbarian/Wilderness/Pyramid/Pollnivneach courses** | 2995 | 9 courses verified | **done** | Sixteen of seventeen courses now agree exactly with the pinned wiki, including every non-rooftop one this tree implements. Werewolf alone remains unreadable from source. |
 | D4 | **Magic — teleports** (all books + structures) | 3403 | in the 220-spell table | **data done, scripts pending** | Every teleport across all four books carries its level, xp and rune set in `spellbooks.generated.enum`. |
 | D5 | Magic — **Lunar spellbook** | 2598 | 44 spells generated | **data done, scripts pending** | All 44 Lunar spells with levels, xp and rune sets, from pinned per-spell pages. |
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
@@ -2526,6 +2526,147 @@ with and without, and what was explicitly deferred with its reason.
     crushing press.
 
   Left **partial**: the crushing press and the cutscene.
+
+- 2026-08-20 — **B10 Rise of the Six — one rule, three ways to get it backwards.**
+
+  **NR-custom content**, like C13: OSRS has no Rise of the Six, so the wiki is
+  silent and NR's `RotsBrother.java` is the specification. But the six brothers
+  themselves are in the cache (`barrows_dharok`, `barrows_ahrim`, …), so this
+  needed scripts and not assets — the third time that has been true today.
+
+  The whole encounter is `sendDeath()`, and each of its three effects is easy to
+  implement the wrong way round:
+
+  * **A dying brother heals every living one by 5% of the DYING brother's
+    maximum hitpoints** — not 5% of the recipient's. With six brothers of
+    different sizes those are different numbers, and the obvious reading turns
+    killing the biggest brother first into a *reward* for the survivors instead
+    of the punishment it is. The test asserts a 600-hitpoint death gives 30 and
+    a 200-hitpoint death gives 10, and that the two are not equal.
+  * **A death also RESETS the revive timer of brothers already dead.** So
+    killing slowly is actively counterproductive: a corpse at 49 of its 50 ticks
+    goes back to zero. A port that only heals the living leaves the encounter
+    beatable one brother at a time, which is precisely what it exists to
+    prevent.
+  * **Completion needs all six down AT ONCE**, not six kills. Counting kills
+    lets a player farm one brother six times.
+
+  And the brothers are **freeze immune** — the standard "freeze one, kill the
+  rest" plan is the thing the design refuses.
+
+  Left **partial**: the arena, the entry puzzle and the reward table.
+
+- 2026-08-20 — **D3 non-rooftop courses — and a checker that was wrong about the tree three times.**
+
+  Extended `check-agility-courses` from the nine rooftops to nine more. Four
+  agree exactly on the first honest reading: **Wilderness, Agility Pyramid, Ape
+  Atoll and Prifddinas**.
+
+  Getting there meant fixing my own tool twice more, and the pattern is worth
+  stating because it has now cost three rounds:
+
+  * **Ape Atoll "mismatched" by 300.** Its per-obstacle table sums to 280 while
+    the page states **580 per lap** — the final tropical tree carries a
+    completion bonus that sits outside the `{{+=|xp|...}}` template. My
+    stated-total fallback only matched one phrasing ("Players get N experience
+    from completing"); this page says "rewards 580 Agility experience per
+    completed lap". Four phrasings now.
+  * **Penguin "mismatched" by 120 — and our code is right.** The wiki row reads
+    `160 (40 each)`: four icicle pillars, one shared `[oploc1]` handler awarding
+    40. Summing the SOURCE gives 40 where a lap gives 160.
+
+  That second one is the general defect: **summing `stat_advance` in a file is a
+  lower bound on a lap, not a lap total**, and the shortfall looks exactly like
+  missing obstacles. So the checker now counts `[oploc]` bindings too, and when
+  a course binds more locs than it has award statements it reports **"shared
+  handlers -- lap total unreadable from source"** rather than inventing a
+  finding. Three courses land there: Gnome, Penguin, Werewolf.
+
+  **And the "genuine gap" was not one either.** I reported Barbarian Outpost as
+  5 of 9 obstacles. It is complete and exact. Two more helpers were hiding it:
+
+  * **`~agility_climb_up` also awards experience from its first argument** —
+    a third helper after `stat_advance` and `~agility_force_move`. So the list
+    is now *derived* rather than discovered one false finding at a time: every
+    proc in `agility.rs2` whose body does `stat_advance(agility, $param)`.
+  * **One handler can serve several world placements of the same loc name.**
+    Barbarian's three crumbling walls share `[oploc1,castlecrumbly1]` and are
+    told apart by `switch_int(coordx(loc_coord))`; its single award of 13.7 is
+    paid three times a lap. The checker now counts the `case` arms and
+    multiplies, which is what turns 125.9 into the wiki's exact 153.3.
+
+  With both fixed, **sixteen of seventeen courses agree exactly** — including
+  Gnome (110.5), Penguin (540) and Ape Atoll (580), all three of which I had
+  previously reported as broken. Only Werewolf remains unreadable from source.
+
+  **Four false findings, four rounds, one tool.** Every single "defect" this
+  checker produced was the checker being wrong about the tree. The code was
+  right every time.
+
+  Dorgesh-Kaan is excluded with its reason in the source: its page states
+  experience in prose rather than in the table every other course uses, so this
+  parser cannot read it and would report a bogus mismatch.
+
+  **The meta-lesson, three strikes in:** a checker that is wrong about the tree
+  manufactures work, and I nearly filed six false defects across two turns. When
+  a check disagrees with the code, the first hypothesis should be that the check
+  is wrong — because the code has been exercised by players and the check has
+  been exercised by nobody.
+
+- 2026-08-20 — **Two bosses were swinging crush at a magic attack, and a generator was the cause.**
+
+  Written while the compiler was down again. `check_boss_contract` read only the
+  hand-authored `bosses.npc`, so every boss whose stats live in the **generated**
+  `combat_stats.generated.npc` reported "no block in any boss config" —
+  indistinguishable from a boss with no stats at all. Widening it to read both
+  files (1,277 records) immediately paid for itself.
+
+  Seven records are declared in both files and all seven "conflict" on
+  `damagetype` — but **five are the same value written two ways**: the authored
+  layer spells the style (`^crush_style`) and the generated layer writes the id
+  (`2`). Normalising before comparing leaves **two real disagreements**:
+
+  ```
+  chaos_fanatic      authored ^magic_style (4)   generated 2 (crush)
+  smoke_devil_boss   authored ^magic_style (4)   generated 2 (crush)
+  ```
+
+  **The root cause is a silent default in `gen_npc_stats.py`.** Its `STYLE_MAP`
+  has no entry for the two ways the wiki writes magic-with-a-projectile — Chaos
+  Fanatic is `[[Ranged magic]]`, the Thermonuclear smoke devil is
+  `[[Magical ranged]]` — so `classify_style` fell through to
+  `return "physical", "crushattack", 2, "no recognized attack style"`. A
+  plausible wrong value, written into a file that says "Re-running rewrites this
+  file", where a hand-fix would have been silently reverted on the next run.
+
+  So the fix went into the **generator**, not the generated file: both spellings
+  added to `STYLE_MAP` with the reason. My first instinct was to correct the two
+  records directly, which would have been undone and would have taught nobody
+  anything.
+
+  **And a correction to my own first reading of it.** I called the default
+  "silent". It is not — `gen_npc_stats.py` writes the note into that npc's
+  `.stats` ledger, and 40 of them carry it. What is true is weaker and still
+  worth fixing: the note lands in one of 40 files under `npc_stats/` while the
+  value it explains lands in `combat_stats.generated.npc`, where it looks like
+  any other deliberate choice. Nobody reads 40 ledgers.
+
+  So the fix is visibility, not bookkeeping: **`tools/check_npc_style_defaults.py`**,
+  wired as `check-npc-style-defaults`. It reads the ledgers and prints the whole
+  list every build:
+
+  ```
+  41 npc(s) fell back to crush across 10 unrecognised style spelling(s)
+    magical melee     29   crush 2   ranged melee 2   magical ranged 2
+    ranged magic 1    none 1    typeless ranged 1   poison 1   all 1   various 1
+  ```
+
+  **`magical melee` alone is 29 npcs** — most of the God Wars roster. Not every
+  entry is a bug: `various` (Zalcano) and `all` (the Whisperer) are the wiki
+  declining to pick one, and dragonfire genuinely is not a damagetype. But "not
+  a damagetype" and "crush" are different answers and the generator gives the
+  second, so the list needs a design decision rather than a lookup-table row —
+  which is why it is *reported* and not *failed*. It is now impossible to miss.
 
 ## 7. Open questions to settle before Wave E
 

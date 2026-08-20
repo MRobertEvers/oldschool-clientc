@@ -1512,6 +1512,32 @@ npc_config_key(
         def->wanderrange = atoi(value);
     else if( strcmp(key, "turnspeed") == 0 )
         def->turnspeed = atoi(value);
+    /* Compass name -> the client's turn-angle index (see the field's comment
+     * in mock230_content.h). Numeric literals accepted for a band round-trip,
+     * same convention as blockwalk above. */
+    else if( strcmp(key, "facing") == 0 )
+    {
+        if( strcmp(value, "northwest") == 0 )
+            def->facing = 0;
+        else if( strcmp(value, "north") == 0 )
+            def->facing = 1;
+        else if( strcmp(value, "northeast") == 0 )
+            def->facing = 2;
+        else if( strcmp(value, "west") == 0 )
+            def->facing = 3;
+        else if( strcmp(value, "east") == 0 )
+            def->facing = 4;
+        else if( strcmp(value, "southwest") == 0 )
+            def->facing = 5;
+        else if( strcmp(value, "south") == 0 )
+            def->facing = 6;
+        else if( strcmp(value, "southeast") == 0 )
+            def->facing = 7;
+        else if( strlen(value) == 1 && value[0] >= '0' && value[0] <= '7' )
+            def->facing = value[0] - '0';
+        else
+            CONTENT_ERROR("%s: facing `%s` is not a compass direction\n", where, value);
+    }
     else if( strcmp(key, "maxrange") == 0 )
         def->maxrange = atoi(value);
     /* `givechase=no` is the only value the reference writes — its packer emits
@@ -4021,6 +4047,7 @@ init_defaults(void)
     g_npc_default.moverestrict = 0;
     g_npc_default.nomove = 0;
     g_npc_default.turnspeed = -1; /* unstated: defer to the cache record */
+    g_npc_default.facing = -1;    /* unstated: spawn facing south */
     g_npc_default.damagetype = MOCK230_DAMAGE_CRUSH;
     g_npc_default.attack_anim = -1;
     g_npc_default.defend_anim = -1;

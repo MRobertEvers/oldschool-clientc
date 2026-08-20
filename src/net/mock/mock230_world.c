@@ -2906,7 +2906,7 @@ npc_spawn(
         npc->spawn_x = x;
         npc->spawn_z = z;
         npc->spawn_level = level;
-        npc->face_dir = MOCK230_FACE_SOUTH;
+        npc->face_dir = def->facing >= 0 ? def->facing : MOCK230_FACE_SOUTH;
         npc->def = def;
         npc->wander_radius = def->nomove ? 0 : def->wanderrange;
         {
@@ -14441,6 +14441,51 @@ selftest_prayer_toggle(
     int32_t prayer = selftest_prayer(name);
 
     mock230_scripts_run_proc(srv, "[proc,prayer_toggle]", &prayer, 1);
+}
+
+/*
+ * Read `::toazdbg` back out of the wire.
+ *
+ * The room's registers are the only thing that tells a stuck phase machine from
+ * a slow party, and there is no other way to see them: they live on the map
+ * instance, not on the player or the npc, so nothing in the server struct
+ * carries them. The debugproc prints one machine-readable line and this parses
+ * it; every out-parameter is left alone if the line does not arrive, so a caller
+ * that seeds them with -1 can tell "not printed" from "printed as zero".
+ */
+static void
+mock230_toa_read_dbg(
+    struct Mock230Server* srv,
+    int* phase,
+    int* wave,
+    int* shield,
+    int* hp,
+    int* type)
+{
+    static struct Mock230Capture cap;
+    int room = 0;
+    int started = 0;
+    int clock = 0;
+    int now = 0;
+    int attacks = 0;
+
+    mock230_capture_begin(srv, &cap);
+    mock230_scripts_run_debugproc(srv, "toazdbg");
+    mock230_capture_end(srv);
+    for( int w = mock230_capture_find(&cap, 90, 0); w >= 0;
+         w = mock230_capture_find(&cap, 90, w + 1) )
+    {
+        const struct Mock230CapturedPacket* pk = &cap.packets[w];
+
+        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+            continue;
+        if( sscanf((const char*)pk->data + 1,
+                   "toazdbg %d started=%d clock=%d now=%d attacks=%d phase=%d "
+                   "wave=%d shield=%d bosshp=%d bosstype=%d",
+                   &room, &started, &clock, &now, &attacks, phase, wave, shield,
+                   hp, type) == 10 )
+            return;
+    }
 }
 
 int
@@ -37012,6 +37057,9 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
 
+        /* SCRATCH -- Family Crest geometry probe, remove after use. */
+        mock230_scripts_run_debugproc(srv, "crestgeo");
+
         /*
          * H.A.M. Storerooms' reward table and spatial contracts live in
          * content, but they include every one of the 150 reward rolls plus the
@@ -39483,6 +39531,58 @@ mock230_world_selftest(void)
         }
 
         /*
+         * ToA hands its map-instance slots back (`::toaleak`), and the pool is
+         * empty when it is done.
+         *
+         * The script side of this proves the arithmetic - which handle a leave
+         * frees, and that a logout frees anything at all. What it cannot see is
+         * the pool, and the pool is where a leak actually shows up: the raid
+         * held two of eight slots and returned at most one of them, so four
+         * sessions in, `~map_instance_from_square` started answering "the Tombs
+         * are full" to a world with nobody in the Tombs. `::toarooms` above
+         * cannot catch it either - it frees what it built and says OK while a
+         * stranded Nexus sits beside it.
+         *
+         * So the count is read here, on both sides of the debugproc. Before is
+         * asserted as well as after: a non-zero baseline means something
+         * EARLIER in this suite is leaking, and reading only the tail would
+         * blame ToA for it.
+         */
+        {
+            static struct Mock230Capture toaleak_capture;
+            int toaleak_said_ok = 0;
+            int live_before = mock230_mapinstance_live_count();
+            int live_after;
+
+            SELFTEST_CHECK(live_before == 0,
+                           "the instance pool should be empty before ::toaleak");
+            mock230_capture_begin(srv, &toaleak_capture);
+            mock230_scripts_run_debugproc(srv, "toaleak");
+            mock230_capture_end(srv);
+            live_after = mock230_mapinstance_live_count();
+            for( int i = mock230_capture_find(&toaleak_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&toaleak_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &toaleak_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "toaleak") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "toaleak OK") != NULL )
+                    toaleak_said_ok = 1;
+            }
+            SELFTEST_CHECK(toaleak_said_ok, "::toaleak should reach its OK line");
+            SELFTEST_CHECK(live_after == 0,
+                           "::toaleak should leave no map instance reserved "
+                           "(live=%d)",
+                           live_after);
+        }
+
+        /*
          * The way in, by hand: `::toa N` then `::toago` (the ToA harness).
          *
          * `::toarooms` above proves the twelve instances BUILD. It cannot prove
@@ -39520,17 +39620,42 @@ mock230_world_selftest(void)
              * coordinates to the next tenant, so an "any npc" scan in Ba-Ba's
              * room found Kephri, 0 tiles away, and read as a pass.
              */
+            /*
+             * `rooted` is the second half, and it is Kephri's.
+             *
+             * She is the one boss in this raid whose reference implementation
+             * refuses to move at all — Near-Reality's `Kephri.addWalkStep`
+             * returns `false` unconditionally — and until 2026-08-20 nothing in
+             * this tree said so. `combat_stats.generated.npc` hands her
+             * `huntmode=aggressive`, the engine latched a `combat_target` on the
+             * first tick a player crossed the barrier, and `advance_npcs` treats
+             * a combat target as "combat owns this npc's movement": she left her
+             * tile and followed the party around the arena for the whole fight.
+             *
+             * Nothing above notices. The presence check only asks that she is
+             * within 48 tiles, the attack clock runs from the room's own
+             * watchdog whether she has moved or not, and the damage lands
+             * wherever she is standing — so the room read as fully working. The
+             * only thing that catches it is asking where she is at the end and
+             * comparing it with where she started.
+             *
+             * The other four are `rooted = 0` deliberately, not by omission:
+             * each needs measuring against its own reference the way she was,
+             * and a blanket assertion here would be a guess with a test around
+             * it.
+             */
             static const struct
             {
                 int room;
                 int npc;
                 const char* name;
+                int rooted;
             } k_toa_rooms[] = {
-                { 3,  11730, "Zebak" },
-                { 5,  11719, "Kephri" },
-                { 7,  11790, "Akkha" },
-                { 9,  11778, "Ba-Ba" },
-                { 10, 11751, "Wardens P1" },
+                { 3,  11730, "Zebak", 0 },
+                { 5,  11719, "Kephri", 1 },
+                { 7,  11790, "Akkha", 0 },
+                { 9,  11778, "Ba-Ba", 0 },
+                { 10, 11751, "Wardens P1", 0 },
             };
 
             for( size_t i = 0; i < sizeof(k_toa_rooms) / sizeof(k_toa_rooms[0]); i++ )
@@ -39621,9 +39746,23 @@ mock230_world_selftest(void)
                  */
                 if( found >= 0 )
                 {
-                    int hp_before = player->hitpoints;
+                    int hp_before;
                     int taken = 0;
                     int attacks = 0;
+
+                    /*
+                     * On its feet BEFORE the window, not only after it.
+                     *
+                     * Two of these bosses kill the fixture inside their forty
+                     * ticks, and a corpse carried into the next chamber is a
+                     * boss with nothing to attack - which reads as "this room
+                     * does not attack" and is really the room before it having
+                     * done its job. Ba-Ba was read that way once.
+                     */
+                    player->dying = 0;
+                    player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+                    mock230_combat_sync_hitpoints(player);
+                    hp_before = player->hitpoints;
                     int room = 0;
                     int started = 0;
                     int clock = 0;
@@ -39639,6 +39778,9 @@ mock230_world_selftest(void)
                      * POSITIVE, which reads exactly like a boss that does
                      * nothing. Kephri and Akkha were both read that way once.
                      */
+                    int spawn_x = srv->npcs[found].x;
+                    int spawn_z = srv->npcs[found].z;
+
                     for( int t = 0; t < 40; t++ )
                     {
                         int hp = player->hitpoints;
@@ -39707,6 +39849,13 @@ mock230_world_selftest(void)
                     fprintf(stderr, "  %s: %d attack(s), %d damage taken (%d -> %d hp)\n",
                             k_toa_rooms[i].name, attacks, taken,
                             hp_before, player->hitpoints);
+                    if( k_toa_rooms[i].rooted && srv->npcs[found].active )
+                        SELFTEST_CHECK(srv->npcs[found].x == spawn_x &&
+                                           srv->npcs[found].z == spawn_z,
+                                       "%s must not move: spawned at %d,%d and is at "
+                                       "%d,%d after 40 ticks",
+                                       k_toa_rooms[i].name, spawn_x, spawn_z,
+                                       srv->npcs[found].x, srv->npcs[found].z);
                     /*
                      * Put the fixture back on its feet between chambers. Five
                      * bosses in a row on one 99-hitpoint player is a corpse by
@@ -39720,6 +39869,163 @@ mock230_world_selftest(void)
                 }
             }
             mock230_scripts_run_debugproc(srv, "toaout");
+
+            /*
+             * Kephri's PHASE MACHINE, walked shield by shield.
+             *
+             * Everything above proves her clock runs and her bombs land. None
+             * of it touches the half of her fight that had never once executed:
+             * `~toa_kephri_break_shield` had no caller in the whole content
+             * tree, so she attacked from behind an unbreakable shield forever
+             * and the two intermissions, the dazed body, the wake-up and the
+             * exposed phase were dead code that compiled.
+             *
+             * There is no `[ai_death]` in this engine, so the phase machine is
+             * driven by the room's tick watching her hitpoints. That is exactly
+             * what this drives: zero her health from outside, tick, and read
+             * `::toazdbg` back. Zeroing the struct field rather than dealing
+             * damage is deliberate - it is the one injection that cannot be
+             * absorbed by armour, prayer or a scaling factor, and the thing
+             * under test is what the room does when she runs out, not how she
+             * gets there.
+             *
+             * What each break must produce, from NR's `increasePhase`:
+             *   break 1 and 2 -> phase 1 (intermission), a 52-tick shield clock
+             *                    running, and her health back off zero.
+             *   two ticks in  -> the dazed body, npc 11720.
+             *   the clock out -> the shielded body again, 11719, re-sized.
+             *   break 3       -> phase 2 (exposed), npc 11721, on her REAL
+             *                    health pool rather than her shield's.
+             */
+            {
+                int toa_phase = -1;
+                int toa_wave = -1;
+                int toa_shield = -1;
+                int toa_hp = -1;
+                int toa_type = -1;
+                int kephri = -1;
+                int shield_hp_at_start = 0;
+
+                mock230_scripts_run_debugproc(srv, "toa 5");
+                mock230_scripts_run_debugproc(srv, "toago");
+                player->godmode = 1;
+                for( int n = 0; n < MOCK230_NPC_MAX; n++ )
+                {
+                    if( srv->npcs[n].active && srv->npcs[n].type == 11719 &&
+                        srv->npcs[n].level == player->level )
+                    {
+                        kephri = n;
+                        break;
+                    }
+                }
+                SELFTEST_CHECK(kephri >= 0, "the phase walk needs a Kephri to walk");
+                if( kephri >= 0 )
+                {
+                    shield_hp_at_start = srv->npcs[kephri].hitpoints;
+                    /*
+                     * And she is SCALED, which is the other thing that had never
+                     * worked. `npc_statheal` adds to current and clamps at base,
+                     * so on a boss that spawns at full base it is a no-op - and
+                     * every ToA record is authored at its eight-man level-600
+                     * ceiling precisely so the room can scale it down. A solo
+                     * entry-level Kephri was carrying 3934 shield points instead
+                     * of 150.
+                     */
+                    SELFTEST_CHECK(shield_hp_at_start < srv->npcs[kephri].max_hitpoints,
+                                   "a solo entry-level Kephri must be scaled below her "
+                                   "authored ceiling, got %d of %d",
+                                   shield_hp_at_start, srv->npcs[kephri].max_hitpoints);
+
+                    for( int shield = 1; shield <= 3; shield++ )
+                    {
+                        srv->npcs[kephri].hitpoints = 0;
+                        mock230_world_tick(srv);
+                        mock230_toa_read_dbg(srv, &toa_phase, &toa_wave, &toa_shield,
+                                             &toa_hp, &toa_type);
+                        fprintf(stderr,
+                                "  Kephri shield %d broken: phase=%d wave=%d "
+                                "shield=%d hp=%d type=%d\n",
+                                shield, toa_phase, toa_wave, toa_shield, toa_hp,
+                                toa_type);
+                        SELFTEST_CHECK(toa_wave == shield,
+                                       "breaking Kephri's shield %d should count it, "
+                                       "saw wave=%d",
+                                       shield, toa_wave);
+                        if( shield < 3 )
+                        {
+                            SELFTEST_CHECK(toa_phase == 1,
+                                           "Kephri's shield %d should open an "
+                                           "intermission, saw phase=%d",
+                                           shield, toa_phase);
+                            SELFTEST_CHECK(toa_shield > 0,
+                                           "the intermission needs a shield clock, "
+                                           "saw %d", toa_shield);
+                            SELFTEST_CHECK(toa_hp > 0,
+                                           "a broken shield is not a death: she must "
+                                           "keep a hitpoint, saw %d", toa_hp);
+                            /* Two ticks in she becomes the dazed body. */
+                            mock230_world_tick(srv);
+                            mock230_world_tick(srv);
+                            mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
+                                                 &toa_shield, &toa_hp, &toa_type);
+                            SELFTEST_CHECK(toa_type == 11720,
+                                           "Kephri should be dazed (11720) two ticks "
+                                           "into intermission %d, saw %d",
+                                           shield, toa_type);
+                            /*
+                             * And out the far side of the 52-tick clock. 60 is
+                             * the clock plus the ticks already spent, with room
+                             * for the one-per-tick countdown to land.
+                             */
+                            for( int t = 0; t < 60; t++ )
+                                mock230_world_tick(srv);
+                            mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
+                                                 &toa_shield, &toa_hp, &toa_type);
+                            fprintf(stderr,
+                                    "  Kephri intermission %d over: phase=%d "
+                                    "shield=%d hp=%d type=%d\n",
+                                    shield, toa_phase, toa_shield, toa_hp, toa_type);
+                            SELFTEST_CHECK(toa_phase == 0,
+                                           "intermission %d must end, saw phase=%d "
+                                           "shield=%d",
+                                           shield, toa_phase, toa_shield);
+                            SELFTEST_CHECK(toa_type == 11719,
+                                           "Kephri must re-form her shield (11719) "
+                                           "after intermission %d, saw %d",
+                                           shield, toa_type);
+                            SELFTEST_CHECK(toa_hp == shield_hp_at_start,
+                                           "a re-formed shield is a full one: wanted "
+                                           "%d, saw %d",
+                                           shield_hp_at_start, toa_hp);
+                        }
+                        else
+                        {
+                            SELFTEST_CHECK(toa_phase == 2,
+                                           "Kephri's third shield should expose her, "
+                                           "saw phase=%d", toa_phase);
+                            SELFTEST_CHECK(toa_type == 11721,
+                                           "the exposed body is 11721, saw %d",
+                                           toa_type);
+                            /*
+                             * Her real pool is SMALLER than her shield's - 80
+                             * against 150 - and getting the two the wrong way
+                             * round would make the final phase the long part of
+                             * the fight instead of the short one.
+                             */
+                            SELFTEST_CHECK(toa_hp > 0 && toa_hp < shield_hp_at_start,
+                                           "the exposed phase runs on her real health, "
+                                           "which is below her shield's: saw %d of a "
+                                           "%d shield",
+                                           toa_hp, shield_hp_at_start);
+                        }
+                    }
+                }
+                player->godmode = 0;
+                player->dying = 0;
+                player->hitpoints = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+                mock230_combat_sync_hitpoints(player);
+                mock230_scripts_run_debugproc(srv, "toaout");
+            }
 
             /*
              * And the raid pays out (`::toaloot`).
@@ -39919,6 +40225,41 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(said_ok,
                                "a chamber's barrier should exist and start the room "
                                "when it is passed");
+            }
+
+            /*
+             * And the Nexus doors are the way into a path (`::toapyramid`).
+             *
+             * The four pyramids in the hub carry `Enter`/`Quick-Enter` in the
+             * cache and had nothing bound to them, so a party standing in the
+             * Nexus could not reach a path at all - the only way in was a
+             * debugproc naming the room by number.
+             */
+            {
+                static struct Mock230Capture pyr;
+                int said_ok = 0;
+
+                mock230_capture_begin(srv, &pyr);
+                mock230_scripts_run_debugproc(srv, "toapyramid");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&pyr, 90, 0); w >= 0;
+                     w = mock230_capture_find(&pyr, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &pyr.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toapyramid") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toapyramid OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok,
+                               "a Nexus pyramid should move the player into its chamber "
+                               "and start the challenge");
             }
         }
 
@@ -50529,6 +50870,12 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_bird_nests]", 7,
+                  "the rabbit foot narrows the nest range, it does not "
+                  "reweight the table" },
+                { "[proc,selftest_rots_brothers]", 5,
+                  "a Rise of the Six death heals the survivors and resets the "
+                  "corpses" },
                 { "[proc,selftest_xamphur]", 9,
                   "the Mark of Darkness doubles two things and is opt-in" },
                 { "[proc,selftest_ma2_mechanics]", 9,
@@ -54771,6 +55118,132 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::demonrun should report no failures");
             SELFTEST_CHECK(said_ok, "::demonrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::fishingcomporun\n");
+    {
+        /*
+         * Fishing Contest (2026-08-20 audit). `[opnpc1,bonzo]` /
+         * `[opnpc1,sinister_stranger]` / `[opnpc1,tunnel_dwarf(1)]` all
+         * block on `~chatnpc_anim`/`~mesbox` (p_pausebutton), and
+         * `[label,hemenster_catch]` is a one-way `@` jump that can never
+         * return to a caller -- so `fishingcomporun` drives the
+         * %fishingcompo/%hemenster_comp_stage ladder, item handouts,
+         * reward and journal directly (mirroring the dialogue-bearing
+         * scripts' own state-setting lines), while calling every REAL
+         * dialogue-free proc for genuine coverage (~in_hemenster_comp,
+         * ~get_hemenster_bait, ~quest_complete_rewards, ~fishingcompo_
+         * journal, Between a Rock's own ~dwarfrock_real_prereqs_met gate)
+         * -- see the debugproc's own header comment in quests/quest_
+         * fishingcompo/scripts/quest_fishingcompo.rs2 for exactly which
+         * pieces that does and does not exercise for real. The core
+         * "garlic trick" catch mechanic -- the ONE thing that genuinely
+         * cannot be driven from fishingcomporun -- is proven separately
+         * by ::fishingcompo_catchtest_win/_lose below, which each jump
+         * into the real hemenster_catch label for one species combo and
+         * are checked against the exact catch message it prints.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture fishingcomporun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &fishingcomporun_capture);
+            mock230_scripts_run_debugproc(srv, "fishingcomporun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&fishingcomporun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&fishingcomporun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &fishingcomporun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "FISHINGCOMPORUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "FISHINGCOMPORUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::fishingcomporun should report no failures");
+            SELFTEST_CHECK(said_ok, "::fishingcomporun should reach its OK line");
+
+            {
+                static struct Mock230Capture catchwin_capture;
+                int said_carp = 0;
+
+                mock230_capture_begin(srv, &catchwin_capture);
+                mock230_scripts_run_debugproc(srv, "fishingcompo_catchtest_win");
+                mock230_capture_end(srv);
+
+                for( int i = mock230_capture_find(&catchwin_capture, 90, 0);
+                     i >= 0;
+                     i = mock230_capture_find(&catchwin_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &catchwin_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "You catch a giant carp.") != NULL )
+                        said_carp = 1;
+                    if( strstr(text, "FAIL") != NULL )
+                        fprintf(stderr, "  %s\n", text);
+                }
+
+                SELFTEST_CHECK(said_carp, "::fishingcompo_catchtest_win should catch a giant carp at the pipe spot with red vine worm");
+            }
+
+            {
+                static struct Mock230Capture catchlose_capture;
+                int said_sardine = 0;
+                int said_carp = 0;
+
+                mock230_capture_begin(srv, &catchlose_capture);
+                mock230_scripts_run_debugproc(srv, "fishingcompo_catchtest_lose");
+                mock230_capture_end(srv);
+
+                for( int i = mock230_capture_find(&catchlose_capture, 90, 0);
+                     i >= 0;
+                     i = mock230_capture_find(&catchlose_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &catchlose_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "You catch a sardine.") != NULL )
+                        said_sardine = 1;
+                    if( strstr(text, "You catch a giant carp.") != NULL )
+                        said_carp = 1;
+                    if( strstr(text, "FAIL") != NULL )
+                        fprintf(stderr, "  %s\n", text);
+                }
+
+                SELFTEST_CHECK(said_sardine, "::fishingcompo_catchtest_lose should catch a sardine at the willow-tree spot even with red vine worm");
+                SELFTEST_CHECK(!said_carp, "::fishingcompo_catchtest_lose must NOT catch the winning fish away from the pipe spot");
+            }
+
             mock230_scripts_free(srv);
         }
     }

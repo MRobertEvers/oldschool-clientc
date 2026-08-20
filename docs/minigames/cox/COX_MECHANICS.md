@@ -341,7 +341,7 @@ Falling crystals in phase 4 do **not** disqualify.
 7545 hammering → 7543 walking_enraged → 7544 fighting_enraged.
 Anvil is a **loc**, `raids_tekton_anvil` (29867), 6×4, `blockwalk=1` ✅.
 
-### 3.1 Attack timing — sources conflict
+### 3.1 Attack timing — RESOLVED (2026-08-20)
 
 | Source | Value |
 | --- | --- |
@@ -349,13 +349,14 @@ Anvil is a **loc**, `raids_tekton_anvil` (29867), 6×4, `blockwalk=1` ✅.
 | 📖 Talk page | "Tekton attacks on a three-tick cycle" |
 | 🔧 Plugin, normal auto anims | `setTicksUntilAttack(4)` → **4 ticks** |
 | 🔧 Plugin, "fast auto" anims | `setTicksUntilAttack(3)` → **3 ticks** |
+| 🔧 Near-Reality `TektonCombatScript` | windup/strike/idle, a hard-coded **3-tick** period, no 4-tick alternative anywhere in the class |
 
-⚠️ **Unresolved and important.** The plugin distinguishes two auto families
-(`TEKTON_AUTO1..3` / `TEKTON_ENRAGE_AUTO1..3` at 4 ticks, and
-`TEKTON_FAST_AUTO1..2` at 3 ticks) where the wiki reports a single speed. Most
-likely reading: Tekton's *base* speed is 4 with a faster variant, and the wiki
-records the faster one. **Resolve before encoding** — this alone changes the
-room's difficulty by a third.
+✅ **3 ticks.** The two RuneLite-plugin auto families are animation variants of
+the same 3-tick cadence, not a base-speed-vs-fast-variant split — NR's own
+combat script, built independently of the plugin, encodes only the 3-tick
+period and never references a 4-tick one. `param=attackrate,3` on all six
+`raids_tekton_*` records (`cox.npc`) is correct as shipped and needed no
+change in the 2026-08-20 correction pass.
 
 ### 3.2 The anvil cycle 🔧
 
@@ -388,6 +389,60 @@ Repair rate 📖: ~**1.11–1.33 % of health every few ticks** ❓ exact interva
 - Immune to binding.
 - Defence bonuses: stab +155/+280, slash +165/+290, **crush +105/+180** — crush
   is intended.
+
+### 3.4 2026-08-20 correction pass
+
+Implemented in `cox_tekton.rs2`/`cox.constant`/`cox.npc`/`cox.varp`, gated by
+`cox_selftest.rs2` checks #132–142 (`::coxrun`):
+
+- **Direction-aware wedge hit shape.** The 3.3 "in front of and to his right"
+  rule above was previously a fixed 6×6 box around his whole footprint with no
+  facing in it — it hit players on every side regardless of which way he was
+  swinging. Now keyed to `%cox_tekton_direction`, recomputed once per swing
+  from the current target's tile.
+- **Protect from Melee halves, not blocks** (`^cox_tekton_melee_prayer_reduction_pct
+  = 50`) — previously no prayer interaction existed at all.
+- **Enraged re-engagement is its own, shorter band** (4–6 attacks, wiki's "~5
+  or so") rather than reusing the normal 10–14 roll.
+- **No-reachable-target scan** — "if nobody is in range when he scans, he will
+  return to the anvil" (wiki, dated by the page's own 31 Jan 2019 Changes
+  entry) is now checked every fighting-form tick.
+- **Positional, dodgeable spark AoE** (10–20 dmg, up to 4 targeted players,
+  captured-tile impact) replaces an unconditional, undodgeable hit on
+  everyone within 16 tiles.
+- **Smoke pillar hazard** (1–3 dmg every 3 ticks near a per-variant pillar
+  tile) ported from NR — rung 4 only, no wiki/community corroboration found.
+- **Room-empty reset** — if the whole party wipes or leaves while he is
+  mid-anvil, he now reverts to the dormant `waiting` form instead of being
+  stuck in `raids_tekton_hammering` for the rest of the raid instance. This
+  was the pass's named focus item; NR's `isRoomEmpty()`/`resetToDefaultState()`
+  is the only source that names the gap at all.
+- **20% water elemental weakness** (`param=elemental_weakness,^element_water` /
+  `param=elemental_weakness_percent,20` on all six forms) — genuine new
+  content, wiki-dated 25 June 2025, that NR (a 2017/2018-era snapshot)
+  predates and cannot have.
+
+**Still open / explicitly NOT claimed done by this pass:**
+
+- **OPEN — Magic damage taken (20% of normal) and ranged immunity are still
+  unimplemented at any rung.** Direct Mod Ash quote (rung 1, 7 Sept 2023):
+  immune to Range, takes 80% reduced Magic damage. This needs a general
+  incoming-player-damage-modifier engine seam that does not exist anywhere in
+  this tree yet — the identical gap exists for Vasa's glowing crystal, and the
+  one candidate shared-damage-path hook (`cox_guardian_scale_damage`) is
+  itself dead code with zero callers. Do not assume a later Tekton-only fix
+  covers this; it needs the seam built first.
+- **OPEN —** Elder maul / DWH / BGS special-attack interaction (guaranteed first hit,
+  miss-drains defence) — constants sketched in the plan but not implemented:
+  needs a read of `player_special_attack.rs2`'s actual per-weapon hook shape
+  before it can be wired without risking every other npc's DWH/BGS/maul
+  interaction in the game.
+- **OPEN —** Exit-blocking crystal, entrance fire, and the solid "cannot walk under
+  him" combat-stance block — Zenyte's ids (30017/30021/30022/30023) resolve to
+  no marker this cache authors; needs new loc symbols authored first.
+- **OPEN —** Spark-origin visual tiles (the fixed tile each spark is thrown FROM,
+  purely cosmetic) — no sourced projectile/gfx id in this cache; the
+  damage/dodge mechanic itself is ported, the visual flourish is not.
 
 ---
 

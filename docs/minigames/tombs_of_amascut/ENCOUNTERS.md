@@ -221,6 +221,24 @@ size 5) by carrying water to it. **175 units solo, +125 per extra player.**
   poison clouds down the corridor (`crondis_poison_tile*` locs, ten
   `crondis_poison_tile_activate_*` seqs). Only the **dark** cloud damages; the
   light one is the telegraph. [wiki]
+* **The room is placed, not scripted.** Map square 61,82 carries every fixture:
+  4 `toa_crondis_water_source`, 40 `toa_crondis_row_trap` (the side statues,
+  `width=2`, in the two-tile water strip beside each walkway), 40
+  `toa_crondis_row_trap_fire` (their spears, `width=3`), and **exactly 200**
+  `toa_crondis_poison_tile` — 5 columns x 10 rows x 4 corridors, which is what
+  fixes the walkway as five wide and ten long. Only the palm (npc, size 5, on
+  the 5x5 interior of the `toa_crondis_patch01_*` ring at (30,30) square-local)
+  and the water containers are not in the map. [cache]
+* The **four corridors** are SW/SE at z10-19 and NW/NE at z45-54, walkways
+  x23-27 and x37-41. The statues alternate sides row by row and the two spear
+  footprints overlap in exactly one column — the middle one — so the centre
+  lane is the only tile no volley ever misses. [cache]
+* **The poison sweep is one row a tick, and that is measured**:
+  `crondis_poison_tile_activate_01..10` are the same eighteen-frame cloud with
+  the first frame held 3, 13, 23 … 93 client cycles, i.e. one animation delayed
+  nought to nine ticks. `crondis_spear_trap_activate` runs 295 cycles (9.83
+  ticks) and loops; `crondis_spear_trap_spear` is 90 cycles exactly, so a spear
+  is out for three ticks. The trap **period** remains `[M10]`. [cache]
 * A hit from either **halves the water in the container** and drains Defence 6,
   Agility 3 and 2 prayer points. [wiki]
 * Waterfalls deplete and refill; refill rate scales with team size. [wiki]
@@ -343,6 +361,32 @@ tile. Protect from Magic mitigates ~66% if hit. `Aerial Assault` makes it a 3×3
 and increases damage — and also applies to the Bomber Scarabs and to Kephri's
 Phantom in Wardens P3. [wiki]
 
+The tile is marked at RELEASE, not at the swing: NR animates, throws a flourish
+over her own middle, and only two ticks later reads each player's tile, drops the
+shadow and fires — landing three ticks after that. So the dodge window is the
+three ticks after the shadow appears, and a version that marks on the animation
+gives twice the warning the room really offers. [nr]
+
+**Cadence.** Six ticks between attacks, and the specials are NOT on a fixed
+period: NR counts down a `specialCycle` seeded at **3** and re-rolled to **4 or
+5** after every special — **2** flat once she is exposed — so the first special
+is her fourth swing and the rest are five or six apart. A dung strike also costs
+her **seven** ticks on top of the clock. The two specials **alternate**, dung
+first, and the alternation is only broken by the too-many-scarabs rule below.
+[nr]
+
+**Facing.** She spawns facing **west** — the direction the party arrives from —
+and turns to whoever she is throwing at, as a face-entity latch rather than a
+fixed bearing. While shielded she faces nobody: `Kephri.setFaceEntity` refuses
+every non-null entity for as long as `shieldingTicks > 0`, and the latch is
+cleared on the tick the shield goes up. [nr]
+
+**She never moves.** `Kephri.addWalkStep` returns `false` unconditionally and NR
+drops an invisible blocking object under her on spawn. Her tile is the world
+(3549, 5406) south-west corner of a size-5 footprint; her middle, which is what
+every distance in this room is measured from, is that plus (2, 2) and is also the
+centre of the arena. [nr]
+
 **Shielded specials:**
 
 * **Dung Strike** — scarabs circle a target, scatter, then hurl them to the back
@@ -350,26 +394,61 @@ Phantom in Wardens P3. [wiki]
   the knockback line, blocking tiles. Targets are chosen in orb order, top row
   then bottom, left then right. `Blowing Mud` targets two (no effect solo). If no
   walkable tile exists within **ten tiles**, the player takes rapid damage
-  instead — a fast death. Dung locs **45149 / 45150 / 45151**. [wiki] [cache]
+  instead — a fast death. [wiki]
+  * The dung obstacle is **`kephri_dung` 45504**, not the
+    `toa_kephri_dung01/02/03` trio (45149–51) an earlier revision of this line
+    named. Those three sit in a run of pure scenery in the cache's loc table —
+    `toa_entrance_kephri01..04`, `toa_steps_*`, floor tiles — where 45504 sits
+    between `kephri_door` (45503) and `kephri_teleport` (45505), the three
+    interactive locs of this encounter. NR places 45504 and the ordering agrees
+    with it. [cache] [nr]
+  * The **direction** is not "away from her" by the usual half-axis rule: NR
+    goes diagonally when the two deltas are within one tile of each other and
+    takes the dominant axis alone otherwise, and the distance is what is left of
+    **eight** tiles after however far out the player already stands
+    (`8 - max(adx, ady)`). So a player hugging her crosses the room and one at
+    the wall barely moves. [nr]
+  * The trail is laid **two ticks** after the throw as a graphic wave (one tile
+    every ten client cycles) and becomes locs on ticks **four and five** — the
+    first three tiles, then the rest. [nr]
 * **Mass Incubation** — eggs splatter the arena. `kephri_egg_hatch` **11729**
   (large, dark) hatch **Agile Scarabs** (`toa_kephri_scarab_rangekite` **11727**,
   level 53, 30 HP, ranged, max 5, flees when approached, does **not** scale with
   raid level); `kephri_egg_explode` **11728** (small, light) simply explode 3×3.
   Players always deal their max hit to an egg regardless of style.
-  `Lively Larvae` raises the dark eggs from 2 to 4. Dung landing on a dark egg
-  does not destroy it, but kills the scarab on hatch. Too many scarabs already
-  present → Dung Strike is used instead. [wiki] [cache]
+  `Lively Larvae` raises the dark eggs from 2 to 4 — which is the SOLO reading of
+  a party-scaled number: NR lays `players x 2` dark eggs normally and rolls
+  `random(players x 3, players x 5)` with the invocation, and the two agree at a
+  party of one. Dung landing on a dark egg does not destroy it, but kills the
+  scarab on hatch. Too many scarabs already present → Dung Strike is used
+  instead; NR's threshold is `4 + party size`. [wiki] [cache] [nr]
+  * Twelve egg tiles, all of them filled on every cast — which of them are dark
+    is what varies. An egg lands **three** ticks after the throw and bursts
+    **sixteen** ticks after that; killing it inside that window breaks it
+    harmlessly, which is why they are npcs. [nr]
 
 **Shield-break intermissions.** Kephri is dazed and calls her children; one
 shield charge is restored. [wiki]
+
+The phase is a **fixed 52-tick clock** (NR's `shieldingTicks`), and everything in
+it hangs off that number: at 50 she becomes the dazed body (11720), from 8 she
+lobs a scarab bomb every 12 ticks, at 3 she wakes and every swarm still walking
+fades away, at 1 she is the shielded body again. 52 is also exactly where the
+Wiki's own swarm cadence lands its 28th swarm — two independent readings of the
+same number, and ::toarun asserts they still agree. [nr] [wiki]
 
 * **Scarab swarms** (`toa_kephri_shield_scarab` **11723**, and legacy
   `scarab_swarm` **729**) walk to her and recharge her shield, ~10% each or less
   for bigger teams, overcharging up to ~115% of capacity.
   * First intermission: the first **18 of 28** reach her in time. Second: the
     first **14 of 24**.
-  * Six spawn points around the room — NE, SE, S, SW, NW, N. The first is
-    random, then **clockwise**, occasionally skipping one.
+  * **Eight** spawn points around the room, not six. The Wiki names six by
+    compass bearing; NR's `SWARM_SPAWN_LOCATIONS` is eight explicit world tiles
+    around the wall, and the six-point ring this tree used to compute from a
+    radius put two of its points inside the wall. Local to square 55_84 they are
+    (23,28) (23,34) (27,40) (33,40) (39,34) (39,28) (33,24) (27,24). The first is
+    random, then forward one or two, which is the Wiki's "clockwise, occasionally
+    skipping one". [wiki] [nr]
   * Spawn cadence accelerates in batches: first 4 every **4** ticks, next 4 every
     **3**, next 4 every **2**, final 16 every **1**.
 * **Bomber Scarabs** behave exactly like her auto-attack, with a fixed flight

@@ -74,6 +74,15 @@ STYLE_MAP = {
     "magic": ("magic", None, 4),
     "ranged": ("ranged", None, 3),
     "range": ("ranged", None, 3),
+    # The wiki writes magic-that-uses-a-ranged-projectile two ways, and neither
+    # contains a bare "magic": Chaos Fanatic is "[[Ranged magic]]" and the
+    # Thermonuclear smoke devil is "[[Magical ranged]]". Both fell through to
+    # the crush default below and were written out as damagetype 2 -- a
+    # plausible wrong value that check_boss_contract caught only once it began
+    # reading this generated file. Prayer penetration is a separate mechanic and
+    # is not expressed by the damagetype either way.
+    "ranged magic": ("magic", None, 4),
+    "magical ranged": ("magic", None, 4),
 }
 
 # An aggressive npc with no `huntrange` never starts a fight (npc_combat.param:
