@@ -7,21 +7,21 @@
 > and the WORLD half exists but is empty. **Still blocked on: `fields/inv.ini` +
 > `[namespace:inv]`** (nowhere for `scope=`/`restock=`/`stockN=`/`allstock=` to
 > live — another lane's file), **world-scope persistence or boot re-seed**
-> (`mock230_save.c` is player-only), and **`OC_COST` (4202) / `INV_STOCKBASE`
+> (`torirs_server_save.c` is player-only), and **`OC_COST` (4202) / `INV_STOCKBASE`
 > (4325) / `INV_ALLSTOCK` (4303)**, all still declared-and-uncovered.
 
 > **UPDATE 2026-08-02 (lane-blockers): half of blocker (a) is cleared, and the
 > half that is left is exactly blocker (b).** `container_for` is a registry —
-> see [`mock230_containers.md`](mock230_containers.md) — and it resolves as
+> see [`torirs_server_containers.md`](torirs_server_containers.md) — and it resolves as
 > `(srv, player, inv_id)`, branching on `owner_kind`, so `active_player` is out
 > of the resolve path and a WORLD table exists. That table is **empty by
-> construction**: `mock230_container_scope()` classifies everything as
+> construction**: `ToriRSServer_ContainerScope()` classifies everything as
 > per-player because `scope` is decoded from LostCity's *server-side* inv.dat
 > and the client cache carries only size and params
 > (`3rd/rscache/src/datatypes/dat2_config_inv.c`) — so it needs `fields/inv.ini`
 > and `[namespace:inv]`, which is blocker (b) and another lane's file. Landing
 > those turns one function body into the classifier. Still unaddressed here:
-> world persistence does not exist at all (`mock230_save.c` is player-only), and
+> world persistence does not exist at all (`torirs_server_save.c` is player-only), and
 > which inv a shop uses arrives as an npc **param** at runtime, so no case list
 > could ever have worked.
 
@@ -33,7 +33,7 @@
 > `SS_OP_RUNCLIENTSCRIPTVARARG` (11003)**. Still blocking: (a) LostCity's shop
 > invs are `scope=shared` — world-owned, 107 of them in the reference (§6) —
 > while `container_for` resolves only off `active_player` and still has three
-> hardcoded cases (`mock230_scripts.c:2088`, re-measured); and (b) §6's
+> hardcoded cases (`torirs_server_scripts.c:2088`, re-measured); and (b) §6's
 > `restock=`/`stockN=`/`scope=`/`allstock=` have nowhere to live — there is no
 > `fields/inv.ini`, no `[namespace:inv]` in `content.ini`, and `configs/all.inv`
 > has zero hits for either. Two things §5 never names: `SS_OP_OC_COST` (4202)
@@ -41,7 +41,7 @@
 > (re-measured), and `adjusted_item_cost_buying`/`~price_mod` need both. One
 > positive it misses: `rs_minimenu_build.c` already handles a shop grid's
 > Value/Sell iop buttons client-side. §0's "exactly one hit — a comment
-> (`mock230_scripts.c:4579`)" has drifted (5133) and was never exactly one.
+> (`torirs_server_scripts.c:4579`)" has drifted (5133) and was never exactly one.
 
 > Companion to `docs/questlist_chatmenu_levelup.md` and
 > `docs/friends_pm_chat_server_reqs.md`, same discovery pass
@@ -54,10 +54,10 @@
 
 **Fully greenfield**, and unlike bank there is no existing engine scaffolding
 to lean on beyond the generic two-panel open path:
-`grep -rniE "\bshop" src/net/mock/*.c src/net/mock/*.h` returns exactly one
-hit — a comment (`mock230_scripts.c:4579`, *"the two-panel open a bank (or a
-shop, or a trade) is"*) — and no `mock230_shop.{c,h}` exists, no
-`iface_shopmain`/`iface_shopside` id anywhere in `mock230_ids.h`.
+`grep -rniE "\bshop" src/torirsserver/*.c src/torirsserver/*.h` returns exactly one
+hit — a comment (`torirs_server_scripts.c:4579`, *"the two-panel open a bank (or a
+shop, or a trade) is"*) — and no `ToriRSServer_Shop.{c,h}` exists, no
+`iface_shopmain`/`iface_shopside` id anywhere in `torirs_server_ids.h`.
 
 ---
 
@@ -194,7 +194,7 @@ auto-repaint idiom. shopside does **not** follow that shape: bankside is
 
 **Buying (confirmed):** a plain `IF_BUTTON<n>` lands on `interface_300:16`
 with sub-id = slot. Op index alone is ambiguous in a way that's worse than
-bank's withdraw ladder (`docs/mock230_bank.md` §4): op1's *meaning itself*
+bank's withdraw ladder (`docs/torirs_server_bank.md` §4): op1's *meaning itself*
 depends on client state (`%varbit6348`), so the server must track the same
 quantity mode to interpret a click on op1/op6 correctly — it cannot infer
 "Buy 1" vs "Value" from the op index alone.
@@ -202,7 +202,7 @@ quantity mode to interpret a click on op1/op6 correctly — it cannot infer
 The custom "Buy X" round-trip (op9) — how a player sets a custom amount, how
 it threads back into `shop_main_init`'s `$int1`/`$int2` or `shop_main_update`'s
 `$obj3`/`$int4` — **is not shown in this corpus.** Bank's own custom
-withdraw uses `P_COUNTDIALOG` (opcode 128, `docs/mock230_bank.md` §5); it's a
+withdraw uses `P_COUNTDIALOG` (opcode 128, `docs/torirs_server_bank.md` §5); it's a
 reasonable but unconfirmed inference that shop reuses the same prompt.
 
 **Selling (not confirmed in this corpus):** no `.cs2` here shows a sell
@@ -250,16 +250,16 @@ anywhere in the interface or the container.
 
 ## 5. Server obligations
 
-| what | why | mock230 status |
+| what | why | ToriRSServer status |
 |---|---|---|
-| A per-shop stock container (`inv`), ~411 named shops, transmitted like a bank tab | `shop_main_init`'s `$inv0` + `if_setoninvtransmit{$inv0}` require a live, mutable container the server owns and syncs on buy/sell/restock | **not implemented** — no `mock230_shop.c`, no shop container ids anywhere |
-| `if_openmain_side(shopmain, shopside)` wiring, per-shop | Generic `SS_OP_IF_OPENMAIN_SIDE` already falls through correctly for any non-bank pair (`mock230_scripts.c:4579-4610`, confirmed) | **infrastructure exists**, unused for shops — needs a shop-specific open that also pushes `$inv0`/`$int1-3`/`$string0` |
+| A per-shop stock container (`inv`), ~411 named shops, transmitted like a bank tab | `shop_main_init`'s `$inv0` + `if_setoninvtransmit{$inv0}` require a live, mutable container the server owns and syncs on buy/sell/restock | **not implemented** — no `torirs_server_shop.c`, no shop container ids anywhere |
+| `if_openmain_side(shopmain, shopside)` wiring, per-shop | Generic `SS_OP_IF_OPENMAIN_SIDE` already falls through correctly for any non-bank pair (`torirs_server_scripts.c:4579-4610`, confirmed) | **infrastructure exists**, unused for shops — needs a shop-specific open that also pushes `$inv0`/`$int1-3`/`$string0` |
 | A per-shop base-price/cost source + buy/sell/haggle multiplier config | `shop_main_update` never reads price data — must come from server content | **not declared** — no `.varp`/param overlay exists for shop multipliers |
 | Buy-op handler keyed on (op index, `%varbit6348` mode, slot) | op1/op6 change meaning with the client's quantity-mode varbit; index alone is ambiguous | **not implemented** |
 | Custom "Buy X" prompt + remembered-obj threading | op9 and `shop_main_init`'s `$int1`/`$int2` need session state (which obj, what amount) | **not implemented**; likely reuses `P_COUNTDIALOG` (already built for bank) |
 | Sell-op handler on shopside's `items` grid | Corpus gap (§2, §3) — shopside's own script isn't in this decompile; re-decompile before scoping precisely | **not implemented**, exact op shape unconfirmed |
 | A `.varp` overlay declaring `bank_closing` (backs `shop_quantity`) `transmit=yes` | Without it the quantity-mode selector resets every session; any write must be read-modify-write since the varp is shared with bank's own bit ranges | **not declared** anywhere — `server/scripts/interface_bank/configs/bank.varp` doesn't mention it |
-| Restock-over-time mechanism | LostCity ticks stock back toward a baseline every world tick (§6) | **not implemented** — no restock concept exists in mock230 at all |
+| Restock-over-time mechanism | LostCity ticks stock back toward a baseline every world tick (§6) | **not implemented** — no restock concept exists in ToriRSServer at all |
 | `[opnpc]` triggers that call an actual `openshop` | Currently stubbed on purpose: `generalshopkeeper1`'s op3 just says "I've nothing to trade just now" (`areas/lumbridge/scripts/tutors.rs2`); `bob.rs2` states outright the shop container/`oc_cost`/`oc_param` machinery doesn't exist yet | **stubbed, acknowledged in-content** |
 
 ---

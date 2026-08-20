@@ -24,7 +24,7 @@ Fletching, Crafting, Herblore, Cooking, Firemaking alike.
 
 ## 1. What the engine actually does
 
-`mock230_scripts_run_opheldu` (`src/net/mock/mock230_scripts.c:2519`) is a
+`ToriRSServer_ScriptsRunOpheldu` (`src/torirsserver/torirs_server_scripts.c:2519`) is a
 line-for-line port of LostCity's `OpHeldUHandler.ts:94-113`. Four rungs, no
 wildcard, `getByTriggerSpecific` throughout. `obj` is the item clicked
 *second* (the target), `useObj` the one picked up first:
@@ -38,7 +38,7 @@ wildcard, `getByTriggerSpecific` throughout. `obj` is the item clicked
 ```
 
 Three consequences, each proved by the engine's own selftest
-(`mock230_world.c:30915-31000`, "opheldu, rungs 1 and 2 / rungs 3 and 4"):
+(`torirs_server_world.c:30915-31000`, "opheldu, rungs 1 and 2 / rungs 3 and 4"):
 
 **1a. One type binding covers both click orders.** Rung 2 tries the *other*
 item's type before either category and swaps, so a script bound to `bow_string`
@@ -119,7 +119,7 @@ item, never the tool.
 
 `fletching_selftest.rs2:265-285` calls `~make_bolts(...)` directly and passes.
 Nothing in the tree drives dispatch except the four-item stanza in
-`mock230_world.c`. The same shape threatens any future family × family pair
+`torirs_server_world.c`. The same shape threatens any future family × family pair
 (amethyst arrowtips × headless is safe only because `headless_arrow` is
 type-bound).
 
@@ -203,7 +203,7 @@ Header of every file: *"`general_use/scripts/tools/` owns the trigger; the
 skill owns the label. Add a `case` line here, the body in your own tree — or,
 if your objs carry a category this file already routes, add nothing here."*
 
-**R8 — never `[opheldu,_]`.** `mock230_scripts.c:2532`: it "would swallow
+**R8 — never `[opheldu,_]`.** `torirs_server_scripts.c:2532`: it "would swallow
 every 'use A on B' in the game the moment somebody wrote one".
 
 **R9 — RETIRED for anything that declines.** *Was: a name binding beats a
@@ -225,7 +225,7 @@ dispatch.
 
 | # | Slice | Effect | Proof |
 |---|---|---|---|
-| **S0** | A dispatch driver: `::useon <obj> <useobj>` debug cheat (or a second stanza next to `mock230_world.c:30915`) that builds the OPHELDU payload and calls `mock230_world_handle`, plus a `[debugproc,useonrun]` that fires the pairs each skill cares about and asserts the product landed. | Makes every claim below falsifiable | Before S1: runite bolts × onyx tips both orders → 0 tipped bolts (the defect, red). Delete `[opheldu,unstrung_shortbow]`, string a shortbow both orders → still strung (R1, green). |
+| **S0** | A dispatch driver: `::useon <obj> <useobj>` debug cheat (or a second stanza next to `torirs_server_world.c:30915`) that builds the OPHELDU payload and calls `ToriRSServer_WorldHandle`, plus a `[debugproc,useonrun]` that fires the pairs each skill cares about and asserts the product landed. | Makes every claim below falsifiable | Before S1: runite bolts × onyx tips both orders → 0 tipped bolts (the defect, red). Delete `[opheldu,unstrung_shortbow]`, string a shortbow both orders → still strung (R1, green). |
 | **S1** | Fix the bolts defect: delete `weapon_poison.rs2`'s five category bindings (its two hubs already cover them), rewrite `[opheldu,_bolttips]` inverted per R3, delete `[opheldu,bolt]`. Same treatment for `_arrowheads`, `_dart_tips`, `_firemaking_logs` (delete — their hubs route them). | −9 dead/wrong bindings, one real bug fixed | S0's bolt probe goes green; poison-on-bolts still works. |
 | **S2** | Fletching reverse-bind cleanup: 12 unstrung bows, 8 unstrung crossbows, 8 javelin heads, 8 of stocks/limbs, 5 ballista, 3 grapple. `bows.rs2` becomes `[opheldu,bow_string]` + procs, exactly LostCity's shape minus its dead `_unstrung_bow`. | −44 triggers, ~−250 lines, zero behaviour change | S0 both-order probes for one member of each family. |
 | **S3** | `general_use/scripts/tools/`: create, move `hammer.rs2`, move `[opheldu,knife]` out of `cut_logs.rs2` and `[opheldu,chisel]` out of `uncut_gem.rs2` as routers; the fletching/crafting bodies stay where they are as labels. Fold the selftest `bucket_water` probe into a `case`. | Unblocks amethyst and the nine knife consumers from editing another lane | Compile clean, S0 probes, `--selftest` unchanged. |

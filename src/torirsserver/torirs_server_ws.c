@@ -1,5 +1,5 @@
 /*
- * WebSocket (and raw TCP) transport for the mock 230 server. See mock230_ws.h
+ * WebSocket (and raw TCP) transport for the mock 230 server. See torirs_server_ws.h
  * for why one port serves both.
  *
  * The browser build has no choice about this: emscripten implements BSD
@@ -9,7 +9,7 @@
  * the framing is peeled off, which is the whole point of putting the seam here
  * rather than teaching the protocol code about transports.
  */
-#include "mock230_ws.h"
+#include "torirs_server_ws.h"
 #include <assert.h>
 
 #include "platform/net_transport_ws_frame.h"
@@ -65,15 +65,15 @@ write_all(
  * a dropped byte is a desynced ISAAC stream, which fails far from here. */
 static int
 app_append(
-    struct Mock230Conn* conn,
+    struct ToriRSServerConn* conn,
     uint8_t const* data,
     int len)
 {
     if( len <= 0 )
         return 1;
-    if( conn->app_len + len > MOCK230_CONN_APP_MAX )
+    if( conn->app_len + len > TORIRSSERVER_CONN_APP_MAX )
     {
-        fprintf(stderr, "mock230: inbound overflow (%d + %d bytes)\n", conn->app_len, len);
+        fprintf(stderr, "torirsserver: inbound overflow (%d + %d bytes)\n", conn->app_len, len);
         return 0;
     }
     memcpy(conn->app + conn->app_len, data, (size_t)len);
@@ -94,7 +94,7 @@ app_append(
  * connection layer is a blocking one.
  */
 static int
-ws_handshake(struct Mock230Conn* conn)
+ws_handshake(struct ToriRSServerConn* conn)
 {
     uint8_t request[WS_HANDSHAKE_REQUEST_MAX];
     int len = 0;
@@ -107,7 +107,7 @@ ws_handshake(struct Mock230Conn* conn)
 
         if( len >= (int)sizeof(request) )
         {
-            fprintf(stderr, "mock230: websocket request headers too large\n");
+            fprintf(stderr, "torirsserver: websocket request headers too large\n");
             return 0;
         }
         got = read(conn->fd, request + len, sizeof(request) - (size_t)len);
@@ -128,7 +128,7 @@ ws_handshake(struct Mock230Conn* conn)
 
     if( status != WS_HANDSHAKE_OK )
     {
-        fprintf(stderr, "mock230: malformed websocket upgrade request\n");
+        fprintf(stderr, "torirsserver: malformed websocket upgrade request\n");
         return 0;
     }
 
@@ -145,14 +145,14 @@ ws_handshake(struct Mock230Conn* conn)
     conn->ws = 1;
     fprintf(
         stderr,
-        "mock230: websocket client (subprotocol %s)\n",
+        "torirsserver: websocket client (subprotocol %s)\n",
         handshake.protocol[0] ? handshake.protocol : "none");
     return 1;
 }
 
 int
-mock230_conn_open(
-    struct Mock230Conn* conn,
+ToriRSServer_ConnOpen(
+    struct ToriRSServerConn* conn,
     int fd)
 {
     uint8_t first = 0;
@@ -187,7 +187,7 @@ mock230_conn_open(
 
 /* Turn whatever whole frames sit in `raw` into application bytes. */
 static int
-ws_deframe(struct Mock230Conn* conn)
+ws_deframe(struct ToriRSServerConn* conn)
 {
     int pos = 0;
 
@@ -202,7 +202,7 @@ ws_deframe(struct Mock230Conn* conn)
             break;
         if( status == WS_DECODE_ERROR )
         {
-            fprintf(stderr, "mock230: malformed websocket frame\n");
+            fprintf(stderr, "torirsserver: malformed websocket frame\n");
             return 0;
         }
 
@@ -228,7 +228,7 @@ ws_deframe(struct Mock230Conn* conn)
         case WS_OP_CLOSE:
             return 0;
         default:
-            fprintf(stderr, "mock230: unknown websocket opcode %d\n", frame.opcode);
+            fprintf(stderr, "torirsserver: unknown websocket opcode %d\n", frame.opcode);
             return 0;
         }
 
@@ -246,7 +246,7 @@ ws_deframe(struct Mock230Conn* conn)
 
 /* One read() off the socket, deframed into `app`. Returns 0 once dead. */
 static int
-conn_fill(struct Mock230Conn* conn)
+conn_fill(struct ToriRSServerConn* conn)
 {
     ssize_t got;
     int space;
@@ -256,7 +256,7 @@ conn_fill(struct Mock230Conn* conn)
 
     if( !conn->ws )
     {
-        space = MOCK230_CONN_APP_MAX - conn->app_len;
+        space = TORIRSSERVER_CONN_APP_MAX - conn->app_len;
         if( space <= 0 )
             return 1;
         got = read(conn->fd, conn->app + conn->app_len, (size_t)space);
@@ -278,10 +278,10 @@ conn_fill(struct Mock230Conn* conn)
         return 1;
     }
 
-    space = MOCK230_CONN_RAW_MAX - conn->raw_len;
+    space = TORIRSSERVER_CONN_RAW_MAX - conn->raw_len;
     if( space <= 0 )
     {
-        fprintf(stderr, "mock230: websocket frame larger than the read buffer\n");
+        fprintf(stderr, "torirsserver: websocket frame larger than the read buffer\n");
         conn->closed = 1;
         return 0;
     }
@@ -312,7 +312,7 @@ conn_fill(struct Mock230Conn* conn)
 
 static int
 app_take(
-    struct Mock230Conn* conn,
+    struct ToriRSServerConn* conn,
     uint8_t* out,
     int max)
 {
@@ -327,8 +327,8 @@ app_take(
 }
 
 int
-mock230_conn_recv(
-    struct Mock230Conn* conn,
+ToriRSServer_ConnRecv(
+    struct ToriRSServerConn* conn,
     uint8_t* out,
     int max)
 {
@@ -341,8 +341,8 @@ mock230_conn_recv(
 }
 
 int
-mock230_conn_send(
-    struct Mock230Conn* conn,
+ToriRSServer_ConnSend(
+    struct ToriRSServerConn* conn,
     uint8_t const* data,
     int len)
 {

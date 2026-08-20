@@ -113,7 +113,7 @@ re-parse to their declared track lengths.
 - [x] osrs230 `MIDI_SONG_V2` routed and parsed — it was discarded, so music could
       not play on that revision at all
 - [x] Effect monophony gated on the era feature table (2004 only)
-- [x] mock230 sends a track on login so the music path is reachable at all
+- [x] ToriRSServer sends a track on login so the music path is reachable at all
 - [ ] Random-set area emitters use a deterministic cycle, not the reference's RNG
 - [x] `MIDI_SONG_WITHSECONDARY` (op 99) and `MIDI_SWAP` (op 107) routed, parsed
       and executed, with position-preserving swap (`ToriRS_MidiSynth_PlayFrom`)
@@ -665,10 +665,10 @@ holes, none of which any engine test could see:
    server sent. It also needs its own reader: the shared one is the pre-V2
    two-byte form and asserts the frame is consumed, which on a 10-byte V2
    payload gives a garbage id and trips the assert.
-2. **Nothing ever sent one.** mock230 has a `MIDI_SONG` encoder and a
+2. **Nothing ever sent one.** ToriRSServer has a `MIDI_SONG` encoder and a
    serverscript opcode, and no content calls either. A subsystem nothing can
    reach is one nobody notices is broken, so the login burst now sends a track
-   (`MOCK230_SONG=<id>`, `-1` for none).
+   (`TORIRSSERVER_SONG=<id>`, `-1` for none).
 3. **`AMBIENTSOUND_START` / `AMBIENTSOUND_STOP` were `PKT_NAME_NONE`.** This is
    the correction to D8: area sound is *both* loc-driven and server-driven. The
    loc fields give positioned emitters found by walking the scene; these two

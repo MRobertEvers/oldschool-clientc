@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK_SERVER_H
-#define SRC_NET_MOCK_MOCK_SERVER_H
+#ifndef SRC_TORIRSSERVER_MOCK_SERVER_H
+#define SRC_TORIRSSERVER_MOCK_SERVER_H
 
 /*
  * Scripted in-process mock server for the loopback test: emits the login

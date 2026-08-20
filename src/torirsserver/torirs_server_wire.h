@@ -1,11 +1,11 @@
-#ifndef SRC_NET_MOCK_MOCK230_WIRE_H
-#define SRC_NET_MOCK_MOCK230_WIRE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_WIRE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_WIRE_H
 
 /*
  * The outbound wire adapter: which revision's bytes this server writes.
  *
  * This is the fourth vtable seam in the net stack and it is deliberately shaped
- * like the other three -- `Mock230Transport` (where the bytes go),
+ * like the other three -- `ToriRSServerTransport` (where the bytes go),
  * `NetLoginVTable` (how the handshake runs), `GameProtoRevTable` (what the
  * client reads). Same contract in all four: a struct of function pointers, one
  * instance per implementation, a `_by_name` resolver, and NULL slots meaning
@@ -13,7 +13,7 @@
  *
  * ## Why this could not stay an enum
  *
- * `mock230_encode.c` used to hold its 50 opcodes in a file-local `enum` of
+ * `torirs_server_encode.c` used to hold its 50 opcodes in a file-local `enum` of
  * literals. That was honest while there was one revision, and it hid three
  * things the moment there were two:
  *
@@ -41,7 +41,7 @@
  * opcodes were assigned by this project and its payloads are lc254-shaped,
  * because it is paired with this repo's own client and the two only have to
  * agree with each other. So the 230 wire adapter's `payload` is NULL, meaning
- * "whatever mock230_encode.c has always written", and that is correct for the
+ * "whatever torirs_server_encode.c has always written", and that is correct for the
  * only client it talks to. The 239 adapter's payloads are transcribed from
  * RSProt because its client is not ours.
  */
@@ -51,7 +51,7 @@
 #include <stdint.h>
 
 struct RSAreaBuf;
-struct Mock230ZoneEvent;
+struct ToriRSServerZoneEvent;
 
 /* ------------------------------------------------------------------ */
 /* Payload writers                                                     */
@@ -67,7 +67,7 @@ struct Mock230ZoneEvent;
  * that its revision does not carry it; a writer that is absent is stating that
  * nobody has transcribed it yet.
  */
-struct Mock230WirePayload
+struct ToriRSServerWirePayload
 {
     void (*if_opentop)(struct RSAreaBuf* buf, int interface_id);
     void (*if_opensub)(struct RSAreaBuf* buf, int interface_id, int dest_uid, int type);
@@ -161,7 +161,7 @@ struct Mock230WirePayload
     int (*zone_payload)(
         struct RSAreaBuf* buf,
         int pkt_name,
-        const struct Mock230ZoneEvent* event,
+        const struct ToriRSServerZoneEvent* event,
         int pos,
         int props);
 
@@ -200,7 +200,7 @@ struct Mock230WirePayload
         int fade_out_speed);
     /** MidiJingleEncoder v16 (revs 239): p3 length_in_millis, p2Alt3 id.
      *  Confirmed against the vendored rsprot codec, the 239 Kotlin
-     *  transcription, and the rev-239 deob -- see mock230_wire.c. */
+     *  transcription, and the rev-239 deob -- see torirs_server_wire.c. */
     void (*midi_jingle)(struct RSAreaBuf* buf, int id, int length_ms);
     /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
      *  is a config-group-15 record, not a sound effect. */
@@ -257,7 +257,7 @@ struct Mock230WirePayload
 /* The adapter                                                         */
 /* ------------------------------------------------------------------ */
 
-struct Mock230Wire
+struct ToriRSServerWire
 {
     char const* name;
     int revision;
@@ -321,7 +321,7 @@ struct Mock230Wire
     char const* (*packetout_prot_name)(int wire_opcode);
 
     /**
-     * Rewrite an inbound body into the one `mock230_world.c` reads, or NULL
+     * Rewrite an inbound body into the one `torirs_server_world.c` reads, or NULL
      * when the revision's client already sends it.
      *
      * A THIRD slot rather than a smarter `packetout_name`, because inbound the
@@ -362,10 +362,10 @@ struct Mock230Wire
      */
     int opcode_smart2;
 
-    /** NULL = write the payloads mock230_encode.c has always written (the
+    /** NULL = write the payloads torirs_server_encode.c has always written (the
      *  lc254-shaped 230 set). Non-NULL = a whole writer set; anything it does
      *  not name is refused. See the header comment. */
-    const struct Mock230WirePayload* payload;
+    const struct ToriRSServerWirePayload* payload;
 
     /**
      * The canonical packets this revision's writer set covers.
@@ -407,19 +407,19 @@ struct Mock230Wire
  * fields from disagreeing.
  */
 static inline int
-mock230_wire_player_index(int pool_pid)
+ToriRSServer_WirePlayerIndex(int pool_pid)
 {
     return pool_pid + 1;
 }
 
 /** "osrs230" or "osrs239"; NULL when unknown. */
-const struct Mock230Wire*
-mock230_wire_by_name(char const* name);
+const struct ToriRSServerWire*
+ToriRSServer_WireByName(char const* name);
 
 /** The default when nothing selects one: revision 230, the hybrid this repo's
  *  own client speaks and every existing test asserts against. */
-const struct Mock230Wire*
-mock230_wire_default(void);
+const struct ToriRSServerWire*
+ToriRSServer_WireDefault(void);
 
 /**
  * Resolve `pkt_name` to a wire opcode, reporting an absent packet ONCE per
@@ -430,11 +430,11 @@ mock230_wire_default(void);
  * hide a real gap. Returns -1 when the packet does not exist here.
  */
 int
-mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name);
+ToriRSServer_WireOpcode(const struct ToriRSServerWire* wire, int pkt_name);
 
 /** Human-readable name for a canonical packet, for those same diagnostics. */
 char const*
-mock230_wire_pkt_name(int pkt_name);
+ToriRSServer_WirePktName(int pkt_name);
 
 /**
  * 1 when this revision's writer set covers `pkt_name`.
@@ -444,6 +444,6 @@ mock230_wire_pkt_name(int pkt_name);
  * as an absent opcode.
  */
 int
-mock230_wire_can_write(const struct Mock230Wire* wire, int pkt_name);
+ToriRSServer_WireCanWrite(const struct ToriRSServerWire* wire, int pkt_name);
 
 #endif

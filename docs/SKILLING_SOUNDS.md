@@ -25,7 +25,7 @@ encounter, and where the technique in §3 comes from),
 ## 0. The finding, in one paragraph
 
 **Nothing is blocked.** The server command exists and is wired to the wire
-(`SS_OP_SOUND_SYNTH` → `mock230_send_synth_sound`), the client plays it, the
+(`SS_OP_SOUND_SYNTH` → `ToriRSServer_SendSynthSound`), the client plays it, the
 compiler resolves `synth` names, and — the part that was actually missing when
 the skills were ported — **every sound name the reference uses now resolves in
 this cache**. All 49 distinct synth names LostCity's skilling scripts call
@@ -62,13 +62,13 @@ edit whose symbol compiles.
 
 | piece | state | where |
 |---|---|---|
-| `sound_synth(synth, loops, delay)` | **works** — pops 3, drops negative ids, sends the packet | [`mock230_scripts.c:8143`](../src/net/mock/mock230_scripts.c#L8143) |
-| `SYNTH_SOUND` wire encode | **works** | `mock230_send_synth_sound`, `mock230_encode.c` |
+| `sound_synth(synth, loops, delay)` | **works** — pops 3, drops negative ids, sends the packet | [`torirs_server_scripts.c:8143`](../src/torirsserver/torirs_server_scripts.c#L8143) |
+| `SYNTH_SOUND` wire encode | **works** | `ToriRSServer_SendSynthSound`, `torirs_server_encode.c` |
 | client playback (self) | **works** | `RS_Audio_Synth`, [`app.c:13710`](../src/app.c#L13710) |
 | client playback (positional) | **works** | `RS_Audio_SynthAt`, [`app.c:13723`](../src/app.c#L13723) |
 | `synth` symbol type in the compiler | **works** | [`ssc_symbols.c:504`](../src/serverscript/ssc_symbols.c#L504) |
 | loc ambient sound (`soundid=`) | **works, and already playing** | decode [`torirs_location_from_rscache.c:128`](../src/engine/torirs_location_from_rscache.c#L128) → emitter [`world_scenery.u.c:1993`](../src/engine/world_builder/world_scenery.u.c#L1993) → `rs_audio.c` ambient loops |
-| `huntall` / `huntnext` | **works** — so `~sound_area` is portable as 4 lines of content | [`mock230_scripts.c:4740`](../src/net/mock/mock230_scripts.c#L4740) |
+| `huntall` / `huntnext` | **works** — so `~sound_area` is portable as 4 lines of content | [`torirs_server_scripts.c:4740`](../src/torirsserver/torirs_server_scripts.c#L4740) |
 | `~sound_area` / `~sound_within_distance` procs | **already ported — and called by nothing** (0 call sites) | [`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/sound.rs2) |
 | `MIDI_JINGLE` (level-up jingles) | **opcode declared, server-side unimplemented**, and `11_musicjingles.pack` is entirely unnamed (`jingle_0…`) | [`ss_opcode.h:138`](../src/serverscript/ss_opcode.h#L138) |
 
@@ -288,7 +288,7 @@ sound and an obj category, and `sound_synth`'s argument is not type-hinted
 a **npc param** for the sound. That param is `attack_sound`, which
 `NPC_SOUNDS_ANIMS.md` says no npc in this tree states yet — so it will play
 nothing until that separate work lands, and the `< 0` guard in
-`mock230_scripts.c` means that is *silent*, not broken.
+`torirs_server_scripts.c` means that is *silent*, not broken.
 
 ### 4.11 Prayer — `skill_prayer/`
 
@@ -519,7 +519,7 @@ be violated:
 [`general/scripts/misc/sound.rs2`](../OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/sound.rs2)
 already carries `[proc,sound_area]`, `[proc,.sound_area]` and
 `[proc,sound_within_distance]`, all built on `huntall`/`huntnext` (implemented
-at [`mock230_scripts.c:4740`](../src/net/mock/mock230_scripts.c#L4740)), and
+at [`torirs_server_scripts.c:4740`](../src/torirsserver/torirs_server_scripts.c#L4740)), and
 **zero scripts call any of them**. So Phase 0 is not writing the proc, it is
 deciding which §4 rows go through it: a sound that only the actor should hear
 stays a plain `sound_synth`, and one a bystander should hear —
@@ -562,12 +562,12 @@ skilling sounds) — and firemaking (`tinderbox_strike`/`fire_lit`, plus
 from the doc's original source list does not exist in this content tree — 7
 spot files were ported, not 9; §4.3 undercounted.
 
-Verification: `make mock230-scripts` compiles the same **14,240 scripts** with
+Verification: `make torirsserver-scripts` compiles the same **14,240 scripts** with
 **zero new errors or notes** (all 8 new synth names — `mine`, `mine_quick`,
 `prospect`, `woodchop`, `tree_fall`, `tinderbox_strike`, `fire_lit`, plus the
 already-used `fishing_cast`/`net`/`fire_lit`/`lever`/`found_gem` — resolve
 clean). `make test-sound` (the audio unit suite) is fully green. `make
-test-mock230` could not be exercised end-to-end: its `mock230-servpack`
+test-ToriRSServer` could not be exercised end-to-end: its `torirsserver-servpack`
 prerequisite fails on an unrelated, pre-existing gap in the checked-out
 OSRS-Content commit — several fishing npcs (`freshfish`, `saltfish`, …) state
 a server-band field `pack/npc.server` doesn't claim. `git status` in the
@@ -599,7 +599,7 @@ sound regression.
 - **Prayer**: a `sound` **int** column on `prayer_table` (not `synth` — nothing else in this content tree uses that dbtable type yet, and the ids are native to this cache, not ported across eras, so a plain int carries no risk `PORTING_GUIDE §4.1 rule 4` warns about). All 29 rows carry a value; the 24 pre-2005 prayers get their real id, the 5 post-2004 additions (Preserve, Chivalry, Piety, Rigour, Augury) get an explicit `-1` — never omitted, because an omitted int column does not reliably read as "no value" here. One call site each for on (`db_getfield(…, sound, 0)`, 0 loops, matching LC exactly) and off (`prayer_off`); a third site (`cancel_prayer`) turned out to belong to *conflict auto-deactivation*, not "cancel all" as originally guessed — LC's `[proc,prayer_deactivate]` is the analogue of this port's `prayer_deactivate_specific`, not `prayer_deactivate_all`, which itself plays no sound in the reference. Also wired `bones_down` (`bury_bone.rs2`, the exact file whose comment stated the now-false "unnamed synth table" rationale in §1) and `prayer_boost`/`prayer_recharge` (`altar.rs2`, same stale rationale).
 - **Runecraft**: `teleport_all` (exit portal, both ruins-entry paths), `bind_runes` (crafting), plus `essence_mine.rs2` (`curse_all` on the Abyss curse-cast, `teleport_all` on the exit portal) — not itemized in §4.16 originally but the same pattern and fully LC-stated.
 
-Verification: `make mock230-scripts` — same **14,240 scripts**, zero new errors; `db columns` count went **367→368**, confirming the new `prayer_table.sound` column packed. `make test-sound` and `make test-db` both fully green (the latter specifically exercises `db_getfield` on omitted/declared-default columns, relevant to the `-1` sentinel choice above). `make mock230-servpack` still fails on the same pre-existing, unrelated npc.server field-registration gap from Phase 1 — confirmed by `0 unresolved names` in the dbtable/dbrow pack step, meaning this change's config edits themselves pack clean.
+Verification: `make torirsserver-scripts` — same **14,240 scripts**, zero new errors; `db columns` count went **367→368**, confirming the new `prayer_table.sound` column packed. `make test-sound` and `make test-db` both fully green (the latter specifically exercises `db_getfield` on omitted/declared-default columns, relevant to the `-1` sentinel choice above). `make torirsserver-servpack` still fails on the same pre-existing, unrelated npc.server field-registration gap from Phase 1 — confirmed by `0 unresolved names` in the dbtable/dbrow pack step, meaning this change's config edits themselves pack clean.
 
 ### 5.4 Phase 3 — the data-driven and post-2004 skills — **done, 2026-08-12**
 
@@ -632,7 +632,7 @@ work for two of the five skills:
 - **Slayer**: 2 sites, both in `slayer_specials.rs2`'s task-monster finishers, neither of which carries a player anim to hang a sound off: `shatter` when a gargoyle cracks apart under a rock hammer, `sizzle` when a rockslug dissolves under a bag of salt. The desert-lizard icy-water finisher has no comparable name and was left silent rather than guessed. Confirmed slayer's statue/bucket/door content (§4.17's `slayer_statuemove`/`slayer_throwbucket`/`slayerdoors`) genuinely isn't ported in this tree — nothing to wire.
 - **Summoning**: 1 site. `summoning_infuse.rs2` had an explicit deferral comment — "the source craft sound is beyond the documented safe cross-revision audio boundary" — for the spirit wolf pouch infusion. That caution was about an *unverified cross-revision id*; `lore_craft_pouch` is a name native to *this* cache's own sound pack, not ported from anywhere, so it carries none of the risk the comment was guarding against. Wired it and rewrote the comment to say why.
 
-Verification: both `make mock230-scripts` (14,241 scripts — one more than Phase 2's 14,240, unrelated to this change) and `make mock230-scripts-summoning` compile clean with the same pre-existing notes and zero new errors. `make test-sound` green. The agility collision above is the concrete case for §5.0 rule 3's warning: a name not in an earlier collision sweep can still collide, because the sweep only covers names known at the time it ran — re-check any name this document doesn't already list.
+Verification: both `make torirsserver-scripts` (14,241 scripts — one more than Phase 2's 14,240, unrelated to this change) and `make torirsserver-scripts-summoning` compile clean with the same pre-existing notes and zero new errors. `make test-sound` green. The agility collision above is the concrete case for §5.0 rule 3's warning: a name not in an earlier collision sweep can still collide, because the sweep only covers names known at the time it ran — re-check any name this document doesn't already list.
 
 ### 5.5 Optional engine work, if the polish is wanted
 
@@ -650,17 +650,17 @@ Neither blocks §4.
 
 ### 5.6 Verification, per slice
 
-1. **`make -C src mock230-scripts`** is the name check. It runs `sscompile`,
+1. **`make -C src torirsserver-scripts`** is the name check. It runs `sscompile`,
    which resolves `synth` symbols out of `pack/4_soundeffects.pack`, so a name
    that is not in this cache is a **compile error** — you cannot ship a wrong
    name silently. This is why §5.0 rule 2 (names, never ids) is not style
    advice: an id typo compiles and plays the wrong noise.
-2. `make -C src test-sound` (the audio suite) and the mock230 selftest green.
+2. `make -C src test-sound` (the audio suite) and the ToriRSServer selftest green.
    Beware the roam-RNG fragility already documented for the selftest — do not
    read a wander-related failure as a sound regression.
-3. In-game, with `MOCK230_VERBOSE=1`: the server prints
-   `mock230: sound_synth(<id>, <loops>, <delay>)` at
-   [`mock230_scripts.c:8160`](../src/net/mock/mock230_scripts.c#L8160). Confirm
+3. In-game, with `TORIRSSERVER_VERBOSE=1`: the server prints
+   `torirsserver: sound_synth(<id>, <loops>, <delay>)` at
+   [`torirs_server_scripts.c:8160`](../src/torirsserver/torirs_server_scripts.c#L8160). Confirm
    the *id* and the *tick* against the table, not just "I heard something".
 4. Confirm nothing doubled with loc ambience (§5.0 rule 1) by standing at a
    furnace and smelting: you should hear the hum **and** `furnace`, and they
@@ -674,8 +674,8 @@ Neither blocks §4.
 Both of the reasons that stopped this are resolved as of the quest-completion
 jingle work (see `docs/AUDIO_ACCURACY.md` §4 and `tools/gen_jingle_names.py`):
 
-- `MIDI_JINGLE` (opcode 2064) now has a real case in `mock230_scripts.c`, an
-  encoder (`mock230_send_midi_jingle`), a wire-table entry, and a client-side
+- `MIDI_JINGLE` (opcode 2064) now has a real case in `torirs_server_scripts.c`, an
+  encoder (`ToriRSServer_SendMidiJingle`), a wire-table entry, and a client-side
   decode fix (rev 239's layout was never 4 bytes; see
   `src/net/rev/rsprot_bridge.c`'s `bridge_midi_jingle`).
 - `pack/11_musicjingles.pack` is named for 313 of its 315 rows. The name→id

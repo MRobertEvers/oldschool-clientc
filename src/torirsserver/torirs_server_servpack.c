@@ -1,4 +1,4 @@
-#include "mock230_servpack.h"
+#include "torirs_server_servpack.h"
 
 #include "archive.h"
 #include "checksum.h"
@@ -33,8 +33,8 @@ enum
 };
 
 int
-Mock230_ServPackOpen(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackOpen(
+    struct ToriRSServerServPack* pack,
     const char* content_dir)
 {
     char path[640];
@@ -47,7 +47,7 @@ Mock230_ServPackOpen(
 }
 
 void
-Mock230_ServPackClose(struct Mock230ServPack* pack)
+ToriRSServer_ServPackClose(struct ToriRSServerServPack* pack)
 {
     if( pack->dat2 )
         fclose(pack->dat2);
@@ -59,13 +59,13 @@ Mock230_ServPackClose(struct Mock230ServPack* pack)
     memset(pack, 0, sizeof(*pack));
 }
 
-static struct Mock230ServPackIdx*
+static struct ToriRSServerServPackIdx*
 idx_for_group(
-    struct Mock230ServPack* pack,
+    struct ToriRSServerServPack* pack,
     int group)
 {
     char path[640];
-    struct Mock230ServPackIdx* idx;
+    struct ToriRSServerServPackIdx* idx;
     long size;
 
     for( int i = 0; i < pack->idx_count; i++ )
@@ -91,24 +91,24 @@ idx_for_group(
 }
 
 int
-Mock230_ServPackEntryCount(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackEntryCount(
+    struct ToriRSServerServPack* pack,
     int group)
 {
-    struct Mock230ServPackIdx* idx = idx_for_group(pack, group);
+    struct ToriRSServerServPackIdx* idx = idx_for_group(pack, group);
 
     return idx ? idx->entries : 0;
 }
 
 int
-Mock230_ServPackReadBand(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackReadBand(
+    struct ToriRSServerServPack* pack,
     int group,
     int id,
     uint8_t* out,
     int out_capacity)
 {
-    struct Mock230ServPackIdx* idx = idx_for_group(pack, group);
+    struct ToriRSServerServPackIdx* idx = idx_for_group(pack, group);
     struct RSCache_Dat2DiskIndexRecord record = { 0 };
     struct RSCache_Dat2DiskArchive archive = { 0 };
     const uint8_t* data;
@@ -116,26 +116,26 @@ Mock230_ServPackReadBand(
     int size;
 
     if( !idx || !idx->file || id < 0 || id >= idx->entries )
-        return MOCK230_SERVPACK_ABSENT;
+        return TORIRSSERVER_SERVPACK_ABSENT;
     /* Nonzero is "no such archive", not corruption: the idx zero-fills the gap
      * entries between the ids that exist, and the read helper reports any
      * `sector <= 0` entry as -1 without touching `record` (dat2disk.c). A
      * *damaged* archive can only be told apart once there are bytes to hold to
      * the header, which is the check below. */
     if( RSCache_Dat2DiskIndexFileReadRecord(idx->file, id, &record) != 0 )
-        return MOCK230_SERVPACK_ABSENT;
+        return TORIRSSERVER_SERVPACK_ABSENT;
     if( record.sector <= 0 || record.length <= 0 )
-        return MOCK230_SERVPACK_ABSENT;
+        return TORIRSSERVER_SERVPACK_ABSENT;
 
     if( RSCache_Dat2DiskDat2FileReadArchive(
             pack->dat2, group, id, record.sector, record.length, &archive) != 0 )
-        return MOCK230_SERVPACK_INVALID;
+        return TORIRSSERVER_SERVPACK_INVALID;
     /* The container framing: compression byte + length + payload. The bands are
      * stored uncompressed, but the framing is validated the same either way. */
     if( !RSCache_ArchiveDecryptDecompress(&archive, NULL) )
     {
         free(archive.data);
-        return MOCK230_SERVPACK_INVALID;
+        return TORIRSSERVER_SERVPACK_INVALID;
     }
 
     data = (const uint8_t*)archive.data;
@@ -162,5 +162,5 @@ Mock230_ServPackReadBand(
 
 invalid:
     free(archive.data);
-    return MOCK230_SERVPACK_INVALID;
+    return TORIRSSERVER_SERVPACK_INVALID;
 }

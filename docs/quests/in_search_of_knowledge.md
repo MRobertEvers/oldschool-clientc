@@ -479,7 +479,7 @@ Required recovery matrix:
 | --- | --- | --- |
 | Static quest audit | This dossier; combat row blank | Every root/external owner and native field recorded; no undisclosed shortcut |
 | Quest Helper extraction | Pass on 2026-08-17 | Continue passing against pinned helper tree |
-| `mock230-scripts` / pack check | Not run for docs-only audit | Clean build and `mock230_pack --check-only` after code changes |
+| `torirsserver-scripts` / pack check | Not run for docs-only audit | Clean build and `ToriRSServer_Pack --check-only` after code changes |
 | Organic 0→3 route | Impossible | Pages acquired only from live monster deaths; real route to scroll |
 | Page-drop tests | Absent | Rates/selection/owner/toggle tested for every exact NPC family |
 | Item/recovery tests | Absent | Every shelf, counter, loss, bank, handoff, and state-2 row automated |

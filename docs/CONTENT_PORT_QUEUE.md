@@ -13,7 +13,7 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 
 Loop prompt: read this file + PORTING_GUIDE §4 / §7; **immediately mark the
 chosen slice `in_progress`** (other lanes share this tree — claim before
-measure/port); NEVER park sibling lanes; verify (`mock230_pack --check-only`,
+measure/port); NEVER park sibling lanes; verify (`ToriRSServer_Pack --check-only`,
 scripts build); update this file; re-arm. Stop only when the user stops the loop.
 
 **Do not park sibling lanes.** Never rename `skill_construction/` →
@@ -777,7 +777,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 ## Log
 
 - queue created
-- slice 1 done: Fred / Duke / Urhney + sheep varp/constants + sheep_complete queue; scripts compile; mock230_pack 0 errors
+- slice 1 done: Fred / Duke / Urhney + sheep varp/constants + sheep_complete queue; scripts compile; ToriRSServer_Pack 0 errors
 - slice 2 done: haybales, pickables, water fill, crates (gates/drawers deferred — orphan loc categories)
 - slice 3 done: shear_sheep (all colour variants) + spinningwheel wool/flax
 - slice 4 done: sheep_journal wired to quest_sheepshearer
@@ -878,428 +878,428 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 10v done: cooking dough — pot_flour + bucket/jug/bowl/vial_water → bread/pastry/pizza/pitta via p_choice4_header; empty switch; deferred: cake_tin, swamp_tar, murder_proofobj
 - slice 10w done: cooking wine — grapes+jug_water → jug_unfermented_wine + fermenting_wine timer (bank batches + inv); ~ferment_wines_login; deferred: bad-wine polish
 - slice 10x done: dye cape — mix primary dyes + dye capes (switch maps, no struct overlays); dye→goblin_armour / plainwig reverse; deferred: crafting_capes_struct .obj overlays
-- slice 10y done: studded leather — studs Use on leather_armour/chaps (switch maps; crafting_studded_struct blocked); members gate; mock230_pack 0 errors
+- slice 10y done: studded leather — studs Use on leather_armour/chaps (switch maps; crafting_studded_struct blocked); members gate; ToriRSServer_Pack 0 errors
 - slice 10z done: glassblowing — sandpit+bucket, furnace sand/soda_ash→molten_glass, pipe p_choice beer/vial/orb; furnace hook in smelting; deferred: telescope lens, lantern, weakqueue
 - slice 11a done: necromancer tower AI — invrigar/necromancer summon zombie + confuse/weaken/curse + melee + overlays; LC ^defence→^curse; deferred: .hunt, sound_synth
 - slice 11b done: Taverley jail/prison doors — dungeonjail+jail_key / deepdungeondoor+dusty_key walk-through; cauldrondoor suitofarmour→suit_of_armour; deferred: swing, clock-tower ctratgatea
 - slice 11c done: snelm — chisel↔shell name-expand + product switch; ~snelm_reduction; deferred: Mort Myre snail wiring, sound_synth
-- slice 11d done: battlestaves — air/fire/water/earth orb + battlestaff; switch data (crafting_staff_struct blocked); members gate; mock230_pack 0 errors
+- slice 11d done: battlestaves — air/fire/water/earth orb + battlestaff; switch data (crafting_staff_struct blocked); members gate; ToriRSServer_Pack 0 errors
 - slice 11e done: jewellery — furnace gold/silver p_choice + wool stringing switches; perfect gold ruby; deferred: crafting_jewelry.if, weakqueue, mm/regicide
 - slice 11f done: crafting guild — craftingguilddoor (LC crafting_guild_door) lvl40+brown_apron walk-through + master_crafter Talk-to; deferred: door swing
-- slice 11g done: dragonhide leather — coif + green/blue/red/black body/vamb/chaps; leather namedobj,int count; members gate; p_choice (no leather_crafting IF); mock230_pack 0 errors (3028 scripts)
-- slice 11h done: enchanted jewellery — glory/dueling/games necklace Rub tele (charge switches); ring_of_forging varp+smelt; ring_of_life on melee/magic hit; deferred: recoil (%aggressive_npc), modern multi-dest, pre_tele zone tables; mock230_pack 0 errors (3060 scripts)
-- slice 11i done: fountain_of_heroes glory recharge + enchant_5 (dragonstone amulet→glory, ring→wealth); mock230_pack 0 errors (3062 scripts)
-- slice 11j done: bones to bananas (magic_spellbook:bones_bananas); peaches deferred (absent LC); mock230_pack 0 errors (3064 scripts)
-- slice 11k done: charge orb (oploct/aploct magic_spellbook:charge_*_orb + loc_type + 4 rows); deferred: legends gate, charge_orb_name string param, afk/synth; mock230_pack 0 errors (3073 scripts)
-- slice 11l done: Thormac mystic staff (p_choice5 air/water/earth/fire/lava); scorpcatcher quest gate deferred; mock230_pack 0 errors (3075 scripts)
-- slice 11m done: ring of recoil (%ring_of_recoil + %aggressive_npc authored; melee+magic damage wire); deferred: npc_attacking_uid varn, PvP; mock230_pack 0 errors (3077 scripts)
-- slice 11n done: Mage Arena charge (magic_spellbook:charge + timer; %magearena gate); deferred: sound_synth, god-spell consumers; mock230_pack 0 errors (3079 scripts)
-- slice 11o done: stankers Talk-to + poison_chalice Drink (random heal/drain/damage → cocktail_glass_empty); mock230_pack 0 errors (3085 scripts)
-- slice 11p done: foresters_bartender beer/stew/meat_pie sales; barcrawl deferred; mock230_pack 0 errors (3103 scripts)
-- slice 11q done: trollheim teleport (IF + dbrow + constant); Eadgar gate + sled deferred; mock230_pack 0 errors (3104 scripts)
-- slice 11r done: coal trucks (%coal_truck authored varp 5758 + ^coal_truck_max); mock230_pack 0 errors (3106 scripts)
-- slice 11s done: seer default Talk-to (Many greetings / knowledge+power); scorpcatcher deferred; mock230_pack 0 errors (3109 scripts)
-- slice 11t done: bees / merlin_beehive wax (%beehive_free authored 5759); mock230_pack 0 errors (3113 scripts)
-- slice 11u done: mcgrubors wood (gates name-expand, railing, _red_vine dig); sound_synth + mcgrubor_gate cat deferred; mock230_pack 0 errors (3121 scripts)
-- slice 11v done: brother_galahad + %grail clean-varp + quest_grail constants; full Holy Grail quest deferred; mock230_pack 0 errors (3130 scripts)
-- slice 11w done: king_arthur + %arthur clean-varp 14 + constants + arthur/grail complete queues; Merlin Crystal / Holy Grail bodies deferred; mock230_pack 0 errors (3136 scripts)
-- slice 11x done: merlin + merlin2 Talk-to; mock230_pack 0 errors (3138 scripts)
-- slice 11y done: sir_gawain + sir_lancelot; mock230_pack 0 errors (3141 scripts)
-- slice 11z done: sir_kay + sir_bedivere; trail clue deferred; mock230_pack 0 errors (3143 scripts)
-- slice 12a done: sir_lucan/palomedes/pelleas/tristram; mock230_pack 0 errors (3147 scripts)
-- slice 12b done: hemenster morris/bigdave/joshua + %fishingcompo; mock230_pack 0 errors (3150 scripts)
-- slice 12c done: grandpa_jack + sinister_stranger; mock230_pack 0 errors (3157 scripts)
-- slice 12d done: poison_salesman + %murderquest + murder_poisonproof_progress authored 5760; Fremennik/full Murder Mystery deferred; mock230_pack 0 errors (3158 scripts)
-- slice 12e done: arhein Talk-to + Merlin fort arm; Trade stub; mock230_pack 0 errors (3163 scripts)
-- slice 12f done: candle_maker + %excalibur_components_progress authored 5761 + bit indices; mock230_pack 0 errors (3165 scripts)
-- slice 12g done: harry fishing shop stub; mock230_pack 0 errors
-- slice 12h done: hickton archery shop stub; mock230_pack 0 errors (3169 scripts)
-- slice 12i done: bonzo + %hemenster_comp_stage 5762 + %hemenster_pipe_stashed 5763; mock230_pack 0 errors (3175 scripts)
-- slice 12j done: tunnel_dwarf + fishingcompo_quest_complete; mock230_pack 0 errors (3187 scripts)
-- slice 12k done: garlicpipe + hemenster gate walk-through + move_hemenster_pipe; mock230_pack 0 errors (3196 scripts)
-- slice 12l done: sir_mordred spare + thrantaxaltar; mock230_pack 0 errors (3204 scripts)
-- slice 12m done: merlin crate ship + %arhein_crate_coord 5764 + Keep Le Faye doors walk-through; mock230_pack 0 errors (3218 scripts)
-- slice 12n done: ladyofthelake + beggar + jewellersdoor/ladder; mock230_pack 0 errors (3226 scripts)
-- slice 12o done: thrantax bat-bones summon; mock230_pack 0 errors (3227 scripts)
-- slice 12p done: merlins_crystal smash; mock230_pack 0 errors (3228 scripts)
-- slice 12q done: hemenster competition spots; mock230_pack 0 errors (3239 scripts)
-- slice 12r done: murder_guard + %murder_evidence 5765 + murderer constants + complete; mock230_pack 0 errors (3256 scripts)
-- slice 12s done: gossipy_man; mock230_pack 0 errors (3257 scripts)
-- slice 12t done: murder poisonproof Investigate locs; mock230_pack 0 errors (3263 scripts)
-- slice 12u done: anna + bob Sinclair Talk-to; mock230_pack 0 errors
-- slice 12v done: carol + david Sinclair Talk-to; mock230_pack 0 errors
-- slice 12w done: elizabeth + frank Sinclair Talk-to; mock230_pack 0 errors
-- slice 12x done: murder servants (donovan/hobbes/louisa/mary/pierre/stanford); trail clues deferred; mock230_pack 0 errors
-- slice 12y done: murder evidence barrels + weapon/pot Take; mock230_pack 0 errors
-- slice 12z done: murder window/flour/sacks/dog gates (loc_2666→kr_mansion_window_multi_*); mock230_pack 0 errors
-- slice 13a done: flour prints (switch maps) + murder_journal; mock230_pack 0 errors
-- slice 13b done: arthur_journal + quest_merlinscrystal wire; mock230_pack 0 errors (3357 scripts)
-- slice 13c done: fishingcompo_journal + quest_fishingcontest wire; mock230_pack 0 errors
-- slice 13d done: sinclair_guard_dog ai_timer; mock230_pack 0 errors
-- slice 13e done: cake_tin → uncooked_cake (+ dough arm); mock230_pack 0 errors
-- slice 13f done: chocolate cake; mock230_pack 0 errors
-- slice 13g done: chocolaty_milk + hangover_cure; mock230_pack 0 errors
-- slice 13h done: swamp_tar+flour → rawswamppaste; mock230_pack 0 errors
-- slice 13i done: herorockslide mine+forcemove; mock230_pack 0 errors
-- slice 13j done: grail realm thin NPCs (fisherman/maiden/percival/peasants); mock230_pack 0 errors
-- slice 13k done: fisher_king Talk-to; mock230_pack 0 errors
-- slice 13l done: grail_crone + high_priest grail arm; mock230_pack 0 errors
-- slice 13m done: sir_percival; mock230_pack 0 errors
-- slice 13n done: grail_journal + quest_holygrail wire; mock230_pack 0 errors (3400 scripts)
-- slice 13o done: black_knight_titan Talk-to + Excalibur death gate + drops; mock230_pack 0 errors (3404 scripts)
-- slice 13p done: kaqemeex + %druidquest + quest_druid complete/cauldron; mock230_pack 0 errors (3419 scripts)
-- slice 13q done: sanfew Druidic Ritual arms (Eadgar deferred); mock230_pack 0 errors (3427 scripts)
-- slice 13r done: fletching bolts/darts (cat 530=bolttips, 969=dart_tips); mock230_pack 0 errors (3433 scripts)
-- slice 13s done: druid_journal + quest_druidicritual wire; mock230_pack 0 errors (3434 scripts)
-- slice 13t done: crystal_chest + crystal_key (join halves + loot); mock230_pack 0 errors (3441 scripts)
-- slice 13u done: gaius Talk-to + Trade stub; trail clue deferred; mock230_pack 0 errors (3443 scripts)
-- slice 13v done: jatix Talk-to + Trade stub; mock230_pack 0 errors (3445 scripts)
-- worn-tab value checker + items kept on death (2026-08-03): pricechecker.rs2 (high-alch), deathkeep preview, on-death→gravestone, coffer/office; oc_cost/tradeable/members + inv_dropall/obj_addall; RCS arity 28; mock230_pack 0 errors
-- slice 13w done: taverly druid AI + snare/entangle dbrows; mock230_pack 0 errors
-- slice 13x done: ballboy + %ballquest constants/varp + complete; house locs deferred; mock230_pack 0 errors
-- slice 13y done: yanille thin NPCs (sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard); mock230_pack 0 errors
-- slice 13z done: burthorpe thin NPCs + ^death_complete/%death_equiproom; mock230_pack 0 errors (3543 scripts)
-- slice 14a done: yanille shop stubs (frenita/magic_store/ogre traders + retaliate); mock230_pack 0 errors (3555 scripts)
-- slice 14b done: witch house locs + experiment chain + witchrat/experiment coords; mock230_pack 0 errors (3578 scripts)
-- slice 14c done: death plateau thin soldiers/archers Talk-to; mock230_pack 0 errors (3595 scripts)
-- slice 14d done: saba + eohric + %death_map authored 5767 + progress constants; mock230_pack 0 errors (3603 scripts)
-- slice 14e done: Denulth + %death_bits authored 5768 + death_quest_complete; troll_quest deferred; mock230_pack 0 errors (3618 scripts)
-- slice 14f done: Tenzing Death Plateau arms + post-quest boots; troll_love deferred; mock230_pack 0 errors
-- slice 14g done: Dunstan Death Plateau arms; troll/sled/law tali deferred; mock230_pack 0 errors (3632 scripts)
-- slice 14h done: Harold drink/duty/combo + inline gamble (no death_dice IF1); mock230_pack 0 errors
-- slice 14i done: witches_diary mesbox pages + mouse-door varp; IF1 book deferred; mock230_pack 0 errors (3642 scripts)
-- slice 14j done: nora_t_hagg ai_spawn/ai_timer + patrol overlay; mock230_pack 0 errors (3644 scripts)
-- slice 14k done: death_iou→combination + scout zone; doors/mechanism deferred; mock230_pack 0 errors
-- slice 14l done: death_journal + ball_journal questlist wires; mock230_pack 0 errors (3649 scripts)
-- slice 14m done: death doors + stone mechanism + cat 73=death_cannonball + %death_stones; mock230_pack 0 errors (3659 scripts)
-- slice 14n done: hermit cave + stile + climbing rocks + boot Wear; dangersign deferred; mock230_pack 0 errors (3666 scripts)
-- slice 14o done: npc_combat_ranged + troll thrower AI/overlays/drops; mock230_pack 0 errors (3711 scripts)
-- slice 14p done: death_archer combat/drops + death_guard drops + dangersign stub; mock230_pack 0 errors (3718 scripts)
-- slice 14q done: Heroes Guild leftovers (achietties/helemos/entrance) + %heroquest/%zanaris stubs + quest_hero procs/complete; Trade stub; door walk-through; mock230_pack 0 errors (3738 scripts)
-- slice 14r done: combat training camp (trainers/shop stub/gate/dummy/ogre) + %biohazard/%biodummy; mock230_pack 0 errors (3749 scripts)
-- slice 14s done: trollweiss chill (zones + timer/mapzone drain); snow overlay IF1 deferred; mock230_pack 0 errors
-- slice 14t done: gerrant lava-eel Heroes arm (blamish slime); mock230_pack 0 errors
-- slice 14u done: entrana firebird hot_feather gated on %heroquest; mock230_pack 0 errors
-- slice 14v done: quest equip gates (heroes + dragon slayer) via ~levelrequire_quest_gate; mock230_pack 0 errors
-- slice 14w done: brimhaven thin (davon/alfonse/pirate_guard/pineapple); mock230_pack 0 errors
-- slice 14x done: deadmans bartender drinks + fishplatform1..4 Talk-to; mock230_pack 0 errors (3772 scripts)
-- slice 14y done: Sea Slug thin (bailey/kennith/kent/holgart + constants/coords + kennithwall + boat procs); Caroline/locs deferred; mock230_pack 0 errors (3800 scripts)
-- slice 14z done: hajedy cart stub + ^zombiequeen_complete; trail/Shilo body deferred; mock230_pack 0 errors (3805 scripts)
-- slice 15a done: kangai_mau Tribal Totem start/hand-in + constants; body/journal/trail deferred; mock230_pack 0 errors (3814 scripts)
-- slice 15b done: gnome shop stubs (gulluck/hudo/rometti/heckelfunch); mock230_pack 0 errors
-- slice 15c done: brimstail essence tele + cave locs; mock230_pack 0 errors
-- slice 15d done: gnome troop Talk-to + ranged AI; mock230_pack 0 errors
-- slice 15e done: kalron + chantergnome + treequest constants; mock230_pack 0 errors
-- slice 15f done: gnome_waiter Trade stub; mock230_pack 0 errors
-- slice 15g done: aluft_gianne greeting stub (restaurant deferred); mock230_pack 0 errors
-- slice 15h done: remsai Talk-to; mock230_pack 0 errors
-- slice 15i done: bolkoy Trade stub; mock230_pack 0 errors
-- slice 15j done: gnometrainer Talk-to; mock230_pack 0 errors (3848 scripts)
-- slice 15k done: Caroline Sea Slug start + complete queue; mock230_pack 0 errors (3861 scripts)
-- slice 15l done: gnome_gate walk-through + grandtree constants; mock230_pack 0 errors (3908 scripts)
-- slice 15m done: commander_montai Talk-to; mock230_pack 0 errors (3909 scripts)
-- slice 15n done: king_bolren start/complete + ceremony; mock230_pack 0 errors (3914 scripts)
-- slice 15o done: elkoy maze guide; mock230_pack 0 errors
-- slice 15p done: hazelmere bark/scroll; mock230_pack 0 errors (3946 scripts)
-- slice 15q done: blurberrybarmen Trade stub + ingredient sales; barcrawl deferred; mock230_pack 0 errors (3976 scripts)
-- slice 15r done: blurberry greeting stub (gnome_bar deferred); mock230_pack 0 errors
-- slice 15s done: gnome_glider pilot_* + p_choice fly + glider.constant; mock230_pack 0 errors (4050 scripts)
-- slice 15t done: spirit_tree teleports + spirit_tree.constant; mock230_pack 0 errors (4071 scripts)
-- slice 15u done: treegnomelooserailing squeeze; mock230_pack 0 errors (4081 scripts)
-- slice 15v done: Sea Slug sticks/ladder/panel/crane/pickup; mock230_pack 0 errors
-- slice 15w done: seaslug_journal + questlist wire; mock230_pack 0 errors
-- slice 15x done: gnomes Talk-to + ranged AI; mock230_pack 0 errors (4132 scripts)
-- slice 15y done: giannes_cook_book + cocktail_guide ~mesbox recipe stubs (IF1 deferred); mock230_pack 0 errors (4162 scripts)
-- slice 15z done: %gnome_restaurant_progress authored 5803 + restaurant start + aluft wire; mock230_pack 0 errors (4197 scripts)
-- slice 16a done: restaurant tutorial assigns through complete + utensil/premade helpers; mock230_pack 0 errors (4207 scripts)
-- slice 16b done: restaurant jobs start/finish + dish helpers; mock230_pack 0 errors (4336 scripts)
-- slice 16c done: swamp_toad → toads_legs; mock230_pack 0 errors (4337 scripts)
-- slice 16d done: fruit knife slice/dice via p_choice2; mock230_pack 0 errors (4418 scripts)
-- slice 16e done: grandtree_translationbook ~mesbox stub; mock230_pack 0 errors
-- slice 16f done: grandtree_journal ~mesbox stub; mock230_pack 0 errors (4420 scripts)
-- slice 16g done: grandtree anita Talk-to key handoff; mock230_pack 0 errors (4505 scripts)
-- slice 16h done: grandtree charlie Talk-to + jail release; mock230_pack 0 errors (4516 scripts)
-- slice 16i done: femi Talk-to/boxes + %femi_help authored 5856 + gnome_gate boxes; mock230_pack 0 errors (4528 scripts)
-- slice 16j done: glough Talk-to + arrest jail; mock230_pack 0 errors (4573 scripts)
-- slice 16k done: foreman quiz/order/death drop; mock230_pack 0 errors (4592 scripts)
-- slice 16l done: shipyardworker1/2 Talk-to name-expand; mock230_pack 0 errors (4607 scripts)
-- slice 16m done: king_narnode Talk-to + quest complete + %daconia_rock_root 5869; mock230_pack 0 errors (4636 scripts)
-- slice 16n done: gnome cooking param/struct/tray + gianne_dough; mock230_pack 0 errors (4644 scripts)
-- slice 16o done: gnome ingredient seasoning Use-with; mock230_pack 0 errors (4680 scripts)
-- slice 16p done: grandtree scroll/order/invasionplans ~mesbox stubs; mock230_pack 0 errors (4687 scripts)
-- slice 16q done: gnome crunchies bits+add/bake + raw dbrows + cook_item + string_procs; mock230_pack 0 errors (4733 scripts)
-- slice 16r done: gnome battas bits+add/bake + raw dbrows + cook_item; mock230_pack 0 errors (4752 scripts)
-- slice 16s done: gnome bowls bits+add/bake + raw dbrows + cook_item; mock230_pack 0 errors (4782 scripts)
-- slice 16t done: gnome food topping finish + seasoning finish arms; mock230_pack 0 errors (4826 scripts)
-- slice 16u done: cocktail shaker mix/pour + bits varps; mock230_pack 0 errors (4834 scripts)
-- slice 16v done: cocktail garnish finish + oven warm rows; mock230_pack 0 errors (4875 scripts)
-- slice 16w done: ingredient→half_baked/shaker reverse Use; mock230_pack 0 errors (4893 scripts)
-- slice 16x done: grandtree climb/trapdoors; mock230_pack 0 errors (~4936 scripts)
-- slice 16y done: grandtree chest/cupboard/pillars; mock230_pack 0 errors (~4976 scripts)
-- slice 16z done: grandtree roots/rootdoor; mock230_pack 0 errors (4980 scripts)
-- slice 17a done: shipyard gate walk-through + Ka-Lu-Min password; mock230_pack 0 errors (4988 scripts)
-- slice 17b done: hazelmere bark sample → scroll; mock230_pack 0 errors (5000 scripts)
-- slice 17c done: grandtree black demon death/timer + glough cutscene spawn; mock230_pack 0 errors (5075 scripts)
-- slice 17d done: grandtree journal + questlist wire; mock230_pack 0 errors (5084 scripts)
-- slice 17e done: tree tracker1/2/3 Talk-to; mock230_pack 0 errors (~5108 scripts)
-- slice 17f done: khazard warlord Talk-to + orbs death; mock230_pack 0 errors
-- slice 17g done: tree ballista/door/wall/chest; mock230_pack 0 errors (5132 scripts)
-- slice 17h done: tree journal + questlist wire; mock230_pack 0 errors
-- slice 17i done: waterfall almera + constants; mock230_pack 0 errors
-- slice 17j done: waterfall hudon Talk-to; mock230_pack 0 errors
-- slice 17k done: waterfall gerald Talk-to; mock230_pack 0 errors
-- slice 17l done: waterfall golrie pebble + authored bitfield varp; mock230_pack 0 errors
-- slice 17m done: waterfall hadley tourist guide; mock230_pack 0 errors
-- slice 17n done: waterfall baxtorian book ~mesbox stub; mock230_pack 0 errors (5166 scripts)
+- slice 11g done: dragonhide leather — coif + green/blue/red/black body/vamb/chaps; leather namedobj,int count; members gate; p_choice (no leather_crafting IF); ToriRSServer_Pack 0 errors (3028 scripts)
+- slice 11h done: enchanted jewellery — glory/dueling/games necklace Rub tele (charge switches); ring_of_forging varp+smelt; ring_of_life on melee/magic hit; deferred: recoil (%aggressive_npc), modern multi-dest, pre_tele zone tables; ToriRSServer_Pack 0 errors (3060 scripts)
+- slice 11i done: fountain_of_heroes glory recharge + enchant_5 (dragonstone amulet→glory, ring→wealth); ToriRSServer_Pack 0 errors (3062 scripts)
+- slice 11j done: bones to bananas (magic_spellbook:bones_bananas); peaches deferred (absent LC); ToriRSServer_Pack 0 errors (3064 scripts)
+- slice 11k done: charge orb (oploct/aploct magic_spellbook:charge_*_orb + loc_type + 4 rows); deferred: legends gate, charge_orb_name string param, afk/synth; ToriRSServer_Pack 0 errors (3073 scripts)
+- slice 11l done: Thormac mystic staff (p_choice5 air/water/earth/fire/lava); scorpcatcher quest gate deferred; ToriRSServer_Pack 0 errors (3075 scripts)
+- slice 11m done: ring of recoil (%ring_of_recoil + %aggressive_npc authored; melee+magic damage wire); deferred: npc_attacking_uid varn, PvP; ToriRSServer_Pack 0 errors (3077 scripts)
+- slice 11n done: Mage Arena charge (magic_spellbook:charge + timer; %magearena gate); deferred: sound_synth, god-spell consumers; ToriRSServer_Pack 0 errors (3079 scripts)
+- slice 11o done: stankers Talk-to + poison_chalice Drink (random heal/drain/damage → cocktail_glass_empty); ToriRSServer_Pack 0 errors (3085 scripts)
+- slice 11p done: foresters_bartender beer/stew/meat_pie sales; barcrawl deferred; ToriRSServer_Pack 0 errors (3103 scripts)
+- slice 11q done: trollheim teleport (IF + dbrow + constant); Eadgar gate + sled deferred; ToriRSServer_Pack 0 errors (3104 scripts)
+- slice 11r done: coal trucks (%coal_truck authored varp 5758 + ^coal_truck_max); ToriRSServer_Pack 0 errors (3106 scripts)
+- slice 11s done: seer default Talk-to (Many greetings / knowledge+power); scorpcatcher deferred; ToriRSServer_Pack 0 errors (3109 scripts)
+- slice 11t done: bees / merlin_beehive wax (%beehive_free authored 5759); ToriRSServer_Pack 0 errors (3113 scripts)
+- slice 11u done: mcgrubors wood (gates name-expand, railing, _red_vine dig); sound_synth + mcgrubor_gate cat deferred; ToriRSServer_Pack 0 errors (3121 scripts)
+- slice 11v done: brother_galahad + %grail clean-varp + quest_grail constants; full Holy Grail quest deferred; ToriRSServer_Pack 0 errors (3130 scripts)
+- slice 11w done: king_arthur + %arthur clean-varp 14 + constants + arthur/grail complete queues; Merlin Crystal / Holy Grail bodies deferred; ToriRSServer_Pack 0 errors (3136 scripts)
+- slice 11x done: merlin + merlin2 Talk-to; ToriRSServer_Pack 0 errors (3138 scripts)
+- slice 11y done: sir_gawain + sir_lancelot; ToriRSServer_Pack 0 errors (3141 scripts)
+- slice 11z done: sir_kay + sir_bedivere; trail clue deferred; ToriRSServer_Pack 0 errors (3143 scripts)
+- slice 12a done: sir_lucan/palomedes/pelleas/tristram; ToriRSServer_Pack 0 errors (3147 scripts)
+- slice 12b done: hemenster morris/bigdave/joshua + %fishingcompo; ToriRSServer_Pack 0 errors (3150 scripts)
+- slice 12c done: grandpa_jack + sinister_stranger; ToriRSServer_Pack 0 errors (3157 scripts)
+- slice 12d done: poison_salesman + %murderquest + murder_poisonproof_progress authored 5760; Fremennik/full Murder Mystery deferred; ToriRSServer_Pack 0 errors (3158 scripts)
+- slice 12e done: arhein Talk-to + Merlin fort arm; Trade stub; ToriRSServer_Pack 0 errors (3163 scripts)
+- slice 12f done: candle_maker + %excalibur_components_progress authored 5761 + bit indices; ToriRSServer_Pack 0 errors (3165 scripts)
+- slice 12g done: harry fishing shop stub; ToriRSServer_Pack 0 errors
+- slice 12h done: hickton archery shop stub; ToriRSServer_Pack 0 errors (3169 scripts)
+- slice 12i done: bonzo + %hemenster_comp_stage 5762 + %hemenster_pipe_stashed 5763; ToriRSServer_Pack 0 errors (3175 scripts)
+- slice 12j done: tunnel_dwarf + fishingcompo_quest_complete; ToriRSServer_Pack 0 errors (3187 scripts)
+- slice 12k done: garlicpipe + hemenster gate walk-through + move_hemenster_pipe; ToriRSServer_Pack 0 errors (3196 scripts)
+- slice 12l done: sir_mordred spare + thrantaxaltar; ToriRSServer_Pack 0 errors (3204 scripts)
+- slice 12m done: merlin crate ship + %arhein_crate_coord 5764 + Keep Le Faye doors walk-through; ToriRSServer_Pack 0 errors (3218 scripts)
+- slice 12n done: ladyofthelake + beggar + jewellersdoor/ladder; ToriRSServer_Pack 0 errors (3226 scripts)
+- slice 12o done: thrantax bat-bones summon; ToriRSServer_Pack 0 errors (3227 scripts)
+- slice 12p done: merlins_crystal smash; ToriRSServer_Pack 0 errors (3228 scripts)
+- slice 12q done: hemenster competition spots; ToriRSServer_Pack 0 errors (3239 scripts)
+- slice 12r done: murder_guard + %murder_evidence 5765 + murderer constants + complete; ToriRSServer_Pack 0 errors (3256 scripts)
+- slice 12s done: gossipy_man; ToriRSServer_Pack 0 errors (3257 scripts)
+- slice 12t done: murder poisonproof Investigate locs; ToriRSServer_Pack 0 errors (3263 scripts)
+- slice 12u done: anna + bob Sinclair Talk-to; ToriRSServer_Pack 0 errors
+- slice 12v done: carol + david Sinclair Talk-to; ToriRSServer_Pack 0 errors
+- slice 12w done: elizabeth + frank Sinclair Talk-to; ToriRSServer_Pack 0 errors
+- slice 12x done: murder servants (donovan/hobbes/louisa/mary/pierre/stanford); trail clues deferred; ToriRSServer_Pack 0 errors
+- slice 12y done: murder evidence barrels + weapon/pot Take; ToriRSServer_Pack 0 errors
+- slice 12z done: murder window/flour/sacks/dog gates (loc_2666→kr_mansion_window_multi_*); ToriRSServer_Pack 0 errors
+- slice 13a done: flour prints (switch maps) + murder_journal; ToriRSServer_Pack 0 errors
+- slice 13b done: arthur_journal + quest_merlinscrystal wire; ToriRSServer_Pack 0 errors (3357 scripts)
+- slice 13c done: fishingcompo_journal + quest_fishingcontest wire; ToriRSServer_Pack 0 errors
+- slice 13d done: sinclair_guard_dog ai_timer; ToriRSServer_Pack 0 errors
+- slice 13e done: cake_tin → uncooked_cake (+ dough arm); ToriRSServer_Pack 0 errors
+- slice 13f done: chocolate cake; ToriRSServer_Pack 0 errors
+- slice 13g done: chocolaty_milk + hangover_cure; ToriRSServer_Pack 0 errors
+- slice 13h done: swamp_tar+flour → rawswamppaste; ToriRSServer_Pack 0 errors
+- slice 13i done: herorockslide mine+forcemove; ToriRSServer_Pack 0 errors
+- slice 13j done: grail realm thin NPCs (fisherman/maiden/percival/peasants); ToriRSServer_Pack 0 errors
+- slice 13k done: fisher_king Talk-to; ToriRSServer_Pack 0 errors
+- slice 13l done: grail_crone + high_priest grail arm; ToriRSServer_Pack 0 errors
+- slice 13m done: sir_percival; ToriRSServer_Pack 0 errors
+- slice 13n done: grail_journal + quest_holygrail wire; ToriRSServer_Pack 0 errors (3400 scripts)
+- slice 13o done: black_knight_titan Talk-to + Excalibur death gate + drops; ToriRSServer_Pack 0 errors (3404 scripts)
+- slice 13p done: kaqemeex + %druidquest + quest_druid complete/cauldron; ToriRSServer_Pack 0 errors (3419 scripts)
+- slice 13q done: sanfew Druidic Ritual arms (Eadgar deferred); ToriRSServer_Pack 0 errors (3427 scripts)
+- slice 13r done: fletching bolts/darts (cat 530=bolttips, 969=dart_tips); ToriRSServer_Pack 0 errors (3433 scripts)
+- slice 13s done: druid_journal + quest_druidicritual wire; ToriRSServer_Pack 0 errors (3434 scripts)
+- slice 13t done: crystal_chest + crystal_key (join halves + loot); ToriRSServer_Pack 0 errors (3441 scripts)
+- slice 13u done: gaius Talk-to + Trade stub; trail clue deferred; ToriRSServer_Pack 0 errors (3443 scripts)
+- slice 13v done: jatix Talk-to + Trade stub; ToriRSServer_Pack 0 errors (3445 scripts)
+- worn-tab value checker + items kept on death (2026-08-03): pricechecker.rs2 (high-alch), deathkeep preview, on-death→gravestone, coffer/office; oc_cost/tradeable/members + inv_dropall/obj_addall; RCS arity 28; ToriRSServer_Pack 0 errors
+- slice 13w done: taverly druid AI + snare/entangle dbrows; ToriRSServer_Pack 0 errors
+- slice 13x done: ballboy + %ballquest constants/varp + complete; house locs deferred; ToriRSServer_Pack 0 errors
+- slice 13y done: yanille thin NPCs (sigbert/radick/tower_guard/frumscone/ogre_chieftan/guild_wizard); ToriRSServer_Pack 0 errors
+- slice 13z done: burthorpe thin NPCs + ^death_complete/%death_equiproom; ToriRSServer_Pack 0 errors (3543 scripts)
+- slice 14a done: yanille shop stubs (frenita/magic_store/ogre traders + retaliate); ToriRSServer_Pack 0 errors (3555 scripts)
+- slice 14b done: witch house locs + experiment chain + witchrat/experiment coords; ToriRSServer_Pack 0 errors (3578 scripts)
+- slice 14c done: death plateau thin soldiers/archers Talk-to; ToriRSServer_Pack 0 errors (3595 scripts)
+- slice 14d done: saba + eohric + %death_map authored 5767 + progress constants; ToriRSServer_Pack 0 errors (3603 scripts)
+- slice 14e done: Denulth + %death_bits authored 5768 + death_quest_complete; troll_quest deferred; ToriRSServer_Pack 0 errors (3618 scripts)
+- slice 14f done: Tenzing Death Plateau arms + post-quest boots; troll_love deferred; ToriRSServer_Pack 0 errors
+- slice 14g done: Dunstan Death Plateau arms; troll/sled/law tali deferred; ToriRSServer_Pack 0 errors (3632 scripts)
+- slice 14h done: Harold drink/duty/combo + inline gamble (no death_dice IF1); ToriRSServer_Pack 0 errors
+- slice 14i done: witches_diary mesbox pages + mouse-door varp; IF1 book deferred; ToriRSServer_Pack 0 errors (3642 scripts)
+- slice 14j done: nora_t_hagg ai_spawn/ai_timer + patrol overlay; ToriRSServer_Pack 0 errors (3644 scripts)
+- slice 14k done: death_iou→combination + scout zone; doors/mechanism deferred; ToriRSServer_Pack 0 errors
+- slice 14l done: death_journal + ball_journal questlist wires; ToriRSServer_Pack 0 errors (3649 scripts)
+- slice 14m done: death doors + stone mechanism + cat 73=death_cannonball + %death_stones; ToriRSServer_Pack 0 errors (3659 scripts)
+- slice 14n done: hermit cave + stile + climbing rocks + boot Wear; dangersign deferred; ToriRSServer_Pack 0 errors (3666 scripts)
+- slice 14o done: npc_combat_ranged + troll thrower AI/overlays/drops; ToriRSServer_Pack 0 errors (3711 scripts)
+- slice 14p done: death_archer combat/drops + death_guard drops + dangersign stub; ToriRSServer_Pack 0 errors (3718 scripts)
+- slice 14q done: Heroes Guild leftovers (achietties/helemos/entrance) + %heroquest/%zanaris stubs + quest_hero procs/complete; Trade stub; door walk-through; ToriRSServer_Pack 0 errors (3738 scripts)
+- slice 14r done: combat training camp (trainers/shop stub/gate/dummy/ogre) + %biohazard/%biodummy; ToriRSServer_Pack 0 errors (3749 scripts)
+- slice 14s done: trollweiss chill (zones + timer/mapzone drain); snow overlay IF1 deferred; ToriRSServer_Pack 0 errors
+- slice 14t done: gerrant lava-eel Heroes arm (blamish slime); ToriRSServer_Pack 0 errors
+- slice 14u done: entrana firebird hot_feather gated on %heroquest; ToriRSServer_Pack 0 errors
+- slice 14v done: quest equip gates (heroes + dragon slayer) via ~levelrequire_quest_gate; ToriRSServer_Pack 0 errors
+- slice 14w done: brimhaven thin (davon/alfonse/pirate_guard/pineapple); ToriRSServer_Pack 0 errors
+- slice 14x done: deadmans bartender drinks + fishplatform1..4 Talk-to; ToriRSServer_Pack 0 errors (3772 scripts)
+- slice 14y done: Sea Slug thin (bailey/kennith/kent/holgart + constants/coords + kennithwall + boat procs); Caroline/locs deferred; ToriRSServer_Pack 0 errors (3800 scripts)
+- slice 14z done: hajedy cart stub + ^zombiequeen_complete; trail/Shilo body deferred; ToriRSServer_Pack 0 errors (3805 scripts)
+- slice 15a done: kangai_mau Tribal Totem start/hand-in + constants; body/journal/trail deferred; ToriRSServer_Pack 0 errors (3814 scripts)
+- slice 15b done: gnome shop stubs (gulluck/hudo/rometti/heckelfunch); ToriRSServer_Pack 0 errors
+- slice 15c done: brimstail essence tele + cave locs; ToriRSServer_Pack 0 errors
+- slice 15d done: gnome troop Talk-to + ranged AI; ToriRSServer_Pack 0 errors
+- slice 15e done: kalron + chantergnome + treequest constants; ToriRSServer_Pack 0 errors
+- slice 15f done: gnome_waiter Trade stub; ToriRSServer_Pack 0 errors
+- slice 15g done: aluft_gianne greeting stub (restaurant deferred); ToriRSServer_Pack 0 errors
+- slice 15h done: remsai Talk-to; ToriRSServer_Pack 0 errors
+- slice 15i done: bolkoy Trade stub; ToriRSServer_Pack 0 errors
+- slice 15j done: gnometrainer Talk-to; ToriRSServer_Pack 0 errors (3848 scripts)
+- slice 15k done: Caroline Sea Slug start + complete queue; ToriRSServer_Pack 0 errors (3861 scripts)
+- slice 15l done: gnome_gate walk-through + grandtree constants; ToriRSServer_Pack 0 errors (3908 scripts)
+- slice 15m done: commander_montai Talk-to; ToriRSServer_Pack 0 errors (3909 scripts)
+- slice 15n done: king_bolren start/complete + ceremony; ToriRSServer_Pack 0 errors (3914 scripts)
+- slice 15o done: elkoy maze guide; ToriRSServer_Pack 0 errors
+- slice 15p done: hazelmere bark/scroll; ToriRSServer_Pack 0 errors (3946 scripts)
+- slice 15q done: blurberrybarmen Trade stub + ingredient sales; barcrawl deferred; ToriRSServer_Pack 0 errors (3976 scripts)
+- slice 15r done: blurberry greeting stub (gnome_bar deferred); ToriRSServer_Pack 0 errors
+- slice 15s done: gnome_glider pilot_* + p_choice fly + glider.constant; ToriRSServer_Pack 0 errors (4050 scripts)
+- slice 15t done: spirit_tree teleports + spirit_tree.constant; ToriRSServer_Pack 0 errors (4071 scripts)
+- slice 15u done: treegnomelooserailing squeeze; ToriRSServer_Pack 0 errors (4081 scripts)
+- slice 15v done: Sea Slug sticks/ladder/panel/crane/pickup; ToriRSServer_Pack 0 errors
+- slice 15w done: seaslug_journal + questlist wire; ToriRSServer_Pack 0 errors
+- slice 15x done: gnomes Talk-to + ranged AI; ToriRSServer_Pack 0 errors (4132 scripts)
+- slice 15y done: giannes_cook_book + cocktail_guide ~mesbox recipe stubs (IF1 deferred); ToriRSServer_Pack 0 errors (4162 scripts)
+- slice 15z done: %gnome_restaurant_progress authored 5803 + restaurant start + aluft wire; ToriRSServer_Pack 0 errors (4197 scripts)
+- slice 16a done: restaurant tutorial assigns through complete + utensil/premade helpers; ToriRSServer_Pack 0 errors (4207 scripts)
+- slice 16b done: restaurant jobs start/finish + dish helpers; ToriRSServer_Pack 0 errors (4336 scripts)
+- slice 16c done: swamp_toad → toads_legs; ToriRSServer_Pack 0 errors (4337 scripts)
+- slice 16d done: fruit knife slice/dice via p_choice2; ToriRSServer_Pack 0 errors (4418 scripts)
+- slice 16e done: grandtree_translationbook ~mesbox stub; ToriRSServer_Pack 0 errors
+- slice 16f done: grandtree_journal ~mesbox stub; ToriRSServer_Pack 0 errors (4420 scripts)
+- slice 16g done: grandtree anita Talk-to key handoff; ToriRSServer_Pack 0 errors (4505 scripts)
+- slice 16h done: grandtree charlie Talk-to + jail release; ToriRSServer_Pack 0 errors (4516 scripts)
+- slice 16i done: femi Talk-to/boxes + %femi_help authored 5856 + gnome_gate boxes; ToriRSServer_Pack 0 errors (4528 scripts)
+- slice 16j done: glough Talk-to + arrest jail; ToriRSServer_Pack 0 errors (4573 scripts)
+- slice 16k done: foreman quiz/order/death drop; ToriRSServer_Pack 0 errors (4592 scripts)
+- slice 16l done: shipyardworker1/2 Talk-to name-expand; ToriRSServer_Pack 0 errors (4607 scripts)
+- slice 16m done: king_narnode Talk-to + quest complete + %daconia_rock_root 5869; ToriRSServer_Pack 0 errors (4636 scripts)
+- slice 16n done: gnome cooking param/struct/tray + gianne_dough; ToriRSServer_Pack 0 errors (4644 scripts)
+- slice 16o done: gnome ingredient seasoning Use-with; ToriRSServer_Pack 0 errors (4680 scripts)
+- slice 16p done: grandtree scroll/order/invasionplans ~mesbox stubs; ToriRSServer_Pack 0 errors (4687 scripts)
+- slice 16q done: gnome crunchies bits+add/bake + raw dbrows + cook_item + string_procs; ToriRSServer_Pack 0 errors (4733 scripts)
+- slice 16r done: gnome battas bits+add/bake + raw dbrows + cook_item; ToriRSServer_Pack 0 errors (4752 scripts)
+- slice 16s done: gnome bowls bits+add/bake + raw dbrows + cook_item; ToriRSServer_Pack 0 errors (4782 scripts)
+- slice 16t done: gnome food topping finish + seasoning finish arms; ToriRSServer_Pack 0 errors (4826 scripts)
+- slice 16u done: cocktail shaker mix/pour + bits varps; ToriRSServer_Pack 0 errors (4834 scripts)
+- slice 16v done: cocktail garnish finish + oven warm rows; ToriRSServer_Pack 0 errors (4875 scripts)
+- slice 16w done: ingredient→half_baked/shaker reverse Use; ToriRSServer_Pack 0 errors (4893 scripts)
+- slice 16x done: grandtree climb/trapdoors; ToriRSServer_Pack 0 errors (~4936 scripts)
+- slice 16y done: grandtree chest/cupboard/pillars; ToriRSServer_Pack 0 errors (~4976 scripts)
+- slice 16z done: grandtree roots/rootdoor; ToriRSServer_Pack 0 errors (4980 scripts)
+- slice 17a done: shipyard gate walk-through + Ka-Lu-Min password; ToriRSServer_Pack 0 errors (4988 scripts)
+- slice 17b done: hazelmere bark sample → scroll; ToriRSServer_Pack 0 errors (5000 scripts)
+- slice 17c done: grandtree black demon death/timer + glough cutscene spawn; ToriRSServer_Pack 0 errors (5075 scripts)
+- slice 17d done: grandtree journal + questlist wire; ToriRSServer_Pack 0 errors (5084 scripts)
+- slice 17e done: tree tracker1/2/3 Talk-to; ToriRSServer_Pack 0 errors (~5108 scripts)
+- slice 17f done: khazard warlord Talk-to + orbs death; ToriRSServer_Pack 0 errors
+- slice 17g done: tree ballista/door/wall/chest; ToriRSServer_Pack 0 errors (5132 scripts)
+- slice 17h done: tree journal + questlist wire; ToriRSServer_Pack 0 errors
+- slice 17i done: waterfall almera + constants; ToriRSServer_Pack 0 errors
+- slice 17j done: waterfall hudon Talk-to; ToriRSServer_Pack 0 errors
+- slice 17k done: waterfall gerald Talk-to; ToriRSServer_Pack 0 errors
+- slice 17l done: waterfall golrie pebble + authored bitfield varp; ToriRSServer_Pack 0 errors
+- slice 17m done: waterfall hadley tourist guide; ToriRSServer_Pack 0 errors
+- slice 17n done: waterfall baxtorian book ~mesbox stub; ToriRSServer_Pack 0 errors (5166 scripts)
 - queue: added 18a Fishing Trawler + 18b Castle Wars (LC-owned; measured off SCAPE2009 10/11)
-- slice 17o done: waterfall locs (raft/tomb/rope/doors/chalice/complete); mock230_pack 0 errors (5227 scripts)
+- slice 17o done: waterfall locs (raft/tomb/rope/doors/chalice/complete); ToriRSServer_Pack 0 errors (5227 scripts)
 - queue: added 18c Treasure Trails (LC `game_trail`; measured off SCAPE2009 #18)
-- slice 17p done: waterfall journal + questlist wire; mock230_pack 0 errors (5228 scripts)
-- slice 17q done: waterfall pillars rune puzzle; mock230_pack 0 errors (5232 scripts)
-- slice 17r done: jungle potion constants; mock230_pack 0 errors
-- slice 17s done: jungle potion locs + complete; mock230_pack 0 errors
-- slice 17t done: jungle potion journal + questlist wire; mock230_pack 0 errors
-- slice 17u done: trufitus Jungle Potion Talk-to/Use; mock230_pack 0 errors
-- slice 17v done: brother_kojo + cog helpers/complete; mock230_pack 0 errors (5311 scripts)
+- slice 17p done: waterfall journal + questlist wire; ToriRSServer_Pack 0 errors (5228 scripts)
+- slice 17q done: waterfall pillars rune puzzle; ToriRSServer_Pack 0 errors (5232 scripts)
+- slice 17r done: jungle potion constants; ToriRSServer_Pack 0 errors
+- slice 17s done: jungle potion locs + complete; ToriRSServer_Pack 0 errors
+- slice 17t done: jungle potion journal + questlist wire; ToriRSServer_Pack 0 errors
+- slice 17u done: trufitus Jungle Potion Talk-to/Use; ToriRSServer_Pack 0 errors
+- slice 17v done: brother_kojo + cog helpers/complete; ToriRSServer_Pack 0 errors (5311 scripts)
 - queue: added 18d Dig Site / quest_itexam (LC-owned; measured off SCAPE2009 #24)
-- slice 17w done: clock tower locs/cogs/journal — %cog_bits authored; cogs+spindles+gates/levers+trough/rats; ~cog_journal+quest_clocktower wire; loc_1541→prisondooropen; mock230_pack 0 errors (5359 scripts)
-- slice 17x done: Ardougne east shops Trade stubs + silk buy dialogue; mock230_pack 0 errors (5382 scripts)
-- slice 17y done: Ardougne east thin NPCs (bartender/zoo/horacio/monk/citizens/barnaby/archer); barcrawl+trail deferred; mock230_pack 0 errors (~5401 scripts)
-- slice 17z done: wizard_cromperty + rpdt_employee + ardougne_book~mesbox; mock230_pack 0 errors (~5470 scripts)
-- slice 18a done: Hazeel Cult constants/varp/complete + Ceril; mock230_pack 0 errors (~5487 scripts)
-- slice 18b done: Clivet; mock230_pack 0 errors (~5503 scripts)
-- slice 18c done: Hazeel Cult journal + questlist wire; mock230_pack 0 errors (~5515 scripts)
-- slice 18d done: Hazeel Cult cave/stairs/raft/valves; mock230_pack 0 errors (~5526 scripts)
+- slice 17w done: clock tower locs/cogs/journal — %cog_bits authored; cogs+spindles+gates/levers+trough/rats; ~cog_journal+quest_clocktower wire; loc_1541→prisondooropen; ToriRSServer_Pack 0 errors (5359 scripts)
+- slice 17x done: Ardougne east shops Trade stubs + silk buy dialogue; ToriRSServer_Pack 0 errors (5382 scripts)
+- slice 17y done: Ardougne east thin NPCs (bartender/zoo/horacio/monk/citizens/barnaby/archer); barcrawl+trail deferred; ToriRSServer_Pack 0 errors (~5401 scripts)
+- slice 17z done: wizard_cromperty + rpdt_employee + ardougne_book~mesbox; ToriRSServer_Pack 0 errors (~5470 scripts)
+- slice 18a done: Hazeel Cult constants/varp/complete + Ceril; ToriRSServer_Pack 0 errors (~5487 scripts)
+- slice 18b done: Clivet; ToriRSServer_Pack 0 errors (~5503 scripts)
+- slice 18c done: Hazeel Cult journal + questlist wire; ToriRSServer_Pack 0 errors (~5515 scripts)
+- slice 18d done: Hazeel Cult cave/stairs/raft/valves; ToriRSServer_Pack 0 errors (~5526 scripts)
 - queue: renumbered Fishing Trawler/Castle Wars/Trails/Dig Site → 18g–18j (hazeel took 18a–18d)
-- slice 18e done: Sheep Herder constants/varp/complete + councillor_halgrive; mock230_pack 0 errors (5564 scripts)
-- slice 18f done: doctor_orbon plague outfit; mock230_pack 0 errors (5576 scripts)
+- slice 18e done: Sheep Herder constants/varp/complete + councillor_halgrive; ToriRSServer_Pack 0 errors (5564 scripts)
+- slice 18f done: doctor_orbon plague outfit; ToriRSServer_Pack 0 errors (5576 scripts)
 - queue: renumbered Fishing Trawler/Castle Wars/Trails/Dig Site → 18s–18v (sheepherder/hazeel leftovers took 18g–18r)
-- slice 18g done: herder_plaguesheep prod/poison; mock230_pack 0 errors (5606 scripts)
-- slice 18h done: plaguesheep_furnace incinerate; mock230_pack 0 errors
-- slice 18i done: plaguesheep_gatel/r walk-through; mock230_pack 0 errors (5611 scripts)
-- slice 18j done: ~sheepherder_journal + questlist wire; mock230_pack 0 errors
-- slice 18k done: farmer_brumty Talk-to; mock230_pack 0 errors (5633 scripts)
-- slice 18l done: alomone Talk-to/defeat/hazeel cutscene; mock230_pack 0 errors (5642 scripts)
-- slice 18m done: butler_jones Talk-to; mock230_pack 0 errors
-- slice 18n done: claus + carnilleanrange poison; mock230_pack 0 errors (5648 scripts)
-- slice 18o done: hazeel house cupboard/chest/crate + bookcase wall; mock230_pack 0 errors
-- slice 18p done: guard_carnillean + philipe_carnillean; mock230_pack 0 errors
-- slice 18q done: hazeel_cultist Talk-to; mock230_pack 0 errors (5664 scripts)
-- slice 18r done: Dig Site constants/varp/helpers/complete; mock230_pack 0 errors (5690 scripts)
+- slice 18g done: herder_plaguesheep prod/poison; ToriRSServer_Pack 0 errors (5606 scripts)
+- slice 18h done: plaguesheep_furnace incinerate; ToriRSServer_Pack 0 errors
+- slice 18i done: plaguesheep_gatel/r walk-through; ToriRSServer_Pack 0 errors (5611 scripts)
+- slice 18j done: ~sheepherder_journal + questlist wire; ToriRSServer_Pack 0 errors
+- slice 18k done: farmer_brumty Talk-to; ToriRSServer_Pack 0 errors (5633 scripts)
+- slice 18l done: alomone Talk-to/defeat/hazeel cutscene; ToriRSServer_Pack 0 errors (5642 scripts)
+- slice 18m done: butler_jones Talk-to; ToriRSServer_Pack 0 errors
+- slice 18n done: claus + carnilleanrange poison; ToriRSServer_Pack 0 errors (5648 scripts)
+- slice 18o done: hazeel house cupboard/chest/crate + bookcase wall; ToriRSServer_Pack 0 errors
+- slice 18p done: guard_carnillean + philipe_carnillean; ToriRSServer_Pack 0 errors
+- slice 18q done: hazeel_cultist Talk-to; ToriRSServer_Pack 0 errors (5664 scripts)
+- slice 18r done: Dig Site constants/varp/helpers/complete; ToriRSServer_Pack 0 errors (5690 scripts)
 - queue: renumbered Dig Site examiner…journal → 18s–19b; Trawler/CW/Trails → 19d–19f; area_digsite → 19c
-- slice 18s done: Dig Site examiner + curator stamp/cert arms; trail deferred; mock230_pack 0 errors (5713 scripts)
-- slice 18t done: student1 errand/tips; mock230_pack 0 errors (5720 scripts)
-- slice 18u done: student3 (LC student2.rs2); mock230_pack 0 errors (5727 scripts)
-- slice 18v done: student2 (LC student3.rs2); mock230_pack 0 errors (5734 scripts)
-- slice 18w done: archaeological_expert + DT etchings merge; mock230_pack 0 errors (5752 scripts)
-- slice 18x done: panning_guide; mock230_pack 0 errors (5756 scripts)
-- slice 18y done: digworkman1/2 Talk/Steal/invite/cave key; mock230_pack 0 errors (5779 scripts)
-- slice 18z done: exam centre cupboard/bookcase + digsitebook~mesbox; mock230_pack 0 errors (5786 scripts)
-- slice 19a done: itexam chemistry mixes → digcompound; mock230_pack 0 errors (5802 scripts)
-- slice 19b done: ~itexam_journal + questlist wire; mock230_pack 0 errors (5813 scripts)
-- slice 19c done: Dig Site area locs (panning/soil/winch/shaft/chest/barrel); cam_shake deferred; mock230_pack 0 errors (5867 scripts)
+- slice 18s done: Dig Site examiner + curator stamp/cert arms; trail deferred; ToriRSServer_Pack 0 errors (5713 scripts)
+- slice 18t done: student1 errand/tips; ToriRSServer_Pack 0 errors (5720 scripts)
+- slice 18u done: student3 (LC student2.rs2); ToriRSServer_Pack 0 errors (5727 scripts)
+- slice 18v done: student2 (LC student3.rs2); ToriRSServer_Pack 0 errors (5734 scripts)
+- slice 18w done: archaeological_expert + DT etchings merge; ToriRSServer_Pack 0 errors (5752 scripts)
+- slice 18x done: panning_guide; ToriRSServer_Pack 0 errors (5756 scripts)
+- slice 18y done: digworkman1/2 Talk/Steal/invite/cave key; ToriRSServer_Pack 0 errors (5779 scripts)
+- slice 18z done: exam centre cupboard/bookcase + digsitebook~mesbox; ToriRSServer_Pack 0 errors (5786 scripts)
+- slice 19a done: itexam chemistry mixes → digcompound; ToriRSServer_Pack 0 errors (5802 scripts)
+- slice 19b done: ~itexam_journal + questlist wire; ToriRSServer_Pack 0 errors (5813 scripts)
+- slice 19c done: Dig Site area locs (panning/soil/winch/shaft/chest/barrel); cam_shake deferred; ToriRSServer_Pack 0 errors (5867 scripts)
 - queue: subdivided Trawler→19d–19g; CW→19h; Trails→19i; outward leftovers→19j–19l
-- slice 19d done: Murphy dock + trawler.constant; %trawler→%trawler_status; trail sextant deferred; mock230_pack 0 errors (5882 scripts)
-- slice 19e done: zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred; mock230_pack 0 errors (5935 scripts)
-- slice 19f done: net/bail/winch/leak Fill/reset+login hook; hull→trawler_hull_*; control timer+varn deferred; mock230_pack 0 errors (6020 scripts)
-- slice 19g done: start tele+mes; win+shore net→inv; sink huntall; IF/control varn deferred; mock230_pack 0 errors (6021 scripts)
+- slice 19d done: Murphy dock + trawler.constant; %trawler→%trawler_status; trail sextant deferred; ToriRSServer_Pack 0 errors (5882 scripts)
+- slice 19e done: zones+gangplank+ladders+murphy_at_sea+sink/escape; %npc_int deferred; ToriRSServer_Pack 0 errors (5935 scripts)
+- slice 19f done: net/bail/winch/leak Fill/reset+login hook; hull→trawler_hull_*; control timer+varn deferred; ToriRSServer_Pack 0 errors (6020 scripts)
+- slice 19g done: start tele+mes; win+shore net→inv; sink huntall; IF/control varn deferred; ToriRSServer_Pack 0 errors (6021 scripts)
 - queue: CW/Trails deferred (large); 19h–19l = outward leftovers
-- slice 19h done: thshantaydisc opheld1 → ~mesbox; mock230_pack 0 errors (6035 scripts)
-- slice 19i done: Canifis Barker Trade stub; mock230_pack 0 errors (6035 scripts)
-- slice 19j done: Chadwell W. Ardougne Trade stub; mock230_pack 0 errors (6035 scripts)
-- slice 19k done: recruiter + citizen npc_say (finduid restore); mock230_pack 0 errors (6035 scripts)
-- slice 19l done: Zanaris fairy_queen + jakut/irksol Trade stubs; mock230_pack 0 errors (6035 scripts)
-- slice 19m done: Miscellania misc_veg_monger Trade stub; mock230_pack 0 errors
-- slice 19n done: Miscellania misc_fish_monger Trade stub; mock230_pack 0 errors
-- slice 19o done: W. Ardougne priest; mock230_pack 0 errors
-- slice 19p done: W. Ardougne child Talk-to; mock230_pack 0 errors
-- slice 19q done: Canifis Fidelio Trade stub; mock230_pack 0 errors
-- slice 19r done: Canifis Rufus Trade stub; mock230_pack 0 errors
-- slice 19s done: Zanaris Lunderwin cabbage buy; mock230_pack 0 errors
-- slice 19t done: Zanaris ladder attendant + exit; mock230_pack 0 errors
-- slice 19u done: Karamja Jiminua Trade stub; mock230_pack 0 errors
-- slice 19v done: Shilo Obli Trade stub; mock230_pack 0 errors
-- slice 19w done: Shilo Fernahei Trade stub; mock230_pack 0 errors
-- slice 19x done: Velrak dusty_key; mock230_pack 0 errors
-- slice 19y done: Kalphite old man; mock230_pack 0 errors
-- slice 19z done: W. Ardougne Carla; mock230_pack 0 errors (6282 scripts)
+- slice 19h done: thshantaydisc opheld1 → ~mesbox; ToriRSServer_Pack 0 errors (6035 scripts)
+- slice 19i done: Canifis Barker Trade stub; ToriRSServer_Pack 0 errors (6035 scripts)
+- slice 19j done: Chadwell W. Ardougne Trade stub; ToriRSServer_Pack 0 errors (6035 scripts)
+- slice 19k done: recruiter + citizen npc_say (finduid restore); ToriRSServer_Pack 0 errors (6035 scripts)
+- slice 19l done: Zanaris fairy_queen + jakut/irksol Trade stubs; ToriRSServer_Pack 0 errors (6035 scripts)
+- slice 19m done: Miscellania misc_veg_monger Trade stub; ToriRSServer_Pack 0 errors
+- slice 19n done: Miscellania misc_fish_monger Trade stub; ToriRSServer_Pack 0 errors
+- slice 19o done: W. Ardougne priest; ToriRSServer_Pack 0 errors
+- slice 19p done: W. Ardougne child Talk-to; ToriRSServer_Pack 0 errors
+- slice 19q done: Canifis Fidelio Trade stub; ToriRSServer_Pack 0 errors
+- slice 19r done: Canifis Rufus Trade stub; ToriRSServer_Pack 0 errors
+- slice 19s done: Zanaris Lunderwin cabbage buy; ToriRSServer_Pack 0 errors
+- slice 19t done: Zanaris ladder attendant + exit; ToriRSServer_Pack 0 errors
+- slice 19u done: Karamja Jiminua Trade stub; ToriRSServer_Pack 0 errors
+- slice 19v done: Shilo Obli Trade stub; ToriRSServer_Pack 0 errors
+- slice 19w done: Shilo Fernahei Trade stub; ToriRSServer_Pack 0 errors
+- slice 19x done: Velrak dusty_key; ToriRSServer_Pack 0 errors
+- slice 19y done: Kalphite old man; ToriRSServer_Pack 0 errors
+- slice 19z done: W. Ardougne Carla; ToriRSServer_Pack 0 errors (6282 scripts)
 - note: CW/Trails deferred (large IF1/minigame). **SUPERSEDED habit:** do **not**
   park MTA/construction with `.skip` to unblock compile — that practice is
   forbidden (PORTING_GUIDE §7). MTA + POH are live; fix your lane instead.
-- slice 20a done: Miscellania flower_girl 15gp→flowers_waterfall_quest; mock230_pack 0 errors (6452 scripts)
-- slice 20b done: Canifis Sbott werewolftanner + shared tan @ 2/5/45gp; mock230_pack 0 errors (6458 scripts)
-- slice 20c done: bedabin Talk + Trade stub + pineapple arm; mock230_pack 0 errors
+- slice 20a done: Miscellania flower_girl 15gp→flowers_waterfall_quest; ToriRSServer_Pack 0 errors (6452 scripts)
+- slice 20b done: Canifis Sbott werewolftanner + shared tan @ 2/5/45gp; ToriRSServer_Pack 0 errors (6458 scripts)
+- slice 20c done: bedabin Talk + Trade stub + pineapple arm; ToriRSServer_Pack 0 errors
   (6477 scripts). **Note:** parking `ferox_upgrades.rs2.skip` for a concurrent
   WIP was a lane-silence anti-pattern — do not repeat (PORTING_GUIDE §7).
-- slice 20d done: misc approval dialogue + ^misc_complete + man_misc_chatanim; mock230_pack 0 errors (6518 scripts)
-- slice 20e done: Gardener Gunnhild Talk + iron sickle; mock230_pack 0 errors (6526 scripts)
-- slice 20f done: Lumberjack Leif Talk; mock230_pack 0 errors (6529 scripts)
-- slice 20g done: Miner Magnus Talk; mock230_pack 0 errors (6546 scripts)
-- slice 20h done: Fisherman Frodi Talk; mock230_pack 0 errors (6586 scripts)
-- slice 20i done: Misc/Etceteria people Talk/Attack; mock230_pack 0 errors (6632 scripts)
-- slice 20j done: Seravel shiloshiptickets 25gp sale; mock230_pack 0 errors (6635 scripts)
-- slice 20k done: Canifis building_steps telejump; mock230_pack 0 errors (6637 scripts)
-- slice 20l done: Gunnjorn course greeting (Horror key deferred); mock230_pack 0 errors (6642 scripts)
-- slice 20m done: W. Ardougne man/woman + elenaquest carriers; mock230_pack 0 errors (6772 scripts)
-- slice 20n done: misc_heather weed_herbs sickle loop; mock230_pack 0 errors
-- slice 20o done: bedabin_guard + tent door + desertrescue_map_mechanisms; mock230_pack 0 errors (6787 scripts)
-- slice 20p done: upassmage Talk + Iban staff fix + %upass stub; mock230_pack 0 errors
-- slice 20q done: E. Ardougne citizen Talk-to; mock230_pack 0 errors
-- slice 20r done: zoo_keeper Talk-to (greegree/trail deferred); mock230_pack 0 errors
-- slice 20s done: monk_ardougne drunkmonkquest lines; mock230_pack 0 errors
-- slice 20t done: wantcat civilians + cat/overgrown category names; mock230_pack 0 errors
-- slice 20u done: clerk civic office + elena set_progress stub; mock230_pack 0 errors
-- slice 20v done: werewolfinnkeeper Roavar beer/gossip/story; mock230_pack 0 errors
-- slice 20w done: thbankchest + thkebabinstructs; mock230_pack 0 errors
-- slice 20x done: kharidian cactus Cut/waterskin; mock230_pack 0 errors (6890 scripts)
-- slice 20y done: canafis_citizen Talk/transform/drops; mock230_pack 0 errors (6919 scripts)
-- slice 20z done: plague manhole open/cover/climb; mock230_pack 0 errors (~6947 scripts)
-- slice 21a done: mourner Talk-to + stew/biohazard arms; mock230_pack 0 errors (6971 scripts)
-- slice 21b done: shantay Talk-to + jail varp + pass sale; mock230_pack 0 errors (6983 scripts)
-- slice 21c done: desert_heat timer + %desert_heat; mock230_pack 0 errors (~7040 scripts)
-- slice 21d done: shantay_pass guards/henge/prison; mock230_pack 0 errors (7047 scripts)
-- slice 21e done: elenadoor2 walk-through; mock230_pack 0 errors
-- slice 21f done: W. Ardougne bravek/city/mourner HQ doors; mock230_pack 0 errors (7059 scripts)
-- slice 21g done: viking_fur_door toggle; mock230_pack 0 errors
-- slice 21h done: vt_council_workmen Talk + beer→firecracker; mock230_pack 0 errors
-- slice 21i done: magic guild doors/portals; dungeon fence deferred; mock230_pack 0 errors
-- slice 21j done: captain_shanks ticket + telejump sail stub; mock230_pack 0 errors
-- slice 21k done: plaguemudpile + garden coord; mock230_pack 0 errors
-- slice 21l done: ardougnescroll Read; mock230_pack 0 errors
-- slice 21m done: elenap Talk-to freed_elena; mock230_pack 0 errors
-- slice 21n done: doomion/holthion/othainian drops + ^upass_found_doll; mock230_pack 0 errors
-- slice 21o done: tree_spirit defeat → %zanaris; mock230_pack 0 errors
-- slice 21p done: elemental workshop ai_queue3 drops; mock230_pack 0 errors (7220 scripts)
+- slice 20d done: misc approval dialogue + ^misc_complete + man_misc_chatanim; ToriRSServer_Pack 0 errors (6518 scripts)
+- slice 20e done: Gardener Gunnhild Talk + iron sickle; ToriRSServer_Pack 0 errors (6526 scripts)
+- slice 20f done: Lumberjack Leif Talk; ToriRSServer_Pack 0 errors (6529 scripts)
+- slice 20g done: Miner Magnus Talk; ToriRSServer_Pack 0 errors (6546 scripts)
+- slice 20h done: Fisherman Frodi Talk; ToriRSServer_Pack 0 errors (6586 scripts)
+- slice 20i done: Misc/Etceteria people Talk/Attack; ToriRSServer_Pack 0 errors (6632 scripts)
+- slice 20j done: Seravel shiloshiptickets 25gp sale; ToriRSServer_Pack 0 errors (6635 scripts)
+- slice 20k done: Canifis building_steps telejump; ToriRSServer_Pack 0 errors (6637 scripts)
+- slice 20l done: Gunnjorn course greeting (Horror key deferred); ToriRSServer_Pack 0 errors (6642 scripts)
+- slice 20m done: W. Ardougne man/woman + elenaquest carriers; ToriRSServer_Pack 0 errors (6772 scripts)
+- slice 20n done: misc_heather weed_herbs sickle loop; ToriRSServer_Pack 0 errors
+- slice 20o done: bedabin_guard + tent door + desertrescue_map_mechanisms; ToriRSServer_Pack 0 errors (6787 scripts)
+- slice 20p done: upassmage Talk + Iban staff fix + %upass stub; ToriRSServer_Pack 0 errors
+- slice 20q done: E. Ardougne citizen Talk-to; ToriRSServer_Pack 0 errors
+- slice 20r done: zoo_keeper Talk-to (greegree/trail deferred); ToriRSServer_Pack 0 errors
+- slice 20s done: monk_ardougne drunkmonkquest lines; ToriRSServer_Pack 0 errors
+- slice 20t done: wantcat civilians + cat/overgrown category names; ToriRSServer_Pack 0 errors
+- slice 20u done: clerk civic office + elena set_progress stub; ToriRSServer_Pack 0 errors
+- slice 20v done: werewolfinnkeeper Roavar beer/gossip/story; ToriRSServer_Pack 0 errors
+- slice 20w done: thbankchest + thkebabinstructs; ToriRSServer_Pack 0 errors
+- slice 20x done: kharidian cactus Cut/waterskin; ToriRSServer_Pack 0 errors (6890 scripts)
+- slice 20y done: canafis_citizen Talk/transform/drops; ToriRSServer_Pack 0 errors (6919 scripts)
+- slice 20z done: plague manhole open/cover/climb; ToriRSServer_Pack 0 errors (~6947 scripts)
+- slice 21a done: mourner Talk-to + stew/biohazard arms; ToriRSServer_Pack 0 errors (6971 scripts)
+- slice 21b done: shantay Talk-to + jail varp + pass sale; ToriRSServer_Pack 0 errors (6983 scripts)
+- slice 21c done: desert_heat timer + %desert_heat; ToriRSServer_Pack 0 errors (~7040 scripts)
+- slice 21d done: shantay_pass guards/henge/prison; ToriRSServer_Pack 0 errors (7047 scripts)
+- slice 21e done: elenadoor2 walk-through; ToriRSServer_Pack 0 errors
+- slice 21f done: W. Ardougne bravek/city/mourner HQ doors; ToriRSServer_Pack 0 errors (7059 scripts)
+- slice 21g done: viking_fur_door toggle; ToriRSServer_Pack 0 errors
+- slice 21h done: vt_council_workmen Talk + beer→firecracker; ToriRSServer_Pack 0 errors
+- slice 21i done: magic guild doors/portals; dungeon fence deferred; ToriRSServer_Pack 0 errors
+- slice 21j done: captain_shanks ticket + telejump sail stub; ToriRSServer_Pack 0 errors
+- slice 21k done: plaguemudpile + garden coord; ToriRSServer_Pack 0 errors
+- slice 21l done: ardougnescroll Read; ToriRSServer_Pack 0 errors
+- slice 21m done: elenap Talk-to freed_elena; ToriRSServer_Pack 0 errors
+- slice 21n done: doomion/holthion/othainian drops + ^upass_found_doll; ToriRSServer_Pack 0 errors
+- slice 21o done: tree_spirit defeat → %zanaris; ToriRSServer_Pack 0 errors
+- slice 21p done: elemental workshop ai_queue3 drops; ToriRSServer_Pack 0 errors (7220 scripts)
 - note: fixed sibling rogue_chests.rs2 (inline ^consts moved to .constant) — do not park
-- slice 21q done: alrena Talk + Elena stage constants; mock230_pack 0 errors
-- slice 21r done: edmond Talk + quest_elena_complete; mock230_pack 0 errors
-- slice 21s done: plaguemudpatch dig/soften; mock230_pack 0 errors
-- slice 21t done: jethick Talk; mock230_pack 0 errors
-- slice 21u done: kinglathas biohazard+UPass start; ^upass_complete=10; mock230_pack 0 errors
-- slice 21v done: bravek hangover/warrant; mock230_pack 0 errors
-- slice 21w done: alrena cupboard gasmask; mock230_pack 0 errors
-- slice 21x done: plaguesewerpipe rope/climb; mock230_pack 0 errors
-- slice 21y done: rehnisons family+stairs; mock230_pack 0 errors
-- slice 21z done: caveguide1 Koftik entrance; mock230_pack 0 errors
-- slice 22a done: elena2 Biohazard Talk; mock230_pack 0 errors
-- slice 22b done: plaguehouse barrel/stairs/gate; mock230_pack 0 errors (7364 scripts)
-- slice 22c done: elena doors/book return (rehnisondoor + plagueelenadoor*_vis); mock230_pack 0 errors
-- slice 22d done: scruffy_note IF1→mesbox stub; mock230_pack 0 errors
-- slice 22e done: jerico Talk-to; mock230_pack 0 errors
-- slice 22f done: chemist Talk (biohazard arms; Regicide deferred); mock230_pack 0 errors
-- slice 22g done: guidor Talk analyse→found_secret; mock230_pack 0 errors
-- slice 22h done: UPass area-1 obstacles (rockslide/swamp/mudpile/pipes); mock230_pack 0 errors (7503 scripts)
-- slice 22i done: biohazard loc leftovers (cupboard/pigeons/watchtower/ladder/HQ); mock230_pack 0 errors (7584 scripts)
-- slice 22j done: guidordoor + guidors_wife; mock230_pack 0 errors (7608 scripts)
-- slice 22k done: errand boys hops/chancy/devinci + %bioerrand; mock230_pack 0 errors (7623 scripts)
-- slice 22l done: UPass rope swings (rock/swamp); mock230_pack 0 errors (7627 scripts)
-- slice 22m done: UPass old bridge + cloth/lit arrows + FM hook; mock230_pack 0 errors (7634 scripts)
-- slice 22n done: UPass grid (portcullis lever + zone timer arming + %upass_grid_pattern) + cave_slave1–7 Talk-to + Lathas ~setupassgrilltrap; mock230_pack 0 errors (7814 scripts)
-- slice 22o done: UPass speartrap + mapzone trap timer; mock230_pack 0 errors (7820 scripts)
-- slice 22p done: UPass double springtrap + woodplank cross; mock230_pack 0 errors (7914 scripts)
-- slice 22q done: UPass logtrap + orboflight + caveorb1; %upass_caveorb_1; mock230_pack 0 errors (7917 scripts)
-- slice 22r done: UPass ledge sidestep; mock230_pack 0 errors (7918 scripts)
-- slice 22s done: UPass narrow walkway; mock230_pack 0 errors (7960 scripts)
-- slice 22t done: UPass pipe6 + %upass_area2_pipe_used; mock230_pack 0 errors (7991 scripts)
-- slice 22u done: UPass collapsed bridge + caveguide4 insane Koftik; %upass_koftik_chat; mock230_pack 0 errors (7996 scripts)
-- slice 22v done: UPass Niloof (upassdwarf1) Talk; mock230_pack 0 errors
-- slice 22w done: UPass Klank (upassdwarf2) Talk + gauntlets; mock230_pack 0 errors (8092 scripts)
-- slice 22x done: UPass Kamen (upassdwarf3) drunk brew Talk; mock230_pack 0 errors (8091 scripts)
-- slice 22y done: UPass journals (Randas upass_journal + Iban old_journal); IF1→mesbox; %upass_read_journal/%upass_read_iban_book; mock230_pack 0 errors (8101 scripts)
-- slice 22z done: UPass paladins Jerro/Carl/Harry Talk + badge drops; %upass_paladin_food; mock230_pack 0 errors (8203 scripts)
-- slice 23a done: UPass ibanmonk Talk + robe/staff drops; mock230_pack 0 errors (8205 scripts)
-- slice 23b done: UPass Kalrag kill → %upass_venom_on_doll; mock230_pack 0 errors (8269 scripts)
+- slice 21q done: alrena Talk + Elena stage constants; ToriRSServer_Pack 0 errors
+- slice 21r done: edmond Talk + quest_elena_complete; ToriRSServer_Pack 0 errors
+- slice 21s done: plaguemudpatch dig/soften; ToriRSServer_Pack 0 errors
+- slice 21t done: jethick Talk; ToriRSServer_Pack 0 errors
+- slice 21u done: kinglathas biohazard+UPass start; ^upass_complete=10; ToriRSServer_Pack 0 errors
+- slice 21v done: bravek hangover/warrant; ToriRSServer_Pack 0 errors
+- slice 21w done: alrena cupboard gasmask; ToriRSServer_Pack 0 errors
+- slice 21x done: plaguesewerpipe rope/climb; ToriRSServer_Pack 0 errors
+- slice 21y done: rehnisons family+stairs; ToriRSServer_Pack 0 errors
+- slice 21z done: caveguide1 Koftik entrance; ToriRSServer_Pack 0 errors
+- slice 22a done: elena2 Biohazard Talk; ToriRSServer_Pack 0 errors
+- slice 22b done: plaguehouse barrel/stairs/gate; ToriRSServer_Pack 0 errors (7364 scripts)
+- slice 22c done: elena doors/book return (rehnisondoor + plagueelenadoor*_vis); ToriRSServer_Pack 0 errors
+- slice 22d done: scruffy_note IF1→mesbox stub; ToriRSServer_Pack 0 errors
+- slice 22e done: jerico Talk-to; ToriRSServer_Pack 0 errors
+- slice 22f done: chemist Talk (biohazard arms; Regicide deferred); ToriRSServer_Pack 0 errors
+- slice 22g done: guidor Talk analyse→found_secret; ToriRSServer_Pack 0 errors
+- slice 22h done: UPass area-1 obstacles (rockslide/swamp/mudpile/pipes); ToriRSServer_Pack 0 errors (7503 scripts)
+- slice 22i done: biohazard loc leftovers (cupboard/pigeons/watchtower/ladder/HQ); ToriRSServer_Pack 0 errors (7584 scripts)
+- slice 22j done: guidordoor + guidors_wife; ToriRSServer_Pack 0 errors (7608 scripts)
+- slice 22k done: errand boys hops/chancy/devinci + %bioerrand; ToriRSServer_Pack 0 errors (7623 scripts)
+- slice 22l done: UPass rope swings (rock/swamp); ToriRSServer_Pack 0 errors (7627 scripts)
+- slice 22m done: UPass old bridge + cloth/lit arrows + FM hook; ToriRSServer_Pack 0 errors (7634 scripts)
+- slice 22n done: UPass grid (portcullis lever + zone timer arming + %upass_grid_pattern) + cave_slave1–7 Talk-to + Lathas ~setupassgrilltrap; ToriRSServer_Pack 0 errors (7814 scripts)
+- slice 22o done: UPass speartrap + mapzone trap timer; ToriRSServer_Pack 0 errors (7820 scripts)
+- slice 22p done: UPass double springtrap + woodplank cross; ToriRSServer_Pack 0 errors (7914 scripts)
+- slice 22q done: UPass logtrap + orboflight + caveorb1; %upass_caveorb_1; ToriRSServer_Pack 0 errors (7917 scripts)
+- slice 22r done: UPass ledge sidestep; ToriRSServer_Pack 0 errors (7918 scripts)
+- slice 22s done: UPass narrow walkway; ToriRSServer_Pack 0 errors (7960 scripts)
+- slice 22t done: UPass pipe6 + %upass_area2_pipe_used; ToriRSServer_Pack 0 errors (7991 scripts)
+- slice 22u done: UPass collapsed bridge + caveguide4 insane Koftik; %upass_koftik_chat; ToriRSServer_Pack 0 errors (7996 scripts)
+- slice 22v done: UPass Niloof (upassdwarf1) Talk; ToriRSServer_Pack 0 errors
+- slice 22w done: UPass Klank (upassdwarf2) Talk + gauntlets; ToriRSServer_Pack 0 errors (8092 scripts)
+- slice 22x done: UPass Kamen (upassdwarf3) drunk brew Talk; ToriRSServer_Pack 0 errors (8091 scripts)
+- slice 22y done: UPass journals (Randas upass_journal + Iban old_journal); IF1→mesbox; %upass_read_journal/%upass_read_iban_book; ToriRSServer_Pack 0 errors (8101 scripts)
+- slice 22z done: UPass paladins Jerro/Carl/Harry Talk + badge drops; %upass_paladin_food; ToriRSServer_Pack 0 errors (8203 scripts)
+- slice 23a done: UPass ibanmonk Talk + robe/staff drops; ToriRSServer_Pack 0 errors (8205 scripts)
+- slice 23b done: UPass Kalrag kill → %upass_venom_on_doll; ToriRSServer_Pack 0 errors (8269 scripts)
 - slice 23c done: lord_iban ai_timer bolt storm + ai_spawn timer; scripts+pack 0 errors
-- slice 23d done: UPass entrance + exit; mock230_pack 0 errors (8400 scripts)
-- slice 23e done: UPass orb destroy/pickup + furnace_upass hook; %upass_caveorb_*; mock230_pack 0 errors
-- slice 23f done: UPass cave_well + mudpile_upass; mock230_pack 0 errors
-- slice 23g done: UPass witch Kardia (door/cat/chest); %upass_gavecat; mock230_pack 0 errors
-- slice 23h done: UPass bloodwell + temple doors; staff charge deferred; mock230_pack 0 errors
-- slice 23i done: UPass boulder/railings/unicorncage; mock230_pack 0 errors
-- slice 23j done: UPass mud dig + unicorn tunnels; mock230_pack 0 errors
-- slice 23k done: UPass cavefood1 crate; %upass_crate_food; mock230_pack 0 errors
-- slice 23l done: UPass tomb/doll/temple climax; mock230_pack 0 errors
-- slice 23m done: UPass soulless cages + shadow chest; mock230_pack 0 errors
-- slice 23n done: UPass tablets + caveguide5 + complete XP; mock230_pack 0 errors
-- slice 23o done: UPass voice zones + cavewall tunnels; mock230_pack 0 errors (8629 scripts)
-- slice 23p done: demon drops already present; slice 23q done: upass_journal + questlist wire; mock230_pack 0 errors
-- slice 23r done: Zanaris camp adventurers (monk/archer/wizard/warrior); mock230_pack 0 errors
-- slice 23s done: Zanaris doorman + market door; mock230_pack 0 errors
-- slice 23t done: Kalphite larva + rope locs + coords landed; mock230_pack 0 errors
-- slice 23u done: Shilo Vigroy cart → Brimhaven; mock230_pack 0 errors
-- slice 23v done: Shilo Paramaya inn + dorm ladders; mock230_pack 0 errors
-- slice 23w done: Shilo Yanni antiques quote/sell; mock230_pack 0 errors
-- slice 23x done: Dragon Inn bartender drinks (barcrawl deferred); mock230_pack 0 errors (9045 scripts)
-- slice 24a done: Varrock tramppg Talk; mock230_pack 0 errors
+- slice 23d done: UPass entrance + exit; ToriRSServer_Pack 0 errors (8400 scripts)
+- slice 23e done: UPass orb destroy/pickup + furnace_upass hook; %upass_caveorb_*; ToriRSServer_Pack 0 errors
+- slice 23f done: UPass cave_well + mudpile_upass; ToriRSServer_Pack 0 errors
+- slice 23g done: UPass witch Kardia (door/cat/chest); %upass_gavecat; ToriRSServer_Pack 0 errors
+- slice 23h done: UPass bloodwell + temple doors; staff charge deferred; ToriRSServer_Pack 0 errors
+- slice 23i done: UPass boulder/railings/unicorncage; ToriRSServer_Pack 0 errors
+- slice 23j done: UPass mud dig + unicorn tunnels; ToriRSServer_Pack 0 errors
+- slice 23k done: UPass cavefood1 crate; %upass_crate_food; ToriRSServer_Pack 0 errors
+- slice 23l done: UPass tomb/doll/temple climax; ToriRSServer_Pack 0 errors
+- slice 23m done: UPass soulless cages + shadow chest; ToriRSServer_Pack 0 errors
+- slice 23n done: UPass tablets + caveguide5 + complete XP; ToriRSServer_Pack 0 errors
+- slice 23o done: UPass voice zones + cavewall tunnels; ToriRSServer_Pack 0 errors (8629 scripts)
+- slice 23p done: demon drops already present; slice 23q done: upass_journal + questlist wire; ToriRSServer_Pack 0 errors
+- slice 23r done: Zanaris camp adventurers (monk/archer/wizard/warrior); ToriRSServer_Pack 0 errors
+- slice 23s done: Zanaris doorman + market door; ToriRSServer_Pack 0 errors
+- slice 23t done: Kalphite larva + rope locs + coords landed; ToriRSServer_Pack 0 errors
+- slice 23u done: Shilo Vigroy cart → Brimhaven; ToriRSServer_Pack 0 errors
+- slice 23v done: Shilo Paramaya inn + dorm ladders; ToriRSServer_Pack 0 errors
+- slice 23w done: Shilo Yanni antiques quote/sell; ToriRSServer_Pack 0 errors
+- slice 23x done: Dragon Inn bartender drinks (barcrawl deferred); ToriRSServer_Pack 0 errors (9045 scripts)
+- slice 24a done: Varrock tramppg Talk; ToriRSServer_Pack 0 errors
 - slice 24b done: cook post-quest ~p_choice4; trails deferred
-- slice 24c done: Varrock east gate + bioguard; mock230_pack 0 errors
+- slice 24c done: Varrock east gate + bioguard; ToriRSServer_Pack 0 errors
 - multi-lane: claim slices as `in_progress` before porting (loop prompt updated)
 - next pending: outward leftovers (gypsy/joe_guard/volcano_entrance/…); skip blocked: scorpcatcher, wilderness_chaos_druid (Elder), Mort'ton lair, pyre, kolodion_fight, antifire, guard2, ditch, shops inv.ini, npc_poison varn, imp teleport, barcrawl, gnome_bar (%progress unresolved), trawler control (%npc_* varn), castlewars, trails (large), werewolfroadblocker (unresolved), biohazard-gated kilron/nurse/omart, gunnjorn Horror arms, outpost_gate (barcrawl), priestperil well/barrier/dog, vampire_spider (%npc_int), zambo (name absent)
 - sibling unblock (not LC slices): pestcontrol missing temp/perm varps + wave constants; BIM constant aliases (^bim_recruited/^bim_willow/^bim_checkal/^bim_golem/^bim_willow_coord)
 
 - slice 24e done: Aris already present (areas/varrock/aris.rs2)
-- slice 24f done: Karamja volcano_entrance + climbing_rope2; mock230_pack 0 errors
-- slice 24g done: Shilo sand1–3 scoop; mock230_pack 0 errors
+- slice 24f done: Karamja volcano_entrance + climbing_rope2; ToriRSServer_Pack 0 errors
+- slice 24g done: Shilo sand1–3 scoop; ToriRSServer_Pack 0 errors
 - sibling unblock: DT2 typo camzodaal→camdozaal on archaeologist_2_vis
 - next pending: karam_dungeon / yanille agility_dungeon / KQ / tbwt_timfraku
 
-- slice 24h done: Yanille agility dungeon + ~agility_delay_fail helper; mock230_pack 0 errors
-- slice 24i done: Brimhaven karam_dungeon (Saniboch/vines/stones/logs/pipes); entryfee varbit not whole varp; mock230_pack 0 errors
+- slice 24h done: Yanille agility dungeon + ~agility_delay_fail helper; ToriRSServer_Pack 0 errors
+- slice 24i done: Brimhaven karam_dungeon (Saniboch/vines/stones/logs/pipes); entryfee varbit not whole varp; ToriRSServer_Pack 0 errors
 - next pending: KQ / tbwt_timfraku
-- slice 24j done: Shilo Yohnus furnace Talk (door absent); mock230_pack 0 errors
-- slice 24k done: Yanille rockcake stall thieve; mock230_pack 0 errors
-- slice 24l done: Mort Myre snail spit AI + drops; mock230_pack 0 errors
-- slice 24m done: vampire_leech melee+drain; mock230_pack 0 errors
-- slice 24n done: kalphite_oldman Talk (already present); mock230_pack 0 errors
-- slice 24o done: KQ combat both forms + kalphite worker melee; mock230_pack 0 errors (9330 scripts)
+- slice 24j done: Shilo Yohnus furnace Talk (door absent); ToriRSServer_Pack 0 errors
+- slice 24k done: Yanille rockcake stall thieve; ToriRSServer_Pack 0 errors
+- slice 24l done: Mort Myre snail spit AI + drops; ToriRSServer_Pack 0 errors
+- slice 24m done: vampire_leech melee+drain; ToriRSServer_Pack 0 errors
+- slice 24n done: kalphite_oldman Talk (already present); ToriRSServer_Pack 0 errors
+- slice 24o done: KQ combat both forms + kalphite worker melee; ToriRSServer_Pack 0 errors (9330 scripts)
 - next pending: 24p Timfraku (claimed) / TBWT brothers remainder
 
-- slice 24p done: Timfraku + TBWT scaffold (constants/varps/title helpers/journal); brothers deferred; mock230_pack 0 errors
+- slice 24p done: Timfraku + TBWT scaffold (constants/varps/title helpers/journal); brothers deferred; ToriRSServer_Pack 0 errors
 - sibling unblock: Inferno missing temp varps (logout/paused/safespot/saved_*); removed varp/varbit name clashes
 - next pending: TBWT brothers/Lubufu; leave 24j–24o in_progress alone
 
-- slice 24q done: Tiadeche Talk/Use + crafting manual; mock230_pack 0 errors
-- slice 24r done: Tamayu Talk/Use spear+agility; hunt cutscene simplified; mock230_pack 0 errors
-- slice 24s done: Tinsay meal tree + vessel→manual; mock230_pack 0 errors
-- slice 24t done: Lubufu apprentice/bait + vessel; fishing spots deferred; mock230_pack 0 errors
-- slice 24u done: TBWT item uses + bamboo/statue stubs + helpers; mock230_pack 0 errors
-- slice 24v done: brother finals village rewards + Trade stubs; mock230_pack 0 errors
-- slice 24w done: jogre furnace burn + monkey corpse drop; mock230_pack 0 errors (9541 scripts)
+- slice 24q done: Tiadeche Talk/Use + crafting manual; ToriRSServer_Pack 0 errors
+- slice 24r done: Tamayu Talk/Use spear+agility; hunt cutscene simplified; ToriRSServer_Pack 0 errors
+- slice 24s done: Tinsay meal tree + vessel→manual; ToriRSServer_Pack 0 errors
+- slice 24t done: Lubufu apprentice/bait + vessel; fishing spots deferred; ToriRSServer_Pack 0 errors
+- slice 24u done: TBWT item uses + bamboo/statue stubs + helpers; ToriRSServer_Pack 0 errors
+- slice 24v done: brother finals village rewards + Trade stubs; ToriRSServer_Pack 0 errors
+- slice 24w done: jogre furnace burn + monkey corpse drop; ToriRSServer_Pack 0 errors (9541 scripts)
 - next pending: TBWT fishing spots (karambwanji/karambwan) / small outward leftovers (hemenster/barnaby/…); skip blocked list unchanged
 
-- slice 24x done: TBWT fishing spots (cats 632/633 + lubufu wire); sibling unblock mole_try_mud_extinguish stub; mock230_pack 0 errors
-- slice 24y done: memberfish shark/big-net + oyster/casket; mock230_pack 0 errors
-- slice 24z done: fishing guild door/master/Roachey Trade stub; mock230_pack 0 errors
-- slice 25a done: slimeyfish (cat 457 mint); mock230_pack 0 errors
-- slice 25b done: lavafish oily-rod (loc deferred); mock230_pack 0 errors
-- slice 25c done: cooking guild chefdoor + head_chef; mock230_pack 0 errors
-- slice 25d done: ranging guild armour salesman Talk + Trade stub; mock230_pack 0 errors
-- slice 25e done: ranging guild bow salesman Talk + Trade stub; mock230_pack 0 errors (9648 scripts)
+- slice 24x done: TBWT fishing spots (cats 632/633 + lubufu wire); sibling unblock mole_try_mud_extinguish stub; ToriRSServer_Pack 0 errors
+- slice 24y done: memberfish shark/big-net + oyster/casket; ToriRSServer_Pack 0 errors
+- slice 24z done: fishing guild door/master/Roachey Trade stub; ToriRSServer_Pack 0 errors
+- slice 25a done: slimeyfish (cat 457 mint); ToriRSServer_Pack 0 errors
+- slice 25b done: lavafish oily-rod (loc deferred); ToriRSServer_Pack 0 errors
+- slice 25c done: cooking guild chefdoor + head_chef; ToriRSServer_Pack 0 errors
+- slice 25d done: ranging guild armour salesman Talk + Trade stub; ToriRSServer_Pack 0 errors
+- slice 25e done: ranging guild bow salesman Talk + Trade stub; ToriRSServer_Pack 0 errors (9648 scripts)
 - next pending: charlie_the_cook / competition_judge (%target*) / lavafish_loc; skip blocked list unchanged
 
 - note: parallel rubber-stamp of 25a–e as "already present" superseded by real ports above
-- slice 25f done: kalphite_worker_spawn + KQ wire; mock230_pack 0 errors
+- slice 25f done: kalphite_worker_spawn + KQ wire; ToriRSServer_Pack 0 errors
 - slice 25g done: troll thrower already present
 - sibling unblock: strength4 name for 4-dose strength potion
 
-- slice 25h done: charlie_the_cook Phoenix dialogue; mock230_pack 0 errors
+- slice 25h done: charlie_the_cook Phoenix dialogue; ToriRSServer_Pack 0 errors
 
-- slice 25i done: competition_judge Talk + tickets; targets deferred; mock230_pack 0 errors
+- slice 25i done: competition_judge Talk + tickets; targets deferred; ToriRSServer_Pack 0 errors
 
-- slice 25j done: ranging_guild_door walk-through + doorman; mock230_pack 0 errors
+- slice 25j done: ranging_guild_door walk-through + doorman; ToriRSServer_Pack 0 errors
 - slice 25k done: ranging guard + tribal salesman Trade stub
 - slice 25l done: ranging leatherworker → tan_leather_choices
 - slice 25m done: ranging_target Fire-at + score; projectile deferred
-- slice 25n done: ranging tower ladders + fill_towers + archer AI + advisors; mock230_pack 0 errors
-- slice 25o done: ticket_merchant Trade stub (IF deferred); mock230_pack 0 errors (9779 scripts)
+- slice 25n done: ranging tower ladders + fill_towers + archer AI + advisors; ToriRSServer_Pack 0 errors
+- slice 25o done: ticket_merchant Trade stub (IF deferred); ToriRSServer_Pack 0 errors (9779 scripts)
 - slice 25p blocked: lavafish_loc — no eel loc in osrs239 (npc spot covers it)
 - next pending: party balloons / tomato throw / CW/Trails; skip blocked list
 
-- slice 25q done: wizard Fire Strike AI; mock230_pack 0 errors
+- slice 25q done: wizard Fire Strike AI; ToriRSServer_Pack 0 errors
 - slice 25r done: partyroom Megan Talk
 - slice 25s done: duel Mubariz Talk; duel engine deferred
 
-- slice 25t done: Party Pete + Lucy; mock230_pack 0 errors
+- slice 25t done: Party Pete + Lucy; ToriRSServer_Pack 0 errors
 - slice 25u done: Fadli/Jaraah/nurses bank+heal
 - slice 25v done: Hamid + Zahwa Talk
 
@@ -1310,15 +1310,15 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 26c done: Heroes hot_feather ice_gloves pickup
 - slice 26d done: sheep flavour Baa ai_timer
 - slice 26e done: cow flavour Moo ai_timer
-- slice 26f done: mcannon cave/mudpile/guard + constants; remains deferred; mock230_pack 0 errors (9896 scripts)
+- slice 26f done: mcannon cave/mudpile/guard + constants; remains deferred; ToriRSServer_Pack 0 errors (9896 scripts)
 - next pending: party balloons / tomato throw / CW/Trails; skip blocked list + lavafish_loc
 
-- slice 26g done: gnomecheerleader gnome_cl* timer; mock230_pack 0 errors
+- slice 26g done: gnomecheerleader gnome_cl* timer; ToriRSServer_Pack 0 errors
 - slice 26h done: misc_ghrimbook mesbox pages
 - slice 26i done: rotten_tomato_crate Trade stub; throw deferred
 - slice 26j done: duel crowd spectators Talk
 
-- slice 26k done: partyroom lever + knights dance; balloons deferred; mock230_pack 0 errors
+- slice 26k done: partyroom lever + knights dance; balloons deferred; ToriRSServer_Pack 0 errors
 - slice 26l done: partyroom chest open/shut; Deposit deferred
 - sibling unblock: gauntlet_gather %gauntlet_run_corrupted (varbit name clash)
 
@@ -1338,32 +1338,32 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
   the number in the `v0/osrs` table is the wrong revision and must not be copied.
   Full accounting of what each op needed: that queue's log, same date.
 
-- slice 26m done: gnomeball referee Talk/rules; game start deferred; mock230_pack 0 errors (10086 scripts)
-- slice 26n done: Mining Guild dwarf Talk (mguild_dwarf1/2); mock230_pack 0 errors (10124 scripts)
+- slice 26m done: gnomeball referee Talk/rules; game start deferred; ToriRSServer_Pack 0 errors (10086 scripts)
+- slice 26n done: Mining Guild dwarf Talk (mguild_dwarf1/2); ToriRSServer_Pack 0 errors (10124 scripts)
 - slice 26o done: Cap'n Izzy Talk place/do; pay/enter deferred
 - slice 26p done: Jackie Talk + Trade stub; ticket IF deferred
 - slice 26q done: Boot the Dwarf hello/why; crest gold deferred
-- slice 26r done: Derrik anvil Talk; giant nib deferred; mock230_pack 0 errors (10214 scripts)
+- slice 26r done: Derrik anvil Talk; giant nib deferred; ToriRSServer_Pack 0 errors (10214 scripts)
 
-- slice 26s done: party balloon Burst (colour→pop); chest loot deferred; mock230_pack 0 errors
+- slice 26s done: party balloon Burst (colour→pop); chest loot deferred; ToriRSServer_Pack 0 errors
 - slice 26t blocked: rotten_tomato throw needs .coord / secondary player
 - slice 26u done: duel forfeit flags/trapdoor stub; duel engine deferred
 - sibling unblock: combat.param `undead` + param.server for crumble_undead overlays
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord)
 
-- slice 26v done: mcannonremains pickup + mcannonbook mesbox; mock230_pack 0 errors
+- slice 26v done: mcannonremains pickup + mcannonbook mesbox; ToriRSServer_Pack 0 errors
 - slice 26w done: blamish_oil + fishing_rod → oily_fishing_rod
 - slice 26x done: chicken flavour squawk + egg; sound/%npc_attacking_uid deferred
 - next pending: leave 26p–r alone if still in_progress; skip blocked; CW/Trails deferred
 
-- slice 27a done: rabbit_1..3 drops; mock230_pack 0 errors
+- slice 27a done: rabbit_1..3 drops; ToriRSServer_Pack 0 errors
 - slice 27b done: legends guild doors walk-through + constants
 - slice 27c done: mcannonladder trapdoor gate
 - slice 27d done: troll_godric Talk + quest_troll.constant
 - sibling unblock: duel_bank_chest loc_3193 false-friend; gauntlet_floor_tick stub
 - next pending: leave 26z alone if still in_progress; skip blocked; CW/Trails deferred
 
-- slice 26y done: mcannondoor/mcannondoor1 walk-through; mock230_pack 0 errors
+- slice 26y done: mcannondoor/mcannondoor1 walk-through; ToriRSServer_Pack 0 errors
 - slice 26z done: nulodions_notes mesbox
 - slice 27e done: mcannoncrateboy + dwarfchildtw1 rescue
 - slice 27f done: misc_giant_nib → pen on logs
@@ -1374,15 +1374,15 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 27k done: zanarisleprechaun Shamus Talk
 - slice 27l done: mort_myre_gate_guard Ulizius Talk; trails deferred
 - sibling fix: removed duplicate [softtimer,gauntlet_floor_tick]
-- final: 10414 scripts; mock230_pack 0 errors
+- final: 10414 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest (loc_3193 false-friend)
 
-- slice 27m done: prif_city_guard Talk + elf_city_gate Halt; mock230_pack 0 errors
+- slice 27m done: prif_city_guard Talk + elf_city_gate Halt; ToriRSServer_Pack 0 errors
 - slice 27n done: grip death → %heroquest killed_grip + death_drop
 - slice 27o done: zqzombie undead_one drops; greenmist deferred
 - next pending: skip blocked; CW/Trails deferred
 
-- slice 27p done: nightshade ifop4 Eat → 15 dmg; mock230_pack 0 errors
+- slice 27p done: nightshade ifop4 Eat → 15 dmg; ToriRSServer_Pack 0 errors
 - slice 27q done: goblin_guard Talk + retaliate
 - slice 27r done: duck/duckling Quack/Eep flavour
 - slice 27s done: zombie Brainssss flavour (4 names)
@@ -1393,10 +1393,10 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 27x done: regicidegeneralshopkeeper Trade stub
 - slice 27y done: spirit_of_scorpius mould/bless + authored %scorpius_given_symbol
 - sibling fix: dropped client-only turnspeed from inferno.npc overlay
-- final: 10515 scripts; mock230_pack 0 errors
+- final: 10515 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest
 
-- slice 27z done: ikov_firewarrior Talk + Fire Blast AI + death progress; mock230_pack 0 errors
+- slice 27z done: ikov_firewarrior Talk + Fire Blast AI + death progress; ToriRSServer_Pack 0 errors
 - slice 28a done: death_barman apnpc approach
 - loop re-armed: AGENT_LOOP_TICK_content_port every ~180s (pid 25968)
 - next pending: skip blocked; CW/Trails deferred
@@ -1409,7 +1409,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 28g done: viking fur/fish monger outerlander + Trade stub
 - slice 28h done: viking_sailor Talk thin
 - slice 28i done: eadgar_druid_washing flavour Talk
-- final: 10647 scripts; mock230_pack 0 errors
+- final: 10647 scripts; ToriRSServer_Pack 0 errors
 - next pending: leave 28k alone if still in_progress; outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw + duel closed chest
 
 - slice 28l done (sibling): regicide camp tracker Talk + pendant + stage constants
@@ -1422,7 +1422,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 28s done: lady_servil Talk start + quest_arena.constant
 - slice 28t done: eadgar_troll_thistle pick/move/drop
 - slice 28u done: arena_spectator Talk by %arenaquest
-- final: 10688 scripts; mock230_pack 0 errors
+- final: 10688 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 28v done: fightslave_kelvin/joe/fightslave Talk thin; armour/.npc_find deferred
@@ -1433,7 +1433,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 29a done: eadgar_troll_chief_cook (Burntmeat) Talk + thin ^eadgar_* constants
 - slice 29b done: eadgar_zoo_keeper_aviary (Parroty Pete) Talk; alco-chunks deferred
 - slice 29c done: horror_rockcrab activate + drops; trail clue deferred
-- final: 10754 scripts; mock230_pack 0 errors
+- final: 10754 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 29d done: khazard_barman beer/Khali brew Talk; SotN soft-skip merged from secretsofthenorth
@@ -1444,7 +1444,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 29i done: viking_clothing_shopkeeper (Yrsa) outerlander + Trade stub; shoe IF deferred
 - slice 29j done: trollromance_ug Talk + expanded ^troll_love_* + ^troll_complete; rewards deferred
 - slice 29k done: lord_iorwerth Talk thin by %regicide_quest; trail clue deferred
-- final: 10772 scripts; mock230_pack 0 errors
+- final: 10772 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 29l done: arena_guard1–4 Talk + drunk brew→keys; wearing_khazard deferred where LC uses proc
@@ -1453,7 +1453,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 29o done: viking_brundt start + vote stub; merchant/history deferred
 - slice 29p done: viking_citizen man/woman Talk thin; drops deferred
 - slice 29q done: viking_askelapen outerlander/council/postquest thin; pet rock deferred
-- final: 10842 scripts; mock230_pack 0 errors
+- final: 10842 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 29r done: crest_johnathon Talk + antipoison cure; gauntlets deferred
@@ -1464,7 +1464,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 29w done: troll_prison_guard1/2 pickpocket keys; snore AI deferred
 - slice 29x done: watchtower city_guard riddle + deathrune→skavidmap + constants/bits
 - slice 29y done: watchtower toban dragon_bones→relicpart3
-- final: 10907 scripts; mock230_pack 0 errors
+- final: 10907 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 29z done: enclave_guard Talk + nightshade → cave tele; expanded ^itwatchtower_* + %gutanoth_gold
@@ -1475,22 +1475,22 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 30e done: ogre_shaman Talk blast + magic_ogre_potion dissolve; ai_queue2 deferred
 - slice 30f done: skavid talkers + scared/mad language + powering_crystal2
 - slice 30g done: watchtower_wizard start/fingernails/relic/potion enchant thin; crystal Use deferred
-- final: 10963 scripts; mock230_pack 0 errors
+- final: 10963 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (watchtower ogre_potion mix / locs; CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 30h done: ogre_potion mix (guam/janger/bat bones; explode wrong order); jangerberries brew hook
-- final: 10970 scripts; mock230_pack 0 errors
+- final: 10970 scripts; ToriRSServer_Pack 0 errors
 - next pending: watchtower locs; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 30i done: watchtower locs (bushes/caves/chest/jumps/lever/crystal rock/finish); wall climb/ropeswing/gate swing deferred
-- final: 11026 scripts; mock230_pack 0 errors
+- final: 11026 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 30j done: fairy_banker + shilobanker Talk/~openbank
 - slice 30k done: dragonshield_a↔b Use anvil hint; repair deferred
 - slice 30l done: chompybird chest + ^chompybird_* constants; bellows name-expand
 - slice 30m done: viking_guard/2 death drops; trail clue deferred
-- final: 11038 scripts; mock230_pack 0 errors
+- final: 11038 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 30n done: fycie Talk + %chompybird_kills bitfield + expanded ^chompybird_*; trail clue deferred
@@ -1501,7 +1501,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 30s done: viyeldi Talk thin; hat/dagger deferred
 - slice 30t done: al_shabim greeting/looking thin; dart chain deferred
 - slice 30u done: troll_spectator1–7 Attack gate + drops; face timer deferred
-- final: 11092 scripts; mock230_pack 0 errors
+- final: 11092 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 30v done: crest Avan Talk (avan_fitzharmon_* remap); gauntlets kept
@@ -1514,7 +1514,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 31c done: mcannon railings via %mcannon_railing*_fixed
 - slice 31d done: broken_multicannon repair via tool1–3/safety_on
 - slice 31e done: mournertwa Talk by %elenaquest
-- final: 11160 scripts; mock230_pack 0 errors
+- final: 11160 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 31f done: khazard/dwarven/generalshop8 Trade stubs
@@ -1525,7 +1525,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 31k done: palm_leaf↔raw_oomlie wrap
 - slice 31l done: pie shell + apple/redberry/meat fill (switch map)
 - slice 31m done: stew assemble + curry spice; BIM cooked_meat Use deferred
-- final: 11236 scripts; mock230_pack 0 errors
+- final: 11236 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 31n done: pizza assemble + toppings (switch map; pizza_topping_struct deferred); tomato/cheese BIM; pineapple_chunks arm
@@ -1536,7 +1536,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 31s done: tbwt_poorly_cooked_karambwan + mort_slimey_eel_cooked Eat
 - slice 31t done: macro_triffidfruit Eat + %poison immunity
 - slice 31u done: opheld4 _potion + vial_water → vial_empty
-- final: 11297 scripts; mock230_pack 0 errors
+- final: 11297 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 31v done: snail_corpse_cooked1–3 Eat (name-bound; slimey heal ranges)
@@ -1545,7 +1545,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 31y done: ogre arrow fletching (achey shafts + wolf tips + feathers + heads); knife/chisel/feather BIM
 - slice 31z done: Fight Arena journal (~arena_journal + quest_fightarena wire)
 - slice 32a done: Family Crest journal (~crest_journal + quest_familycrest wire)
-- final: 11342 scripts; mock230_pack 0 errors
+- final: 11342 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32b done: Lost City journal (~zanaris_journal + quest_lostcity wire)
@@ -1556,46 +1556,46 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 32g done: Horror from the Deep journal (~horror_journal + quest_horrorfromthedeep wire)
 - slice 32h done: Dwarf Cannon journal (~mcannon_journal + quest_dwarfcannon; railing bits → named varbits)
 - slice 32i done: Tribal Totem journal (~totem_journal + quest_tribaltotem; %handelmort_traps_disabled authored)
-- final: 11376 scripts; mock230_pack 0 errors
+- final: 11376 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32k done: Troll Stronghold journal (~troll_journal + quest_trollstronghold wire)
-- final: 11378 scripts; mock230_pack 0 errors
+- final: 11378 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32l done: Elemental Workshop I journal (~elemental_workshop_journal + quest_elementalworkshop1; LC bits → named varbits)
-- final: 11379 scripts; mock230_pack 0 errors
+- final: 11379 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32m done: Priest in Peril journal (~priestperil_journal + quest_priestinperil; ^priestperil_* authored; well/barrier/dog still deferred)
 - slice 32n done: Biohazard journal (~biohazard_journal + quest_biohazard wire)
 - slice 32o done: Big Chompy Bird Hunting journal (~chompybird_journal + quest_bigchompybirdhunting wire)
 - slice 32p done: Regicide journal (~regicide_journal + quest_regicide; LC chemist bit → %regicide_chemist_chat)
-- final: 11383 scripts; mock230_pack 0 errors
+- final: 11383 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32q done: Tourist Trap journal (~desertrescue_journal + quest_touristtrap wire)
-- final: 11387 scripts; mock230_pack 0 errors
+- final: 11387 scripts; ToriRSServer_Pack 0 errors
 - next pending: eadgar / hero / viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32r done: Eadgar's Ruse journal (~eadgar_journal + quest_eadgarsruse; %eadgar_bits/%eadgar_grain/%eadgar_chickens authored)
-- final: 11388 scripts; mock230_pack 0 errors
+- final: 11388 scripts; ToriRSServer_Pack 0 errors
 - next pending: hero / viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32s done: Heroes' Quest journal (~hero_journal + quest_heroes wire)
-- final: 11389 scripts; mock230_pack 0 errors
+- final: 11389 scripts; ToriRSServer_Pack 0 errors
 - next pending: viking / mortton journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32t done: Fremennik Trials journal (~viking_journal + quest_fremenniktrials; %viking_bits + trial get/set helpers; ~get_viking_name stub)
-- final: 11406 scripts; mock230_pack 0 errors
+- final: 11406 scripts; ToriRSServer_Pack 0 errors
 - next pending: mortton / remaining journals; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32u done: Shades of Mort'ton journal (~mortton_journal + quest_shadesofmortton; olive_oil/shade_remains/pyre_logs cats)
-- final: 11407 scripts; mock230_pack 0 errors
+- final: 11407 scripts; ToriRSServer_Pack 0 errors
 - next pending: remaining journals (druidspirit/misc/mm/legends/zombiequeen); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 32v done: Nature Spirit journal (~druidspirit_journal + quest_naturespirit; %druidspirit_bits authored; ^priestperil_complete)
-- final: 11422 scripts; mock230_pack 0 errors
+- final: 11422 scripts; ToriRSServer_Pack 0 errors
 - next pending: remaining journals (misc/mm/legends/zombiequeen/routequest); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend); scorpcatcher landed in parallel (leave alone)
 
 - slice 32y verified: Shilo Village journal already landed (~zombiequeen_journal + quest_shilovillage; %zq_map_mechanisms)
@@ -1604,10 +1604,10 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 33b done: In Search of the Myreque journal (~routequest_journal + quest_insearchofthemyreque; %routequest_myreque_bits; bitcount→getbit_range)
 - slice 33c done: Ogre bow Check kills (opheld3 + ~get_chompy_rank; ~objbox→~mesbox)
 - slice 33d done: Swamp toad inflate (opnpcu toad + ai_timer; synth/sound_area dropped)
-- final: 11481 scripts; mock230_pack 0 errors
+- final: 11481 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 - slice 33e done: Chompy bloated toad release/place (~release_toad, Drop→place bait, ai_queue4 explode/spawn thin); chompybird via names.map; %npc_attacking_uid/huntmode deferred
-- final: 11500 scripts; mock230_pack 66 errors (all special_attack.obj unknown objs — pre-existing, not 33e)
+- final: 11500 scripts; ToriRSServer_Pack 66 errors (all special_attack.obj unknown objs — pre-existing, not 33e)
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 33f done: cannonballs (steel_bar+ammo_mould → mcannonball×4; furnace Use hook)
@@ -1618,7 +1618,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 33k done: MM temple priests (hafuba/lofu/denadu)
 - slice 33l done: MM sleeping monkey guard Talk; ai_timer deferred
 - slice 33m done: dragon spear Shove (sa_kind=8); also stripped 22 unresolved special_attack.obj names → pack 0
-- final: 11567 scripts; mock230_pack 0 errors
+- final: 11567 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 33n done: MM monkeys uncle Talk (aa_summon deferred)
@@ -1629,7 +1629,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 33s done: MM zoo_monkey capture Talk (backpack handoff; timer/trail deferred)
 - slice 33t done: MM karam Talk (talker + busy; AI deferred)
 - slice 33u done: MM caranock Talk (^monkeymadness_* rename)
-- final: 11645 scripts; mock230_pack 0 errors
+- final: 11645 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (mm_kruk/lumdo/waydar/garkor/aa_market/CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 33v done: MM kruk Talk (%varbit_117/%varbit_120; escort tele thin)
@@ -1638,41 +1638,41 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 33y done: MM garkor Talk (%varbit_118; ch4 cutscene thin)
 - slice 33z done: AA market stalls (mm_stall_* Steal; padulah guard)
 - slice 34a done: MM lumo/bunkdo/carado jail Talk (queue deferred)
-- final: 11693 scripts; mock230_pack 0 errors
+- final: 11693 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers (mm_monkeys_aunt/daero/zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred); skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34b done: MM monkeys aunt Talk (AI/guards deferred)
-- final: 11719 scripts; mock230_pack 0 errors
+- final: 11719 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_daero/zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34c done: MM daero Talk + hangar tele thin (training IF1 deferred; %varbit_99–101)
-- final: 11741 scripts; mock230_pack 0 errors
+- final: 11741 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_zooknock/awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34d done: MM zooknock Talk+Use (%varbit_106–112/133; ch3 thin; AI deferred)
-- final: 11778 scripts; mock230_pack 0 errors
+- final: 11778 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_awowogei/monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34e done: MM awowogei throne Talk (%varbit_118; MM2 soft-skips merged)
-- final: 11780 scripts; mock230_pack 0 errors
+- final: 11780 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_monkey_child/glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34f done: MM monkey child Talk+Use (%varbit_119/%varbit_113)
-- final: 11800 scripts; mock230_pack 0 errors
+- final: 11800 scripts; ToriRSServer_Pack 0 errors
 - next pending: glough reinit; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34g done: MM glough reinit buyout (%varbit_103; grandtree_glough hook)
-- final: 11801 scripts; mock230_pack 0 errors
+- final: 11801 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_narnode/minder/temple/wildlife; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34h done: MM narnode Talk (start/reward/complete; mm_ch1 deferred)
-- final: 11824 scripts; mock230_pack 0 errors
+- final: 11824 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_monkey_minder/temple/wildlife; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34i done: MM monkey minder Talk (cage tele thin; %varbit_132)
 - slice 34j done: MM temple trapdoor/rope (mapzone spikes deferred)
 - slice 34k done: AA wildlife poison-on-attack (1/10 → poison_player)
-- final: 11834 scripts; mock230_pack 0 errors
+- final: 11834 scripts; ToriRSServer_Pack 0 errors
 - next pending: mm_puzzle/greegree/archer/jail/skeleton/demon; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34l done: MM hangar puzzle thin (crate/hint/panel → %varbit_103 + ^daero_reinit; IF1 deferred)
@@ -1689,30 +1689,30 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 34w done: Mort Myre swamp_decay timer + %mortmyre
 - slice 34x done: Priest Peril evil monk AI + pipkey_gold
 - slice 34y done: MM amulet smith on iban firewall (zenyte oplocu hook)
-- final: 11975 scripts; mock230_pack 0 errors
+- final: 11975 scripts; ToriRSServer_Pack 0 errors
 - next pending: quest_mm leftovers (aa_summon_guards/cutscenes); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 34z done: MM aa_summon_guards + aa_guards_queue (%mm_guards_cooldown)
-- final: 11988 scripts; mock230_pack 0 errors
+- final: 11988 scripts; ToriRSServer_Pack 0 errors
 - next pending: wire summon callers (shopkeepers/uncle/aunt/dugopul/uwogo/throne); thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35a done: wire aa_summon into shopkeepers/uncle/uwogo/murowoi
-- final: 12000 scripts; mock230_pack 0 errors
+- final: 12000 scripts; ToriRSServer_Pack 0 errors
 - next pending: aunt/dugopul/throne summon; thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35b done: aunt/dugopul/throne → aa_guards_queue
-- final: 12001 scripts; mock230_pack 0 errors
+- final: 12001 scripts; ToriRSServer_Pack 0 errors
 - next pending: thin mm_ch1; MM loc leftovers; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35c done: thin mm_ch1 + ch2/ch3/ch4 chapter mesbox cards
-- final: 12002 scripts; mock230_pack 0 errors
+- final: 12002 scripts; ToriRSServer_Pack 0 errors
 - next pending: MM loc leftovers (crates/warehouse/bridge); CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35d done: MM supply crates (scimitars + tools)
 - slice 35e done: MM denture/mould/eye crates + bookcase + pineapple
 - slice 35f done: MM warehouse hole/ropes/trapdoor/locked door
 - slice 35g done: MM bridge ladders + jumping square + enchanted gold Examine
-- final: 12031 scripts; mock230_pack 0 errors
+- final: 12031 scripts; ToriRSServer_Pack 0 errors
 - next pending: MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35h done: Priest Peril vampire coffin (blessed water Use)
@@ -1723,52 +1723,52 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 35m done: Observatory professor Talk/Use (trails stubbed)
 - slice 35n done: Shilo nazastarool death queues + thin summon
 - slice 35o done: Legends echned_zekin Talk/Use + nezi summon
-- final: 12178 scripts; mock230_pack 0 errors
+- final: 12178 scripts; ToriRSServer_Pack 0 errors
 - next pending: Nature Spirit filliman/ghast; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35p done: Nature Spirit filliman Talk/Use + quest_complete queues
-- final: 12246 scripts; mock230_pack 0 errors
+- final: 12246 scripts; ToriRSServer_Pack 0 errors
 - next pending: Nature Spirit ghast/locs; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35q done: Nature Spirit ghast AI/pouch + %ghast_delay; food-rot thinned
-- final: 12275 scripts; mock230_pack 0 errors
+- final: 12275 scripts; ToriRSServer_Pack 0 errors
 - next pending: Nature Spirit locs/bloom; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35r done: Nature Spirit gate/grotto/bloom/pouch/altar/harvest
-- final: 12308 scripts; mock230_pack 0 errors
+- final: 12308 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 35s done: Shilo rashiliyia intro AI + Talk + random_undead_one
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: Legends warriors / boulder / barrel / curtains / mausoleum gates
 
 - slice 35t done: Legends irvig_senay Talk/Attack/death + thin summon_nezi_part3
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: san_tojalon / ranalph / boulder / barrel / curtains / gates
 
 - slice 35u done: Legends san_tojalon Talk/Attack/death
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: ranalph / boulder / barrel / curtains / gates
 
 - slice 35v done: Legends ranalph_devere Talk/Attack/death
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: boulder / barrel / curtains / gates
 
 - slice 35w done: Legends boulder push + lgwaterpool Look (%npc_start_coord→quest gate)
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: strange_barrel / curtains / mausoleum gates
 
 - slice 35x done: Legends strange_barrel smash + thin loot/explode
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: alkharid curtains / mausoleum gates
 
 - slice 35y done: Alkh palace curtains + Priest Peril mausoleum gates
-- final: 12368 scripts; mock230_pack 0 errors
+- final: 12368 scripts; ToriRSServer_Pack 0 errors
 - next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
 
 - slice 36a done: charter ships — transport_charter/ (16 ports, 228 fares,
   Trader Stan's Trading Post), tools/gen_charter_tables.py,
-  tools/check_charter_contract.py (wired into mock230-scripts), mock230
+  tools/check_charter_contract.py (wired into torirsserver-scripts), ToriRSServer
   selftest "a charter ship takes a fare and sails" (7 assertions).
   Fares are the wiki's table, not charter_ships.tsv, which is wrong about
   money; destination ids/arrival tiles/zone boxes come from cache dbtable 206.
@@ -1784,7 +1784,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 - slice 36c done: engine — db_listall is a positional cursor and now walks the
   order the cache documents (ascending row id, the `[master]` block of
   dbindex_<table>.dbi) instead of all.dbrow parse order.
-  mock230_db_row_in_table_ordered serves only query_row's db_query_column < 0
+  ToriRSServer_DbRowInTableOrdered serves only query_row's db_query_column < 0
   branch, so db_find's scan is untouched; 50 suite failures with and without,
   identical sets. New selftest "db_listall walks ascending row ids"; inverting
   the comparator fires it. No behaviour changes on this cache — every table is

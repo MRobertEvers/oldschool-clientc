@@ -11,12 +11,12 @@ from summoning_script_sources import definition, read_all, script_dir
 
 
 REPO = Path(__file__).resolve().parents[1]
-MOCK_HOST = REPO / "src/net/mock/mock230_scripts.c"
-MOCK_CONTENT = REPO / "src/net/mock/mock230_content.c"
-MOCK_INV = REPO / "src/net/mock/mock230_ops_inv.c"
-MOCK_WORLD = REPO / "src/net/mock/mock230_world.c"
-MOCK_HEADER = REPO / "src/net/mock/mock230.h"
-MOCK_COMBAT = REPO / "src/net/mock/mock230_combat.c"
+MOCK_HOST = REPO / "src/torirsserver/torirs_server_scripts.c"
+MOCK_CONTENT = REPO / "src/torirsserver/torirs_server_content.c"
+MOCK_INV = REPO / "src/torirsserver/torirs_server_ops_inv.c"
+MOCK_WORLD = REPO / "src/torirsserver/torirs_server_world.c"
+MOCK_HEADER = REPO / "src/torirsserver/torirs_server.h"
+MOCK_COMBAT = REPO / "src/torirsserver/torirs_server_combat.c"
 PLAYER_RANGED = REPO / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/player/player_ranged.rs2"
 INTERFACE = REPO / (
     "OSRS-Content/osrs239-content/ported/scape2009_summoning/"
@@ -536,7 +536,7 @@ def main() -> int:
                "Spirit Scorpion's source battle adjustment is not between ranged state creation and impact preparation")
         expect("case SS_OP_NPC_POISON:" in mock_host and
                "poison_severity" in mock_header and "poison_source_gen" in mock_header and
-               "mock230_combat_npc_poison_tick" in mock_world and
+               "ToriRSServer_CombatNpcPoisonTick" in mock_world and
                "damage = (npc->poison_severity + 4) / 5;" in mock_combat and
                "npc->poison_clock = srv->tick + 30;" in mock_combat,
                "NPC poison lacks its owner-attributed 30-tick source severity timer")
@@ -738,16 +738,16 @@ def main() -> int:
                "npc_findowned2 = false" in validate,
                "target validation cannot retain a primary target while resolving the familiar")
         expect("SSVM_ENT_PLAYER, SSVM_SECONDARY, &srv->players[player_slot]" in mock_host and
-               "interaction->kind == MOCK230_INTERACT_PLAYER ? interaction->npc_slot : -1" in mock_world and
-               "(struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);" in mock_host,
+               "interaction->kind == TORIRSSERVER_INTERACT_PLAYER ? interaction->npc_slot : -1" in mock_world and
+               "(struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);" in mock_host,
                "selected player casts do not bind a secondary recipient for dotted target operations")
-        expect("player_by_uid(struct Mock230Server* srv, int32_t uid)" in mock_host and
+        expect("player_by_uid(struct ToriRSServer* srv, int32_t uid)" in mock_host and
                "SSVM_PushInt(state, player ? player->pid + 1 : 0);" in mock_host and
-               "struct Mock230Player* target_player = player_by_uid(srv, values[1]);" in mock_host and
-               "mock230_world_set_active(srv, target_player);" in mock_host,
+               "struct ToriRSServerPlayer* target_player = player_by_uid(srv, values[1]);" in mock_host and
+               "ToriRSServer_WorldSetActive(srv, target_player);" in mock_host,
                "delayed player-target specials do not preserve uid identity for find/projectile/damage")
         expect("container_row(srv, player, inv_id)" in mock_host and
-               "mock230_container_resolve(srv, player ? player : srv->active_player, inv_id)" in mock_inv,
+               "ToriRSServer_ContainerResolve(srv, player ? player : srv->active_player, inv_id)" in mock_inv,
                "dotted inventory commands do not resolve containers against the selected secondary player")
     except (AssertionError, OSError, ValueError) as exc:
         print(f"test_summoning_specials: error: {exc}", file=sys.stderr)

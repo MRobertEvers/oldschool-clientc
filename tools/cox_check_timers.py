@@ -4,7 +4,7 @@
 Why this exists
 ---------------
 `npc_add` dispatches `[ai_spawn]` but does not arm `[ai_timer]`: the engine
-gates that trigger on `timer_interval > 0` (mock230_world.c, phase 4) and the
+gates that trigger on `timer_interval > 0` (torirs_server_world.c, phase 4) and the
 field starts at zero. An `[ai_timer]` block on an npc that never calls
 `npc_settimer` is therefore dead code -- no error, no warning, no partial
 behaviour, and it reads as a finished boss.

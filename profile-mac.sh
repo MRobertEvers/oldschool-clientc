@@ -61,7 +61,7 @@ else
     REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 
     # Embed manifests need EMBED_SERVER=1 (and typically TORIDRAW_OPT=1 for the
-    # harness). TCP osrs230 still auto-starts mock230.
+    # harness). TCP osrs230 still auto-starts ToriRSServer.
     if [ "$TRANSPORT" = "embed" ]; then
         echo "profile-mac.sh: embed transport — building EMBED_SERVER=1 TORIDRAW_OPT=${TORIDRAW_OPT:-1}"
         make -C src EMBED_SERVER=1 TORIDRAW_OPT="${TORIDRAW_OPT:-1}" torirs
@@ -71,9 +71,9 @@ else
         [ -x src/torirs ] || make -C src torirs
         if [ "$REV" = "osrs230" ] && [ "${HOST:-localhost}" = "localhost" ] &&
            ! lsof -i ":${PORT:-43594}" >/dev/null 2>&1; then
-            echo "profile-mac.sh: starting src/build/mock230 on ${PORT:-43594}"
-            make -C src mock230 >/dev/null
-            src/build/mock230 "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
+            echo "profile-mac.sh: starting src/build/torirsserver on ${PORT:-43594}"
+            make -C src ToriRSServer >/dev/null
+            src/build/torirsserver "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
             MOCK_PID=$!
             trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
             sleep 1

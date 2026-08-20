@@ -8,7 +8,7 @@
  * field. It catches a mis-shifted width or a transposed opcode.
  *
  * **The register cross-check** is not. `fields/<type>.ini` declares each server
- * field's opcode and wire width, and `mock230_servercodec.c` holds a C table
+ * field's opcode and wire width, and `torirs_server_servercodec.c` holds a C table
  * saying the same thing. If those two disagree, the packer writes a field under
  * one opcode and the server reads it under another — and *nothing errors*,
  * because both streams are well-formed. The value simply lands in the wrong
@@ -21,7 +21,7 @@
  *
  * ## Why it iterates the registry
  *
- * The cross-check loops over `Mock230_ServerTypes()` rather than naming `npc`.
+ * The cross-check loops over `ToriRSServer_ServerTypes()` rather than naming `npc`.
  * A check that hardcodes its types is a check a new type joins without: someone
  * adds a `ServerType` row, forgets `fields/<name>.ini`, and the packer writes
  * nothing for it while the server happily decodes an empty stream. Iterating
@@ -32,7 +32,7 @@
  * its own `<dir>/<name>.ini`.
  */
 
-#include "../mock230_servercodec.h"
+#include "../torirs_server_servercodec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,10 +54,10 @@ check(
 
 /** The engine defaults this codec encodes against, kept minimal on purpose: the
  *  test cares that "equal to default" is omitted, not what the defaults are. */
-static struct Mock230NpcDef
+static struct ToriRSServerNpcDef
 defaults_record(void)
 {
-    struct Mock230NpcDef def;
+    struct ToriRSServerNpcDef def;
 
     memset(&def, 0, sizeof(def));
     def.hitpoints = 10;
@@ -73,10 +73,10 @@ defaults_record(void)
 static void
 check_round_trip(void)
 {
-    const struct ServerType* npc = Mock230_ServerTypeFor("npc");
-    struct Mock230NpcDef defaults = defaults_record();
-    struct Mock230NpcDef src = defaults;
-    struct Mock230NpcDef dst = defaults;
+    const struct ServerType* npc = ToriRSServer_ServerTypeFor("npc");
+    struct ToriRSServerNpcDef defaults = defaults_record();
+    struct ToriRSServerNpcDef src = defaults;
+    struct ToriRSServerNpcDef dst = defaults;
     uint8_t buf[512];
     uint32_t written;
     int consumed;
@@ -105,13 +105,13 @@ check_round_trip(void)
     src.defend_anim = 4653;
     src.death_anim = 4654;
 
-    written = Mock230_ServerEncode(npc, &src, &defaults, buf, sizeof(buf));
+    written = ToriRSServer_ServerEncode(npc, &src, &defaults, buf, sizeof(buf));
     check(written > 0, "a fully-stated record encodes");
     check(
-        written <= Mock230_ServerEncodeBound(npc),
+        written <= ToriRSServer_ServerEncodeBound(npc),
         "the encode stays inside its own bound");
 
-    consumed = Mock230_ServerDecode(npc, &dst, buf, (int)written);
+    consumed = ToriRSServer_ServerDecode(npc, &dst, buf, (int)written);
     check(consumed == (int)written, "the stream is consumed to its last byte");
 
     check(dst.hitpoints == 4000, "hitpoints survives the round trip");
@@ -138,10 +138,10 @@ check_round_trip(void)
 static void
 check_round_trip_loc(void)
 {
-    const struct ServerType* loc = Mock230_ServerTypeFor("loc");
-    struct Mock230LocDef defaults;
-    struct Mock230LocDef src;
-    struct Mock230LocDef dst;
+    const struct ServerType* loc = ToriRSServer_ServerTypeFor("loc");
+    struct ToriRSServerLocDef defaults;
+    struct ToriRSServerLocDef src;
+    struct ToriRSServerLocDef dst;
     uint8_t buf[64];
     uint32_t written;
 
@@ -155,9 +155,9 @@ check_round_trip_loc(void)
     dst = defaults;
     src.next_loc_stage = 62000; /* past u2, which is why the register says u4 */
 
-    written = Mock230_ServerEncode(loc, &src, &defaults, buf, sizeof(buf));
+    written = ToriRSServer_ServerEncode(loc, &src, &defaults, buf, sizeof(buf));
     check(written == 6, "a loc band is one u4 field plus the terminator");
-    check(Mock230_ServerDecode(loc, &dst, buf, (int)written) == (int)written,
+    check(ToriRSServer_ServerDecode(loc, &dst, buf, (int)written) == (int)written,
           "the loc stream is consumed to its last byte");
     check(dst.next_loc_stage == 62000, "a loc id past 65535 survives");
 }
@@ -165,15 +165,15 @@ check_round_trip_loc(void)
 static void
 check_sparse(void)
 {
-    const struct ServerType* npc = Mock230_ServerTypeFor("npc");
-    struct Mock230NpcDef defaults = defaults_record();
-    struct Mock230NpcDef same = defaults;
+    const struct ServerType* npc = ToriRSServer_ServerTypeFor("npc");
+    struct ToriRSServerNpcDef defaults = defaults_record();
+    struct ToriRSServerNpcDef same = defaults;
     uint8_t buf[512];
     uint32_t written;
 
     if( !npc )
         return;
-    written = Mock230_ServerEncode(npc, &same, &defaults, buf, sizeof(buf));
+    written = ToriRSServer_ServerEncode(npc, &same, &defaults, buf, sizeof(buf));
 
     /* The whole reason the pack is small: 38 authored npcs, not 16,292 records. */
     check(written == 1 && buf[0] == 0,
@@ -182,11 +182,11 @@ check_sparse(void)
     /* And "absent" must not read as "zero": decoding an empty stream over a
      * seeded record leaves the seed alone. */
     {
-        struct Mock230NpcDef seeded = defaults;
+        struct ToriRSServerNpcDef seeded = defaults;
         uint8_t empty[1] = { 0 };
 
         seeded.hitpoints = 77;
-        Mock230_ServerDecode(npc, &seeded, empty, 1);
+        ToriRSServer_ServerDecode(npc, &seeded, empty, 1);
         check(seeded.hitpoints == 77, "an absent opcode leaves the seeded value alone");
     }
 
@@ -197,12 +197,12 @@ check_sparse(void)
      * drop `attackrate = 0` and leave the seed's 4 in place.
      */
     {
-        struct Mock230NpcDef zeroed = defaults;
-        struct Mock230NpcDef seeded = defaults;
+        struct ToriRSServerNpcDef zeroed = defaults;
+        struct ToriRSServerNpcDef seeded = defaults;
 
         zeroed.attackrate = 0;
-        written = Mock230_ServerEncode(npc, &zeroed, &defaults, buf, sizeof(buf));
-        Mock230_ServerDecode(npc, &seeded, buf, (int)written);
+        written = ToriRSServer_ServerEncode(npc, &zeroed, &defaults, buf, sizeof(buf));
+        ToriRSServer_ServerDecode(npc, &seeded, buf, (int)written);
         check(seeded.attackrate == 0, "a stated zero overrides a non-zero default");
     }
 }
@@ -361,7 +361,7 @@ static void
 check_against_register(const char* dir)
 {
     int count = 0;
-    const struct ServerType* types = Mock230_ServerTypes(&count);
+    const struct ServerType* types = ToriRSServer_ServerTypes(&count);
 
     check(count > 0, "at least one type has a server band");
     for( int i = 0; i < count; i++ )
@@ -372,7 +372,7 @@ static void
 check_band(void)
 {
     int count = 0;
-    const struct ServerType* types = Mock230_ServerTypes(&count);
+    const struct ServerType* types = ToriRSServer_ServerTypes(&count);
     int out_of_band = 0;
     int duplicated = 0;
 

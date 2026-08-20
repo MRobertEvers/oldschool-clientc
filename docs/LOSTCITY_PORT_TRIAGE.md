@@ -1,4 +1,4 @@
-# Porting the LostCity content tree onto mock230 — triage
+# Porting the LostCity content tree onto ToriRSServer — triage
 
 > **Deliverable 1. No code has been written. Nothing in either tree has been
 > modified.** Every number below is measured, and §12 says how to re-measure it.
@@ -11,7 +11,7 @@
 
 Source: `/Users/matthewevers/Documents/git_repos/LostCity_Server/content`
 (a fork of 2004scape's content at `d386509 prepare for zuk`).
-Destination: `OSRS-Content/osrs239-content`, read by `src/net/mock/mock230`
+Destination: `OSRS-Content/osrs239-content`, read by `src/torirsserver/torirsserver`
 against `cache.osrs239`.
 
 ---
@@ -52,7 +52,7 @@ The two Dragon-Slayer gang varps are **swapped**. Copying ids across compiles,
 runs, and silently reverses which gang the player joined.
 
 **The binding constraint is engine opcodes, not ids.** The content calls 268
-distinct ServerScript commands. `mock230` implements 123 of them. **145 are
+distinct ServerScript commands. `ToriRSServer` implements 123 of them. **145 are
 missing, and they are not the tail** — `npc_find` (305 uses, 139 files),
 `loc_change` (270), `loc_add` (248), `oc_param` (351), `npc_setmode` (310).
 Counted per file: **636 of 1,265 scripts (50.3 %) use only commands the engine
@@ -107,7 +107,7 @@ oplocu 212   oploc2 193  ai_queue3 184 zoneexit 165   opheld1 159
 queue 152    opnpcu 93   ai_timer 87  ai_opplayer2 84 mapzoneexit 73
 ```
 
-`mock230` dispatches these families today: `opnpc1-5`, `oploc1-5`, `opobj1-5`,
+`ToriRSServer` dispatches these families today: `opnpc1-5`, `oploc1-5`, `opobj1-5`,
 `opheld1-5`, `apnpc/aploc/apobj1-5`, `inv_button1-n`, `if_button`, `if_close`,
 `ai_queue1-20`, `ai_spawn`, `login`; since §9 step 5a `queue`, `timer`,
 `softtimer` and `ai_timer` (275 uses; see osrs230_mockserver.md §3.19, and note
@@ -409,7 +409,7 @@ Two of these families are already documented as *deliberately* unimplemented in
   claim that the data did not exist turned out to be stale twice over:
   `configs/all.param` has carried the type of every param all along, unpacked by
   cachepack and read by nothing, and the npc records' params were already being
-  decoded and discarded inside `mock230_npcinfo.c`.
+  decoded and discarded inside `torirs_server_npcinfo.c`.
 
   `nc_param` is the *smallest* of the four by call sites — this table's own
   numbers leave it 6, against 351 for `oc_param`, 133 for `loc_param` and 115 for
@@ -429,7 +429,7 @@ Two of these families are already documented as *deliberately* unimplemented in
   **The sixth member of the family was never on this list, because it was
   already counted as done.** `npc_param` (2529, **291 uses / 137 files** —
   larger than any other `*_param`) had a `case` label in
-  `mock230_scripts.c` that answered one hardcoded param and pushed 0 for the
+  `torirs_server_scripts.c` that answered one hardcoded param and pushed 0 for the
   rest, always on the int stack. Coverage is derived from `case` labels, so
   wrong and right were indistinguishable to every check here. **Done properly in
   §10.3d.** The lesson generalises past this opcode: a coverage number counts
@@ -501,7 +501,7 @@ ordinary idiom and used to be rejected as "takes 2 int, called with 1".
 
 **And the `loc_*` family's unlock finished the `oploc` eviction on the same
 day.** With doors, ladders and — the last piece — the 78 bank booths bound,
-`interaction_engine_loc` and `climb` are deleted and `enum Mock230Fallback` is
+`interaction_engine_loc` and `climb` are deleted and `enum ToriRSServerFallback` is
 **5**. The part to carry into the skilling port is which of the three was the
 blocker: not the `loc_*` opcodes, which had landed, but a *list*. 78 loc records
 in this cache say "Bank" and content bound one, so the C's `strcmp` was reaching
@@ -596,13 +596,13 @@ both of which survived the port unchanged:
   and all 379 have three-part ones beginning `0_`.
 - **They are keyed by script *name*, not by a numeric subject.** The reference
   looks up `[zone,<level>_<mx>_<mz>_<lx>_<lz>]` and `[mapzone,0_<mx>_<mz>]`
-  through `ScriptProvider.getByName`. `mock230_scripts_run_trigger` takes an
+  through `ScriptProvider.getByName`. `ToriRSServer_ScriptsRunTrigger` takes an
   integer subject and cannot express that, so the dispatch is
-  `mock230_scripts_run_trigger_at` / `_queue_trigger_at`, name-addressed with no
+  `ToriRSServer_ScriptsRunTriggerAt` / `_queue_trigger_at`, name-addressed with no
   keyed rung at all.
 
 **The `ZoneMap` was not the blocker and is not in the path.** It landed first
-(`src/net/mock/mock230_zone.{c,h}`, §3.17) and the two are unrelated: it is keyed
+(`src/torirsserver/ToriRSServer_Zone.{c,h}`, §3.17) and the two are unrelated: it is keyed
 `(zx, zz, level)`, which is the wrong granularity for 379 of these uses and the
 wrong *kind* of address for the other 427. Sizing this work off "the ZoneMap
 exists now" would have been sizing off the wrong structure — what it needed was
@@ -652,15 +652,15 @@ already records the finding: rev 230's option dialogue is interface **219
 — the rows are `cc_create`d by a clientscript, so `if_settext` cannot address
 them. That is why the existing ported dialogue linearises every choice.
 
-**But the server can already send `RUNCLIENTSCRIPT`** — `mock230_worldmap.c`
+**But the server can already send `RUNCLIENTSCRIPT`** — `torirs_server_worldmap.c`
 does, for `worldmap_transmitdata`.
 
 **The paragraph that used to follow was wrong twice over**, and the correction
-is worth more than the claim was. It read: "`mock230`'s `RUNCLIENTSCRIPT` sender
+is worth more than the claim was. It read: "`ToriRSServer`'s `RUNCLIENTSCRIPT` sender
 takes **ints only** … a string-argument form of one existing encoder is what
 stands between here and 879 call sites."
 
-The sender never took ints only. `mock230_send_run_clientscript_mixed` has
+The sender never took ints only. `ToriRSServer_SendRunClientscriptMixed` has
 carried a per-argument type string since it was written; what was fixed at one
 int and two strings was the *opcode*, `runclientscript_ss` (11002). The general
 form — `runclientscript*` / `SS_OP_RUNCLIENTSCRIPTVARARG` (11003), any mix of
@@ -672,7 +672,7 @@ And `~p_choice*` was never what it blocked. `~p_choice_open` ships today
 `chatbox_multi_init` takes exactly the one-int-two-string shape. What bounds the
 879 call sites is three *caps*, none of them this opcode: `script_58` parses at
 most five options, the `|`-joined option list rides one 512-byte string
-(`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `MOCK230_RESUME_SUB_MAX` is 15.
+(`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `TORIRSSERVER_RESUME_SUB_MAX` is 15.
 
 Related: most `split_init`/`split_get`/`split_linecount`/`split_pagecount` uses
 (244 in the original corpus) are LostCity measuring dialogue against one of
@@ -745,7 +745,7 @@ whole file.
 The cause is specific. In this tree, `category` means two unrelated things:
 
 - **obj category** — the record's own `category` field, config opcode 94, a
-  number the cache states. `mock230_scripts.c` reads it for
+  number the cache states. `torirs_server_scripts.c` reads it for
   `[opheld<n>,_<category>]` and `inv_totalcat`. The count in this paragraph has
   now been wrong twice, so it is stated as a series rather than a fact: this said
   **6**, then **37** (the weapon categories), and `pack/category.pack` holds
@@ -756,7 +756,7 @@ The cause is specific. In this tree, `category` means two unrelated things:
   of the rows are `minted` per domain (`grep -c minted port/categories.map` says
   21 and is wrong — the file's own header uses the word three times).
 - **loc category** — ~~a two-valued door enum (`door_closed` / `door_opened`) in
-  `mock230_content.c`, and nothing else~~. **Corrected 2026-08-02, and the
+  `torirs_server_content.c`, and nothing else~~. **Corrected 2026-08-02, and the
   correction is that the two things were never unrelated.** A loc states a
   category at config opcode 61, in the *same* id space as obj 94 and npc 18, and
   the linked decoder had been reading the opcode and throwing the value away
@@ -766,8 +766,8 @@ The cause is specific. In this tree, `category` means two unrelated things:
   right and its reason was the accident: the private enum's values were 1 and 2
   and would have aliased onto real names — which is exactly why
   `interaction_category` answered -1 for locs, and exactly why
-  `[oploc1,_door_closed]` could not bind. Both are gone. `Mock230LocDef.category`
-  is a `pack/category.pack` id, `mock230_loc_category` merges the overlay over
+  `[oploc1,_door_closed]` could not bind. Both are gone. `ToriRSServerLocDef.category`
+  is a `pack/category.pack` id, `ToriRSServer_LocCategory` merges the overlay over
   the cache, and the rung answers.
 
   The half of this that is *not* the cache's, and it is the part that forced the
@@ -787,12 +787,12 @@ never from the cache: `cache.osrs239` states a category on **9,149 of its 16,292
 npc records**, and the decoder had always read it. What *was* true is the rest of
 the sentence. `SSVM_ProviderGetByTrigger` takes a category and the chain (exact
 type → category → global) is implemented, but every npc call site in
-`mock230_world.c` passed `-1`. Two of them do not any more:
+`torirs_server_world.c` passed `-1`. Two of them do not any more:
 
 | site | passes | since |
 |---|---|---|
-| the `[opnpc<n>]`/`[apnpc<n>]` interaction path (`mock230_world.c:885`, `:927`) | `interaction_category()` | §16.6 |
-| `mock230_world_npc_died` → `AI_QUEUE3` (`mock230_world.c:3942`) | `mock230_npc_category(npc->type)` | §16.11 |
+| the `[opnpc<n>]`/`[apnpc<n>]` interaction path (`torirs_server_world.c:885`, `:927`) | `interaction_category()` | §16.6 |
+| `ToriRSServer_WorldNpcDied` → `AI_QUEUE3` (`torirs_server_world.c:3942`) | `ToriRSServer_NpcCategory(npc->type)` | §16.11 |
 
 Everything else still passes `-1`: `AI_QUEUE1..n`, `AI_TIMER`, `AI_SPAWN`,
 `AI_OPPLAYER`/`AI_APPLAYER`, the `--cheat` `[opnpc<n>]` path at `:2720`, and every
@@ -839,7 +839,7 @@ one of forty.
 **Landed (2026-08-01)**, `osrs230_mockserver.md` §3.18. Content winning is the
 *design* now, not a hazard: the reference's own answer to "the goblin's Attack"
 is `[opnpc2,_] @player_combat_start` in `skill_combat/`, and the engine's verb
-handling is one of the enumerated rows in `enum Mock230Fallback` (seven when
+handling is one of the enumerated rows in `enum ToriRSServerFallback` (seven when
 this was written; **four** since `ai_queue3`, `opobj` and `opheld` moved to
 content),
 each naming the
@@ -847,7 +847,7 @@ this was written; **five** since `ai_queue3` and then the whole `oploc` row —
 doors, ladders and bank booths — moved to content), each naming the
 blocker keeping it in C, counted at boot and pinned by the selftest. It may
 shrink; it must not grow. Each row's blocker also names its missing opcodes in a
-form `mock230_scripts_stale_blockers` can resolve, so a *reason* that expires
+form `ToriRSServer_ScriptsStaleBlockers` can resolve, so a *reason* that expires
 turns the selftest red instead of continuing to print —
 `ai_queue3`'s did exactly that for two stages before the check existed.
 What that buys for the bulk import: an imported
@@ -870,7 +870,7 @@ Worth stating because it bounds what a port can ever achieve:
   LostCity brings 1,115 of its own, into a namespace whose ids are the cache's.
   The two sets have to coexist; only the server-allocated half is ours.
 - **Params on records.** The modern cache carries combat bonuses, respawn and
-  wear rules in obj/npc params (`mock230-lumbridge-content`). LostCity states
+  wear rules in obj/npc params (`torirsserver-lumbridge-content`). LostCity states
   them as its own config keys. Where both exist, the cache is the authority and
   the LostCity key is a *claim about the cache* — which is exactly the field
   register `CONTENT_ARCHITECTURE.md` §4.3 specifies and which is not built yet.
@@ -978,11 +978,11 @@ are *not* content work.
         keyed off the 8-tile zone *including the level* and 379 off the
         64-tile map square with the level forced to 0, so they are two
         latches on the player and not one at two scales (§7.2). The producer
-        is `mock230_world_update_map` in phase 10; execution is the ENGINE
+        is `ToriRSServer_WorldUpdateMap` in phase 10; execution is the ENGINE
         queue drained in phase 5 of the *next* tick, which is what lets a
         boundary crossed mid-dialogue hold its script instead of losing it.
         The `ZoneMap` is not in the path — that was the wrong structure to
-        size this off. Three findings: `Mock230Player.zone_index` looks like
+        size this off. Three findings: `ToriRSServerPlayer.zone_index` looks like
         `lastZone` and is reset on every rebuild, so a latch hung off it
         double-fires silently; the compiler was writing coord `lookup_key`s
         that no lookup could reproduce (78 of 427 negative, 349 wrapped,
@@ -1002,10 +1002,10 @@ scripts that drive them** — as required. The reordering worth arguing for is t
 
 **Status of step 0 (2026-08-01):** landed on the baker's side —
 `CONTENT_PACK_PLAN.md` §5.4 "What has landed" — the field register exists,
-`cachepack pack` writes both halves, and `mock230_servercodec.c` can decode
-the server band. What has **not** landed is the load path: `mock230_content_load`
+`cachepack pack` writes both halves, and `torirs_server_servercodec.c` can decode
+the server band. What has **not** landed is the load path: `ToriRSServer_ContentLoad`
 still re-parses the `server/scripts` text overlays at boot and nothing reads
-`server/pack`. Closing that (and deleting `mock230_pack.c`'s superseded
+`server/pack`. Closing that (and deleting `torirs_server_pack.c`'s superseded
 bakers) is Phase 0 of [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
 
 **Status of steps 2 and 3 (2026-08-01): all six landed**, and each one is
@@ -1027,7 +1027,7 @@ becomes, and the slices in step 7 are what consume them.
 
 Why this one, out of 58 quests ranked by port difficulty:
 
-- **It is where the server already is.** `MOCK230_HOME` is `3222,3218`, the
+- **It is where the server already is.** `TORIRSSERVER_HOME` is `3222,3218`, the
   Lumbridge castle courtyard. The cook is upstairs. Nothing has to be teleported
   to or rebuilt to see it.
 - **It is the smallest thing that is still a whole feature.** Talk to an npc,
@@ -1047,11 +1047,11 @@ Why this one, out of 58 quests ranked by port difficulty:
 
 - **It is verifiable in the real client, headlessly**, with harness that exists:
   `SDL_VIDEODRIVER=dummy`, `TORIRS_SIM_CLICK_AT`, `TORIRS_EXIT_BMP`,
-  `MOCK230_VERBOSE=1`.
+  `TORIRSSERVER_VERBOSE=1`.
 
-**Definition of done for the slice:** boot mock230, walk to the cook, complete
+**Definition of done for the slice:** boot ToriRSServer, walk to the cook, complete
 the quest, see the journal read "QUEST COMPLETE", log out and back in with the
-state persisted — with `mock230_pack` at 0 errors and the existing 38 npc / 776
+state persisted — with `ToriRSServer_Pack` at 0 errors and the existing 38 npc / 776
 loc Lumbridge content untouched.
 
 Two smaller slices are available if the interface work should be deferred one
@@ -1127,8 +1127,8 @@ needing eight opcodes it does not have — §7.7's hazard, in its purest form.
 >
 > `~equip`, `~try_equip`, `~unequip_conflicts`, `~wearpos_conflicts` and
 > `~dropslot` are ported now — `player/scripts/{equip,drop}.rs2` — `[opheld2,_]`
-> and `[opheld5,_]` are bound, and `MOCK230_FALLBACK_OPHELD`,
-> `equip_from_slot` and `mock230_equipment_may_wear` are deleted. Still no
+> and `[opheld5,_]` are bound, and `TORIRSSERVER_FALLBACK_OPHELD`,
+> `equip_from_slot` and `ToriRSServer_EquipmentMayWear` are deleted. Still no
 > per-item `levelrequire/` script: the gate is **one** `~levelrequire_check`
 > over `skill_combat/configs/levelrequire.dbtable`, which is this section's own
 > "as data" conclusion given a script-readable home rather than reversed.
@@ -1169,7 +1169,7 @@ tested for helmets and **rejected** (`pvpa_maomas_med_helm` is Defence 1 where
 its full helm is Defence 40), so the four med helms are LostCity's stated values
 with nothing extrapolated from them.
 
-`mock230_pack`: 1,419 → 1,496 requirement rows, 0 errors.
+`ToriRSServer_Pack`: 1,419 → 1,496 requirement rows, 0 errors.
 
 #### Amendment, 2026-08-02: the conclusion survives, the inference does not
 
@@ -1181,7 +1181,7 @@ The paragraph above welded two decisions together and only one of them holds.
    seven, 23 distinct stats
    (`grep -rh param=levelrequire <tree>/server --include=*.obj | wc -l`).
    LostCity's 304 trigger lines are that same table wearing script syntax.
-   Nobody should hand-maintain 857 bindings, and `mock230_pack` checks the data
+   Nobody should hand-maintain 857 bindings, and `ToriRSServer_Pack` checks the data
    form at build time.
 2. *Therefore the gate stays in C.* — **Does not survive.** The stated reason
    was "porting the scripts would have replaced a working engine path with a
@@ -1209,7 +1209,7 @@ query with no arithmetic. It is the reference's own mechanism
 for repeating tabular content data (`combat.dbtable`'s
 `column=damagestyle,int,LIST` is the identical shape and already ships here), it
 needs **zero new opcodes** (`db_find` / `db_findnext` / `db_getfield` are all
-implemented, `mock230_ops_db.c`), it is **one** `[opheld2,_]` binding rather
+implemented, `torirs_server_ops_db.c`), it is **one** `[opheld2,_]` binding rather
 than 857 — so the shadowed-ops report does not move — and it is still data,
 generated from the same `param=levelrequire` lines, so this section's
 single-source-of-truth claim holds literally. It also answers the thing
@@ -1224,7 +1224,7 @@ reference's literal shape) would work but cost ~3,500 generated lines, a second
 generator, and would take `report_shadowed_ops` from 1 to 858 unless
 `k_engine_held_verbs` loses Wear/Wield/Drop in the same commit.
 
-`[opheld2,_]` and `[opheld5,_]` are bound now and `MOCK230_FALLBACK_OPHELD` is
+`[opheld2,_]` and `[opheld5,_]` are bound now and `TORIRSSERVER_FALLBACK_OPHELD` is
 deleted (count 5 → 4). The warning this paragraph carried was right and is worth
 keeping as the reason the two stages were separate: dispatch is content-first, so
 a content `~equip` with no gate *replaces* the gate and equips a rune platebody
@@ -1266,7 +1266,7 @@ IF1); `[oplocu,cooksquestrange]` (needs the `oplocu` trigger and `npc_find`);
 and — checked — no varbit in `cache.osrs239` is based on it, so writing it whole
 clobbers nothing. That check is the §7.5 discipline applied rather than described.
 
-`make -C src test-mock230` grew a `cook's assistant` section that plays it end to
+`make -C src test-ToriRSServer` grew a `cook's assistant` section that plays it end to
 end: accept, talk again mid-quest without restarting, hand in, watch the reward
 arrive **one tick late through the queue** (asserted as a negative first, which is
 what catches a port that inlined it), and talk again after completion. It also
@@ -1349,7 +1349,7 @@ the person fixing it.
 
 #### The check is now permanent
 
-`mock230_pack` warns when a spawn's name carries a foreign-area prefix **and the
+`ToriRSServer_Pack` warns when a spawn's name carries a foreign-area prefix **and the
 un-prefixed creature is also spawned in this world**. Having both is what says
 one of them is probably a mis-import; a prefix on its own is not enough, so once
 God Wars is a real area with its own `.spawn` file, `godwars_goblin2` standing
@@ -1399,7 +1399,7 @@ keyed by a square.
 > qualified by a content area — `sos_pest_`, `poh_`, `godwars_`, `raids_`,
 > `slayer_`, a quest prefix — is a question, not a verdict: change it only when
 > a **second roster covering the same ground** agrees, and mark it `SUSPECT` in
-> place when none does. `mock230_pack` will prompt you; it cannot decide for you.
+> place when none does. `ToriRSServer_Pack` will prompt you; it cannot decide for you.
 
 **Two second sources exist and both are cheap.** They are the reason §10.1 and
 §10.2 each found a real defect instead of restating what was already believed:
@@ -1446,12 +1446,12 @@ from the code that said it was missing.
 
 Landed:
 
-- **`mock230_obj_param`** — every param on every obj record, 53,853 rows kept
+- **`ToriRSServer_ObjParam`** — every param on every obj record, 53,853 rows kept
   from the decode pass as one flat sorted array (1.26 MB, printed at load so it
   is not a claim). Per-obj vectors would be 11,712 allocations for the same
   bytes, and this tree has already been through one pass of shrinking the boot
   heap. Boot RSS is 130 MB, so the table is about 1 %.
-- **`mock230_content_param_type`** — the declarations, from `configs/all.param`.
+- **`ToriRSServer_ContentParamType`** — the declarations, from `configs/all.param`.
   This is the **first runtime reader of anything in `configs/`**, which makes
   §3.5's "write-only" one third less true.
 - **`SS_OP_OC_PARAM`**, typed by the declaration, because that is what the script
@@ -1506,7 +1506,7 @@ plausible-but-wrong implementation gets in.
 
 ### 10.3a `nc_param`, and the third mutation
 
-`nc_param` landed next, over `mock230_npc_param` — 29,869 rows in 700 KB, the
+`nc_param` landed next, over `ToriRSServer_NpcParam` — 29,869 rows in 700 KB, the
 same flat sorted array and the same explicit `qsort`. No new decoding: the npc
 records' params were already being walked by `read_combat_params`, which kept
 fourteen keys and dropped the rest.
@@ -1546,15 +1546,15 @@ get wrong".
 
 While regenerating the coverage table for `NC_PARAM`, `gen_opcode_coverage.py`
 also added `4209 OC_PARAM`: the checked-in header had been stale since `oc_param`
-landed. `make -C src test-mock230-coverage` was the target that would have said
+landed. `make -C src test-torirsserver-coverage` was the target that would have said
 so, and the failure direction is the safe one — it under-reported an implemented
 opcode rather than hiding a missing one.
 
 ### 10.3b `lc_param` and `struct_param`, and the first shared param table
 
-The other two landed in `src/net/mock/mock230_ops_param.c` — the second
-per-domain opcode file after `mock230_ops_db.c`, registered by one line in
-`mock230_script_command`. Coverage 224 → 226 of 399.
+The other two landed in `src/torirsserver/torirs_server_ops_param.c` — the second
+per-domain opcode file after `torirs_server_ops_db.c`, registered by one line in
+`ToriRSServer_ScriptCommand`. Coverage 224 → 226 of 399.
 
 Two new tables, both built at boot from the cache group the rscache decoder
 already handles (`RSCache_Dat2ConfigLocNewDecodeProfile`,
@@ -1572,24 +1572,24 @@ row count.
 
 Three things changed shape rather than just growing:
 
-- **`push_typed_param` is now `mock230_push_typed_param` in
-  `mock230_ops_param.c`**, declared in `mock230.h`. It was `static` in
-  `mock230_scripts.c` and therefore unreachable from a domain file — a
+- **`push_typed_param` is now `ToriRSServer_PushTypedParam` in
+  `torirs_server_ops_param.c`**, declared in `torirs_server.h`. It was `static` in
+  `torirs_server_scripts.c` and therefore unreachable from a domain file — a
   structural blocker on the whole per-domain split, not a style question. It was
-  *moved*, not copied: `mock230_scripts.c` lost 75 lines and gained the one hook
+  *moved*, not copied: `torirs_server_scripts.c` lost 75 lines and gained the one hook
   line plus two identifier renames, which is the cheapest merge shape available.
-- **`mock230_paramtable.{c,h}`** is one flat `(owner, key) -> row` store with one
-  `qsort` and one binary search. loc and struct use it. `mock230_objinfo.c` and
-  `mock230_npcinfo.c` still carry their own copies — four copies of §10.3's bug
+- **`ToriRSServer_ParamTable.{c,h}`** is one flat `(owner, key) -> row` store with one
+  `qsort` and one binary search. loc and struct use it. `torirs_server_objinfo.c` and
+  `torirs_server_npcinfo.c` still carry their own copies — four copies of §10.3's bug
   would have been the wrong number, three still is; retrofitting those two is
   behaviour-neutral and their selftests already cover it.
-- **The check is C, not content** (`make -C src test-mock230-param`), because the
+- **The check is C, not content** (`make -C src test-torirsserver-param`), because the
   lane that landed this could not write to `OSRS-Content` or rebuild the pack.
-  `mock230_ops_param` never touches `struct Mock230Server`, so it binds as a host
+  `ToriRSServer_OpsParam` never touches `struct ToriRSServer`, so it binds as a host
   callback with a NULL user — no world, no socket, no pack. The content-side
   `[proc,selftest_lc_param]` / `[proc,selftest_struct_param]` are still owed.
 
-`src/net/mock/test/param_test.c` re-decodes both groups with the rscache decoder
+`src/torirsserver/test/param_test.c` re-decodes both groups with the rscache decoder
 and asks the table for **every** row it saw, rather than spot-checking: the
 family's failure mode is a *miss*, and a spot check would have to be lucky. It
 also counts the out-of-order records and fails if that count reaches zero, so the
@@ -1618,19 +1618,19 @@ invisible. The first version of this test passed it.
 
 **Still open in the family:** `obj_param` (3509) pops *one* int and reads the
 *active obj*. It has zero callers in the reference tree and nothing in
-`src/net/mock/` ever sets an active obj, so the VM's pointer requirement would
+`src/torirsserver/` ever sets an active obj, so the VM's pointer requirement would
 abort before a handler could run. (`loc_param` (3011), the same shape over the
 active *loc*, landed with the rest of the loc reads — §10.3c.)
 
 ### 10.3c The loc config reads — `loc_param`, `loc_name`, `lc_name`, `lc_width`, `lc_length`
 
-`src/net/mock/mock230_ops_loc.c`, the third per-domain opcode file, registered
-by one line in `mock230_script_command`. Coverage 226 → **231 of 399**.
+`src/torirsserver/torirs_server_ops_loc.c`, the third per-domain opcode file, registered
+by one line in `ToriRSServer_ScriptCommand`. Coverage 226 → **231 of 399**.
 
-The mutating half of the loc family stays in `mock230_scripts.c`'s switch with
+The mutating half of the loc family stays in `torirs_server_scripts.c`'s switch with
 the scene and the revert queue it needs. Only the config reads moved out, which
 is the whole reason they *could* move: they touch the loc table and (for the two
-active-loc ops) `mock230_scene_loc`, and nothing else.
+active-loc ops) `ToriRSServer_SceneLoc`, and nothing else.
 
 **`loc_param` pops one int; `lc_param` pops two.** `loc_param` reads the active
 loc; `lc_param` is handed an id. They are one word apart and now two files apart,
@@ -1643,13 +1643,13 @@ script can suspend between `loc_find` and here and a scene rebuild reallocates
 the array. The VM's `require = 0x040` guarantees the pointer is *present*, not
 that the slot is live, so the handler re-resolves and aborts on a dead slot.
 
-`mock230_scene_find_loc` is **not** used for this. Its `loc_id` argument does not
+`ToriRSServer_SceneFindLoc` is **not** used for this. Its `loc_id` argument does not
 filter (`return loc_id >= 0 ? fallback : fallback;`), so it returns the first loc
-on the tile whatever id it is asked for. `mock230_loc_known` — a one-bit-per-id
+on the tile whatever id it is asked for. `ToriRSServer_LocKnown` — a one-bit-per-id
 bitmap, ~7.8 KB — is the existence check, matching the reference's
 `check(id, LocTypeValid)`.
 
-**What `mock230_locinfo.c` retains now**, all built in the decode pass that was
+**What `torirs_server_locinfo.c` retains now**, all built in the decode pass that was
 already happening for params:
 
 | table | rows | bytes |
@@ -1667,10 +1667,10 @@ inherited.
 
 | op | uses/files | why not |
 |---|---:|---|
-| `loc_anim` 3002 | 56 / 23 | **The largest single loc gap, and it is a missing wire packet.** `LocOps.ts:50` → `World.animLoc(...)`, a **zone event**; `zone_sub_opcode` in `mock230_encode.c` has `LOC_ADD_CHANGE`, `LOC_DEL`, `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT` and no loc-anim. Needs a new `MOCK230_ZONE_EV_*` kind, an encoder arm and headless-client verification. Its own item. |
-| ~~`loc_category` 3003 / `lc_category` 4100~~ | 38 / 16, 3 / 1 | **Landed 2026-08-02**, `mock230_ops_loc.c`. The blocker was right — case 61 was `g2(buffer); // Skip unsigned short` — and so was the price: it is an `EXCEPTIONS.md`-governed edit and the fidelity suite failed on the first run, because a decoder that keeps a field the *text* form cannot express takes `cachepack`'s loc `lost-here` from 0 to 205. `cp_loc.c` gained a `category=` key and it went back to 0; byte-exact loc records went 581 → 786. Opcode 61 was confirmed against the data rather than against a reference client (neither `Client-TS` here decodes it): the ids group semantically — 684 is 63 records, 43 of them 'Bank booth'; 907 is 360 bookshelves — and share a space with npc 18 and obj 94. Both opcodes push -1 for "none", not the reference's raw 0, because `pack/category.pack` reserves 0. |
+| `loc_anim` 3002 | 56 / 23 | **The largest single loc gap, and it is a missing wire packet.** `LocOps.ts:50` → `World.animLoc(...)`, a **zone event**; `zone_sub_opcode` in `torirs_server_encode.c` has `LOC_ADD_CHANGE`, `LOC_DEL`, `OBJ_ADD`, `OBJ_DEL`, `OBJ_COUNT` and no loc-anim. Needs a new `TORIRSSERVER_ZONE_EV_*` kind, an encoder arm and headless-client verification. Its own item. |
+| ~~`loc_category` 3003 / `lc_category` 4100~~ | 38 / 16, 3 / 1 | **Landed 2026-08-02**, `torirs_server_ops_loc.c`. The blocker was right — case 61 was `g2(buffer); // Skip unsigned short` — and so was the price: it is an `EXCEPTIONS.md`-governed edit and the fidelity suite failed on the first run, because a decoder that keeps a field the *text* form cannot express takes `cachepack`'s loc `lost-here` from 0 to 205. `cp_loc.c` gained a `category=` key and it went back to 0; byte-exact loc records went 581 → 786. Opcode 61 was confirmed against the data rather than against a reference client (neither `Client-TS` here decodes it): the ids group semantically — 684 is 63 records, 43 of them 'Bank booth'; 907 is 360 bookshelves — and share a space with npc 18 and obj 94. Both opcodes push -1 for "none", not the reference's raw 0, because `pack/category.pack` reserves 0. |
 | `lc_desc` 4102 | 0 / 0 | **0 of the 62,194 records carry a `desc`** — the field is gone from OSRS loc configs, so a handler could only push the reference's `'null'`. Zero callers besides. |
-| ~~`lc_debugname` 4101~~ | 1 / 1 | **Landed 2026-08-02**, and the stated reason was a category error rather than a fact: `debugname` is indeed not a dat2 field, but it is not supposed to be one — it is the `[block]` header of a config file, and this tree has that table, `pack/loc.pack`. `mock230_content_symbol_name(MOCK230_PACK_LOC, id)`, with the reference's `'null'` fallback. Landed for its one caller, `stairs.rs2:431`'s `mes("Unhandled stairs: <lc_debugname(loc_type)> at")` — the line that tells a port which locs it missed. |
+| ~~`lc_debugname` 4101~~ | 1 / 1 | **Landed 2026-08-02**, and the stated reason was a category error rather than a fact: `debugname` is indeed not a dat2 field, but it is not supposed to be one — it is the `[block]` header of a config file, and this tree has that table, `pack/loc.pack`. `ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, id)`, with the reference's `'null'` fallback. Landed for its one caller, `stairs.rs2:431`'s `mes("Unhandled stairs: <lc_debugname(loc_type)> at")` — the line that tells a port which locs it missed. |
 
 **A census correction worth carrying forward.** The `loc_*` row in §5's table
 reads `loc_param 133`. Re-measured over the reference's `content/scripts/`
@@ -1683,7 +1683,7 @@ systematic: **any ranking built on a `name(` pattern under-counts every zero-arg
 opcode.** `last_useitem` — 800 uses across 213 files, three times `loc_param` —
 is invisible to every table in this document for exactly this reason.
 
-**The check is `make -C src test-mock230-loc`** (`src/net/mock/test/loc_test.c`),
+**The check is `make -C src test-torirsserver-loc`** (`src/torirsserver/test/loc_test.c`),
 C rather than content for the same reason §10.3b's was: this lane could not write
 to `OSRS-Content` or rebuild the pack. Half 1 re-decodes the whole loc group and
 asks the tables about every record in **both** directions — 32,161 nameless
@@ -1706,17 +1706,17 @@ param sort is a different matter and remains emphatically load-bearing.)
 
 ### 10.3d The npc reads and the hunt searches — and `npc_param` was wrong
 
-`src/net/mock/mock230_ops_npc.c`, the fourth per-domain opcode file, registered
-by one line in `mock230_script_command`. Coverage 231 → **237 of 399**. Landed:
+`src/torirsserver/torirs_server_ops_npc.c`, the fourth per-domain opcode file, registered
+by one line in `ToriRSServer_ScriptCommand`. Coverage 231 → **237 of 399**. Landed:
 `npc_param`, `npc_category`, `nc_category`, `npc_hasop`, `npc_huntall`,
 `npc_hunt`, `npc_findcat`. Full detail in `osrs230_mockserver.md` §3.13g.
 
 **The coverage number is not the headline.** `npc_param` (2529) was *already*
-implemented, in `mock230_scripts.c`'s switch, and it was wrong: it compared the
-popped param against a single `mock230_content_symbol(MOCK230_PACK_PARAM,
+implemented, in `torirs_server_scripts.c`'s switch, and it was wrong: it compared the
+popped param against a single `ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
 "death_drop")` — a game-facing name in C — and pushed **0 for every other
 param**, on the int stack, ignoring `default=`. It never consulted
-`mock230_npc_param`, which has been loaded and public all along.
+`ToriRSServer_NpcParam`, which has been loaded and public all along.
 
 Nothing here could see it, and the reason generalises. `gen_opcode_coverage.py`
 derives coverage from the presence of a `case SS_OP_*:` label, so **an opcode
@@ -1729,14 +1729,14 @@ and the committed combat slice reads through it (`skill_combat/combat_stats.rs2`
 roll and max hit in that slice was computed from bonus 0.
 
 The old case is now unreachable dead code, because the domain hooks run before
-the switch. **Deleting it needs the same one-time `mock230_scripts.c` exception
+the switch. **Deleting it needs the same one-time `torirs_server_scripts.c` exception
 §10.3b took**; this lane was allowed one hook line and nothing else.
 
 **The obvious fix was a regression, and the hardcode was hiding why.** Reading
-`mock230_npc_param` — the *cache record's* param table — answers 0 for
+`ToriRSServer_NpcParam` — the *cache record's* param table — answers 0 for
 `death_drop`, because `death_drop` is a **server-band param authored in a rank-1
 `.npc` overlay** and is nowhere in the cache. The drop tables would have added
-obj 0 at 7 call sites. So `apply_param` in `mock230_content.c` now files every
+obj 0 at 7 call sites. So `apply_param` in `torirs_server_content.c` now files every
 authored row under its param *id* as well as into the named C field, and
 `npc_param` reads the overlay first and the cache second — rank 1 over rank 0,
 `CONTENT_ARCHITECTURE.md` §3.1's own merge. Measured: 39 npc defs, 205 authored
@@ -1746,12 +1746,12 @@ reads only `configs/all.param`.
 
 Three smaller findings, all measurements rather than opinions:
 
-- **A name gate was hiding a field.** `mock230_npcinfo()` reports a placeholder
+- **A name gate was hiding a field.** `ToriRSServer_NpcInfo()` reports a placeholder
   for a record with no name. Of cache.osrs239's 16,292 npc records, 9,149 carry
   a category and **1,585 of those are nameless**; 10,505 declare a menu op and
-  177 of those are nameless. `mock230_npcinfo_record()` is the new ungated
+  177 of those are nameless. `ToriRSServer_NpcInfoRecord()` is the new ungated
   accessor. `category` (config opcode 60) was already being decoded by the
-  linked rscache decoder and thrown away in `mock230_npcinfo.c`.
+  linked rscache decoder and thrown away in `torirs_server_npcinfo.c`.
 - **`npc_huntall` is not `npc_findallany`.** The reference's hunt iterator
   (`ScriptIterators.ts:274-280`) skips any npc whose type declares no `op[1]`.
   Without that filter, "every npc nearby" hands content the scenery. `npc_hunt`
@@ -1759,7 +1759,7 @@ Three smaller findings, all measurements rather than opinions:
   euclidean-squared, with a `<=` tie-break that keeps the last candidate — three
   details that each pick a different npc when got wrong.
 
-`make -C src test-mock230-npc`. Ten mutations shown to fail it, listed in
+`make -C src test-torirsserver-npc`. Ten mutations shown to fail it, listed in
 §3.13g. One worth repeating here because it is a trap for any future search
 opcode: **a membership assertion cannot catch a swapped coord/distance**, since
 a coord literal packs to a number in the millions and a radius of millions finds
@@ -1769,12 +1769,12 @@ everything. Asking for an empty result at distance 0 is what catches it.
 the shape of the list is the finding: seven of the eight are blocked on per-npc
 *engine state* that does not exist here, not on opcode work. The largest —
 `npc_walk`, re-measured at **108 uses / 45 files** — needs a waypoint queue on
-`struct Mock230Npc` and a drain in `advance_npcs`, because `NpcOps.ts:451` is
+`struct ToriRSServerNpc` and a drain in `advance_npcs`, because `NpcOps.ts:451` is
 `queueWaypoint` and this server's only mover takes one step toward a target its
 caller supplies. `npc_statheal`/`statsub`/`statadd` and
 `npc_changetype_keepall` (36/17) all want the same missing thing: a per-npc
 mutable `levels[]`. **That is the next npc item, and it is engine work in
-`mock230_world.c`, not another ops file.**
+`torirs_server_world.c`, not another ops file.**
 
 ### The loc mutation family — §9 step 4b
 
@@ -1786,13 +1786,13 @@ Eight opcodes landed (189 of 396 now): `loc_find`, `loc_coord`, `loc_type`,
 `loc_angle`, `loc_shape`, `loc_change`, `loc_del`, `loc_add`. That is ~612 of
 the family's 1,033 uses.
 
-Most of the machinery already existed and was not being reached: `mock230_scene`
+Most of the machinery already existed and was not being reached: `ToriRSServer_Scene`
 had `find_loc` and `replace_loc` for doors, the wire had `LOC_ADD_CHANGE` and
 `LOC_DEL`, and the VM had `SSVM_ENT_LOC` with a `SSVM_PTR_ACTIVE_LOC`
 requirement the meta table already declared on every loc-scoped opcode. What was
 missing was three things:
 
-- **`mock230_scene_add_loc` / `_remove_loc`** — the scene could swap a loc but
+- **`ToriRSServer_SceneAddLoc` / `_remove_loc`** — the scene could swap a loc but
   not create or destroy one. `add_loc` reuses a slot a `loc_del` freed before
   growing the array, because slots are never compacted (a script can hold one
   across a suspend) and content that cycles a loc on a timer would otherwise
@@ -1809,7 +1809,7 @@ missing was three things:
   loc is active" and the VM's own requirement check works unmodified.
 
 ~~`loc_param` is deliberately absent — it is `runtime_typed` like `oc_param` and
-needs a runtime loc-config decode that does not exist (only `mock230_pack.c`
+needs a runtime loc-config decode that does not exist (only `torirs_server_pack.c`
 decodes loc configs today, for validation). That is 60k+ records at boot and a
 real memory question, not a copy of what landed here.~~ `loc_findallzone` /
 `loc_findnext` need the ZoneMap from §7.2.
@@ -1822,7 +1822,7 @@ real memory question, not a copy of what landed here.~~ `loc_findallzone` /
 
 #### A pre-existing oddity the test walked into
 
-`mock230_scene_find_loc` ends with
+`ToriRSServer_SceneFindLoc` ends with
 
 ```c
 return loc_id >= 0 ? fallback : fallback;
@@ -1855,7 +1855,7 @@ the same way the active loc is and for the same reason.
 **The find-all iterators** (198 → 205): `npc_findall`, `npc_findallany`,
 `npc_findnext`, `loc_findallzone`, `loc_findnext`, `huntall`, `huntnext`.
 
-These closed `test-mock230`'s **"the content tree should not use unimplemented
+These closed `test-ToriRSServer`'s **"the content tree should not use unimplemented
 opcodes"** failure outright — down from 8 missing opcodes to 0. That failure was
 never about the port: `[proc,npc_findcount]`, `[proc,loc_within_distance]` and
 `[proc,sound_area]` are already-committed content that could not run.
@@ -1881,7 +1881,7 @@ Three things worth stating:
   content.
 
 > **Superseded, 2026-07-31.** `npc_setmode` **is implemented**
-> (`src/net/mock/mock230_scripts.c:1258`) and the `mock230 selftest: npc modes`
+> (`src/torirsserver/torirs_server_scripts.c:1258`) and the `ToriRSServer selftest: npc modes`
 > case passes. The npc mode machine this paragraph called for was built. Do not
 > quote the claim below as a live blocker — it was verified stale by re-reading
 > the source, which is the check this file's own §12 asks for.
@@ -1905,7 +1905,7 @@ break every caller.
 
 `text_gender` needed a fact the server did not have. The appearance encoder had
 `rsab_p1(buf, 0); /* gender: male */` — a constant standing in for state, and an
-opcode cannot be implemented against a comment. `Mock230Player.gender` now backs
+opcode cannot be implemented against a comment. `ToriRSServerPlayer.gender` now backs
 both, so the answer comes from one place. Nothing sets it (there is no
 character-design flow here) and every player is still male; what changed is that
 this is now a *field with no writer* rather than two literals that could drift.
@@ -1932,9 +1932,9 @@ timer, which is the only way to tell "stopped" from "not due yet", and that a
   stored `delay + 1` for both, and the selftest asserted that — a test can be
   green and still encode the wrong convention.
 
-Also from 5a: `Mock230Npc.timer_script` and the second drain that read it are
+Also from 5a: `ToriRSServerNpc.timer_script` and the second drain that read it are
 gone. The field was written in exactly one place and only ever to `-1`, so
-`mock230_scripts_process_npc_timer` could never run. The npc queue's `arg` is
+`ToriRSServer_ScriptsProcessNpcTimer` could never run. The npc queue's `arg` is
 still stored and never passed — `[ai_queue<n>]` gets no `last_int`, where the
 reference sets `state.lastInt = request.lastInt`.
 
@@ -1984,7 +1984,7 @@ stands on top of them.
 ```
 scripts using only implemented commands   636/1,265 (50.3%)  ->  873/1,265 (69.0%)
 opcodes implemented                       179/396            ->  214/397
-mock230 selftest failures                 2                  ->  1
+ToriRSServer selftest failures                 2                  ->  1
 ```
 
 The remaining blockers, re-measured:
@@ -1996,7 +1996,7 @@ The remaining blockers, re-measured:
 | `spotanim_map` | 48 | the wire exists (`MAP_ANIM`); this is a host command over it |
 | `npc_walk` | 44 | needs npc step queues — **re-measured 45 files / 108 uses; still open after §10.3d, and it is engine state, not an opcode** |
 | `inv_setslot` | 33 | trivial |
-| `db_find` | 23 | the db layer exists (`mock230_db.c`) |
+| `db_find` | 23 | the db layer exists (`torirs_server_db.c`) |
 
 `loc_param` is done (§10.3c). `npc_walk` is now the largest single item in this
 table and the one that has not moved: §10.3d refused it deliberately rather than
@@ -2011,12 +2011,12 @@ do we want", i.e. §9 step 7.
 
 ### Still red, and not from this work
 
-`make -C src test-mock230` has two failures that predate all of it and belong to
+`make -C src test-ToriRSServer` has two failures that predate all of it and belong to
 the field-register work in flight in the content submodule:
 
 ```
 FAIL and the cache's own name for it should still resolve too, got -1
-     mock230_content_symbol(MOCK230_PACK_VARP, "randomhitsound") == 843
+     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "randomhitsound") == 843
 FAIL the content tree should not use unimplemented opcodes
      HUNTALL, HUNTNEXT, NPC_FINDALLANY, NPC_FINDNEXT,
      LOC_COORD, LOC_FINDALLZONE, LOC_FINDNEXT, LOC_TYPE
@@ -2025,7 +2025,7 @@ FAIL the content tree should not use unimplemented opcodes
 The second is §9 step 4b/4c arriving from another direction — `[proc,sound_area]`,
 `[proc,npc_findcount]` and `[proc,loc_within_distance]` are already in the tree
 and want the `loc_*`/`npc_*` families this document ranks as the skilling unlock.
-`make -C src test-content` and `mock230_pack` are both green (0 errors).
+`make -C src test-content` and `ToriRSServer_Pack` are both green (0 errors).
 
 ### The interface half — §9 step 6, and four bugs under it
 
@@ -2115,13 +2115,13 @@ the thing that consumes it is a slice.
 
 ```
                        before        after
-mock230_pack symbols   213,430  ->   213,623      (§12's old baseline was stale by 100
+ToriRSServer_Pack symbols   213,430  ->   213,623      (§12's old baseline was stale by 100
 constants                  136  ->       306       before any of this: 213,530 / 284)
 npc defs                    38  ->        39
 varp defs                   16  ->        39
 equip reqs               1,419  ->     1,496
 spawns                      62  ->     63 + 12
-sscompile symbols      212,829  ->   212,922      +75, the same 75 mock230_pack sees
+sscompile symbols      212,829  ->   212,922      +75, the same 75 ToriRSServer_Pack sees
 db columns                   9  ->        52
 carrier varps                —  ->     2,872      (new; both readers derive it, agreeing)
 errors / warnings          0/1  ->      0/13      the 12 are `combat block, no Attack op`
@@ -2140,10 +2140,10 @@ something already believed to work:
 
 | step | the premise | what was actually true |
 |---|---|---|
-| 2 (§14) | "no default, ever" is a policy | four npc params resolved a typo to **-1 silently** — and `mock230_content_symbol` maps the literal `null` to -1 too, so a typo and a deliberate nothing were the same value. cachepack counted an unresolved `ref =` as a *warning*, skipped the field, and exited 0 |
-| 3a (§15) | constants have no dependencies | **111 names exist in both trees and 14 disagree on the value** — 12 prayers and 2 headicons. A namespace with no gate at all: `ss_unresolved` skips it, `port_name_diff` compares records, `mock230_pack` validates ids. Also: **0 of 1,562 constants name an id**, so the pack-resolution rule the plan wrote for them was vacuous |
-| 3b (§16) | "an osrs239 npc record carries no category at all. Not 'unread': absent" | it is on **9,149 of 16,292 records**, 982 distinct ids. The decoder has read opcode 18 all along; `mock230_npcinfo.c` simply never copied it. One wrong word in one comment held the middle rung of the trigger lookup shut for the entire npc domain |
-| 3c (§17) | ids are allocated off `max+1` with a floor | **every `server_base` in `content_register.c` was advisory.** `ss_allocate.py` read `content.ini`, which declares no `base =` key. Making the floor live printed `varp base_was=8000` against a 6,217-entry array — the next server varp would have been dropped by a bounds check. Also: `mock230_pack` never loaded the `.dbtable`/`.dbrow` half of the tree, and an unrecognised column type was read as a literal, turning every `synth` *name* into 0 |
+| 2 (§14) | "no default, ever" is a policy | four npc params resolved a typo to **-1 silently** — and `ToriRSServer_ContentSymbol` maps the literal `null` to -1 too, so a typo and a deliberate nothing were the same value. cachepack counted an unresolved `ref =` as a *warning*, skipped the field, and exited 0 |
+| 3a (§15) | constants have no dependencies | **111 names exist in both trees and 14 disagree on the value** — 12 prayers and 2 headicons. A namespace with no gate at all: `ss_unresolved` skips it, `port_name_diff` compares records, `ToriRSServer_Pack` validates ids. Also: **0 of 1,562 constants name an id**, so the pack-resolution rule the plan wrote for them was vacuous |
+| 3b (§16) | "an osrs239 npc record carries no category at all. Not 'unread': absent" | it is on **9,149 of 16,292 records**, 982 distinct ids. The decoder has read opcode 18 all along; `torirs_server_npcinfo.c` simply never copied it. One wrong word in one comment held the middle rung of the trigger lookup shut for the entire npc domain |
+| 3c (§17) | ids are allocated off `max+1` with a floor | **every `server_base` in `content_register.c` was advisory.** `ss_allocate.py` read `content.ini`, which declares no `base =` key. Making the floor live printed `varp base_was=8000` against a 6,217-entry array — the next server varp would have been dropped by a bounds check. Also: `ToriRSServer_Pack` never loaded the `.dbtable`/`.dbrow` half of the tree, and an unrecognised column type was read as a literal, turning every `synth` *name* into 0 |
 | 3d (§18) | 28 varps clobber varbits; the other 147 are `varn`/`vars` or nothing | 27 clobber; **varn is 0 and vars is 0.** The reference already used `varn` where it meant npc state. And six names *resolve to the wrong concept*: `%prayer9`–`%prayer12` are the Clan Wars block here, 35 whole-varp writes' worth, while `%prayer2..8` fail to compile — one family, silent corruption for five members and a build error for nine |
 | 3e (§19) | 206 names, mostly naming drift | 524, and **all four of §4's worked examples were wrong records** (§4 above). The row that matters is `macro_bigfish`, which satisfies *every* automatic rule — unique display, matching vislevel, injective, target not itself a reference name — and is a Shadow-of-the-Storm troll |
 
@@ -2160,7 +2160,7 @@ confirming the failure, and reverting: 4 in §14 (typo'd `death_drop` in both
 loaders, duplicate constant, `%name` ambiguity, edited signed row), 4 in §15
 (deferred constant copied in, a `rederived` value set back to the reference's,
 an edited landed value, an undeclared constant), 5 in §16 (`4999=ghost_category`,
-`0=unstated_category`, `275=black_demon` — which `mock230_pack` accepts and the
+`0=unstated_category`, `275=black_demon` — which `ToriRSServer_Pack` accepts and the
 python check refuses, *which is the argument for two layers* — a dropped name, a
 deleted row), 5 in §17 (`table=prayer_tabel`, `column=sound,synth`, a
 `defer-slice` block landed, `[music]` authored, a deleted file), 5 in §18
@@ -2185,7 +2185,7 @@ each.
 - **No `.varp` or `.varbit` file was written**, for 3a's reason: 3d ports no
   scripts. All 19 evidenced `varbit` rows need no new content anyway.
 - **Seven npc dispatch sites still pass a literal `-1`** (§16.6). They are listed
-  beside `mock230_npc_category()` so the lane that owns those lines adopts them
+  beside `ToriRSServer_NpcCategory()` so the lane that owns those lines adopts them
   one token each; a category of -1 and a category nothing binds are
   indistinguishable, so it is additive. `AI_QUEUE3` is the one that matters —
   `drop tables/` binds 16 of its 94 there.
@@ -2194,7 +2194,7 @@ each.
   with "no baseline".
 - **Client verification is vacuous for all six steps and is stated rather than
   skipped.** No client code, packet or interface was touched. The closest real
-  check is `test-mock230` — boots the server, compiles and loads 319 scripts,
+  check is `test-ToriRSServer` — boots the server, compiles and loads 319 scripts,
   reads every table and row, builds the scene — green throughout, and it now
   also asserts that no whole-varp write to a carrier happened during the run.
 
@@ -2274,10 +2274,10 @@ two, and none of them moved because the directory changed:**
 
 The command census is a token scan of the reference's 71 files against
 `g_ss_opcode_names` in `src/serverscript/ss_meta.gen.h` and the implemented set
-in `src/net/mock/mock230_opcode_coverage.gen.h`, counting a bare command
+in `src/torirsserver/torirs_server_opcode_coverage.gen.h`, counting a bare command
 (`npc_coord`, `npc_findhero`, `map_members`) as a site — which is why it is
 3,129 and not the ~1,700 a `name(` scan finds. `npc_coord` 1,334 and `obj_add`
-1,312 are 84 % of it. **`mock230_scripts_report_gaps` cannot answer this
+1,312 are 84 % of it. **`ToriRSServer_ScriptsReportGaps` cannot answer this
 question before the slice lands**, because it reports on loaded content only;
 that is why it is a scratch measurement (§12.2) and not a bar.
 
@@ -2392,7 +2392,7 @@ rather than a decoration.
 bound table that does not itself state
 `obj_add(npc_coord, npc_param(death_drop), …)` silently takes the bones off an
 npc that had them. (Until 2026-08-01 the more general thing was
-`MOCK230_FALLBACK_AI_QUEUE3`, C. It is `[ai_queue3,_]` in
+`TORIRSSERVER_FALLBACK_AI_QUEUE3`, C. It is `[ai_queue3,_]` in
 `skill_combat/npc_combat.rs2` now and the fallback row is deleted —
 `osrs230_mockserver.md` §3.18 — which changes nothing about this rule: a bound
 table still shadows it, per binding.) In the reference this costs
@@ -2451,8 +2451,8 @@ adds one back. **Not one of the 76 that guards a table was dropped.**
 - **a goblin** (3221,3269) — *Take Bones*, on the per-npc binding, with the
   `random(128)` roll landing in the empty 63..127 range.
 
-`mock230_pack --check-only`: **0 errors, 13 warnings** — unchanged.
-`mock230 --selftest`: all checks passed, **462 scripts** (319 before), and the
+`ToriRSServer_Pack --check-only`: **0 errors, 13 warnings** — unchanged.
+`ToriRSServer --selftest`: all checks passed, **462 scripts** (319 before), and the
 gap report stays silent, which is the selftest asserting no new missing opcode.
 `make -C src test-content`: green.
 
@@ -2468,8 +2468,8 @@ grep -ho '^\[[a-z_0-9]*' $D/*.rs2 | sort | uniq -c  # 136 ai_queue3, 22 label, 6
 grep -c '^\[ai_queue3,_' $D/*.rs2 | grep -v ':0'    # the six category subjects
 python3 tools/port_droptables_check.py --report      # 175 tree-wide; filter col 6 on drop_tables
 python3 tools/port_name_diff.py --report             # the verdict column, joined on the names above
-./src/build_dtb/mock230 --selftest                   # 462 scripts, gap report silent
-./src/build_dtb/mock230_pack --check-only            # 0 errors, 13 warnings
+./src/build_dtb/torirsserver --selftest                   # 462 scripts, gap report silent
+./src/build_dtb/ToriRSServer_Pack --check-only            # 0 errors, 13 warnings
 ```
 
 **The permanent check is `tools/port_droptables_check.py`, in `test-port`, and
@@ -2500,11 +2500,11 @@ The comment explaining it is in the file.
 
 **Three findings for whoever is next.**
 
-1. **`MOCK230_FALLBACK_AI_QUEUE3`'s blocker string is now doubly stale.**
-   `src/net/mock/mock230_scripts.c:1273-1275` still says *"drop tables need npc
+1. **`TORIRSSERVER_FALLBACK_AI_QUEUE3`'s blocker string is now doubly stale.**
+   `src/torirsserver/torirs_server_scripts.c:1273-1275` still says *"drop tables need npc
    categories (triage §7.6b, §9 step 3b)"*; categories landed in §16 and the
    drop tables landed here. The row prints its count at every boot and its
-   reason under `MOCK230_VERBOSE`, so this is a line somebody reads exactly when
+   reason under `TORIRSSERVER_VERBOSE`, so this is a line somebody reads exactly when
    they are trying to find out what is blocked. The fallback itself is still
    real and still wanted — an npc with no bound table drops its `death_drop` —
    so the row stays; only its reason is false. It was left unedited because this
@@ -2521,7 +2521,7 @@ The comment explaining it is in the file.
    category (`chicken` → 444, `cow` → 365). That is 18 live bindings in
    `chicken.rs2`, `cow.rs2`, `giant_rat.rs2`, `goblin.rs2`, `guard.rs2`,
    `imp.rs2`, `man.rs2` and `rat.rs2`. **The other 60 files compile, load,
-   resolve and wait**, and that is invisible to every bar: `mock230_pack`'s
+   resolve and wait**, and that is invisible to every bar: `ToriRSServer_Pack`'s
    `validate_categories()` checks membership in the *cache*, never in the
    *world*, so "this table is unreachable" is not a thing anything can currently
    say. It is the argument for porting a second **area** before porting more
@@ -2585,12 +2585,12 @@ The engine-side numbers:
 
 ```
 # the §12 baseline, both loaders
-make -C src PLATFORM_OBJ_BASE=<lane> mock230-scripts   # sscompile's symbol line
-./src/<objdir>/mock230_pack --check-only               # the content-load line
-make -C src PLATFORM_OBJ_BASE=<lane> mock230-servpack  # needed before the band check
+make -C src PLATFORM_OBJ_BASE=<lane> torirsserver-scripts   # sscompile's symbol line
+./src/<objdir>/ToriRSServer_Pack --check-only               # the content-load line
+make -C src PLATFORM_OBJ_BASE=<lane> torirsserver-servpack  # needed before the band check
 ```
 
-`src/net/mock/mock230_opcode_coverage.gen.h` is generated, so §5's numbers move
+`src/torirsserver/torirs_server_opcode_coverage.gen.h` is generated, so §5's numbers move
 when the engine does.
 
 ### 12.2 The scratch path — for §4, §5, §6, which no committed tool covers
@@ -2632,14 +2632,14 @@ this tree   OSRS-Content/osrs239-content            82c8b8773e
 ### 12.4 Baseline on the destination tree, 2026-08-01
 
 ```
-mock230_pack: 0 error(s), 13 warning(s)
+ToriRSServer_Pack: 0 error(s), 13 warning(s)
 content loaded (213623 symbols, 306 constants, 39 npc defs, 776 loc defs,
                 39 varp defs, 1496 equip reqs (675 from the cache),
                 63 npc spawns, 12 obj spawns)
 sscompile: 212922 from packs, 26478 components, 306 constants, 52 db columns,
            2872 carrier varp(s), 0 whole-write exemption(s)
 server band: 2973 archive(s) verified against the text parse
-             (needs `make -C src mock230-servpack` first — `server/pack` is a
+             (needs `make -C src torirsserver-servpack` first — `server/pack` is a
               build product and the check reports "skipped" without it)
 ```
 
@@ -2667,10 +2667,10 @@ From the brief, with what each one costs given the measurements:
    1,380 interface references stand. **The list is written down** — six `port/*`
    artifacts, consolidated as §20. Two "never a default" holes were found and
    shut, both of which had been silently answering with -1 or a skipped field.
-2. **`make -C src test-content` passes; `mock230_pack` reports 0 errors.** It does
+2. **`make -C src test-content` passes; `ToriRSServer_Pack` reports 0 errors.** It does
    today; nothing has been changed. **Still true after §14–§19**, with `test-port`
    added to `test-content` and seven new gate rules under it.
-3. **`mock230` boots with no "did not resolve".** Requires 1.
+3. **`ToriRSServer` boots with no "did not resolve".** Requires 1.
 4. **The existing 38 npc / 776 loc Lumbridge content keeps working.** This is an
    addition — but the first slice lands **on top of an existing port of the same
    npcs**. `server/scripts/areas/lumbridge/scripts/` already holds `bob.rs2`,
@@ -2734,7 +2734,7 @@ section above predicted.
 seven numbers, so use this one):
 
 ```
-mock230_pack: 0 error(s), 13 warning(s)
+ToriRSServer_Pack: 0 error(s), 13 warning(s)
 content loaded (213530 symbols, 284 constants, 39 npc defs, 776 loc defs,
                 39 varp defs, 1496 equip reqs (675 from the cache),
                 63 npc spawns, 12 obj spawns)
@@ -2752,10 +2752,10 @@ is why none of them had ever produced a failing check.
 
 | layer | what it did with a name nothing knows | now |
 |---|---|---|
-| `mock230_content.c` `apply_param` | `mock230_content_symbol` maps the literal `null` to -1 **by design**, and maps a miss to -1 too. So `param=death_drop,bones_TYPO` loaded at **0 errors** and the npc dropped nothing — indistinguishable from `param=death_drop,null` | `mock230_content_symbol_checked` separates the two; the four symbolic npc params go through it |
-| `mock230_content.c` `load_param_types` | a `[block]` in `configs/all.param` naming a param its own `.compack` does not list was skipped in silence, leaving `type` 0 and `default` 0 — so `push_typed_param` answered every absent row with 0 instead of the declared default | a content error naming file and line |
+| `torirs_server_content.c` `apply_param` | `ToriRSServer_ContentSymbol` maps the literal `null` to -1 **by design**, and maps a miss to -1 too. So `param=death_drop,bones_TYPO` loaded at **0 errors** and the npc dropped nothing — indistinguishable from `param=death_drop,null` | `ToriRSServer_ContentSymbolChecked` separates the two; the four symbolic npc params go through it |
+| `torirs_server_content.c` `load_param_types` | a `[block]` in `configs/all.param` naming a param its own `.compack` does not list was skipped in silence, leaving `type` 0 and `default` 0 — so `push_typed_param` answered every absent row with 0 instead of the declared default | a content error naming file and line |
 | `cachepack` `pack_server_type` | a field value that named nothing was counted, the field was **skipped**, and the band read back as *absent* — which the param-defaults path answers with the declared default. A second silent default one layer below the first. `cp_pack_server_run` returned 1 regardless | the value is an error and reaches the exit status |
-| `sscompile` | a constant declared twice was appended twice and an **unstable** `qsort` picked the winner, while `mock230_content.c` errors on the second declaration — the compiler was *looser than the server it feeds* | `SSC_SymbolsValidate`, fatal before the first line is compiled |
+| `sscompile` | a constant declared twice was appended twice and an **unstable** `qsort` picked the winner, while `torirs_server_content.c` errors on the second declaration — the compiler was *looser than the server it feeds* | `SSC_SymbolsValidate`, fatal before the first line is compiled |
 
 The `cachepack` row had a second defect underneath it. `tally[f].unresolved`
 counted two different facts under one message, and the message described only
@@ -2776,7 +2776,7 @@ the bucket, which is the whole reason the bucket could never be made fatal.**
 ### 14.2 The bars, and where each one lives
 
 - **Bar 1, unresolved names.** Three exact checkers, one per layer: `sscompile`
-  (scripts — it already refused), `mock230_pack` via the content loader
+  (scripts — it already refused), `ToriRSServer_Pack` via the content loader
   (configs), `cachepack` (the server band). Plus `tools/ss_unresolved.py --check`
   over the authored **config** half, which had no per-field checker at all.
 - **Bar 5, no bare ids.** `ss_unresolved.py --check` reads `fields/<type>.ini`'s
@@ -2889,17 +2889,17 @@ reverse.
    without a whitelist.
 3. **`%name` ambiguity costs nothing to forbid today, and only today.**
    `content.ini`'s `vardomain` column declares varp/varbit/varn/vars to share one
-   name domain; `mock230_content.c` enforced it and `sscompile` never read the
+   name domain; `torirs_server_content.c` enforced it and `sscompile` never read the
    column, so `resolve_variable`'s VARP-first precedence was live. Measured
    overlap right now: **zero names**. §7.5's whole clobber class walks through
    that door, so it is shut before §9 step 3d opens it.
-4. **`mock230_scripts.c` still spells two content names in C** and neither is
-   this change's to move: `mock230_content_symbol(MOCK230_PACK_PARAM,
+4. **`torirs_server_scripts.c` still spells two content names in C** and neither is
+   this change's to move: `ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
    "death_drop")` at the `npc_param` opcode (a param name in C — §2.4 item 3),
    and the `::` cheat's symbolic argument, which resolves a mistyped name to -1
-   in silence (`mock230_scripts.c:1447`). The second is operator input rather
+   in silence (`torirs_server_scripts.c:1447`). The second is operator input rather
    than a content file, so a pack-time gate cannot see it and the fix is an
-   operator-facing message. `mock230_seq_by_name` stays as it is: it is a lookup
+   operator-facing message. `ToriRSServer_SeqByName` stays as it is: it is a lookup
    whose only callers assert on both the hit and the miss, not a loader
    assigning a default.
 
@@ -2932,7 +2932,7 @@ those two numbers are so far apart is the finding.
 lines in 109 `.constant` files under `content/scripts` (`_unpack` and `_test`
 excluded — neither contains one). This tree held **284** in 23 files before this
 pass and holds **306** after; both loaders agree on the number, which is the
-check that matters, because `sscompile` and `mock230_content.c` walk the same
+check that matters, because `sscompile` and `torirs_server_content.c` walk the same
 files through different parsers and a divergence means one of them skipped a
 file.
 
@@ -3076,7 +3076,7 @@ the map names where the number has to be read from instead:
    That is the shape every other `defer-table` row wants and none of them has.
 2. **`.constant` is invisible to every bar that existed.** `ss_unresolved.py`'s
    `CONFIG_SUFFIXES` does not include it (correctly — a constant references
-   nothing), `port_name_diff.py` compares records, and `mock230_pack` validates
+   nothing), `port_name_diff.py` compares records, and `ToriRSServer_Pack` validates
    ids. The only check a constant had before today was §14.1's duplicate rule,
    which catches a collision and cannot catch a wrong number. The 14 disagreeing
    values sat in exactly that gap.
@@ -3125,7 +3125,7 @@ adding an undeclared constant (→ error).
   symbols stage.
 - **Client verification is vacuous** and is said rather than skipped: no client
   code, no packet and no interface is touched. The closest real check is
-  `test-mock230`, which boots the server, compiles and loads 319 scripts and
+  `test-ToriRSServer`, which boots the server, compiles and loads 319 scripts and
   builds the scene — green.
 
 ### 15.9 §14.5 finding 1 recurred, in the same shift
@@ -3158,11 +3158,11 @@ make.
 
 ### 16.1 The premise was wrong, and the comment was the bug
 
-`mock230_world.c`'s `interaction_category()` carried this, and every npc trigger
+`torirs_server_world.c`'s `interaction_category()` carried this, and every npc trigger
 in the server dispatched `-1` on the strength of it:
 
 > **npc** — an osrs239 npc record carries no category at all. Not "unread":
-> absent, which is why `struct Mock230NpcInfo` has no field for it.
+> absent, which is why `struct ToriRSServerNpcInfo` has no field for it.
 
 Measured: **cache.osrs239 states a non-zero `category` on 9,149 of its 16,292 npc
 records.** `dat2_config_npc.c:666` has decoded config opcode 18 into
@@ -3319,22 +3319,22 @@ native`: the client's own decoder has an opcode for it). It restates the built-i
 default in `content_fields.c:95` and is therefore inert — proved by A/B:
 `cachepack pack --server-only` writes a **byte-identical** `server/pack` with and
 without the block. It is written down because the *absence* of a statement was
-read as a statement (16.1). `struct Mock230NpcInfo` carries `category`, populated
-in `mock230_npcinfo.c` from the decoded record.
+read as a statement (16.1). `struct ToriRSServerNpcInfo` carries `category`, populated
+in `torirs_server_npcinfo.c` from the decoded record.
 
 **The crawler — landed.** `tools/port_category_crawl.py`
 (`--report`/`--groups`/`--check`/`--write-map`), `port/categories.map` (53 rows),
 18 names in `pack/category.pack`.
 
 **The call sites — half landed, and this is the part to read.** The constraint on
-this stage was that another change owns the nine `mock230_scripts_run_trigger`
-call sites in `mock230_world.c`, so the fix went **behind a function the dispatch
-already calls**: `interaction_category()` answers for `MOCK230_INTERACT_NPC` now,
+this stage was that another change owns the nine `ToriRSServer_ScriptsRunTrigger`
+call sites in `torirs_server_world.c`, so the fix went **behind a function the dispatch
+already calls**: `interaction_category()` answers for `TORIRSSERVER_INTERACT_NPC` now,
 which is the whole `[opnpc1..5]`/`[apnpc1..5]` path — four call sites reached
 without one of them being edited.
 
-**Seven npc dispatch sites still pass a literal -1**, listed in `mock230.h` beside
-`mock230_npc_category()` so the lane holding those lines can adopt them one token
+**Seven npc dispatch sites still pass a literal -1**, listed in `torirs_server.h` beside
+`ToriRSServer_NpcCategory()` so the lane holding those lines can adopt them one token
 at a time:
 
 ```
@@ -3351,11 +3351,11 @@ behave identically, so adopting them is additive and cannot change an existing
 dispatch.
 
 > **AI_QUEUE3 has since been adopted** and the list above is six, not seven —
-> `mock230_world_npc_died` passes `mock230_npc_category(npc->type)`. See §16.11
+> `ToriRSServer_WorldNpcDied` passes `ToriRSServer_NpcCategory(npc->type)`. See §16.11
 > for what still holds it (nothing does yet) and what will.
 
-`mock230_npc_category()` deliberately does **not** read through
-`mock230_npcinfo()`. That accessor hides a nameless record's whole row, by
+`ToriRSServer_NpcCategory()` deliberately does **not** read through
+`ToriRSServer_NpcInfo()`. That accessor hides a nameless record's whole row, by
 documented design, and **1,585 of this cache's 9,149 categorised npc records have
 no name** — the multinpc instances are all of them. Reading the category through
 it would answer "no category" for every one, silently, which is the failure the
@@ -3374,7 +3374,7 @@ rung exists to prevent.
   bug.** Promoting it is §9 step 3c-0, which had not landed when this stage ran.
   A second trap comes with it, and it is not this stage's to fix:
   `ss_allocate.py`'s `pack_path()` returns `configs/all.<ns>.compack`
-  unconditionally, while `mock230_content.c`'s `pack_kind_is_config()` puts
+  unconditionally, while `torirs_server_content.c`'s `pack_kind_is_config()` puts
   `category` in `pack/<ns>.pack` — so the moment `category` is promoted the
   allocator will write a file nothing reads.
   **Update (§16.11): the second trap is gone** — `pack_path()` honours
@@ -3386,7 +3386,7 @@ rung exists to prevent.
   (`case 61: g2(buffer); // Skip unsigned short`), so `configs/all.loc` carries
   **0** `category=` lines and the crawl has nothing to resolve against. Fixing it
   is an rscache write-path change (`EXCEPTIONS.md` first, byte-exact round-trip
-  is the bar) *and* moving `mock230_content.c`'s two-valued door enum off the
+  is the bar) *and* moving `torirs_server_content.c`'s two-valued door enum off the
   `category=` key it currently occupies — which is itself two game-facing strings
   in C (§2.4 items 3 and 4).
 
@@ -3394,7 +3394,7 @@ rung exists to prevent.
 
 Two layers, because neither can see what the other does.
 
-**In `mock230_pack` — `validate_categories()`.** Every name in
+**In `ToriRSServer_Pack` — `validate_categories()`.** Every name in
 `pack/category.pack` must be carried by at least one obj *or* npc record, and no
 name may be id 0 (`content.ini` reserves it: `zero = reserved`). The failure it
 is for is invisible everywhere else — a category is a trigger *subject*, so
@@ -3413,17 +3413,17 @@ a reference category with no row, a `minted` row whose members no longer agree o
 the id it states, a minted name missing from the pack, and — the one that matters
 — **a name held back for a human that got minted anyway**.
 
-- mutation `275=black_demon` → `mock230_pack` reports **0 errors** (275 has 77
+- mutation `275=black_demon` → `ToriRSServer_Pack` reports **0 errors** (275 has 77
   npc records, so the C rule is satisfied) and `port_category_crawl --check`
   fails naming the reason. That is the whole argument for two layers. Reverted.
 - mutation: drop `444=chicken` from the pack → fails. Reverted.
 - mutation: delete the `cow` row from the map → fails, "a new reference category
   is a decision, not a default". Reverted.
 
-**In the mock230 selftest**, beside the existing `[opheld1,_bones]` obj-rung
+**In the ToriRSServer selftest**, beside the existing `[opheld1,_bones]` obj-rung
 section: the chicken npc's decoded category equals the id the crawl minted
 `chicken` at, and at least one *nameless* record still answers a category. Proved
-to bite by mutating `mock230_npcinfo.c` to store 0 — both checks fail, both
+to bite by mutating `torirs_server_npcinfo.c` to store 0 — both checks fail, both
 messages name the number. Reverted.
 
 ### 16.9 Verified end to end, then removed
@@ -3434,7 +3434,7 @@ recorded here rather than kept because keeping it would mean shipping an
 
 Temporarily: a `[opnpc1,_chicken]` script bumping `%mock_greeting_count` by 50,
 plus a selftest stanza that puts the player beside Lumbridge's chicken (slot 30,
-3229,3298), sets an npc interaction and calls `mock230_world_process_interaction`.
+3229,3298), sets an npc interaction and calls `ToriRSServer_WorldProcessInteraction`.
 
 ```
 PROBE chicken slot 30 cat 444: varp 0 -> 50 (expect +50)     ← as landed
@@ -3443,26 +3443,26 @@ PROBE chicken slot 30 cat 444: varp 0 -> 0  (expect +50)     ← interaction_cat
 ```
 
 A category-bound npc script fires on a real interaction, and did not before. Both
-the script and the stanza were removed; `mock230-scripts` is back at 319.
+the script and the stanza were removed; `torirsserver-scripts` is back at 319.
 
 **Client verification is vacuous for this stage and that is stated rather than
 skipped**: no client code, packet, interface or asset was touched, and nothing
-here is visible in the client. The closest real check is `test-mock230`, which
+here is visible in the client. The closest real check is `test-ToriRSServer`, which
 boots the server, compiles and loads the script pack and builds the scene —
 green, plus the live probe above.
 
 ### 16.10 Two observations for whoever is next
 
-**`mock230_world_npc_spawn` cannot spawn anything in the selftest world.** The
+**`ToriRSServer_WorldNpcSpawn` cannot spawn anything in the selftest world.** The
 probe's first form asked for a chicken beside the player and got
-`mock230: no free npc slot for type 1173`, 49 times over. Counted at that point:
+`torirsserver: no free npc slot for type 1173`, 49 times over. Counted at that point:
 `npc_slot_max=63` and **2,048 of 2,048 slots report `active`** — the whole array,
 though only 63 npcs exist and `srv` is `memset` to zero at the top of the
 selftest. Something marks every slot active without going through `npc_spawn()`.
 Not chased: it is not this stage's code and the probe was reworked to use an npc
 the world had already placed. But `npc_add` is content's way of creating an npc,
 and on this evidence it returns -1 for every call in a world that has been
-through `mock230_world_init`.
+through `ToriRSServer_WorldInit`.
 
 **§14.5 finding 1 / §15.9 recurred a third time, mid-stage.** Six records
 (`sp_d_halberd_glow`, `warguild_parry_defend` and four
@@ -3612,7 +3612,7 @@ had propagated into content:
 Green after: `port_category_crawl --check` → *53 row(s), 18 minted, 6 demoted by
 hand over the crawl's own answer, all agree with pack/category.pack*;
 `--write-map` idempotent; `test-port` green; `test-content` green with
-`mock230_pack: 0 error(s), 13 warning(s)`; `mock230 --selftest` all checks
+`ToriRSServer_Pack: 0 error(s), 13 warning(s)`; `ToriRSServer --selftest` all checks
 passed at 319 scripts. **No C was written in this stage.** The map's state:
 
 ```
@@ -3632,8 +3632,8 @@ resolve — `bear` 438, `chicken` 444, `cow` 365, `ice_warrior` 466, `unicorn`
 `mountain_troll` (`split`), `bandit_camp_leader`, `barbarian`, `pirate`
 (`orphan`). Three things it should not rediscover:
 
-1. **The AI_QUEUE3 rung has no permanent check yet.** `mock230_world_npc_died`
-   passes `mock230_npc_category()` now instead of `-1`, proved live and the
+1. **The AI_QUEUE3 rung has no permanent check yet.** `ToriRSServer_WorldNpcDied`
+   passes `ToriRSServer_NpcCategory()` now instead of `-1`, proved live and the
    probe removed — but nothing in the tree binds a category-keyed npc trigger,
    so nothing holds it. Converting `livestock.rs2`'s `[ai_queue3,chicken]` to
    the reference's `[ai_queue3,_chicken]` is both the first port move and that
@@ -3647,7 +3647,7 @@ resolve — `bear` 438, `chicken` 444, `cow` 365, `ice_warrior` 466, `unicorn`
    to one: it does not. A second file declaring `[ai_queue3,chicken]` compiles
    to **320 scripts, not 319** — both survive. The collision is at *load*:
    `SSVM_ProviderLoad` sorts `by_key`, counts equal adjacent keys into
-   `provider->duplicate_keys`, and **nothing in mock230 ever reads that field**
+   `provider->duplicate_keys`, and **nothing in ToriRSServer ever reads that field**
    (only `ss_corpus_test` and `ss_provider_test` do). `find_by_key` is a
    `bsearch` over the sorted array, so which of the two duplicates answers is
    whichever the search lands on. §13 bar 4 calls a second binding a conflict;
@@ -3682,9 +3682,9 @@ the first run after that change printed the bug:
 varp      declared=39 allocated=5724 base_was=8000 floor=8000
 ```
 
-The next server varp would have been **8000**, and `MOCK230_VARP_COUNT` is
-`MOCK230_VARP_CACHE_MAX + 512` = **6217** — past the end of
-`Mock230Player.varps`, where `mock230_world_set_varp` bounds-checks and returns.
+The next server varp would have been **8000**, and `TORIRSSERVER_VARP_COUNT` is
+`TORIRSSERVER_VARP_CACHE_MAX + 512` = **6217** — past the end of
+`ToriRSServerPlayer.varps`, where `ToriRSServer_WorldSetVarp` bounds-checks and returns.
 The write would have looked like it worked and transmitted nothing:
 `CONTENT_ARCHITECTURE.md` §8.3's named failure mode, re-armed, and invisible for
 as long as the floor was inert.
@@ -3723,7 +3723,7 @@ a checkable claim rather than a convention.**
    cache's 33834 and its base of 40000 and all twelve are `obj_<id>` layer-0
    filler, not allocations.
 3. **`ss_allocate.py`'s `pack_path()` was unconditionally
-   `configs/all.<ns>.compack`**, while `mock230_content.c`'s `pack_kind_is_config()`
+   `configs/all.<ns>.compack`**, while `torirs_server_content.c`'s `pack_kind_is_config()`
    puts `category`, `stat`, `component` and `3_interfaces` in `pack/<ns>.pack`.
    Latent, because none of the four is `ids = server` today — and armed, because
    §16.7 wants `category` promoted so the 20 orphan npc categories can get an id.
@@ -3734,17 +3734,17 @@ a checkable claim rather than a convention.**
 
 ### 17.2 The gate: two holes, both in this family only
 
-**`mock230_pack` never loaded the `.dbtable`/`.dbrow` half of the tree.**
-`mock230_db_load` had exactly one caller, `mock230_boot.c`. So for the one
+**`ToriRSServer_Pack` never loaded the `.dbtable`/`.dbrow` half of the tree.**
+`ToriRSServer_DbLoad` had exactly one caller, `torirs_server_boot.c`. So for the one
 namespace family whose ids are allocated rather than the cache's, "the table has
 no such column", "this row names an unknown table" and "this value resolves to
-nothing" were **boot-time discoveries in a tree `mock230_pack --check-only`
+nothing" were **boot-time discoveries in a tree `ToriRSServer_Pack --check-only`
 called clean**. It loads it now; the errors already went through
-`mock230_content_report_error`, so they reach the exit status with no other
+`ToriRSServer_ContentReportError`, so they reach the exit status with no other
 plumbing. Proved by mutation: `table=prayer_tabel` → 7 errors, exit 1; was 0.
 
 **An unrecognised column type was read as a literal.** `db_kind_for_type`
-returned `MOCK230_PACK_COUNT` — the same answer it gives `int` — for any word it
+returned `TORIRSSERVER_PACK_COUNT` — the same answer it gives `int` — for any word it
 did not know, and `row_value` then fell through to `atoi()`. A column declared
 `synth` turned every sound *name* in it into **0**, silently. That is bar 1
 exactly, one namespace over from where §14 shut it. `db_type_is_literal` now
@@ -3770,10 +3770,10 @@ dbrow    21  16984..17004  zone tables (coord_pair_table) + the sheepherder shee
 ```
 
 Both symbol loaders rose by **exactly 75, and by the same number** — sscompile
-212,847 → 212,922, `mock230_pack` 213,548 → 213,623 — which is this step's
+212,847 → 212,922, `ToriRSServer_Pack` 213,548 → 213,623 — which is this step's
 equivalent of §15's constant-count check: a divergence would mean one loader
 skipped a file. `git diff` on the four `.compack` files is **75 added lines and
-no line rewritten**, all below the allocator's marker. `mock230_pack` 0 errors,
+no line rewritten**, all below the allocator's marker. `ToriRSServer_Pack` 0 errors,
 server band still 2,973 archives verified, `test-content` green.
 
 `drop_table` is the one worth naming: it is the schema `drop tables/` needs, the
@@ -3868,7 +3868,7 @@ thing.
   are declarations; no record carries one.
 - **Client verification is vacuous** and is stated rather than skipped: no client
   code, packet or interface was touched. The closest real check is
-  `test-mock230`, which boots the server, loads 319 scripts, reads every table
+  `test-ToriRSServer`, which boots the server, loads 319 scripts, reads every table
   and row in the tree and builds the scene — green, with the new stanza in it.
 
 ### 17.7 Corrections to the numbers in §4 and §9
@@ -3902,15 +3902,15 @@ human decision per name, and most of them are not made.
 | `sscompile` (`ssc_compile.c` `check_carrier_write`) | `%name = value` on a varp that has varbits based on it is a **compile error**, naming the varbits and bit ranges it would destroy | `%prayer0 = 0` → *"is varp 83, which 32 varbit(s) are packed into … (prayer_allactive (0..28), prayer_thickskin (0..0), …)"*, exit 1 |
 | `sscompile` (`warn_carrier_read`) | reading one is a **warning** — the packed word is not a value, but a read is recoverable | `return(%prayer0)` → warning, still compiles |
 | `sscompile` (`SSC_SymbolsValidate` rule 0) | `wholewrite=allow` on a varp nothing is based on is an **error** | on `cookquest` → *"no varbit is based on it — there is nothing to exempt"*, exit 1 |
-| `mock230_content.c` | `wholewrite` takes `allow` and nothing else | `wholewrite=maybe` → 1 content error, exit 1 |
-| `mock230_world.c` (`check_carrier_write`) | every whole-varp write at **runtime** is counted, and the selftest asserts the count is zero | removing the varbit-patch exclusion → `FAIL 21 whole-varp write(s) landed on a carrier varp (last: 1105)` |
+| `torirs_server_content.c` | `wholewrite` takes `allow` and nothing else | `wholewrite=maybe` → 1 content error, exit 1 |
+| `torirs_server_world.c` (`check_carrier_write`) | every whole-varp write at **runtime** is counted, and the selftest asserts the count is zero | removing the varbit-patch exclusion → `FAIL 21 whole-varp write(s) landed on a carrier varp (last: 1105)` |
 
 All five reverted; the content tree was verified clean after each.
 
 **The carrier set is read, never derived.** `configs/all.varbit`'s `basevar=` key
 is the only statement anywhere of which varp a varbit lives inside, and both
 readers use it: sscompile parses the record file (2,872 carriers), the engine
-builds the same reverse index out of config group 14 at boot (`mock230: 2872
+builds the same reverse index out of config group 14 at boot (`torirsserver: 2872
 varp(s) carry varbits`). Two independent paths, one authority, and the numbers
 agree to the record.
 
@@ -3935,7 +3935,7 @@ content. It cannot cover the other three writers — a `::` cheat, C, a packet
 handler — and §8.2(d) is about exactly that: *moving a rule to content leaves the
 engine holding the other end of it.* The selftest's assertion spans the whole
 run, so it fails on a write from any of them. Its negative control is real: the
-one path that legitimately writes a carrier is `mock230_varbit_set`, and deleting
+one path that legitimately writes a carrier is `ToriRSServer_VarbitSet`, and deleting
 its exclusion turns 21 correct varbit patches into 21 counted violations.
 
 ### 18.2 What was measured, against what §7.5 and §9 claim
@@ -4058,7 +4058,7 @@ exists.
   means writing config group 14, and three things are missing: there is no
   `fields/varbit.ini`, `content.ini` says `[namespace:varbit] ids = cache` so
   `ss_allocate` will not allocate one, and — the real blocker — **the server reads
-  varbits from `cache.osrs239` directly** (`mock230_boot.c:93`, the pristine frozen
+  varbits from `cache.osrs239` directly** (`torirs_server_boot.c:93`, the pristine frozen
   cache), not from cachepack's output, so an authored varbit would be invisible to
   it. `cachepack` itself is ready (`CP_TYPE_VARBIT`, kind 4, not lossy, and the
   walk already picks up any extension under `server/scripts`). This is an rscache
@@ -4076,8 +4076,8 @@ exists.
   this tree, 146/145 in the reference**, re-verified this session. Resolving by
   name is correct for them and copying the id is corruption, which is the
   standing rule; what has no artifact is concept drift.
-- **`mock230_bank.c:314-319` writes `player->varps[basevar]` directly**, bypassing
-  `mock230_world_set_varp` and therefore the runtime backstop. It is a correct
+- **`torirs_server_bank.c:314-319` writes `player->varps[basevar]` directly**, bypassing
+  `ToriRSServer_WorldSetVarp` and therefore the runtime backstop. It is a correct
   varbit patch through a private copy of the arithmetic, so it is not a bug today
   — but it is the one writer the counter cannot see, and it is the third copy of
   "patch a bit range into a varp" in the file. Not this step's to move.

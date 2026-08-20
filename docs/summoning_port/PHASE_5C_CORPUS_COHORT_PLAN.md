@@ -90,7 +90,7 @@ Void torcher, Void shifter, and Rune minotaur remain in the 45. Their unusual so
 
 5. Work only in the separately staged Summoning lane and its matching asset roots. Never move the review roster to another live lane, park it under a suffix, or make the ordinary flag-off cache see it.
 
-6. Do not run ASAN on this Mac. Every client acceptance run uses a fresh MOCK230_SAVES=$(mktemp -d) and a normal embedded build.
+6. Do not run ASAN on this Mac. Every client acceptance run uses a fresh TORIRSSERVER_SAVES=$(mktemp -d) and a normal embedded build.
 
 ## Deliverables
 
@@ -197,7 +197,7 @@ The generic lifecycle must preserve current gates (feature enabled, level, point
 
 ### 6. Add permanent structural gates
 
-Add tools/test_summoning_phase5c_corpus.py and a test-summoning-phase5c-corpus Make target. Make mock230-cache-summoning and test-port depend on it, but keep client acceptance separate from ordinary flag-off cache construction.
+Add tools/test_summoning_phase5c_corpus.py and a test-summoning-phase5c-corpus Make target. Make torirsserver-cache-summoning and test-port depend on it, but keep client acceptance separate from ordinary flag-off cache construction.
 
 The structural test must execute a non-zero number of checks and prove:
 
@@ -234,15 +234,15 @@ Run all feature-on outputs in disposable directories. The final evidence set is:
     python3 tools/test_summoning_phase5a.py --tree OSRS-Content/osrs239-content
     make -C src test-summoning-phase5b
     make -C src test-summoning-phase5c-corpus
-    make -C src mock230-cache-summoning
-    make -C src mock230-scripts-summoning
+    make -C src torirsserver-cache-summoning
+    make -C src torirsserver-scripts-summoning
     make -C src test-summoning-phase5c-corpus-runtime
     make -C src test-summoning-isolation
     make -C src test-summoning-byte-identity \
       SUMMONING_CACHE_BEFORE=/absolute/temp/before \
       SUMMONING_CACHE_AFTER=/absolute/temp/after
 
-Also require the feature cache's zero-error cachepack/CS2 checks and the applicable server-band mock230_pack --check-only check. If a whole-tree membership gate is red for pre-existing unrelated content, preserve its baseline diagnostic and show that the corpus-specific stage, cache, pack, and isolation gates are clean; do not suppress or relabel an unrelated failure as a corpus success.
+Also require the feature cache's zero-error cachepack/CS2 checks and the applicable server-band ToriRSServer_Pack --check-only check. If a whole-tree membership gate is red for pre-existing unrelated content, preserve its baseline diagnostic and show that the corpus-specific stage, cache, pack, and isolation gates are clean; do not suppress or relabel an unrelated failure as a corpus success.
 
 The flag-off proof uses two distinct cache snapshots and must compare non-zero regular files byte-for-byte. It is invalid to compare a cache to itself or to use the feature-on staged tree as the ordinary input.
 

@@ -1,8 +1,8 @@
 # World Switcher (interface 69): what this actually needs from a game-world server
 
 > **NOT BUILT — triaged 2026-08-02: OUT OF SCOPE, and there is nothing for the
-> server to owe.** This doc's own conclusion holds and is confirmed: mock230 is
-> one world by construction (`mock230_embed.c:9-12`), no `WORLDLIST_JOIN`-shaped
+> server to owe.** This doc's own conclusion holds and is confirmed: ToriRSServer is
+> one world by construction (`torirs_server_embed.c:9-12`), no `WORLDLIST_JOIN`-shaped
 > op exists, and the worldlist tuple carries no host/port. The five client host
 > ops (6500/6501/6502/6506/6507) are `known=0`, so the panel would abort the
 > client rather than hang on "Loading…" — §3's Gap 2 option (2), a
@@ -15,7 +15,7 @@
 > Companion to `docs/chrome_panels_server_reqs.md`'s hiscores section, same
 > discovery pass. **Same shape of finding**: the CS2 client half is fully
 > present and traceable, but the actual mechanism is login-server-tier, not
-> a game-world packet — mock230 is a single world and structurally cannot
+> a game-world packet — ToriRSServer is a single world and structurally cannot
 > (and shouldn't) implement world-switching as a game packet.
 
 ## 0. Status at a glance
@@ -23,10 +23,10 @@
 **The target world is structurally discarded by the client itself** —
 confirmed by reading the full 4-line body of `logout_op`. World switching
 is disconnect-and-reconnect-elsewhere, handled entirely outside the CS2 VM
-and outside any single world's protocol. The only real mock230-relevant
+and outside any single world's protocol. The only real torirsserver-relevant
 work is a client-VM stub for 5 host ops so the panel doesn't hang forever
 on "Loading...", plus trivially answering "what world am I on" with
-mock230's own fixed number.
+ToriRSServer's own fixed number.
 
 ## 1. The mechanism
 
@@ -80,19 +80,19 @@ This is exactly the hiscores pattern (`docs/chrome_panels_server_reqs.md`
 §2): a feature whose CS2 half lives in the client cache but whose real
 mechanism is out-of-band relative to the game-world wire — hiscores via
 HTTP, world-switching via a login-server worldlist + a fresh socket.
-Confirmed mock230 is genuinely single-world: `mock230_embed.c:9`, "One
-world, N connections" — every "world" reference in `src/net/mock/` means
-the one `Mock230Server` struct, never a list of worlds.
+Confirmed ToriRSServer is genuinely single-world: `torirs_server_embed.c:9`, "One
+world, N connections" — every "world" reference in `src/torirsserver/` means
+the one `ToriRSServer` struct, never a list of worlds.
 
 ## 2. Server obligations
 
-| requirement | needed in mock230? | why |
+| requirement | needed in ToriRSServer? | why |
 |---|---|---|
 | A "switch to world N" game packet | **No** | the target-world argument is read by nothing |
-| Live player counts across other worlds | **No, out of scope** | mock230 has no concept of other worlds at all |
+| Live player counts across other worlds | **No, out of scope** | ToriRSServer has no concept of other worlds at all |
 | CS2 host ops for `worldlist_fetch/start/next/specific/sort` | **Yes, client-VM-side only** | declared `CS2_HANDLER_HOST` but confirmed zero dispatch cases in `cs2vm2.c` and zero `CS2VM_HOST_REQUEST_WORLDLIST*` in `rs_cs2_host.c` — a client VM gap, same class as hiscores' ops |
-| Favourite-world persistence (2 slots) | **Client-local concern, possibly nothing for mock230** | write side is a corpus gap; historically a client-side preference, not account state |
-| "Am I on world X" highlight (opcode 3318) | **Trivial** — answer with mock230's fixed world number, a constant | the one piece of this whole panel legitimately answerable by mock230 |
+| Favourite-world persistence (2 slots) | **Client-local concern, possibly nothing for ToriRSServer** | write side is a corpus gap; historically a client-side preference, not account state |
+| "Am I on world X" highlight (opcode 3318) | **Trivial** — answer with ToriRSServer's fixed world number, a constant | the one piece of this whole panel legitimately answerable by ToriRSServer |
 | Sort/filter | **No packet** — pure local logic once the host ops exist | operates entirely on the already-fetched cache |
 | Friends-list "world-hop" (adjacent) | **Same answer, already flagged** in `docs/friends_pm_chat_server_reqs.md` |
 
@@ -103,7 +103,7 @@ the one `Mock230Server` struct, never a list of worlds.
   implementation — without them the panel gets stuck on "Loading..."
   forever, since `worldlist_fetch` never flips true.
 - **Gap 2 (data source, if implemented)**: even with the host ops built,
-  mock230 has no other worlds to report. Options mirror hiscores' triage:
+  ToriRSServer has no other worlds to report. Options mirror hiscores' triage:
   (1) report a single fabricated/self world so the panel isn't empty, (2)
   stub `worldlist_fetch` permanently false so the panel stays inert, or (3)
   treat the whole feature as out of scope for a single-instance mock.
@@ -121,7 +121,7 @@ carry a real login/world-tier split structurally
 (`engine/src/server/login/LoginServer.ts`, its own process, tracking which
 world node a connecting player routes to) — but that's for *routing a
 connection to the right running world process*, not for rendering a
-world-picker list. The closer precedent, if mock230 ever becomes genuinely
+world-picker list. The closer precedent, if ToriRSServer ever becomes genuinely
 multi-world, is the `FriendServer` shape already scoped in
 `docs/friends_pm_chat_server_reqs.md` §6 (a service tracking which world
 each player is in, pushed to followers) — world-switching itself would
@@ -134,5 +134,5 @@ engine, exactly as in real OSRS and in LostCity's own process split.
   decompile, not guessed.
 - `worldswitcher_filter`'s full filter-picker UI — confirmed to be a
   settings editor over the same varbit family, not traced further.
-- Whether mock230 should ever answer the worldlist ops with fabricated
+- Whether ToriRSServer should ever answer the worldlist ops with fabricated
   data — a product decision, not a research finding.

@@ -20,7 +20,7 @@ for header in \
   "treasure trails read the cache's clue database" \
   "multicannon, Tears of Guthix, Shooting Stars, diaries"
 do
-  if grep -aqF "mock230 selftest: $header" "$LOG"; then
+  if grep -aqF "ToriRSServer selftest: $header" "$LOG"; then
     printf 'ran     %s\n' "$header"
   else
     printf 'NOT RUN %s\n' "$header"
@@ -72,6 +72,7 @@ a Mage Arena II special is drawn from what the target's state still allows
 a living phantom hand blocks melee and ranged too
 Nex's containment box is anchored on her and turns the overhead prayer off
 demonbane OR abyssal pierces the demon's fire shield
+the Inferno practice fee comes from the bank, or from the inventory
 the tears reward the genuine lowest skill
 the nine star sizes map to nine distinct locs
 every generated landing site resolves to a real coord

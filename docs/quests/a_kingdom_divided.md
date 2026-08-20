@@ -358,8 +358,8 @@ Minimum repository checks after implementation:
 
 ```sh
 tools/questhelper_extract.py akingdomdivided --check
-make -C src mock230-scripts
-mock230_pack --check-only
+make -C src torirsserver-scripts
+ToriRSServer_Pack --check-only
 ```
 
 The Quest Helper check is conditional on adding the missing helper source or

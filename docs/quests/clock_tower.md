@@ -667,8 +667,8 @@ P2 after state, item, reward, and multiplayer correctness.
 
 ### Gate D — evidence required before `verified-modern`
 
-- `make -C src mock230-scripts` and intended-cache
-  `mock230_pack --check-only` results.
+- `make -C src torirsserver-scripts` and intended-cache
+  `ToriRSServer_Pack --check-only` results.
 - Passing targeted state, spindle, black-cog, rat-scene, loc-concurrency,
   completion-idempotence, reward-space, Kojo-dispatch, journal, and cheat tests.
 - Real-client clean-route capture from Kojo through scroll and post-quest talk.

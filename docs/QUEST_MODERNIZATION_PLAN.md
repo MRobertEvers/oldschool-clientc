@@ -184,7 +184,7 @@ Complete these gates in order for every inventory row.
    duplicate triggers, unregistered completion row, missing journal arm, or
    undisclosed soft-skip remains.
 2. Run `tools/questhelper_extract.py <helper> --check` where applicable.
-3. Run `make -C src mock230-scripts` and `mock230_pack --check-only` against the
+3. Run `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` against the
    intended cache.
 4. Run automated transition tests from not-started through complete, plus
    relog/reconnect, inventory-full, item-loss/replacement, repeated-action, and

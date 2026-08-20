@@ -46,7 +46,7 @@
  *    it again used to take the wall's bits with it. Measured over the whole
  *    map before the fix: 75 doors, 44 wall edges left walkable, permanently.
  *    `restamp_after_removal` and the `loc_add` / `loc_change` split in
- *    `mock230_world_loc_set` are what this pins.
+ *    `ToriRSServer_WorldLocSet` are what this pins.
  *
  * ── Which doors ──────────────────────────────────────────────────────
  *
@@ -62,7 +62,7 @@
  * overworld instead (~45s).
  */
 
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 #include <assert.h>
 
 #include "engine/world_builder/collision_map.h"
@@ -290,7 +290,7 @@ doorway_diagonal_leaks(
 /* ------------------------------------------------------------------ */
 
 /*
- * `mock230_world_loc_set`'s scene half, with its `loc_add` / `loc_change`
+ * `ToriRSServer_WorldLocSet`'s scene half, with its `loc_add` / `loc_change`
  * split. The server half (ZoneMap, wire) is deliberately not linked here: this
  * file is about the collision map, and the zone replay is embed_test's.
  */
@@ -304,17 +304,17 @@ scene_loc_set(
     int angle,
     int is_add)
 {
-    int slot = mock230_scene_find_loc_exact(x, z, level, shape);
+    int slot = ToriRSServer_SceneFindLocExact(x, z, level, shape);
 
     if( loc_id < 0 )
     {
-        mock230_scene_remove_loc(slot);
+        ToriRSServer_SceneRemoveLoc(slot);
         return;
     }
-    if( is_add || !mock230_scene_loc(slot) )
-        mock230_scene_add_loc(x, z, level, loc_id, shape, angle);
+    if( is_add || !ToriRSServer_SceneLoc(slot) )
+        ToriRSServer_SceneAddLoc(x, z, level, loc_id, shape, angle);
     else
-        mock230_scene_replace_loc(slot, loc_id, angle);
+        ToriRSServer_SceneReplaceLoc(slot, loc_id, angle);
 }
 
 /* `~door_open`: which way a wall_straight at this angle swings. */
@@ -347,15 +347,15 @@ sweep_scene(
     int base_x, base_z;
     int* before[COLLISION_LEVELS];
 
-    if( !mock230_scene_build(cache_dir, tile_x >> 3, tile_z >> 3) )
+    if( !ToriRSServer_SceneBuild(cache_dir, tile_x >> 3, tile_z >> 3) )
         return;
     t->zones++;
-    base_x = mock230_scene_base_x();
-    base_z = mock230_scene_base_z();
+    base_x = ToriRSServer_SceneBaseX();
+    base_z = ToriRSServer_SceneBaseZ();
 
     for( int level = 0; level < COLLISION_LEVELS; level++ )
     {
-        struct CollisionMap* cm = mock230_scene_collision(level);
+        struct CollisionMap* cm = ToriRSServer_SceneCollision(level);
         size_t bytes;
 
         before[level] = NULL;
@@ -381,7 +381,7 @@ sweep_scene(
 
         for( int slot = 0;; slot++ )
         {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
             const char* op;
             struct CollisionMap* cm;
             int sx, sz;
@@ -390,10 +390,10 @@ sweep_scene(
                 break;
             if( !loc->active || loc->shape != RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE )
                 continue;
-            op = mock230_scene_loc_op(loc->loc_id, 1);
+            op = ToriRSServer_SceneLocOp(loc->loc_id, 1);
             if( !op || strcmp(op, "Open") != 0 )
                 continue;
-            cm = mock230_scene_collision(loc->level);
+            cm = ToriRSServer_SceneCollision(loc->level);
             if( !cm )
                 continue;
             /* Away from the scene edge, where the border ring is BOUNDS and a
@@ -417,7 +417,7 @@ sweep_scene(
 
         for( int i = 0; i < door_count; i++ )
         {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(doors[i]);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(doors[i]);
             struct CollisionMap* cm;
             char why[512];
             int door_id, door_x, door_z, door_level, door_angle;
@@ -426,7 +426,7 @@ sweep_scene(
 
             if( !loc || !loc->active )
                 continue;
-            cm = mock230_scene_collision(loc->level);
+            cm = ToriRSServer_SceneCollision(loc->level);
             if( !cm || !before[loc->level] )
                 continue;
 
@@ -554,7 +554,7 @@ main(int argc, char** argv)
         for( size_t i = 0; i < sizeof(k_spots) / sizeof(k_spots[0]); i++ )
             sweep_scene(cache_dir, k_spots[i][0], k_spots[i][1], &t);
     }
-    mock230_scene_free();
+    ToriRSServer_SceneFree();
 
     CHECK_GT(t.zones, 0, "scenes built from the cache");
     CHECK_GT(t.doors, 0, "doors found to swing");
@@ -581,8 +581,8 @@ main(int argc, char** argv)
  * either way, so the untransformed record is the right answer for this test.
  */
 int
-mock230_varbit_get(
-    struct Mock230Player* player,
+ToriRSServer_VarbitGet(
+    struct ToriRSServerPlayer* player,
     int varbit_id)
 {
     (void)player;

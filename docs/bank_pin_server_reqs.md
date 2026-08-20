@@ -34,7 +34,7 @@
 > **LANDED 2026-08-02.** The keypad works end to end: entering a PIN sets it,
 > the bank asks for it on the next login, a wrong guess is refused, three wrong
 > guesses end the visit, and the PIN survives a logout. Verified in the real
-> client headlessly (§6) and by `mock230 --selftest` (§7).
+> client headlessly (§6) and by `ToriRSServer --selftest` (§7).
 >
 > The triage that preceded this was **wrong on both of its headline claims**,
 > and one of them is the storage claim above. §1 is the full correction; the
@@ -45,7 +45,7 @@
 > what was measured, and what was deliberately not built (§8) — not what
 > somebody should do.
 
-Layered on the already-landed bank (`docs/mock230_bank.md`) — this doc covers
+Layered on the already-landed bank (`docs/torirs_server_bank.md`) — this doc covers
 only what the PIN itself adds.
 
 ---
@@ -95,7 +95,7 @@ a carrier and names the collateral; pointing the PIN at `bankpin_2` produces
 destroys them (ge_newoffer_quantity (0..30), ge_newoffer_type (31..31)).
 ```
 
-and `mock230 --selftest` asserts at runtime that no PIN varp carries a varbit,
+and `ToriRSServer --selftest` asserts at runtime that no PIN varp carries a varbit,
 for the case where somebody reaches for `wholewrite=allow`.
 
 ### 1.2 "READY, content only, no blocker"
@@ -285,13 +285,13 @@ keypad test.
 
 | check | what it pins | mutation → red |
 |---|---|---|
-| `mock230 --selftest`, **"the bank PIN"** | the whole gate through content's own procs: no PIN → straight in; PIN → keypad and a parked script; wrong → refused and re-asked; right → verified and the bank opens; Exit → neither; three wrong → over. Plus: the varps carry no varbits, `bankpin_code`/`_set` are perm, `bankpin_verified` is not, and none is transmitted | send the prompt from `P_COUNTDIALOG_NOPROMPT` ⇒ *"the keypad must not also open the chatbox amount prompt"* ✅ · declare the PIN on `bankpin_2` ⇒ **sscompile refuses outright**, naming both GE varbits ✅ (and with `wholewrite=allow` to get past that, six selftest assertions fail) |
+| `ToriRSServer --selftest`, **"the bank PIN"** | the whole gate through content's own procs: no PIN → straight in; PIN → keypad and a parked script; wrong → refused and re-asked; right → verified and the bank opens; Exit → neither; three wrong → over. Plus: the varps carry no varbits, `bankpin_code`/`_set` are perm, `bankpin_verified` is not, and none is transmitted | send the prompt from `P_COUNTDIALOG_NOPROMPT` ⇒ *"the keypad must not also open the chatbox amount prompt"* ✅ · declare the PIN on `bankpin_2` ⇒ **sscompile refuses outright**, naming both GE varbits ✅ (and with `wholewrite=allow` to get past that, six selftest assertions fail) |
 | `make -C src test-cs2-resume-countdialog` (**new**) | 3104 pops exactly one **string** (sentinel underneath), the text reaches the host verbatim, nothing lands on the int stack, and both sentinels pass through unfiltered | pop an int instead, as the wire packet's shape suggests ⇒ **6** assertions fail ✅ |
 | `make -C src test-cs2-math` (extended) | `random` pops its argument and is bounded, exclusive of `max`; `randominc` is inclusive; neither divides by zero | restore `return CS2VM2_PushInt(vm, rand());` ⇒ **5** assertions fail ✅ |
 
 Every id in the selftest is resolved by **name** —
-`mock230_world_varp("bankpin_code")`,
-`mock230_content_symbol(MOCK230_PACK_INTERFACE, "bankpin_keypad")` — because two
+`ToriRSServer_WorldVarp("bankpin_code")`,
+`ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "bankpin_keypad")` — because two
 of the three varps are allocated by `ss_allocate.py` and will move the moment
 the tree grows another one.
 

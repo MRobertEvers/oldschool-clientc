@@ -97,7 +97,7 @@ alloc_var_arrays(
  * The reference cannot reach this case: its varp array is sized from the cache
  * varplayer table and a real server never addresses past it. This tree can —
  * content allocates its own varps above the cache's highest id on purpose
- * (mock230.h MOCK230_VARP_SERVER_HEADROOM), and the alternative to growing is
+ * (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM), and the alternative to growing is
  * dropping those writes silently. Growth stops at `varp_types` only in the
  * sense that the grown ids have no TYPE: `varp_type_count` stays where the
  * cache put it, so GetClientcode answers "none" for them rather than reading

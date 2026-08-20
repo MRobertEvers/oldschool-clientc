@@ -193,8 +193,8 @@ The corresponding bundles, in order, are:
 
 ### Build and runtime gates
 
-- Compile the complete content set with `make -C src mock230-scripts` (or the repository's current equivalent if the target has moved).
-- Run `make -C src test-mock230-dev` and any quest/content self-test target added by the implementation.
+- Compile the complete content set with `make -C src torirsserver-scripts` (or the repository's current equivalent if the target has moved).
+- Run `make -C src test-torirsserver-dev` and any quest/content self-test target added by the implementation.
 - Start from a clean save and complete, without debug advancement:
   1. prerequisite quests;
   2. The Lost Tribe;

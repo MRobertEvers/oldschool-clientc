@@ -1,7 +1,7 @@
 /*
  * NPC metadata from the cache: names, and the menu ops the server may act on.
  *
- * Same recipe as mock230_objinfo.c — profile, CONFIGS table, KIND_NPC archive,
+ * Same recipe as torirs_server_objinfo.c — profile, CONFIGS table, KIND_NPC archive,
  * file list, decode each — and worth keeping separate for the same reason: it
  * is the only place that knows the cache's npc layout.
  *
@@ -9,7 +9,7 @@
  * no longer needs the name for a chatbox line — it sets NPC_INFO SAY only.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -18,14 +18,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct Mock230NpcInfo* g_npcs;
+static struct ToriRSServerNpcInfo* g_npcs;
 static int g_npc_count;
 
-static const struct Mock230NpcInfo k_unknown = { .name = NULL, .combat_level = -1, .size = 0 };
+static const struct ToriRSServerNpcInfo k_unknown = { .name = NULL, .combat_level = -1, .size = 0 };
 
 /*
  * Combat bonuses out of the npc record's param table — the same ids as the obj
- * table (0..11 bonuses, 14 attack rate); see mock230_objinfo.c for why those
+ * table (0..11 bonuses, 14 attack rate); see torirs_server_objinfo.c for why those
  * numbers are trustworthy. cache.osrs230's Guard (3254) reads stabdefence +18,
  * slashdefence +25, crushdefence +19, strengthbonus +5 and attackrate 4, which
  * is the whole reason a guard is a real fight and a man is not.
@@ -33,7 +33,7 @@ static const struct Mock230NpcInfo k_unknown = { .name = NULL, .combat_level = -
 static void
 read_combat_params(
     const struct RSCache_Params* params,
-    struct Mock230NpcInfo* out)
+    struct ToriRSServerNpcInfo* out)
 {
     for( int i = 0; i < params->count; i++ )
     {
@@ -70,7 +70,7 @@ read_combat_params(
  * from here, and the type half it also wanted has been in `configs/all.param`
  * since cachepack first unpacked it.
  *
- * Flat and sorted, for the reasons `mock230_objinfo.c` records at length: one
+ * Flat and sorted, for the reasons `torirs_server_objinfo.c` records at length: one
  * array of 16-byte rows beats a vector per record when most records have
  * between five and ten params, and the lookup is a binary search.
  *
@@ -159,8 +159,8 @@ read_params(
     }
 }
 
-const struct Mock230NpcParam*
-mock230_npc_param(
+const struct ToriRSServerNpcParam*
+ToriRSServer_NpcParam(
     int npc_id,
     int param_id)
 {
@@ -177,13 +177,13 @@ mock230_npc_param(
         else if( row->npc_id > npc_id || (row->npc_id == npc_id && row->key > param_id) )
             high = mid - 1;
         else
-            return (const struct Mock230NpcParam*)row;
+            return (const struct ToriRSServerNpcParam*)row;
     }
     return NULL;
 }
 
 int
-mock230_npcinfo_load(const char* cache_dir)
+ToriRSServer_NpcInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -192,11 +192,11 @@ mock230_npcinfo_load(const char* cache_dir)
     int table;
     int highest = -1;
 
-    mock230_npcinfo_free();
+    ToriRSServer_NpcInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -209,7 +209,7 @@ mock230_npcinfo_load(const char* cache_dir)
     }
     if( !disk )
     {
-        fprintf(stderr, "mock230: no npc metadata (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no npc metadata (cache '%s' not found)\n", cache_dir);
         return 0;
     }
 
@@ -219,7 +219,7 @@ mock230_npcinfo_load(const char* cache_dir)
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "mock230: no npc config archive in '%s'\n", cache_dir);
+        fprintf(stderr, "torirsserver: no npc config archive in '%s'\n", cache_dir);
         return 0;
     }
     RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
@@ -249,7 +249,7 @@ mock230_npcinfo_load(const char* cache_dir)
     }
 
     g_npc_count = highest + 1;
-    g_npcs = (struct Mock230NpcInfo*)calloc((size_t)g_npc_count, sizeof(*g_npcs));
+    g_npcs = (struct ToriRSServerNpcInfo*)calloc((size_t)g_npc_count, sizeof(*g_npcs));
     assert(g_npcs);
     for( int i = 0; i < g_npc_count; i++ )
     {
@@ -308,7 +308,7 @@ mock230_npcinfo_load(const char* cache_dir)
         RSCache_Dat2DiskFree(disk);
 
         fprintf(stderr,
-                "mock230: npc metadata loaded (%d records from %s, %d params in %zu KB)\n",
+                "torirsserver: npc metadata loaded (%d records from %s, %d params in %zu KB)\n",
                 loaded, cache_dir, g_npc_param_count,
                 ((size_t)g_npc_param_count * sizeof(struct NpcParam)) / 1024);
     }
@@ -316,7 +316,7 @@ mock230_npcinfo_load(const char* cache_dir)
 }
 
 void
-mock230_npcinfo_free(void)
+ToriRSServer_NpcInfoFree(void)
 {
     if( g_npcs )
     {
@@ -340,31 +340,31 @@ mock230_npcinfo_free(void)
 }
 
 int
-mock230_npcinfo_known(int npc_id)
+ToriRSServer_NpcInfoKnown(int npc_id)
 {
     /* The same gate the accessor below applies, stated once each. */
     return g_npcs && npc_id >= 0 && npc_id < g_npc_count && g_npcs[npc_id].name != NULL;
 }
 
 int
-mock230_npcinfo_count(void)
+ToriRSServer_NpcInfoCount(void)
 {
     return g_npcs ? g_npc_count : 0;
 }
 
 int
-mock230_npc_category(int npc_id)
+ToriRSServer_NpcCategory(int npc_id)
 {
     if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )
         return -1;
-    /* Not `mock230_npcinfo(npc_id)->category`: that accessor hides the whole row
+    /* Not `ToriRSServer_NpcInfo(npc_id)->category`: that accessor hides the whole row
      * of a nameless record, and the nameless records are exactly the multinpc
      * instances a trigger has to reach. See the header. */
     return g_npcs[npc_id].category > 0 ? g_npcs[npc_id].category : -1;
 }
 
 int
-mock230_npc_category_members(int category)
+ToriRSServer_NpcCategoryMembers(int category)
 {
     int members = 0;
 
@@ -378,10 +378,10 @@ mock230_npc_category_members(int category)
     return members;
 }
 
-const struct Mock230NpcInfo*
-mock230_npcinfo(int npc_id)
+const struct ToriRSServerNpcInfo*
+ToriRSServer_NpcInfo(int npc_id)
 {
-    static struct Mock230NpcInfo placeholder;
+    static struct ToriRSServerNpcInfo placeholder;
 
     if( g_npcs && npc_id >= 0 && npc_id < g_npc_count && g_npcs[npc_id].name )
         return &g_npcs[npc_id];
@@ -397,15 +397,15 @@ mock230_npcinfo(int npc_id)
 /*
  * The same row, ungated.
  *
- * `mock230_npcinfo` above answers "what do I call this thing", and its
+ * `ToriRSServer_NpcInfo` above answers "what do I call this thing", and its
  * placeholder is right for that. Reading a *field* off it is a different
  * question and the name gate gives the wrong answer to it: 1,585 of
  * cache.osrs239's category-carrying npc records have no name, so
  * `npc_category` through the gated accessor would report 0 — "no category" —
  * for every multinpc instance in the game.
  */
-const struct Mock230NpcInfo*
-mock230_npcinfo_record(int npc_id)
+const struct ToriRSServerNpcInfo*
+ToriRSServer_NpcInfoRecord(int npc_id)
 {
     if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )
         return NULL;

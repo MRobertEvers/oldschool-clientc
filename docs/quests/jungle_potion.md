@@ -439,9 +439,9 @@ Required commands after implementation:
 
 ```sh
 python3 tools/questhelper_extract.py junglepotion --check
-make -C src mock230-scripts
+make -C src torirsserver-scripts
 OSRS_CONTENT_ROOT="$PWD/OSRS-Content/osrs239-content" \
-  ./src/mock230_pack --check-only
+  ./src/ToriRSServer_Pack --check-only
 git diff --check
 ```
 

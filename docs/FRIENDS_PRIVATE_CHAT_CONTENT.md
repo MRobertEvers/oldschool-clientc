@@ -3,7 +3,7 @@
 > **Status: specified and verified, NOT applied.** `OSRS-Content/` is a symlink
 > into another lane's checkout and that lane owns it. Everything below is
 > copy-pasteable and has been compiled and run — against a *copy* of the content
-> tree in a scratch directory, with `MOCK230_CONTENT` pointed at it. Nothing was
+> tree in a scratch directory, with `TORIRSSERVER_CONTENT` pointed at it. Nothing was
 > written to `OSRS-Content/` or `cache.osrs239/`.
 >
 > The engine half is already in the tree. Friend presence notifications fire
@@ -12,7 +12,7 @@
 > missing:
 >
 > ```
-> mock230: 3 friend/ignore cap(s) are not in any .constant — the lists are limited
+> torirsserver: 3 friend/ignore cap(s) are not in any .constant — the lists are limited
 > only by this server's array sizes. Content owns these: see
 > docs/FRIENDS_PRIVATE_CHAT.md §2.3.
 > ```
@@ -143,10 +143,10 @@ what makes this an assertion rather than a claim.
 
 Two things about this file are corrections to the design note, both re-measured:
 
-- **`.constant`, not `.enum`.** `struct Mock230EnumValue` has an `int key` and no
-  key text (`mock230_content.h:412-420`) and a `val=` key runs through
+- **`.constant`, not `.enum`.** `struct ToriRSServerEnumValue` has an `int key` and no
+  key text (`torirs_server_content.h:412-420`) and a `val=` key runs through
   `enum_operand`, which for a non-pack input kind is `atoi(text)`
-  (`mock230_content.c:1438`). So the design's "`inputtype=string`" alternative
+  (`torirs_server_content.c:1438`). So the design's "`inputtype=string`" alternative
   does not fail — it silently maps every key to 0.
 - **`^private_message_max_bytes`, not `..._max_chars`.** The cap counts *packed*
   wire bytes, which is what `MessagePrivateHandler.ts:13` tests
@@ -221,13 +221,13 @@ is this:
 `LOGINLOGOUTNOTIFICATION` is what a real rev-230 server sends; this client
 already models it (`RS_CHAT_TYPE_PRIVATE_SYSTEM`, `src/game/rs_chat.h:35`),
 already renders it and already filters it. But `SS_OP_MES`
-(`mock230_scripts.c:1346`) writes MESSAGE_GAME with no type, `struct
+(`torirs_server_scripts.c:1346`) writes MESSAGE_GAME with no type, `struct
 PktMessageGame` (`src/net/rev/revpacket.h:180`) has no type field, and
 `osrs230_parse.c:381-393` drops the byte. So the first landing uses plain `mes`:
 **correct text, black instead of cyan, no auto-expire, and the player's "Private
 chat: off" filter does not suppress it.** A `mes_type`-style opcode plus the
 field plus the parse fix is a small follow-up for whichever lane owns
-`mock230_ops_*.c`; this lane is forbidden from adding those files.
+`ToriRSServer_Ops_*.c`; this lane is forbidden from adding those files.
 
 ---
 
@@ -236,13 +236,13 @@ field plus the parse fix is a small follow-up for whichever lane owns
 | content | engine reads it at | what happens if it is absent |
 |---|---|---|
 | `~friends_login` | `[login,_]`, phase 7 | the two swap buttons are never armed; the ignore panel is unreachable and clicking the button sends nothing |
-| `[if_button,friends:ignore]` / `[if_button,ignore:friends]` | `mock230_scripts_run_if_button_named`, from `handle_if_button_op` — no name in C | the click reaches the server and nothing answers it |
-| `^friend_max`, `^ignore_max` | `cap_resolve` in `mock230_friends.c`, once per process | one stderr line, then the storage ceilings (256 / 128) |
+| `[if_button,friends:ignore]` / `[if_button,ignore:friends]` | `ToriRSServer_ScriptsRunIfButtonNamed`, from `handle_if_button_op` — no name in C | the click reaches the server and nothing answers it |
+| `^friend_max`, `^ignore_max` | `cap_resolve` in `torirs_server_friends.c`, once per process | one stderr line, then the storage ceilings (256 / 128) |
 | `^private_message_max_bytes` | same | one stderr line, then 255 — the var-u8 packet's own limit |
-| `[friendlogin,_]` / `[friendlogout,_]` | `SS_TRIGGER_FRIENDLOGIN` / `SS_TRIGGER_FRIENDLOGOUT` from `social_notify_followers` (login) and `mock230_world_remove_player` (logout), with the display name as a string arg | trigger miss → silence on that event (no boot hook table) |
+| `[friendlogin,_]` / `[friendlogout,_]` | `SS_TRIGGER_FRIENDLOGIN` / `SS_TRIGGER_FRIENDLOGOUT` from `social_notify_followers` (login) and `ToriRSServer_WorldRemovePlayer` (logout), with the display name as a string arg | trigger miss → silence on that event (no boot hook table) |
 
 The engine holds **no** player-facing string on this path. `grep` the social
-section of `mock230_world.c` and `mock230_friends.c` for `"` and every hit is a
+section of `torirs_server_world.c` and `torirs_server_friends.c` for `"` and every hit is a
 comment or a `stderr` diagnostic.
 
 Three rules stay in the engine on purpose and content must not try to restate
@@ -281,15 +281,15 @@ done
 #  to pack files, and a symlink would write into the real tree.)
 
 # 2. Apply the four files of §2 to $DST, then compile — never
-#    `make -C src mock230-scripts`, which writes the shared tree.
+#    `make -C src torirsserver-scripts`, which writes the shared tree.
 make -C src PLATFORM_OBJ_BASE=build_lane2 sscompile
 python3 tools/ss_allocate.py --tree $DST
 ./src/build_lane2/sscompile --src $DST/server/scripts \
     --out $DST/server/scripts/build --pack $DST/pack --pack $DST/configs
 
 # 3. Run everything against it.
-MOCK230_CONTENT=$DST ./src/build_lane2/mock230_embed_test
-./src/build_lane2/mock230_pack --check-only --content $DST
+TORIRSSERVER_CONTENT=$DST ./src/build_lane2/ToriRSServer_EmbedTest
+./src/build_lane2/ToriRSServer_Pack --check-only --content $DST
 ```
 
 **What that proves, measured 2026-08-01:**
@@ -303,10 +303,10 @@ MOCK230_CONTENT=$DST ./src/build_lane2/mock230_embed_test
 | `and alice is told so, in content's words` (login) | ok | SKIP |
 | `and bob was not told about his own login` | ok | ok |
 | every boot warning in this file's header | gone | printed |
-| `mock230_pack --check-only` | 0 errors, 13 warnings | identical |
+| `ToriRSServer_Pack --check-only` | 0 errors, 13 warnings | identical |
 
 The component ids in the arming check are resolved through the pack
-(`mock230_content_symbol(MOCK230_PACK_COMPONENT, "friends:ignore")`), never
+(`ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "friends:ignore")`), never
 written into the test.
 
 **And the checks were proved able to fail** — four mutations, all reverted:
@@ -325,7 +325,7 @@ had never executed. It does now:
 
 ```sh
 make -C src PLATFORM_OBJ_BASE=build_lane2 EMBED_SERVER=1
-SDL_VIDEODRIVER=dummy MOCK230_CONTENT=$DST MOCK230_VERBOSE=1 TORIRS_NET_DEBUG=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_CONTENT=$DST TORIRSSERVER_VERBOSE=1 TORIRS_NET_DEBUG=1 \
 TORIRS_SIM_CLICK_AT="140,536,484;220,686,215;300,686,215" \
 TORIRS_MAX_FRAMES=420 TORIRS_EXIT_BMP=/tmp/swap.bmp TORIRS_DUMP_TREE_EXIT=1 \
   ./src/torirs --manifest manifest_osrs230_embed.ini
@@ -344,11 +344,11 @@ Observed in one run:
 ```
 if_setevents: com=28114945 (429:1) slots=0..0 events=0x2
 if_setevents: com=28311553 (432:1) slots=0..0 events=0x2
-mock230: <- IF_BUTTON1 429:1 sub=-1
-mock230: if_button named lookup `[if_button,friends:ignore]` -> found
+torirsserver: <- IF_BUTTON1 429:1 sub=-1
+torirsserver: if_button named lookup `[if_button,friends:ignore]` -> found
 if-opensub: mount iface=432 under uid=0x00a10055 (161<<16|85)
-mock230: <- IF_BUTTON1 432:1 sub=-1
-mock230: if_button named lookup `[if_button,ignore:friends]` -> found
+torirsserver: <- IF_BUTTON1 432:1 sub=-1
+torirsserver: if_button named lookup `[if_button,ignore:friends]` -> found
 if-opensub: mount iface=429 under uid=0x00a10055 (161<<16|85)
 ```
 
@@ -383,7 +383,7 @@ currently drops.
 ### 6.2 Any way at all for content to address a second player — **the big one**
 
 `SS_OP_UID` returns the constant 1 and `SS_OP_FINDUID` resolves only
-`srv->active_player` (`mock230_scripts.c:1991-2020, 3294-3297`). So a script
+`srv->active_player` (`torirs_server_scripts.c:1991-2020, 3294-3297`). So a script
 cannot say *"for each follower of $name, tell them"*. That is the single reason
 the three rules in §4 — who hears it, whether they may, and not the subject —
 are C and not a `[proc]`, even though all three are policy by any reading of
@@ -403,8 +403,8 @@ living in C.
 
 ### 6.4 Chat-mode opcodes, or a varp behind the chat modes
 
-`mock230_world_login` states the opening privacy settings in C (`public 0,
-MOCK230_CHAT_PRIVATE_ON, trade 0` — the reference's own defaults from
+`ToriRSServer_WorldLogin` states the opening privacy settings in C (`public 0,
+TORIRSSERVER_CHAT_PRIVATE_ON, trade 0` — the reference's own defaults from
 `Player.ts:307-309`). Content cannot state them: the modes deliberately live
 only in the friend service (`FRIENDS_PRIVATE_CHAT.md` §5.3(4), because
 `isVisibleTo` must answer for names whose player slot is gone), and there is no
@@ -414,7 +414,7 @@ combat tab's opening state already lives.
 
 ### 6.5 `.enum`s with string keys
 
-`struct Mock230EnumValue` has an `int key` and no key text, and a `val=` key
+`struct ToriRSServerEnumValue` has an `int key` and no key text, and a `val=` key
 `atoi()`s for a non-pack input kind — so `inputtype=string` compiles, loads, and
 silently maps every key to 0. Any name→value table content wants therefore has
 nowhere to go but `.constant`, which is fine for three caps and not fine in
@@ -422,8 +422,8 @@ general. This is a hole in the config surface, not a preference.
 
 ### 6.6 "Optional, but valid if present" for a content constant
 
-`mock230_content_constant` reads raw text; `mock230_content_constant_int`
-reports a miss through the content error count, which `mock230_pack
+`ToriRSServer_ContentConstant` reads raw text; `ToriRSServer_ContentConstantInt`
+reports a miss through the content error count, which `ToriRSServer_Pack
 --check-only` fails on. There is no way to say *this constant is optional, but if
 it is there it must be a positive integer*, so `^friend_max = onehundred`
 degrades to the storage ceiling with one stderr line and a clean `--check-only`.
@@ -449,12 +449,12 @@ surface to move them to.
 
 1. Create the two new files of §2.1 and §2.2, append §2.3, add the one line of
    §2.4.
-2. `make -C src mock230-scripts` (that lane owns it; this one may not run it).
-3. `make -C src test-mock230-embed` — six checks that were SKIPs become `ok`.
-4. `mock230_pack --check-only` — still 0 errors.
+2. `make -C src torirsserver-scripts` (that lane owns it; this one may not run it).
+3. `make -C src test-torirsserver-embed` — six checks that were SKIPs become `ok`.
+4. `ToriRSServer_Pack --check-only` — still 0 errors.
 5. Boot anything and confirm the five warning lines in this file's header are
    gone. If `^friend_max` is still reported missing, check the spelling against
    §2.2 — a typo degrades silently (§6.6).
 6. Then delete the `--- corrections ---` note in `FRIENDS_PRIVATE_CHAT.md`
-   §2.3(b) and move the three caps into `mock230_ids`'s resolve table, which is
+   §2.3(b) and move the three caps into `ToriRSServer_Ids`'s resolve table, which is
    the right home for them **on the day the constants land** and not before.

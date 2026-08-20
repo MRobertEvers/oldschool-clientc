@@ -89,7 +89,7 @@ def scan(root, include_debugproc=False, include_selftest=False):
         if os.sep + "build" in path:
             continue
         # `selftest*.rs2` procs are invoked from C by name
-        # (`SSVM_ProviderGetByName` in mock230_world.c), so no .rs2 call site
+        # (`SSVM_ProviderGetByName` in torirs_server_world.c), so no .rs2 call site
         # exists and every one of them reads as an orphan — 33 false positives.
         # Their *references* still count: a selftest file calling a real proc is
         # a real caller.

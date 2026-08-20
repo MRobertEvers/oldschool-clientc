@@ -3,7 +3,7 @@
  * (features->run_energy_model), against the numbers their references state.
  *
  * Links nothing but the formulas and the feature table: no server, no player,
- * no cache. That is the point of mock230_runenergy.c existing separately —
+ * no cache. That is the point of torirs_server_runenergy.c existing separately —
  * "how much energy does a tick cost" is arithmetic, and arithmetic that can
  * only be observed by running a world is arithmetic nobody checks.
  *
@@ -12,7 +12,7 @@
  *   osrs2025 — https://oldschool.runescape.wiki/w/Run_energy (8 Jan 2025)
  */
 
-#include "net/mock/mock230_runenergy.h"
+#include "torirsserver/torirs_server_runenergy.h"
 
 #include "features/features.h"
 
@@ -39,7 +39,7 @@ check_drain(
     int agility,
     int want)
 {
-    int got = mock230_run_energy_drain(model, weight_kg, agility);
+    int got = ToriRSServer_RunEnergyDrain(model, weight_kg, agility);
     CHECK(got == want,
           "%s drain(weight=%d, agility=%d) = %d, want %d",
           ToriRS_Features_RunEnergyModelName(model),
@@ -55,7 +55,7 @@ check_restore(
     int agility,
     int want)
 {
-    int got = mock230_run_energy_restore(model, agility);
+    int got = ToriRSServer_RunEnergyRestore(model, agility);
     CHECK(got == want,
           "%s restore(agility=%d) = %d, want %d",
           ToriRS_Features_RunEnergyModelName(model),
@@ -151,11 +151,11 @@ test_clamps(void)
 static void
 test_models_differ(void)
 {
-    CHECK(mock230_run_energy_drain(TORIRS_RUN_ENERGY_CLASSIC, 0, 99) >
-              mock230_run_energy_drain(TORIRS_RUN_ENERGY_OSRS_2025, 0, 99),
+    CHECK(ToriRSServer_RunEnergyDrain(TORIRS_RUN_ENERGY_CLASSIC, 0, 99) >
+              ToriRSServer_RunEnergyDrain(TORIRS_RUN_ENERGY_OSRS_2025, 0, 99),
           "a level-99 player must burn less under osrs2025 than under classic");
-    CHECK(mock230_run_energy_restore(TORIRS_RUN_ENERGY_OSRS_2025, 1) >
-              mock230_run_energy_restore(TORIRS_RUN_ENERGY_CLASSIC, 1),
+    CHECK(ToriRSServer_RunEnergyRestore(TORIRS_RUN_ENERGY_OSRS_2025, 1) >
+              ToriRSServer_RunEnergyRestore(TORIRS_RUN_ENERGY_CLASSIC, 1),
           "a level-1 player must recover faster under osrs2025 than under classic");
 }
 

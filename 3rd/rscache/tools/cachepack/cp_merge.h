@@ -6,7 +6,7 @@
  *
  * `configs/all.npc` (rank 0) is the machine export from the cache; a file under `server/scripts` of the same extension (rank 1) is what a person
  * authored on top. Today they have two readers that never meet — rank 0 is read
- * only by `cachepack pack`, rank 1 only by `mock230_content.c` — which is the
+ * only by `cachepack pack`, rank 1 only by `torirs_server_content.c` — which is the
  * problem `docs/CONTENT_ARCHITECTURE.md` §3.5 calls the deepest in the toolchain.
  * Merging them is what lets one encoder see the whole record.
  *
@@ -131,7 +131,7 @@ struct CP_MergeSet
  * `npc_anims.generated.npc`, the machine tables — merges at rank 1, and a file
  * a person wrote at rank 2, so the person wins.
  *
- * That is not this reader's opinion; it is `mock230_content.c`'s, which has
+ * That is not this reader's opinion; it is `torirs_server_content.c`'s, which has
  * always loaded npc configs in three passes (`load_npc_default_config`, then
  * `load_npc_generated_config`, then `load_npc_authored_config`). Flattening
  * both authored classes to one rank here made the merge resolve ties by

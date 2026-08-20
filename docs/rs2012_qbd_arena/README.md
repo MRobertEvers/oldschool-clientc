@@ -206,7 +206,7 @@ python3 scripts/normalize_ported_sprite_alpha.py --check   # CI gate, non-zero i
 ### Reproduction
 
 ```sh
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 ./run-live.sh manifest_osrs239_rs2012.ini qbdrepro test --opengl3
 ./run-live.sh manifest_osrs239_rs2012_td.ini tdrepro test --opengl3
 ```
@@ -217,12 +217,12 @@ Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
 `::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
 skills or quest state.
 
-## 2026-08-11 — a from-scratch `mock230-cache-rs2012` rebuild corrupts QBD's awake render
+## 2026-08-11 — a from-scratch `torirsserver-cache-rs2012` rebuild corrupts QBD's awake render
 
 Unrelated to the material/HUD work above: getting the `rs2012_qbd_session.rs2`
 wake-timing constant (see `docs/rs2012_qbd_wakeup/`) to actually take effect
-required rebuilding `mock230-scripts`, which in turn required a from-scratch
-`mock230-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
+required rebuilding `torirsserver-scripts`, which in turn required a from-scratch
+`torirsserver-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
 resolve an unrelated compile blocker. That repack's own `cachepack verify`
 step failed real fidelity checks on the first attempt — before any change in
 this session — flagging sprite payloads that changed length and `script 0`

@@ -106,7 +106,7 @@ osrs230_parse(
              * garbage, which is indistinguishable from a content bug.
              *
              * Unreachable from this repo's own server (the host aborts above
-             * MOCK230_RUNCLIENTSCRIPT_ARG_MAX and the compiler above
+             * TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX and the compiler above
              * SSC_MAX_VARARG_TYPES, both smaller), reachable from any other.
              */
             if( argc >= PKT_RUNCLIENTSCRIPT_ARG_MAX )

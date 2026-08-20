@@ -7,7 +7,7 @@ Decide which npcs stand still, from what other servers independently state.
 
 ## The problem
 
-`mock230_content.c` gives every npc `wanderrange = 5` by default, which is the
+`torirs_server_content.c` gives every npc `wanderrange = 5` by default, which is the
 reference's `NpcType` default and is right: an npc nothing describes should
 drift around its spawn rather than stand frozen. But a large minority of the
 world is *authored* to stand still — a banker behind a booth, a bench, a cat in
@@ -103,7 +103,7 @@ as a first opinion. Npcs no source has ever mentioned get no file.
 Hand-editing a ledger and setting `source = authored` freezes it: later runs
 read it back and never overwrite it.
 
-The config states `wanderrange=0` and nothing else. `mock230_content.c`'s npc
+The config states `wanderrange=0` and nothing else. `torirs_server_content.c`'s npc
 loader seeds a def once and then applies every later block to the same record,
 so this file overlays the npc's existing blocks rather than competing with them
 — no restating, and no chain of generators rewriting each other's output. What
@@ -144,7 +144,7 @@ RESTRICT_WHAT = {
 
 # `settings & 4` in a `.jm2` MAP row is REMOVE_ROOF -- the tiles the client hides
 # roofs over, which is the bit the reference stamps ROOF from and the one
-# `mock230_scene.c` reads into COLL_FLAG_ROOF. Named rather than inlined because
+# `torirs_server_scene.c` reads into COLL_FLAG_ROOF. Named rather than inlined because
 # the same byte carries BLOCK 0x1, LINK_BELOW 0x2 and VIS_BELOW 0x8, and the
 # wrong bit here would be a plausible-looking half-right answer.
 FLOFLAG_REMOVE_ROOF = 4
@@ -420,7 +420,7 @@ def load_roof(content_dir, squares):
     f<settings> u<underlay>`, and `f` is the raw tile settings byte cachepack
     unpacked out of the map archive. Read straight out of the content tree
     rather than by decoding the cache: the tree already holds it, and reading it
-    here is the same byte `mock230_scene.c` stamps ROOF from.
+    here is the same byte `torirs_server_scene.c` stamps ROOF from.
 
     No bridge shift. `apply_terrain_column` takes LINK_BELOW into account for
     the *floor* flag and deliberately does not for the roof one ("Raw cache
@@ -882,7 +882,7 @@ def main():
             "// unfalsifiable, so the stationary decision runs first and this\n"
             "// file leaves those alone.\n"
             "//\n"
-            "// `mock230_content.c` seeds an npc def once and applies every\n"
+            "// `torirs_server_content.c` seeds an npc def once and applies every\n"
             "// later block to the same record, so this file overlays\n"
             "// npc_anims.generated.npc and the area files rather than\n"
             "// shadowing them. An npc whose hand-written block already states\n"

@@ -66,10 +66,10 @@ make -C src sscompile PLATFORM_OBJ_BASE=/path/to/private/scratch
 #    NB: PLATFORM_OBJ_BASE=$S puts the binary at ${S}_opt/sscompile.
 
 # 2. Compile the pack(s). ALWAYS absolute output paths — a relative
-#    MOCK230_SCRIPT_OUT resolves against src/ and grows a phantom tree at
+#    TORIRSSERVER_SCRIPT_OUT resolves against src/ and grows a phantom tree at
 #    src/OSRS-Content/ while the real pack never updates.
 tools/tob_build_packs.sh          # builds build/ AND the lane pack in one go
-# or: make -C src mock230-scripts  (build/ only)
+# or: make -C src torirsserver-scripts  (build/ only)
 
 # 3. CONFIRM the "compiled N scripts to .../script.dat" line. A failed
 #    compile leaves the OLD script.dat in place and every test then reports
@@ -77,22 +77,22 @@ tools/tob_build_packs.sh          # builds build/ AND the lane pack in one go
 #    either way.)
 
 # 4. Run the check.
-./src/build_opt/mock230 --selftest              # baseline: 0 failures
+./src/build_opt/torirsserver --selftest              # baseline: 0 failures
 ```
 
 Rules that keep this honest:
 
-- **Two script packs exist.** `mock230 --selftest` reads
+- **Two script packs exist.** `ToriRSServer --selftest` reads
   `server/scripts/build/`; `./run-live.sh <manifest>` reads whatever the
   manifest's `scripts=` names (e.g. `build_summoning_curses`, a *different
   compile* with lanes on). Compiling one and verifying against it proves
   nothing about the other — this cost a 5-hour session of "you didn't fix
   it". The server now **refuses** a stale pack at boot
-  (`MOCK230_ALLOW_STALE_SCRIPTS=1` is the escape hatch); do not "fix" a
+  (`TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` is the escape hatch); do not "fix" a
   refusal by setting the env var — rebuild the pack it names.
 - **Selftest flavours cover different stanzas.** No env = the real baseline
-  (0 failures). `MOCK230_CACHE=cache.osrs239.rs2012` adds QBD/TD;
-  `+ MOCK230_REV=osrs239` adds Inferno/Zuk/ToB and has a **standing ~203-
+  (0 failures). `TORIRSSERVER_CACHE=cache.osrs239.rs2012` adds QBD/TD;
+  `+ TORIRSSERVER_REV=osrs239` adds Inferno/Zuk/ToB and has a **standing ~203-
   failure baseline** — a result there is a *delta against its own baseline*,
   never a boolean. Run the flavour that covers what you changed. Always the
   `src/build_opt/` binary.
@@ -111,14 +111,14 @@ Rules that keep this honest:
   anything else — Sea Slug's own C-side checks left one `seaslug` npc
   standing, and that alone shifted 15 unrelated RNG-gated checks several
   stanzas later (Tormented Demons weapon-pierce rolls, a concurrent
-  session's own Biohazard test); `mock230_world_npc_free(srv, slot)` +
-  `mock230_world_npc_reap(srv)` right after the check that needed it made
+  session's own Biohazard test); `ToriRSServer_WorldNpcFree(srv, slot)` +
+  `ToriRSServer_WorldNpcReap(srv)` right after the check that needed it made
   the diff clean again.
 - **Headless client runs are only for client-visible behaviour** (anims,
   interfaces, drawing). Embed builds need their own objdir; grep the log for
   `net: this build has no embedded server` before diagnosing anything —
   see [memory: embed-binary-build-isolation]. `TORIRS_SIM_CMD` +
-  `TORIRS_ANIM_DEBUG=1` / `MOCK230_SPLAT_DEBUG=1` / `MOCK230_EXT_DEBUG=1`
+  `TORIRS_ANIM_DEBUG=1` / `TORIRSSERVER_SPLAT_DEBUG=1` / `TORIRSSERVER_EXT_DEBUG=1`
   are the levers.
 
 **Concurrent sessions share this working tree.** Non-negotiables:
@@ -142,7 +142,7 @@ Rules that keep this honest:
   make.
 
 **Never rewrite a source file with a Python script using latin-1** (it
-truncated `mock230_world.c` to 0 bytes). Use the Edit tool; if scripting is
+truncated `torirs_server_world.c` to 0 bytes). Use the Edit tool; if scripting is
 unavoidable: utf-8, build the full string first, write a temp file,
 `os.replace`.
 
@@ -164,8 +164,8 @@ surfaces them one build at a time. Sweep first:
 | Bare `<`, `>`, `<=` inside a `mes()` string | Lexer desync: "no proc named X" pointing at a proc that exists ~100 lines later | Rephrase ("10 or fewer"); `<...>` is tag syntax |
 | `mes(append("lit ",` split across a newline before arg 2 | "expected ')'" reported ~1700 lines later | Keep it on one line |
 | Bare stat/enum names colliding with pack symbols | Compiles to the wrong id, silently (`hitpoints` is also param 2100; a `bolts` category vs obj `bolts` cost every crossbow its ammo bonus) | Symbol resolution takes the lowest-numbered kind. When a name exists in two namespaces, rename one (`bolt_ammo`); `switch_category` does NOT disambiguate |
-| Coord literals in `.enum` files historically read as 0 | Content walks toward world (0,0) | Fixed for `outputtype=coord`; when adding a NEW `.enum` type, check `pack_kind_for_type` in `mock230_content.c` knows it — the literal fallback is `atoi` |
-| A new `param=<name>` on an npc | Silently ignored | Needs a branch in `mock230_content.c` too (npc overlay param whitelist) |
+| Coord literals in `.enum` files historically read as 0 | Content walks toward world (0,0) | Fixed for `outputtype=coord`; when adding a NEW `.enum` type, check `pack_kind_for_type` in `torirs_server_content.c` knows it — the literal fallback is `atoi` |
+| A new `param=<name>` on an npc | Silently ignored | Needs a branch in `torirs_server_content.c` too (npc overlay param whitelist) |
 | `attackrate=N` bare key | Parsed nowhere | Must be `param=attackrate,N` |
 
 Runtime abort "`ran past the last instruction without a return`" is a
@@ -207,10 +207,10 @@ not a missing statement.
   (`configs/all.loc` genuinely has `[slugladder]` etc.) but this cache's own
   Fishing Platform map data placed NONE of them anywhere — the whole
   "help Kennith escape" puzzle was a dead click, discovered only by scanning
-  the built scene for the exact id (`mock230_scene_find_loc_id` over the
+  the built scene for the exact id (`ToriRSServer_SceneFindLocId` over the
   loaded window) and finding nothing, then dumping every REAL loc actually
-  standing near the target NPC (`mock230_scene_find_loc(x,z,lvl,-1)` +
-  `mock230_script_loc_resolve` for the raw id, cross-referenced by counting
+  standing near the target NPC (`ToriRSServer_SceneFindLoc(x,z,lvl,-1)` +
+  `ToriRSServer_ScriptLocResolve` for the raw id, cross-referenced by counting
   `[` blocks in `configs/all.loc` up to that id) to find the cache's actual
   names (`seaslug_ladder`, `seaslug_crane`, `slug_breakable_panel`).
   **A closed/open pair is often a MULTILOC SHELL, not two standalone
@@ -235,7 +235,7 @@ reading as "it got harder at 70%"):
 
 1. **`huntmode=none` AND `retaliate=no`** on any npc whose attacks come from
    a script. `huntmode=none` alone lasts until the first hit —
-   `mock230_combat_hit_npc` latches `combat_target` on damage and the engine
+   `ToriRSServer_CombatHitNpc` latches `combat_target` on damage and the engine
    then runs a second attack clock beside yours. Note
    `combat_stats.generated.npc` emits `huntmode=aggressive` for anything
    with wiki stats, so a generated block can re-arm the bug.
@@ -276,7 +276,7 @@ reading as "it got harder at 70%"):
     drains in the same phase that armed it and decrements first, so
     `npc_queue(..., 1)` fires the same tick; **2 is the first delay that
     survives a tick** (and from inside the npc phase, add one more).
-    `MOCK230_QUEUE_MAX` overflow is an `SSVM_Abort` that kills the REST of
+    `TORIRSSERVER_QUEUE_MAX` overflow is an `SSVM_Abort` that kills the REST of
     the calling proc — a big fight's damage sweep can silently drop the code
     after it.
 11. **`npc_changetype` traps:** all forms need `hitpoints=` (the Maiden's
@@ -353,7 +353,7 @@ reading as "it got harder at 70%"):
   player checking their journal), blocks the drain exactly like it would a
   real player who has not clicked it away. `TORIRS_ANIM_DEBUG=1` shows this
   directly: `queue: script=N BLOCKED tick=T mainmodal=<iface>` repeating
-  with no `FIRE`. Fix: `mock230_world_close_modal(srv)` before the tick
+  with no `FIRE`. Fix: `ToriRSServer_WorldCloseModal(srv)` before the tick
   meant to drain it — but **one close+tick is not always enough on the
   shared `--selftest` player**: earlier stanzas that also call
   `~quest_complete_rewards` leave their OWN stuck `queue(quest_scroll_show,
@@ -411,7 +411,7 @@ reading as "it got harder at 70%"):
    read 0 for weeks — "0 pools on the platform" was vacuous).
 5. **Read state at the right time.** Masks (`anim_id`, damage, run steps)
    are cleared by phase_cleanup inside the tick — probe before ticking or
-   instrument the encoder (`MOCK230_SPLAT_DEBUG`, `MOCK230_EXT_DEBUG`).
+   instrument the encoder (`TORIRSSERVER_SPLAT_DEBUG`, `TORIRSSERVER_EXT_DEBUG`).
 6. **"It does nothing" has two halves** — prove the request reached the
    server and the repaint separately before touching either.
 7. **Re-check a documented blocker before quoting it.** "Blocked on data"

@@ -174,7 +174,7 @@ map_instance_find(coord)
 map_instance_free(handle)
 ```
 
-The pool is **8 concurrent instances** (`src/net/mock/mock230_mapinstance.h:58`),
+The pool is **8 concurrent instances** (`src/torirsserver/torirs_server_mapinstance.h:58`),
 so every exit path must free or the ninth entrant is refused.
 
 ---
@@ -430,7 +430,7 @@ waves 14/30/62 (§2.3), the Tz-Kek split, the five named spawn points and the
 started from:
 
 - **Every wave monster had 10 hitpoints.** `npc_def_seed_from_cache`
-  (`mock230_content.c`) seeds a server record from `g_npc_default` plus the
+  (`torirs_server_content.c`) seeds a server record from `g_npc_default` plus the
   cache's *params*; it does not read `stat1`..`stat6`. With no `.npc` block
   anywhere and no row in `combat_stats.generated.npc`, all eleven wave monsters
   carried the default — a 160-hitpoint Ket-Zek died to one scimitar hit. Nothing
@@ -573,9 +573,9 @@ on the page, not because it lands with the rest.
 ## 11. Verification
 
 ```sh
-make -C src mock230-scripts       # ss_allocate.py + sscompile
-make -C src mock230-servpack
-make -C src test-mock230          # builds, then runs mock230 --selftest
+make -C src torirsserver-scripts       # ss_allocate.py + sscompile
+make -C src torirsserver-servpack
+make -C src test-ToriRSServer          # builds, then runs ToriRSServer --selftest
 ```
 
 **Two fixtures, and the split between them is deliberate.**
@@ -591,7 +591,7 @@ headless suite invokes it and reads the verdict out of `%fightcave_test_fails`,
 which the fixture sets to `-1` on entry so an abort reads as failure rather than
 as a pass it never reached.
 
-The C stanza in `src/net/mock/mock230_world.c` keeps what needs the engine: it
+The C stanza in `src/torirsserver/torirs_server_world.c` keeps what needs the engine: it
 already pinned Jad's authored record (attack speed 8, attack range 15, 250
 hitpoints), that exactly four healers spawn at half health, that a heal is the
 flat +5 and not the Inferno's roll, and that a Jad healed to full summons a
@@ -629,12 +629,12 @@ One trap worth recording for anyone re-running this: `server/scripts/build` is a
 that looks stale — or a `::fightcavetest` that "should run" and does not — is
 usually somebody else's build, or a partially written `script.dat` read before
 its compiler finished. Build with `--out <own dir>` and run with
-`MOCK230_SCRIPTS=<own dir>`, and confirm provenance with
+`TORIRSSERVER_SCRIPTS=<own dir>`, and confirm provenance with
 `strings script.dat | grep fightcavetest`.
 
 ```sh
-make -C src mock230-scripts && make -C src mock230
-MOCK230_REV=osrs239 src/build_opt/mock230 --selftest 2>&1 | grep -i fightcavetest
+make -C src torirsserver-scripts && make -C src ToriRSServer
+TORIRSSERVER_REV=osrs239 src/build_opt/torirsserver --selftest 2>&1 | grep -i fightcavetest
 ```
 
 Expected: no output — the suite prints only failures. A verdict is a bitmask:

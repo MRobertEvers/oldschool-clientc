@@ -1,8 +1,8 @@
 /*
  * The `npc_*` / `nc_*` reads, and the hunt iterators.
  *
- * Fourth of the per-domain opcode files (mock230_ops_db.c is the first and its
- * header states the contract): `mock230_script_command` offers each domain the
+ * Fourth of the per-domain opcode files (torirs_server_ops_db.c is the first and its
+ * header states the contract): `ToriRSServer_ScriptCommand` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
  * What is here is what can be answered from a *record* plus the npc roster:
@@ -16,13 +16,13 @@
  * npc_param was implemented and wrong, which is the worst of the three states
  * ------------------------------------------------------------------
  *
- * `mock230_scripts.c` has carried a `case SS_OP_NPC_PARAM:` since before the
+ * `torirs_server_scripts.c` has carried a `case SS_OP_NPC_PARAM:` since before the
  * param family existed. It compared the popped param id against one
- * `mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop")` — a game-facing
+ * `ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "death_drop")` — a game-facing
  * name spelled in C, which this project's own rules forbid — pushed that one
  * field, and pushed 0 for every other param. It never consulted
- * `mock230_npc_param`, which is loaded and public and would have answered; it
- * never reached `mock230_push_typed_param`, so every result landed on the int
+ * `ToriRSServer_NpcParam`, which is loaded and public and would have answered; it
+ * never reached `ToriRSServer_PushTypedParam`, so every result landed on the int
  * stack whatever `configs/all.param` declared; and it ignored `default=`.
  *
  * That is invisible to every check this repo has. `gen_opcode_coverage.py`
@@ -34,21 +34,21 @@
  * `skill_combat/combat_stats.rs2:383,459,489`.
  *
  * This file claims the opcode. The domain hooks run *before* the switch
- * (mock230_scripts.c's `mock230_script_command`), so the old case is now dead
+ * (torirs_server_scripts.c's `ToriRSServer_ScriptCommand`), so the old case is now dead
  * code that can never execute. **It should be deleted**, and deleting it is a
- * second edit to mock230_scripts.c which this lane's rules do not allow — one
+ * second edit to torirs_server_scripts.c which this lane's rules do not allow — one
  * hook line and nothing else. Stated here rather than left to be discovered:
- * mock230_scripts.c's `case SS_OP_NPC_PARAM:` is unreachable and a change to it
+ * torirs_server_scripts.c's `case SS_OP_NPC_PARAM:` is unreachable and a change to it
  * changes nothing.
  *
  * ------------------------------------------------------------------
  * Reading a field means reading the ungated record
  * ------------------------------------------------------------------
  *
- * `mock230_npcinfo()` reports a "Someone" placeholder for a record with no
+ * `ToriRSServer_NpcInfo()` reports a "Someone" placeholder for a record with no
  * name, which is right for text and wrong for a field: 1,585 of the 9,149
  * cache.osrs239 npc records that carry a category carry no name, and 177 that
- * declare a menu op carry none. `mock230_npcinfo_record()` is the ungated row
+ * declare a menu op carry none. `ToriRSServer_NpcInfoRecord()` is the ungated row
  * and is what every read here goes through.
  *
  * ------------------------------------------------------------------
@@ -76,12 +76,12 @@
  * `NPC_FINDCAT` (:369) — and NpcConfigOps.ts for `NC_CATEGORY`. Engine, one
  * handler per opcode, each a read of `NpcType` or a walk of the zone map. The
  * records themselves are content, and here they are in the cache:
- * mock230_npcinfo.c decodes them once at boot.
+ * torirs_server_npcinfo.c decodes them once at boot.
  */
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_scene.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_scene.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -96,15 +96,15 @@
  * (require 0x010), so this is not re-checking that. It is checking what the
  * table cannot: whether the slot still holds the same live npc.
  */
-static struct Mock230Npc*
+static struct ToriRSServerNpc*
 active_npc(
     struct SSVM_State* state,
     int opcode)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
     int slot = (int)state->host_tag - 1;
 
-    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+    if( !srv || slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active )
     {
         SSVM_Abort(state, "%s: the active npc is gone", SSVM_OpcodeName(opcode));
         return NULL;
@@ -123,7 +123,7 @@ active_npc(
 static void
 set_active_npc(
     struct SSVM_State* state,
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot)
 {
     SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
@@ -145,7 +145,7 @@ set_active_npc(
 static int
 huntable(int npc_type)
 {
-    const struct Mock230NpcInfo* info = mock230_npcinfo_record(npc_type);
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(npc_type);
 
     return info && info->ops[1] != NULL;
 }
@@ -154,11 +154,11 @@ huntable(int npc_type)
  *  the size-1 npcs this roster holds — the same measure `npc_find` uses. */
 static int
 coord_range(
-    const struct Mock230Npc* npc,
+    const struct ToriRSServerNpc* npc,
     int32_t coord)
 {
-    int dx = npc->x - mock230_coord_x(coord);
-    int dz = npc->z - mock230_coord_z(coord);
+    int dx = npc->x - ToriRSServer_CoordX(coord);
+    int dz = npc->z - ToriRSServer_CoordZ(coord);
 
     if( dx < 0 )
         dx = -dx;
@@ -176,11 +176,11 @@ coord_range(
  */
 static int
 euclidean_sq(
-    const struct Mock230Npc* npc,
+    const struct ToriRSServerNpc* npc,
     int32_t coord)
 {
-    int dx = npc->x - mock230_coord_x(coord);
-    int dz = npc->z - mock230_coord_z(coord);
+    int dx = npc->x - ToriRSServer_CoordX(coord);
+    int dz = npc->z - ToriRSServer_CoordZ(coord);
 
     return (dx * dx) + (dz * dz);
 }
@@ -194,29 +194,29 @@ euclidean_sq(
  */
 static int
 search_matches(
-    struct Mock230Server* srv,
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc,
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc,
     int32_t coord,
     int32_t distance,
     int32_t checkvis)
 {
-    if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
-        npc->level != mock230_coord_level(coord) )
+    if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
+        npc->level != ToriRSServer_CoordLevel(coord) )
         return 0;
     if( coord_range(npc, coord) > distance )
         return 0;
-    return mock230_scene_checkvis(checkvis, npc->level, mock230_coord_x(coord),
-                                  mock230_coord_z(coord), npc->x, npc->z);
+    return ToriRSServer_SceneCheckvis(checkvis, npc->level, ToriRSServer_CoordX(coord),
+                                  ToriRSServer_CoordZ(coord), npc->x, npc->z);
 }
 
 int
-mock230_ops_npc(
+ToriRSServer_OpsNpc(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
     (void)dot;
 
@@ -238,8 +238,8 @@ mock230_ops_npc(
     {
         int32_t param_id;
         int32_t authored;
-        struct Mock230Npc* npc;
-        const struct Mock230NpcParam* row;
+        struct ToriRSServerNpc* npc;
+        const struct ToriRSServerNpcParam* row;
 
         if( !SSVM_PopInt(state, &param_id) )
             return 1;
@@ -263,13 +263,13 @@ mock230_ops_npc(
          * which lets a param declared a string over an authored int abort here
          * rather than desynchronise the stacks downstream.
          */
-        if( npc->def && mock230_content_npc_param(npc->def, param_id, &authored) )
+        if( npc->def && ToriRSServer_ContentNpcParam(npc->def, param_id, &authored) )
         {
-            mock230_push_typed_param(state, param_id, NULL, authored, 1, "npc", npc->type);
+            ToriRSServer_PushTypedParam(state, param_id, NULL, authored, 1, "npc", npc->type);
             return 1;
         }
-        row = mock230_npc_param(npc->type, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_NpcParam(npc->type, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "npc", npc->type);
         return 1;
     }
@@ -289,7 +289,7 @@ mock230_ops_npc(
     case SS_OP_NPC_CATEGORY:
     case SS_OP_NC_CATEGORY:
     {
-        const struct Mock230NpcInfo* info;
+        const struct ToriRSServerNpcInfo* info;
         int32_t npc_type;
 
         if( opcode == SS_OP_NC_CATEGORY )
@@ -299,14 +299,14 @@ mock230_ops_npc(
         }
         else
         {
-            struct Mock230Npc* npc = active_npc(state, opcode);
+            struct ToriRSServerNpc* npc = active_npc(state, opcode);
 
             if( !npc )
                 return 1;
             npc_type = npc->type;
         }
 
-        info = mock230_npcinfo_record(npc_type);
+        info = ToriRSServer_NpcInfoRecord(npc_type);
         SSVM_PushInt(state, info ? info->category : 0);
         return 1;
     }
@@ -327,8 +327,8 @@ mock230_ops_npc(
     case SS_OP_NPC_HASOP:
     {
         int32_t op;
-        struct Mock230Npc* npc;
-        const struct Mock230NpcInfo* info;
+        struct ToriRSServerNpc* npc;
+        const struct ToriRSServerNpcInfo* info;
 
         if( !SSVM_PopInt(state, &op) )
             return 1;
@@ -336,7 +336,7 @@ mock230_ops_npc(
         if( !npc )
             return 1;
 
-        info = mock230_npcinfo_record(npc->type);
+        info = ToriRSServer_NpcInfoRecord(npc->type);
         if( !info || op < 1 || op > 5 )
         {
             SSVM_PushInt(state, 0);
@@ -374,9 +374,9 @@ mock230_ops_npc(
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
         srv->iterator.kind = SSVM_ENT_NPC;
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            const struct Mock230Npc* npc = &srv->npcs[slot];
+            const struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
             if( !search_matches(srv, srv->active_player, npc, coord, distance, checkvis) ||
                 !huntable(npc->type) )
@@ -395,7 +395,7 @@ mock230_ops_npc(
      * `NpcOps.ts:439` builds a `NpcIterator` in `NpcIteratorType.ZONE` mode,
      * which is the reference's *only* iterator that reads a zone's own npc list
      * rather than sweeping a radius — so the shape to copy here is
-     * `SS_OP_LOC_FINDALLZONE` (mock230_scripts.c), not `npc_findall` beside it.
+     * `SS_OP_LOC_FINDALLZONE` (torirs_server_scripts.c), not `npc_findall` beside it.
      * A zone is 8x8 and `$coord` names any tile in it, which is why the bounds
      * come from masking rather than from the coord itself.
      *
@@ -423,19 +423,19 @@ mock230_ops_npc(
             return 1;
         if( !srv )
             return 1;
-        zone_x = mock230_coord_x(coord) & ~7;
-        zone_z = mock230_coord_z(coord) & ~7;
+        zone_x = ToriRSServer_CoordX(coord) & ~7;
+        zone_z = ToriRSServer_CoordZ(coord) & ~7;
 
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
         srv->iterator.kind = SSVM_ENT_NPC;
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            const struct Mock230Npc* npc = &srv->npcs[slot];
+            const struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
             if( !npc->active ||
-                !mock230_world_npc_visible_to(srv, npc, srv->active_player) ||
-                npc->level != mock230_coord_level(coord) )
+                !ToriRSServer_WorldNpcVisibleTo(srv, npc, srv->active_player) ||
+                npc->level != ToriRSServer_CoordLevel(coord) )
                 continue;
             if( npc->x < zone_x || npc->x >= zone_x + 8 || npc->z < zone_z ||
                 npc->z >= zone_z + 8 )
@@ -484,9 +484,9 @@ mock230_ops_npc(
             return 1;
         }
 
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            const struct Mock230Npc* npc = &srv->npcs[slot];
+            const struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int rank;
 
             if( !search_matches(srv, srv->active_player, npc, coord, distance, checkvis) )
@@ -498,7 +498,7 @@ mock230_ops_npc(
             }
             else
             {
-                const struct Mock230NpcInfo* info = mock230_npcinfo_record(npc->type);
+                const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(npc->type);
 
                 if( !info || info->category != category )
                     continue;
@@ -541,32 +541,32 @@ mock230_ops_npc(
  * `npc_walk` (108 uses / 45 files) and `npc_walktrigger` (9/2).
  *     The largest npc gap in the tree, and it is engine state rather than an
  *     opcode. NpcOps.ts:451 is `activeNpc.queueWaypoint(x, z)`: a *queue* the
- *     tick drains. `struct Mock230Npc` has no destination and no waypoint
- *     queue; the only mover is `mock230_world_npc_walk_to`, which takes one
+ *     tick drains. `struct ToriRSServerNpc` has no destination and no waypoint
+ *     queue; the only mover is `ToriRSServer_WorldNpcWalkTo`, which takes one
  *     step toward a target passed in by its caller and is called only from
  *     inside phase 4 (`advance_npcs`) and the combat tick. Landing it honestly
  *     means a waypoint queue on the npc plus a drain in `advance_npcs`, ahead
- *     of the mode machine and behind combat — engine work in mock230_world.c,
+ *     of the mode machine and behind combat — engine work in torirs_server_world.c,
  *     which is not what an ops file is. Faking it as a teleport would make 45
  *     files *look* ported while every npc arrived instantly, which is worse
  *     than the stub because it is silent.
  *
  * ~~`npc_statheal` (16/10), `npc_statsub` (9/6), `npc_statadd` (1/1)~~ — **all
- * three are implemented**, in mock230_scripts.c beside `npc_stat`.
+ * three are implemented**, in torirs_server_scripts.c beside `npc_stat`.
  *     This row's reason ("this engine has no per-npc mutable stat store:
  *     `SS_OP_NPC_STAT` reads `npc->def->attack/...` straight off the content
  *     block and hitpoints is the only number that moves") expired without being
  *     edited, which is PORTING_GUIDE §2.4 item 7 happening to this file:
- *     `Mock230Npc.stat_drain[]` is that store, `npc_statsub` landed against it
+ *     `ToriRSServerNpc.stat_drain[]` is that store, `npc_statsub` landed against it
  *     and `npc_statheal` against `hitpoints`/`base_hitpoints`, and both were
  *     sitting a hundred lines from a paragraph saying they could not be written.
  *     `npc_statadd` (NpcOps.ts:507) landed 2026-08-08 alongside them, and its
  *     clamp is what distinguishes the three: heal stops at the authored base,
- *     add stops at `MOCK230_NPC_STAT_MAX`, sub cannot restore past the base.
- *     A stat boost is a negative drain, which `Mock230Npc.stat_drain` states.
+ *     add stops at `TORIRSSERVER_NPC_STAT_MAX`, sub cannot restore past the base.
+ *     A stat boost is a negative drain, which `ToriRSServerNpc.stat_drain` states.
  *
  * ~~`npc_changetype_keepall` (36/17)~~ — implemented as the fallthrough above
- * `npc_changetype` in mock230_scripts.c.
+ * `npc_changetype` in torirs_server_scripts.c.
  *     Npc.ts:438-455 distinguishes it by retaining separate current/base stat
  *     arrays.  This engine represents non-hitpoint bases through `npc->def`
  *     and only stores their drain, so both labels use the same definition and
@@ -582,14 +582,14 @@ mock230_ops_npc(
  *     out loud.
  *
  * `npc_sethunt` (1/1) — and **not** `npc_sethuntmode` (14/7), which landed in
- * mock230_scripts.c as the two-value reduction its own case documents.
+ * torirs_server_scripts.c as the two-value reduction its own case documents.
  *     What is still missing is a `hunt` config namespace and a per-tick hunt
  *     pass. `npc_hunt` / `npc_huntall` above are pure searches and now
  *     honour HuntVis (`checkvis`).
  *
  * `npc_arrivedelay` (2/2).
  *     Needs `lastMovement` compared against the current tick (NpcOps.ts:542) —
- *     a field written by the mover, in mock230_world.c. Two uses.
+ *     a field written by the mover, in torirs_server_world.c. Two uses.
  *
  * `npc_inrange` (2/1).
  *     `targetWithinMaxRange()` (Npc.ts:635) reads the npc's `target`,

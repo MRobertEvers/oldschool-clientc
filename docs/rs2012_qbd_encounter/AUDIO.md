@@ -157,7 +157,7 @@ ported.
 
 ### 4.4 A foreign OldSchool ambient bed drone over the 2012 arena — **fixed**
 
-`mock230_world.c` sent `AMBIENTSOUND_START(soundscape 1)` once at login and
+`torirs_server_world.c` sent `AMBIENTSOUND_START(soundscape 1)` once at login and
 never revised it; the comment said so plainly ("that is not authenticity, it is
 *reachability*"). That made the bed a property of the *session* rather than of
 the place — so an OldSchool soundscape (group 15 is a 231+ type rev 727 does
@@ -168,7 +168,7 @@ Three changes:
 
 - The bed now hangs off the **map-square latch**, beside the music that is
   keyed the same way, through the same instance-aware square resolver
-  (`mock230_region_square_for` — an instanced player's own square describes
+  (`ToriRSServer_RegionSquareFor` — an instanced player's own square describes
   nothing, so both resolve through the square the instance was copied from).
   There is still no region→soundscape data in any cache, so the bed itself is
   still one placeholder for the whole world; what is now per-square is who
@@ -194,13 +194,13 @@ teardown says nothing about ambience at all.
 ```sh
 # Content tree + composed cache, including every sample payload
 python3 tools/test_rs2012_audio_bridge.py
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 
 # The codec change itself
 make -C 3rd/rscache build/test_rs530_codec && 3rd/rscache/build/test_rs530_codec
 
 # The ambient bed: the claim, its release, and the command reaching its handler
-make -C src test-mock230 test-mock230-coverage
+make -C src test-ToriRSServer test-torirsserver-coverage
 ```
 
 `test_rs2012_audio_bridge.py` is the contract: 29 synths, 106 samples + the

@@ -81,7 +81,7 @@ Every landing in every course is now standable — 172 of 172, checked by
 Getting there needed one correction to the audit itself, and it is the trap
 worth remembering: **an empty collision flag word means an ordinary open
 tile**, not missing data. The map's BLOCK setting is what stamps the floor
-flag (`apply_terrain_column`, mock230_scene.c), so no flags at all means
+flag (`apply_terrain_column`, torirs_server_scene.c), so no flags at all means
 nothing blocks the tile — the middle of Lumbridge's field reads zero. A version
 of this audit that read zero as "no scene data" called three quarters of every
 course's landings broken, and came close to "correcting" eight working
@@ -176,7 +176,7 @@ probe caught all five. This is the tool that unblocks Shayzien, Ape Atoll,
 Werewolf, Penguin, Dorgesh-Kaan, Prifddinas and Colossal Wyrm.
 
 Verification at this checkpoint: `::agilityrun` (a new debugproc, wired into
-`mock230 --selftest`) passes ~50 deterministic checks; `tools/agility_xp_audit.py`
+`ToriRSServer --selftest`) passes ~50 deterministic checks; `tools/agility_xp_audit.py`
 reports 11 courses matching their published lap totals. Both were proved able
 to fail by mutating the implementation — the lap tracker made to tolerate
 skips (3 checks red), the interpolation's rounding term removed (1 red, and
@@ -193,7 +193,7 @@ still read `stat_base` at their call sites, which is what keeps Ape Atoll's
 unboostable 48 unboostable.
 
 The shared content tree is being edited by other sessions concurrently, so the
-full `make -C src mock230-scripts` intermittently fails in unrelated features
+full `make -C src torirsserver-scripts` intermittently fails in unrelated features
 (construction, quests, gauntlet, wintertodt). Agility is verified against an
 isolated HEAD+skill_agility overlay when that happens; four unrelated
 compile-blocking edits were repaired in passing (a comparison used as an
@@ -346,7 +346,7 @@ course to half-adopt it.
 **Landed.** The formula pair is an era decision, selected by
 `run_energy_model` in the feature table
 ([features.h](../src/features/features.h), `enum ToriRS_RunEnergyModel`) and
-implemented in [mock230_runenergy.c](../src/net/mock/mock230_runenergy.c):
+implemented in [torirs_server_runenergy.c](../src/torirsserver/torirs_server_runenergy.c):
 
 | model | drain per running tick | restore per idle tick |
 |---|---|---|
@@ -357,7 +357,7 @@ Zero stays the 2004 pair, per the table's zero-is-classic rule; the `osrs` era
 selects the modern one because every Agility number in this document is a
 current-wiki number. Server-only — the client is sent a percentage and computes
 nothing — so there is no client half to keep in step. Overridable per boot with
-`MOCK230_RUN_ENERGY=classic|osrs2025`, which is what makes the two answers
+`TORIRSSERVER_RUN_ENERGY=classic|osrs2025`, which is what makes the two answers
 measurable back to back on one account, and reported in the boot's own feature
 line (`run_energy=osrs2025`). Verified by `make -C src test-run-energy` (the
 arithmetic, as literals from each reference) and by the world selftest (the
@@ -953,7 +953,7 @@ live in Fishing).
 ### 8.1 Run energy modifiers (blocking A18, and the reason Agility matters)
 
 The formulas themselves are done: `run_energy_tick` now calls
-[mock230_runenergy.c](../src/net/mock/mock230_runenergy.c) through the era
+[torirs_server_runenergy.c](../src/torirsserver/torirs_server_runenergy.c) through the era
 flag (§1.6), and `player_weight_grams` already computes weight correctly from
 cache opcode 75 (stackables excluded, negatives preserved), so a
 weight-reducing set's negative total reaches the model and is clamped there.
@@ -962,7 +962,7 @@ What is left is the three multipliers, which need a content-visible seam:
 worn-graceful detection and the stamina timer are content state, and
 `ring_of_endurance.rs2`'s header already records that no drain-rate hook
 exists. `SS_OP_RUNENERGY` (2100) and `SS_OP_HEALENERGY` (2026)
-are implemented in `mock230_scripts.c`; a `%runenergy_drain_scale`-style
+are implemented in `torirs_server_scripts.c`; a `%runenergy_drain_scale`-style
 varp read by the tick, or an engine-side worn-item check, are the two options —
 prefer the engine-side check for graceful (it is cache data) and a timer varp
 for stamina.
@@ -1002,7 +1002,7 @@ Per slice:
    before and after.
 2. **Config/spawn loader clean** — new `.loc`/`.varp`/`.dbrow`/`.spawn` files
    load without error (the missing `==== NPC ====` header class of failure).
-3. **`::agilityrun`** — a new debugproc in the `mock230 --selftest` family,
+3. **`::agilityrun`** — a new debugproc in the `ToriRSServer --selftest` family,
    modelled on `::hunterrun` and the fishing harness, asserting:
    - every course's per-obstacle XP against the published table, and its lap
      total;
@@ -1033,7 +1033,7 @@ implementation, not the constant — see
 
 1. ~~**Owner-scoped ground objects** (§8.3)~~ — **resolved**: the engine already
    has `obj_add_private(coord, obj, count, duration, private_ticks)`
-   (`mock230_scripts.c`), so a mark of grace is placed owner-only for its whole
+   (`torirs_server_scripts.c`), so a mark of grace is placed owner-only for its whole
    ten minutes.
 2. **Quest gates.** `quests/` already contains Cold War, Monkey Madness I,
    Death to the Dorgeshuun, Creature of Fenkenstrain, Sins of the Father,

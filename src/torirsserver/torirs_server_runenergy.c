@@ -1,4 +1,4 @@
-#include "mock230_runenergy.h"
+#include "torirs_server_runenergy.h"
 
 #include "features/features.h"
 
@@ -27,7 +27,7 @@ clamp_agility(int agility_level)
 }
 
 int
-mock230_run_energy_drain(
+ToriRSServer_RunEnergyDrain(
     int model,
     int weight_kg,
     int agility_level)
@@ -57,7 +57,7 @@ mock230_run_energy_drain(
 }
 
 int
-mock230_run_energy_restore(
+ToriRSServer_RunEnergyRestore(
     int model,
     int agility_level)
 {

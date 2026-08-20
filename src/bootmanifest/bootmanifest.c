@@ -553,6 +553,30 @@ bm_set_kv(
                     value);
             return;
         }
+        if( strcmp(key, "chrome_scale") == 0 )
+        {
+            int scale;
+            /* `dynamic`: follow the CANVAS, not the display -- a fullscreen
+             * canvas at 2x the classic frame gets 2x chrome, so the panels
+             * keep their proportion of the screen instead of shrinking into a
+             * corner of it. Carried as -1; the frame loop derives the value. */
+            if( strcmp(value, "dynamic") == 0 )
+            {
+                bm->chrome_scale = -1;
+                return;
+            }
+            scale = atoi(value);
+            if( scale < 1 || scale > 4 )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [ui] chrome_scale must be 1..4 or dynamic, got '%s'\n",
+                    value);
+                return;
+            }
+            bm->chrome_scale = scale;
+            return;
+        }
         if( strcmp(key, "window") == 0 )
         {
             char* sep = NULL;
@@ -1267,6 +1291,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->interface_id = bm->interface_id;
     if( bm->window_mode )
         cfg->window_mode = bm->window_mode;
+    if( bm->chrome_scale )
+        cfg->chrome_scale = bm->chrome_scale;
     if( bm->window_w > 0 && bm->window_h > 0 )
     {
         cfg->window_w = bm->window_w;

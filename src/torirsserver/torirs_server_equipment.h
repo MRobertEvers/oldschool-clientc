@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_EQUIPMENT_H
-#define SRC_NET_MOCK_MOCK230_EQUIPMENT_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_EQUIPMENT_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_EQUIPMENT_H
 
 /*
  * What the engine still owns of the worn tab and the equipment-stats screen.
@@ -11,12 +11,12 @@
  * the fight rolls against, so the screen cannot disagree with the fight.
  *
 * Only two functions remain, and neither of them names a component: the wear
- * gate went to content with MOCK230_FALLBACK_OPHELD (see mock230_equipment.c).
+ * gate went to content with TORIRSSERVER_FALLBACK_OPHELD (see torirs_server_equipment.c).
  *
- * See docs/mock230_player_systems.md §3.
+ * See docs/torirs_server_player_systems.md §3.
  */
 
-struct Mock230Server;
+struct ToriRSServer;
 
 /**
  * Which equipment slot a component of the worn tab stands for, or -1.
@@ -26,14 +26,14 @@ struct Mock230Server;
  * skip 6, 8 and 11. See player/configs/worn.enum.
  */
 int
-mock230_equipment_worn_slot(int component);
+ToriRSServer_EquipmentWornSlot(int component);
 
 /**
  * Component which represents a worn slot, or -1 when content does not expose
- * one.  This is the inverse lookup of mock230_equipment_worn_slot().
+ * one.  This is the inverse lookup of ToriRSServer_EquipmentWornSlot().
  */
 int
-mock230_equipment_worn_component(int worn_slot);
+ToriRSServer_EquipmentWornComponent(int worn_slot);
 
 /**
  * Open the screen, for a caller that is not the button.
@@ -43,7 +43,7 @@ mock230_equipment_worn_component(int worn_slot);
  * `::equipstats` cheat, which opens the screen without walking the sidebar.
  */
 void
-mock230_equipment_open_stats(struct Mock230Server* srv);
+ToriRSServer_EquipmentOpenStats(struct ToriRSServer* srv);
 
 /**
  * Ask content to repaint any open bonus view after the worn container changed.
@@ -53,7 +53,7 @@ mock230_equipment_open_stats(struct Mock230Server* srv);
  * engine's share; which view and what gets painted is the proc's.
  */
 void
-mock230_equipment_refresh_stats(struct Mock230Server* srv);
+ToriRSServer_EquipmentRefreshStats(struct ToriRSServer* srv);
 
 
 #endif

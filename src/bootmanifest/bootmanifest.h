@@ -55,7 +55,7 @@
  *                 `none` no fallback at all. Absent keeps the era's. Only the
  *                 client's own routing reads this — under a server-authoritative
  *                 era the server answers the click, so set the same model there
- *                 (mock230: MOCK230_GROUND_CLICK_NEAREST).
+ *                 (torirsserver: TORIRSSERVER_GROUND_CLICK_NEAREST).
  *                 painter_draw_distance=<25..90>
  *                 Painter radius in tiles. Client-TS is fixed at 25. Modern
  *                 OSRS class112.method3959 accepts 25 through 90 inclusive;
@@ -364,6 +364,9 @@ struct BootManifest
      * display preference, and the client has nowhere else to keep one (there is
      * no settings save, and the cache's own dropdown script is unbound). */
     int window_mode;
+    /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
+     *  the chrome follows the display's pixel density. */
+    int chrome_scale;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
      * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
     int window_w;

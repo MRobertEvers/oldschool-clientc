@@ -8,7 +8,7 @@ The timelapse and screenshots are genuine, unedited captures, but they were all
 taken against a **stale compiled server-script cache** that was still running
 the pre-fix `^rs2012_qbd_wake_anim_ticks = 42` value from before an earlier
 session's `c8b6dacb "fix qbd times"` commit — the source constant had been
-edited to `28`, but nothing had recompiled `mock230-scripts`/`mock230-servpack`
+edited to `28`, but nothing had recompiled `torirsserver-scripts`/`torirsserver-servpack`
 since, so the running server never picked it up. What the timelapse actually
 shows is the *old, already-diagnosed* bug: with the switch scheduled far later
 than the animation's own ~17s runtime, the client's primary animation track
@@ -23,7 +23,7 @@ Two independent off-by-N errors, both now fixed in
 `rs2012_qbd.constant`:
 
 1. **The compiled cache was stale.** Editing `.rs2`/`.constant` source has no
-   effect until `mock230-scripts` and `mock230-servpack` are rebuilt — this
+   effect until `torirsserver-scripts` and `torirsserver-servpack` are rebuilt — this
    project has no watch/auto-recompile step. Confirmed precisely by
    instrumenting the server's queue dispatcher (`TORIRS_ANIM_DEBUG`, see below):
    `rs2012_qbd_begin` (the switch) fired **43** real ticks after
@@ -33,7 +33,7 @@ Two independent off-by-N errors, both now fixed in
    the expected value.
 2. **`queue(proc, N, arg)` waits `N + 1` real ticks, not `N`.** `SS_OP_QUEUE`
    stores `delay + 1` and the drain pre-decrements before checking
-   (`mock230_scripts.c`, "+1 so delay 0 means next tick, not this one"). The
+   (`torirs_server_scripts.c`, "+1 so delay 0 means next tick, not this one"). The
    `28`-tick constant was computed as the animation's raw duration
    (`ceil(836 cycles * 20ms / 600ms) = 28`) and passed straight to `queue()`,
    which actually produced a 29-tick wait — one tick past the animation's
@@ -61,19 +61,19 @@ out and fall back to sleeping idle first.
 
 ```sh
 export PATH="$PWD/toolchain/mingw64/bin:$PATH"
-mingw32-make -C src mock230-scripts mock230-servpack
+mingw32-make -C src torirsserver-scripts torirsserver-servpack
 mingw32-make -C src EMBED_SERVER=1 CC=gcc win64
 cp src/torirs_win64.exe dist/win64/torirs.exe
 ```
 
-`mock230-scripts`/`mock230-servpack` do **not** depend on `mock230-cache-rs2012`
+`torirsserver-scripts`/`torirsserver-servpack` do **not** depend on `torirsserver-cache-rs2012`
 (the client-facing asset cache) — they only need `sscompile` and the
 `server/pack` band. Rebuilding just those two is enough for a script/constant
 change to take effect; you do not need a full cache rebuild for that.
 
 ### A pre-existing, unrelated build break this hit along the way
 
-`mock230-scripts` fails out of the box on `OSRS-Content/.../ported_scape2009_
+`torirsserver-scripts` fails out of the box on `OSRS-Content/.../ported_scape2009_
 summoning/scripts/summoning_spirit_wolf.rs2:22: unknown variable
 '%content_restrict_summoning_serverside'`. The varbit is declared
 (`ported/scape2009_summoning/configs/summoning.varbit`) but `sscompile`'s
@@ -83,7 +83,7 @@ symbol lives in the aggregate `configs/all.varbit.compack`, not the standalone
 (`SUMMONING_VARBIT_STAGE`) into an extra `--pack` path, rather than adding the
 whole `configs/` directory — that directory holds ~1600 text records for every
 summoning cohort creature that are known-stale against the lane's own `pack/`
-(see the `mock230-cache-summoning` comment in the makefile), and pointing
+(see the `torirsserver-cache-summoning` comment in the makefile), and pointing
 `sscompile` at all of it reintroduces that drift into every other lane's
 symbol table. Confirmed the hard way: doing it the broad way was tried first
 and it visibly corrupted QBD's own rendering (see below) — the scoped,
@@ -91,8 +91,8 @@ single-file fix does not.
 
 ## Open issue: cache-rebuild also broke QBD's render — separate from the above, unresolved
 
-Getting `mock230-scripts` to rebuild at all first required running
-`mock230-cache-rs2012`, which deletes and fully repacks `cache.osrs239.rs2012`
+Getting `torirsserver-scripts` to rebuild at all first required running
+`torirsserver-cache-rs2012`, which deletes and fully repacks `cache.osrs239.rs2012`
 from scratch. That repack's own `cachepack verify` step failed on real,
 pre-existing fidelity checks (sprite payloads changing length; `script 0`
 failing to decode with `trailer=modern`) — on the very first attempt, before
@@ -125,11 +125,11 @@ uncommitted-behavior-wise — every print is a no-op unless the env var is set:
 - `src/world/world_cycle.c`: `loopback: seq=S frame=F count=C frame_step=FS
   max_loops=ML loop=L stepped=ST -> STOP|LOOP` — fires once per animation
   loop-back/stop decision.
-- `src/net/mock/mock230_scripts.c` (`drain_queue`): `queue: script=S FIRE
+- `src/torirsserver/torirs_server_scripts.c` (`drain_queue`): `queue: script=S FIRE
   tick=T` when a queued proc actually runs, and `queue: script=S BLOCKED
   tick=T delayed_until=D mainmodal=M chatmodal=C` when a due entry is held by
   `player_can_access`.
-- `src/net/mock/mock230_combat.c` (`mock230_anim_play_npc`): `srv: npc_anim
+- `src/torirsserver/torirs_server_combat.c` (`ToriRSServer_AnimPlayNpc`): `srv: npc_anim
   npc=P seq=S delay=D (was playing W)` — every server-side `npc_anim` call.
 - `src/main.c` (`TORIRS_BMP_SERIES` writer): `bmp_series: frame_count=N` —
   correlates a screenshot's app-level frame number with the above traces from

@@ -1,15 +1,15 @@
 /*
  * `.dbtable` / `.dbrow` — the server's client-database tables.
  *
- * See mock230_db.h for the shape and for why these are a different population
- * from the cache's db tables. This file is the reader; mock230_ops_db.c is the
+ * See torirs_server_db.h for the shape and for why these are a different population
+ * from the cache's db tables. This file is the reader; torirs_server_ops_db.c is the
  * RuneScript surface over it.
  *
  * Two things here are worth knowing before editing:
  *
  * **Tables must be fully read before any row is.** A `data=` line cannot be
  * parsed without its column's declared tuple types — `data=coord_pair,A,B` is
- * two coords or one string depending on the table — so mock230_db_load makes two
+ * two coords or one string depending on the table — so ToriRSServer_DbLoad makes two
  * passes over the tree rather than one. A single walk that happened to read
  * tables first would work until someone added a `.dbrow` that sorted earlier.
  *
@@ -18,7 +18,7 @@
  * would silently reinterpret every tuple after it in that column.
  */
 
-#include "mock230_db.h"
+#include "torirs_server_db.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -27,16 +27,16 @@
 #include <string.h>
 #include <sys/stat.h>
 
-/* Declared in mock230_content.h. Routed through there so a bad line in a
+/* Declared in torirs_server_content.h. Routed through there so a bad line in a
  * `.dbtable` counts the same as a bad line anywhere else and the server refuses
  * to start on it. */
-#define DB_ERROR(...) mock230_content_report_error(__VA_ARGS__)
+#define DB_ERROR(...) ToriRSServer_ContentReportError(__VA_ARGS__)
 
-static struct Mock230DbTable* g_tables;
+static struct ToriRSServerDbTable* g_tables;
 static int g_table_count;
 static int g_table_capacity;
 
-static struct Mock230DbRow* g_rows;
+static struct ToriRSServerDbRow* g_rows;
 static int g_row_count;
 static int g_row_capacity;
 
@@ -109,26 +109,26 @@ db_type_is_literal(const char* name)
     return 0;
 }
 
-/** The pack a declared type resolves against, or MOCK230_PACK_COUNT for a
- *  literal. Mirrors mock230_content.c's `.enum` type table — same question. */
-static enum Mock230PackKind
+/** The pack a declared type resolves against, or TORIRSSERVER_PACK_COUNT for a
+ *  literal. Mirrors torirs_server_content.c's `.enum` type table — same question. */
+static enum ToriRSServerPackKind
 db_kind_for_type(const char* name)
 {
     static const struct
     {
         const char* name;
-        enum Mock230PackKind kind;
+        enum ToriRSServerPackKind kind;
     } k_map[] = {
-        { "npc", MOCK230_PACK_NPC },           { "namedobj", MOCK230_PACK_OBJ },
-        { "obj", MOCK230_PACK_OBJ },           { "loc", MOCK230_PACK_LOC },
-        { "seq", MOCK230_PACK_SEQ },           { "spotanim", MOCK230_PACK_SPOTANIM },
-        { "inv", MOCK230_PACK_INV },           { "varp", MOCK230_PACK_VARP },
-        { "interface", MOCK230_PACK_INTERFACE },
-        { "component", MOCK230_PACK_COMPONENT },
-        { "stat", MOCK230_PACK_STAT },         { "param", MOCK230_PACK_PARAM },
-        { "category", MOCK230_PACK_CATEGORY }, { "enum", MOCK230_PACK_ENUM },
-        { "struct", MOCK230_PACK_STRUCT },     { "dbrow", MOCK230_PACK_DBROW },
-        { "dbtable", MOCK230_PACK_DBTABLE },
+        { "npc", TORIRSSERVER_PACK_NPC },           { "namedobj", TORIRSSERVER_PACK_OBJ },
+        { "obj", TORIRSSERVER_PACK_OBJ },           { "loc", TORIRSSERVER_PACK_LOC },
+        { "seq", TORIRSSERVER_PACK_SEQ },           { "spotanim", TORIRSSERVER_PACK_SPOTANIM },
+        { "inv", TORIRSSERVER_PACK_INV },           { "varp", TORIRSSERVER_PACK_VARP },
+        { "interface", TORIRSSERVER_PACK_INTERFACE },
+        { "component", TORIRSSERVER_PACK_COMPONENT },
+        { "stat", TORIRSSERVER_PACK_STAT },         { "param", TORIRSSERVER_PACK_PARAM },
+        { "category", TORIRSSERVER_PACK_CATEGORY }, { "enum", TORIRSSERVER_PACK_ENUM },
+        { "struct", TORIRSSERVER_PACK_STRUCT },     { "dbrow", TORIRSSERVER_PACK_DBROW },
+        { "dbtable", TORIRSSERVER_PACK_DBTABLE },
     };
 
     for( size_t i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
@@ -136,7 +136,7 @@ db_kind_for_type(const char* name)
         if( strcmp(name, k_map[i].name) == 0 )
             return k_map[i].kind;
     }
-    return MOCK230_PACK_COUNT;
+    return TORIRSSERVER_PACK_COUNT;
 }
 
 /*
@@ -191,7 +191,7 @@ db_parse_coord(
 /* Lookups                                                             */
 /* ------------------------------------------------------------------ */
 
-static struct Mock230DbTable*
+static struct ToriRSServerDbTable*
 table_by_symbol(const char* symbol)
 {
     for( int i = 0; i < g_table_count; i++ )
@@ -202,8 +202,8 @@ table_by_symbol(const char* symbol)
     return NULL;
 }
 
-const struct Mock230DbTable*
-mock230_db_table(int table_id)
+const struct ToriRSServerDbTable*
+ToriRSServer_DbTable(int table_id)
 {
     if( table_id < 0 )
         return NULL;
@@ -215,8 +215,8 @@ mock230_db_table(int table_id)
     return NULL;
 }
 
-const struct Mock230DbRow*
-mock230_db_row(int row_id)
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRow(int row_id)
 {
     if( row_id < 0 )
         return NULL;
@@ -229,8 +229,8 @@ mock230_db_row(int row_id)
 }
 
 int
-mock230_db_column_index(
-    const struct Mock230DbTable* table,
+ToriRSServer_DbColumnIndex(
+    const struct ToriRSServerDbTable* table,
     const char* name)
 {
     assert(table);
@@ -244,7 +244,7 @@ mock230_db_column_index(
 }
 
 int
-mock230_db_row_count(int table_id)
+ToriRSServer_DbRowCount(int table_id)
 {
     int count = 0;
 
@@ -260,7 +260,7 @@ mock230_db_row_count(int table_id)
  * The index-th row of a table in *ascending row id*, which is the order
  * `DB_LISTALL` is defined to walk.
  *
- * Separate from `mock230_db_row_in_table` on purpose, and the separation is the
+ * Separate from `ToriRSServer_DbRowInTable` on purpose, and the separation is the
  * whole point of this function existing.
  *
  * **Why the order matters.** `DB_LISTALL` hands content a positional cursor —
@@ -302,8 +302,8 @@ db_ordered_cmp(
     const void* a,
     const void* b)
 {
-    const struct Mock230DbRow* left = &g_rows[*(const int*)a];
-    const struct Mock230DbRow* right = &g_rows[*(const int*)b];
+    const struct ToriRSServerDbRow* left = &g_rows[*(const int*)a];
+    const struct ToriRSServerDbRow* right = &g_rows[*(const int*)b];
 
     if( left->table_id != right->table_id )
         return left->table_id < right->table_id ? -1 : 1;
@@ -330,8 +330,8 @@ db_ordered_build(void)
     g_ordered_count = g_row_count;
 }
 
-const struct Mock230DbRow*
-mock230_db_row_in_table_ordered(
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRowInTableOrdered(
     int table_id,
     int index)
 {
@@ -343,7 +343,7 @@ mock230_db_row_in_table_ordered(
     /* Sorted by (table_id, row_id), so a table's rows are contiguous. */
     for( int i = 0; i < g_ordered_count; i++ )
     {
-        const struct Mock230DbRow* first = &g_rows[g_ordered[i]];
+        const struct ToriRSServerDbRow* first = &g_rows[g_ordered[i]];
 
         if( first->table_id < table_id )
             continue;
@@ -352,7 +352,7 @@ mock230_db_row_in_table_ordered(
         if( i + index >= g_ordered_count )
             return NULL;
         {
-            const struct Mock230DbRow* row = &g_rows[g_ordered[i + index]];
+            const struct ToriRSServerDbRow* row = &g_rows[g_ordered[i + index]];
 
             return row->table_id == table_id ? row : NULL;
         }
@@ -360,8 +360,8 @@ mock230_db_row_in_table_ordered(
     return NULL;
 }
 
-const struct Mock230DbRow*
-mock230_db_row_in_table(
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRowInTable(
     int table_id,
     int index)
 {
@@ -389,14 +389,14 @@ load_dbtable_file(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[1024];
-    struct Mock230DbTable* table = NULL;
+    struct ToriRSServerDbTable* table = NULL;
     int line_number = 0;
 
     if( !file )
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -404,7 +404,7 @@ load_dbtable_file(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             g_tables = db_grow(g_tables, &g_table_capacity, g_table_count,
@@ -412,14 +412,14 @@ load_dbtable_file(const char* path)
             table = &g_tables[g_table_count++];
             memset(table, 0, sizeof(*table));
             table->symbol = strdup(header);
-            table->table_id = mock230_content_symbol(MOCK230_PACK_DBTABLE, header);
+            table->table_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBTABLE, header);
             if( table->table_id < 0 )
                 DB_ERROR("%s:%d: dbtable `%s` has no id — run tools/ss_allocate.py\n",
                          path, line_number, header);
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !table )
         {
             DB_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -430,14 +430,14 @@ load_dbtable_file(const char* path)
             continue;
 
         {
-            struct Mock230DbColumn* column;
+            struct ToriRSServerDbColumn* column;
             char* cursor = value;
             char* comma;
 
-            if( table->column_count >= MOCK230_DB_COLUMN_MAX )
+            if( table->column_count >= TORIRSSERVER_DB_COLUMN_MAX )
             {
                 DB_ERROR("%s:%d: more than %d columns in one dbtable\n", path,
-                         line_number, MOCK230_DB_COLUMN_MAX);
+                         line_number, TORIRSSERVER_DB_COLUMN_MAX);
                 continue;
             }
             column = &table->columns[table->column_count];
@@ -467,12 +467,12 @@ load_dbtable_file(const char* path)
                      * here is read as a list of tuples, and a non-LIST column is
                      * simply one whose rows only ever declare one. */
                 }
-                else if( column->type_count >= MOCK230_DB_TUPLE_MAX )
+                else if( column->type_count >= TORIRSSERVER_DB_TUPLE_MAX )
                 {
                     DB_ERROR("%s:%d: more than %d types in column `%s`\n", path,
-                             line_number, MOCK230_DB_TUPLE_MAX, column->name);
+                             line_number, TORIRSSERVER_DB_TUPLE_MAX, column->name);
                 }
-                else if( db_kind_for_type(cursor) == MOCK230_PACK_COUNT &&
+                else if( db_kind_for_type(cursor) == TORIRSSERVER_PACK_COUNT &&
                          !db_type_is_literal(cursor) )
                 {
                     DB_ERROR("%s:%d: column `%s` declares type `%s`, which nothing "
@@ -490,7 +490,7 @@ load_dbtable_file(const char* path)
                      * would be the alternative and is not worth the bytes for one
                      * special case. */
                     if( strcmp(cursor, "coord") == 0 )
-                        column->kind[column->type_count] = MOCK230_PACK_COUNT;
+                        column->kind[column->type_count] = TORIRSSERVER_PACK_COUNT;
                     column->type_count++;
                 }
                 if( !end )
@@ -515,20 +515,20 @@ load_dbtable_file(const char* path)
 /* ------------------------------------------------------------------ */
 
 /** Read one `data=` value against its declared tuple position. */
-static struct Mock230DbValue
+static struct ToriRSServerDbValue
 row_value(
-    const struct Mock230DbColumn* column,
+    const struct ToriRSServerDbColumn* column,
     int position,
     const char* text,
     int* out_ok)
 {
-    struct Mock230DbValue out = { 0, NULL };
+    struct ToriRSServerDbValue out = { 0, NULL };
     const char* expanded = text;
 
     *out_ok = 1;
     if( *text == '^' )
     {
-        expanded = mock230_content_constant(text);
+        expanded = ToriRSServer_ContentConstant(text);
         if( !expanded )
         {
             *out_ok = 0;
@@ -541,11 +541,11 @@ row_value(
         out.text = strdup(expanded);
         return out;
     }
-    if( column->kind[position] != MOCK230_PACK_COUNT )
+    if( column->kind[position] != TORIRSSERVER_PACK_COUNT )
     {
         /* `null` is a real answer (id -1), not a miss — same rule as
-         * mock230_content_symbol_checked / param=death_drop,null. */
-        if( !mock230_content_symbol_checked(column->kind[position], expanded,
+         * ToriRSServer_ContentSymbolChecked / param=death_drop,null. */
+        if( !ToriRSServer_ContentSymbolChecked(column->kind[position], expanded,
                                             &out.value) )
             *out_ok = 0;
         return out;
@@ -574,15 +574,15 @@ load_dbrow_file(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[2048];
-    struct Mock230DbRow* row = NULL;
-    const struct Mock230DbTable* table = NULL;
+    struct ToriRSServerDbRow* row = NULL;
+    const struct ToriRSServerDbTable* table = NULL;
     int line_number = 0;
 
     if( !file )
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -590,14 +590,14 @@ load_dbrow_file(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
             row = &g_rows[g_row_count++];
             memset(row, 0, sizeof(*row));
             row->symbol = strdup(header);
-            row->row_id = mock230_content_symbol(MOCK230_PACK_DBROW, header);
+            row->row_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBROW, header);
             row->table_id = -1;
             table = NULL;
             if( row->row_id < 0 )
@@ -606,7 +606,7 @@ load_dbrow_file(const char* path)
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !row )
         {
             DB_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -638,9 +638,9 @@ load_dbrow_file(const char* path)
 
         {
             char* comma = strchr(value, ',');
-            const struct Mock230DbColumn* column;
-            struct Mock230DbRowColumn* store;
-            struct Mock230DbValue tuple[MOCK230_DB_TUPLE_MAX];
+            const struct ToriRSServerDbColumn* column;
+            struct ToriRSServerDbRowColumn* store;
+            struct ToriRSServerDbValue tuple[TORIRSSERVER_DB_TUPLE_MAX];
             int filled = 0;
             int index;
             int resolved = 1;
@@ -653,7 +653,7 @@ load_dbrow_file(const char* path)
                 continue;
             }
             *comma = '\0';
-            index = mock230_db_column_index(table, value);
+            index = ToriRSServer_DbColumnIndex(table, value);
             if( index < 0 )
             {
                 DB_ERROR("%s:%d: table `%s` has no column `%s`\n", path,
@@ -754,7 +754,7 @@ walk_suffix(
         if( name_length >= suffix_length &&
             strcmp(entry->d_name + name_length - suffix_length, suffix) == 0 )
         {
-            /* Machine exports — see mock230_db_load. */
+            /* Machine exports — see ToriRSServer_DbLoad. */
             if( strcmp(entry->d_name, "all.dbtable") == 0 ||
                 strcmp(entry->d_name, "all.dbrow") == 0 )
                 continue;
@@ -785,7 +785,7 @@ name_cache_table_columns(const char* content_dir)
     char path[1024];
     FILE* file;
     char raw[1024];
-    struct Mock230DbTable* table = NULL;
+    struct ToriRSServerDbTable* table = NULL;
 
     snprintf(path, sizeof(path), "%s/configs/all.dbtable", content_dir);
     file = fopen(path, "rb");
@@ -793,7 +793,7 @@ name_cache_table_columns(const char* content_dir)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* value;
         char* comma;
         int col_id;
@@ -802,12 +802,12 @@ name_cache_table_columns(const char* content_dir)
         if( !*line )
             continue;
         {
-            char* header = mock230_content_section_header(line);
+            char* header = ToriRSServer_ContentSectionHeader(line);
 
             if( header )
             {
                 table = NULL;
-                table_id = mock230_content_symbol(MOCK230_PACK_DBTABLE, header);
+                table_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBTABLE, header);
                 if( table_id >= 0 )
                 {
                     for( int i = 0; i < g_table_count; i++ )
@@ -822,7 +822,7 @@ name_cache_table_columns(const char* content_dir)
                 continue;
             }
         }
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !table || strcmp(line, "columndef") != 0 )
             continue;
         /* `columndef=<id>:<name>,<type>[,<type>...]` */
@@ -834,7 +834,7 @@ name_cache_table_columns(const char* content_dir)
         comma = strchr(value, ',');
         if( comma )
             *comma = '\0';
-        if( col_id < 0 || col_id >= MOCK230_DB_COLUMN_MAX )
+        if( col_id < 0 || col_id >= TORIRSSERVER_DB_COLUMN_MAX )
             continue;
         if( table->columns[col_id].type_count <= 0 || table->columns[col_id].name )
             continue;
@@ -848,7 +848,7 @@ name_cache_table_columns(const char* content_dir)
          * than name half a tuple's namespaces wrongly. */
         if( comma )
         {
-            struct Mock230DbColumn* column = &table->columns[col_id];
+            struct ToriRSServerDbColumn* column = &table->columns[col_id];
             char* cursor = comma + 1;
             int position = 0;
 
@@ -860,7 +860,7 @@ name_cache_table_columns(const char* content_dir)
                     *end = '\0';
                 column->kind[position] = db_kind_for_type(cursor);
                 if( strcmp(cursor, "coord") == 0 )
-                    column->kind[position] = MOCK230_PACK_COUNT;
+                    column->kind[position] = TORIRSSERVER_PACK_COUNT;
                 position++;
                 if( !end )
                     break;
@@ -872,19 +872,19 @@ name_cache_table_columns(const char* content_dir)
 }
 
 void
-mock230_db_load(const char* dir)
+ToriRSServer_DbLoad(const char* dir)
 {
     char scripts[1024];
 
     /*
-     * Deliberately NOT `mock230_db_free()` first.
+     * Deliberately NOT `ToriRSServer_DbFree()` first.
      *
      * The cache's DBTABLE schemas are installed *before* this call (see
-     * mock230_boot.c step 3), because an authored `.dbrow` may name a cache
+     * torirs_server_boot.c step 3), because an authored `.dbrow` may name a cache
      * table — `poh_hotspot` — and cannot resolve one that is not loaded. A free
      * here threw those 246 schemas away again and the 82 flatpack rows went on
      * reporting `names unknown table`. Callers that reload rather than boot
-     * call `mock230_db_free` themselves.
+     * call `ToriRSServer_DbFree` themselves.
      */
     /* Server DB source has exactly one root. Client cache exports and flagged
      * client lanes use a different grammar (`columndef=` / `values=`), and the
@@ -898,14 +898,14 @@ mock230_db_load(const char* dir)
 }
 
 void
-mock230_db_free(void)
+ToriRSServer_DbFree(void)
 {
     for( int i = 0; i < g_table_count; i++ )
     {
         free((void*)g_tables[i].symbol);
         for( int col = 0; col < g_tables[i].column_count; col++ )
         {
-            struct Mock230DbColumn* column = &g_tables[i].columns[col];
+            struct ToriRSServerDbColumn* column = &g_tables[i].columns[col];
 
             for( int val = 0; val < column->default_count; val++ )
                 free((void*)column->defaults[val].text);
@@ -921,9 +921,9 @@ mock230_db_free(void)
     for( int i = 0; i < g_row_count; i++ )
     {
         free((void*)g_rows[i].symbol);
-        for( int col = 0; col < MOCK230_DB_COLUMN_MAX; col++ )
+        for( int col = 0; col < TORIRSSERVER_DB_COLUMN_MAX; col++ )
         {
-            struct Mock230DbRowColumn* store = &g_rows[i].columns[col];
+            struct ToriRSServerDbRowColumn* store = &g_rows[i].columns[col];
 
             for( int val = 0; val < store->count; val++ )
                 free((void*)store->values[val].text);
@@ -940,16 +940,16 @@ mock230_db_free(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* Cache-import helpers (used by mock230_dbinfo.c)                     */
+/* Cache-import helpers (used by torirs_server_dbinfo.c)                     */
 /* ------------------------------------------------------------------ */
 
-struct Mock230DbTable*
-mock230_db_ensure_table(
+struct ToriRSServerDbTable*
+ToriRSServer_DbEnsureTable(
     int table_id,
     const char* symbol,
     int replace_empty)
 {
-    struct Mock230DbTable* table;
+    struct ToriRSServerDbTable* table;
 
     assert(table_id >= 0);
     assert(symbol);
@@ -978,13 +978,13 @@ mock230_db_ensure_table(
     return table;
 }
 
-struct Mock230DbRow*
-mock230_db_ensure_row(
+struct ToriRSServerDbRow*
+ToriRSServer_DbEnsureRow(
     int row_id,
     const char* symbol,
     int table_id)
 {
-    struct Mock230DbRow* row;
+    struct ToriRSServerDbRow* row;
     int has_values = 0;
 
     assert(row_id >= 0);
@@ -996,7 +996,7 @@ mock230_db_ensure_row(
         if( g_rows[i].row_id != row_id )
             continue;
         row = &g_rows[i];
-        for( int col = 0; col < MOCK230_DB_COLUMN_MAX; col++ )
+        for( int col = 0; col < TORIRSSERVER_DB_COLUMN_MAX; col++ )
         {
             if( row->columns[col].count > 0 )
             {
@@ -1021,20 +1021,20 @@ mock230_db_ensure_row(
 }
 
 void
-mock230_db_column_define(
-    struct Mock230DbTable* table,
+ToriRSServer_DbColumnDefine(
+    struct ToriRSServerDbTable* table,
     int col_id,
     const char* name,
     int type_count,
     const int* is_string)
 {
-    struct Mock230DbColumn* column;
+    struct ToriRSServerDbColumn* column;
 
     assert(table);
     assert(col_id >= 0);
-    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(col_id < TORIRSSERVER_DB_COLUMN_MAX);
     assert(type_count > 0);
-    assert(type_count <= MOCK230_DB_TUPLE_MAX);
+    assert(type_count <= TORIRSSERVER_DB_TUPLE_MAX);
     assert(is_string);
 
     column = &table->columns[col_id];
@@ -1052,7 +1052,7 @@ mock230_db_column_define(
     /*
      * Every position's kind, not just the ones past `type_count`.
      *
-     * `MOCK230_PACK_NPC` is 0, so a column left at the calloc'd value claims to
+     * `TORIRSSERVER_PACK_NPC` is 0, so a column left at the calloc'd value claims to
      * hold npc names — and the cache import calls this with types and no kinds
      * at all, which made every dat2 column an npc column. `poh_hotspot:builddata`
      * holds dbrow ids; resolving `poh_armchair_1` against the npc pack answered
@@ -1061,26 +1061,26 @@ mock230_db_column_define(
      * the `.dbtable` walk), and COUNT — an int literal — is the only safe thing
      * to say until then.
      */
-    for( int i = 0; i < MOCK230_DB_TUPLE_MAX; i++ )
-        column->kind[i] = MOCK230_PACK_COUNT;
-    for( int i = type_count; i < MOCK230_DB_TUPLE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_DB_TUPLE_MAX; i++ )
+        column->kind[i] = TORIRSSERVER_PACK_COUNT;
+    for( int i = type_count; i < TORIRSSERVER_DB_TUPLE_MAX; i++ )
         column->is_string[i] = 0;
     if( col_id + 1 > table->column_count )
         table->column_count = col_id + 1;
 }
 
 void
-mock230_db_column_defaults_set(
-    struct Mock230DbTable* table,
+ToriRSServer_DbColumnDefaultsSet(
+    struct ToriRSServerDbTable* table,
     int col_id,
-    const struct Mock230DbValue* values,
+    const struct ToriRSServerDbValue* values,
     int count)
 {
-    struct Mock230DbColumn* column;
+    struct ToriRSServerDbColumn* column;
 
     assert(table);
     assert(col_id >= 0);
-    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(col_id < TORIRSSERVER_DB_COLUMN_MAX);
     assert(count >= 0);
     assert(values || count == 0);
 
@@ -1098,17 +1098,17 @@ mock230_db_column_defaults_set(
 }
 
 void
-mock230_db_row_column_set(
-    struct Mock230DbRow* row,
+ToriRSServer_DbRowColumnSet(
+    struct ToriRSServerDbRow* row,
     int col_id,
-    const struct Mock230DbValue* values,
+    const struct ToriRSServerDbValue* values,
     int count)
 {
-    struct Mock230DbRowColumn* store;
+    struct ToriRSServerDbRowColumn* store;
 
     assert(row);
     assert(col_id >= 0);
-    assert(col_id < MOCK230_DB_COLUMN_MAX);
+    assert(col_id < TORIRSSERVER_DB_COLUMN_MAX);
     assert(count >= 0);
     assert(values || count == 0);
 
@@ -1122,7 +1122,7 @@ mock230_db_row_column_set(
 
     for( int i = 0; i < count; i++ )
     {
-        struct Mock230DbValue copy = { 0, NULL };
+        struct ToriRSServerDbValue copy = { 0, NULL };
 
         store->values = db_grow(store->values, &store->capacity, store->count,
                                 sizeof(*store->values));
@@ -1134,15 +1134,15 @@ mock230_db_row_column_set(
 }
 
 int
-mock230_db_table_count(void)
+ToriRSServer_DbTableCount(void)
 {
     return g_table_count;
 }
 
 /** The index-th loaded table, for a caller that means to walk all of them.
- *  `mock230_db_table` takes an id and is the lookup; this is the enumeration. */
-const struct Mock230DbTable*
-mock230_db_table_at(int index)
+ *  `ToriRSServer_DbTable` takes an id and is the lookup; this is the enumeration. */
+const struct ToriRSServerDbTable*
+ToriRSServer_DbTableAt(int index)
 {
     if( index < 0 || index >= g_table_count )
         return NULL;
@@ -1150,7 +1150,7 @@ mock230_db_table_at(int index)
 }
 
 int
-mock230_db_total_row_count(void)
+ToriRSServer_DbTotalRowCount(void)
 {
     return g_row_count;
 }

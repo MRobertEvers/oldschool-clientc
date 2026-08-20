@@ -85,7 +85,7 @@ $(BUILD)/test_pack: test/test_pack.c $(BUILD)/lc_pack.o | $(BUILD)
 
 # The field-register suite, for the same reason as the pack suite above:
 # `fields/<type>.ini` is the contract between the packer that writes a server band
-# and `src/net/mock/mock230_servercodec.c` that reads it, and the two disagreeing
+# and `src/torirsserver/torirs_server_servercodec.c` that reads it, and the two disagreeing
 # is a failure with no error attached. A contract wants a test that runs on every
 # `make test`, not one that runs when someone remembers to build the tools.
 $(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)

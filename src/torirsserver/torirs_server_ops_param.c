@@ -1,21 +1,21 @@
 /*
  * The `*_param` family — RuneScript's view of a config record's param map.
  *
- * Second of the per-domain opcode files (mock230_ops_db.c is the first and its
- * header states the contract): `mock230_script_command` offers each domain the
+ * Second of the per-domain opcode files (torirs_server_ops_db.c is the first and its
+ * header states the contract): `ToriRSServer_ScriptCommand` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
  * ------------------------------------------------------------------
  * The stack routing is the whole difficulty, and it lives here
  * ------------------------------------------------------------------
  *
- * `mock230_push_typed_param` moved into this file from mock230_scripts.c, where
+ * `ToriRSServer_PushTypedParam` moved into this file from torirs_server_scripts.c, where
  * it was `static` and therefore unreachable from a domain file. It is a move,
  * not a copy: the function's own comment already said that duplicating it would
  * mean two places for the declared-vs-stored disagreement to be handled
  * differently, and that disagreement is the one thing in this family worth
  * being loud about. `oc_param` and `nc_param` still live in the big switch and
- * now call it through mock230.h.
+ * now call it through torirs_server.h.
  *
  * The reference does the same thing in the same place: `StructOps.ts` and
  * `LocConfigOps.ts` both branch on `paramType.isString()` — the *declaration* —
@@ -32,9 +32,9 @@
  * cache.osrs239.
  */
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_paramtable.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_paramtable.h"
 
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -47,7 +47,7 @@
  * other two are ignored.
  */
 void
-mock230_push_typed_param(
+ToriRSServer_PushTypedParam(
     struct SSVM_State* state,
     int param_id,
     const char* sval,
@@ -56,7 +56,7 @@ mock230_push_typed_param(
     const char* record_kind,
     int record_id)
 {
-    char declared = mock230_content_param_type(param_id);
+    char declared = ToriRSServer_ContentParamType(param_id);
 
     /*
      * Which stack the result goes on is decided by the declaration, because
@@ -105,11 +105,11 @@ mock230_push_typed_param(
      * no default, so absent reads 0), while 365 params declare `default=-1`
      * precisely so that absence spells "no id" rather than obj 0.
      */
-    SSVM_PushInt(state, present ? ival : mock230_content_param_default(param_id));
+    SSVM_PushInt(state, present ? ival : ToriRSServer_ContentParamDefault(param_id));
 }
 
 int
-mock230_ops_param(
+ToriRSServer_OpsParam(
     struct SSVM_State* state,
     int opcode,
     int dot)
@@ -129,7 +129,7 @@ mock230_ops_param(
     {
         int32_t loc_id;
         int32_t param_id;
-        const struct Mock230ParamRow* row;
+        const struct ToriRSServerParamRow* row;
 
         /* Pop order mirrors the reference's `const [locId, paramId] =
          * state.popInts(2)`: the param is on top. */
@@ -138,8 +138,8 @@ mock230_ops_param(
         if( !SSVM_PopInt(state, &loc_id) )
             return 1;
 
-        row = mock230_loc_param(loc_id, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_LocParam(loc_id, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "loc", loc_id);
         return 1;
     }
@@ -150,15 +150,15 @@ mock230_ops_param(
     {
         int32_t struct_id;
         int32_t param_id;
-        const struct Mock230ParamRow* row;
+        const struct ToriRSServerParamRow* row;
 
         if( !SSVM_PopInt(state, &param_id) )
             return 1;
         if( !SSVM_PopInt(state, &struct_id) )
             return 1;
 
-        row = mock230_struct_param(struct_id, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_StructParam(struct_id, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "struct", struct_id);
         return 1;
     }

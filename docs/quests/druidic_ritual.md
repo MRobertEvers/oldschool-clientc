@@ -454,7 +454,7 @@ than four quest-specific opcodes.
   quest-point constants, global suit deletion/spawns, unchecked quest-item
   transactions, coin reward model, completion-before-lesson, or a public
   Herblore training/boost entry point without the shared unlock predicate.
-- Run `make -C src mock230-scripts` and the revision-239 pack check.
+- Run `make -C src torirsserver-scripts` and the revision-239 pack check.
 
 ### State, dialogue, and item tests
 

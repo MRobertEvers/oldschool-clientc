@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Structural checks for the Theatre of Blood Nylocas support pillars.
 
-Run by the mock230-scripts build. This exists because the pillars are the one
+Run by the torirsserver-scripts build. This exists because the pillars are the one
 npc in the raid whose hitpoints scale UPWARDS as the party shrinks, and that
 inverts an assumption the rest of the raid is built on.
 

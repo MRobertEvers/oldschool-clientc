@@ -3,7 +3,7 @@
 // IF: magic:lowlvl_alchemy/highlvl_alchemy → magic_spellbook:low_alchemy /
 // high_alchemy. Era: drop sound_synth / afk_event / wealth_event /
 // if_settabactive(^tab_magic). Engine gap: oc_cost not decoded yet — cast will
-// hit the VM stub until Mock230ObjInfo grows cost. Category kitten/cat/etc
+// hit the VM stub until ToriRSServerObjInfo grows cost. Category kitten/cat/etc
 // checks dropped (cats not allocated).
 // MTA Alchemists' Playground: arena coins at session costs.
 

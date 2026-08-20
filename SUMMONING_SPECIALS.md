@@ -476,7 +476,7 @@ enabled:
 - The asset import is reproducible and all runtime references resolve through
   its ledger.
 - ServerScript compilation, Summoning isolation, special-asset validation, and
-  `mock230_pack --check-only` pass; client-visible work also has a fresh-save
+  `ToriRSServer_Pack --check-only` pass; client-visible work also has a fresh-save
   real-client trace.
 
 ## Complete 78-familiar coverage matrix
@@ -580,7 +580,7 @@ include logic, content assets, transaction behavior, and tests.
 - [ ] Add script compilation and control-flow tests proving that every registry
   row reaches a real handler and none reaches a generic-only placeholder.
 - [ ] Run the existing summoning isolation, Phase 1/4, and scroll-asset tests.
-- [ ] Run `make -C src mock230-cache-summoning` and the normal relevant build.
+- [ ] Run `make -C src torirsserver-cache-summoning` and the normal relevant build.
 - [ ] Verify staged cache dry-run/apply/idempotence and repository-scope isolation.
 
 ### Deterministic behavior tests

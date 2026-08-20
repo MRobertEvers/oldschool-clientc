@@ -1,7 +1,7 @@
 # RS2012 Queen Black Dragon and Tormented Demons
 
 Implementation, cache-port, and evidence record for the 2012 combat profile in
-`OSRS-Content` and `mock230`.
+`OSRS-Content` and `ToriRSServer`.
 
 Last updated: 10 August 2026.
 
@@ -25,7 +25,7 @@ Jagex's launch post is dated 29 May 2012 and says that the Queen had arrived.
 The 22 May date belongs to the preceding Song from the Depths update and is
 attached to some later infoboxes.
 
-The port uses a ten-to-one boundary between 2012 life points and mock230 player
+The port uses a ten-to-one boundary between 2012 life points and ToriRSServer player
 hitpoints. QBD and tormented demon NPC pools retain their real 2012 values
 (18,750 per QBD pool and 3,260 per demon), incoming player damage is multiplied
 by ten before it reaches those pools, and outgoing 2012 damage is divided by ten
@@ -146,7 +146,7 @@ The code projects those values across the ten-to-one player boundary: 48 melee,
 53 ranged, 70–90 unprotected fire, and 10–23 protected fire. The exact retail
 accuracy formulas were not published. The cache level 2,100 is therefore an
 explicit outgoing-accuracy proxy, while the exact open727 attack/defence bonus
-rows remain visible data. All QBD, soul, and worm hits use mock230's ordinary
+rows remain visible data. All QBD, soul, and worm hits use ToriRSServer's ordinary
 two-dice accuracy and style-specific equipment reduction before prayer or the
 time-stop accumulator; they are no longer unconditional random damage.
 
@@ -183,7 +183,7 @@ subsequently corrected claim of four waves in phase 4.
 
 The full tick-level contract lives in
 `docs/rs2012_qbd_encounter/ENCOUNTER.md` §6, with its research provenance in
-`docs/rs2012_qbd_encounter/RESEARCH.md`; the mock230 selftest byte-decodes
+`docs/rs2012_qbd_encounter/RESEARCH.md`; the ToriRSServer selftest byte-decodes
 the waves off the wire (count, cycle order, 7-tick spacing, duration, zero
 arc).
 
@@ -260,7 +260,7 @@ seven seconds, and other souls/worms froze. QBD and the caster continued to act.
 Damage accumulated during the freeze and appeared in one hit when time resumed
 (B/C).
 
-mock230 now has a dedicated `player_lock()` / `player_unlock()` state rather
+ToriRSServer now has a dedicated `player_lock()` / `player_unlock()` state rather
 than abusing ordinary busy state. It clears movement and outgoing interaction,
 centrally rejects movement/entity/location/item/interface action packets, but
 allows queues, timers, incoming combat, and queued damage to continue. It also
@@ -303,7 +303,7 @@ splash (3142) plays and the worm hatches three ticks after the cough,
 already aggressive (B/C for the visuals, the exact interval remains a
 labelled reconstruction). Killed souls and worms yield once after their
 drop/state trigger so generic post-kill credit still sees the dead NPC, then
-explicitly call `npc_del`; mock230 therefore cannot re-arm an ordinary NPC
+explicitly call `npc_del`; ToriRSServer therefore cannot re-arm an ordinary NPC
 respawn clock. Final-restoration cleanup removes surviving adds without rolling
 their death drops.
 
@@ -711,7 +711,7 @@ confirmation, and Close. The coffer changes to its empty loc only after the
 last entry is transferred or deliberately discarded.
 
 The same inventory definition is carried in the sparse client-cache lane as
-well as the server allocation. mock230 therefore creates the ten-slot custom
+well as the server allocation. ToriRSServer therefore creates the ten-slot custom
 container on first use, transmits it to the authentic coffer component, and
 persists its owned contents through save/logout; it is not a script-only name
 that disappears when the composed cache boots.
@@ -818,7 +818,7 @@ unclaimed coffer.
 - During phase 4 the player chooses `Brandish`; an extreme-fire pulse turns the
   unforged weapon into the bound, untradeable Royal crossbow.
 - It fires only Royal bolts.
-- Ten hours of combat degrade it. mock230 records 60,000 effective attack ticks
+- Ten hours of combat degrade it. ToriRSServer records 60,000 effective attack ticks
   and subtracts cadence five on Accurate/Longrange or four on Rapid, so Rapid
   does not accidentally degrade the weapon after eight hours twenty minutes.
 - Re-brandishing the degraded crossbow in extreme fire repairs it. Thurgo also
@@ -884,7 +884,7 @@ stale demons from a prior occupant.
   200/350/350/200/250; they are not confused with base levels.
 - Maximum melee 189 LP; Magic/Ranged and rage splash approximately 269–270 LP
   (B). At the OSRS boundary these are 19 and 27 hitpoints.
-- Poison immune historically (B). mock230 currently has no player-to-NPC poison
+- Poison immune historically (B). ToriRSServer currently has no player-to-NPC poison
   path, so this needs no encounter-specific suppression hook yet.
 - Player protection prayers fully negate the matching demon attack in this
   pre-EoC profile (B).
@@ -913,7 +913,7 @@ player combat style, then changes its protection prayer to that style (B/D).
 Misses and successful hits below 20 LP count as 20 toward the threshold. This
 counter uses the original pre-shield roll; open727 incorrectly counts the
 already-reduced result. Each demon keeps its own counter/state in the 16 new
-mock230 per-NPC integer slots, so six demons cannot leak adaptation state into
+ToriRSServer per-NPC integer slots, so six demons cannot leak adaptation state into
 one another.
 
 Once the matching prayer is active, that combat style is fully blocked. The
@@ -1213,7 +1213,7 @@ Map/cache port:
 - `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
 - `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
 - `manifest_osrs239_rs2012.ini`, `manifest_osrs239_rs2012_td.ini`, and the
-  `mock230-cache-rs2012` make target
+  `torirsserver-cache-rs2012` make target
 
 Global integration is limited to the shared player-hit preparation point,
 ranged Royal-bolt/crossbow validation, QBD/TD death, logout, and arbitrary
@@ -1225,7 +1225,7 @@ in the `rs2012` namespace.
 ## 10. Build, staging, and verification
 
 The feature lane is included as both a compiler pack and component root for
-`make -C src mock230-scripts`. The cache half is baked through a disposable
+`make -C src torirsserver-scripts`. The cache half is baked through a disposable
 staged overlay, not by flattening foreign configs into the base OSRS239 source
 tree. The source-to-destination ledger is checked before every apply so adding a
 dependency cannot silently renumber an existing symbol.
@@ -1293,15 +1293,15 @@ The following are completed machine checks, not a list of aspirations:
 - The five floor overlays whose material operand is restricted to `u8` resolve
   to permanently reserved destinations 211–215. Model-only materials may
   safely occupy the remainder through 466.
-- `make -C src mock230-scripts` completes with **12,963 compiled scripts**;
-  `make -C src mock230` and `make -C src test-ss-meta` pass. The server-only
+- `make -C src torirsserver-scripts` completes with **12,963 compiled scripts**;
+  `make -C src ToriRSServer` and `make -C src test-ss-meta` pass. The server-only
   pack writes **8,340 records with zero unresolved names**.
 - Both ordinary- and composed-cache host runs load **12,899 runtime scripts**.
   Their QBD and TD lifecycle/combat blocks, the exhaustive equipment gate, and
   the live composed coffer assertions pass; the latter also has zero
   `unknown container 2000`, post-kill Slayer-hook, or VM-abort diagnostics.
   After the final add-death and patrol-fixture corrections, the complete
-  composed-cache host suite reports `mock230 selftest: all checks passed`.
+  composed-cache host suite reports `ToriRSServer selftest: all checks passed`.
 
 These checks establish reproducibility, dependency closure, map tuple fidelity,
 UI structure, script compilation, and the new engine primitives. They do not
@@ -1442,7 +1442,7 @@ Media/world pass:
   ownership and NPC-local state. Retail Ancient Guthix Temple was a shared
   world space, so multiplayer aggression, competition, and loot ownership are
   not reproduced.
-- mock230 has no player-to-NPC poison route, so the demon's poison immunity has
+- ToriRSServer has no player-to-NPC poison route, so the demon's poison immunity has
   no active suppression hook. Period interactions with Verac's set effect,
   holy water, dwarf cannons, combat familiars, and dreadnips have not received
   encounter-specific compatibility or live QA.

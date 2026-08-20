@@ -14,7 +14,7 @@
  *         { "attacklevel", def->attack      },
  *         ...
  *
- * That table said the same thing three times over. `mock230_content.c`'s key ladder
+ * That table said the same thing three times over. `torirs_server_content.c`'s key ladder
  * already knew `hitpoints` was a field; `pack/param.pack` already knew what number
  * `hitpoints` was; and this restated both, in C, where a content author could not
  * see it and could not change it without a rebuild. Adding a projected field meant
@@ -39,7 +39,7 @@
  *
  * ## What this does not do
  *
- * It does not yet drive the config *parser*. `mock230_content.c` still has its own
+ * It does not yet drive the config *parser*. `torirs_server_content.c` still has its own
  * `strcmp` ladder mapping a key to a struct field, and unifying the two is the rest
  * of §5.3. What the register owns today is the projection — which field becomes
  * which param — and that is the half that was duplicated.
@@ -133,7 +133,7 @@ struct ContentField
      * accepts only a decimal literal, which is the right default: a number is
      * unambiguous and a name is only resolvable against a pack somebody named.
      *
-     * C could not ask this until 2026-08-15, and `mock230_content.c`'s loc-param
+     * C could not ask this until 2026-08-15, and `torirs_server_content.c`'s loc-param
      * grammar said so in its own header: every authored `param=` on a `.loc` was
      * resolved through `pack/loc.pack` no matter what it was, so the *only*
      * authorable loc param was a loc-typed one. `param=rune_type,7` failed with

@@ -1476,7 +1476,7 @@ collision_map_reached(
 }
 
 /*
- * Route cost, read by the embedded server's tick breakdown (mock230_world.c).
+ * Route cost, read by the embedded server's tick breakdown (torirs_server_world.c).
  *
  * A flood is the one unbounded thing a game tick does -- it scales with the
  * whole collision map, not with the distance walked -- so when a tick runs long

@@ -184,9 +184,9 @@ buttons — so the first version of this teleported the player every time they
 closed the map, to whatever tile the X happened to be drawn over:
 
 ```
-mock230: <- IF_BUTTON1 595:38     # close
-mock230: world map closed
-mock230: <- CLICK_WORLD_MAP 0,3271,3261   # ...and a teleport nobody asked for
+torirsserver: <- IF_BUTTON1 595:38     # close
+torirsserver: world map closed
+torirsserver: <- CLICK_WORLD_MAP 0,3271,3261   # ...and a teleport nobody asked for
 ```
 
 The press is gated on `app->hover_com_id < 0` instead. That is precisely the
@@ -212,11 +212,11 @@ map. After close, a left press over bare world (`hover_com_id == -1`) inside
 that stale box started a phantom pan and the release fired `CLICK_WORLD_MAP`:
 
 ```
-mock230: <- IF_BUTTON1 595:38     # close
-mock230: world map closed
+torirsserver: <- IF_BUTTON1 595:38     # close
+torirsserver: world map closed
 # ...later click at 400,90 over the 3D world...
 worldmap_click: screen=400,90 ...
-mock230: <- CLICK_WORLD_MAP ...   # phantom — map is already gone
+torirsserver: <- CLICK_WORLD_MAP ...   # phantom — map is already gone
 ```
 
 `app_worldmap_surface_live` asks the tree instead: find the
@@ -227,12 +227,12 @@ in-progress drag still reaches its release handling. Measured after the fix
 (`manifest_osrs230_alt.ini`, orb at 704,140, close X at 470,22):
 
 ```sh
-MOCK230_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_mock230 \
+TORIRSSERVER_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_torirsserver \
 TORIRS_NET_DEBUG=1 TORIRS_SIM_CLICK_AT="250,704,140;320,470,22;400,400,90" \
 TORIRS_MAX_FRAMES=520 ./run-live.sh manifest_osrs230_alt.ini
-# mock230: world map opened
-# mock230: <- IF_BUTTON1 595:38
-# mock230: world map closed
+# torirsserver: world map opened
+# torirsserver: <- IF_BUTTON1 595:38
+# torirsserver: world map closed
 # sim_click_at: frame=400 ... 400,90
 # (no worldmap_click, no CLICK_WORLD_MAP)
 ```
@@ -242,14 +242,14 @@ re-open after close still pans and clicks.
 
 ### Mock server side
 
-`src/net/mock/mock230_worldmap.c`, four entry points:
+`src/torirsserver/torirs_server_worldmap.c`, four entry points:
 
 | | |
 |---|---|
-| `mock230_worldmap_login` | `IF_SETEVENTS` arming orb ops 1..3 and both close buttons |
-| `mock230_worldmap_handle_button` | claims `IF_BUTTON<op>` for 160:53, 595:4 and 595:38 |
-| `mock230_worldmap_click` | `CLICK_WORLD_MAP` → `mock230_world_teleport` |
-| `mock230_worldmap_tick` | re-sends the coord while the map is open and the player moves |
+| `ToriRSServer_WorldMapLogin` | `IF_SETEVENTS` arming orb ops 1..3 and both close buttons |
+| `ToriRSServer_WorldMapHandleButton` | claims `IF_BUTTON<op>` for 160:53, 595:4 and 595:38 |
+| `ToriRSServer_WorldMapClick` | `CLICK_WORLD_MAP` → `ToriRSServer_WorldTeleport` |
+| `ToriRSServer_WorldMapTick` | re-sends the coord while the map is open and the player moves |
 
 Opening is toggling: clicking the orb with the map already up closes it, which
 is what the reference does and what the orb's own "Close Floating panel" op
@@ -260,7 +260,7 @@ The click teleports unconditionally. The reference gates it on an admin
 privilege; the mock has one player and no privilege system, and the point of
 the packet here is that the round trip is observable at all.
 
-`mock230_world_teleport` was factored out of the `tele` cheat, because a
+`ToriRSServer_WorldTeleport` was factored out of the `tele` cheat, because a
 world-map click routinely lands past the rebuild margin — the scene has to
 follow, or collision and ground-obj visibility still describe wherever the last
 section left off.
@@ -271,14 +271,14 @@ Against `manifest_osrs230_alt.ini`, headless:
 
 ```sh
 # open, then click the map: teleports and the marker follows
-MOCK230_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_mock230 \
+TORIRSSERVER_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_torirsserver \
 TORIRS_SIM_CLICK_AT="150,704,140;260,400,90" TORIRS_MAX_FRAMES=400 \
 TORIRS_EXIT_BMP=/tmp/wm.bmp ./run-live.sh manifest_osrs230_alt.ini
-# mock230: <- IF_BUTTON2 160:53 sub=-1
-# mock230: world map opened
+# torirsserver: <- IF_BUTTON2 160:53 sub=-1
+# torirsserver: world map opened
 # worldmap_click: screen=400,90 display=3248,3238 -> 0,3248,3238
-# mock230: <- CLICK_WORLD_MAP 0,3248,3238
-# mock230: rebuild zone=408,407 origin=3216,3208 squares=4
+# torirsserver: <- CLICK_WORLD_MAP 0,3248,3238
+# torirsserver: rebuild zone=408,407 origin=3216,3208 squares=4
 ```
 
 The three closing paths were checked separately: the orb again (toggles), the
@@ -490,7 +490,7 @@ refuted** and are recorded here so nobody spends the day on them again:
 |---|---|
 | the floater swallows input | **refuted.** `TORIRS_SIM_HOVER` over every control returns a real component id (zoom_out `0x253001b`, zoom_in `0x253001c`, key_toggle `0x2530018`, overview `0x253001d`, search `0x253a293`, maplist `0x253a2d4`, key row `0x253a068`, close `0x2530026`), and `app_minimenu_run_option`'s `UI_MINIMENU_PICK_UI` arm fires on each |
 | an unimplemented `WORLDMAP_*` host op | **refuted.** All 44 `CS2_OP_WORLDMAP_*` and all 4 `CS2_OP_MEC_*` are handled in `exec_worldmap`/`exec_mec`; no `exec_worldmap: unhandled opcode` in any run |
-| a missing `IF_SETEVENTS` | **refuted / n/a.** Only 595:4 and 595:38 need arming and `mock230_worldmap.c` arms both. Every other control is pure-client CS2 (`if_setop` + `if_setonop` from scripts 1707/1717/1722/1730/1735) and correctly measures `events=0x0` |
+| a missing `IF_SETEVENTS` | **refuted / n/a.** Only 595:4 and 595:38 need arming and `torirs_server_worldmap.c` arms both. Every other control is pure-client CS2 (`if_setop` + `if_setonop` from scripts 1707/1717/1722/1730/1735) and correctly measures `events=0x0` |
 | the controls do nothing | **half true.** Zoom in/out, the key toggle, the search box, the map-area dropdown, the overview toggle and close all already worked. What did not was the key panel's five display toggles and every icon flash |
 
 The one thing that *was* broken is not a world-map feature at all.
@@ -571,7 +571,7 @@ reference client wrapper composites the same disc for the same reason
 
 ### Verified in the client, on pixels
 
-Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
+Server `torirsserver-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
 
 1. **The varbit latches.** `TORIRS_SIM_CLICK_AT="150,704,140;300,46,241"` —
    `script=1720 pc=0 PUSH_VARBIT 5640 itop=4` (was `itop=0`), and 1720 takes the
@@ -626,7 +626,7 @@ Server `mock230-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
   Was emergent from script 5355 (gameframe = canvas−42) + script 909 (tracker =
   canvas, xmode=1). Do not reinstate relative origin-align — see
   `REV230_UI_BLANK_PANELS.md` §5 / `gameframe_layout_resize.md` §5.
-- `mock230_pack --check-only` is green at **0 errors** (15 unrelated warnings).
+- `ToriRSServer_Pack --check-only` is green at **0 errors** (15 unrelated warnings).
 
 ---
 
@@ -724,18 +724,18 @@ ratio ≈ 1.0 = no striping):
 ## Running two servers at once
 
 Two agents (or two people) holding live sessions fight over port 43595 and over
-`src/build/mock230`. There are now three builds of the same sources:
+`src/build/torirsserver`. There are now three builds of the same sources:
 
 | target | binary | port | manifest |
 |---|---|---|---|
-| `mock230` | `src/build/mock230` | 43595 | `manifest_osrs230.ini` |
-| `mock230-dev` | `src/build/dev_mock230` | 43597 | `manifest_osrs230_dev.ini` |
-| `mock230-alt` | `src/build/alt_mock230` | 43599 | `manifest_osrs230_alt.ini` |
+| `ToriRSServer` | `src/build/torirsserver` | 43595 | `manifest_osrs230.ini` |
+| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifest_osrs230_dev.ini` |
+| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifest_osrs230_alt.ini` |
 
 `run-live.sh` picks the binary up from `TORIRS_MOCK_BIN`:
 
 ```sh
-TORIRS_MOCK_BIN=src/build/alt_mock230 ./run-live.sh manifest_osrs230_alt.ini
+TORIRS_MOCK_BIN=src/build/alt_torirsserver ./run-live.sh manifest_osrs230_alt.ini
 ```
 
 The port still comes from the manifest, so the two only have to agree there.

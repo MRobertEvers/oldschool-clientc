@@ -17,7 +17,7 @@
  * (preferences<N>.dat) holds the master/music/effects/area volumes beside the
  * rest of the client-side options, and every setter calls the save. Account
  * settings -- the ones a script writes as a varp -- travel the other way and
- * are the server save's business (see net/mock/mock230_save.c); this file must
+ * are the server save's business (see torirsserver/torirs_server_save.c); this file must
  * not duplicate them, or a stale local copy would fight the server's.
  *
  * What is stored is the CS2 option surface: the three arrays behind

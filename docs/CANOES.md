@@ -165,7 +165,7 @@ moves; the trees do.
 ### Camera
 
 `cam_moveto` / `cam_lookat` / `cam_reset` are all hosted
-(`mock230_scripts.c:7713`), signature `(coord, height, speed, acceleration)`.
+(`torirs_server_scripts.c:7713`), signature `(coord, height, speed, acceleration)`.
 The camera sits off the bank looking at the canoe tile, and `cam_reset` runs
 before the teleport out — a camera left locked survives the scene change.
 
@@ -209,7 +209,7 @@ when Woodcutting changes, so the menu un-greys itself live.
 
 **The op is on a dynamic child at sub-id 0, and that rules out
 `if_addresumebutton`**: `handle_if_button_op` returns early for `sub == 0` on a
-registered resume button (`mock230_world.c:6800`) precisely so a `~p_choice*`
+registered resume button (`torirs_server_world.c:6800`) precisely so a `~p_choice*`
 title row cannot answer for a real row. These four are driven with
 `if_setevents(..., 0, 0, ^if_event_op1)` and `[if_button1,canoeing:log]`-style
 triggers instead.
@@ -291,7 +291,7 @@ already is.
 ## 4. Server-side model
 
 `loc_type` inside an `[oploc]` trigger is the **multiloc-resolved child**
-(`mock230_world.c:1554`), not the base, so a trigger cannot be bound per
+(`torirs_server_world.c:1554`), not the base, so a trigger cannot be bound per
 station: `canoestation_tree` is one record shared by all ten. Station identity
 comes from `loc_coord` through a `db_find` on `canoe_station:coord`, the same
 shape `~maplink_try` uses.
@@ -335,8 +335,8 @@ destination flags, mirroring clientscripts 3105–3108.
 
 ## 6. Verification
 
-**Selftest.** `mock230 selftest: a canoe is chopped, shaped, floated and
-paddled` (`mock230_world.c`) drives the whole chain through the real packets at
+**Selftest.** `ToriRSServer selftest: a canoe is chopped, shaped, floated and
+paddled` (`torirs_server_world.c`) drives the whole chain through the real packets at
 the real Lumbridge station: `OPLOC1` on the station until the tree falls,
 `IF_BUTTON1` on `canoeing:log` to shape it, `OPLOC1` to float it, `OPLOC1` to
 board, then two destination clicks — Edgeville, which a log canoe must be
@@ -367,7 +367,7 @@ and bullrush npcs drift past, `cam_reset` restores the follow camera and the
 player lands at Barbarian Village with "Your canoe sinks behind you."
 `::canoecave 4` shows the same with the cave scenery closing over the channel.
 
-One trap worth writing down: **use `MOCK230_SAVES` for these runs.** A run that
+One trap worth writing down: **use `TORIRSSERVER_SAVES` for these runs.** A run that
 ends mid-ride saves the player sitting in the canoe at 1817,4514, and the next
 run logs in there — which reads exactly like a cutscene that never exits. The
 first two attempts at this verification chased that and not the code.

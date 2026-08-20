@@ -16,7 +16,7 @@
 > | 7 Combat Achievements | **done** — 51 tasks through `~ca_task_complete`, with the Perfect flags cleared by damage and double-gated on the room being implemented |
 > | 8 the way in | **done** — the entrance, the invocation board (which opens interface 776, drawn entirely from the cache's own structs), the scoreboard and the grouping board. `~toa_enter` had exactly one caller before this and it was a debugproc |
 > | 9 reward items | **done** — the three keris jewels, masori fortification, breaking armadyl down for plates, and charging and uncharging Tumeken's shadow |
-> | 10 `::toarun` | **54 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms`, `::toaprobe`, `::toaloot` and the entry harness that drives `::toa N` + `::toago` through all five boss chambers |
+> | 10 `::toarun` | **54 checks**, proven able to fail, wired into `ToriRSServer --selftest` alongside `::toarooms`, `::toaprobe`, `::toaloot` and the entry harness that drives `::toa N` + `::toago` through all five boss chambers |
 >
 > **Parties, interfaces and what is left:**
 >
@@ -74,7 +74,7 @@
 >    collision. `::toaprobe`'s third control settles it the other way: standing
 >    inside a freshly built room, the tile underfoot reads blocked and the
 >    Lumbridge tile the player just left still reads **open**. The scene has not
->    moved. `mock230_scene_walk_blocked` answers "blocked" for anything outside
+>    moved. `ToriRSServer_SceneWalkBlocked` answers "blocked" for anything outside
 >    the one currently-built scene, and the scene is rebuilt on the tick
 >    boundary rather than inside `p_teleport`. Nothing to do with instances, and
 >    it decides how every room here has to be written.
@@ -125,7 +125,7 @@ copies that shape deliberately and says so at each step.
 * **Two instances are not enough.** ToB builds one room at a time. ToA's four
   paths are taken *in any order* and a party can be split across a challenge and
   a boss room; the reward room is a third. The instance pool is
-  `MOCK230_MAPINSTANCE_MAX = 8`, which is enough, but the "one room at a time"
+  `TORIRSSERVER_MAPINSTANCE_MAX = 8`, which is enough, but the "one room at a time"
   simplification does not carry over. **§2 is the first real engineering task.**
 * **Difficulty is a runtime parameter, not a mode constant.** ToB has three
   modes. ToA has 46 independent switches feeding one scalar, four independent
@@ -163,7 +163,7 @@ OSRS-Content/osrs239-content/server/scripts/minigames/minigame_toa/
     toa_vault.rs2         sarcophagus, chests, scoreboard, books
     toa_rewards.rs2       the loot table
     toa_timing.rs2        the tick model as pure functions, checkable early
-    toa_selftest.rs2      ::toarun, wired into mock230 --selftest
+    toa_selftest.rs2      ::toarun, wired into ToriRSServer --selftest
 tools/
   toa_cache_dump.py       written; regenerates every sources/cache_*
   toa_fetch_wiki.py       written; re-pulls the pinned wiki pages and the CA list
@@ -394,7 +394,7 @@ absence**, so an unimplemented mechanic cannot award a task. Table:
 
 ## 9. Step 8 — `::toarun`
 
-A selftest wired into `mock230 --selftest`, and — following the rule this tree
+A selftest wired into `ToriRSServer --selftest`, and — following the rule this tree
 learned the hard way — **proven able to fail** by mutating a constant and
 watching two independent checks catch it. Minimum coverage:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Structural checks for charter ships.
 
-Run by the mock230-scripts build. What it defends, in order of how badly each
+Run by the torirsserver-scripts build. What it defends, in order of how badly each
 would fail in the game rather than in the compiler:
 
   1. Every port row still agrees with the cache's own dbtable 206

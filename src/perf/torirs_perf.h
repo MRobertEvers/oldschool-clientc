@@ -45,7 +45,7 @@ enum TorirsPerfStage
     /** Classifying renderer hits into the world hover/pick set. */
     TORIRS_PERF_STAGE_PICK_FINISH,
     TORIRS_PERF_STAGE_PRESENT,
-    /** Embedded mock230 pump + world tick (net_transport_embed). */
+    /** Embedded ToriRSServer pump + world tick (net_transport_embed). */
     TORIRS_PERF_STAGE_SERVER,
     /** Native event/network polling before the command bus is drained. */
     TORIRS_PERF_STAGE_PLATFORM_POLL,

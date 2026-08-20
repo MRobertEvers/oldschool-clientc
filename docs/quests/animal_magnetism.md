@@ -558,8 +558,8 @@ data.
 - assert Malcolm and every required carrier have exactly one intended world
   spawn and correct transform ownership;
 - assert journal, completion registry, dbrow end state, and cheat adapter agree;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

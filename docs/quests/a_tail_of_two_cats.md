@@ -626,8 +626,8 @@ Minimum repository checks after implementation:
 
 ```sh
 python3 tools/questhelper_extract.py atailoftwocats --check
-make -C src mock230-scripts
-mock230_pack --check-only
+make -C src torirsserver-scripts
+ToriRSServer_Pack --check-only
 ```
 
 Also run quest-specific state/shared-NPC/locator/timer/chore/cutscene/item/reward/

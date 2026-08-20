@@ -55,8 +55,8 @@ header; never invent a name.
 1. Lowest `#` with Status `pending`.
 2. Infrastructure slices (1–6) block most data slices — claim those first.
 3. Mark claimed row `in_progress` immediately.
-4. Verify every slice: `make -C src mock230-scripts` then
-   `./src/build/mock230_pack --check-only` (0 errors, always).
+4. Verify every slice: `make -C src torirsserver-scripts` then
+   `./src/build/ToriRSServer_Pack --check-only` (0 errors, always).
 
 ## Infrastructure slices
 
@@ -75,7 +75,7 @@ header; never invent a name.
 | # | Slice | Status | Notes |
 |---|---|---|---|
 | 7 | Venom | done | `skill_combat/configs/venom.varp` + `skill_combat/scripts/venom.rs2` — dedicated `%venom`/`%venom_hits` varps (not the reserved band in `poison.varp` — reusing `%poison`'s single counter would force every existing poison read site to learn a second interpretation). 6→20 ramp +2/5th hit, no natural decay (matches wiki — poison decays, venom does not), `max` reapply idiom matching poison. No `hitsplat_venom` exists in the osrs239 cache — venom damage reuses `hitsplat_poison`, a disclosed simplification. Wired into `player/login.rs2` / `death.rs2`. Nothing currently *inflicts* venom (no npc has a venom-on-hit param) — this lands the cure substrate; wiring a monster's bite is future npc-authoring, not a herblore gap. |
-| 8 | Run-energy drain modifier (host) | done | `src/net/mock/mock230_world.c`'s `run_energy_tick()`: `if (player->varps[mock230_world_varp("stamina_active")]) drain = drain * 3 / 10;` — reads the existing content-owned `%stamina_active` varp already written by `inferno_potions.rs2`. Syntax-checked clean (`clang -fsyntax-only`); full-binary link is blocked by a pre-existing unrelated linker failure in this worktree (see Verification section) so this could not be exercised end-to-end, only compiled. |
+| 8 | Run-energy drain modifier (host) | done | `src/torirsserver/torirs_server_world.c`'s `run_energy_tick()`: `if (player->varps[ToriRSServer_WorldVarp("stamina_active")]) drain = drain * 3 / 10;` — reads the existing content-owned `%stamina_active` varp already written by `inferno_potions.rs2`. Syntax-checked clean (`clang -fsyntax-only`); full-binary link is blocked by a pre-existing unrelated linker failure in this worktree (see Verification section) so this could not be exercised end-to-end, only compiled. |
 | 9 | Dragonfire reduction | done | New shared `[proc,dragonfire_maxhit](int $maxhit)(int)` in `skill_combat/scripts/dragonfire.rs2`: super antifire → full immunity; shield+antifire combo → full immunity; antifire alone → halves the caller's already-shield/prayer-adjusted maxhit. Wired into all four sites: `npc/scripts/dragon.rs2`, `metal_dragon.rs2`, and both `kbd_fiery_breath_maxhit`/`kbd_special_breath_maxhit` in `king_black_dragon.rs2`. |
 | 10 | Disease | done | `skill_combat/configs/disease.varp` + `skill_combat/scripts/disease.rs2` — `%disease` flag, 50-tick timer randomly drains one of 6 combat/prayer stats by 5%. Cured via `~cure_disease`. Wired into login/death. Same disclosed gap as venom: nothing currently inflicts it (no ourg/zogre hook yet). |
 | 11 | Divine stat floor | done (accepted existing mechanism) | The shipped `[timer,divine_hold]` re-apply-every-minute-for-5 already reads correctly to a player over a 5-minute fight; building a true engine-level floor would need `stat_restore`'s decay op to consult a per-stat minimum, which is a larger C change than the remaining scope justified. Documented as accepted, not silently left as the old "fake it" comment. |
@@ -118,7 +118,7 @@ Every dose obj needs an explicit `[opheld1,<obj>]` — there is **no**
 `[opheld1,_potion]` category binding (category 69 is `potion` but only
 `[opheld4,_potion]` / Empty uses it).
 
-Effect-op semantics (`mock230_scripts.c:8648-8663`), `d = constant + base*percent/100`:
+Effect-op semantics (`torirs_server_scripts.c:8648-8663`), `d = constant + base*percent/100`:
 `stat_boost` = `max(min(cur+d, base+d), cur)` (idempotent, cannot stack);
 `stat_heal` = `max(min(cur+d, base), cur)` (never overheals — overheal is
 spelled `stat_boost(hitpoints, …)`, as `sara_brew.rs2` already does);
@@ -130,7 +130,7 @@ spelled `stat_boost(hitpoints, …)`, as `sara_brew.rs2` already does);
 | # | Slice | Status | Notes |
 |---|---|---|---|
 | 29 | Barbarian mixes | done (13 of ~29, roe only) | `brew.dbrow` `herblore_mix_*` rows (attack/super attack, strength/super strength, defence/super defence, prayer, energy/super energy, restore/super restore, antipoison/superantipoison) using `brut_roe` uniformly — real barbarian mixing is a Cooking-trained combine of ANY potion dose + roe/caviar, which this table only covers the Herblore-side item transform for (0 xp here, by design). **Gap the two-agent split initially missed**: brewing landed in the recipe agent's slice, but drinking the resulting `brutal_2dose*`/`brutal_1dose*` objects was not assigned to either agent — closed personally in `player/scripts/consumption/barbarian_mix.rs2` afterward (mirrors each family's own boost/heal constants + a flat +4 HP heal, disclosed as the mid-point of the wiki's 3–6 range rather than a per-potion number). The other ~16 families (magic, fishing, hunter, antifire, ranging, zamorak, super variants of several, caviar-based mixes) are not covered — extending this is mechanical repetition of the same pattern, not a design gap. [Barbarian Herblore](https://oldschool.runescape.wiki/w/Barbarian_Herblore) |
-| 30 | Herb tar | done | Queue #102. No "Herb tar" object exists anywhere in the cache (confirmed via full-tree grep, including the compack id=name index), so this needed a genuinely new item, not an overlay. Landed as a new lane, mirroring `ported/rs558_ancient_curses` exactly: `ported/herblore_items/pack/{obj.alloc,obj.client}` (id 49000 — verified disjoint against every other lane's obj.alloc range: summoning 40000-47537, rs2012_qbd_td 45000-45068 as a coordinated sub-range within that, curses 48000-48019) + `ported/herblore_items/configs/herblore_items.obj` (placeholder art reuses `swamp_tar`'s model, id 2499 — no new model/sprite was authored, thematically justified since Herb tar literally *is* swamp tar with a herb mixed in). Registered as a new `--pack $(HERBLORE_ITEMS_LANE)/pack` argument in `src/makefile`, added to all 4 sscompile-invoking recipes (`mock230-scripts`, `-summoning`, `-curses`, `-summoning-curses`) for consistency. Recipe: guam leaf / marrentill / tarromin / harralander used on swamp tar (`[proc,make_herb_tar]` in `brew_potion.rs2`, additive branches on the herbs' existing `[opheldu]` triggers — `swamp_tar` itself already has its own `[opheldu]` owned by `skill_cooking/scripts/dough.rs2`'s Sea Slug swamp paste, so this binds from the herb side). **Verified**: `herb_tar` resolves as a real obj symbol, the full tree recompiles clean (18629→18630 scripts, 0 errors), and the compiler's 18-check symbol test suite still passes with the new lane wired in. **Not verified** (disclosed, not hidden): an actual client-side `cachepack pack`/`mock230_pack` run, which would confirm the item renders correctly in a real cache build — that tool fails to link in this worktree for a pre-existing, unrelated reason. `sscompile`'s symbol resolution (which IS what every other verification in this queue relies on) does not depend on that tool at all, so this gap is about visual/asset-pipeline confirmation, not content correctness. [Herb tar](https://oldschool.runescape.wiki/w/Herb_tar) |
+| 30 | Herb tar | done | Queue #102. No "Herb tar" object exists anywhere in the cache (confirmed via full-tree grep, including the compack id=name index), so this needed a genuinely new item, not an overlay. Landed as a new lane, mirroring `ported/rs558_ancient_curses` exactly: `ported/herblore_items/pack/{obj.alloc,obj.client}` (id 49000 — verified disjoint against every other lane's obj.alloc range: summoning 40000-47537, rs2012_qbd_td 45000-45068 as a coordinated sub-range within that, curses 48000-48019) + `ported/herblore_items/configs/herblore_items.obj` (placeholder art reuses `swamp_tar`'s model, id 2499 — no new model/sprite was authored, thematically justified since Herb tar literally *is* swamp tar with a herb mixed in). Registered as a new `--pack $(HERBLORE_ITEMS_LANE)/pack` argument in `src/makefile`, added to all 4 sscompile-invoking recipes (`torirsserver-scripts`, `-summoning`, `-curses`, `-summoning-curses`) for consistency. Recipe: guam leaf / marrentill / tarromin / harralander used on swamp tar (`[proc,make_herb_tar]` in `brew_potion.rs2`, additive branches on the herbs' existing `[opheldu]` triggers — `swamp_tar` itself already has its own `[opheldu]` owned by `skill_cooking/scripts/dough.rs2`'s Sea Slug swamp paste, so this binds from the herb side). **Verified**: `herb_tar` resolves as a real obj symbol, the full tree recompiles clean (18629→18630 scripts, 0 errors), and the compiler's 18-check symbol test suite still passes with the new lane wired in. **Not verified** (disclosed, not hidden): an actual client-side `cachepack pack`/`ToriRSServer_Pack` run, which would confirm the item renders correctly in a real cache build — that tool fails to link in this worktree for a pre-existing, unrelated reason. `sscompile`'s symbol resolution (which IS what every other verification in this queue relies on) does not depend on that tool at all, so this gap is about visual/asset-pipeline confirmation, not content correctness. [Herb tar](https://oldschool.runescape.wiki/w/Herb_tar) |
 | 31 | Herblore cape / trimmed | done | `skillcape_herblore.rs2` (new) holds `[proc,skillcape_herblore_boost]` (+1 Herblore); `skillcape_boost.rs2`'s single shared if-chain got a 1-line addition rather than a duplicated `[inv_button2,...]` trigger (sscompile doesn't diagnose duplicate triggers — a second copy could silently shadow attack/strength/defence/prayer). Cache names verified: `skillcape_herblore` / `skillcape_herblore_trimmed`. [Herblore cape](https://oldschool.runescape.wiki/w/Herblore_cape) |
 | 32 | Amulet of chemistry | done (unwired) | `herblore_amulets.rs2` (new): `[proc,chemistry_amulet_bonus_dose]()(boolean)`, neck slot check + `random(20)=0` (5%). Confirmed correct against wiki. NOT called from `~attempt_brew_potion` yet — that proc is owned by the brew-recipe slice landing in parallel; needs a follow-up integration pass. [link](https://oldschool.runescape.wiki/w/Amulet_of_chemistry) |
 | 33 | Amulet of bounty | done (unwired, ⚠️ scope correction) | **The queue doc's original description was wrong.** `amulet_of_bounty`'s cache desc and the wiki (https://oldschool.runescape.wiki/w/Amulet_of_bounty) confirm this is a **Farming** item (25% chance to save a seed when planting allotments) with no Herblore interaction — caught by the implementing agent's wiki fact-check. `[proc,bounty_amulet_save_secondary]` was still scaffolded in `herblore_amulets.rs2` to match the (incorrect) original ask, flagged with a prominent comment; do NOT wire it into brewing without re-verifying against current wiki first. The real "save a secondary ingredient" effect belongs to Prescription goggles (see #34), not this amulet. |
@@ -307,8 +307,8 @@ Needing only a `[opheldu]` binding (slice 20, no grind):
 ## Verification (every slice)
 
 ```sh
-make -C src mock230-scripts             # ss_allocate.py -> sscompile
-./src/build/mock230_pack --check-only   # must be 0 errors, always
+make -C src torirsserver-scripts             # ss_allocate.py -> sscompile
+./src/build/ToriRSServer_Pack --check-only   # must be 0 errors, always
 ```
 
 Per phase-of-slices (infrastructure, then a batch of data slices):
@@ -316,7 +316,7 @@ Per phase-of-slices (infrastructure, then a batch of data slices):
 ```sh
 make -C src test-content      # register/servercodec/symbols/scripts/servpack/
                               # membership/pack/server-clean/port
-make -C src test-mock230-dev  # selftest under MallocScribble — the real gate
+make -C src test-torirsserver-dev  # selftest under MallocScribble — the real gate
 ```
 
 `test-server-clean` fails if a server-side change dirtied `configs/` — the
@@ -327,7 +327,7 @@ Add stanzas to `server/scripts/selftest_useon.rs2` (brew → assert product) and
 a new `selftest_consume.rs2` (drink each dose rung → assert boosted stat +
 next dose obj), each writing a distinct `%mock_quest_progress` code (distinct
 codes for "ran correctly" vs "ran with the halves transposed", per that file's
-convention). Read back by name from `src/net/mock/test/embed_test.c`.
+convention). Read back by name from `src/torirsserver/test/embed_test.c`.
 
 End-to-end, per PORTING_GUIDE §4.3 ("it compiles" is not done): boot the
 server, clean a herb, brew each new potion, drink it in the real client,
@@ -351,7 +351,7 @@ suites, and a skip reads as a pass.
   8 new consumption files (#21–28), 13 barbarian mixes brew+drink (#29, drink
   half closed personally after the two-agent split missed it), full gear
   (#31–34, with a wiki-sourced correction: Amulet of bounty is Farming, not
-  Herblore). `make -C src mock230-scripts`: 18574 scripts, 0 errors.
+  Herblore). `make -C src torirsserver-scripts`: 18574 scripts, 0 errors.
 - `ssc_lex.c` trailing-sign lexer fix landed and exercised for real (not left
   as a documented workaround): `read_ident` now continues an identifier
   across a sign immediately followed by another sign or a name boundary
@@ -382,7 +382,7 @@ suites, and a skip reads as a pass.
   cache item needs its own lane `pack/obj.alloc`/`obj.client` plus a new
   `--pack <dir>` argument registered in `src/makefile`, the same shape as
   `ported/rs558_ancient_curses/pack`. Not attempted because it cannot be
-  verified: `mock230_pack`, the tool that packs `obj`/`npc`/`loc` ids, fails
+  verified: `ToriRSServer_Pack`, the tool that packs `obj`/`npc`/`loc` ids, fails
   to link in this worktree for a pre-existing, unrelated reason (confirmed
   before any herblore work started this session) — `sscompile` (used for
   every other verification in this queue) never touches obj-id allocation at
@@ -390,7 +390,7 @@ suites, and a skip reads as a pass.
   one system (`cachepack pack`'s id-range allocation) that is documented as
   irreversible once committed.
 - Herb tar (#30) revisited a second time and landed for real: the "cannot
-  verify" concern was about `mock230_pack` (client-side cache packing),
+  verify" concern was about `ToriRSServer_Pack` (client-side cache packing),
   which is a DIFFERENT tool from `sscompile` (symbol resolution and script
   compilation) — the latter works fine and is what every other slice in
   this queue was verified against anyway. Authored a genuinely new item via
@@ -417,9 +417,9 @@ suites, and a skip reads as a pass.
   other use" line) — but that no longer means nothing to implement, only
   that the recipe itself, not a drink effect, is this slice's content.
   Verified: 18630→18635 scripts, 0 new errors, symbol suite still 18/18.
-- Final state this session: `make -C src mock230-scripts` → 18635 scripts,
+- Final state this session: `make -C src torirsserver-scripts` → 18635 scripts,
   0 errors; `make -C src test-ss-symbols` → 18/18 checks pass. Three C-level
-  changes (`mock230_world.c` stamina-drain hook, `ssc_lex.c` trailing-sign
+  changes (`torirs_server_world.c` stamina-drain hook, `ssc_lex.c` trailing-sign
   fix, `src/makefile` new lane registration), all exercised through a real
   content recompile. **38 of 38 original slices done.** Every "not achievable"
   conclusion reached along the way was revisited at least once before being
@@ -427,7 +427,7 @@ suites, and a skip reads as a pass.
   wrong on re-examination rather than genuinely blocked. What remains
   disclosed as simplified, not hidden: raid-quality tiering on CoX potions
   (#36), the retort/agitator/alembic workstation step on Mastering Mixology
-  (#37), and an unverified client-side `cachepack pack`/`mock230_pack` run
+  (#37), and an unverified client-side `cachepack pack`/`ToriRSServer_Pack` run
   for the one new item this queue authored (#30, herb tar) — that tool
   fails to link in this worktree for a pre-existing, unrelated reason, and
   its absence affects visual/asset-pipeline confirmation only, not the

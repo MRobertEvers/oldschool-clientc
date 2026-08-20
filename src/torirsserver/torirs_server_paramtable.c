@@ -1,9 +1,9 @@
 /*
- * The shared (owner, key) -> value param table. See mock230_paramtable.h for
+ * The shared (owner, key) -> value param table. See torirs_server_paramtable.h for
  * why there is one of these rather than one per config type.
  */
 
-#include "mock230_paramtable.h"
+#include "torirs_server_paramtable.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -17,8 +17,8 @@ compare_row(
     const void* a,
     const void* b)
 {
-    const struct Mock230ParamRow* left = (const struct Mock230ParamRow*)a;
-    const struct Mock230ParamRow* right = (const struct Mock230ParamRow*)b;
+    const struct ToriRSServerParamRow* left = (const struct ToriRSServerParamRow*)a;
+    const struct ToriRSServerParamRow* right = (const struct ToriRSServerParamRow*)b;
 
     if( left->owner != right->owner )
         return left->owner < right->owner ? -1 : 1;
@@ -29,19 +29,19 @@ compare_row(
 
 static void
 add_row(
-    struct Mock230ParamTable* table,
+    struct ToriRSServerParamTable* table,
     int owner,
     int key,
     int ival,
     const char* sval)
 {
-    struct Mock230ParamRow* row;
+    struct ToriRSServerParamRow* row;
 
     if( table->count == table->capacity )
     {
         int capacity = table->capacity ? table->capacity * 2 : 4096;
-        struct Mock230ParamRow* grown =
-            (struct Mock230ParamRow*)realloc(table->rows, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerParamRow* grown =
+            (struct ToriRSServerParamRow*)realloc(table->rows, (size_t)capacity * sizeof(*grown));
 
         if( !grown )
             return;
@@ -56,8 +56,8 @@ add_row(
 }
 
 void
-mock230_paramtable_read(
-    struct Mock230ParamTable* table,
+ToriRSServer_ParamTableRead(
+    struct ToriRSServerParamTable* table,
     int owner,
     const struct RSCache_Params* params)
 {
@@ -80,8 +80,8 @@ mock230_paramtable_read(
 }
 
 void
-mock230_paramtable_set_int(
-    struct Mock230ParamTable* table,
+ToriRSServer_ParamTableSetInt(
+    struct ToriRSServerParamTable* table,
     int owner,
     int key,
     int ival)
@@ -106,7 +106,7 @@ mock230_paramtable_set_int(
 }
 
 void
-mock230_paramtable_sort(struct Mock230ParamTable* table)
+ToriRSServer_ParamTableSort(struct ToriRSServerParamTable* table)
 {
     assert(table);
     if( table->rows && table->count > 1 )
@@ -114,9 +114,9 @@ mock230_paramtable_sort(struct Mock230ParamTable* table)
     table->sorted = 1;
 }
 
-const struct Mock230ParamRow*
-mock230_paramtable_find(
-    const struct Mock230ParamTable* table,
+const struct ToriRSServerParamRow*
+ToriRSServer_ParamTableFind(
+    const struct ToriRSServerParamTable* table,
     int owner,
     int key)
 {
@@ -134,7 +134,7 @@ mock230_paramtable_find(
          * prevent. Refuse loudly instead of half-working.
          */
         fprintf(stderr,
-                "mock230: param table queried before it was sorted (owner %d, key %d)\n",
+                "torirsserver: param table queried before it was sorted (owner %d, key %d)\n",
                 owner, key);
         return NULL;
     }
@@ -144,7 +144,7 @@ mock230_paramtable_find(
     while( low <= high )
     {
         int mid = low + (high - low) / 2;
-        struct Mock230ParamRow* row = &table->rows[mid];
+        struct ToriRSServerParamRow* row = &table->rows[mid];
 
         if( row->owner < owner || (row->owner == owner && row->key < key) )
             low = mid + 1;
@@ -157,7 +157,7 @@ mock230_paramtable_find(
 }
 
 void
-mock230_paramtable_free(struct Mock230ParamTable* table)
+ToriRSServer_ParamTableFree(struct ToriRSServerParamTable* table)
 {
     if( !table )
         return;
@@ -171,12 +171,12 @@ mock230_paramtable_free(struct Mock230ParamTable* table)
 }
 
 size_t
-mock230_paramtable_bytes(const struct Mock230ParamTable* table)
+ToriRSServer_ParamTableBytes(const struct ToriRSServerParamTable* table)
 {
     size_t bytes;
 
     assert(table);
-    bytes = (size_t)table->count * sizeof(struct Mock230ParamRow);
+    bytes = (size_t)table->count * sizeof(struct ToriRSServerParamRow);
     for( int i = 0; i < table->count; i++ )
         if( table->rows[i].sval )
             bytes += strlen(table->rows[i].sval) + 1;

@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_DB_H
-#define SRC_NET_MOCK_MOCK230_DB_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_DB_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_DB_H
 
 /*
  * The server's client-database tables — LostCity's `.dbtable` and `.dbrow`.
@@ -34,70 +34,70 @@
  * `$coord1, $coord2 = db_getfield(...)` receive two.
  */
 
-#include "mock230_content.h"
+#include "torirs_server_content.h"
 
 enum
 {
     /** Cache tables are sparse by column id — `quest` declares columndef 48.
      *  Authored LostCity tables top out around 25; 64 covers both. */
-    MOCK230_DB_COLUMN_MAX = 64,
+    TORIRSSERVER_DB_COLUMN_MAX = 64,
     /** Measured: the widest tuple in the reference is 8. */
-    MOCK230_DB_TUPLE_MAX = 8,
+    TORIRSSERVER_DB_TUPLE_MAX = 8,
 };
 
-struct Mock230DbValue;
+struct ToriRSServerDbValue;
 
-struct Mock230DbColumn
+struct ToriRSServerDbColumn
 {
     const char* name;
     /** The tuple width — how many values one `data=` line carries. */
     int type_count;
     /** Per tuple position: text rather than a number. Decides which VM stack
      *  `db_getfield` pushes onto, so it is not cosmetic. */
-    int is_string[MOCK230_DB_TUPLE_MAX];
-    /** The pack a tuple position resolves against, or MOCK230_PACK_COUNT for a
+    int is_string[TORIRSSERVER_DB_TUPLE_MAX];
+    /** The pack a tuple position resolves against, or TORIRSSERVER_PACK_COUNT for a
      *  literal (`int`, `coord`, `string`). */
-    enum Mock230PackKind kind[MOCK230_DB_TUPLE_MAX];
+    enum ToriRSServerPackKind kind[TORIRSSERVER_DB_TUPLE_MAX];
     /** DBTABLE's optional value block. A DBROW which omits this column inherits
      *  these tuples; DB_FIND and DB_GETFIELD both observe that inheritance. */
-    struct Mock230DbValue* defaults;
+    struct ToriRSServerDbValue* defaults;
     int default_count;
 };
 
-struct Mock230DbTable
+struct ToriRSServerDbTable
 {
     const char* symbol;
     /** From pack/dbtable.pack, or -1 when the name was never allocated an id.
      *  A table with no id is unreachable from script and is reported at load. */
     int table_id;
-    struct Mock230DbColumn columns[MOCK230_DB_COLUMN_MAX];
+    struct ToriRSServerDbColumn columns[TORIRSSERVER_DB_COLUMN_MAX];
     int column_count;
 };
 
-struct Mock230DbValue
+struct ToriRSServerDbValue
 {
     int value;
     /** Non-NULL only where the column's type at this position is `string`. */
     const char* text;
 };
 
-struct Mock230DbRowColumn
+struct ToriRSServerDbRowColumn
 {
     /** Flat, tuple-major: `count` is a value count, so the tuple count is
      *  `count / column->type_count`. Keeping it flat is what makes a partially
      *  written row impossible to mistake for a complete one — a `data=` line
      *  with the wrong arity is rejected rather than half-appended. */
-    struct Mock230DbValue* values;
+    struct ToriRSServerDbValue* values;
     int count;
     int capacity;
 };
 
-struct Mock230DbRow
+struct ToriRSServerDbRow
 {
     const char* symbol;
     int row_id;
     int table_id;
-    struct Mock230DbRowColumn columns[MOCK230_DB_COLUMN_MAX];
+    struct ToriRSServerDbRowColumn columns[TORIRSSERVER_DB_COLUMN_MAX];
 };
 
 /** Read every `*.dbtable` then every `*.dbrow` under `dir`, recursively.
@@ -106,32 +106,32 @@ struct Mock230DbRow
  *  to a directory walk: a row names its table, and a `data=` line cannot be
  *  parsed at all until the table has told us the column's tuple types. */
 void
-mock230_db_load(const char* dir);
+ToriRSServer_DbLoad(const char* dir);
 
 void
-mock230_db_free(void);
+ToriRSServer_DbFree(void);
 
 /** By the id `pack/dbtable.pack` gives its name, or NULL. */
-const struct Mock230DbTable*
-mock230_db_table(int table_id);
+const struct ToriRSServerDbTable*
+ToriRSServer_DbTable(int table_id);
 
 /** By the id `pack/dbrow.pack` gives its name, or NULL. */
-const struct Mock230DbRow*
-mock230_db_row(int row_id);
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRow(int row_id);
 
 /** Column index within its table, or -1. */
 int
-mock230_db_column_index(
-    const struct Mock230DbTable* table,
+ToriRSServer_DbColumnIndex(
+    const struct ToriRSServerDbTable* table,
     const char* name);
 
 /** How many rows belong to a table — `db_listall`'s answer. */
 int
-mock230_db_row_count(int table_id);
+ToriRSServer_DbRowCount(int table_id);
 
 /** The `index`-th row of a table in load order, or NULL. */
-const struct Mock230DbRow*
-mock230_db_row_in_table(
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRowInTable(
     int table_id,
     int index);
 
@@ -140,13 +140,13 @@ mock230_db_row_in_table(
  *  returns, and therefore the order the client walks. Used only by the
  *  `db_listall` cursor; `db_find` keeps the storage-order scan above. See the
  *  long comment on the definition for why the two are separate. */
-const struct Mock230DbRow*
-mock230_db_row_in_table_ordered(
+const struct ToriRSServerDbRow*
+ToriRSServer_DbRowInTableOrdered(
     int table_id,
     int index);
 
 /*
- * Cache import (mock230_dbinfo.c). Authored tables keep priority: a table that
+ * Cache import (torirs_server_dbinfo.c). Authored tables keep priority: a table that
  * already has columns is not overwritten. Rows for cache table ids are always
  * filled from the binary records — the machine-exported `configs/all.dbrow`
  * uses `values=` which the text reader does not parse.
@@ -155,16 +155,16 @@ mock230_db_row_in_table_ordered(
 /** Ensure a table slot for `table_id`. Creates one when absent. When
  *  `replace_empty` is set and the existing table has zero columns, its schema
  *  is cleared so the caller can redefine it. */
-struct Mock230DbTable*
-mock230_db_ensure_table(
+struct ToriRSServerDbTable*
+ToriRSServer_DbEnsureTable(
     int table_id,
     const char* symbol,
     int replace_empty);
 
 /** Ensure a row slot. Creates one when absent; never replaces an authored row
  *  that already has values. */
-struct Mock230DbRow*
-mock230_db_ensure_row(
+struct ToriRSServerDbRow*
+ToriRSServer_DbEnsureRow(
     int row_id,
     const char* symbol,
     int table_id);
@@ -172,8 +172,8 @@ mock230_db_ensure_row(
 /** Define column `col_id` (sparse id, not densified). `name` may be NULL for
  *  cache-only columns that scripts address by packed id. */
 void
-mock230_db_column_define(
-    struct Mock230DbTable* table,
+ToriRSServer_DbColumnDefine(
+    struct ToriRSServerDbTable* table,
     int col_id,
     const char* name,
     int type_count,
@@ -181,42 +181,42 @@ mock230_db_column_define(
 
 /** Replace a cache DBTABLE column's default tuples. String texts are strdup'd. */
 void
-mock230_db_column_defaults_set(
-    struct Mock230DbTable* table,
+ToriRSServer_DbColumnDefaultsSet(
+    struct ToriRSServerDbTable* table,
     int col_id,
-    const struct Mock230DbValue* values,
+    const struct ToriRSServerDbValue* values,
     int count);
 
 /** Replace the values stored at `col_id` on a row. Takes ownership of nothing —
  *  string texts are strdup'd. */
 void
-mock230_db_row_column_set(
-    struct Mock230DbRow* row,
+ToriRSServer_DbRowColumnSet(
+    struct ToriRSServerDbRow* row,
     int col_id,
-    const struct Mock230DbValue* values,
+    const struct ToriRSServerDbValue* values,
     int count);
 
 /** Install every DBTABLE schema the dat2 cache ships. Call this BEFORE
- *  `mock230_db_load`: an authored `.dbrow` may name a cache table by symbol,
+ *  `ToriRSServer_DbLoad`: an authored `.dbrow` may name a cache table by symbol,
  *  and a table it cannot resolve costs one error per `data=` line after it.
  *  Returns 1 on success (including "cache missing" with a diagnostic), 0
  *  never — boot continues either way, matching objinfo. */
 int
-mock230_db_load_cache_tables(const char* cache_dir);
+ToriRSServer_DbLoadCacheTables(const char* cache_dir);
 
-/** Fill in the cache's own DBROW values, AFTER `mock230_db_load`, so a row the
+/** Fill in the cache's own DBROW values, AFTER `ToriRSServer_DbLoad`, so a row the
  *  tree states wins over the cache's copy of the same id. */
 int
-mock230_db_load_cache_rows(const char* cache_dir);
+ToriRSServer_DbLoadCacheRows(const char* cache_dir);
 
 int
-mock230_db_table_count(void);
+ToriRSServer_DbTableCount(void);
 
-/** The index-th loaded table, 0..mock230_db_table_count()-1, or NULL. */
-const struct Mock230DbTable*
-mock230_db_table_at(int index);
+/** The index-th loaded table, 0..ToriRSServer_DbTableCount()-1, or NULL. */
+const struct ToriRSServerDbTable*
+ToriRSServer_DbTableAt(int index);
 
 int
-mock230_db_total_row_count(void);
+ToriRSServer_DbTotalRowCount(void);
 
 #endif

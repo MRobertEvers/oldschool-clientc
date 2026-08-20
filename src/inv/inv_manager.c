@@ -49,7 +49,7 @@ inv_container_alloc_slots(struct InvContainer* c, int slot_count)
  * backpack stop accepting items part-way down.
  *
  * UPDATE_INV_FULL's "capacity" is written by the server as the *used prefix* —
- * slots up to and including the last occupied one (mock230_container.c's
+ * slots up to and including the last occupied one (torirs_server_container.c's
  * `used_prefix`, an explicit "the empty tail costs nothing to omit"). The
  * client used it as the container's size, so a login that restored 17 items
  * built a 17-slot backpack: every later UPDATE_INV_PARTIAL naming slot 17 or
@@ -57,7 +57,7 @@ inv_container_alloc_slots(struct InvContainer* c, int slot_count)
  * `emit_rs_inv_slots` drew those cells as empty because the host lookup missed.
  * The server counted 28 slots and 3 free; the player saw eleven empty cells and
  * `::give` answering "did not fit". Nothing was wrong with the server's
- * placement — `mock230_container_add` fills the first free slot and always did.
+ * placement — `ToriRSServer_ContainerAdd` fills the first free slot and always did.
  * The cells the player was aiming at existed only on the server.
  *
  * The bank has the same shape and the worse consequence: it is transmitted
@@ -454,11 +454,11 @@ InvManager_ApplyFull(
              *
              * Emptiness is the obj id's to say — the branch above already tests
              * it, and the encoder writes the pair independently for exactly
-             * this reason (mock230_encode.c: "`obj_id >= 0` is the occupancy
+             * this reason (torirs_server_encode.c: "`obj_id >= 0` is the occupancy
              * test, not `count > 0`"). Two things on the wire legitimately
              * carry an obj with a count of zero: a bank placeholder, and an
              * out-of-stock shop line, which a shop keeps in place at zero
-             * rather than deleting (mock230_container_clear_slot).
+             * rather than deleting (ToriRSServer_ContainerClearSlot).
              *
              * The floor made both of them lie, and it lied differently
              * depending on the obj: a stackable at zero stock drew a yellow

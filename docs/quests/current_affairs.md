@@ -567,7 +567,7 @@ separately named fixture setup and cannot serve as Gate D evidence.
 | Repeat completion | Re-talk, duplicate packet, reconnect, and second `::complete` add no XP, items, points, or counter increments |
 | Permanent rewards | Duck Track/Inspect/Dismiss/reclaim and Mayor Consult/Feed/wear/POH/reclaim match the pinned sources |
 | Journal | Every state, partial form, missing item, audit retry, signed form, lost duck, and charted state gives actionable accurate text |
-| Build/pack | `make -C src mock230-scripts` and `mock230_pack --check-only` pass against the intended cache |
+| Build/pack | `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` pass against the intended cache |
 | Real client | Capture start choices, form menus, audit retry, kit/aquarium, chained Mayor, signed form, owned-boat route, moving duck, reward scroll, and post-quest ops |
 
 ## 13. Exit criteria

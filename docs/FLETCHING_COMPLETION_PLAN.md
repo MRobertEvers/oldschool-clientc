@@ -9,8 +9,8 @@ is the authority for names and for what is *expressible* at this revision.
 ## Implementation status (2026-08-16)
 
 **S0–S14 all landed.** `map_members` is a real world flag
-(`src/net/mock/mock230.h`'s `members_world` field, defaulted on via
-`mock230_flag_default_on("MOCK230_MEMBERS_WORLD")` at every server
+(`src/torirsserver/torirs_server.h`'s `members_world` field, defaulted on via
+`ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD")` at every server
 construction site); every recipe in §2 down to Broad/S10 is authored as
 `fletching_table` / `fletch_bow_table` / `crossbow_limb_table` rows, wired
 through `[opheldu,…]` dispatchers, and exercised by a new
@@ -19,7 +19,7 @@ through `[opheldu,…]` dispatchers, and exercised by a new
 Two corrections against this plan's own assumptions, found while building it:
 
 - **§1.3's `~skill_multi` on interface 270 was not built.** Its three C-side
-  limits (`MOCK230_RESUME_BUTTON_MAX`, `MOCK230_RESUME_SUB_MAX`, the
+  limits (`TORIRSSERVER_RESUME_BUTTON_MAX`, `TORIRSSERVER_RESUME_SUB_MAX`, the
   `if_addresumebutton` event mask) are real, and interface 270's entry
   clientscript's exact argument order was reverse-engineered from a
   disassembly, never verified live — exactly the risk profile the plan's own
@@ -28,7 +28,7 @@ Two corrections against this plan's own assumptions, found while building it:
   arrows/darts/bolts/javelins already consume the whole available stack in
   one click), the same proven path `summoning_infuse.rs2` already uses.
 - **`fletching_table`'s `skill_sound` column (synth type) does not work.**
-  `mock230_db.c`'s dbtable loader has no `synth` entry in its column-type
+  `torirs_server_db.c`'s dbtable loader has no `synth` entry in its column-type
   table, and its own comment says why: *"The fix for `synth`/`midi` is to
   name the sound and music namespaces and give this runtime their packs, not
   to widen this list."* That is real engine work, out of scope here. Sounds
@@ -90,7 +90,7 @@ if (map_members = ^false) {
 ```
 
 and `SS_OP_MAP_MEMBERS` is hardcoded to push `0`
-(`src/net/mock/mock230_scripts.c:8058` — *"The mock is a free world, so this is a
+(`src/torirsserver/torirs_server_scripts.c:8058` — *"The mock is a free world, so this is a
 constant"*). Fletching is a members skill, so **nothing fletches today**; every
 click prints "You need to be on a members' world to gain experience in
 Fletching." No other skill in this tree is gated this completely.
@@ -146,7 +146,7 @@ arrow `13` = 1.3, barbed bolts `95` = 9.5. That convention is correct; keep it.
 |---|---|
 | Stat id | `pack/stat.pack:12` → `9=fletching` (protocol-fixed by `UPDATE_STAT`) |
 | Display name | `general/configs/stat.enum:30` |
-| XP curve | generic `g_xp_table` in `src/net/mock/mock230_combat.c:527` |
+| XP curve | generic `g_xp_table` in `src/torirsserver/torirs_server_combat.c:527` |
 | Level-up trigger | `levelup/scripts/levelup.rs2:17` → `[advancestat,fletching] @levelup` |
 | Skill guide | `interface_skill_guide/configs/skill_guide.constant:94` = 19 |
 | XP drops | `interface_chrome/configs/xpdrops.varp:117,237` |
@@ -207,7 +207,7 @@ Check `oc_name` before committing either — do not assume.
 - **`p_countdialog` + `last_int` already works** (bank, farming tools;
   `ported_scape2009_summoning/scripts/summoning_infuse.rs2:31-52` is a proper
   1/5/10/X/max shape) — numeric entry is reachable today without new engine work.
-- **`weakqueue` is implemented** (`mock230_scripts.c:3035`, `:7739`) and
+- **`weakqueue` is implemented** (`torirs_server_scripts.c:3035`, `:7739`) and
   [`SERVER_QUEUES.md`](SERVER_QUEUES.md) §1 names "Make-X, fletching, smithing
   loops" as its intended user — but `SS_TRIGGER_QUEUE` is **not dispatched
   anywhere** in `src/net` or `src/game`, and content calls `weakqueue` only in
@@ -220,7 +220,7 @@ Check `oc_name` before committing either — do not assume.
 ### 1.1 S0 · `map_members` → a real world flag  *(blocks everything)*
 
 Replace the hardcoded `SSVM_PushInt(state, 0)` at
-`src/net/mock/mock230_scripts.c:8058` with a world field: members on by default,
+`src/torirsserver/torirs_server_scripts.c:8058` with a world field: members on by default,
 env override to force a free world.
 
 **Before changing it**, run `grep -rn 'map_members'
@@ -269,7 +269,7 @@ script. This is the move [`FISHING_COMPLETION_PLAN.md`](FISHING_COMPLETION_PLAN.
 **Four engine/compiler facts the design must respect:**
 
 - **`[opheldu,_category]` inverts `last_item` / `last_useitem`.** The dispatcher
-  is a 4-rung ladder (`mock230_scripts.c:2519-2580`): rung 1 the clicked item's
+  is a 4-rung ladder (`torirs_server_scripts.c:2519-2580`): rung 1 the clicked item's
   *type*, rung 2 the dragged item's type **with a swap that sits outside the null
   check**, rung 3 the clicked item's *category*, rung 4 the dragged item's
   category with a swap back. So under a category subject, `last_item` names the
@@ -286,10 +286,10 @@ script. This is the move [`FISHING_COMPLETION_PLAN.md`](FISHING_COMPLETION_PLAN.
   deliberately.
 - **New param/table names need allocation.** A `.param` file beside the configs,
   then `python3 tools/ss_allocate.py --tree OSRS-Content/osrs239-content` (which
-  `make -C src mock230-scripts` runs for you). Server dbtable ids ≥ 259, dbrow
+  `make -C src torirsserver-scripts` runs for you). Server dbtable ids ≥ 259, dbrow
   ids ≥ 16940 ([`DBTABLES.md`](DBTABLES.md)). `.obj` overlays have **no** C
   whitelist — only `.npc` params go through `apply_param()`
-  (`mock230_content.c:1189`) and `.loc` params need `fields/loc.ini`. The fishing
+  (`torirs_server_content.c:1189`) and `.loc` params need `fields/loc.ini`. The fishing
   pass's whitelist trap does not apply to this lane.
 - **A stat name in an identifier position is a trap.** `fletching` happens to be
   safe, but `attack` is varp 259, `fishing` is loc 20926, `hitpoints` is param
@@ -309,21 +309,21 @@ p_pausebutton
 return(<chosen product>, <chosen quantity>)
 ```
 
-`runclientscript*` (opcode 11003) carries up to `MOCK230_RUNCLIENTSCRIPT_ARG_MAX
+`runclientscript*` (opcode 11003) carries up to `TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX
 = 28` mixed int/string args — enough for 2046's 21i+1s. Precedent:
 `shop/scripts/shop.rs2:108`, `minigames/minigame_puropuro/scripts/puro_scroll.rs2:27`.
 
-**Three C-side limits this hits** — `src/net/mock/mock230.h:577-587` and
-`mock230_scripts.c:7040-7058`:
+**Three C-side limits this hits** — `src/torirsserver/torirs_server.h:577-587` and
+`torirs_server_scripts.c:7040-7058`:
 
 | limit | current | needed |
 |---|---:|---:|
-| `MOCK230_RESUME_BUTTON_MAX` | 8 | **18** (item rows `a`–`r`) |
-| `MOCK230_RESUME_SUB_MAX` | 15 | **28** — `script_2052.cs2` resumes with `cc_find($component1, %varcint200)`, i.e. **the resume sub-id *is* the quantity** |
-| `if_addresumebutton` event mask | arms `MOCK230_EVENT_CLICK` (0x1) only | the rows are driven by `if_setonop`/`if_setop(1,…)`, needing `^if_event_op1` (2) — so an `if_setevents(skillmulti:a, 0, 28, ^if_event_op1)` must land **after** the resume registration, which overwrites the mask |
+| `TORIRSSERVER_RESUME_BUTTON_MAX` | 8 | **18** (item rows `a`–`r`) |
+| `TORIRSSERVER_RESUME_SUB_MAX` | 15 | **28** — `script_2052.cs2` resumes with `cc_find($component1, %varcint200)`, i.e. **the resume sub-id *is* the quantity** |
+| `if_addresumebutton` event mask | arms `TORIRSSERVER_EVENT_CLICK` (0x1) only | the rows are driven by `if_setonop`/`if_setop(1,…)`, needing `^if_event_op1` (2) — so an `if_setevents(skillmulti:a, 0, 28, ^if_event_op1)` must land **after** the resume registration, which overwrites the mask |
 
 `RESUME_PAUSEBUTTON` already carries the sub-id into `last_slot` unclamped
-(`mock230_world.c:6549-6566`), so raising the two constants is mechanical.
+(`torirs_server_world.c:6549-6566`), so raising the two constants is mechanical.
 `if_setobject` is implemented but used **once** tree-wide
 (`quests/scripts/questscroll.rs2:74`, with the note that its third argument is
 *wire zoom, not a count*) — expect to debug it.
@@ -646,7 +646,7 @@ exactly one `fletchingrun OK - N checks passed` / `… FAIL - …` line, and res
 everything it touches.
 
 Wire it into CI by copying the ~50-line capture block beside `::fishingrun` at
-`src/net/mock/mock230_world.c:35400`. **`::miningrun` and `::runecraftrun` were
+`src/torirsserver/torirs_server_world.c:35400`. **`::miningrun` and `::runecraftrun` were
 never wired in** — skipping that block means the test only runs when typed
 in-client.
 
@@ -683,12 +683,12 @@ asserting the table, not by calling the label.
 
 ## 6. Verification
 
-- `make -C src mock230-scripts` after **every** config change — it runs
+- `make -C src torirsserver-scripts` after **every** config change — it runs
   `tools/ss_allocate.py`, then `sscompile`, which name-checks every obj / seq /
-  synth. Then `./src/build/mock230_pack --check-only` (expect 0 errors), then
-  `make -C src test-mock230` — which deliberately re-depends on
-  `mock230-scripts`, so a fresh binary can never be tested against a stale pack.
-- Use a **scratch `MOCK230_SAVES`** — headless runs are not independent.
+  synth. Then `./src/build/ToriRSServer_Pack --check-only` (expect 0 errors), then
+  `make -C src test-ToriRSServer` — which deliberately re-depends on
+  `torirsserver-scripts`, so a fresh binary can never be tested against a stale pack.
+- Use a **scratch `TORIRSSERVER_SAVES`** — headless runs are not independent.
 - **S0**: `grep -rn 'map_members' OSRS-Content/osrs239-content/server/scripts`
   before and after; enumerate everything else the flag flips, and confirm the
   suite's failure count is unchanged from its pre-fletching baseline.

@@ -59,13 +59,13 @@ same rank, named `*_manual.obj`. See the `exporter-owns-generated-configs` rule.
 ```sh
 cd /Users/matthewevers/Documents/git_repos/3draster
 python3 tools/port_weapon_fx.py --check          # must print "0 problem(s)"
-make -C src mock230-scripts                      # must succeed
-make -C src mock230-pack && "$OBJ_DIR"/mock230_pack --check-only   # 0 errors
+make -C src torirsserver-scripts                      # must succeed
+make -C src torirsserver-pack && "$OBJ_DIR"/ToriRSServer_Pack --check-only   # 0 errors
 ```
 
-`mock230_pack` is **not** at `./build/` — that path in this file was wrong and
-never existed. `make -C src mock230-pack` writes it to `$(OBJ_DIR)/mock230_pack`;
-the default-objdir copy is `./src/build/mock230_pack`.
+`ToriRSServer_Pack` is **not** at `./build/` — that path in this file was wrong and
+never existed. `make -C src torirsserver-pack` writes it to `$(OBJ_DIR)/ToriRSServer_Pack`;
+the default-objdir copy is `./src/build/ToriRSServer_Pack`.
 
 If a slice touched C: `make -C src`. Agents sharing this repo **must** set a
 private objdir — stale-`.o` races are real (`embed-binary-build-isolation`).
@@ -75,26 +75,26 @@ a *shared* build if you get them wrong:
 ```sh
 # WRONG — an env prefix does NOT override; platform.mk does `PLATFORM_OBJ_BASE := build`
 # unconditionally, and an environment variable loses to a makefile assignment.
-PLATFORM_OBJ_BASE=build_wfx_A make -C src mock230-pack     # -> builds into src/build/
+PLATFORM_OBJ_BASE=build_wfx_A make -C src torirsserver-pack     # -> builds into src/build/
 
 # RIGHT — a command-line variable wins over `:=`
-make -C src mock230-pack PLATFORM_OBJ_BASE=build_wfx_A     # -> builds into src/build_wfx_A/
+make -C src torirsserver-pack PLATFORM_OBJ_BASE=build_wfx_A     # -> builds into src/build_wfx_A/
 ```
 
 - **It must be a make *argument*, not an environment prefix.** Verified by
   running both forms back to back: the prefix form printed
-  `built build/mock230_pack`, the argument form `built build_wfx_orch/mock230_pack`.
+  `built build/ToriRSServer_Pack`, the argument form `built build_wfx_orch/ToriRSServer_Pack`.
 - **Use a relative objdir.** An absolute one (`/tmp/objdir-<lane>`) breaks every
   recipe that does `./$(OBJ_DIR)/...` or `./src/$(OBJ_DIR)/...` — the `./`
-  prefix makes `.//tmp/...` resolve against cwd. That hits `mock230-scripts`
-  (`./$(OBJ_DIR)/sscompile`), `test-mock230-embed:1478` and `test-content:1289`.
+  prefix makes `.//tmp/...` resolve against cwd. That hits `torirsserver-scripts`
+  (`./$(OBJ_DIR)/sscompile`), `test-torirsserver-embed:1478` and `test-content:1289`.
 - **If a lane also links the client, override the target too**
   (`PLATFORM_TARGET=torirs_<lane>`, with `torirs_<lane>` as the make goal —
   the goal name must equal the target). `make -C src` otherwise links one shared
   `src/torirs` and two lanes will race it; a relink racing a `cp` dies with
   SIGKILL/exit 137 and an empty log on Apple Silicon.
 
-`pkill -f build/mock230` also kills `mock230_dev` — match tighter.
+`pkill -f build/torirsserver` also kills `ToriRSServer_Dev` — match tighter.
 
 ### 0.7 Report what you measured, not what you expected
 
@@ -114,7 +114,7 @@ file it does not own must stop and report instead.
 |---|---|---|---|
 | **A — resolver** | 1 | `skill_combat/configs/combat.param`, `skill_combat/combat_stats.rs2` | C, D, E (not B) |
 | **B — data** | 2, 3, 4, 5 | `skill_combat/configs/bas/attack_anims_modern*.obj`, `.../attack_anims_bycategory.obj`, `.../attack_anims_manual.obj` | C, D, E (needs A done) |
-| **C — sound wire** | 6, 7 | `src/net/rev/osrs230/packetin.h`, `src/net/mock/mock230_encode.c`, `src/net/mock/mock230_scripts.c`, `src/net/mock/test/embed_test.c` | A, B, D, E |
+| **C — sound wire** | 6, 7 | `src/net/rev/osrs230/packetin.h`, `src/torirsserver/torirs_server_encode.c`, `src/torirsserver/torirs_server_scripts.c`, `src/torirsserver/test/embed_test.c` | A, B, D, E |
 | **D — client audio** | 9 | `src/engine/dat2/task_dat2_sequence_load.c`, `src/game/rs_audio.c`, the anim tick | A, B, C, E |
 | **E — specials data** | 10 | `skill_combat/configs/special_attack.obj` | A, B, C, D |
 | **F — sound content** | 8 | the `skill_combat/**/*.rs2` files listed in slice 8 | B, D, E (needs A, C done) |
@@ -294,7 +294,7 @@ already names the source and the method; do not edit it.
 >
 > The sound half stays blocked. Original diagnosis:
 >
-> The 667 rows write and `--check` passes, but `mock230_pack --check-only` then
+> The 667 rows write and `--check` passes, but `ToriRSServer_Pack --check-only` then
 > reports **2,821 errors**, all of the form
 > `cannot resolve param value 'synth_2498'`. Cause, traced to source:
 >
@@ -304,8 +304,8 @@ already names the source and the method; do not edit it.
 >   safe because `pack/4_soundeffects.pack` really is `N=synth_N` for 12,010 ids
 >   (verified: line 2499 is `2498=synth_2498`).
 > - But the engine's param-type → pack-kind table
->   (`src/net/mock/mock230_content.c:1655-1669`) **has no `synth` entry and there
->   is no `MOCK230_PACK_SYNTH` kind at all**; the comment right below it says
+>   (`src/torirsserver/torirs_server_content.c:1655-1669`) **has no `synth` entry and there
+>   is no `TORIRSSERVER_PACK_SYNTH` kind at all**; the comment right below it says
 >   `int` and anything unlisted is "a literal, not a name."
 >
 > So a name-valued sound param is unrepresentable today: `type=int` cannot hold
@@ -318,7 +318,7 @@ already names the source and the method; do not edit it.
 >
 > **This is a decision the queue has not made.** The candidates are: add a
 > `synth` pack kind (engine, and no lane in §1 owns
-> `src/net/mock/mock230_content.c`); or have the writer emit integers for
+> `src/torirsserver/torirs_server_content.c`); or have the writer emit integers for
 > int-typed params; or split sounds into their own file so the anims can land
 > now. Pick one deliberately — do not let a lane choose it silently.
 >
@@ -329,7 +329,7 @@ already names the source and the method; do not edit it.
 > type code 80. So **a `.rs2` script may name a synth today** —
 > `sound_synth(synth_2720, …)` compiles, and that is naming, not the
 > hand-copied integer §0.3 forbids. The gap is **only** the obj-param path:
-> `mock230_content.c`'s param-type → pack-kind map has no `synth` row, so
+> `torirs_server_content.c`'s param-type → pack-kind map has no `synth` row, so
 > `type=synth` on a param falls through to "literal" exactly like `type=int`.
 >
 > Consequences: **slice 11's per-weapon spec sounds are NOT blocked** (they are
@@ -350,7 +350,7 @@ already names the source and the method; do not edit it.
   wield it, attack, and confirm the seq that plays is the one the table names.
 
   ```sh
-  SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 TORIRS_ANIM_DEBUG=1 \
+  SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 TORIRS_ANIM_DEBUG=1 \
     TORIRS_SIM_CLICK_AT=... TORIRS_EXIT_BMP=/tmp/whip.bmp ./src/<client>
   ```
 
@@ -365,7 +365,7 @@ already names the source and the method; do not edit it.
   >    ~12065) sets `el->anim_seq_id` directly and never reaches either path that
   >    prints (`app_world_try_bind_seq`, or the dat2 sequence-load task, which
   >    prints only on the skeletal or failure branch). Use an lldb breakpoint on
-  >    `mock230_anim_play_player` instead, with `breakpoint command add <N>` /
+  >    `ToriRSServer_AnimPlayPlayer` instead, with `breakpoint command add <N>` /
   >    `DONE` block syntax — the `-o` auto-continue form silently swallows the
   >    output and reads as "no hits".
   > 2. **"Before this slice all eight play `human_sword_slash` or `human_bow`"
@@ -442,7 +442,7 @@ Equip sound is inaudible until lane C lands; verify the param reads back with
 > `running_baseanim=slayer_abyssal_whip_run`, and both names exist in
 > `configs/all.seq`. The read path is intact
 > (`player/scripts/appearance.rs2:20-26` → `oc_param` →
-> `SS_OP_READYANIM/WALKANIM/RUNANIM`, `mock230_scripts.c:4755-4825` → APPEARANCE
+> `SS_OP_READYANIM/WALKANIM/RUNANIM`, `torirs_server_scripts.c:4755-4825` → APPEARANCE
 > mask). **But nobody has yet watched the stance change while the player moves**
 > — the one run made equipped and teleported without walking, so "while moving"
 > was never exercised. Grep plus an architecture argument is not this bar.
@@ -464,7 +464,7 @@ Small and fully specified. `WEAPON_FX.md` §6 has the chain with file:line.
    `{ 102, 5, PKT_NAME_NONE }, /* SYNTH_SOUND */` to route
    `PKT_NAME_SYNTH_SOUND`. `src/net/rev/lc254/packetin.h:157` and
    `src/net/rev/lc245_2/packetin.h:154` show the shape.
-2. Write the server-side encoder in `src/net/mock/mock230_encode.c` beside its
+2. Write the server-side encoder in `src/torirsserver/torirs_server_encode.c` beside its
    neighbours. The field order is **not a choice** — match
    `src/net/rev/gameproto_parse.c:706-710` exactly, which is the client's own
    reader and therefore the spec: id `g2`, loops `g1`, delay `g2`, 5 bytes.
@@ -475,19 +475,19 @@ Small and fully specified. `WEAPON_FX.md` §6 has the chain with file:line.
 
 **Bar.** `make -C src` with a private objdir; `rs_audio_test` still green; and a
 packet sent from the server produces audible PCM in the embedded client —
-extend `src/net/mock/test/embed_test.c` **against the client's own decoder**, the way
+extend `src/torirsserver/test/embed_test.c` **against the client's own decoder**, the way
 the multiplayer and zone work did. Socket RSA is broken; use `embed_test`
-(`mock230-persistence-and-xp-table`).
+(`torirsserver-persistence-and-xp-table`).
 
 ---
 
 ### Slice 7 — the opcode body  *(lane C)*
 
-`src/net/mock/mock230_scripts.c:6406` currently pops three ints, prints them
-under `MOCK230_VERBOSE`, and returns. Make it send the packet from slice 6.
+`src/torirsserver/torirs_server_scripts.c:6406` currently pops three ints, prints them
+under `TORIRSSERVER_VERBOSE`, and returns. Make it send the packet from slice 6.
 
 Then add a line to `docs/osrs230_mockserver.md`: `SS_OP_SOUND_SYNTH` was already
-counted in `mock230_opcode_coverage.gen.h` while doing nothing, so the coverage
+counted in `torirs_server_opcode_coverage.gen.h` while doing nothing, so the coverage
 number has been over-reporting. That is the same "expired reason" failure
 PORTING_GUIDE §2.4 item 7 is about, in a different table, and it is worth
 recording that the coverage header counts *declared* opcodes rather than
@@ -685,7 +685,7 @@ cited in the log, and `--check` is still 0.
   |---|---|---|
   | 1 | pending | done — `attack_anim_stance1` + `equipment_sound` in `combat.param`; `[proc,combat_attack_sound]` at `combat_stats.rs2:447` |
   | 6 | pending | done — `packetin.h:142` is `{ 102, 5, PKT_NAME_SYNTH_SOUND }` |
-  | 7 | pending | done — `mock230_send_synth_sound` at `mock230_encode.c:1107`, opcode case wired |
+  | 7 | pending | done — `ToriRSServer_SendSynthSound` at `torirs_server_encode.c:1107`, opcode case wired |
   | 9 | pending | done — `app_play_frame_sounds` `src/app.c:5204`, `seq_copy_frame_sounds` `task_dat2_sequence_load.c:124` |
   | 10 | pending, "12 rows" | 97 rows, clean in git |
 
@@ -698,7 +698,7 @@ cited in the log, and `--check` is still 0.
 
   **A second writer was active in this tree throughout the run.** Commit
   `1db3f5e4` "239 impls" (256 files) landed mid-run and moved the `OSRS-Content`
-  pointer `a5f23f2765` → `c3a103eeed`. `make -C src mock230-scripts` drifted
+  pointer `a5f23f2765` → `c3a103eeed`. `make -C src torirsserver-scripts` drifted
   `12206` → `12246` → `12319` scripts across three measurements taken hours
   apart, none of it from these lanes. §1's guarantee ("no two concurrently-
   running lanes write the same file") holds only over lanes one orchestrator
@@ -725,19 +725,19 @@ cited in the log, and `--check` is still 0.
   fixed in place.
 
   **Three corrections to this queue, measured:**
-  - §0.6's `./build/mock230_pack` does not exist. `make -C src mock230-pack`
-    puts it at `$(OBJ_DIR)/mock230_pack`; the default-objdir copy is
-    `./src/build/mock230_pack`.
+  - §0.6's `./build/ToriRSServer_Pack` does not exist. `make -C src torirsserver-pack`
+    puts it at `$(OBJ_DIR)/ToriRSServer_Pack`; the default-objdir copy is
+    `./src/build/ToriRSServer_Pack`.
   - §1 lane C's `src/embed/embed_test.c` does not exist. It is
-    `src/net/mock/test/embed_test.c`.
+    `src/torirsserver/test/embed_test.c`.
   - §0.6 recommends `PLATFORM_OBJ_BASE=/tmp/objdir-<lane>`. An **absolute**
     objdir breaks any recipe that does `./src/$(OBJ_DIR)/...` — it renders as
-    `./src//tmp/...`. `test-mock230-embed:1478` and `test-content:1289` are both
+    `./src//tmp/...`. `test-torirsserver-embed:1478` and `test-content:1289` are both
     that shape. Use a **relative** private objdir (`build_wfx_<lane>`) for those
     targets.
 
   **One bug found that is not this port's**: `src/Makefile:1471-1478`
-  (`test-mock230-embed`) cannot link for anyone — line 1474 compiles
+  (`test-torirsserver-embed`) cannot link for anyone — line 1474 compiles
   `net/bitbuffer.c` from source while line 1477 links `$(OBJ_DIR)/bitbuffer.o`
   out of `NET_CORE_OBJS` (line 772). Duplicate symbol on Apple's linker,
   reproduced from a clean objdir, so it is deterministic rather than a stale-`.o`
@@ -775,7 +775,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   fine: 667 records, `--check` `0 problem(s)`,
   `--summary` moving `swing the param default today` **913 → 246** with
   `no source at all` still **10** (exactly slice 4's expected remainder). Then
-  `mock230_pack --check-only` went **0 → 2,821 errors**, every one
+  `ToriRSServer_Pack --check-only` went **0 → 2,821 errors**, every one
   `cannot resolve param value 'synth_NNNN'`. See the blocker note at slice 3:
   `type=int` cannot hold a name and there is no `synth` pack kind to declare
   instead. Reverted to green (`0 error(s), 17 warning(s)`); the file is parked
@@ -866,7 +866,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
 
   **Slice 3's bar is met — the paired before/after, on the real animation
   path.** `TORIRS_ANIM_DEBUG` was useless here (see the correction at slice 3),
-  so the seq was read at an lldb breakpoint on `mock230_anim_play_player`:
+  so the seq was read at an lldb breakpoint on `ToriRSServer_AnimPlayPlayer`:
 
   | weapon | BEFORE | AFTER | changed |
   |---|---|---|---|
@@ -887,7 +887,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   changing is what makes that distinguishable.
 
   **`twisted_bow` was not captured, and the reason is not slice 3.** Bow +
-  `dragon_arrow` produced **zero** `mock230_anim_play_player` hits at 900 and
+  `dragon_arrow` produced **zero** `ToriRSServer_AnimPlayPlayer` hits at 900 and
   2000 frames. `[proc,player_ranged_check_ammo]` has an early
   `return(null)`/`p_stopaction` path *before* its `anim()` call when ammo does
   not validate for the weapon. That is a ranged ammo-compatibility gate, not a
@@ -911,7 +911,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   Spotanim ids were resolved by extending the tool's own pattern (rsmod
   `spotanim.sym` × RuneLite `SpotanimID.java`, existence-checked against
   `configs/all.spotanim`) rather than hand-copied. Runtime `seq_id` measured at
-  an lldb breakpoint on `mock230_anim_play_player`: dragon_claws 7514,
+  an lldb breakpoint on `ToriRSServer_AnimPlayPlayer`: dragon_claws 7514,
   dragon_warhammer 1378, dragon_scimitar 1872, dragon_halberd 1203 (no synth —
   correctly none expected), abyssal_whip 1669; the four with sound also logged
   `sound_synth(2537/2541/2529/2713, 1, 0)`. Temporary `[debugproc]` hooks used to
@@ -942,7 +942,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
 
   **Slice 10's bar is only partly met and is recorded that way.** Equipping two
   of the 38 new weapons (`darkbow_blue`, `ancient_goblin_mace`) was confirmed
-  end-to-end through `mock230_pack` → `sscompile` → live server → client. The
+  end-to-end through `ToriRSServer_Pack` → `sscompile` → live server → client. The
   click-driven orb arm/drain was **not** conclusively observed: `TORIRS_DUMP_BOUNDS=160`
   printed nothing, so the orb rect was only visually estimated, and the shared
   `testc` account's persisted state produced a misleading "no ammo left in your
@@ -964,17 +964,17 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
 
   Proven from a **real combat swing**, not an opcode bypass — headless
   `torirs_F` (`EMBED_SERVER=1`, banner verified as
-  `mock230: features era=osrs …`, not the no-embed stub), driven by
+  `torirsserver: features era=osrs …`, not the no-embed stub), driven by
   `::container inv 0 abyssal_whip 1; ::equip 0; ::tele 3263 3232; ::fight`:
 
   ```
-  mock230: no trigger for [apnpc2,goblin]      <- op-2 Attack on a goblin
-  mock230: sound_synth(0, 1, 0)                <- the new line in player_melee_swing fired
-  mock230: -> SYNTH_SOUND  op=102 payload=5    <- encoded and sent, length matches packetin.h:102
+  torirsserver: no trigger for [apnpc2,goblin]      <- op-2 Attack on a goblin
+  torirsserver: sound_synth(0, 1, 0)                <- the new line in player_melee_swing fired
+  torirsserver: -> SYNTH_SOUND  op=102 payload=5    <- encoded and sent, length matches packetin.h:102
   ```
 
   The `sound_synth(...)` print is `SS_OP_SOUND_SYNTH`'s own host handler
-  (`mock230_scripts.c:6757`) and fires only when a **compiled script** executes
+  (`torirs_server_scripts.c:6757`) and fires only when a **compiled script** executes
   the opcode — which is what distinguishes this from `embed_test.c`, which
   dispatches the opcode directly.
 
@@ -1088,13 +1088,13 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
 
   **Standing bar**: `sscompile` clean at **15,968 scripts, 0 errors**
   (`PLATFORM_OBJ_BASE=build_specials_batch1`, so no other lane's objdir was
-  touched). **`mock230_pack --check-only` could not be run** — the pack
-  target fails to *link*, `_mock230_world_set_varp` undefined, from an
-  unrelated concurrent uncommitted change to `mock230.h`/`mock230_varbit.c`
+  touched). **`ToriRSServer_Pack --check-only` could not be run** — the pack
+  target fails to *link*, `_ToriRSServer_WorldSetVarp` undefined, from an
+  unrelated concurrent uncommitted change to `torirs_server.h`/`torirs_server_varbit.c`
   (confirmed via `git diff` before writing this: the reference was added by
   another session mid-run, same shared-tree hazard this file's own log has
   hit before). Not this slice's regression — re-run
-  `make -C src mock230-pack PLATFORM_OBJ_BASE=<private>` once that resolves,
+  `make -C src torirsserver-pack PLATFORM_OBJ_BASE=<private>` once that resolves,
   before trusting pack-level green on anything in this entry.
 
   **Not yet runtime-verified on pixels** — the standing bar's headless
@@ -1168,7 +1168,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
     restoration that does not exist.
 
   **A transient failure worth recording.** Mid-run,
-  `make -C src mock230-scripts` failed on
+  `make -C src torirsserver-scripts` failed on
   `quests/quest_legends/scripts/irvig_senay.rs2:20: unknown variable
   '%lastcombat'` — the concurrent actor's in-flight file, not this port's. It
   self-resolved. The lane correctly refused to park or silence it (§0.1) and
@@ -1190,15 +1190,15 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   batches: **`sscompile` clean at 16,018 scripts, 0 errors**
   (`PLATFORM_OBJ_BASE=build_specials_batch1`).
 
-  **`mock230_pack --check-only` still could not be run this whole session.**
+  **`ToriRSServer_Pack --check-only` still could not be run this whole session.**
   Retried after every batch; the link failure
-  (`_mock230_world_set_varp` undefined, referenced from
-  `mock230_varbit.c`) persisted from the first entry's diagnosis through to
+  (`_ToriRSServer_WorldSetVarp` undefined, referenced from
+  `torirs_server_varbit.c`) persisted from the first entry's diagnosis through to
   the end — confirmed each time via `git diff` that the cause is still the
-  same unrelated concurrent edit to `mock230.h`, not anything in this
+  same unrelated concurrent edit to `torirs_server.h`, not anything in this
   slice's own files (which are all `.rs2`/`.obj` content, no `.c`/`.h`
   touched). Whoever picks this up next: run
-  `make -C src mock230-pack PLATFORM_OBJ_BASE=<private>` fresh before
+  `make -C src torirsserver-pack PLATFORM_OBJ_BASE=<private>` fresh before
   trusting pack-level green on any of this — it has not been possible to
   verify that layer at all in this session.
 
@@ -1299,7 +1299,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   `OSRS-Content` was entirely `npc_combat/*.combat` files, a different
   concurrent session's work, zero overlap with this slice's files).
 
-  **What the next pass should do, in order**: (1) get `mock230_pack` linking
+  **What the next pass should do, in order**: (1) get `ToriRSServer_Pack` linking
   again and run `--check-only` for the first time on all of this; (2) run
   the headless runtime bar on at least the 27 highest-traffic weapons
   (godswords, whip, GMaul, claws, DWH, the ones a real player reaches for
@@ -1359,7 +1359,7 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   **Fixed, once the diagnosis was this precise.** Checked first whether
   raising it was safe: `SSC_MAX_SCRIPTS` sizes only compiler-internal arrays
   (`ssc_compile.c`'s `calloc`/`malloc` calls at script-compile time) and is
-  not referenced anywhere in the runtime/`mock230` side (`grep -rn 16384
+  not referenced anywhere in the runtime/`ToriRSServer` side (`grep -rn 16384
   src/` confirmed — the only other 16384s in the whole tree are unrelated
   audio-pan and buffer constants). It had already been raised once before,
   4096→16384, for the identical symptom ("silently dropped every name past
@@ -1395,27 +1395,27 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   compiler-diagnostics change, not a content one, and is named here rather
   than attempted alongside 121 weapons' worth of content work.
 
-  **`mock230_pack` remains genuinely blocked, and was not touched.**
+  **`ToriRSServer_Pack` remains genuinely blocked, and was not touched.**
   Retried after the `sscompile` fix on the chance it shared a root cause —
   it does not. Same link error as every earlier attempt this session
-  (`_mock230_world_set_varp` undefined, referenced from
-  `mock230_varbit.c`). Checked whether the same "just raise a ceiling"
-  shape of fix applied: it does not — `mock230-pack`'s Makefile target
-  deliberately excludes `mock230_world.c` (a large file, `mock230_pack` is
+  (`_ToriRSServer_WorldSetVarp` undefined, referenced from
+  `torirs_server_varbit.c`). Checked whether the same "just raise a ceiling"
+  shape of fix applied: it does not — `torirsserver-pack`'s Makefile target
+  deliberately excludes `torirs_server_world.c` (a large file, `ToriRSServer_Pack` is
   meant to be a lightweight validator, not the full world sim), and
-  `mock230_varbit.c` newly calling into it is someone else's in-progress
+  `torirs_server_varbit.c` newly calling into it is someone else's in-progress
   design decision on a file this session never touched
-  (`mock230_varbit.c`/`mock230_world.c`/`mock230.h` are all clean/
+  (`torirs_server_varbit.c`/`torirs_server_world.c`/`torirs_server.h` are all clean/
   unmodified per `git status` — confirmed again just now). Pulling
-  `mock230_world.c` into the pack tool's link to silence this would be
+  `torirs_server_world.c` into the pack tool's link to silence this would be
   guessing at that decision, not fixing a one-line ceiling — left alone.
 
   **The embedded client+server (`EMBED_SERVER=1`) builds and boots clean**,
   which is the more relevant binary for runtime verification anyway (it
-  links `mock230_world.c` already, so it never hit the pack-tool-specific
+  links `torirs_server_world.c` already, so it never hit the pack-tool-specific
   gap): `make -C src EMBED_SERVER=1 PLATFORM_TARGET=torirs_specials
   torirs_specials` succeeds start to finish, and
-  `SDL_VIDEODRIVER=dummy EMBED_SERVER=1 MOCK230_VERBOSE=1 ./src/torirs_specials
+  `SDL_VIDEODRIVER=dummy EMBED_SERVER=1 TORIRSSERVER_VERBOSE=1 ./src/torirs_specials
   --rev osrs239 cache.osrs239` progresses normally through cache/varp/varbit/
   hitsplat loading and `RevConfigBuild` within seconds — a real, live boot,
   not a stub. The full per-weapon `SIM_OPNPC`/pixel-verified runtime pass

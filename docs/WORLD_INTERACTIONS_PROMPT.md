@@ -61,7 +61,7 @@ resolves to a live binding and a test you have proven can fail says so.
    back, or drop one trigger head — and watch the assertion go red. Restore,
    and record which mutation killed which assertion. A green test you have
    never seen fail proves nothing.
-7. **Prove no collateral.** `./src/build_opt/mock230 --selftest` (no env),
+7. **Prove no collateral.** `./src/build_opt/torirsserver --selftest` (no env),
    A/B against a pre-change run on the same binary; normalise before diffing
    (`sed -E 's/-?[0-9]+/N/g'`). Failure sets must be identical apart from your
    new checks. Never "fix" a failure you did not cause — the selftest shares

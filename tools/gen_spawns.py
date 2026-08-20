@@ -39,7 +39,7 @@ carries no name, so rule 2 cannot run on it and only rule 1 does.
 
 Output is one file per map square, `m<mx>_<mz>.spawn`, holding that square's
 `==== NPC ====` and `==== OBJ ====` sections in the grammar
-`src/net/mock/mock230_content.c` reads. Files are rewritten wholesale: the
+`src/torirsserver/torirs_server_content.c` reads. Files are rewritten wholesale: the
 directory is cleared of `.spawn` first, so a spawn that leaves the dump leaves
 the tree.
 """

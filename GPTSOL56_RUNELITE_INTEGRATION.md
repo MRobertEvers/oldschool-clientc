@@ -1,7 +1,7 @@
-# RuneLite 239 / mock230 interface integration
+# RuneLite 239 / ToriRSServer interface integration
 
 This is the durable investigation and verification record for hardening the
-compilable RuneLite 1.12.33 / OSRS revision-239 deob against `mock230`.
+compilable RuneLite 1.12.33 / OSRS revision-239 deob against `ToriRSServer`.
 
 The authoritative client source is:
 
@@ -73,7 +73,7 @@ the higher opcodes operate.
 The integration requires these cooperating components:
 
 1. Exact revision-239 packet opcodes, lengths, smart-opcode framing, and field
-   transforms (`src/net/rev/osrs239`, `mock230_wire`, `mock230_servercodec`).
+   transforms (`src/net/rev/osrs239`, `ToriRSServer_Wire`, `ToriRSServer_ServerCodec`).
 2. Interface lifecycle packets: `IF_OPENTOP`, `IF_OPENSUB`, `IF_CLOSESUB`, and
    full interface rebuild handling.
 3. Mutable interface packets: `IF_SETEVENTS`, text/model/object/animation/head,
@@ -107,7 +107,7 @@ calls `class95.method3125` with `g1Alt2`, and NPC update bit `0x8` calls
 the header selects Entity, Loc, Angle, or Reset; Entity carries type/index/
 fallback angle and Loc carries absolute tile x/z plus packed size.
 
-`mock230` now translates its old per-tick latches to that model. An old entity
+`ToriRSServer` now translates its old per-tick latches to that model. An old entity
 target below 32768 becomes Face.Entity/NPC; one at `32768 + pid` becomes
 Face.Entity/Player with `pid`; an old half-tile coordinate `(2 * tile + 1)`
 becomes Face.Loc `(tile, size 1)`; and a cleared entity target becomes
@@ -123,7 +123,7 @@ Player Face.Loc (3222,3218,size 1): f8 8c 96 8c 92 11
 Npc Face.Entity(Player 42):          80 02 00 2a 00
 ```
 
-Both focused fixtures and `mock230` build pass. A live RuneLite run used a
+Both focused fixtures and `ToriRSServer` build pass. A live RuneLite run used a
 blocking EVENTS subscriber before launch and real AWT chat input
 `::~talk hans 1`; it reached dialogue and the authoritative `script 58`
 five-choice initialization without packet decode errors. That run is retained
@@ -132,7 +132,7 @@ later, separate RuneLite fatal `ArrayIndexOutOfBoundsException` in
 `Statics.method6709` occurred during continued Hans-choice activity. It must
 be isolated before a clean live acceptance can be recorded.
 
-### Postmortem: why `::crystal_set` made the player Cry and never reached mock230
+### Postmortem: why `::crystal_set` made the player Cry and never reached ToriRSServer
 
 > Permanent incident record and enforced invariants:
 > [`docs/CRYSTAL_SET_COMMAND.md`](docs/CRYSTAL_SET_COMMAND.md). The build now
@@ -245,8 +245,8 @@ The fix has five parts:
    `skill_combat/scripts/player/crystal_set.rs2`; it equips the crystal helm,
    body, legs, and corrupted Bow of faerdhinen and establishes the required
    stats.
-4. `mock230_scripts_run_debugproc` now returns the three-way
-   `Mock230TriggerResult`: `NONE`, `RAN`, or `FAILED`. A resolved script that
+4. `ToriRSServer_ScriptsRunDebugproc` now returns the three-way
+   `ToriRSServerTriggerResult`: `NONE`, `RAN`, or `FAILED`. A resolved script that
    aborts is no longer indistinguishable from a missing command.
 5. `handle_cheat` always logs `not found`, `ran`, or `FAILED`. `FAILED` also
    sends `Command ::~<text> failed — see the server log.` to the player.
@@ -265,8 +265,8 @@ cache. The observed RuneLite/AWT/JCTL trace is:
 ```text
 JCTL chat input: ::~crystal_set
 packet_out op=34 len=-1
-mock230: [debugproc,crystal_set] with 0 int and 0 string args
-mock230: cheat 'crystal_set' -> debugproc ran
+torirsserver: [debugproc,crystal_set] with 0 int and 0 string args
+torirsserver: cheat 'crystal_set' -> debugproc ran
 ```
 
 The client received stat, appearance, inventory, and game-message updates. Its
@@ -303,9 +303,9 @@ Use the boundaries in order; do not begin inside the server script:
 | Server says `FAILED` | Debugproc resolved and aborted | The emitted VM backtrace/server log |
 | Server says `ran`, wrong state | Script semantics or duplicate/stale content | Assert inventory/stats/world state, not return value |
 
-Finally, this fix changes a `.cs2` file. `make -C src mock230-scripts` rebuilds
+Finally, this fix changes a `.cs2` file. `make -C src torirsserver-scripts` rebuilds
 server scripts only and is insufficient. The clientscript must be packed into
-the exact cache JS5 serves, for example with `make -C src mock230-cache`, and
+the exact cache JS5 serves, for example with `make -C src torirsserver-cache`, and
 both the world and JS5 must use that baked cache. Testing against a modified
 source tree while serving pristine `cache.osrs239` reproduces the old Cry
 behavior because RuneLite executes the bytecode in the cache, not the `.cs2`
@@ -342,7 +342,7 @@ state.
 `run-osrs239.sh` originally left its three background children attached to the
 invoking pseudo-terminal. Under an agent/CI command session they received
 SIGHUP together when the orchestration command returned. The launcher now uses
-`nohup` plus `/dev/null` stdin for mock230, jav_config, and RuneLite. A retained
+`nohup` plus `/dev/null` stdin for ToriRSServer, jav_config, and RuneLite. A retained
 PTY is still used by this environment because its process supervisor removes
 the entire command process group even after POSIX detachment.
 
@@ -402,7 +402,7 @@ The failure hidden by the old eventual-state test used saved coordinate
 `2495,5112` with stale WorldView base `3168,3168`. The first appearance packet
 decoded successfully yet could not materialize an actor; a later corrective
 rebuild at base `2440,5064` made it appear after RuneLite plugins had already
-thrown. `mock230_world_login` now loads the save, recentres/rebuilds the shared
+thrown. `ToriRSServer_WorldLogin` now loads the save, recentres/rebuilds the shared
 scene, then encodes the GPI prefix and trailing rebuild zone from the same
 state. It sends `PLAYER_INFO` before `IF_OPENTOP` and all 23 `UPDATE_STAT`
 packets. The client naturally emits `MAP_BUILD_COMPLETE` while its serial
@@ -412,7 +412,7 @@ The revision-239 self-test now moves its login fixture outside the existing
 scene without pre-recentring, resolves expected opcodes through the selected
 wire instead of hard-coded revision-230 ids, and asserts both packet order and
 the golden client's strict 104x104 containment rule. The focused login and
-empty-social section is green under `MOCK230_REV=osrs239`; the broader suite
+empty-social section is green under `TORIRSSERVER_REV=osrs239`; the broader suite
 still has unrelated failures documented below.
 
 ### Coordinate-only UI tests are too fragile
@@ -489,7 +489,7 @@ Final proof is in `build/run239/proof/final_parity_driver.log`,
 Every full frame is 765x503 and every direct item sprite is 36x32; the report
 records their byte counts and SHA-256 hashes.
 
-The full revision-239 `mock230 --selftest` still reports unrelated pre-existing
+The full revision-239 `ToriRSServer --selftest` still reports unrelated pre-existing
 content, combat, equipment, and pathing failures. Focused login ordering,
 WorldView containment, empty-social, and skill-guide assertions pass; the
 real-client contract above is the
@@ -783,8 +783,8 @@ The baseline separated all three input paths before changing the server:
 All three nevertheless clamped to the same FOV. The authoritative 239 scripts
 show why: script 605 writes the four camera-bound varcs 1338..1341, script 626
 invokes it with `(128, 896, 128, 896)`, and script 42 clamps against those
-varcs. mock230 never sent that initialisation, so Java's zero defaults collapsed
-the range. `mock230_world_login_finish` now sends
+varcs. ToriRSServer never sent that initialisation, so Java's zero defaults collapsed
+the range. `ToriRSServer_WorldLoginFinish` now sends
 `RUNCLIENTSCRIPT 605(128,896,128,896)` for revision 239 and later. The final
 ordered event record contains the exact invocation at event 45.
 
@@ -812,7 +812,7 @@ House options is group 370 mounted at `164:71`, and its close component is
 IF_BUTTON traffic for the clicked component. The close packet does not identify
 which component or interface initiated it.
 
-mock230 tracked group 370 only as `sidemodal_group`; its close routine returned
+ToriRSServer tracked group 370 only as `sidemodal_group`; its close routine returned
 early whenever `mainmodal_group` was empty. The server therefore retained the
 mount after the client had closed its local copy. The close routine now snapshots
 both modal groups, runs `[if_close]` for each group that exists, and emits
@@ -893,7 +893,7 @@ with `(1,1,16,231:6)`.
 ### The official C client follows the same script-600 path
 
 The C client was rebuilt from the current `v3` integration rather than tested
-with the stale binary in the primary dirty checkout. A fresh TCP mock230 session
+with the stale binary in the primary dirty checkout. A fresh TCP ToriRSServer session
 using the revision-239 login and packet tables then drove `talk hans 1` through
 the real client-cheat packet after the login scene barrier. Its trace records
 the ordered client-side lifecycle: three `IF_SETTEXT` writes, `IF_OPENSUB` of
@@ -958,7 +958,7 @@ and `14_final_frame.png` are complete presented frames after the stress pass.
 `build/run239-regressions/combined-final/proof/events.log` is the blocking EVENTS
 subscriber attached before RuneLite launch. It retains 1,545 ordered lines from
 STARTING through all interactions. The final stack used the rebuilt authoritative
-239 deob, mock230 on 43630, jav_config on 8097, and JCTL on 43635.
+239 deob, ToriRSServer on 43630, jav_config on 8097, and JCTL on 43635.
 
 The run proves actual Hans NPC input, wheel zoom, normal slider zoom, All settings
 slider zoom, side-only house close, and independent movement in one login. The
@@ -988,7 +988,7 @@ The Display dropdown is created by script 4568. Its rows are dynamic children
 updates the row label/timer and emits the normal component operation, but does
 not call script 3998 for this row type. The exact revision-239 outbound callback
 is opcode 47 (`IF_BUTTON1` after normalisation) with the `116:40` uid and the
-selected subid. mock230 had not armed those dynamic children, so the rows looked
+selected subid. ToriRSServer had not armed those dynamic children, so the rows looked
 interactive but had no server callback.
 
 Content now arms subids 1..3 and maps them to Fixed, Classic, and Modern. The
@@ -1070,7 +1070,7 @@ Script 739 is the Inferno HP updater. It reads cache varbits 5653 and 5654,
 then executes SCALE (4018) as `current * width / base`. Server-side tracing
 proved this was not a guessed packet or ordering defect. The authoritative
 cache places both 11-bit values in varp 1575, current at bits 0..10 and base at
-bits 11..21. mock230 wrote base first and current second, before IF_OPENSUB,
+bits 11..21. ToriRSServer wrote base first and current second, before IF_OPENSUB,
 and emitted the literal revision-239 VARP_LARGE bodies:
 
 - base only, 2457600: `06 a7 00 80 25 00`;
@@ -1093,7 +1093,7 @@ self-test independently packs the two cache varbits, requires carrier value
 2458800, and compares both six-byte packet bodies above. The correctly
 cache-backed broad self-test reaches this section without a Zuk assertion; its
 unrelated pre-existing content/combat/pathing failures remain recorded in
-`build/run239-zuk/mock230-selftest.log`.
+`build/run239-zuk/torirsserver-selftest.log`.
 
 Fresh live acceptance is under `build/run239-zuk/fixed`. Real AWT input typed
 and submitted `::zuk`; JCTL then reported varp 1575 = 2458800, varbits
@@ -1135,7 +1135,7 @@ reservation; after the corpse delay it requires live instance count zero,
 handle zero, a surface respawn at full HP, and stable HP across four later
 ticks. The correctly cache-backed broad run reached this section with no
 Inferno/Zuk/instance/respawn/HUD failure; its 25 unrelated baseline failures
-remain in `build/run239-zuk/death-fix/mock230-selftest-final.log`.
+remain in `build/run239-zuk/death-fix/torirsserver-selftest-final.log`.
 
 Clean live acceptance is under `build/run239-zuk/death-live-final`. Its blocking
 EVENTS subscriber connected before RuneLite. Real AWT input submitted only
@@ -1184,7 +1184,7 @@ not enter asynchronous loading or send a second acknowledgement.
 Repeating the command found a second, server-owned lifetime bug. Freeing a map
 reservation returned its square to the allocator but left its durable ZoneMap
 loc mutations behind. The next reservation reused the same square and
-`mock230_world_locs_reapply` restored the first run's already-collapsed arena,
+`ToriRSServer_WorldLocsReapply` restored the first run's already-collapsed arena,
 so the state1 lookups legitimately found nothing. Instance release now clears
 all durable loc mutations, unsent loc events, and timed loc reverts across the
 entire reserved map-square rectangle before returning it to the pool. Actor
@@ -1195,7 +1195,7 @@ parked an add's script, but the one-tick AI timer continued firing during the
 delay. That converted a four-tick attack rate into one attack per tick and
 eventually filled the glyph and player queues. Engine-TS's `Npc.turn()` resumes
 the parked script and then returns at `!isValid()` while the NPC remains delayed.
-mock230 now does the same, freezing timers, queues, hunts, and modes until the
+ToriRSServer now does the same, freezing timers, queues, hunts, and modes until the
 delay expires.
 
 The literal revision-239 packet regression walks the real enclosed stream (top
@@ -1208,7 +1208,7 @@ regression independently proves that an AI timer neither fires nor increments
 during `npc_delay`, then fires exactly once on expiry. The broad cache-backed
 self-test reaches the Zuk seal, death, and delay sections without a focused
 failure; its retained log is
-`build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+`build/run239-zuk/cutscene-final/torirsserver-selftest-delay.log`.
 
 The earlier live run under `build/run239-zuk/cutscene-live-final5` remains
 evidence for the scene barrier, repeated instance cleanup, and death lifecycle,
@@ -1376,7 +1376,7 @@ OPNPC2 callback.
 - 2026-08-06: Ran authoritative protocol/table audits; recorded the sentinel
   server row and five outbound canonical coverage gaps.
 - 2026-08-06: Reproduced launcher child teardown and hardened detachment.
-- 2026-08-06: Launched mock230 + jav_config + RuneLite with autologin, inbound
+- 2026-08-06: Launched ToriRSServer + jav_config + RuneLite with autologin, inbound
   and outbound packet telemetry, IF_SETEVENTS lookup telemetry, and CS2 stack
   telemetry.
 - 2026-08-06: Verified `LOGGED_IN` over JCTL and captured the first real-client
@@ -1389,12 +1389,12 @@ OPNPC2 callback.
 - 2026-08-06: Added authoritative GPI telemetry (`player` plus transition-only
   events) and proved the player stream was structurally correct but arrived
   after plugin-visible stat events.
-- 2026-08-06: Reordered the mock230 login burst to materialize the local actor
+- 2026-08-06: Reordered the ToriRSServer login burst to materialize the local actor
   before interfaces/stats; the focused login-burst self-test passes and the
   rebuilt RuneLite run has no subscriber exception.
 - 2026-08-06: Captured `04_ordered_login.png` and a live interface-tab frame;
   confirmed the revision-239 client emits the collapsed `IF_BUTTONX` opcode 47
-  and mock230 decodes it to the named `IF_BUTTON1` target.
+  and ToriRSServer decodes it to the named `IF_BUTTON1` target.
 - 2026-08-06: Began replacing guessed UI coordinates with client-thread widget
   resolution and centre-click commands after reproducing an overlapping-layer
   false selection in Resizable-Modern mode.
@@ -1416,7 +1416,7 @@ OPNPC2 callback.
   report records commands, mount assertions, EVENTS traffic, PNG sizes, and
   SHA-256 hashes.
 - 2026-08-06: Classified the revision-239 applet-focus packet as lifecycle
-  telemetry, rebuilt mock230, restarted the entire stack, attached `EVENTS`
+  telemetry, rebuilt ToriRSServer, restarted the entire stack, attached `EVENTS`
   before interaction, and passed the full interface contract again against
   the exact final binary. Updated the evidence hashes above from that run.
 - 2026-08-06: Re-audited the supposedly final client log and found local-player
@@ -1448,7 +1448,7 @@ OPNPC2 callback.
   the saved GPI coordinate was outside the initial WorldView, so RuneLite
   subscribers observed a null local player until a corrective rebuild.
 - 2026-08-06: Traced the golden `method3795`/`method3797` actor lifecycle,
-  rebuilt mock230 with post-save scene alignment, and observed `entity=true`
+  rebuilt ToriRSServer with post-save scene alignment, and observed `entity=true`
   before `IF_OPENTOP` and stats. The final trace clarified that the golden
   client's raw `LOGGED_IN` transition precedes queued `PLAYER_INFO` processing.
 - 2026-08-06: Hardened the revision-239 login self-test with an off-scene saved
@@ -1504,7 +1504,7 @@ OPNPC2 callback.
   both control/verifier tools and `git diff --check` also passed. The final
   deob API gate reports 723/10,469 original classes/members versus 740/10,735
   rebuilt, with the API surface complete.
-- 2026-08-06: Confirmed the retained proof stack is listening on mock230 43594,
+- 2026-08-06: Confirmed the retained proof stack is listening on ToriRSServer 43594,
   jav_config 8080, and JCTL 43601, with the standalone `EVENTS` reader still
   connected after the verifier completed.
 - 2026-08-06: Scoped the deliverable onto `codex/` branches while preserving
@@ -1541,7 +1541,7 @@ OPNPC2 callback.
   emote alias used prefix matching, so the server never received a
   `CLIENT_CHEAT`. Changed emote aliases to exact matches, removed the duplicate
   server debugproc, and made a claimed debugproc abort return a visible chat
-  error. A rebuilt cache emitted opcode 34; mock230 logged the debugproc as
+  error. A rebuilt cache emitted opcode 34; ToriRSServer logged the debugproc as
   `ran`; worn container 94 held the crystal helm/body/legs and corrupted Bow of
   faerdhinen. Exact `::cry` still emitted the local emote button packet.
 - 2026-08-06: Fixed the two independent inventory-interaction failures. Armed
@@ -1582,8 +1582,8 @@ OPNPC2 callback.
   Added a world self-test for the side-only poh_options close and changed the
   Hans self-test to exercise the actual six-byte resume packet.
 - 2026-08-06: Ran `test-mock239-playerinfo` and `test-mock239-inbound` (48
-  inbound checks) plus a full mock230 build successfully. The broad cached
-  mock230 self-test reached the new side-only section without a new failure but
+  inbound checks) plus a full ToriRSServer build successfully. The broad cached
+  ToriRSServer self-test reached the new side-only section without a new failure but
   retains 25 pre-existing content-gap/shadow failures; the complete output is
   `build/run239-regressions/selftest.log`.
 - 2026-08-06: Extended JCTL with real AWT wheel input and authoritative camera,
@@ -1608,7 +1608,7 @@ OPNPC2 callback.
   present; the profiler report completed after explicit quit.
 - 2026-08-06: Re-ran the literal camera RUNCLIENTSCRIPT fixture, 48-check
   revision-239 inbound suite, NPC_INFO sentinel/player traversal suite, full
-  mock230 build, deob build/API verification, and whitespace checks. Created
+  ToriRSServer build, deob build/API verification, and whitespace checks. Created
   root regression commit `16b94123` and deob instrumentation commit `845c2c7`.
 - 2026-08-06: Pushed `codex/runelite239-regressions` to both
   `MRobertEvers/oldschool-clientc` and `MRobertEvers/Deob`. No OSRS-Content
@@ -1619,7 +1619,7 @@ OPNPC2 callback.
   the new root dependency PR creation URL was retained for handoff instead of
   fabricating a PR number.
 - 2026-08-06: Found and stopped a retained task-specific movement client,
-  mock230, jav_config, and duplicate EVENTS subscribers using only the PIDs in
+  ToriRSServer, jav_config, and duplicate EVENTS subscribers using only the PIDs in
   `build/run239-regressions/movement_fixed`; no client from this regression run
   was left idle.
 - 2026-08-06: Added the reported client-layout regression and supplied Hans
@@ -1645,7 +1645,7 @@ OPNPC2 callback.
   `build/run239-regressions/layout_final2`: Modern root 164/varbit 1, Fixed root
   548/window 1, and Classic root 161/window 2, with the dynamic dropdown
   recreated and correctly labelled after every root replacement.
-- 2026-08-06: Recompiled 12,536 content scripts, rebuilt mock230, passed the
+- 2026-08-06: Recompiled 12,536 content scripts, rebuilt ToriRSServer, passed the
   five focused revision-239 suites (including all 48 inbound checks), rebuilt
   the instrumented deob and passed API verification. The correctly cache-backed
   broad self-test retained 23 pre-existing failures and introduced no layout
@@ -1735,7 +1735,7 @@ OPNPC2 callback.
   739 SCALE exceptions, ordered packet/CS2 records, server log, interface audit,
   and last complete frame under `build/run239-zuk/baseline`.
 - 2026-08-06: Proved cache varbits 5653/5654 share carrier 1575 at bits 0..10
-  and 11..21. Captured mock230's two pre-mount VARP_LARGE bodies and matched
+  and 11..21. Captured ToriRSServer's two pre-mount VARP_LARGE bodies and matched
   their transforms and handler order against the authoritative golden client.
 - 2026-08-06: Located the actual failure in the compilable deob's `class313`
   and `class419` mask-table initializers: a decompiler-narrowed `byte` local
@@ -1802,10 +1802,10 @@ OPNPC2 callback.
   teardown for loc diffs, unsent loc events, and timed reverts, then extended
   the literal packet regression to require two complete consecutive seal
   sequences.
-- 2026-08-06: Recompiled all 12,538 scripts, rebuilt mock230, and ran the
+- 2026-08-06: Recompiled all 12,538 scripts, rebuilt ToriRSServer, and ran the
   cache-backed broad suite. Both consecutive-Zuk packet checks, Inferno death,
   and the new NPC-delay timer check pass; unrelated broad baseline failures are
-  retained in `build/run239-zuk/cutscene-final/mock230-selftest-delay.log`.
+  retained in `build/run239-zuk/cutscene-final/torirsserver-selftest-delay.log`.
 - 2026-08-06: Rejected `cutscene-live-final3` after its repeated pooled arena
   inherited the first run's loc state. Rejected `cutscene-live-final4` after its
   longer fight revealed AI timers firing through `npc_delay`, causing glyph and
@@ -1883,7 +1883,7 @@ OPNPC2 callback.
   instance literal enclosed-packet regression to require one of each side
   sequence and zero pillar sequences.
 - 2026-08-07: Regenerated the complete server pack after the hitsplat-only
-  cache bake, recompiled 12,538 scripts, rebuilt mock230, and passed the focused
+  cache bake, recompiled 12,538 scripts, rebuilt ToriRSServer, and passed the focused
   player-info and both consecutive Zuk seal sections. The broad suite still has
   unrelated baseline content/combat failures recorded in
   `build/hitsplat-zuk-live/proof/selftest-osrs239.log`.
@@ -1983,7 +1983,7 @@ OPNPC2 callback.
   the actor-facing report. Read the authoritative 239 Face decoder and RSProt
   writers; implemented Player g1Alt2 / NPC g1Alt1 generic Face blocks, literal
   Entity/Loc fixtures, and matching C-client tail consumption. Focused fixture,
-  mock230, and torirs builds passed. A pre-launch EVENTS subscriber and real
+  ToriRSServer, and torirs builds passed. A pre-launch EVENTS subscriber and real
   AWT `::~talk hans 1` reached Hans dialogue/script 58 in RuneLite; retained
   the evidence and rejected the run after a later unrelated
   `Statics.method6709` empty-array client fatal rather than marking it clean.

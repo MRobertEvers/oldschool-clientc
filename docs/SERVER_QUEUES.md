@@ -190,7 +190,7 @@ arithmetic read the other way round.
 The player and NPC paths differ deliberately: the player decrements unconditionally while the NPC
 *"purposely only decrements the delay when the npc is not delayed"* (`Npc.processQueue`). Both
 sides of our port already reproduce their own convention, with the one-tick difference written out
-at [mock230_world.c:3678-3690](../src/net/mock/mock230_world.c#L3678-L3690).
+at [torirs_server_world.c:3678-3690](../src/torirsserver/torirs_server_world.c#L3678-L3690).
 
 ### 3.5 Delays are the gate
 
@@ -219,7 +219,7 @@ than a script reference, resolved at execution time against the NPC's type and c
 ### 3.8 Area queue
 
 A third kind, player-only, for multiway-zone entry, music unlocks, and farming patch state.
-osrs-docs marks it incomplete; out of scope here. Our `MOCK230_QUEUE_ENGINE` (zone triggers) is the
+osrs-docs marks it incomplete; out of scope here. Our `TORIRSSERVER_QUEUE_ENGINE` (zone triggers) is the
 nearest thing we have.
 
 ---
@@ -240,7 +240,7 @@ Queues fire once; timers fire periodically.
   overhead chat cannot be poisoned.
 
 Our implementation covers the two types and both access rules
-([mock230_scripts.c:1142-1193](../src/net/mock/mock230_scripts.c#L1142-L1193)), and uses an
+([torirs_server_scripts.c:1142-1193](../src/torirsserver/torirs_server_scripts.c#L1142-L1193)), and uses an
 absolute `clock` rather than a countdown. The "no advanced access for soft timers" restriction is
 enforced by running them unprotected. See G12 for the one timer gap.
 
@@ -293,8 +293,8 @@ Verbatim from `engine.rs2` (`.`-prefixed variants are the secondary-entity forms
 
 All verified in the working tree.
 
-> **Line numbers drift.** `mock230_world.c`, `mock230_scripts.c` and `mock230.h` were being edited
-> concurrently while this audit ran — `mock230_world.c` shifted by ~41 lines mid-session. Treat
+> **Line numbers drift.** `torirs_server_world.c`, `torirs_server_scripts.c` and `torirs_server.h` were being edited
+> concurrently while this audit ran — `torirs_server_world.c` shifted by ~41 lines mid-session. Treat
 > every line reference below as a starting point and re-grep the symbol before editing.
 
 ### Opcodes — [src/serverscript/ss_opcode.h](../src/serverscript/ss_opcode.h)
@@ -308,47 +308,47 @@ All verified in the working tree.
 
 `QUEUE` 116, `AI_QUEUE1..20` 117–136, `SOFTTIMER` 137, `TIMER` 138, `AI_TIMER` 139.
 
-### Data — [src/net/mock/mock230.h:1691-1723](../src/net/mock/mock230.h#L1691-L1723)
+### Data — [src/torirsserver/torirs_server.h:1691-1723](../src/torirsserver/torirs_server.h#L1691-L1723)
 
 ```c
-enum Mock230QueueKind
+enum ToriRSServerQueueKind
 {
-    MOCK230_QUEUE_NORMAL = 0,
-    MOCK230_QUEUE_LONG,     /* like NORMAL, plus a logout action */
-    MOCK230_QUEUE_WEAK,     /* discarded whenever a modal closes */
-    MOCK230_QUEUE_STRONG,   /* closes whatever modal is up before the drain */
-    MOCK230_QUEUE_ENGINE    /* zone family; engine-produced, delay always 0 */
+    TORIRSSERVER_QUEUE_NORMAL = 0,
+    TORIRSSERVER_QUEUE_LONG,     /* like NORMAL, plus a logout action */
+    TORIRSSERVER_QUEUE_WEAK,     /* discarded whenever a modal closes */
+    TORIRSSERVER_QUEUE_STRONG,   /* closes whatever modal is up before the drain */
+    TORIRSSERVER_QUEUE_ENGINE    /* zone family; engine-produced, delay always 0 */
 };
 
-struct Mock230Queued
+struct ToriRSServerQueued
 {
     int active;
     int script_id;
     int delay;                              /* ticks remaining */
-    int32_t args[MOCK230_QUEUE_ARG_MAX];    /* 8 */
+    int32_t args[TORIRSSERVER_QUEUE_ARG_MAX];    /* 8 */
     int argc;
     int kind;
     int logout_action;                      /* LONG only */
 };
 ```
 
-Caps: `MOCK230_QUEUE_MAX` 32, `MOCK230_QUEUE_ARG_MAX` 8, `MOCK230_ENGINE_QUEUE_MAX` 8,
-`MOCK230_NPC_QUEUE_MAX` 8, `MOCK230_TIMER_MAX` 32, `MOCK230_WORLD_QUEUE_MAX` 16.
+Caps: `TORIRSSERVER_QUEUE_MAX` 32, `TORIRSSERVER_QUEUE_ARG_MAX` 8, `TORIRSSERVER_ENGINE_QUEUE_MAX` 8,
+`TORIRSSERVER_NPC_QUEUE_MAX` 8, `TORIRSSERVER_TIMER_MAX` 32, `TORIRSSERVER_WORLD_QUEUE_MAX` 16.
 
 `ENGINE` lives in a separate array on purpose, and the reason is load-bearing rather than
 stylistic: `unlinkQueuedScript`'s default branch never walks `engineQueue`, so `clearqueue` must not
 be able to cancel a zone trigger.
 
-### Runtime — [src/net/mock/mock230_scripts.c](../src/net/mock/mock230_scripts.c)
+### Runtime — [src/torirsserver/torirs_server_scripts.c](../src/torirsserver/torirs_server_scripts.c)
 
 | Function | Line | Role |
 | --- | --- | --- |
 | `player_can_access` | 710 | the `canAccess()` port — `delayed_until` + both modal groups |
 | `drain_queue` | 1052 | one pass over one kind-set |
-| `mock230_scripts_clear_weak_queue` | 1103 | |
-| `mock230_scripts_process_queues` | 1113 | STRONG pre-scan → `drain_queue(0)` → `drain_queue(1)` |
-| `mock230_scripts_process_timers` | 1142 | NORMAL pass then SOFT pass |
-| `mock230_scripts_process_engine_queue` | 2427 | the zone family |
+| `ToriRSServer_ScriptsClearWeakQueue` | 1103 | |
+| `ToriRSServer_ScriptsProcessQueues` | 1113 | STRONG pre-scan → `drain_queue(0)` → `drain_queue(1)` |
+| `ToriRSServer_ScriptsProcessTimers` | 1142 | NORMAL pass then SOFT pass |
+| `ToriRSServer_ScriptsProcessEngineQueue` | 2427 | the zone family |
 | `SS_OP_QUEUE`/`STRONGQUEUE`/`WEAKQUEUE`/`LONGQUEUE` | 7624 | one body; kind is the only difference |
 | the four `*VARARG` forms | 7650 | |
 | `CLEARQUEUE` / `GETQUEUE` | 7715 / 7731 | |
@@ -356,7 +356,7 @@ be able to cancel a zone trigger.
 | `P_DELAY` / `P_ARRIVEDELAY` / `NPC_DELAY` / `NPC_ARRIVEDELAY` / `WORLD_DELAY` | 7404–7578 | |
 | `NPC_QUEUE` / `NPC_SETTIMER` | 4537 / 4586 | |
 
-There is a fifth queue beyond the four kinds: `world_queue[16]` on `Mock230Server`, holding scripts
+There is a fifth queue beyond the four kinds: `world_queue[16]` on `ToriRSServer`, holding scripts
 parked by `world_delay` and drained in phase 1. It has no strength model and is not part of the
 entity queue system; osrs-docs' "area queue" is the nearest authentic analogue.
 
@@ -366,14 +366,14 @@ locals in place, and the engine parks the state and calls `SSVM_Execute` again o
 stderr line. That single slot is what stands in for LostCity's `protect` flag.
 
 `close_modal` clears the weak queue *before* its early return
-([mock230_world.c:6897](../src/net/mock/mock230_world.c#L6897)), so a close with nothing mounted
+([torirs_server_world.c:6897](../src/torirsserver/torirs_server_world.c#L6897)), so a close with nothing mounted
 still discards weak entries — matching `Player.closeModal`. **This is correct; do not "fix" it.**
 
 ### Tick order
 
-Player phase 5 ([mock230_world.c:9771-9791](../src/net/mock/mock230_world.c#L9771-L9791)):
+Player phase 5 ([torirs_server_world.c:9771-9791](../src/torirsserver/torirs_server_world.c#L9771-L9791)):
 `resume_player` → `process_queues` → `process_timers` → `process_engine_queue`.
-NPC phase 4 ([mock230_world.c:3630-3690](../src/net/mock/mock230_world.c#L3630-L3690)): poison →
+NPC phase 4 ([torirs_server_world.c:3630-3690](../src/torirsserver/torirs_server_world.c#L3630-L3690)): poison →
 delay gate → **timers** → freeze decrement → **queues**. Both match the reference's per-entity
 ordering, including the players-after / NPCs-before asymmetry §4 calls for.
 
@@ -388,7 +388,7 @@ ordering, including the players-after / NPCs-before asymmetry §4 calls for.
 The purpose-built test corpus is
 `OSRS-Content/osrs239-content/server/scripts/selftest_triggers.rs2` (queue-kind, strongqueue-arm,
 access-gate, clearqueue, getqueue and weak-only stanzas), driven from
-[mock230_world.c:30172-30360](../src/net/mock/mock230_world.c#L30172-L30360).
+[torirs_server_world.c:30172-30360](../src/torirsserver/torirs_server_world.c#L30172-L30360).
 
 ---
 
@@ -414,7 +414,7 @@ Ranked by how observable the divergence is.
 ### G1 — SOFT
 
 The engine deliberately omits it. The comment at
-[mock230.h:1676](../src/net/mock/mock230.h#L1676) states the reasoning:
+[torirs_server.h:1676](../src/torirsserver/torirs_server.h#L1676) states the reasoning:
 
 > `PlayerQueueType` in the reference, minus SOFT, which the reference declares and never uses — a
 > kind nothing can put in the queue is a branch no test can reach.
@@ -431,7 +431,7 @@ regresses either way, and nothing exercises it until content is written.
 ### G2/G3 — ordering
 
 `SS_OP_QUEUE` allocates the **first free slot** in a fixed array
-([mock230_scripts.c:7641](../src/net/mock/mock230_scripts.c#L7641)), and `drain_queue` walks that
+([torirs_server_scripts.c:7641](../src/torirsserver/torirs_server_scripts.c#L7641)), and `drain_queue` walks that
 array **by index**. Execution order is therefore slot order, which after any slot is freed and
 reused is no longer insertion order:
 
@@ -449,7 +449,7 @@ increasing `seq` on each entry, drained in `seq` order, with the weak/non-weak s
 osrs-docs is explicit that a timer must not execute on the tick it was armed, and that this is
 what makes prayer-flicking work. Our timers use an absolute `clock` set to the arming tick and fire
 when `srv->tick >= clock + interval`, so `interval > 0` is safe. But
-[mock230_scripts.c:1142-1193](../src/net/mock/mock230_scripts.c#L1142-L1193) deliberately allows
+[torirs_server_scripts.c:1142-1193](../src/torirsserver/torirs_server_scripts.c#L1142-L1193) deliberately allows
 `interval == 0` (a real reference case: `settimer(agilityarena_pillar, sub(deadline, map_clock))`
 can arm with 0 or negative). An `interval <= 0` timer armed during the timer pass can fire in that
 same pass. Worth a same-tick guard, cheaply: skip any timer whose `clock == srv->tick`.
@@ -488,15 +488,15 @@ user, plus selftest coverage.
 
 Fixes the two high-severity gaps in one change.
 
-1. Add `int seq` to `struct Mock230Queued`, and `int queue_seq` to `Mock230Player` as the
+1. Add `int seq` to `struct ToriRSServerQueued`, and `int queue_seq` to `ToriRSServerPlayer` as the
    monotonic source. Stamp on enqueue in all eight opcode bodies (`QUEUE`/`STRONGQUEUE`/
-   `WEAKQUEUE`/`LONGQUEUE` and their varargs) and in `mock230_scripts_queue_hook` /
+   `WEAKQUEUE`/`LONGQUEUE` and their varargs) and in `ToriRSServer_ScriptsQueueHook` /
    `queue_named`.
 2. Replace `drain_queue(srv, weak)` with a single `drain_queue(srv)` that selects the lowest-`seq`
-   active entry not yet visited this pass, rather than walking by index. With `MOCK230_QUEUE_MAX`
+   active entry not yet visited this pass, rather than walking by index. With `TORIRSSERVER_QUEUE_MAX`
    at 32 an O(n²) selection scan is 1,024 comparisons worst case — irrelevant next to running a
    script, and much easier to reason about than threading a free list.
-3. `mock230_scripts_process_queues` becomes: STRONG pre-scan (unchanged) → one `drain_queue(srv)`.
+3. `ToriRSServer_ScriptsProcessQueues` becomes: STRONG pre-scan (unchanged) → one `drain_queue(srv)`.
 4. Leave `queue_seq` unreset across logout (or reset it in phase 4 with the rest of the cleanup);
    wrap-around at `INT_MAX` is unreachable at 32 slots but assert on it rather than trusting that.
 
@@ -510,8 +510,8 @@ against the current implementation before landing the fix.
 
 1. Wrap the drain in `do { n = drain_queue(srv); } while (n > 0);`, with `drain_queue` returning
    the number of entries it executed.
-2. Inside the drain, when the selected entry is `MOCK230_QUEUE_STRONG`, call
-   `mock230_world_close_modal(srv)` before the access check — this is the per-entry close that is
+2. Inside the drain, when the selected entry is `TORIRSSERVER_QUEUE_STRONG`, call
+   `ToriRSServer_WorldCloseModal(srv)` before the access check — this is the per-entry close that is
    distinct from the pre-scan.
 3. Guard against a script that re-queues itself with delay 0 spinning the outer loop forever. The
    `+1` store means a self-queue lands at `delay = 1` and cannot be due in the same tick, so the
@@ -523,25 +523,25 @@ blocking. Authentic: both run this tick. Today: B waits a tick.
 
 ### Phase 3 — SOFT (G1) *(gated on phase 0)*
 
-1. `MOCK230_QUEUE_SOFT` in `enum Mock230QueueKind`, appended so existing values are stable.
+1. `TORIRSSERVER_QUEUE_SOFT` in `enum ToriRSServerQueueKind`, appended so existing values are stable.
 2. Mint `SS_OP_SOFTQUEUE` / `SS_OP_SOFTQUEUEVARARG`. These have no upstream opcode numbers —
    allocate from the local extension range rather than guessing at Jagex's, and say so in
    `ss_opcode.h`. Add arities to `ss_meta.gen.h` via whatever generates it, add
    `softqueue`/`softqueue*` to the script-typed-first-argument table at
    [ssc_compile.c:807-816](../src/serverscript/ssc_compile.c#L807-L816) mapped to the `"queue"`
-   namespace, and mirror it in the `mock230_scripts.c` table.
+   namespace, and mirror it in the `torirs_server_scripts.c` table.
 3. Split the access gate in the drain. `player_can_access` stays as-is for timers and every other
    caller; the drain gains a per-entry form:
 
    ```c
    static int
-   queue_entry_can_run(struct Mock230Server* srv, const struct Mock230Queued* entry)
+   queue_entry_can_run(struct ToriRSServer* srv, const struct ToriRSServerQueued* entry)
    {
-       struct Mock230Player* player = srv->active_player;
+       struct ToriRSServerPlayer* player = srv->active_player;
 
        /* SOFT is the one kind that runs through a delay — that is its entire
         * point (SERVER_QUEUES.md §3.2). It ignores modals too. */
-       if( entry->kind == MOCK230_QUEUE_SOFT )
+       if( entry->kind == TORIRSSERVER_QUEUE_SOFT )
            return 1;
        return player_can_access(srv);
    }
@@ -565,7 +565,7 @@ delay 1; assert soft fires during the delay and normal fires after it.
 3. **Caps.** `SSVM_Abort("the player's queue is full")` at 32 entries is a hard failure where the
    reference cannot fail. Inferno and the QBD session both issue `clearqueue` bursts (14
    consecutive in `rs2012_qbd_session.rs2`), which suggests content already runs near the ceiling.
-   Either raise `MOCK230_QUEUE_MAX` with a counter logging the observed high-water mark, or move to
+   Either raise `TORIRSSERVER_QUEUE_MAX` with a counter logging the observed high-water mark, or move to
    a growable allocation. Start with the counter — measure before resizing.
 4. **Timer same-tick guard (G12).** Skip any timer whose `clock == srv->tick` in the timer pass,
    so a zero-interval timer armed this tick waits for the next one.
@@ -575,7 +575,7 @@ delay 1; assert soft fires during the delay and normal fires after it.
 1. **The vararg queue forms work, and two pieces of text in the tree say they do not.** Both are
    stale and both should go:
    - The comment at
-     [mock230_scripts.c:7592-7594](../src/net/mock/mock230_scripts.c#L7592-L7594), which claims the
+     [torirs_server_scripts.c:7592-7594](../src/torirsserver/torirs_server_scripts.c#L7592-L7594), which claims the
      vararg forms *"do not exist"* and that the compiler *"refuses [them] outright"*.
    - The `fail()` message at
      [ssc_compile.c:2298-2300](../src/serverscript/ssc_compile.c#L2298-L2300):
@@ -585,7 +585,7 @@ delay 1; assert soft fires during the delay and normal fires after it.
    Ground truth: `parse_command` at
    [ssc_compile.c:704-731](../src/serverscript/ssc_compile.c#L704-L731) lexes the trailing `*` and
    resolves `queue` → `QUEUEVARARG`; `SS_OP_QUEUEVARARG` is implemented at
-   [mock230_scripts.c:7650](../src/net/mock/mock230_scripts.c#L7650); and **46 content call sites
+   [torirs_server_scripts.c:7650](../src/torirsserver/torirs_server_scripts.c#L7650); and **46 content call sites
    compile and run today** (`queue*(combat_damage_player, 0)(npc_uid, $damage)` in
    `elvarg.rs2:107`, `dragonslayer2.rs2:838`, `gauntlet_hunllef.rs2`, …).
 
@@ -616,12 +616,12 @@ Phase 5 (cleanup)       ── independent; the stale comment can go immediately
 ### Testing
 
 Everything above is covered by the existing harness — `selftest_triggers.rs2` plus its C driver at
-[mock230_world.c:30172-30360](../src/net/mock/mock230_world.c#L30172-L30360). Two standing repo
+[torirs_server_world.c:30172-30360](../src/torirsserver/torirs_server_world.c#L30172-L30360). Two standing repo
 lessons apply directly:
 
 - **[verify-blocker-and-failing-test]** — mutate the implementation to prove each new assertion can
   fail. A queue-ordering assertion that passes against both orders tests nothing.
-- **[headless-runs-are-not-independent]** — use a scratch `MOCK230_SAVES` for these runs; queue and
+- **[headless-runs-are-not-independent]** — use a scratch `TORIRSSERVER_SAVES` for these runs; queue and
   timer state is exactly the kind that leaks between runs, and phase 4 is about that leak.
 
 Build with `make -C src`, not CMake, and watch for stale `.o` files.

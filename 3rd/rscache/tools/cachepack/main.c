@@ -63,7 +63,7 @@ usage(void)
         "          routing they state — a name no config layer states, a name in\n"
         "          <ns>.server the tree says nothing about, a record under\n"
         "          server/scripts neither file claims — and exits non-zero on any of\n"
-        "          them. The id-range half of that check runs in mock230_pack, where\n"
+        "          them. The id-range half of that check runs in ToriRSServer_Pack, where\n"
         "          the allocation bases live.\n"
         "\n"
         "Options:\n"
@@ -537,7 +537,7 @@ main(int argc, char** argv)
          * packs and nothing else, which is the same reason `--server-only`
          * needs neither.
          *
-         * `--check-only` is the same word `pack` and `mock230_pack` use, and it
+         * `--check-only` is the same word `pack` and `ToriRSServer_Pack` use, and it
          * means the same thing here: read everything, write nothing, exit
          * non-zero on a disagreement. Seeding and checking are one command
          * because they walk and merge the same tree through the same gates —

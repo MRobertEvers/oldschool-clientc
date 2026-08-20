@@ -4,7 +4,7 @@
 Written after a false pass that cost real confidence: `selftest_corp_core`
 reported green on its first run and then SURVIVED a mutation that should have
 failed it. The stanza was not in the binary at all -- the edit registering it in
-`mock230_world.c`'s table had been clobbered between the write and the build.
+`torirs_server_world.c`'s table had been clobbered between the write and the build.
 
 An unregistered stanza cannot fail, so it reads exactly like a passing one.
 Neither existing guard catches it:
@@ -19,14 +19,14 @@ So the check has to run from the outside: enumerate every `[proc,selftest_*]`
 in the content tree and require each one to be reachable. A stanza is reachable
 when it is either
 
-  1. named in a registration table in src/net/mock/*.c, or
+  1. named in a registration table in src/torirsserver/*.c, or
   2. called with `~name` by another script (it is a helper, not a row).
 
 Anything else is dead: compiled, shipped, and never executed.
 
 There is a second shape of the same hole, found while reconciling the Tormented
 Demons: a file whose assertions live behind `[debugproc,name]` and are driven
-from C by `mock230_scripts_run_debugproc(srv, "name")`. Those DO run -- but only
+from C by `ToriRSServer_ScriptsRunDebugproc(srv, "name")`. Those DO run -- but only
 when C names them, and C names some and not others. `coxrun`, `fishingrun` and
 `fletchingrun` are driven; `runecraftrun` and `miningrun` were not, and their 24
 and 13 assertions had never executed in a build.
@@ -95,7 +95,7 @@ def main():
                 re.findall(r'"\[proc,(selftest_[a-z0-9_]+)\]"', handle.read()))
 
     # Second shape: a file whose assertions sit behind [debugproc,name], driven
-    # from C by `mock230_scripts_run_debugproc(srv, "name")`. C names some and
+    # from C by `ToriRSServer_ScriptsRunDebugproc(srv, "name")`. C names some and
     # not others, and the ones it does not name have never run.
     driven = set()
     for name in os.listdir(CSRC):
@@ -150,7 +150,7 @@ def main():
             print("    %-52s %s" % (name, os.path.relpath(path, ROOT)))
         print("\nA stanza that never runs cannot fail, so it reads exactly "
               "like a passing one.\nRegister it in a k_* table in "
-              "src/net/mock/mock230_world.c, or delete it.")
+              "src/torirsserver/torirs_server_world.c, or delete it.")
 
     if dead:
         print("\n%d stanza(s) known dead and recorded:" % len(dead))

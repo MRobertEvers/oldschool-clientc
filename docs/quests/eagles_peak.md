@@ -469,8 +469,8 @@ tile.
   and the correct root/external files.
 - No unresolved symbols, raw cache IDs, legacy IF1 modal opens, or undisclosed
   `soft`/`deferred` markers remain.
-- `make -C src mock230-scripts` succeeds.
-- `mock230_pack --check-only` succeeds against the intended revision-239
+- `make -C src torirsserver-scripts` succeeds.
+- `ToriRSServer_Pack --check-only` succeeds against the intended revision-239
   cache.
 
 ### Start, state, and item cases

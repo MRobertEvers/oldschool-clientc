@@ -27,7 +27,7 @@
 #                    rsa_mod, which is the mock server's public key -- otherwise
 #                    the login block is encrypted to a key nothing here holds
 #                    and login fails with no useful message on either side.
-#   mock230          the world AND the JS5 cache server, on one socket (the
+#   ToriRSServer          the world AND the JS5 cache server, on one socket (the
 #                    client picks with its first byte: 14 game, 15 JS5).
 #   a jav_config     RuneLite takes no server address. It takes
 #                    `--jav_config=<URL>` and reads `codebase` out of it to
@@ -154,7 +154,7 @@ else
     GAME_PORT=${GAME_PORT:-43594}
 fi
 GAME_HOST=${GAME_HOST:-${HOST:-127.0.0.1}}
-# `localhost` resolves to ::1 first on this machine and mock230 binds IPv4
+# `localhost` resolves to ::1 first on this machine and ToriRSServer binds IPv4
 # loopback only, so the manifest's spelling would cost a connection refused.
 if [ "$GAME_HOST" = localhost ]; then GAME_HOST=127.0.0.1; fi
 
@@ -264,19 +264,19 @@ esac
 content_tree_has_lanes() {
     [ -d "$1/ported/scape2009_summoning" ] && [ -d "$1/ported/rs2012_qbd_td" ]
 }
-if [ -z "${MOCK230_CONTENT_DIR:-}" ]; then
+if [ -z "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
     for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
         if content_tree_has_lanes "$candidate"; then
-            MOCK230_CONTENT_DIR=$(cd "$candidate" && pwd)
+            TORIRSSERVER_CONTENT_DIR=$(cd "$candidate" && pwd)
             break
         fi
     done
 fi
-if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
-    # MOCK230_CONTENT_DIR is the BUILD side, MOCK230_CONTENT the RUNTIME side.
+if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
+    # TORIRSSERVER_CONTENT_DIR is the BUILD side, TORIRSSERVER_CONTENT the RUNTIME side.
     # Setting only the first compiles script.dat into one tree and boots
     # another's -- see run-live.sh.
-    export MOCK230_CONTENT_DIR MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+    export TORIRSSERVER_CONTENT_DIR TORIRSSERVER_CONTENT="$TORIRSSERVER_CONTENT_DIR"
 fi
 
 # The lane cache bake and the server script pack are run-live.sh's, invoked
@@ -502,16 +502,16 @@ start_server() {
     # path builds. The outer environment may carry OPT/MEMTRACE/sanitizer
     # variables for some other experiment; it must not decide which binary this
     # launcher then looks for.
-    local bin=${TORIRS_MOCK_BIN:-src/build_opt/mock230}
+    local bin=${TORIRS_MOCK_BIN:-src/build_opt/torirsserver}
     if [ -z "${TORIRS_MOCK_BIN:-}" ]; then
         say "building the native mock server…"
         make -C src PLATFORM=native OPT=1 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
-            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 mock230 >/dev/null \
-            || die "mock230 build failed"
+            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 ToriRSServer >/dev/null \
+            || die "ToriRSServer build failed"
     fi
     [ -x "$bin" ] || die "mock binary '$bin' is not executable"
 
-    say "starting mock230 on $GAME_PORT (world + JS5, cache $CACHE_DIR)…"
+    say "starting ToriRSServer on $GAME_PORT (world + JS5, cache $CACHE_DIR)…"
     # ONE cache: the world reads the same directory JS5 serves. The two used to
     # differ (world on the bake, the client served pristine), which meant the
     # world acted on config values no connected client had.
@@ -519,10 +519,10 @@ start_server() {
     # nohup: an agent/CI command runner closes its pseudo-terminal as soon as
     # this script's foreground job ends, and without it every child takes the
     # same SIGHUP -- a healthy stack that looks like a crash a few lines in.
-    nohup env MOCK230_CACHE="$CACHE_DIR" \
-        ${SERVER_SCRIPTS:+MOCK230_SCRIPTS="$SERVER_SCRIPTS"} \
-        MOCK230_REV=osrs239 MOCK230_VERBOSE=1 \
-        MOCK230_JS5_REV="${CLIENT_VERSION:-239}" MOCK230_JS5_CACHE="$CACHE_DIR" \
+    nohup env TORIRSSERVER_CACHE="$CACHE_DIR" \
+        ${SERVER_SCRIPTS:+TORIRSSERVER_SCRIPTS="$SERVER_SCRIPTS"} \
+        TORIRSSERVER_REV=osrs239 TORIRSSERVER_VERBOSE=1 \
+        TORIRSSERVER_JS5_REV="${CLIENT_VERSION:-239}" TORIRSSERVER_JS5_CACHE="$CACHE_DIR" \
         "$bin" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 < /dev/null &
     echo $! > "$(pidfile server)"

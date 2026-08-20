@@ -1,13 +1,13 @@
 /*
  * The `loc_*` / `lc_*` config reads — RuneScript's view of a loc's own record.
  *
- * Third of the per-domain opcode files (mock230_ops_db.c is the first and its
- * header states the contract): `mock230_script_command` offers each domain the
+ * Third of the per-domain opcode files (torirs_server_ops_db.c is the first and its
+ * header states the contract): `ToriRSServer_ScriptCommand` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
  * The *mutating* half of the loc family — `loc_add`, `loc_change`, `loc_del`,
  * `loc_find`, `loc_coord`, `loc_type`, `loc_angle`, `loc_shape`, the two
- * find-all iterators — already lives in mock230_scripts.c's switch and stays
+ * find-all iterators — already lives in torirs_server_scripts.c's switch and stays
  * there. Everything here is a pure read of the config record, which is why it
  * can move without carrying the scene and the revert queue with it.
  *
@@ -17,7 +17,7 @@
  *
  * `[command,loc_param](param $param)(any)` — engine.rs2:693 — pops **one** int
  * and takes its record from the *active loc*. `[command,lc_param](loc $loc,
- * param $param)(any)` — engine.rs2:755, landed in mock230_ops_param.c — pops
+ * param $param)(any)` — engine.rs2:755, landed in torirs_server_ops_param.c — pops
  * **two** and is told which loc. Same word, same result, different stack
  * discipline; reading one as the other leaves every later value on the wrong
  * rung of the int stack, and nothing fails at the call.
@@ -35,10 +35,10 @@
  * suspend between `loc_find` and here, and a scene rebuild reallocates the loc
  * array underneath it. The handle rides in the VM's active-entity pointer —
  * `slot + 1` for a scene loc, negative for a ZoneMap record beyond the scene
- * window — and `mock230_script_loc_resolve` re-validates either kind, so a
+ * window — and `ToriRSServer_ScriptLocResolve` re-validates either kind, so a
  * resumed script either finds the same loc or finds none.
  *
- * Note what is deliberately NOT used for this: `mock230_scene_find_loc` ends in
+ * Note what is deliberately NOT used for this: `ToriRSServer_SceneFindLoc` ends in
  * `return loc_id >= 0 ? fallback : fallback`, so its loc_id argument does not
  * filter — it returns the first loc on the tile whatever id it is asked for.
  * That is correct for its own caller (a stale OPLOC id must still resolve to
@@ -53,13 +53,13 @@
  * LC_WIDTH, LC_LENGTH, each `check(state.popInt(), LocTypeValid)` then a field
  * of the type). Engine, one handler per opcode, every value read straight off
  * the config record. The records are content — they are in the cache here, and
- * mock230_locinfo.c decodes them once at boot.
+ * torirs_server_locinfo.c decodes them once at boot.
  */
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_paramtable.h"
-#include "mock230_scene.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_paramtable.h"
+#include "torirs_server_scene.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -75,14 +75,14 @@
  * resolves to the primary slot — but going through it rather than naming
  * SSVM_PRIMARY means a future `.`-form cannot silently read the wrong entity.
  */
-static struct Mock230SceneLoc*
+static struct ToriRSServerSceneLoc*
 active_loc(
     struct SSVM_State* state,
     int opcode)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230SceneLoc* loc =
-        mock230_script_loc_resolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct ToriRSServerSceneLoc* loc =
+        ToriRSServer_ScriptLocResolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
 
     if( !loc )
     {
@@ -109,9 +109,9 @@ check_loc_id(
     int opcode,
     int32_t loc_id)
 {
-    if( mock230_locinfo_count() <= 0 )
+    if( ToriRSServer_LocInfoCount() <= 0 )
         return 1;
-    if( mock230_loc_known(loc_id) )
+    if( ToriRSServer_LocKnown(loc_id) )
         return 1;
     SSVM_Abort(state, "%s: loc %d is not in the config", SSVM_OpcodeName(opcode),
                (int)loc_id);
@@ -130,7 +130,7 @@ push_loc_name(
     struct SSVM_State* state,
     int loc_id)
 {
-    const char* name = mock230_loc_name(loc_id);
+    const char* name = ToriRSServer_LocName(loc_id);
 
     /* SSVM_PushStr copies into the state's string pool, which owns everything
      * it holds — the table's pointer must not be handed to the VM. */
@@ -138,7 +138,7 @@ push_loc_name(
 }
 
 int
-mock230_ops_loc(
+ToriRSServer_OpsLoc(
     struct SSVM_State* state,
     int opcode,
     int dot)
@@ -152,8 +152,8 @@ mock230_ops_loc(
     case SS_OP_LOC_PARAM:
     {
         int32_t param_id;
-        struct Mock230SceneLoc* loc;
-        const struct Mock230ParamRow* row;
+        struct ToriRSServerSceneLoc* loc;
+        const struct ToriRSServerParamRow* row;
 
         if( !SSVM_PopInt(state, &param_id) )
             return 1;
@@ -161,8 +161,8 @@ mock230_ops_loc(
         if( !loc )
             return 1;
 
-        row = mock230_loc_param(loc->loc_id, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_LocParam(loc->loc_id, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "loc", loc->loc_id);
         return 1;
     }
@@ -171,7 +171,7 @@ mock230_ops_loc(
      * out; the one op in this file that touches the string stack. */
     case SS_OP_LOC_NAME:
     {
-        struct Mock230SceneLoc* loc = active_loc(state, opcode);
+        struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
 
         if( !loc )
             return 1;
@@ -200,7 +200,7 @@ mock230_ops_loc(
      * rung along and with the same shape: one pops nothing and reads the active
      * loc, the other pops the id it is told.
      *
-     * `mock230_loc_category` is the merged read — the authored overlay first, the
+     * `ToriRSServer_LocCategory` is the merged read — the authored overlay first, the
      * cache's config opcode 61 second. This is the whole reason
      * `[oploc1,_door_closed]` can bind: the rung `interaction_category` feeds the
      * trigger lookup with, and the value this opcode pushes, are the same
@@ -212,16 +212,16 @@ mock230_ops_loc(
      * that states none. Here it is -1, which is RuneScript's `null` for every
      * config-typed value and is what the `(category)` return type means. 0 is not
      * available to mean "none" on this side: `pack/category.pack` reserves it and
-     * `mock230_pack` refuses to name it, so content comparing against 0 would be
+     * `ToriRSServer_Pack` refuses to name it, so content comparing against 0 would be
      * comparing against a name that must never exist.
      */
     case SS_OP_LOC_CATEGORY:
     {
-        struct Mock230SceneLoc* loc = active_loc(state, opcode);
+        struct ToriRSServerSceneLoc* loc = active_loc(state, opcode);
 
         if( !loc )
             return 1;
-        SSVM_PushInt(state, mock230_loc_category(loc->loc_id));
+        SSVM_PushInt(state, ToriRSServer_LocCategory(loc->loc_id));
         return 1;
     }
 
@@ -233,7 +233,7 @@ mock230_ops_loc(
             return 1;
         if( !check_loc_id(state, opcode, loc_id) )
             return 1;
-        SSVM_PushInt(state, mock230_loc_category(loc_id));
+        SSVM_PushInt(state, ToriRSServer_LocCategory(loc_id));
         return 1;
     }
 
@@ -243,7 +243,7 @@ mock230_ops_loc(
      * The *symbol*, not the display name: `LocConfigOps.ts:36` pushes
      * `debugname`, which is the `[block]` header of a `.loc` file, where `lc_name`
      * pushes the record's `name=`. Here the symbol table is `pack/loc.pack` and
-     * `mock230_content_symbol_name` is its reader.
+     * `ToriRSServer_ContentSymbolName` is its reader.
      *
      * It has one caller in the whole reference tree and that caller is why it is
      * here: `ladders+stairs/scripts/stairs.rs2:431` is
@@ -263,7 +263,7 @@ mock230_ops_loc(
             return 1;
         if( !check_loc_id(state, opcode, loc_id) )
             return 1;
-        symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, loc_id);
+        symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, loc_id);
         SSVM_PushStr(state, symbol ? symbol : "null");
         return 1;
     }
@@ -273,7 +273,7 @@ mock230_ops_loc(
      * `[command,lc_length]` at :765.
      *
      * These are the record's *unrotated* footprint, which is what the reference
-     * pushes (`locType.width` / `.length`). `struct Mock230SceneLoc` also
+     * pushes (`locType.width` / `.length`). `struct ToriRSServerSceneLoc` also
      * carries a size_x/size_z, but that pair has already been rotated by the
      * placed angle, so answering from a scene loc would return the length for a
      * loc facing east. Different question, same field names.
@@ -289,7 +289,7 @@ mock230_ops_loc(
             return 1;
         if( !check_loc_id(state, opcode, loc_id) )
             return 1;
-        mock230_loc_footprint(loc_id, &width, &length);
+        ToriRSServer_LocFootprint(loc_id, &width, &length);
         SSVM_PushInt(state, opcode == SS_OP_LC_WIDTH ? width : length);
         return 1;
     }

@@ -1,6 +1,6 @@
-/* See mock230_interface_state.h. */
+/* See torirs_server_interface_state.h. */
 
-#include "mock230_interface_state.h"
+#include "torirs_server_interface_state.h"
 #include <assert.h>
 
 #include <rsareabuf.h>
@@ -18,8 +18,8 @@ u16_or_minus_one(int value)
 static int
 event_compare(const void* a_, const void* b_)
 {
-    const struct Mock230IfEventRange* a = a_;
-    const struct Mock230IfEventRange* b = b_;
+    const struct ToriRSServerIfEventRange* a = a_;
+    const struct ToriRSServerIfEventRange* b = b_;
 
     if( a->component_uid != b->component_uid )
         return a->component_uid < b->component_uid ? -1 : 1;
@@ -31,7 +31,7 @@ event_compare(const void* a_, const void* b_)
 }
 
 void
-mock230_ifstate_init(struct Mock230InterfaceState* state)
+ToriRSServer_IfStateInit(struct ToriRSServerInterfaceState* state)
 {
     assert(state);
     memset(state, 0, sizeof(*state));
@@ -39,8 +39,8 @@ mock230_ifstate_init(struct Mock230InterfaceState* state)
 }
 
 void
-mock230_ifstate_open_top(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateOpenTop(
+    struct ToriRSServerInterfaceState* state,
     int interface_id)
 {
     assert(state);
@@ -56,7 +56,7 @@ mock230_ifstate_open_top(
 
 static int
 mount_index(
-    const struct Mock230InterfaceState* state,
+    const struct ToriRSServerInterfaceState* state,
     int target_uid)
 {
     assert(state);
@@ -79,11 +79,11 @@ int_in_list(
 }
 
 int
-mock230_ifstate_close_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateCloseSub(
+    struct ToriRSServerInterfaceState* state,
     int target_uid)
 {
-    int closed_groups[MOCK230_IF_MOUNT_MAX];
+    int closed_groups[TORIRSSERVER_IF_MOUNT_MAX];
     int closed_count = 0;
     int index;
     int changed;
@@ -112,7 +112,7 @@ mock230_ifstate_close_sub(
                 i++;
                 continue;
             }
-            if( closed_count < MOCK230_IF_MOUNT_MAX &&
+            if( closed_count < TORIRSSERVER_IF_MOUNT_MAX &&
                 !int_in_list(closed_groups, closed_count, state->mounts[i].interface_id) )
                 closed_groups[closed_count++] = state->mounts[i].interface_id;
             memmove(&state->mounts[i], &state->mounts[i + 1],
@@ -141,8 +141,8 @@ mock230_ifstate_close_sub(
 }
 
 int
-mock230_ifstate_open_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateOpenSub(
+    struct ToriRSServerInterfaceState* state,
     int target_uid,
     int interface_id,
     int type)
@@ -151,8 +151,8 @@ mock230_ifstate_open_sub(
         return 0;
     assert(state);
     if( mount_index(state, target_uid) >= 0 )
-        mock230_ifstate_close_sub(state, target_uid);
-    if( state->mount_count >= MOCK230_IF_MOUNT_MAX )
+        ToriRSServer_IfStateCloseSub(state, target_uid);
+    if( state->mount_count >= TORIRSSERVER_IF_MOUNT_MAX )
         return 0;
     state->mounts[state->mount_count].target_uid = target_uid;
     state->mounts[state->mount_count].interface_id = interface_id;
@@ -162,12 +162,12 @@ mock230_ifstate_open_sub(
 }
 
 int
-mock230_ifstate_move_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateMoveSub(
+    struct ToriRSServerInterfaceState* state,
     int source_uid,
     int dest_uid)
 {
-    struct Mock230IfMount moving;
+    struct ToriRSServerIfMount moving;
     int source;
 
     assert(state);
@@ -178,31 +178,31 @@ mock230_ifstate_move_sub(
     {
         /* The client still retires an occupied destination even when the
          * source is absent. Mirror that observable state transition. */
-        mock230_ifstate_close_sub(state, dest_uid);
+        ToriRSServer_IfStateCloseSub(state, dest_uid);
         return 0;
     }
     moving = state->mounts[source];
     memmove(&state->mounts[source], &state->mounts[source + 1],
             (size_t)(state->mount_count - source - 1) * sizeof(state->mounts[0]));
     state->mount_count--;
-    mock230_ifstate_close_sub(state, dest_uid);
+    ToriRSServer_IfStateCloseSub(state, dest_uid);
     moving.target_uid = dest_uid;
-    if( state->mount_count >= MOCK230_IF_MOUNT_MAX )
+    if( state->mount_count >= TORIRSSERVER_IF_MOUNT_MAX )
         return 0;
     state->mounts[state->mount_count++] = moving;
     return 1;
 }
 
 int
-mock230_ifstate_setevents_v2(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateSeteventsV2(
+    struct ToriRSServerInterfaceState* state,
     int component_uid,
     int start,
     int end,
     uint32_t events1,
     uint32_t events2)
 {
-    struct Mock230IfEventRange next[MOCK230_IF_EVENT_RANGE_MAX];
+    struct ToriRSServerIfEventRange next[TORIRSSERVER_IF_EVENT_RANGE_MAX];
     int count = 0;
 
     if( !u16_or_minus_one(start) || !u16_or_minus_one(end) || start > end )
@@ -211,18 +211,18 @@ mock230_ifstate_setevents_v2(
 
     for( int i = 0; i < state->event_count; i++ )
     {
-        const struct Mock230IfEventRange* old = &state->events[i];
+        const struct ToriRSServerIfEventRange* old = &state->events[i];
 
         if( old->component_uid != component_uid || old->end < start || old->start > end )
         {
-            if( count >= MOCK230_IF_EVENT_RANGE_MAX )
+            if( count >= TORIRSSERVER_IF_EVENT_RANGE_MAX )
                 return 0;
             next[count++] = *old;
             continue;
         }
         if( old->start < start )
         {
-            if( count >= MOCK230_IF_EVENT_RANGE_MAX )
+            if( count >= TORIRSSERVER_IF_EVENT_RANGE_MAX )
                 return 0;
             next[count] = *old;
             next[count].end = start - 1;
@@ -230,14 +230,14 @@ mock230_ifstate_setevents_v2(
         }
         if( old->end > end )
         {
-            if( count >= MOCK230_IF_EVENT_RANGE_MAX )
+            if( count >= TORIRSSERVER_IF_EVENT_RANGE_MAX )
                 return 0;
             next[count] = *old;
             next[count].start = end + 1;
             count++;
         }
     }
-    if( count >= MOCK230_IF_EVENT_RANGE_MAX )
+    if( count >= TORIRSSERVER_IF_EVENT_RANGE_MAX )
         return 0;
     next[count].component_uid = component_uid;
     next[count].start = start;
@@ -253,7 +253,7 @@ mock230_ifstate_setevents_v2(
 }
 
 void
-mock230_ifstate_split_classic_events(
+ToriRSServer_IfStateSplitClassicEvents(
     uint32_t classic,
     uint32_t* events1,
     uint32_t* events2)
@@ -265,7 +265,7 @@ mock230_ifstate_split_classic_events(
 }
 
 void
-mock230_ifstate_encode_setevents_v2(
+ToriRSServer_IfStateEncodeSeteventsV2(
     struct RSAreaBuf* buf,
     int component_uid,
     int start,
@@ -283,7 +283,7 @@ mock230_ifstate_encode_setevents_v2(
 }
 
 void
-mock230_ifstate_encode_clearinv(
+ToriRSServer_IfStateEncodeClearinv(
     struct RSAreaBuf* buf,
     int component_uid)
 {
@@ -293,21 +293,21 @@ mock230_ifstate_encode_clearinv(
 }
 
 size_t
-mock230_ifstate_resync_payload_size(const struct Mock230InterfaceState* state)
+ToriRSServer_IfStateResyncPayloadSize(const struct ToriRSServerInterfaceState* state)
 {
-    if( !state || state->mount_count < 0 || state->mount_count > MOCK230_IF_MOUNT_MAX ||
-        state->event_count < 0 || state->event_count > MOCK230_IF_EVENT_RANGE_MAX )
+    if( !state || state->mount_count < 0 || state->mount_count > TORIRSSERVER_IF_MOUNT_MAX ||
+        state->event_count < 0 || state->event_count > TORIRSSERVER_IF_EVENT_RANGE_MAX )
         return 0;
     return 4u + (size_t)state->mount_count * 7u + (size_t)state->event_count * 16u;
 }
 
 void
-mock230_ifstate_encode_resync_v2(
+ToriRSServer_IfStateEncodeResyncV2(
     struct RSAreaBuf* buf,
-    const struct Mock230InterfaceState* state)
+    const struct ToriRSServerInterfaceState* state)
 {
     assert(state);
-    if( mock230_ifstate_resync_payload_size(state) == 0 )
+    if( ToriRSServer_IfStateResyncPayloadSize(state) == 0 )
         return;
     assert(buf);
 

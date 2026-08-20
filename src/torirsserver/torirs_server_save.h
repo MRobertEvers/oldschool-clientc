@@ -1,10 +1,10 @@
-#ifndef SRC_NET_MOCK_MOCK230_SAVE_H
-#define SRC_NET_MOCK_MOCK230_SAVE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_SAVE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_SAVE_H
 
 /*
  * Player persistence, as an ini file per player.
  *
- * The player pool is what made this possible: `struct Mock230Player` used to be
+ * The player pool is what made this possible: `struct ToriRSServerPlayer` used to be
  * a field inside the server struct, tangled with the connection and the world,
  * and *what is saveable is exactly that struct*. Splitting it out and saving it
  * are the same piece of work seen from two sides.
@@ -16,16 +16,16 @@
  * struct change: an unknown key is skipped and a missing one keeps its default,
  * so adding a field does not invalidate every existing save.
  *
- *   saves/<name>.ini            default; MOCK230_SAVES=dir overrides
+ *   saves/<name>.ini            default; TORIRSSERVER_SAVES=dir overrides
  *
  * **What persists is content's decision, not the engine's.** A varp is written
  * only when its `.varp` config says `scope=perm` — LostCity's own rule, and the
- * field `Mock230VarpDef.scope_perm` has been carried and unread since the
+ * field `ToriRSServerVarpDef.scope_perm` has been carried and unread since the
  * config reader was written. Anything undeclared is server bookkeeping and is
  * deliberately not saved, which is the same default the transmit gate uses.
  */
 
-struct Mock230Player;
+struct ToriRSServerPlayer;
 
 /**
  * Where a player's save lives. Returns a pointer to static storage.
@@ -36,7 +36,7 @@ struct Mock230Player;
  * written.
  */
 const char*
-mock230_save_path(const char* display_name);
+ToriRSServer_SavePath(const char* display_name);
 
 /**
  * Write the player. Returns 1 on success.
@@ -47,21 +47,21 @@ mock230_save_path(const char* display_name);
  * session and losing a character.
  */
 int
-mock230_save_player(
-    const struct Mock230Player* player,
+ToriRSServer_SavePlayer(
+    const struct ToriRSServerPlayer* player,
     const char* path);
 
 /**
  * Read the player back. Returns 1 when a save was loaded, 0 when there is none.
  *
- * **Call after mock230_world_init**, which seeds the defaults this overlays: a
+ * **Call after ToriRSServer_WorldInit**, which seeds the defaults this overlays: a
  * missing key keeps whatever init put there, so a save written before a field
  * existed still loads. Returns 0 for an absent file, which is a new character
  * rather than an error.
  */
 int
-mock230_load_player(
-    struct Mock230Player* player,
+ToriRSServer_LoadPlayer(
+    struct ToriRSServerPlayer* player,
     const char* path);
 
 #endif

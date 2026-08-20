@@ -14,7 +14,7 @@ nothing in the tree would have noticed.
 
     tools/agility_xp_audit.py [--tree OSRS-Content/osrs239-content]
 
-Exits non-zero on any mismatch, and is run by `make -C src mock230-scripts`.
+Exits non-zero on any mismatch, and is run by `make -C src torirsserver-scripts`.
 """
 
 import argparse

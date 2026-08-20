@@ -5,7 +5,7 @@
 > §5.3 feature-checklist discovery pass for those three, done against the
 > decompiled CS2 in `OSRS-Content/osrs239-content/scripts/` and the interface
 > layouts in `OSRS-Content/osrs239-content/interfaces/`, cross-referenced
-> against `src/net/mock/` and `src/game/` to say what mock230 already does and
+> against `src/torirsserver/` and `src/game/` to say what ToriRSServer already does and
 > what it doesn't. It is a server-requirements spec, not an implementation —
 > per `docs/PORTING_GUIDE.md` §2, the write-up below is a starting point for
 > whoever writes the content/engine change, not a substitute for grepping the
@@ -106,7 +106,7 @@ server obligation. `split_init` measures with archive 13's cache font metrics,
 treats `|` as a hard break, and carries the active *colour* into continuation
 rows before `if_settext(qjN, split_get(...))`. Strikethrough is deliberately not
 carried -- `^journal_done` is an unclosed `<str>` per completed step, so a carry
-strikes out every row below the first one (`make -C src test-mock230-split`).
+strikes out every row below the first one (`make -C src test-torirsserver-split`).
 
 No journal text lives in any dbtable — content paints the lines.
 
@@ -154,9 +154,9 @@ Landed under `server/scripts/interface_questjournal/` and `quests/`:
   this normal content mount as open state, so Close/Escape works identically to
   an orb-opened map.
 - QP: `~questpoints_login` / `~quest_complete` (Cook's Assistant completion).
-- Engine: `mock230_db_load_cache` fills cache DBTABLE/DBROW so `quest:id` /
+- Engine: `ToriRSServer_DbLoadCache` fills cache DBTABLE/DBROW so `quest:id` /
   `displayname` / `questpoints` resolve; authored `quest.dbtable` supplies
-  column names. Verified in `mock230 --selftest` ("quest journal" section).
+  column names. Verified in `ToriRSServer --selftest` ("quest journal" section).
 
 Still open (named so they are not rediscovered): ops 4/5 wiki, op 6 "Pin journal",
 and the other 56 LostCity per-quest journals (quests
@@ -174,13 +174,13 @@ it. Rewards — XP, items, the completion scroll — are deliberately not grante
 they live behind dialogue and inventory context a cheat is not standing in.
 
 Engine half: `dbrow` became a resolvable debugproc argument type
-(`debugproc_arg_type`, ScriptVarType char 208 → `MOCK230_PACK_DBROW`). Without
+(`debugproc_arg_type`, ScriptVarType char 208 → `TORIRSSERVER_PACK_DBROW`). Without
 it the word would have been read as an int and every quest name would have
 arrived as row 0.
 
 166 quests have an arm — every one in the tree that reaches
 `~quest_complete_rewards`. A quest with no arm says so rather than doing
-nothing quietly. Verified in `mock230 --selftest` ("quest journal" section):
+nothing quietly. Verified in `ToriRSServer --selftest` ("quest journal" section):
 Cook's Assistant is checked against the row's own `endstate`/`questpoints`
 columns, and every quest row is then completed twice — the second run must find
 it already complete and pay nothing, which is what catches an arm that writes
@@ -200,7 +200,7 @@ then calls `~chatbox_multi_addoption` per row under that component by sub-id.
 
 `chatbox_multi_addoption`'s own body (the actual `cc_create`/arming per row)
 is **not present in this corpus** (script id ~59 is missing) — same caveat
-class as §1.3, an inference gap rather than a mock230 gap, since mock230's
+class as §1.3, an inference gap rather than a ToriRSServer gap, since ToriRSServer's
 behaviour here was validated against a selftest exercising the real wire
 traffic, not against reading that proc.
 
@@ -209,12 +209,12 @@ traffic, not against reading that proc.
 - `^clientscript_chatbox_multi_init = 58` declared content-side:
   `OSRS-Content/osrs239-content/server/scripts/interface_chat/configs/chat.constant:53`.
 - Wire: `SS_OP_RUNCLIENTSCRIPT_SS`, opcode **11002**
-  (`src/net/mock/mock230_opcode_coverage.gen.h:260`), handled at
-  `src/net/mock/mock230_scripts.c:3462-3472`, encoder
-  `mock230_send_run_clientscript_mixed` (`mock230.h:2610-2630`).
-- `SS_OP_IF_ADDRESUMEBUTTON` (`mock230_scripts.c:3474-3498`) arms
-  `chatmenu:options` across sub-ids `0..MOCK230_RESUME_SUB_MAX` (15,
-  `mock230.h:220`) rather than slot 0, because the clientscript's rows carry
+  (`src/torirsserver/torirs_server_opcode_coverage.gen.h:260`), handled at
+  `src/torirsserver/torirs_server_scripts.c:3462-3472`, encoder
+  `ToriRSServer_SendRunClientscriptMixed` (`torirs_server.h:2610-2630`).
+- `SS_OP_IF_ADDRESUMEBUTTON` (`torirs_server_scripts.c:3474-3498`) arms
+  `chatmenu:options` across sub-ids `0..TORIRSSERVER_RESUME_SUB_MAX` (15,
+  `torirs_server.h:220`) rather than slot 0, because the clientscript's rows carry
   sub-ids 1..5, not separate components.
 - Content driver, fully rewritten against `chatmenu`:
   `OSRS-Content/osrs239-content/server/scripts/interface_chat/scripts/chat.rs2:142-232`
@@ -231,7 +231,7 @@ traffic, not against reading that proc.
   `TASK_CS2_RUN_STR_ARG_LEN` 512 with a `_Static_assert` tying them together,
   `task_cs2_run.c:60`) — documented at `docs/osrs230_mockserver.md` §3.11f.
 - A live call site: `hans.rs2:17-36` (`[opnpc1,hans]`), and a selftest
-  (`mock230_world.c:5609-5725`) that opens Hans's dialogue, resumes into
+  (`torirs_server_world.c:5609-5725`) that opens Hans's dialogue, resumes into
   `p_choice3`, captures the RUNCLIENTSCRIPT packet, sends `IF_BUTTON1` on
   `chatmenu:options` sub=3, and asserts `player->last_slot == 3` and the
   conversation continues into branch 3.
@@ -298,13 +298,13 @@ this era, opening an interface is never a clientscript's job (§2.4 of
 `docs/UI_ERA_PORTING_GUIDE.md`). Panel selection is by name match (panel name
 == skill name), so no index table is needed — just the string.
 
-### 3.2 What mock230 already does
+### 3.2 What ToriRSServer already does
 
 Level-crossing detection is landed and correctly shaped:
 
 ```c
-// src/net/mock/mock230_combat.c — on skill level-up
-mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
+// src/torirsserver/torirs_server_combat.c — on skill level-up
+ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
 ```
 
 Content binds `[advancestat,<skill>]` (see `levelup/scripts/levelup.rs2`) and
@@ -318,14 +318,14 @@ in the repo's own backlog: `docs/LOSTCITY_PORT_TRIAGE.md:446` — `levelup (19
 .if) | 19 advancestat triggers | rebuild against 233 levelup_display, which
 osrs239 has`.
 
-`mock230_send_if_opensub` already exists (`mock230.h:2587`,
-`mock230_encode.c:355`) and is used for other interfaces — it is simply never
+`ToriRSServer_SendIfOpensub` already exists (`torirs_server.h:2587`,
+`torirs_server_encode.c:355`) and is used for other interfaces — it is simply never
 called with 233.
 
 ### 3.4 LostCity precedent
 
 `engine/src/engine/entity/Player.ts:1817-1891` (`addXp`) detects the crossing
-in the engine (`before`/`after` compare, same shape mock230 already uses) and
+in the engine (`before`/`after` compare, same shape ToriRSServer already uses) and
 dispatches a per-skill `[advancestat,<skill>]` content trigger.
 `content/scripts/levelup/scripts/levelup.rs2` (19 skills, one trigger each,
 `:3-21`) jumps to a shared `[label,levelup]` that:
@@ -352,7 +352,7 @@ need wired to, which is untouched.
 Per `docs/PORTING_GUIDE.md` §2.4: the skill→panel name, the title/body text,
 and which jingle plays are config-shaped and belong in a `.dbtable`/param
 overlay content-side (following the `levelup.dbtable` shape above), not as a
-switch statement in `mock230_combat.c`. The engine's job stays exactly what
+switch statement in `torirs_server_combat.c`. The engine's job stays exactly what
 it already does — detect the crossing and dispatch a trigger; the interface
 open/populate belongs in the triggered content script.
 

@@ -3,7 +3,7 @@
 
 Why this exists
 ---------------
-`interaction_engine_loc` in `src/net/mock/mock230_world.c` opened the bank by
+`interaction_engine_loc` in `src/torirsserver/torirs_server_world.c` opened the bank by
 `strcmp`ing the loc's *cache menu verb* against "Bank" (and against
 "Use-quickly", which matches zero records in this cache). That is content's job:
 LostCity binds every booth by name in
@@ -79,9 +79,9 @@ HEADER = """\
 // Every one of them is a NAME. There is no bank category in either tree.
 //
 // This tree answered it in C instead — `interaction_engine_loc` compared the
-// loc's cache menu verb to "{verb}" and called `mock230_bank_open` — which
+// loc's cache menu verb to "{verb}" and called `ToriRSServer_BankOpen` — which
 // covered all {total} records without content saying anything, and was the last
-// thing keeping `MOCK230_FALLBACK_OPLOC` alive. A script cannot read a menu
+// thing keeping `TORIRSSERVER_FALLBACK_OPLOC` alive. A script cannot read a menu
 // verb (no opcode exposes one; a trigger's subject is a name or a category), so
 // the verb is restated here as the list of records that carry it, derived from
 // the cache rather than typed.

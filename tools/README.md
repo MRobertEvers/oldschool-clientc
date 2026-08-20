@@ -84,7 +84,7 @@ debugproc, required equipment semantics, runtime diagnostics, and semantic
 self-test coverage. Its negative controls prove that the original Cry prefix
 match and a duplicate command fail the gate.
 
-It runs automatically before both `mock230-scripts` and `mock230-cache`:
+It runs automatically before both `torirsserver-scripts` and `torirsserver-cache`:
 
 ```bash
 make -C src check-crystal-set-contract

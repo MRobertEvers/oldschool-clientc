@@ -19,10 +19,10 @@
  * Two tables already held most of the answer, which is what made this tractable
  * (docs/CONTENT_PACK_PLAN.md §5.2):
  *
- *   the server column   `mock230_content.c`'s npc key ladder — hitpoints, attack,
+ *   the server column   `torirs_server_content.c`'s npc key ladder — hitpoints, attack,
  *                       strength, defence, magic, ranged, respawnrate, wanderrange,
  *                       moverestrict, huntmode
- *   the `param:` column `mock230_pack.c`'s `BakedParam` table, verbatim
+ *   the `param:` column `torirs_server_pack.c`'s `BakedParam` table, verbatim
  *
  * The two key sets overlap on exactly `name` and `param`, so the union is nearly
  * disjoint and unifying them was additive on both sides rather than a conflict to
@@ -33,7 +33,7 @@
  * emitter — it is what lets the config parser stop hardcoding them. LostCity authors
  * `name=` and `op1=` because it *builds* the npc record; ours comes from the cache,
  * so those keys are inert here. They used to be a `k_from_cache[]` array in
- * `mock230_content.c` that the parser checked before rejecting a key, which meant
+ * `torirs_server_content.c` that the parser checked before rejecting a key, which meant
  * "the client already states this" lived in C where a content author could not see
  * it or add to it.
  *
@@ -56,7 +56,7 @@ struct FieldDefault
 
 static const struct FieldDefault k_defaults[] = {
     /*
-     * npc combat, as `mock230_pack --cache-out` has always baked it.
+     * npc combat, as `ToriRSServer_Pack --cache-out` has always baked it.
      *
      * The param names are the server's own (`pack/param.pack` 2634 and up) except
      * `attackrate`, which is param 14 — a param the *cache* defines, so an npc's

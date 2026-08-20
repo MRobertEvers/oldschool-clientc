@@ -1,10 +1,10 @@
-#ifndef SRC_NET_MOCK_MOCK239_INBOUND_H
-#define SRC_NET_MOCK_MOCK239_INBOUND_H
+#ifndef SRC_TORIRSSERVER_MOCK239_INBOUND_H
+#define SRC_TORIRSSERVER_MOCK239_INBOUND_H
 
 #include <stdint.h>
 
 /**
- * Rewrite one revision-239 client packet into the body `mock230_world.c` reads.
+ * Rewrite one revision-239 client packet into the body `torirs_server_world.c` reads.
  *
  * WHY THIS IS A TRANSLATION AND NOT A TABLE ENTRY
  *
@@ -61,4 +61,4 @@ mock239_inbound_translate(
     int out_cap,
     int* out_len);
 
-#endif /* SRC_NET_MOCK_MOCK239_INBOUND_H */
+#endif /* SRC_TORIRSSERVER_MOCK239_INBOUND_H */

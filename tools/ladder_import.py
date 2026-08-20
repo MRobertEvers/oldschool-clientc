@@ -3,7 +3,7 @@
 
 Why this exists
 ---------------
-`interaction_engine_loc` in `src/net/mock/mock230_world.c` answered a ladder by
+`interaction_engine_loc` in `src/torirsserver/torirs_server_world.c` answered a ladder by
 `strcmp`ing the loc's *cache menu verb* — "Climb-up", "Climb-down", or a bare
 "Climb" — and moving the player a plane. That is content's job (LostCity puts it
 in `content/scripts/ladders+stairs/scripts/`), but content cannot say

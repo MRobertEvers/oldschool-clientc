@@ -15,8 +15,8 @@
  * real server can never present.
  */
 
-#include "net/mock/mock239_inbound.h"
-#include "net/mock/mock239_interface_inbound.h"
+#include "torirsserver/mock239_inbound.h"
+#include "torirsserver/mock239_interface_inbound.h"
 #include "net/rev/osrs239/packetout.h"
 
 #include <stdint.h>

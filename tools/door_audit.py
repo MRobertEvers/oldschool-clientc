@@ -27,7 +27,7 @@ at 1.
 
 `--suggest-pairs` proposes an `open` partner for each uncovered Open/Close
 loc, the way the reference importer did — by name. It is a proposal, not an
-edit: nothing here writes to `doors.loc`. `mock230_pack -v` is the actual
+edit: nothing here writes to `doors.loc`. `ToriRSServer_Pack -v` is the actual
 gate (a closed half needs an Open op, an opened half needs to exist in the
 cache), the same check the reference importer's header describes and the
 same one a hand-added pairing has to clear.
@@ -251,7 +251,7 @@ def suggest_partner(name, cache_names, norm_index=None):
     # Insert "open"/"opened" at every character position of the normalized
     # name and see if the result is itself a real cache record. Catches any
     # underscore convention in one pass, at the cost of being a guess: the
-    # caller must still validate with mock230_pack before landing anything
+    # caller must still validate with ToriRSServer_Pack before landing anything
     # this returns.
     candidates = []
     for word in ("open", "opened"):
@@ -294,7 +294,7 @@ def cmd_suggest_pairs(rows, buckets, tree):
     print(f"  partner found by naming convention: {len(found)}")
     print(f"  no partner found (needs manual lookup): {len(missing)}")
     print()
-    print("-- proposed pairs (verify with mock230_pack -v before landing) --")
+    print("-- proposed pairs (verify with ToriRSServer_Pack -v before landing) --")
     for r, cand in sorted(found, key=lambda x: -x[0]["placed"]):
         print(f"  [{r['name']}] -> [{cand}]  x{r['placed']}")
     print()
@@ -311,7 +311,7 @@ def cmd_suggest_pairs(rows, buckets, tree):
 # was clicked and nothing else, so a pair wired as two `door_closed` records is
 # a door that opens *half way* — one leaf swings, the other stays across the
 # doorway. That is invisible to every check above: both halves are "paired",
-# both have an `Open`, and `mock230_pack -v` is happy, because every id in the
+# both have an `Open`, and `ToriRSServer_Pack -v` is happy, because every id in the
 # pairing resolves.
 #
 # What separates the two is geometry, and the map squares state it. Two leaves

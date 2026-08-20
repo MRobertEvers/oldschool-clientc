@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring up everything a real OldSchool client needs to play against mock230.
+# Bring up everything a real OldSchool client needs to play against ToriRSServer.
 #
 #   ./run-osrs239.sh                 server + jav_config + RuneLite
 #   ./run-osrs239.sh --no-client     just the services (launch RuneLite yourself)
@@ -10,7 +10,7 @@
 # Three pieces have to be up, and a missing one always presents the same way —
 # the client sits on "Connecting to server..." forever:
 #
-#   mock230 on 43594   the game server, with JS5 on the same socket (the client
+#   ToriRSServer on 43594   the game server, with JS5 on the same socket (the client
 #                      picks with its first byte: 14 game, 15 JS5)
 #   RuneLite           1.12.33 + the recompiled deob gamepack
 #
@@ -54,7 +54,7 @@ ENVIRONMENT=${ENVIRONMENT:-$([ "$GAME_PORT" = 43594 ] && printf 0 || printf 1)}
 # script and that one disagree about where the config lives. Anything already on
 # it is killed (see reclaim), so "in use" is not a reason to pick another.
 JAV_PORT=${JAV_PORT:-8080}
-CACHE=${MOCK230_JS5_CACHE:-cache.osrs239}
+CACHE=${TORIRSSERVER_JS5_CACHE:-cache.osrs239}
 CACHEDIR=${CACHEDIR:-torirs239}
 DEOB=${DEOB_REPO:-$HOME/Documents/git_repos/Deobfuscator}
 INSTR=$DEOB/instr/build/out/injected-client-1.12.33-instr.jar
@@ -162,8 +162,8 @@ cmd_status() {
 
 cmd_build() {
     say "building server + scripts…"
-    make -C src mock230 -j8 >/dev/null
-    make -C src mock230-scripts >/dev/null
+    make -C src ToriRSServer -j8 >/dev/null
+    make -C src torirsserver-scripts >/dev/null
     if [ -x "$DEOB/instr/build.sh" ]; then
         say "building instrumented client…"
         (cd "$DEOB" && ./instr/build.sh >/dev/null)
@@ -173,7 +173,7 @@ cmd_build() {
 }
 
 preflight() {
-    [ -x src/build/mock230 ] || die "no src/build/mock230 — run with --build"
+    [ -x src/build/torirsserver ] || die "no src/build/torirsserver — run with --build"
     [ -d "$CACHE" ] || die "no cache at $CACHE (JS5 serves it; see docs/RSPROT_OSRS239_PORT.md §4)"
     [ -f OSRS-Content/osrs239-content/server/scripts/build/script.dat ] \
         || die "no compiled scripts — run with --build (a fresh checkout has none)"
@@ -193,7 +193,7 @@ start_server() {
         say "server: already running on $GAME_PORT (--keep)"
         return 0
     fi
-    say "starting mock230 on $GAME_PORT (world + JS5 cache $CACHE)…"
+    say "starting ToriRSServer on $GAME_PORT (world + JS5 cache $CACHE)…"
     # One cache: the world reads the same directory JS5 serves. The two used to
     # differ (world on the bake, RuneLite served pristine), which meant the
     # world could act on config values no connected client had — point BOTH at
@@ -202,9 +202,9 @@ start_server() {
     # pseudo-terminal as soon as this orchestration script exits; without
     # nohup all three children receive SIGHUP together and a healthy stack
     # looks like a protocol crash a few lines into boot.
-    nohup env MOCK230_CACHE="$CACHE" \
-        MOCK230_JS5_REV=239 MOCK230_JS5_CACHE="$CACHE" MOCK230_VERBOSE=1 \
-        "$ROOT/src/build/mock230" "$GAME_PORT" --rev osrs239 \
+    nohup env TORIRSSERVER_CACHE="$CACHE" \
+        TORIRSSERVER_JS5_REV=239 TORIRSSERVER_JS5_CACHE="$CACHE" TORIRSSERVER_VERBOSE=1 \
+        "$ROOT/src/build/torirsserver" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 < /dev/null &
     echo $! > "$(pidfile server)"
     # The boot reads the cache, the content tree and the script pack; it is tens

@@ -1,6 +1,6 @@
 /* Literal-byte gate for every golden rev239 RUNCLIENTSCRIPT wire type. */
 
-#include "net/mock/mock239_runclientscript.h"
+#include "torirsserver/mock239_runclientscript.h"
 
 #include <rsareabuf.h>
 

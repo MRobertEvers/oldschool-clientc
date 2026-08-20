@@ -227,7 +227,7 @@ WorldBuilder_RebuildInstanceZoneScenery(
  *     r=0  (dx, dz)        r=1  (dz, 7-dx)
  *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
  *
- * This is `mock230_mapinstance_rotate_to_src`'s twin, and the two must agree or
+ * This is `ToriRSServer_MapInstanceRotateToSrc`'s twin, and the two must agree or
  * the server's collision and the client's geometry describe mirrored rooms.
  */
 static inline void

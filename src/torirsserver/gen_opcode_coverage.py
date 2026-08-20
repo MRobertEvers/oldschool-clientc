@@ -11,8 +11,8 @@ opcode or cry wolf about an implemented one.
 
 Reading the source means the list cannot disagree with the code it describes.
 
-    python3 net/mock/gen_opcode_coverage.py            # rewrite the header
-    python3 net/mock/gen_opcode_coverage.py --check    # fail if it is stale
+    python3 torirsserver/gen_opcode_coverage.py            # rewrite the header
+    python3 torirsserver/gen_opcode_coverage.py --check    # fail if it is stale
 
 Both dispatchers are plain `switch (opcode)` over `case SS_OP_NAME:` labels, with
 fallthrough groups for opcodes that share a body. The `opcode == SS_OP_X` tests
@@ -30,22 +30,22 @@ REPO = SRC.parent
 # (path, human label). The label reaches the generated comment so a reader can
 # see which layer covers what without opening either file.
 #
-# The per-domain `mock230_ops_*.c` files are *globbed* rather than listed. A
+# The per-domain `ToriRSServer_Ops_*.c` files are *globbed* rather than listed. A
 # hand-kept list of dispatch sources is the same staleness this generator exists
 # to remove, one level up: adding an ops file and forgetting to list it here
 # would silently under-report coverage, so the gap report would name an opcode
-# that is in fact implemented and `test-mock230` would fail on content that is
+# that is in fact implemented and `test-ToriRSServer` would fail on content that is
 # fine. The glob cannot forget.
 SOURCES = [
     (SRC / "serverscript" / "ssvm.c", "VM core"),
-    (SRC / "net" / "mock" / "mock230_scripts.c", "host commands"),
+    (SRC / "net" / "mock" / "torirs_server_scripts.c", "host commands"),
 ] + [
-    (path, f"host commands ({path.stem.replace('mock230_ops_', '')})")
-    for path in sorted((SRC / "net" / "mock").glob("mock230_ops_*.c"))
+    (path, f"host commands ({path.stem.replace('ToriRSServer_Ops_', '')})")
+    for path in sorted((SRC / "net" / "mock").glob("ToriRSServer_Ops_*.c"))
 ]
 
 OPCODE_HEADER = SRC / "serverscript" / "ss_opcode.h"
-OUTPUT = SRC / "net" / "mock" / "mock230_opcode_coverage.gen.h"
+OUTPUT = SRC / "net" / "mock" / "torirs_server_opcode_coverage.gen.h"
 
 CASE_RE = re.compile(r"^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:", re.MULTILINE)
 DEFINE_RE = re.compile(r"^#define\s+(SS_OP_[A-Z0-9_]+)\s+(\d+)", re.MULTILINE)
@@ -92,9 +92,9 @@ def render():
         " * The ServerScript opcodes this server implements, derived from the",
         " * `case SS_OP_*:` labels in the sources that dispatch them. Regenerate with:",
         " *",
-        " *     python3 net/mock/gen_opcode_coverage.py",
+        " *     python3 torirsserver/gen_opcode_coverage.py",
         " *",
-        " * `make -C src test-mock230-coverage` fails when this file is stale.",
+        " * `make -C src test-torirsserver-coverage` fails when this file is stale.",
         " *",
         " * Coverage by layer:",
     ]
@@ -104,13 +104,13 @@ def render():
         f" *   {len(by_value):4d}  total, of {len(values)} declared opcodes",
         " */",
         "",
-        "#ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H",
-        "#define SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H",
+        "#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H",
+        "#define SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H",
         "",
         "#include <stdint.h>",
         "",
-        f"#define MOCK230_OPCODE_COVERAGE_COUNT {len(by_value)}",
-        f"#define MOCK230_OPCODE_DECLARED_COUNT {len(values)}",
+        f"#define TORIRSSERVER_OPCODE_COVERAGE_COUNT {len(by_value)}",
+        f"#define TORIRSSERVER_OPCODE_DECLARED_COUNT {len(values)}",
         "",
         "/*",
         " * One past the highest opcode *value*, which is nothing like the number of",
@@ -119,10 +119,10 @@ def render():
         " * array by opcode wants this, not the count — using the count silently",
         " * treats every real opcode as out of range.",
         " */",
-        f"#define MOCK230_OPCODE_VALUE_LIMIT {max(values.values()) + 1}",
+        f"#define TORIRSSERVER_OPCODE_VALUE_LIMIT {max(values.values()) + 1}",
         "",
         "/* Ascending, so a lookup can binary-search. */",
-        "static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {",
+        "static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {",
     ]
     for value, name, label in by_value:
         lines.append(f"    {value}, /* {name} ({label}) */")
@@ -143,7 +143,7 @@ def main():
             print(
                 f"{OUTPUT.relative_to(REPO)} is stale — an opcode was implemented or "
                 f"removed without regenerating it.\n"
-                f"Run: python3 net/mock/gen_opcode_coverage.py",
+                f"Run: python3 torirsserver/gen_opcode_coverage.py",
                 file=sys.stderr,
             )
             return 1

@@ -203,7 +203,7 @@ def main():
         # A course with FEWER obstacles than the wiki lists is incomplete, not
         # wrong: the numbers it does implement may be perfectly correct. Those
         # are reported and counted separately, because this check is wired into
-        # `mock230-scripts` and failing the build for a known content gap in
+        # `torirsserver-scripts` and failing the build for a known content gap in
         # someone else's slice helps nobody. A wrong number on a course we have
         # fully implemented is the thing that fails.
         # A SHARED handler breaks this comparison, and it took three wrong

@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK239_INTERFACE_INBOUND_H
-#define SRC_NET_MOCK_MOCK239_INTERFACE_INBOUND_H
+#ifndef SRC_TORIRSSERVER_MOCK239_INTERFACE_INBOUND_H
+#define SRC_TORIRSSERVER_MOCK239_INTERFACE_INBOUND_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -79,7 +79,7 @@ struct Mock239IfScriptValue
  *
  * `payload` starts at the child field. The packet's leading p2 written by
  * Statics.method9637 is the IF_SCRIPT_TRIGGER VAR_SHORT frame length, and
- * mock230_session consumes it before calling the inbound translator.
+ * ToriRSServer_Session consumes it before calling the inbound translator.
  *
  * The packet does not carry a type signature. The server is expected to look
  * it up from `crc`; consequently the raw tail is always retained. Passing a
@@ -143,4 +143,4 @@ mock239_resume_object_decode(
     int payload_len,
     int32_t* out);
 
-#endif /* SRC_NET_MOCK_MOCK239_INTERFACE_INBOUND_H */
+#endif /* SRC_TORIRSSERVER_MOCK239_INTERFACE_INBOUND_H */

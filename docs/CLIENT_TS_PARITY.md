@@ -711,8 +711,8 @@ half-speed only applies when `faceEntity === -1 && turnspeed !== 0`.
 and are converted at use time — `(faceSquareX - mapBuildBaseX*2) * 64` — which
 is why `0,0` works as the "no target" sentinel.
 
-**mock230 facesquare:** `SS_OP_FACESQUARE` / `SS_OP_NPC_FACESQUARE` write
-`mock230_coord_fine(tile, 1)` (= `(tile<<1)+1`), matching LostCity
+**ToriRSServer facesquare:** `SS_OP_FACESQUARE` / `SS_OP_NPC_FACESQUARE` write
+`ToriRSServer_CoordFine(tile, 1)` (= `(tile<<1)+1`), matching LostCity
 `CoordGrid.fine`. Writing raw tiles made `atan2` land near yaw 256
 (southwest) for every dialogue `~chatnpc` turn — fixed 2026-08-03.
 
@@ -1550,8 +1550,8 @@ endpoint IfButtonD). torirs now matches that on the CS2 path (no local
 for rev-230 UI behaviour is the Java deob, not in-repo `Client-TS`.
 
 Verified: `test-uitree`, `test-inv`, `test-varp` (incl. optimistic+sync),
-`test-net-exec`, `mock230 --selftest` (inventory drag stanza), and
-`mock230_pack --check-only` at 0 errors. Live under `manifest_osrs230.ini`:
+`test-net-exec`, `ToriRSServer --selftest` (inventory drag stanza), and
+`ToriRSServer_Pack --check-only` at 0 errors. Live under `manifest_osrs230.ini`:
 CS2 backpack drag `541,229→583,229` sends ClientProt 48
 (`INV_BUTTOND 149|0#0 → 149|0#1`) and the server's `UPDATE_INV_PARTIAL`
 repaints; Escape after `TORIRS_NET_CHEAT=bank` sends `CLOSE_MODAL` and locally
@@ -4397,7 +4397,7 @@ rendered correctly with five lines of chat and the input caret drawn straight
 through it. Mounting into the modal instead deletes both server-side hide
 packets — the open is one `IF_OPENSUB`, the close is one `IF_CLOSESUB`, and the
 client's own script does the rest, in both directions. The slot is now resolved
-by name (`chatbox:chatmodal` → `Mock230Ids.com_chatbox_modal`) rather than
+by name (`chatbox:chatmodal` → `ToriRSServerIds.com_chatbox_modal`) rather than
 written as a literal, which is what would have caught it the first time.
 
 **The chathead froze on frame 0.** `app_if_head_poll` rebinds a chathead's
@@ -4416,7 +4416,7 @@ loaded sequence sitting on `frame=0` forever. `UITreeAnim_Advance` now says why
 it skipped a widget under that flag (still loading vs. decoded to nothing vs.
 skeletal), which is the one distinction a rest-pose model cannot show you.
 
-Verified headless against `src/build/mock230` (`::talk <slot> 1`, which is
+Verified headless against `src/build/torirsserver` (`::talk <slot> 1`, which is
 Hans' four-page conversation — npc, player, npc, player — so it exercises
 repeated mounts of two different groups into the same slot). The chat area is
 the dialogue and nothing else on every page; both the npc chathead (231:2) and
@@ -4470,7 +4470,7 @@ older map-square-aligned base needed `scene_off`; that field is gone. Pin by
 `test-net-exec`'s SET_MAP_FLAG case.
 
 Verified: `test-walkmerge`, `test-world` (incl. delaymove), `test-net-exec`,
-`mock230_pack --check-only` at 0 errors.
+`ToriRSServer_Pack --check-only` at 0 errors.
 
 ---
 
@@ -4514,7 +4514,7 @@ the map base (OpLoc wire id). Gaps closed:
    separate server-update callback.
 2. **Minimenu** — post-remorph child ops/name via the refreshed scenery record
    (no separate menu-time resolve needed).
-3. **Server OpLoc** — `mock230_loc_resolve_transform` for op validation +
+3. **Server OpLoc** — `ToriRSServer_LocResolveTransform` for op validation +
    trigger type/category; scene loc remains the base (`osrs230_mockserver.md`).
 
 Content that needs this: Ernest `%ernestdoors` levers/doors, runecraft ruin

@@ -2,11 +2,11 @@
  * The obj domain — the *active ground obj* (`obj_*`), and the obj record's own
  * equipment slots (`oc_wearpos*`).
  *
- * Fifth of the per-domain opcode files (mock230_ops_db.c is the first and its
- * header states the contract): `mock230_script_command` offers each domain the
+ * Fifth of the per-domain opcode files (torirs_server_ops_db.c is the first and its
+ * header states the contract): `ToriRSServer_ScriptCommand` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
- * Two families in one file for the reason `mock230_ops_loc.c` holds `loc_*` and
+ * Two families in one file for the reason `torirs_server_ops_loc.c` holds `loc_*` and
  * `lc_*`: they are the instance half and the config half of one domain, and the
  * script that reads one reads the other about the same obj. The reference
  * splits them by receiver — `ObjOps.ts` for the active obj,
@@ -19,7 +19,7 @@
  * (`[opobj3,_] @pickup_obj`, `player/scripts/pickup.rs2`) is content.
  *
  * `obj_add` (3500) is *not* here. It takes a coord rather than an active obj,
- * has been implemented in mock230_scripts.c's switch since the drop tables
+ * has been implemented in torirs_server_scripts.c's switch since the drop tables
  * landed, and moving it would be a second change wearing this one's clothes.
  * Nor are the older `oc_*` reads (`oc_name`, `oc_stackable`, `oc_category`,
  * `oc_param`) — same argument. New ones land here.
@@ -30,15 +30,15 @@
  *
  * The npc and loc conventions ride as `slot + 1` in the VM's active-entity
  * pointer. A ground obj cannot: `srv->ground[256]` is a **free list**, and
- * `mock230_world_obj_add` hands a freed index straight to the next drop. A
+ * `ToriRSServer_WorldObjAdd` hands a freed index straight to the next drop. A
  * script may park between `obj_find` and `obj_takeitem` (`~pickup_obj` does not
  * today, but `pickup_obj_table` calls `p_delay(0)` and the reference's skilling
  * loops park for dozens of ticks), and on resume a bare index would resolve to
  * whatever landed in the slot meanwhile — a different item, taken silently.
  *
- * So the handle is `mock230_world_obj_handle`: the slot in the low nine bits
+ * So the handle is `ToriRSServer_WorldObjHandle`: the slot in the low nine bits
  * and the slot's *generation* above it, checked by
- * `mock230_world_ground_slot`. The reference does not need this because it
+ * `ToriRSServer_WorldGroundSlot`. The reference does not need this because it
  * holds a real `Obj` reference and `World.removeObj` sets `isActive = false` on
  * that object; the check here is the same guarantee expressed over an index.
  *
@@ -59,8 +59,8 @@
  * record, so there is no receiver to have.
  */
 
-#include "mock230.h"
-#include "mock230_container.h"
+#include "torirs_server.h"
+#include "torirs_server_container.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -76,12 +76,12 @@
  * side they are the same fact and the distinction would only be actionable
  * inside this file.
  */
-static struct Mock230GroundObj*
+static struct ToriRSServerGroundObj*
 active_obj(
     struct SSVM_State* state,
     int opcode)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
     intptr_t handle = (intptr_t)SSVM_Active(state, SSVM_ENT_OBJ);
     int slot;
 
@@ -90,14 +90,14 @@ active_obj(
         SSVM_Abort(state, "%s: no server", SSVM_OpcodeName(opcode));
         return NULL;
     }
-    slot = mock230_world_ground_slot(srv, handle);
+    slot = ToriRSServer_WorldGroundSlot(srv, handle);
     if( slot < 0 )
     {
         SSVM_Abort(state, "%s: the active obj is gone", SSVM_OpcodeName(opcode));
         return NULL;
     }
     if( !srv->active_player ||
-        !mock230_world_ground_visible_to(srv, slot, srv->active_player->pid) )
+        !ToriRSServer_WorldGroundVisibleTo(srv, slot, srv->active_player->pid) )
     {
         SSVM_Abort(state, "%s: the active obj is not visible to this player",
                    SSVM_OpcodeName(opcode));
@@ -107,12 +107,12 @@ active_obj(
 }
 
 int
-mock230_ops_obj(
+ToriRSServer_OpsObj(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
     (void)dot;
 
@@ -122,12 +122,12 @@ mock230_ops_obj(
      * `[command,obj_type]()(obj)` — engine.rs2:721. Nothing in, the obj id out.
      *
      * The reference runs `check(state.activeObj.type, ObjTypeValid)` first; an
-     * id got here by being on the floor, and `mock230_world_obj_add` refuses a
+     * id got here by being on the floor, and `ToriRSServer_WorldObjAdd` refuses a
      * negative one, so there is nothing left for that check to catch.
      */
     case SS_OP_OBJ_TYPE:
     {
-        struct Mock230GroundObj* obj = active_obj(state, opcode);
+        struct ToriRSServerGroundObj* obj = active_obj(state, opcode);
 
         if( !obj )
             return 1;
@@ -141,16 +141,16 @@ mock230_ops_obj(
      * The reference gates on `obj.isValid(activePlayer.hash64)` and pushes 0
      * for an obj this player may not see yet — its per-killer loot window,
      * where a drop belongs to its killer for a minute before going public.
-     * There is no receiver on `struct Mock230GroundObj` and no such window
+     * There is no receiver on `struct ToriRSServerGroundObj` and no such window
      * here, so the guard degenerates to "it is on the floor", which
      * `active_obj` has already established. Stated rather than silently
-     * dropped: when receivers land (mock230_zone.h names the same gap for the
+     * dropped: when receivers land (torirs_server_zone.h names the same gap for the
      * state write) this is one of the two places that has to learn about them,
      * the other being obj_takeitem.
      */
     case SS_OP_OBJ_COUNT:
     {
-        struct Mock230GroundObj* obj = active_obj(state, opcode);
+        struct ToriRSServerGroundObj* obj = active_obj(state, opcode);
 
         if( !obj )
             return 1;
@@ -163,11 +163,11 @@ mock230_ops_obj(
      * compares like with like. */
     case SS_OP_OBJ_COORD:
     {
-        struct Mock230GroundObj* obj = active_obj(state, opcode);
+        struct ToriRSServerGroundObj* obj = active_obj(state, opcode);
 
         if( !obj )
             return 1;
-        SSVM_PushInt(state, mock230_coord_pack(obj->level, obj->x, obj->z));
+        SSVM_PushInt(state, ToriRSServer_CoordPack(obj->level, obj->x, obj->z));
         return 1;
     }
 
@@ -186,7 +186,7 @@ mock230_ops_obj(
      *    of it fits.
      * 2. No `wealth_event`; there is no wealth log in this tree.
      *
-     * The removal is `mock230_world_ground_take`, which is the engine's own
+     * The removal is `ToriRSServer_WorldGroundTake`, which is the engine's own
      * take: the zone event is queued while the obj is still filed, the obj is
      * unfiled so a client loading the zone afterwards is sent state without it,
      * and a map spawn is armed to return. That is why the pile vanishes for
@@ -195,8 +195,8 @@ mock230_ops_obj(
     case SS_OP_OBJ_TAKEITEM:
     {
         int32_t inv_id;
-        struct Mock230GroundObj* obj;
-        struct Mock230Container* row;
+        struct ToriRSServerGroundObj* obj;
+        struct ToriRSServerContainer* row;
         int slot;
 
         if( !SSVM_PopInt(state, &inv_id) )
@@ -204,16 +204,16 @@ mock230_ops_obj(
         obj = active_obj(state, opcode);
         if( !obj )
             return 1;
-        row = mock230_container_resolve(srv, srv->active_player, inv_id);
+        row = ToriRSServer_ContainerResolve(srv, srv->active_player, inv_id);
         if( !row )
         {
             SSVM_Abort(state, "obj_takeitem into unknown container %d", (int)inv_id);
             return 1;
         }
-        if( mock230_container_add(row, obj->obj_id, obj->count, 1) <= 0 )
+        if( ToriRSServer_ContainerAdd(row, obj->obj_id, obj->count, 1) <= 0 )
             return 1;
         slot = (int)(obj - srv->ground);
-        mock230_world_ground_take(srv, slot);
+        ToriRSServer_WorldGroundTake(srv, slot);
         return 1;
     }
 
@@ -223,7 +223,7 @@ mock230_ops_obj(
      * `World.removeObj(activeObj, ObjType.respawnrate)` in the reference. The
      * duration is the one thing that does not port literally: `respawnrate` is
      * a per-obj server-band field with no decoder, no `fields/obj.ini` row and
-     * no value anywhere in this tree. `mock230_world_ground_take` substitutes
+     * no value anywhere in this tree. `ToriRSServer_WorldGroundTake` substitutes
      * content's `^lootdrop_duration` for it, which is not a new invention —
      * it is the substitution the engine's own take has been making all along,
      * and `removeObj` ignores the duration entirely for a non-spawn obj, so
@@ -233,11 +233,11 @@ mock230_ops_obj(
      */
     case SS_OP_OBJ_DEL:
     {
-        struct Mock230GroundObj* obj = active_obj(state, opcode);
+        struct ToriRSServerGroundObj* obj = active_obj(state, opcode);
 
         if( !obj )
             return 1;
-        mock230_world_ground_take(srv, (int)(obj - srv->ground));
+        ToriRSServer_WorldGroundTake(srv, (int)(obj - srv->ground));
         return 1;
     }
 
@@ -249,10 +249,10 @@ mock230_ops_obj(
      * `wearpos` is where the item goes; `wearpos_2` / `wearpos_3` are the
      * further slots it *claims* — a two-handed weapon's shield slot, the hair
      * and jaw a full helm covers. Config opcodes 13, 14 and 27, decoded into
-     * `Mock230ObjInfo` at boot for every obj in the cache.
+     * `ToriRSServerObjInfo` at boot for every obj in the cache.
      *
      * -1 is RuneScript `null` (`ssc_symbols.c:1186`), and it is the value
-     * `mock230_objinfo` already reports for an unworn item and for an id the
+     * `ToriRSServer_ObjInfo` already reports for an unworn item and for an id the
      * cache does not describe. No sentinel is invented here and none is needed:
      * the two spellings coincide, which is why `if (oc_wearpos($obj) = null)`
      * in the reference's `~try_equip` ports as written.
@@ -269,11 +269,11 @@ mock230_ops_obj(
     case SS_OP_OC_WEARPOS3:
     {
         int32_t obj_id;
-        const struct Mock230ObjInfo* info;
+        const struct ToriRSServerObjInfo* info;
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        info = mock230_objinfo((int)obj_id);
+        info = ToriRSServer_ObjInfo((int)obj_id);
         SSVM_PushInt(state, opcode == SS_OP_OC_WEARPOS    ? info->wearpos
                             : opcode == SS_OP_OC_WEARPOS2 ? info->wearpos_2
                                                           : info->wearpos_3);
@@ -290,7 +290,7 @@ mock230_ops_obj(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->cost);
+        SSVM_PushInt(state, ToriRSServer_ObjInfo((int)obj_id)->cost);
         return 1;
     }
 
@@ -303,7 +303,7 @@ mock230_ops_obj(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->members);
+        SSVM_PushInt(state, ToriRSServer_ObjInfo((int)obj_id)->members);
         return 1;
     }
 
@@ -316,7 +316,7 @@ mock230_ops_obj(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushInt(state, mock230_objinfo((int)obj_id)->tradeable);
+        SSVM_PushInt(state, ToriRSServer_ObjInfo((int)obj_id)->tradeable);
         return 1;
     }
 
@@ -341,22 +341,22 @@ mock230_ops_obj(
             int obj_id = (int)values[1];
             int count = (int)values[2];
             int duration = values[3] > 0 ? (int)values[3] : -1;
-            int x = mock230_coord_x(values[0]);
-            int z = mock230_coord_z(values[0]);
-            int level = mock230_coord_level(values[0]);
+            int x = ToriRSServer_CoordX(values[0]);
+            int z = ToriRSServer_CoordZ(values[0]);
+            int level = ToriRSServer_CoordLevel(values[0]);
 
-            if( !mock230_objinfo(obj_id)->stackable || count == 1 )
+            if( !ToriRSServer_ObjInfo(obj_id)->stackable || count == 1 )
             {
                 for( int i = 0; i < count; i++ )
-                    last = mock230_world_obj_add(srv, obj_id, 1, x, z, level, duration);
+                    last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, x, z, level, duration);
             }
             else
             {
-                last = mock230_world_obj_add(srv, obj_id, count, x, z, level, duration);
+                last = ToriRSServer_WorldObjAdd(srv, obj_id, count, x, z, level, duration);
             }
             if( last >= 0 )
                 SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
-                               (void*)mock230_world_obj_handle(srv, last));
+                               (void*)ToriRSServer_WorldObjHandle(srv, last));
         }
         return 1;
     }
@@ -378,8 +378,8 @@ mock230_ops_obj(
      * exist here rather than because a decision was made:
      *
      * 1. No receiver filter. `World.getObj(..., player.hash64)` skips a pile
-     *    that is still private to somebody else; `mock230_world_ground_find` has
-     *    no receiver to compare against (mock230_zone.h names that gap), so a
+     *    that is still private to somebody else; `ToriRSServer_WorldGroundFind` has
+     *    no receiver to compare against (torirs_server_zone.h names that gap), so a
      *    drop is visible to every script the tick it lands. Content cannot tell
      *    the difference yet because nothing in this tree drops privately.
      * 2. No `ObjTypeValid` / `CoordValid` aborts. A bad obj id or a tile off the
@@ -404,15 +404,15 @@ mock230_ops_obj(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = mock230_world_ground_find(srv, mock230_coord_x(coord), mock230_coord_z(coord),
-                                        mock230_coord_level(coord), (int)obj_id);
+        slot = ToriRSServer_WorldGroundFind(srv, ToriRSServer_CoordX(coord), ToriRSServer_CoordZ(coord),
+                                        ToriRSServer_CoordLevel(coord), (int)obj_id);
         if( slot < 0 )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
         SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
-                       (void*)mock230_world_obj_handle(srv, slot));
+                       (void*)ToriRSServer_WorldObjHandle(srv, slot));
         SSVM_PushInt(state, 1);
         return 1;
     }

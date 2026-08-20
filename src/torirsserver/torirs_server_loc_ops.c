@@ -2,7 +2,7 @@
  * A loc placement's own right-click menu — LOC_ADD_CHANGE_V2's opFlags and op
  * overrides, as pure value operations.
  *
- * Its own file rather than a corner of `mock230_scene.c` for the same reason
+ * Its own file rather than a corner of `torirs_server_scene.c` for the same reason
  * that file already gives for keeping content out of itself: these three are
  * needed by the *wire* (the encoder fills an event's menu), by the *scene* (a
  * placement carries one) and by the *zone* (a record replays one), and only the
@@ -14,24 +14,24 @@
  * order it is applied in is the whole subtlety and belongs beside the mask.
  */
 
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 
 #include <assert.h>
 #include <string.h>
 
 void
-mock230_loc_ops_default(struct Mock230LocOps* ops)
+ToriRSServer_LocOpsDefault(struct ToriRSServerLocOps* ops)
 {
     assert(ops);
     memset(ops, 0, sizeof(*ops));
-    ops->flags = MOCK230_LOC_OPS_ALL_SHOWN;
+    ops->flags = TORIRSSERVER_LOC_OPS_ALL_SHOWN;
 }
 
 int
-mock230_loc_ops_is_default(const struct Mock230LocOps* ops)
+ToriRSServer_LocOpsIsDefault(const struct ToriRSServerLocOps* ops)
 {
     assert(ops);
-    if( ops->flags != MOCK230_LOC_OPS_ALL_SHOWN )
+    if( ops->flags != TORIRSSERVER_LOC_OPS_ALL_SHOWN )
         return 0;
     for( int i = 0; i < 5; i++ )
     {
@@ -42,8 +42,8 @@ mock230_loc_ops_is_default(const struct Mock230LocOps* ops)
 }
 
 const char*
-mock230_loc_ops_label(
-    const struct Mock230LocOps* ops,
+ToriRSServer_LocOpsLabel(
+    const struct ToriRSServerLocOps* ops,
     int op_num,
     const char* type_op)
 {

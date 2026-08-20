@@ -26,7 +26,7 @@
  * stake in this record is the denominator.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -38,7 +38,7 @@ static int* g_healthbar_widths;
 static int g_healthbar_count;
 
 void
-mock230_healthbarinfo_free(void)
+ToriRSServer_HealthbarInfoFree(void)
 {
     free(g_healthbar_widths);
     g_healthbar_widths = NULL;
@@ -46,24 +46,24 @@ mock230_healthbarinfo_free(void)
 }
 
 int
-mock230_healthbar_width(int id)
+ToriRSServer_HealthbarWidth(int id)
 {
     /* class381's constructor default. A cache with no group 33, an id no record
      * covers, or a record with no opcode 14 all mean the same thing to the
      * client, so they mean the same thing here. */
     if( !g_healthbar_widths || id < 0 || id >= g_healthbar_count )
-        return MOCK230_HEALTHBAR_DEFAULT_WIDTH;
+        return TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH;
     return g_healthbar_widths[id];
 }
 
 int
-mock230_healthbarinfo_count(void)
+ToriRSServer_HealthbarInfoCount(void)
 {
     return g_healthbar_count;
 }
 
 int
-mock230_healthbarinfo_load(const char* cache_dir)
+ToriRSServer_HealthbarInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -72,11 +72,11 @@ mock230_healthbarinfo_load(const char* cache_dir)
     int table;
     int highest = -1;
 
-    mock230_healthbarinfo_free();
+    ToriRSServer_HealthbarInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -89,7 +89,7 @@ mock230_healthbarinfo_load(const char* cache_dir)
     }
     if( !disk )
     {
-        fprintf(stderr, "mock230: no healthbar metadata (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no healthbar metadata (cache '%s' not found)\n", cache_dir);
         return 0;
     }
 
@@ -133,7 +133,7 @@ mock230_healthbarinfo_load(const char* cache_dir)
     g_healthbar_widths = (int*)malloc((size_t)g_healthbar_count * sizeof(*g_healthbar_widths));
     assert(g_healthbar_widths);
     for( int i = 0; i < g_healthbar_count; i++ )
-        g_healthbar_widths[i] = MOCK230_HEALTHBAR_DEFAULT_WIDTH;
+        g_healthbar_widths[i] = TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH;
 
     for( int i = 0; i < archive->file_count; i++ )
     {

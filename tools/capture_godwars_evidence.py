@@ -21,7 +21,7 @@ MANIFEST = (
     ROOT
     / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
 )
-DEFAULT_SERVER = Path("src/build_opt/mock230")
+DEFAULT_SERVER = Path("src/build_opt/torirsserver")
 DEFAULT_SCRIPTS = Path(
     "OSRS-Content/osrs239-content/server/scripts/build"
 )
@@ -63,10 +63,10 @@ def capture(server: Path, scripts: Path, destination: Path) -> None:
     env = os.environ.copy()
     env.update(
         {
-            "MOCK230_REV": "osrs239",
-            "MOCK230_SCRIPTS": scripts_env,
-            "MOCK230_SELFTEST_GWD_ONLY": "1",
-            "MOCK230_SELFTEST_EVIDENCE": str(destination),
+            "TORIRSSERVER_REV": "osrs239",
+            "TORIRSSERVER_SCRIPTS": scripts_env,
+            "TORIRSSERVER_SELFTEST_GWD_ONLY": "1",
+            "TORIRSSERVER_SELFTEST_EVIDENCE": str(destination),
         }
     )
     with tempfile.NamedTemporaryFile(
@@ -98,8 +98,8 @@ def require_message(messages: set[str], needle: str) -> None:
 
 def validate(path: Path) -> tuple[int, int, int]:
     lines = path.read_text().splitlines()
-    if len(lines) < 5 or lines[0] != "mock230-selftest-evidence-v1":
-        raise AssertionError("not mock230 God Wars evidence version 1")
+    if len(lines) < 5 or lines[0] != "torirsserver-selftest-evidence-v1":
+        raise AssertionError("not ToriRSServer God Wars evidence version 1")
     if lines[1] != "wire\tosrs239":
         raise AssertionError(f"wrong runtime wire: {lines[1] if len(lines) > 1 else 'missing'}")
     if lines[2] != "index\tstatus\tmessage":

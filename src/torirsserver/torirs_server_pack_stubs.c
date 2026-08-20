@@ -1,12 +1,12 @@
 /*
  * The world half of the content loader, for a binary that has no world.
  *
- * `mock230_pack` is a validator: it loads the content tree, checks every id
+ * `ToriRSServer_Pack` is a validator: it loads the content tree, checks every id
  * against the cache, and exits. It is not a server, and it deliberately does
- * not link one — `mock230_world.c` alone is a quarter of a million lines of
+ * not link one — `torirs_server_world.c` alone is a quarter of a million lines of
  * game logic whose only role here would be to satisfy a symbol.
  *
- * But `mock230_varbit.c` writes through `mock230_world_set_varp`, because a
+ * But `torirs_server_varbit.c` writes through `ToriRSServer_WorldSetVarp`, because a
  * varbit is a slice of a varp and writing one has to write the other. That call
  * is real at run time and meaningless at validation time: there is no player,
  * `srv` is NULL, and nothing has been asked about a variable's *value*. So the
@@ -19,27 +19,27 @@
  * costs nothing and pins the assumption.
  *
  * The three container stubs below are the same shape and the same argument.
- * `mock230_shop.c` is linked for its DEFINITION half — `mock230_shop_def_begin`
+ * `torirs_server_shop.c` is linked for its DEFINITION half — `ToriRSServer_ShopDefBegin`
  * and friends, which is how an `.inv` block becomes a shop the validator can
- * check — and its runtime half (`mock230_shop_seed`, `mock230_shop_restock_tick`)
+ * check — and its runtime half (`ToriRSServer_ShopSeed`, `ToriRSServer_ShopRestockTick`)
  * sits in the same translation unit and reaches for containers. Nothing calls
  * those two here; the linker just wants the symbols to exist.
  *
  * If a second WORLD symbol ever appears here, that is the signal that
- * `mock230_content.c` has grown a dependency on the running game rather than on
+ * `torirs_server_content.c` has grown a dependency on the running game rather than on
  * the tree it is reading, and the fix is there, not another stub. A container
- * one means `mock230_shop.c` wants splitting the way `mock230_bank_tables.c`
+ * one means `torirs_server_shop.c` wants splitting the way `torirs_server_bank_tables.c`
  * was — same reasoning, one file further on.
  */
 
-#include "mock230.h"
-#include "mock230_container.h"
+#include "torirs_server.h"
+#include "torirs_server_container.h"
 
 #include <assert.h>
 
 void
-mock230_world_set_varp(
-    struct Mock230Server* srv,
+ToriRSServer_WorldSetVarp(
+    struct ToriRSServer* srv,
     int varp,
     int value)
 {
@@ -52,40 +52,40 @@ mock230_world_set_varp(
 }
 
 void
-mock230_world_set_varp_on(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_WorldSetVarpOn(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int varp,
     int value)
 {
     (void)player;
     (void)varp;
     (void)value;
-    /* The named-player sibling of `mock230_world_set_varp`, and reached the same
-     * way: `mock230_varbit_set` writes the carrier varp after patching the bit
+    /* The named-player sibling of `ToriRSServer_WorldSetVarp`, and reached the same
+     * way: `ToriRSServer_VarbitSet` writes the carrier varp after patching the bit
      * range. Same argument, same assert — a non-NULL `srv` means the validator
      * was handed a live world. */
     assert(!srv);
 }
 
-struct Mock230Container*
-mock230_container_resolve(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+struct ToriRSServerContainer*
+ToriRSServer_ContainerResolve(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id)
 {
     (void)srv;
     (void)player;
     (void)inv_id;
-    /* Unreachable: only mock230_shop_seed / _restock_tick call this, and the
+    /* Unreachable: only ToriRSServer_ShopSeed / _restock_tick call this, and the
      * validator seeds no shop and runs no tick. */
-    assert(0 && "mock230_pack does not have containers");
+    assert(0 && "ToriRSServer_Pack does not have containers");
     return NULL;
 }
 
 void
-mock230_container_set(
-    struct Mock230Container* container,
+ToriRSServer_ContainerSet(
+    struct ToriRSServerContainer* container,
     int slot,
     int obj_id,
     int count)
@@ -94,12 +94,12 @@ mock230_container_set(
     (void)slot;
     (void)obj_id;
     (void)count;
-    assert(0 && "mock230_pack does not have containers");
+    assert(0 && "ToriRSServer_Pack does not have containers");
 }
 
 void
-mock230_container_clean(struct Mock230Container* container)
+ToriRSServer_ContainerClean(struct ToriRSServerContainer* container)
 {
     (void)container;
-    assert(0 && "mock230_pack does not have containers");
+    assert(0 && "ToriRSServer_Pack does not have containers");
 }

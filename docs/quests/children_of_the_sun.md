@@ -480,7 +480,7 @@ Children-complete predicate, and tests should assert both below-24 refusal and
 - Assert no coin/item/XP reward and explicit `%vmq2_first_travel=1` completion
   ownership.
 - Run `python3 tools/questhelper_extract.py childrenofthesun --check`.
-- Run `make -C src mock230-scripts` and the intended-cache pack/check-only
+- Run `make -C src torirsserver-scripts` and the intended-cache pack/check-only
   target after implementation.
 
 ### Automated transition and scene tests

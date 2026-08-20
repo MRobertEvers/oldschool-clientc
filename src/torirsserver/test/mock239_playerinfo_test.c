@@ -33,9 +33,9 @@
  *     make -C src test-mock239-playerinfo
  */
 
-#include "net/mock/mock239_playerinfo.h"
-#include "net/mock/mock230_wire.h"
-#include "net/mock/mock239_appearance.h"
+#include "torirsserver/mock239_playerinfo.h"
+#include "torirsserver/torirs_server_wire.h"
+#include "torirsserver/mock239_appearance.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_info.h"
 
@@ -465,7 +465,7 @@ main(void)
         mock239_face_init(&face);
         face.kind = MOCK239_FACE_ENTITY;
         face.entity_type = MOCK239_FACE_PLAYER;
-        face.entity_index = mock230_wire_player_index(0);
+        face.entity_index = ToriRSServer_WirePlayerIndex(0);
         rsab_wrap(&buf, storage, sizeof(storage));
         mock239_face_write_npc(&buf, &face);
         CHECK(rsab_len(&buf) == sizeof(npc_player) &&

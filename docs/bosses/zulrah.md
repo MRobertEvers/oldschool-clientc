@@ -47,7 +47,7 @@
 > deviation) remain unimplemented and remain gated off: the reference has no
 > deviation model either.
 >
-> **Verified by running it**, not only by reading tables. `mock230 --selftest`
+> **Verified by running it**, not only by reading tables. `ToriRSServer --selftest`
 > now stands in the shrine on a forced rotation 1 and asserts that a player one
 > tile clear of the arrival tile takes **zero** damage through the opening
 > barrage while the clouds do land, that all three forms appear, that Zulrah
@@ -219,7 +219,7 @@ Everything else is missing. The gaps, each verified against this tree:
 |---|---|---|
 | G1 | No instance. `^zulrah_shrine` is a live-world tile; two players collide. | `zulrah.constant` says "Instance still outstanding" |
 | G2 | **No combat stats at all.** `snakeboss_boss_*` appears in `npc_anims.generated.npc` but *not* in `combat_stats.generated.npc`, and there is no `npc_stats/s/snakeboss_boss_*.stats` ledger. | `grep '^\[snakeboss' --include=*.npc` |
-| G3 | Cache `statN=` fields are **not** read as combat stats. `mock230_content.c:1412` only honours authored `hitpoints=`/`attack=`/`defence=`/`magic=`/`ranged=`. So Zulrah's `stat4=500` is inert and it fights on engine defaults. | [mock230_content.c:1412](../../src/net/mock/mock230_content.c#L1412) |
+| G3 | Cache `statN=` fields are **not** read as combat stats. `torirs_server_content.c:1412` only honours authored `hitpoints=`/`attack=`/`defence=`/`magic=`/`ranged=`. So Zulrah's `stat4=500` is inert and it fights on engine defaults. | [torirs_server_content.c:1412](../../src/torirsserver/torirs_server_content.c#L1412) |
 | G4 | No rotation machine, no phases, no positions, no dive/emerge. | `zulrah.rs2` |
 | G5 | No snakelings, no orbs, no venom clouds. | ditto |
 | G6 | No drop table, no kill count, no collection log, no CAs. | `drop_tables/scripts/` has no zulrah file |

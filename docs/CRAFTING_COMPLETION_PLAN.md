@@ -41,7 +41,7 @@ missing onyx/zenyte gem-cutting rows those cases assumed existed (#160).
   now-numerous two-page menus into one real make-all interface. Queue #44
   stays `pending` for this reason.
 - **S16 (the C selftest suite, §4)** — verification this pass was
-  `make -C src mock230-scripts` (0 errors) after every slice, not runtime
+  `make -C src torirsserver-scripts` (0 errors) after every slice, not runtime
   behavioural tests. §4's eleven C1–C11 cases are still open work.
 - Deferred by data gaps, not scope: lens mould → telescope disc and the
   light-orb wire assembly (glass, §1.11 — no "filled" light-orb obj or
@@ -78,9 +78,9 @@ level **25** / 20 XP shaping + 20 XP firing (§1.3).
 
 **3. The `map_members` blocker that stops Fletching does not apply here.**
 `SS_OP_MAP_MEMBERS` now pushes `srv->members_world`
-(`src/net/mock/mock230_scripts.c:8060`), which
-`mock230_flag_default_on("MOCK230_MEMBERS_WORLD")` defaults **on**
-(`mock230_main.c:186`). Every `if (map_members = ^false)` gate in
+(`src/torirsserver/torirs_server_scripts.c:8060`), which
+`ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD")` defaults **on**
+(`torirs_server_main.c:186`). Every `if (map_members = ^false)` gate in
 `glass.rs2` / `leather.rs2` / `studded.rs2` / `battlestaves.rs2` / `snelm.rs2`
 is live and passes. Crafting's members branches work today; only Fletching's
 own S0 was ever blocked.
@@ -596,7 +596,7 @@ switch calling a fletching-owned `@make_amethyst_products` label. **Not** a
 `[opheldu,_amethyst]` category binding in the fletching tree — that is
 unreachable while `chisel` is type-bound, because the runtime tries clicked
 type → dragged type → categories, and the dragged-type rung catches `chisel`
-in either click order (`mock230_scripts.c:2536-2562`; the reference is
+in either click order (`torirs_server_scripts.c:2536-2562`; the reference is
 identical). A category binding on a family whose partner is a tool is dead
 code and a tripwire for other pairs. The structural fix — moving the chisel
 router to `general_use/scripts/tools/` so neither skill edits the other — is
@@ -851,7 +851,7 @@ the guild teleport, and the mould/tool respawns.
 ## 4. Selftests
 
 Follow the fishing/mining pattern: one suite per slice, run headless via
-`mock230_dev` with a scratch `MOCK230_SAVES`
+`ToriRSServer_Dev` with a scratch `TORIRSSERVER_SAVES`
 (`headless-runs-are-not-independent`).
 
 | id | asserts |
@@ -886,8 +886,8 @@ crafting; the Falador-diary bank chest; Superglass Make; Sailing.
 Every slice ends with:
 
 ```
-python3 tools/mock230_pack.py --check-only          # 0 errors
-make -C src mock230-scripts                          # sscompile green
+python3 tools/torirs_server_pack.py --check-only          # 0 errors
+make -C src torirsserver-scripts                          # sscompile green
 make -C src test-crafting                            # the C-suite above
 ```
 

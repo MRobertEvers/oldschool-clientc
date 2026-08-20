@@ -15,7 +15,7 @@
         .\make.ps1 win64                 =  make -C src CC=gcc win64
         .\make.ps1 -j win64              =  ... -j<cores>
         .\make.ps1 -Embed win64          =  ... EMBED_SERVER=1 win64
-        .\make.ps1 mock230-cache-rs2012 MOCK230_CONTENT_DIR=/c/tree
+        .\make.ps1 torirsserver-cache-rs2012 TORIRSSERVER_CONTENT_DIR=/c/tree
 
     Both defaults are only defaults: an explicit CC= among the arguments is left
     alone, and -Directory aims it somewhere other than src. Anything this script
@@ -23,8 +23,8 @@
     -n or -B -- goes through untouched.
 
     Parallelism is OFF unless asked for. The compile lanes (win64, torirs, all)
-    are safe under -j; the content bakes are not -- mock230-cache-rs2012 and
-    mock230-cache-summoning have prerequisites that each rebuild the shared
+    are safe under -j; the content bakes are not -- torirsserver-cache-rs2012 and
+    torirsserver-cache-summoning have prerequisites that each rebuild the shared
     cachepack binary, and racing those corrupts the tool mid-link.
 
     web / web-debug / web-idb / web-idb-debug are a different lane, detected by
@@ -51,9 +51,9 @@
 .EXAMPLE
     .\make.ps1 -j win64
     .\make.ps1 -Embed -j win64
-    .\make.ps1 mock230-scripts
+    .\make.ps1 torirsserver-scripts
     .\make.ps1 -Directory 3rd\rscache\tools cachepack
-    .\make.ps1 -n mock230-servpack
+    .\make.ps1 -n torirsserver-servpack
     .\make.ps1 web
 #>
 

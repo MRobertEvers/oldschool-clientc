@@ -10,7 +10,7 @@
  * plane, and there is usually exactly one candidate next to an obstacle.
  *
  * This builds the server's own collision map out of real map squares — the same
- * `mock230_scene_build` the world uses — and reports standability, so a course
+ * `ToriRSServer_SceneBuild` the world uses — and reports standability, so a course
  * author can check a tile rather than hope.
  *
  *   walkable_probe <cache_dir> <x> <z> <level> [radius]
@@ -19,7 +19,7 @@
  * is what actually answers "where does this obstacle put me".
  */
 
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 
 #include "engine/world_builder/collision_map.h"
 
@@ -46,7 +46,7 @@ standable(struct CollisionMap* cm, int local_x, int local_z)
      * A flag word of zero is an ORDINARY OPEN TILE, and this is the trap.
      *
      * The map's BLOCK setting is what stamps COLL_FLAG_FLOOR (apply_terrain_column
-     * in mock230_scene.c), so FLOOR means "this tile is blocked floor" — the
+     * in torirs_server_scene.c), so FLOOR means "this tile is blocked floor" — the
      * absence of every flag means nothing blocks it. The middle of Lumbridge's
      * field reads 0x0. An earlier version of this probe read zero as "no scene
      * data" and called it blocked, which turned three quarters of every course's
@@ -64,8 +64,8 @@ standable(struct CollisionMap* cm, int local_x, int local_z)
  * reason, as collision_doors_test.c's.
  */
 int
-mock230_varbit_get(
-    struct Mock230Player* player,
+ToriRSServer_VarbitGet(
+    struct ToriRSServerPlayer* player,
     int varbit_id)
 {
     (void)player;
@@ -93,17 +93,17 @@ main(int argc, char** argv)
     if( argc > 5 )
         radius = atoi(argv[5]);
 
-    if( !mock230_scene_build(cache_dir, x >> 3, z >> 3) )
+    if( !ToriRSServer_SceneBuild(cache_dir, x >> 3, z >> 3) )
     {
         fprintf(stderr, "walkable_probe: could not build a scene at %d,%d\n", x, z);
         return 1;
     }
     /* Scene-local (0,0) in absolute tiles. Inlined rather than including
-     * mock230.h, which drags the whole server in for one line of arithmetic:
-     * see mock230_scene_origin. */
+     * torirs_server.h, which drags the whole server in for one line of arithmetic:
+     * see ToriRSServer_SceneOrigin. */
     origin_x = ((x >> 3) - 6) * 8;
     origin_z = ((z >> 3) - 6) * 8;
-    cm = mock230_scene_collision(level);
+    cm = ToriRSServer_SceneCollision(level);
     if( !cm )
     {
         fprintf(stderr, "walkable_probe: no collision for level %d\n", level);

@@ -526,8 +526,8 @@ not a complete quest.
 - Assert exactly one journal arm, one cheat arm, one completion call, and one
   writer for each primary/side transition.
 - Run `python3 tools/questhelper_extract.py bonevoyage --check`.
-- Run `make -C src mock230-scripts` and the intended-cache
-  `mock230_pack --check-only` target after implementation.
+- Run `make -C src torirsserver-scripts` and the intended-cache
+  `ToriRSServer_Pack --check-only` target after implementation.
 
 ### Automated transition tests
 

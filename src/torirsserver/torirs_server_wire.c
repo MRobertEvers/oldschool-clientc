@@ -1,7 +1,7 @@
-#include "mock230_wire.h"
+#include "torirs_server_wire.h"
 #include <assert.h>
 
-#include "mock230_interface_state.h"
+#include "torirs_server_interface_state.h"
 #include "mock239_interface_setters.h"
 #include "mock239_inbound.h"
 #include "mock239_runclientscript.h"
@@ -13,7 +13,7 @@
 #include "net/rev/osrs239/packetout.h"
 #include "net/rev/osrs239/zoneprot.h"
 
-#include "mock230_zone.h"
+#include "torirs_server_zone.h"
 
 #include <rsareabuf.h>
 
@@ -28,7 +28,7 @@
  * Both revisions resolve through the SAME tables the client reads
  * (`src/net/rev/<rev>/packetin.h`). That is the whole reason the numbers cannot
  * drift: there is one statement of "IF_OPENTOP is 96 at revision 239" and both
- * ends include it. The old file-local enum in mock230_encode.c was a second
+ * ends include it. The old file-local enum in torirs_server_encode.c was a second
  * copy, and a second copy of a number is a number that will disagree.
  */
 
@@ -264,7 +264,7 @@ w239_if_setevents(
     uint32_t events1,
     uint32_t events2)
 {
-    mock230_ifstate_encode_setevents_v2(
+    ToriRSServer_IfStateEncodeSeteventsV2(
         buf, component_uid, start, end, events1, events2);
 }
 
@@ -849,7 +849,7 @@ static int
 w239_zone_payload(
     struct RSAreaBuf* buf,
     int pkt_name,
-    const struct Mock230ZoneEvent* event,
+    const struct ToriRSServerZoneEvent* event,
     int pos,
     int props)
 {
@@ -1020,13 +1020,13 @@ w239_zone_payload(
          *
          * "If the target avatar is a player, set the value as -(index + 1)" --
          * and `index` is the index the client knows that player by, which at
-         * this revision is `pool pid + 1` (mock230_wire_player_index: the
+         * this revision is `pool pid + 1` (ToriRSServer_WirePlayerIndex: the
          * client's table is 1..2047 with 0 unused). The event carries the
          * classic form, `-pid - 1`, so a player target is one further from zero
          * here. Npc targets need no adjustment *at this layer*: they arrive
          * already stated in the recipient's own npc numbering, which is a
          * per-client translation and so belongs where the event is fanned out
-         * to each client (`mock230_zone.c` projanim_target_for_client) rather
+         * to each client (`torirs_server_zone.c` projanim_target_for_client) rather
          * than in a writer that is handed one event and no recipient.
          *
          * Sent unadjusted, a shot aimed at the only player in the world names
@@ -1091,7 +1091,7 @@ w239_zone_payload(
     }
 }
 
-static const struct Mock230WirePayload k_payload_osrs239 = {
+static const struct ToriRSServerWirePayload k_payload_osrs239 = {
     .if_movesub = w239_if_movesub,
     .if_setcolour = w239_if_setcolour,
     .if_sethide = w239_if_sethide,
@@ -1142,9 +1142,9 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .update_runweight = w239_update_runweight,
     .update_stat = w239_update_stat,
     .rebuild_normal = w239_rebuild_normal,
-    /* Everything else is deliberately absent: see mock230_wire.h. PLAYER_INFO
+    /* Everything else is deliberately absent: see torirs_server_wire.h. PLAYER_INFO
      * and NPC_INFO have no entry here and are not missing -- their v5 streams
-     * are a codec rather than a field list, so mock230_encode.c forks to a
+     * are a codec rather than a field list, so torirs_server_encode.c forks to a
      * whole writer instead of filling one of these slots. */
 };
 
@@ -1154,7 +1154,7 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
 
 /*
  * The packets revision 239's writer set covers. Everything else is refused —
- * see `transcribed` in mock230_wire.h for why refusing beats falling through.
+ * see `transcribed` in torirs_server_wire.h for why refusing beats falling through.
  *
  * What is missing from this list is the honest measure of how far the 239
  * server is. PLAYER_INFO and NPC_INFO are now here; what is not is the
@@ -1195,11 +1195,11 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_UPDATE_IGNORELIST,
 
     /* PLAYER_INFO has no `payload` writer because it is not a field list — the
-     * whole packet is built by mock239_playerinfo.c, which mock230_encode.c
+     * whole packet is built by mock239_playerinfo.c, which torirs_server_encode.c
      * forks to before writing a bit. It is listed here so the send is allowed;
      * NPC_INFO is deliberately still absent. */
     PKT_NAME_PLAYER_INFO,
-    /* Also built whole by mock230_encode.c rather than by a field writer: the
+    /* Also built whole by torirs_server_encode.c rather than by a field writer: the
      * v5 stream is one bit section, not a list of fields. */
     PKT_NAME_NPC_INFO,
 
@@ -1221,7 +1221,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_TRIGGER_ONDIALOGABORT,
 };
 
-static const struct Mock230Wire k_wire_osrs230 = {
+static const struct ToriRSServerWire k_wire_osrs230 = {
     .name = "osrs230",
     .revision = 230,
     .opcode = osrs230_opcode,
@@ -1231,10 +1231,10 @@ static const struct Mock230Wire k_wire_osrs230 = {
     .packetout_size = osrs230_out_size,
     .packetout_name = osrs230_out_name,
     .opcode_smart2 = 0, /* no opcode in this table reaches 0x80 */
-    .payload = NULL,    /* the lc254-shaped set mock230_encode.c writes */
+    .payload = NULL,    /* the lc254-shaped set torirs_server_encode.c writes */
 };
 
-static const struct Mock230Wire k_wire_osrs239 = {
+static const struct ToriRSServerWire k_wire_osrs239 = {
     .name = "osrs239",
     .revision = 239,
     .opcode = osrs239_opcode,
@@ -1252,8 +1252,8 @@ static const struct Mock230Wire k_wire_osrs239 = {
                                sizeof(k_transcribed_osrs239[0])),
 };
 
-const struct Mock230Wire*
-mock230_wire_by_name(char const* name)
+const struct ToriRSServerWire*
+ToriRSServer_WireByName(char const* name)
 {
     assert(name);
     if( strcmp(name, "osrs230") == 0 )
@@ -1263,8 +1263,8 @@ mock230_wire_by_name(char const* name)
     return NULL;
 }
 
-const struct Mock230Wire*
-mock230_wire_default(void)
+const struct ToriRSServerWire*
+ToriRSServer_WireDefault(void)
 {
     return &k_wire_osrs230;
 }
@@ -1285,7 +1285,7 @@ static uint8_t g_absent_reported[PKT_NAME_COUNT];
 static uint8_t g_untranscribed_reported[PKT_NAME_COUNT];
 
 char const*
-mock230_wire_pkt_name(int pkt_name)
+ToriRSServer_WirePktName(int pkt_name)
 {
     switch( pkt_name )
     {
@@ -1375,7 +1375,7 @@ mock230_wire_pkt_name(int pkt_name)
 }
 
 int
-mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name)
+ToriRSServer_WireOpcode(const struct ToriRSServerWire* wire, int pkt_name)
 {
     int op;
     assert(wire);
@@ -1388,14 +1388,14 @@ mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name)
     if( pkt_name > 0 && pkt_name < PKT_NAME_COUNT && !g_absent_reported[pkt_name] )
     {
         g_absent_reported[pkt_name] = 1;
-        fprintf(stderr, "mock230: %s has no %s -- dropping it (reported once)\n",
-                wire->name, mock230_wire_pkt_name(pkt_name));
+        fprintf(stderr, "torirsserver: %s has no %s -- dropping it (reported once)\n",
+                wire->name, ToriRSServer_WirePktName(pkt_name));
     }
     return -1;
 }
 
 int
-mock230_wire_can_write(const struct Mock230Wire* wire, int pkt_name)
+ToriRSServer_WireCanWrite(const struct ToriRSServerWire* wire, int pkt_name)
 {
     assert(wire);
     if( !wire->payload || !wire->transcribed )
@@ -1409,9 +1409,9 @@ mock230_wire_can_write(const struct Mock230Wire* wire, int pkt_name)
     {
         g_untranscribed_reported[pkt_name] = 1;
         fprintf(stderr,
-                "mock230: %s payload for %s is not transcribed -- refusing to send "
+                "torirsserver: %s payload for %s is not transcribed -- refusing to send "
                 "it with another revision's layout (reported once)\n",
-                wire->name, mock230_wire_pkt_name(pkt_name));
+                wire->name, ToriRSServer_WirePktName(pkt_name));
     }
     return 0;
 }

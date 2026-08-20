@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_SCENE_H
-#define SRC_NET_MOCK_MOCK230_SCENE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_SCENE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_SCENE_H
 
 /*
  * The server's own copy of the world: collision, and the locs it is built from.
@@ -23,11 +23,11 @@
 #include <stdint.h>
 
 #include "engine/world_builder/collision_map.h"
-#include "mock230_mapinstance.h"
+#include "torirs_server_mapinstance.h"
 
 struct CollisionMap;
 struct ToriRS_FeatureTable;
-struct Mock230Player;
+struct ToriRSServerPlayer;
 
 /* ------------------------------------------------------------------ */
 /* Locs                                                                */
@@ -35,10 +35,10 @@ struct Mock230Player;
 
 /** Every op slot the loctype declares is shown — what a placement with nothing
  *  to hide carries, and what LOC_DEL's own reference call passes. */
-#define MOCK230_LOC_OPS_ALL_SHOWN 0x1f
+#define TORIRSSERVER_LOC_OPS_ALL_SHOWN 0x1f
 /** Longest replacement menu label. "Close"/"Open" are the whole of the current
  *  use; the cache's own longest loc op is 22 characters. */
-#define MOCK230_LOC_OP_TEXT_MAX 32
+#define TORIRSSERVER_LOC_OP_TEXT_MAX 32
 
 /**
  * A right-click menu that belongs to one PLACEMENT of a loc, not to its type.
@@ -57,28 +57,28 @@ struct Mock230Player;
  * lets one cache record be "Open" on the tile the map put it on and "Close" on
  * the tile it swung to, with no second loc id anywhere.
  *
- * `flags` = MOCK230_LOC_OPS_ALL_SHOWN and every `name` empty is the neutral
+ * `flags` = TORIRSSERVER_LOC_OPS_ALL_SHOWN and every `name` empty is the neutral
  * value: it is what a placement that overrides nothing carries, and it encodes
  * on the wire as the zero op-count the client reads as "use the loctype's own".
  */
-struct Mock230LocOps
+struct ToriRSServerLocOps
 {
     /** 5-bit mask of which op slots are SHOWN; bit 0 is op1. Zero is legal and
      *  means "hide every option" — a loc that draws, blocks and cannot be
      *  clicked. */
     int flags;
     /** Replacement label per op slot, or "" for "leave the loctype's own". */
-    char name[5][MOCK230_LOC_OP_TEXT_MAX];
+    char name[5][TORIRSSERVER_LOC_OP_TEXT_MAX];
 };
 
 /** The neutral value: show everything, override nothing. Not a "missing ops"
  *  sentinel — it is the real menu of every loc the map placed. */
 void
-mock230_loc_ops_default(struct Mock230LocOps* ops);
+ToriRSServer_LocOpsDefault(struct ToriRSServerLocOps* ops);
 
 /** 1 when `ops` is the neutral value, i.e. nothing needs to reach the wire. */
 int
-mock230_loc_ops_is_default(const struct Mock230LocOps* ops);
+ToriRSServer_LocOpsIsDefault(const struct ToriRSServerLocOps* ops);
 
 /**
  * The label this PLACEMENT shows for `op_num` (1..5), or NULL when the slot is
@@ -89,12 +89,12 @@ mock230_loc_ops_is_default(const struct Mock230LocOps* ops);
  * below). Steps 1-3 above, in that order.
  */
 const char*
-mock230_loc_ops_label(
-    const struct Mock230LocOps* ops,
+ToriRSServer_LocOpsLabel(
+    const struct ToriRSServerLocOps* ops,
     int op_num,
     const char* type_op);
 
-struct Mock230SceneLoc
+struct ToriRSServerSceneLoc
 {
     int loc_id;
     int shape;
@@ -109,15 +109,15 @@ struct Mock230SceneLoc
     /** 1 when the map square put it here. An inactive static loc is a
      *  *tombstone*: its slot is never handed to a `loc_add`, because the square
      *  still has a loc on that tile and "it has been removed" has to stay
-     *  addressable. `changed` used to be here; see mock230_scene.c on why the
+     *  addressable. `changed` used to be here; see torirs_server_scene.c on why the
      *  flag could not survive the rebuild it existed for. */
     int is_static;
-    /** This placement's own menu (see struct Mock230LocOps). A map-square loc
+    /** This placement's own menu (see struct ToriRSServerLocOps). A map-square loc
      *  carries the neutral value; only a `loc_add_ops` puts anything else here.
      *  Held on the scene as well as in the ZoneMap because the OPLOC validator
      *  reads the scene — a click on an op the placement invented has to be
      *  accepted, and a click on one it hid has to be dropped. */
-    struct Mock230LocOps ops;
+    struct ToriRSServerLocOps ops;
 };
 
 /**
@@ -127,17 +127,17 @@ struct Mock230SceneLoc
  * carrying a stale id needs — the client names the loc it drew, and by the time
  * the packet lands another player may have opened it.
  *
- * Returns a slot index for mock230_scene_loc, or -1.
+ * Returns a slot index for ToriRSServer_SceneLoc, or -1.
  */
 int
-mock230_scene_find_loc(
+ToriRSServer_SceneFindLoc(
     int x,
     int z,
     int level,
     int loc_id);
 
-struct Mock230SceneLoc*
-mock230_scene_loc(int slot);
+struct ToriRSServerSceneLoc*
+ToriRSServer_SceneLoc(int slot);
 
 /**
  * The loc's `op_num`-th menu action ("Open", "Climb-up"), or NULL. This is where
@@ -145,10 +145,10 @@ mock230_scene_loc(int slot);
  * have to.
  *
  * An authored `.loc` `opN=` wins over the cache record — rank 1 over rank 0, the
- * order `mock230_loc_category` uses. See `mock230_scene_loc_op_overlay`.
+ * order `ToriRSServer_LocCategory` uses. See `ToriRSServer_SceneLocOpOverlay`.
  */
 const char*
-mock230_scene_loc_op(
+ToriRSServer_SceneLocOp(
     int loc_id,
     int op_num);
 
@@ -162,27 +162,27 @@ mock230_scene_loc_op(
  *
  * "Hidden" needs no special handling and gets none: the client builds its menu
  * from its own cache group, so an op stated here and absent there is one no menu
- * offers, and `mock230_world.c`'s OPLOC handler drops the literal string
+ * offers, and `torirs_server_world.c`'s OPLOC handler drops the literal string
  * `hidden` off the wire. Authoring one widens what a script may re-issue, never
  * what a client may ask for.
  *
  * `op_num` is 1-based, as the packet and `p_oploc` both spell it. Copies `text`.
  */
 void
-mock230_scene_loc_op_overlay(
+ToriRSServer_SceneLocOpOverlay(
     int loc_id,
     int op_num,
     const char* text);
 
 /** Drop every authored op. Paired with the content tree's own reload. */
 void
-mock230_scene_loc_op_overlay_reset(void);
+ToriRSServer_SceneLocOpOverlayReset(void);
 
 /** How many locs carry an authored op — a count for the boot report, and the
  *  one number that distinguishes "the overlay is empty" from "the overlay
  *  disagrees", which otherwise look identical from a failing script. */
 int
-mock230_scene_loc_op_overlay_count(void);
+ToriRSServer_SceneLocOpOverlayCount(void);
 
 /**
  * Multiloc resolve for a player's current varbits (OpenRS2 LocType.getMultiLoc /
@@ -194,8 +194,8 @@ mock230_scene_loc_op_overlay_count(void);
  * validation and trigger type/category lookup.
  */
 int
-mock230_loc_resolve_transform(
-    struct Mock230Player* player,
+ToriRSServer_LocResolveTransform(
+    struct ToriRSServerPlayer* player,
     int base_loc_id);
 
 /** Replace a loc with another id (a door opening), moving collision with it.
@@ -203,7 +203,7 @@ mock230_loc_resolve_transform(
  *  `loc_del`'d loc back. Returns 0 when `slot` is not a loc or `loc_id` is not
  *  in the cache. */
 int
-mock230_scene_replace_loc(
+ToriRSServer_SceneReplaceLoc(
     int slot,
     int loc_id,
     int angle);
@@ -217,7 +217,7 @@ mock230_scene_replace_loc(
  * otherwise leak one per cycle.
  */
 int
-mock230_scene_add_loc(
+ToriRSServer_SceneAddLoc(
     int x,
     int z,
     int level,
@@ -226,23 +226,23 @@ mock230_scene_add_loc(
     int angle);
 
 /** Install this placement's own menu on a live scene slot (see
- *  struct Mock230LocOps). Asserts the slot is live — a menu with nothing to
+ *  struct ToriRSServerLocOps). Asserts the slot is live — a menu with nothing to
  *  hang it on is a caller bug, not an empty case. */
 void
-mock230_scene_loc_set_ops(
+ToriRSServer_SceneLocSetOps(
     int slot,
-    const struct Mock230LocOps* ops);
+    const struct ToriRSServerLocOps* ops);
 
 /**
  * The label the PLACEMENT at `slot` shows for `op_num` (1..5), or NULL.
  *
- * The click validator's question, as against `mock230_scene_loc_op`'s: that
+ * The click validator's question, as against `ToriRSServer_SceneLocOp`'s: that
  * one answers for the *type* (cache plus content overlay) and cannot see an op
  * a single placement invented or hid. `slot` < 0 falls back to the type alone,
  * which is what a click on a loc outside the scene window has to be judged on.
  */
 const char*
-mock230_scene_loc_placement_op(
+ToriRSServer_SceneLocPlacementOp(
     int slot,
     int loc_id,
     int op_num);
@@ -251,17 +251,17 @@ mock230_scene_loc_placement_op(
  *  tombstone behind; a `loc_add`ed one frees its slot for reuse. Returns 0 when
  *  `slot` is not a live loc. */
 int
-mock230_scene_remove_loc(int slot);
+ToriRSServer_SceneRemoveLoc(int slot);
 
 /**
  * The loc *exactly* at this tile with this shape, active or a tombstone.
  *
- * The mutation lookup, as against `mock230_scene_find_loc`'s click lookup: a
+ * The mutation lookup, as against `ToriRSServer_SceneFindLoc`'s click lookup: a
  * LOC_ADD_CHANGE or LOC_DEL names a tile and a shape and the client matches on
  * both, so the server has to address the same thing. Returns a slot, or -1.
  */
 int
-mock230_scene_find_loc_exact(
+ToriRSServer_SceneFindLocExact(
     int x,
     int z,
     int level,
@@ -271,13 +271,13 @@ mock230_scene_find_loc_exact(
  * The *live* loc with this id whose south-west corner is this tile, or -1.
  *
  * `loc_find`'s lookup — the reference's `Zone.getLoc(x, z, locId)`, corner tile
- * and type both exact. Distinct from `mock230_scene_find_loc`, whose footprint
+ * and type both exact. Distinct from `ToriRSServer_SceneFindLoc`, whose footprint
  * match and any-loc fallback exist for stale OPLOC clicks and must not answer a
  * find, and from `_exact`, which matches tombstones because a mutation has to
  * address a deleted map loc.
  */
 int
-mock230_scene_find_loc_id(
+ToriRSServer_SceneFindLocId(
     int x,
     int z,
     int level,
@@ -297,7 +297,7 @@ mock230_scene_find_loc_id(
  * should cost accuracy, not the ability to run.
  */
 int
-mock230_scene_build(
+ToriRSServer_SceneBuild(
     const char* cache_dir,
     int zone_x,
     int zone_z);
@@ -309,37 +309,37 @@ mock230_scene_build(
  * A zone the window does not set stays void — no cache square is read at the
  * destination at all, which is both what makes an instance private and what the
  * wire means (a REBUILD_REGION descriptor bit of 0 is "no source"). The window
- * is the same structure `mock230_send_rebuild_region` encodes, so the collision
+ * is the same structure `ToriRSServer_SendRebuildRegion` encodes, so the collision
  * the server routes on and the map the client draws come from one description.
  *
  * Returns 1 on success, 0 when the cache is unavailable — same fallback as above.
  */
 int
-mock230_scene_build_instance(
+ToriRSServer_SceneBuildInstance(
     const char* cache_dir,
     int zone_x,
     int zone_z,
-    const struct Mock230MapInstanceWindow* window);
+    const struct ToriRSServerMapInstanceWindow* window);
 
 void
-mock230_scene_free(void);
+ToriRSServer_SceneFree(void);
 
 /** Scene-local (0..103) collision map for a level, or NULL. */
 struct CollisionMap*
-mock230_scene_collision(int level);
+ToriRSServer_SceneCollision(int level);
 
 /** Raw collision flags at an absolute tile; 0 outside the built scene. */
 int
-mock230_scene_tile_flags(int level, int x, int z);
+ToriRSServer_SceneTileFlags(int level, int x, int z);
 
 /** Absolute tile of scene-local (0, 0). */
 int
-mock230_scene_debug_settings(int level, int x, int z);
+ToriRSServer_SceneDebugSettings(int level, int x, int z);
 
 int
-mock230_scene_base_x(void);
+ToriRSServer_SceneBaseX(void);
 int
-mock230_scene_base_z(void);
+ToriRSServer_SceneBaseZ(void);
 
 /**
  * Route from one absolute tile to another, writing absolute tiles into
@@ -351,7 +351,7 @@ mock230_scene_base_z(void);
  * returns -1 rather than walking through unmapped walls.
  */
 int
-mock230_scene_route(
+ToriRSServer_SceneRoute(
     int level,
     int from_x,
     int from_z,
@@ -369,7 +369,7 @@ mock230_scene_route(
  * differ from (to_x,to_z) when the fallback fired.
  */
 int
-mock230_scene_route_op(
+ToriRSServer_SceneRouteOp(
     int level,
     int from_x,
     int from_z,
@@ -384,25 +384,25 @@ mock230_scene_route_op(
 
 /** Build the approach descriptor for a scene loc slot (mirrors app_scenery_approach). */
 void
-mock230_scene_loc_approach(
+ToriRSServer_SceneLocApproach(
     int slot,
     struct CollisionApproach* out);
 
 /** NPC approach: size-aware under the OSRS era, 1x1 under LostCity. */
 void
-mock230_scene_npc_approach(
+ToriRSServer_SceneNpcApproach(
     int size,
     struct CollisionApproach* out);
 
 /** Ground-obj approach. retry_adjacent=0 is EXACT; 1 is the 1x1 adjacent retry. */
 void
-mock230_scene_obj_approach(
+ToriRSServer_SceneObjApproach(
     int retry_adjacent,
     struct CollisionApproach* out);
 
 /** Era op-click nearest-fallback options. */
 void
-mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out);
+ToriRSServer_SceneOpNearestOpts(struct CollisionNearestOpts* out);
 
 /** Era ground/minimap-click nearest-fallback options — the era table's
  *  `ground_click_nearest_model`, resolved through
@@ -411,11 +411,11 @@ mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out);
  *  clicked tile and never routes — plus `ground_click_nearest_unbounded`, this
  *  client's answer for a click the era's box cannot reach at all. */
 void
-mock230_scene_ground_nearest_opts(struct CollisionNearestOpts* out);
+ToriRSServer_SceneGroundNearestOpts(struct CollisionNearestOpts* out);
 
 /** Is (x,z) an arrival for approach at (dst_x,dst_z)? */
 int
-mock230_scene_reached(
+ToriRSServer_SceneReached(
     int level,
     int x,
     int z,
@@ -425,15 +425,15 @@ mock230_scene_reached(
 
 /** Install the era feature table used for approach/nearest. */
 void
-mock230_scene_set_features(struct ToriRS_FeatureTable const* features);
+ToriRSServer_SceneSetFeatures(struct ToriRS_FeatureTable const* features);
 
 struct ToriRS_FeatureTable const*
-mock230_scene_features(void);
+ToriRSServer_SceneFeatures(void);
 
 /** Can an actor at (x, z) step to the adjacent tile in `dir` (the client's
  *  World_CoordStep numbering)? True with no collision loaded. */
 int
-mock230_scene_can_step(
+ToriRSServer_SceneCanStep(
     int level,
     int x,
     int z,
@@ -441,7 +441,7 @@ mock230_scene_can_step(
 
 /** Like can_step, but ORs `extra_flag` into the can_travel occupancy test. */
 int
-mock230_scene_can_step_extra(
+ToriRSServer_SceneCanStepExtra(
     int level,
     int x,
     int z,
@@ -450,7 +450,7 @@ mock230_scene_can_step_extra(
 
 /** Like can_step_extra, under an `enum CollisionType` (an npc's moverestrict). */
 int
-mock230_scene_can_step_typed(
+ToriRSServer_SceneCanStepTyped(
     int level,
     int x,
     int z,
@@ -459,7 +459,7 @@ mock230_scene_can_step_typed(
     int coll_type);
 
 int
-mock230_scene_can_travel(
+ToriRSServer_SceneCanTravel(
     int level,
     int x,
     int z,
@@ -469,7 +469,7 @@ mock230_scene_can_travel(
     int extra_flag);
 
 int
-mock230_scene_can_travel_typed(
+ToriRSServer_SceneCanTravelTyped(
     int level,
     int x,
     int z,
@@ -480,7 +480,7 @@ mock230_scene_can_travel_typed(
     int coll_type);
 
 int
-mock230_scene_line_of_sight(
+ToriRSServer_SceneLineOfSight(
     int level,
     int sx,
     int sz,
@@ -493,7 +493,7 @@ mock230_scene_line_of_sight(
     int extra);
 
 int
-mock230_scene_line_of_walk(
+ToriRSServer_SceneLineOfWalk(
     int level,
     int sx,
     int sz,
@@ -506,7 +506,7 @@ mock230_scene_line_of_walk(
     int extra);
 
 int
-mock230_scene_approached(
+ToriRSServer_SceneApproached(
     int level,
     int sx,
     int sz,
@@ -520,13 +520,13 @@ mock230_scene_approached(
 /**
  * AP LoS between two *players*.
  *
- * Same ray as mock230_scene_approached, but symmetric when the era says so
+ * Same ray as ToriRSServer_SceneApproached, but symmetric when the era says so
  * (`los_symmetric_pvp` — the 2019 LMS change, PvP only). Player-vs-npc and
- * npc-vs-player must keep calling mock230_scene_approached: PvM never became
+ * npc-vs-player must keep calling ToriRSServer_SceneApproached: PvM never became
  * symmetric.
  */
 int
-mock230_scene_approached_pvp(
+ToriRSServer_SceneApproachedPvp(
     int level,
     int sx,
     int sz,
@@ -538,7 +538,7 @@ mock230_scene_approached_pvp(
     int dh);
 
 void
-mock230_scene_change_occupancy(
+ToriRSServer_SceneChangeOccupancy(
     int level,
     int x,
     int z,
@@ -548,7 +548,7 @@ mock230_scene_change_occupancy(
 
 /** Naive path in world coords: writes one absolute tile into out_x/out_z. */
 int
-mock230_scene_naive_path(
+ToriRSServer_SceneNaivePath(
     int level,
     int src_x,
     int src_z,
@@ -565,7 +565,7 @@ mock230_scene_naive_path(
 
 /** Is this absolute tile inside the built scene? */
 int
-mock230_scene_contains(
+ToriRSServer_SceneContains(
     int x,
     int z);
 
@@ -584,7 +584,7 @@ mock230_scene_contains(
  * `collision_map_tile`'s bounds assert.
  */
 int
-mock230_scene_walk_blocked(
+ToriRSServer_SceneWalkBlocked(
     int level,
     int x,
     int z);
@@ -597,7 +597,7 @@ mock230_scene_walk_blocked(
  * (`ScriptIterators.ts`). Casts a 1×1→1×1 ray with extra_flag 0.
  */
 int
-mock230_scene_checkvis(
+ToriRSServer_SceneCheckvis(
     int checkvis,
     int level,
     int from_x,

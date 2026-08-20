@@ -10,10 +10,10 @@
  * varp/bit  = the unlock flag the music player reads; -1 when unknown
  */
 
-#ifndef SRC_NET_MOCK_MOCK230_MUSIC_REGIONS_GEN_H
-#define SRC_NET_MOCK_MOCK230_MUSIC_REGIONS_GEN_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H
 
-struct Mock230MusicRegion
+struct ToriRSServerMusicRegion
 {
     int region;
     int song;
@@ -22,7 +22,7 @@ struct Mock230MusicRegion
     const char* name;
 };
 
-static const struct Mock230MusicRegion k_mock230_music_regions[] = {
+static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
     {  1154,  114,   3,   3, "Jungly 1" },
     {  4403,  764,  23,  25, "Strangled" },
     {  4404,  764,  23,  25, "Strangled" },
@@ -1013,7 +1013,7 @@ static const struct Mock230MusicRegion k_mock230_music_regions[] = {
     { 16461,  795,  24,  18, "Dangerous Logic" },
 };
 
-static const int k_mock230_music_region_count =
-    (int)(sizeof(k_mock230_music_regions) / sizeof(k_mock230_music_regions[0]));
+static const int k_ToriRSServer_MusicRegionCount =
+    (int)(sizeof(k_ToriRSServer_MusicRegions) / sizeof(k_ToriRSServer_MusicRegions[0]));
 
 #endif

@@ -11,19 +11,19 @@ names every id in a modern OldSchool cache, and every one of them is re-checked
 against `cache.osrs239` before it is trusted. See §6.
 
 `build/` is excluded by the repo's `.gitignore`, so **a fresh checkout has no
-compiled script pack** until `mock230-scripts` runs. The mock still works
+compiled script pack** until `torirsserver-scripts` runs. The mock still works
 without one — every trigger site falls back to the C behaviour it had before
-scripts existed, which is what keeps `test-mock230` green mid-edit — but there
+scripts existed, which is what keeps `test-ToriRSServer` green mid-edit — but there
 is no dialogue and no drop table until it is built.
 
 ```
-make -C src mock230              # the server
-make -C src mock230-scripts      # compile content/scripts/**.rs2
-make -C src mock230-pack         # the validator / cache exporter
-make -C src test-mock230         # the game logic, no socket
+make -C src ToriRSServer              # the server
+make -C src torirsserver-scripts      # compile content/scripts/**.rs2
+make -C src torirsserver-pack         # the validator / cache exporter
+make -C src test-ToriRSServer         # the game logic, no socket
 
-src/build/mock230_pack           # validate the tree against the cache
-src/build/mock230_pack -v        # ... and list every definition
+src/build/ToriRSServer_Pack           # validate the tree against the cache
+src/build/ToriRSServer_Pack -v        # ... and list every definition
 ```
 
 ---
@@ -73,7 +73,7 @@ OSRS-Content/osrs239-content/
       doors/configs/doors.loc                    generated + cache-validated
       drop_tables/scripts/*.rs2                  [ai_queue3] drop tables
       drop_tables/configs/lootdrop.constant
-      interface_bank/scripts/*.rs2               the bank — docs/mock230_bank.md
+      interface_bank/scripts/*.rs2               the bank — docs/torirs_server_bank.md
       interface_bank/configs/bank.varp           the varps its varbits live in
       interface_bank/configs/bank.constant       quantity modes
       interface_bank/configs/bank.enum           tab index -> tab-size varbit
@@ -93,8 +93,8 @@ When you *do* need a portable cache that carries those overlays (npc combat
 params, door `next_loc_stage`), `cachepack pack` is the baker: it emits the
 client projection (every `client = param:<name>` field) and the server band
 from one merged record, driven by `fields/<type>.ini` — see
-`CONTENT_PACK_PLAN.md` §5.4. (`mock230_pack --cache-out`, which used to bake
-the params on its own, is deleted; `mock230_pack` validates only. See §8.)
+`CONTENT_PACK_PLAN.md` §5.4. (`ToriRSServer_Pack --cache-out`, which used to bake
+the params on its own, is deleted; `ToriRSServer_Pack` validates only. See §8.)
 
 ---
 
@@ -205,39 +205,39 @@ use. What used to be a `#define` or a literal table in C:
 
 | was | now |
 |---|---|
-| a 24-entry `{ slot, group }` table in `mock230_world.c` | the `gameframe` **.enum** — keys are components, values are interfaces |
-| `MOCK230_HIT_DAMAGE 0` / `MOCK230_HIT_BLOCK 1` | `hitsplat.pack`, and they were **backwards** (see below) |
-| `MOCK230_VARP_ATTACK_STYLE 43`, `MOCK230_VARP_RUN 173`, … | `varp.pack`, resolved by `mock230_world_varp("com_mode")` |
-| `MOCK230_CHAT_SLOT_UID (162 << 16) | 561` | `component.pack` — `chatbox:chatmodal`, and it was **the wrong component** (see `osrs230_mockserver.md` §3.11) |
+| a 24-entry `{ slot, group }` table in `torirs_server_world.c` | the `gameframe` **.enum** — keys are components, values are interfaces |
+| `TORIRSSERVER_HIT_DAMAGE 0` / `TORIRSSERVER_HIT_BLOCK 1` | `hitsplat.pack`, and they were **backwards** (see below) |
+| `TORIRSSERVER_VARP_ATTACK_STYLE 43`, `TORIRSSERVER_VARP_RUN 173`, … | `varp.pack`, resolved by `ToriRSServer_WorldVarp("com_mode")` |
+| `TORIRSSERVER_CHAT_SLOT_UID (162 << 16) | 561` | `component.pack` — `chatbox:chatmodal`, and it was **the wrong component** (see `osrs230_mockserver.md` §3.11) |
 | combat-tab varbits | `varbit.pack`; the *bit ranges* stay in the cache |
-| `MOCK230_BANK_IFACE 12`, `MOCK230_BANK_COM_*`, the eleven bank varbits | `interface.pack` / `component.pack` / `varbit.pack`, through **`mock230_ids.h`** |
-| `MOCK230_EQUIPSTATS_IFACE 84` and interface 84's eighteen text rows | `component.pack` — `equipment_stats_stabatt` and friends |
-| the 29-row `k_prayers[]` table in `mock230_prayer.c` | a **`.dbtable`/`.dbrow`** pair, the reference's own schema — the whole C module went with it |
-| `MOCK230_HEADICON_PROTECT_MELEE 0` … | `prayers.constant`, LostCity's `headicon.constant` shape |
-| `MOCK230_BANK_QTY_1 0` … | `bank.constant`, the same shape as `^attack_style_accurate` |
-| `k_worn_slot_by_child[]` in `mock230_world.c` | the `worn_slots` **.enum** — keys are components, values are wear slots |
-| `MOCK230_ROOT_IFACE 161`, `MOCK230_INV_BACKPACK 93`, `MOCK230_WORN_IFACE 387` | `mock230_ids.h`, resolved from the packs at boot |
+| `TORIRSSERVER_BANK_IFACE 12`, `TORIRSSERVER_BANK_COM_*`, the eleven bank varbits | `interface.pack` / `component.pack` / `varbit.pack`, through **`torirs_server_ids.h`** |
+| `TORIRSSERVER_EQUIPSTATS_IFACE 84` and interface 84's eighteen text rows | `component.pack` — `equipment_stats_stabatt` and friends |
+| the 29-row `k_prayers[]` table in `torirs_server_prayer.c` | a **`.dbtable`/`.dbrow`** pair, the reference's own schema — the whole C module went with it |
+| `TORIRSSERVER_HEADICON_PROTECT_MELEE 0` … | `prayers.constant`, LostCity's `headicon.constant` shape |
+| `TORIRSSERVER_BANK_QTY_1 0` … | `bank.constant`, the same shape as `^attack_style_accurate` |
+| `k_worn_slot_by_child[]` in `torirs_server_world.c` | the `worn_slots` **.enum** — keys are components, values are wear slots |
+| `TORIRSSERVER_ROOT_IFACE 161`, `TORIRSSERVER_INV_BACKPACK 93`, `TORIRSSERVER_WORN_IFACE 387` | `torirs_server_ids.h`, resolved from the packs at boot |
 
 The rule the table encodes: **an id lives in a pack, a tunable lives in a
 config, and arithmetic stays in C.** `+8` in the effective-level formula is not
-a magic number — it is the formula. `MOCK230_INV_SLOTS 28` is not either; it is
+a magic number — it is the formula. `TORIRSSERVER_INV_SLOTS 28` is not either; it is
 the size of a backpack, and LostCity states it in a `.inv` config for the same
 reason it states `size=28` rather than deriving it.
 
 ### The engine's own symbol table
 
 C cannot write `bankmain:items` and have a compiler resolve it, which is what
-LostCity's engine gets for free. `src/net/mock/mock230_ids.h` is the substitute:
+LostCity's engine gets for free. `src/torirsserver/torirs_server_ids.h` is the substitute:
 one struct naming every id the engine addresses by hand, filled once at boot by
-`mock230_ids_resolve()` out of the packs and the `.constant` files, and
+`ToriRSServer_IdsResolve()` out of the packs and the `.constant` files, and
 **nothing downstream holds a literal**. Adding an interface is a line in
 `the cache's own gameval table` and a field in that struct.
 
 Three kinds of number stay in C on purpose, and the distinction is worth
 keeping:
 
-- **Storage ceilings** — `MOCK230_BANK_TABS`, `MOCK230_PRAYER_MAX`,
-  `MOCK230_INV_SLOTS`. They size arrays, so they have to be compile-time
+- **Storage ceilings** — `TORIRSSERVER_BANK_TABS`, `TORIRSSERVER_PRAYER_MAX`,
+  `TORIRSSERVER_INV_SLOTS`. They size arrays, so they have to be compile-time
   constants. Content decides how much of the array is used and the loader
   checks it fits.
 - **Protocol encodings** — event-mask bits, op numbers, the IF_OPENSUB mount
@@ -245,11 +245,11 @@ keeping:
   no config file could be checked against a cache.
 - **Arithmetic** — the `+8` in the effective-level formula is the formula.
 
-`mock230_pack` resolves the table too, so a renamed or dropped symbol is a
+`ToriRSServer_Pack` resolves the table too, so a renamed or dropped symbol is a
 validator failure rather than a dead interface discovered by clicking on it.
 The trade is that the mock **needs its content tree**: with none, every id is
 -1 and `--selftest` says so on the first line instead of running a server that
-addresses component 0. `test-mock230` also pins each resolved id to the number
+addresses component 0. `test-ToriRSServer` also pins each resolved id to the number
 it had as a `#define`, so a regenerated pack that renumbered something fails
 there.
 
@@ -257,7 +257,7 @@ That guard has already earned itself once. OpenRune's table calls 160:55
 `orbs:worldmap`; at rev 230 the world-map orb is 160:53, and 53 is `wiki_icon`
 in the newer table — two components were inserted between the revisions.
 Importing the name would have armed the wiki button. That one id stays a
-literal in `mock230_worldmap.c` with the clientscript evidence beside it, which
+literal in `torirs_server_worldmap.c` with the clientscript evidence beside it, which
 is what a symbol cannot give when the symbol is wrong.
 
 Two of these were only *discoverable* once they were data:
@@ -370,7 +370,7 @@ Three differences from the reference, all with the same root:
 This is the single most useful thing in the whole system and it is easy to miss.
 
 An OldSchool obj or npc record carries its equipment bonuses in its own **param
-table**: ids 0–11 are the twelve bonuses in the order `Mock230CombatParam`
+table**: ids 0–11 are the twelve bonuses in the order `ToriRSServerCombatParam`
 names them, and 14 is the attack rate in ticks. OpenRune's
 `cache/src/main/kotlin/org/alter/ParamMapper.kt` documents the mapping;
 `cache.osrs239` was checked against it before anything was built on it:
@@ -382,9 +382,9 @@ npc 3028 Goblin            [10]=-15 [5..8]=-15
 ```
 
 So the mock computes a real OldSchool max hit and a real accuracy roll with no
-hand-written bonus table for any item in the game. `mock230_objinfo.c` and
-`mock230_npcinfo.c` read them during the one decode pass they already do, and
-`test-mock230`'s "combat arithmetic" section pins the values above — because if
+hand-written bonus table for any item in the game. `torirs_server_objinfo.c` and
+`torirs_server_npcinfo.c` read them during the one decode pass they already do, and
+`test-ToriRSServer`'s "combat arithmetic" section pins the values above — because if
 a future cache moves those param ids, every fight goes quietly wrong rather than
 failing.
 
@@ -477,14 +477,14 @@ requirement, so eight `(stat, level)` pairs on all of them would cost 2 MB to sa
 "none" thirty-two thousand times.
 
 ```
-mock230: content loaded (… 1496 equip reqs (675 from the cache) …)
+torirsserver: content loaded (… 1496 equip reqs (675 from the cache) …)
 ```
 
 **The requirement is a MERGE, and the parenthesis is the half everyone misread.**
 1,496 objs carry one, and only **857** of them come from `param=levelrequire` in
 `skill_combat/configs/*.obj`. The other 639 come from the cache's own
 `skillrequire` / `levelrequire` params (434/436 and 435/437), read by
-`read_requirements` in `mock230_objinfo.c` for every wearable and filtered by
+`read_requirements` in `torirs_server_objinfo.c` for every wearable and filtered by
 `gates_wearing()`. The `.obj` overlay then **replaces** an obj's set outright
 rather than adding to it, which is what lets `equipment_disputed.obj` *correct*
 the cache for the eighteen items where the two disagree.
@@ -502,18 +502,18 @@ an obj with **no** requirement is wearable, so a cache the importer has not been
 run against stays playable rather than refusing everything it does not recognise.
 
 **The check itself is content now, and this paragraph used to argue the
-opposite.** It was `mock230_equipment_may_wear` in C, on the argument that the
+opposite.** It was `ToriRSServer_EquipmentMayWear` in C, on the argument that the
 rule "applies to every wearable obj in the cache, and LostCity's per-item form —
 528 lines of `[opheld2,rune_scimitar] @levelrequire_attack(40, last_slot);` —
 would be a second copy of a table the content tree already states". Half of that
 survives and half does not. **The values are still data** and were never
-relocated: the `.obj` params remain the authored home, `mock230_pack` still
-validates them, and `mock230_obj_require` still holds them. What did not survive
+relocated: the `.obj` params remain the authored home, `ToriRSServer_Pack` still
+validates them, and `ToriRSServer_ObjRequire` still holds them. What did not survive
 is the inference that a rule reading data must therefore be C. A
 refusal-with-a-message is a rule, and rules are content's:
 `~levelrequire_check` (`skill_combat/scripts/levelrequire.rs2`) decides and
 speaks, from one `[opheld2,_]` binding rather than 857, and
-`mock230_equipment_may_wear` is deleted (`osrs230_mockserver.md` §3.18, triage
+`ToriRSServer_EquipmentMayWear` is deleted (`osrs230_mockserver.md` §3.18, triage
 §10.1).
 
 It reads both halves in their own natural forms — the overlay through a
@@ -522,7 +522,7 @@ generated `levelrequire.dbtable` (125 rows, transposed: a row is one
 cache's two pairs through `oc_param`, which is already the opcode for reading a
 cache param.
 
-`mock230_pack` pins the ladder, so a source swapped for a worse one shows up as
+`ToriRSServer_Pack` pins the ladder, so a source swapped for a worse one shows up as
 a number out of order rather than as silence:
 
 ```
@@ -531,7 +531,7 @@ equipment requirements
 ```
 
 The check that actually matters is not that one and not the generator's
-`--check`: `mock230 --selftest` walks **every** one of the 1,496 at both sides of
+`--check`: `ToriRSServer --selftest` walks **every** one of the 1,496 at both sides of
 its own boundary — every skill set to `peak-1`, then to `peak`, with the boosted
 level pinned at 99 throughout so a gate reading `stat` instead of `stat_base`
 fails — and compares content's answer to the C table. A regeneration makes a
@@ -571,7 +571,7 @@ which spawns and fights and looks entirely plausible. The worked example is
 655, which `cache.osrs239` also calls "Goblin" and OpenRune calls
 `goblin_red_soldier_2`. Two monsters, one display name.
 
-So `mock230_pack` checks every one, and prints the cache's combat level beside
+So `ToriRSServer_Pack` checks every one, and prints the cache's combat level beside
 the authored hitpoints. That line is not an assertion — neither number derives
 from the other — but a level-2 goblin with 75 hitpoints is visibly the huge
 spider's row.
@@ -613,7 +613,7 @@ gates.
 The step that makes the guess safe is the cache:
 
 ```
-src/build/mock230_pack --prune-doors
+src/build/ToriRSServer_Pack --prune-doors
 ```
 
 A closed door offers an "Open" action and its partner does not. A pair failing
@@ -627,10 +627,10 @@ disagree with it.
 
 ---
 
-## 8. `mock230_pack`
+## 8. `ToriRSServer_Pack`
 
 ```
-src/build/mock230_pack [--check-only] [--content DIR] [--cache DIR]
+src/build/ToriRSServer_Pack [--check-only] [--content DIR] [--cache DIR]
                        [--prune-doors] [-v]
 ```
 
@@ -640,7 +640,7 @@ an npc the cache makes attackable, that every door pair holds up (§6), that
 every namespace's allocation base clears the cache's high-water mark, and that
 `server/pack` (when present) agrees byte-for-byte with the text parse.
 `--check-only` is accepted explicitly — validation is all the tool does, so the
-flag changes nothing, but the documented `mock230_pack --check-only` invocation
+flag changes nothing, but the documented `ToriRSServer_Pack --check-only` invocation
 runs as written.
 
 It used to also write: `--cache-out` copied the source cache and folded the

@@ -2,7 +2,7 @@
 # Build the content scripts and say WHOSE error stopped it.
 #
 # This tree has more than one session writing to it at once, and
-# `mock230-scripts` is a whole-tree compile: a sibling's half-finished edit —
+# `torirsserver-scripts` is a whole-tree compile: a sibling's half-finished edit —
 # a deleted constant, a duplicate trigger name, a type subject that is not a
 # type yet — stops the build for everybody. The question that costs the most
 # time in that state is not "what is the error", it is "is the error mine".
@@ -23,7 +23,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 LOG=$(mktemp -t content_build_blame)
 trap 'rm -f "$LOG"' EXIT
 
-if make -C "$ROOT/src" mock230-scripts >"$LOG" 2>&1; then
+if make -C "$ROOT/src" torirsserver-scripts >"$LOG" 2>&1; then
   grep -E '^compiled ' "$LOG" || true
   exit 0
 fi

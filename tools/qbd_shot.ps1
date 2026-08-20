@@ -80,7 +80,7 @@ try {
     if ($Zoom -gt 0) { $cam += ",$Zoom" }
 
     $env:TORIRS_TRANSPORT = "embed"
-    $env:MOCK230_REV = "osrs239"
+    $env:TORIRSSERVER_REV = "osrs239"
     $env:TORIRS_ORBIT_CAM = $cam
     $env:TORIRS_MAX_FRAMES = "$Frames"
     if ($TexDebug) { $env:TORIRS_RASTER_TEX_DEBUG = "1" }

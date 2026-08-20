@@ -142,9 +142,9 @@ Credit where the substrate is already in place, so no phase below rebuilds it.
 | register read by the script compiler | `src/serverscript/ssc_symbols.c:342` | done |
 | write gate keyed on the register | `cp_register_may_write_pack`, `cp_register.c:125` | done |
 | client encoder for npc/obj/loc/seq/param/struct/… | `cp_pack_npc` etc., `cp_types.c:56-103` | done |
-| server-side record overlay (config block over cache record) | `src/net/mock/mock230_content.c` | done |
-| base-cache copy + per-record re-encode | `mock230_pack.c:596`, `:737`; `cp_pack.c:145` | done |
-| param baking (npc combat, loc door stages) | was `bake_npc_params` / `bake_loc_params` in `mock230_pack.c` | replaced by Phase 5 and deleted; `mock230_pack` validates only |
+| server-side record overlay (config block over cache record) | `src/torirsserver/torirs_server_content.c` | done |
+| base-cache copy + per-record re-encode | `torirs_server_pack.c:596`, `:737`; `cp_pack.c:145` | done |
+| param baking (npc combat, loc door stages) | was `bake_npc_params` / `bake_loc_params` in `torirs_server_pack.c` | replaced by Phase 5 and deleted; `ToriRSServer_Pack` validates only |
 | **semantic** round-trip at 100% for every type, every cache | `EXCEPTIONS.md:169-172` | done — this is what makes decision 3 safe |
 | FileList encoder, for emitting gamevals back (§5.5) | `RSCache_FileListEncode`, `3rd/rscache/src/filelist.h:37` | done |
 
@@ -180,7 +180,7 @@ tables as content needs them.
 
 **Why now.** The build's correctness rests on a rule that is currently
 unverified: re-encode only what the tree states, and let everything else fall
-through from the substrate (`mock230_pack.c:737`, `cp_pack.c:86`).
+through from the substrate (`torirs_server_pack.c:737`, `cp_pack.c:86`).
 
 **Whole-cache byte-identity is the wrong bar and must not be used.** It is
 unreachable for reasons that lose nothing: Jagex's packer does not write opcodes
@@ -206,7 +206,7 @@ The bar therefore differs per table kind:
   variant.
 
 **Skip-if-absent.** No cache is committed (`.gitignore:11` is `cache.*/`), so the
-test must skip cleanly when `MOCK230_CACHE` resolves to nothing — matching how
+test must skip cleanly when `TORIRSSERVER_CACHE` resolves to nothing — matching how
 `3rd/rscache/test/test_sound.c` handles its corpus. A skipped test must say so
 loudly rather than pass silently.
 
@@ -286,7 +286,7 @@ That single property replaces what the directory split was buying.
   `max`.
 - Audit every writer for truncating opens. the cache's own gameval table is the
   known offender (it opened outputs with `"w"`, truncating `configs/all.npc.compack` from
-  16,292 lines to 39); `docs/mock230_content.md:518-526` says it now merges —
+  16,292 lines to 39); `docs/torirs_server_content.md:518-526` says it now merges —
   verify that, and add a test rather than trusting the doc.
 
 **Exit criteria**
@@ -368,7 +368,7 @@ authored names.
 - `names/<ns>.pack` → merge into `pack/<ns>.pack`.
 - `server/pack/stat.pack` and `server/pack/varp_mock.pack` → `pack/stat.pack`
   and `configs/all.varp.compack` (these are the two legacy layer-1 locations listed at
-  `mock230_content.c:1717-1722`).
+  `torirs_server_content.c:1717-1722`).
 - Where an authored line **overrides** a cache name for the same id, the merged
   file keeps the authored name and carries the cache's name as a trailing
   comment — the convention `lc_pack.c:114-117` already documents
@@ -382,10 +382,10 @@ authored names.
 
 ### 3.2 Collapse the loaders
 
-- `src/net/mock/mock230_content.c` — `mock230_content_load` (`:1672`) drops the
+- `src/torirsserver/torirs_server_content.c` — `ToriRSServer_ContentLoad` (`:1672`) drops the
   second and third load loops (`:1762-1771`), keeping only
   `<dir>/pack/<ns>.pack`. The `PACK_LAYER_*` enum (`:133`) and the layer field
-  in `struct PackEntry` (`:141`) go away, and `mock230_content_symbol` (`:209`)
+  in `struct PackEntry` (`:141`) go away, and `ToriRSServer_ContentSymbol` (`:209`)
   / `_symbol_name` (`:251`) lose their two-pass structure.
 - `3rd/rscache/tools/cachepack/cp_names.c` — `packs[]` and `authored[]`
   (`cachepack.h:165`, `:176`) collapse to one array, as do `asset_packs[]` and
@@ -395,12 +395,12 @@ authored names.
 
 ### 3.3 Keep both collision checks
 
-`validate_name_layers` (`mock230_content.c:300`) loses its cross-layer rule but
+`validate_name_layers` (`torirs_server_content.c:300`) loses its cross-layer rule but
 keeps the two that matter, neither of which depends on there being two layers:
 
 - **A duplicate name within a namespace is a load error**, not last-one-wins.
 - **`varp`/`varbit`/`varn`/`vars` share one RuneScript `%name` domain**
-  (`mock230_content.c:336`, `content_register.c` `shared` column), so a name
+  (`torirs_server_content.c:336`, `content_register.c` `shared` column), so a name
   meaning varp 115 and varbit 4 cannot coexist.
 
 Rename the function accordingly — `validate_symbols` or similar; "layers" stops
@@ -511,10 +511,10 @@ design:
   43 keys, every one client/render: `name size readyanim walkanim …13 anims…
   recol retex minimap vislevel resizeh resizev ambient contrast turnspeed
   category bastype footprintsize zbuf …`
-- The **server** column is `mock230_content.c`'s npc key ladder: `hitpoints
+- The **server** column is `torirs_server_content.c`'s npc key ladder: `hitpoints
   attack strength defence magic ranged respawnrate wanderrange moverestrict
   huntmode`.
-- The **`param:N` column** is `mock230_pack.c:689-702`'s `BakedParam` table
+- The **`param:N` column** is `torirs_server_pack.c:689-702`'s `BakedParam` table
   verbatim.
 
 The two key sets overlap on exactly **`name`** and **`param`**. That is what
@@ -527,7 +527,7 @@ One `[name]` block accepting the union. Because the sets are disjoint, neither
 existing parser has to change its interpretation of any key it already handles —
 each simply stops rejecting the other's.
 
-`mock230_content.c`'s per-key `strcmp` ladders become register lookups. Its
+`torirs_server_content.c`'s per-key `strcmp` ladders become register lookups. Its
 current "accepted and ignored" behaviour becomes "declared `scope = client`, so
 this overlay is patching the cache" — a different and much more interesting
 thing to report.
@@ -536,8 +536,8 @@ thing to report.
 
 When this section was written, two tools wrote a derived cache and explicitly
 did not compose: `cachepack pack --base` (whole config records, from
-`configs/all.<type>`) and `mock230_pack --cache-out` (params only, from
-`server/` overlays; deleted since — `mock230_pack` is a validator only now).
+`configs/all.<type>`) and `ToriRSServer_Pack --cache-out` (params only, from
+`server/` overlays; deleted since — `ToriRSServer_Pack` is a validator only now).
 See `3rd/rscache/tools/cachepack/main.c:29-33` and `CONTENT_ARCHITECTURE.md`
 §3.5.
 
@@ -551,7 +551,7 @@ Collapse to one baker emitting **two** outputs from one merged record:
 Decision 4 is what makes this two rather than three. An earlier draft split the
 cache into a client artifact and a portable/tooling one, because `--cache-out`
 baked `hitpoints`→2100 and `death_drop`→2000 into the param table (the old
-`docs/mock230_content.md` §8 showed `dump_npc` reading them back) and a param is
+`docs/torirs_server_content.md` §8 showed `dump_npc` reading them back) and a param is
 readable by anyone holding the cache. With secrecy explicitly not a goal, that
 split buys nothing and costs a whole second artifact — so `param:N` needs no
 audience qualifier, and the cache players download is the same self-describing
@@ -566,7 +566,7 @@ everything else falls through from the substrate. Phase 0.2's config-row bar
 guards this.
 
 **`bake_npc_params` and `bake_loc_params` disappear** — ~100 lines re-deriving
-what the register now states. (Done: the whole export path in `mock230_pack.c`
+what the register now states. (Done: the whole export path in `torirs_server_pack.c`
 is deleted; the tool validates only.)
 
 #### What has landed
@@ -584,9 +584,9 @@ which is §5.4's shape rather than an approximation of it.
   the `.ini` is the contract rather than a shared header. It has **no built-in
   defaults** — a writer that invents an opcode the tree did not declare writes
   bytes nothing agreed to read.
-- `src/net/mock/mock230_servercodec.c` is generic over `(field table, record
+- `src/torirsserver/torirs_server_servercodec.c` is generic over `(field table, record
   base)`. Adding a type is a register file plus an offset table; `npc` and `loc`
-  are the two instances, and `mock230_servercodec_test` iterates the registry, so
+  are the two instances, and `ToriRSServer_ServerCodecTest` iterates the registry, so
   a type registered without a `fields/<name>.ini` fails.
 - Every archive carries `'S' 'P' version kind crc32(payload)`.
   `RSCache_Dat2DiskWriteArchive` creates the container from nothing but writes no
@@ -645,7 +645,7 @@ outside cachepack reads the table.
 **New records are opt-in**, declared by `records = client` in a bare `[<type>]`
 section. Verified against the tree rather than assumed: `enum` (7 blocks) and
 `coord_pair.dbtable` exist only at rank 1 and are *server tables wearing a config
-grammar* — `bank_tabs` and `worn_slots` are read by `mock230_content_enum` and no
+grammar* — `bank_tabs` and `worn_slots` are read by `ToriRSServer_ContentEnum` and no
 client script has heard of them — so `fields/enum.ini` says `records = server` and
 they stay out. `param` opts in, because a projection referencing a param with no
 record is a reference the client cannot interpret. `varp` (16 blocks) and
@@ -674,15 +674,15 @@ The largest item first, because it is the one that makes the others feel
 unresolved:
 
 - **~~The band is written but not read~~ — read, verified and preferred at
-  boot.** `mock230_boot_load` step 2b decodes `server/pack` over the live
+  boot.** `ToriRSServer_BootLoad` step 2b decodes `server/pack` over the live
   defs after proving every archive identical to what the text parse loaded
-  (`osrs230_mockserver.md` §3.10b); `make -C src mock230-servpack` refreshes
+  (`osrs230_mockserver.md` §3.10b); `make -C src torirsserver-servpack` refreshes
   the pack via the new `cachepack pack --server-only`, which skips the client
   half entirely — no base cache, no `--out`, and no exposure to the `.dbrow`
   merge blocker (§ the dbtable doc), because a type with no `server = opcode:`
   row is never merged. The text parse remains, for now, as the migration
   fallback and the proof; removing it for the band-carried fields is the
-  outstanding sub-step. (`mock230_pack.c`'s baking, which §5.4 retires, is
+  outstanding sub-step. (`torirs_server_pack.c`'s baking, which §5.4 retires, is
   deleted — the tool validates only.) Tracked as Phase 0 in
   [`PORTING_GUIDE.md`](PORTING_GUIDE.md) §3.6.
 
@@ -692,13 +692,13 @@ a silence:
 - **`obj.levelrequire`** — `client = drop`, no server band.
   `param=levelrequire,<stat>,<level>` repeats up to eight times per record; the
   band is one fixed-width integer per opcode. Needs a list-valued wire on both
-  the writer and `mock230_servercodec.c`.
+  the writer and `torirs_server_servercodec.c`.
 - **`loc.category`, `npc.huntmode`, `npc.moverestrict`** — `client = drop`, no
   band. Their values are engine enum names (`door_closed`, `aggressive`,
   `nomove`) with no cache namespace, so the band would need either a symbol
   table cachepack does not have or a `ref` that does not exist.
 - **`varp.transmit` / `scope` / `protect`** — `client = drop`, no band. A band
-  needs a `Mock230VarpDef` for the reader to decode into.
+  needs a `ToriRSServerVarpDef` for the reader to decode into.
 - **`prayer`** — not a field on a cache record but a server-only *record type*:
   no config kind, no gameval archive. It would take a group from the reserved
   128..255 space plus string and repeatable wires, since its fields are a string

@@ -5,7 +5,7 @@ today: one plane up or down, **same tile**. That is `~climb` in
 `ladders_stairs/scripts/ladders.rs2`, bound to four generated categories that
 cover every one of the 1,445 climb-verbed records `tools/ladder_import.py`
 finds in `cache.osrs239`. It is a faithful port of what `climb` in
-`mock230_world.c` did, and `ladders_stairs/README.md` already declared the
+`torirs_server_world.c` did, and `ladders_stairs/README.md` already declared the
 rest of the job open: a 2004+ loc's own menu verb ("Climb-up", "Climb-down")
 never states a *destination*, only a direction, so the ±1-plane default is a
 guess that happens to be right for a plain staircase and wrong for anything
@@ -522,7 +522,7 @@ the standalone portal/lever files, and Agility shortcuts are now covered
 ## 6. Verification performed
 
 1. **The real compiler.** `sscompile` (`make -C src sscompile`), run via
-   `make -C src mock230-scripts MOCK230_CONTENT_DIR=<content>` against every
+   `make -C src torirsserver-scripts TORIRSSERVER_CONTENT_DIR=<content>` against every
    generated file across all three classes and the two hand-authored proc
    files (`ladders_stairs/scripts/maplink.rs2`,
    `skill_agility/scripts/maplink_agility.rs2`) plus the edited
@@ -555,7 +555,7 @@ tree's headless repro lane (`TORIRS_SIM_CLICK_AT` + `TORIRS_EXIT_BMP`,
 documented in `BUILD_AND_RUN.md`) needs either a working `::tele`-equivalent
 debug command or a screenshot-guided walk-and-click loop to position the
 player exactly on a `maplink` source tile; neither is wired up today (the
-`ClientCheatHandler` in `mock230_world.c` recognizes `style`, `setlevel`,
+`ClientCheatHandler` in `torirs_server_world.c` recognizes `style`, `setlevel`,
 `run`, `bank`, `fight`, `give`, `talk` — no coordinate-teleport command). A
 future pass should add a `[debugproc,goto]`-style cheat (following the
 pattern `cheat_equip.rs2`/`cheat_stat.rs2` already establish) specifically to

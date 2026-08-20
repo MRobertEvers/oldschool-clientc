@@ -470,7 +470,7 @@ def is_sound_param(param):
 
     `attack_sound_stance1..4` and `equipment_sound`. They are declared `type=int`
     because `fields/param.ini` has no `synth` type, but this writer emits their
-    values as *names* (`synth_2498`) — and `mock230_content.c`'s param-type map
+    values as *names* (`synth_2498`) — and `torirs_server_content.c`'s param-type map
     has no `synth` kind, so `int` treats the operand as a literal and the pack
     validator rejects every one of them. Until that namespace exists, the two
     families have to be written separately. See slice 3's blocker note.
@@ -581,7 +581,7 @@ def cmd_write(src, path, shard, families="all"):
         lines.insert(len(lines) - 1, "// regenerate them with --families sounds once that lands.")
     elif families == "sounds":
         lines.insert(len(lines) - 1, "// FAMILIES: sounds only — attack_sound_stance*/equipment_sound. Needs a")
-        lines.insert(len(lines) - 1, "// `synth` pack kind in mock230_content.c or every row fails to resolve.")
+        lines.insert(len(lines) - 1, "// `synth` pack kind in torirs_server_content.c or every row fails to resolve.")
 
     def wanted(param):
         if families == "anims":

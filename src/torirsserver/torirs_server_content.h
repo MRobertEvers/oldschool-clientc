@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_CONTENT_H
-#define SRC_NET_MOCK_MOCK230_CONTENT_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
 
 /*
  * The mock's content tree: LostCity's pack files, config syntax and map format,
@@ -10,9 +10,9 @@
  *                                       .param  parameter declarations
  *                                       .loc  loc overlays (doors, stairs)
  *                                       .constant  `^name = value`
- *                                       .dbtable / .dbrow  (see mock230_db.h)
+ *                                       .dbtable / .dbrow  (see torirs_server_db.h)
  *   content/maps/m<x>_<z>.jm2           `==== NPC ====` / `==== OBJ ====`
- *   content/scripts/<area>/             .rs2  behaviour (see mock230_scripts.c)
+ *   content/scripts/<area>/             .rs2  behaviour (see torirs_server_scripts.c)
  *
  * Why a reader rather than a packer: LostCity's own tooling compiles this tree
  * into the binary configs its cache serves, because its *client* has to see the
@@ -21,9 +21,9 @@
  * config block is an **overlay** carrying only what a cache cannot state:
  * hitpoints, combat levels, aggression and what a door opens into. Reading the
  * text at boot costs about a millisecond and removes a build step from the edit
- * loop. `mock230_pack` is the validator, not a required build stage.
+ * loop. `ToriRSServer_Pack` is the validator, not a required build stage.
  *
- * The one thing that *is* packed is a derived cache — see mock230_pack.c
+ * The one thing that *is* packed is a derived cache — see torirs_server_pack.c
  * --cache-out — for the case where an overlay should be visible to the client
  * too.
  */
@@ -38,7 +38,7 @@
  * The three-line grammar every LostCity config shares: `[section]` headers,
  * `key=value` lines, `//` comments.
  *
- * Exported because this file is no longer the only reader — mock230_db.c reads
+ * Exported because this file is no longer the only reader — torirs_server_db.c reads
  * `.dbtable`/`.dbrow` with the same grammar, and a second copy of "trim a line"
  * is how two readers of one format start disagreeing about whether a trailing
  * space is significant.
@@ -48,38 +48,38 @@
 
 /** Strip a `//` comment and surrounding whitespace, in place. */
 char*
-mock230_content_clean_line(char* line);
+ToriRSServer_ContentCleanLine(char* line);
 
 /** Split `key=value` in place. Returns the value, or NULL when there is no `=`. */
 char*
-mock230_content_split_key_value(char* line);
+ToriRSServer_ContentSplitKeyValue(char* line);
 
 /** `[name]` section header; returns the name in place, or NULL. */
 char*
-mock230_content_section_header(char* line);
+ToriRSServer_ContentSectionHeader(char* line);
 
 /* ------------------------------------------------------------------ */
 /* Symbols                                                             */
 /* ------------------------------------------------------------------ */
 
-enum Mock230PackKind
+enum ToriRSServerPackKind
 {
-    MOCK230_PACK_NPC = 0,
-    MOCK230_PACK_OBJ,
-    MOCK230_PACK_LOC,
-    MOCK230_PACK_SEQ,
-    MOCK230_PACK_SPOTANIM,
-    MOCK230_PACK_INV,
-    MOCK230_PACK_VARP,
-    MOCK230_PACK_VARBIT,
-    MOCK230_PACK_VARN,
-    MOCK230_PACK_VARS,
-    MOCK230_PACK_INTERFACE,
-    MOCK230_PACK_COMPONENT,
-    MOCK230_PACK_STAT,
-    MOCK230_PACK_PARAM,
-    MOCK230_PACK_HITSPLAT,
-    MOCK230_PACK_HEALTHBAR,
+    TORIRSSERVER_PACK_NPC = 0,
+    TORIRSSERVER_PACK_OBJ,
+    TORIRSSERVER_PACK_LOC,
+    TORIRSSERVER_PACK_SEQ,
+    TORIRSSERVER_PACK_SPOTANIM,
+    TORIRSSERVER_PACK_INV,
+    TORIRSSERVER_PACK_VARP,
+    TORIRSSERVER_PACK_VARBIT,
+    TORIRSSERVER_PACK_VARN,
+    TORIRSSERVER_PACK_VARS,
+    TORIRSSERVER_PACK_INTERFACE,
+    TORIRSSERVER_PACK_COMPONENT,
+    TORIRSSERVER_PACK_STAT,
+    TORIRSSERVER_PACK_PARAM,
+    TORIRSSERVER_PACK_HITSPLAT,
+    TORIRSSERVER_PACK_HEALTHBAR,
     /*
      * Sound effects, `pack/4_soundeffects.pack`, where the id *is* the name
      * (`1352=synth_1352`).
@@ -91,7 +91,7 @@ enum Mock230PackKind
      * every weapon swings the `attack_sound_stanceN` default. See
      * docs/WEAPON_FX.md §6.6.
      */
-    MOCK230_PACK_SYNTH,
+    TORIRSSERVER_PACK_SYNTH,
     /*
      * The server's own namespaces.
      *
@@ -106,12 +106,12 @@ enum Mock230PackKind
      * cache's (an obj record's config opcode 94) and only the *name* is ours, so
      * it has a pack file and no allocator.
      */
-    MOCK230_PACK_ENUM,
-    MOCK230_PACK_STRUCT,
-    MOCK230_PACK_DBTABLE,
-    MOCK230_PACK_DBROW,
-    MOCK230_PACK_CATEGORY,
-    MOCK230_PACK_COUNT
+    TORIRSSERVER_PACK_ENUM,
+    TORIRSSERVER_PACK_STRUCT,
+    TORIRSSERVER_PACK_DBTABLE,
+    TORIRSSERVER_PACK_DBROW,
+    TORIRSSERVER_PACK_CATEGORY,
+    TORIRSSERVER_PACK_COUNT
 };
 
 /**
@@ -124,7 +124,7 @@ enum Mock230PackKind
  * loadable and unnameable.
  */
 const char*
-mock230_content_pack_name(enum Mock230PackKind kind);
+ToriRSServer_ContentPackName(enum ToriRSServerPackKind kind);
 
 /** The `default=` declared for a param in `configs/all.param`, or 0 when it
  *  declares none — the cache decoder's own zeroed-record value. This is what
@@ -132,19 +132,19 @@ mock230_content_pack_name(enum Mock230PackKind kind);
  *  469 declared defaults are -1, so 0-for-absent and -1 are both real answers
  *  and neither is a sentinel. */
 int
-mock230_content_param_default(int param_id);
+ToriRSServer_ContentParamDefault(int param_id);
 
 /** Id for a symbol, or -1. `null` resolves to -1 without a diagnostic, which is
  *  what LostCity's `default=null` params mean. */
 int
-mock230_content_symbol(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbol(
+    enum ToriRSServerPackKind kind,
     const char* name);
 
 /*
  * The same lookup, but able to say *why* it answered -1.
  *
- * `mock230_content_symbol` cannot: it maps the literal `null` to -1 by design —
+ * `ToriRSServer_ContentSymbol` cannot: it maps the literal `null` to -1 by design —
  * that is what `param=death_drop,null` means — and it maps a name nothing knows
  * to -1 as well. A caller that only sees the number cannot tell "the author said
  * nothing" from "the author misspelled `bones`", so `param=death_drop,bones_TYPO`
@@ -160,8 +160,8 @@ mock230_content_symbol(
  *   0, *out_id = -1   nothing in that namespace is spelled this way
  */
 int
-mock230_content_symbol_checked(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolChecked(
+    enum ToriRSServerPackKind kind,
     const char* name,
     int* out_id);
 
@@ -177,8 +177,8 @@ mock230_content_symbol_checked(
  * which a name-to-id lookup cannot express.
  */
 int
-mock230_content_symbol_walk(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolWalk(
+    enum ToriRSServerPackKind kind,
     int index,
     int* out_id,
     const char** out_name);
@@ -186,8 +186,8 @@ mock230_content_symbol_walk(
 /** Symbol for an id, or NULL. Only for diagnostics — the reverse map is a
  *  linear scan. */
 const char*
-mock230_content_symbol_name(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolName(
+    enum ToriRSServerPackKind kind,
     int symbol_id);
 
 /*
@@ -200,12 +200,12 @@ mock230_content_symbol_name(
  * once at boot, and nothing downstream holds a literal.
  *
  * A name that does not resolve leaves its `out` at -1, prints, and counts
- * towards mock230_content_error_count — the same treatment a bad config line
+ * towards ToriRSServer_ContentErrorCount — the same treatment a bad config line
  * gets, because it is the same mistake.
  */
-struct Mock230SymbolRef
+struct ToriRSServerSymbolRef
 {
-    enum Mock230PackKind kind;
+    enum ToriRSServerPackKind kind;
     const char* name;
     int* out;
 };
@@ -213,9 +213,9 @@ struct Mock230SymbolRef
 /** Resolve `count` refs; returns how many failed. `what` names the caller in
  *  the diagnostic ("bank", "prayer"). */
 int
-mock230_content_resolve(
+ToriRSServer_ContentResolve(
     const char* what,
-    const struct Mock230SymbolRef* refs,
+    const struct ToriRSServerSymbolRef* refs,
     int count);
 
 /* ------------------------------------------------------------------ */
@@ -236,12 +236,12 @@ mock230_content_resolve(
 
 /** The literal text of `^name` (with or without the caret), or NULL. */
 const char*
-mock230_content_constant(const char* name);
+ToriRSServer_ContentConstant(const char* name);
 
 /** `^name` as a number. Missing or non-numeric yields `fallback` and a
  *  diagnostic — a constant the engine reads is content it needs. */
 int
-mock230_content_constant_int(
+ToriRSServer_ContentConstantInt(
     const char* name,
     int fallback);
 
@@ -258,25 +258,25 @@ mock230_content_constant_int(
  * +6 strengthbonus, attackrate 4). So the loader can seed every bonus from the
  * cache and a `param=` line in a config is a genuine override.
  *
- * Ordering is load-bearing twice over: `MOCK230_PARAM_STABATTACK + style` picks
- * the attack bonus for a damage type and `+ MOCK230_PARAM_STABDEFENCE` the
+ * Ordering is load-bearing twice over: `TORIRSSERVER_PARAM_STABATTACK + style` picks
+ * the attack bonus for a damage type and `+ TORIRSSERVER_PARAM_STABDEFENCE` the
  * defence one, exactly as OpenRune's MeleeCombatFormula indexes BonusSlot.
  */
-enum Mock230CombatParam
+enum ToriRSServerCombatParam
 {
-    MOCK230_PARAM_STABATTACK = 0,
-    MOCK230_PARAM_SLASHATTACK = 1,
-    MOCK230_PARAM_CRUSHATTACK = 2,
-    MOCK230_PARAM_MAGICATTACK = 3,
-    MOCK230_PARAM_RANGEATTACK = 4,
-    MOCK230_PARAM_STABDEFENCE = 5,
-    MOCK230_PARAM_SLASHDEFENCE = 6,
-    MOCK230_PARAM_CRUSHDEFENCE = 7,
-    MOCK230_PARAM_MAGICDEFENCE = 8,
-    MOCK230_PARAM_RANGEDEFENCE = 9,
-    MOCK230_PARAM_STRENGTHBONUS = 10,
-    MOCK230_PARAM_PRAYERBONUS = 11,
-    MOCK230_PARAM_BONUS_COUNT = 12,
+    TORIRSSERVER_PARAM_STABATTACK = 0,
+    TORIRSSERVER_PARAM_SLASHATTACK = 1,
+    TORIRSSERVER_PARAM_CRUSHATTACK = 2,
+    TORIRSSERVER_PARAM_MAGICATTACK = 3,
+    TORIRSSERVER_PARAM_RANGEATTACK = 4,
+    TORIRSSERVER_PARAM_STABDEFENCE = 5,
+    TORIRSSERVER_PARAM_SLASHDEFENCE = 6,
+    TORIRSSERVER_PARAM_CRUSHDEFENCE = 7,
+    TORIRSSERVER_PARAM_MAGICDEFENCE = 8,
+    TORIRSSERVER_PARAM_RANGEDEFENCE = 9,
+    TORIRSSERVER_PARAM_STRENGTHBONUS = 10,
+    TORIRSSERVER_PARAM_PRAYERBONUS = 11,
+    TORIRSSERVER_PARAM_BONUS_COUNT = 12,
     /*
      * How many authored `param=` rows one npc block can carry, for the by-id
      * copy `npc_param` reads. `apply_param` knows twenty-three names — the
@@ -289,7 +289,7 @@ enum Mock230CombatParam
      * boss ghost) state 26 rows each, and the ceiling is what decides how many
      * of them a script can read back.
      */
-    MOCK230_NPCDEF_PARAM_MAX = 32
+    TORIRSSERVER_NPCDEF_PARAM_MAX = 32
 };
 
 /* Cache param ids that are not bonuses. `ATTACKRATE` is ticks between swings;
@@ -297,17 +297,17 @@ enum Mock230CombatParam
  * from the contiguous block for reasons of its own. */
 enum
 {
-    MOCK230_CACHE_PARAM_ATTACKRATE = 14,
-    MOCK230_CACHE_PARAM_RANGEBONUS = 189,
+    TORIRSSERVER_CACHE_PARAM_ATTACKRATE = 14,
+    TORIRSSERVER_CACHE_PARAM_RANGEBONUS = 189,
 };
 
 /* Damage types, matching LostCity's `damagetype` param: which of the three
  * melee bonuses a swing rolls with, and which defence it rolls against. */
-enum Mock230DamageType
+enum ToriRSServerDamageType
 {
-    MOCK230_DAMAGE_STAB = 0,
-    MOCK230_DAMAGE_SLASH = 1,
-    MOCK230_DAMAGE_CRUSH = 2,
+    TORIRSSERVER_DAMAGE_STAB = 0,
+    TORIRSSERVER_DAMAGE_SLASH = 1,
+    TORIRSSERVER_DAMAGE_CRUSH = 2,
 };
 
 /* ------------------------------------------------------------------ */
@@ -315,20 +315,20 @@ enum Mock230DamageType
 /* ------------------------------------------------------------------ */
 
 /** LostCity `huntmode`: whether an npc starts fights on its own. */
-enum Mock230HuntMode
+enum ToriRSServerHuntMode
 {
-    MOCK230_HUNT_NONE = 0,
-    MOCK230_HUNT_AGGRESSIVE,
+    TORIRSSERVER_HUNT_NONE = 0,
+    TORIRSSERVER_HUNT_AGGRESSIVE,
 };
 
 /** Waypoints one patrol route may carry. The reference's longest is ten. */
-#define MOCK230_NPC_PATROL_MAX 16
+#define TORIRSSERVER_NPC_PATROL_MAX 16
 
 /** `healthbar` unstated: the encoder substitutes the standard bar. Distinct
  *  from -1, which is `healthbar=null` — a record saying it has no bar. */
-#define MOCK230_NPC_HEALTHBAR_UNSET (-2)
+#define TORIRSSERVER_NPC_HEALTHBAR_UNSET (-2)
 
-struct Mock230NpcDef
+struct ToriRSServerNpcDef
 {
     int npc_id;
     /** Points into the pack's own storage; never freed separately. */
@@ -368,7 +368,7 @@ struct Mock230NpcDef
      *
      * The cache carries this field and the client honours it, but the *server*
      * is what sets the FACE_ENTITY latch an npc turns toward, and the server
-     * boots from whichever cache MOCK230_CACHE_DIR names — normally the
+     * boots from whichever cache TORIRSSERVER_CACHE_DIR names — normally the
      * pristine one, not a bake. A fixture that must not turn therefore has to
      * say so somewhere the server reads unconditionally, or it turns on the
      * wire and only a baked client stops it on screen.
@@ -377,7 +377,7 @@ struct Mock230NpcDef
     /**
      * The compass direction this npc spawns facing, in the client's turn-angle
      * index (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE — see `face_dir` on
-     * `struct Mock230Npc`). -1 = not stated, use the engine default (south).
+     * `struct ToriRSServerNpc`). -1 = not stated, use the engine default (south).
      *
      * `npc_spawn` seeds `face_dir` once and nothing revisits it for an npc
      * that never steps, so a boss with `moverestrict=nomove` is stuck in
@@ -388,7 +388,7 @@ struct Mock230NpcDef
      */
     int facing;
 
-    enum Mock230HuntMode huntmode;
+    enum ToriRSServerHuntMode huntmode;
     int huntrange;
     /**
      * How far from its spawn tile this npc will follow a target — LostCity's
@@ -405,7 +405,7 @@ struct Mock230NpcDef
     /**
      * `retaliate=no`: being hit does not give this npc a target.
      *
-     * Ours, not the reference's. `mock230_combat_hit_npc` fights back for any
+     * Ours, not the reference's. `ToriRSServer_CombatHitNpc` fights back for any
      * npc that is hit "whatever its hunt mode says", which is right for
      * everything that fights and wrong for the handful of npcs that are scenery
      * with hitpoints. `givechase=no` is not the same statement — it drops the
@@ -430,7 +430,7 @@ struct Mock230NpcDef
      * scale the fill is expressed in.
      *
      * `healthbar=null` is that absence, spelled. Ours defaults to
-     * `MOCK230_NPC_HEALTHBAR_UNSET` rather than to the standard bar's id
+     * `TORIRSSERVER_NPC_HEALTHBAR_UNSET` rather than to the standard bar's id
      * because the id is a symbol resolved after this default is seeded; the
      * encoder substitutes `healthbar_0` for the sentinel, so an npc that says
      * nothing keeps exactly the bar it has today.
@@ -463,7 +463,7 @@ struct Mock230NpcDef
     int hitsplat;
 
     /* Seeded from the cache's params, overridable with `param=`. */
-    int bonus[MOCK230_PARAM_BONUS_COUNT];
+    int bonus[TORIRSSERVER_PARAM_BONUS_COUNT];
     int attackrate;
     int attackrange;
     int damagetype;
@@ -495,7 +495,7 @@ struct Mock230NpcDef
      * reads, because a script names a param by id and has no way back to a C
      * field name. Rank 1 in CONTENT_ARCHITECTURE.md §3.1's sense — an authored
      * overlay value that overrides the cache record's own param table — so the
-     * opcode reads this first and `mock230_npc_param` second.
+     * opcode reads this first and `ToriRSServer_NpcParam` second.
      *
      * Only params whose name the pack knows land here. `death_drop` (2634) is
      * the one that has always been script-visible, and it was visible by having
@@ -505,7 +505,7 @@ struct Mock230NpcDef
     {
         int32_t key;
         int32_t value;
-    } params[MOCK230_NPCDEF_PARAM_MAX];
+    } params[TORIRSSERVER_NPCDEF_PARAM_MAX];
     int param_count;
 
     /** The block stated `hitpoints=`. Everything else has a defensible
@@ -535,7 +535,7 @@ struct Mock230NpcDef
         int level;
         /** Ticks to stand still on arrival before moving to the next one. */
         int pause;
-    } patrol[MOCK230_NPC_PATROL_MAX];
+    } patrol[TORIRSSERVER_NPC_PATROL_MAX];
     int patrol_count;
     /** The mode an npc starts in and returns to. Only meaningful when
      *  `defaultmode_stated` is set; a `wanderrange` still implies wander, which
@@ -544,10 +544,10 @@ struct Mock230NpcDef
     /**
      * Whether a block actually SAID `defaultmode=`.
      *
-     * Needed because `MOCK230_NPCMODE_NONE` is zero, so "the block asked for
+     * Needed because `TORIRSSERVER_NPCMODE_NONE` is zero, so "the block asked for
      * none" and "the block said nothing" were the same value, and
-     * `mock230_world_npc_default_mode` distinguished them with
-     * `if( def->defaultmode != MOCK230_NPCMODE_NONE )`. That test can never be
+     * `ToriRSServer_WorldNpcDefaultMode` distinguished them with
+     * `if( def->defaultmode != TORIRSSERVER_NPCMODE_NONE )`. That test can never be
      * true for `none`: every `defaultmode=none` line in the tree — 90-odd of
      * them, most of the Theatre of Blood roster among them — was a no-op, and
      * the npc silently kept the wander it was trying to turn off.
@@ -570,14 +570,14 @@ struct Mock230NpcDef
 /** Definition for an npc type, or NULL when the content tree has no block for
  *  it. Every caller must cope with NULL: a spawn is allowed to name an npc that
  *  no config describes, and gets engine defaults. */
-const struct Mock230NpcDef*
-mock230_content_npc(int npc_id);
+const struct ToriRSServerNpcDef*
+ToriRSServer_ContentNpc(int npc_id);
 
 /** Engine defaults, which are OpenRune's NpcCombatDef.DEFAULT: 10 hitpoints,
  *  4-tick attacks, a 3-tick corpse, 25-tick respawn, human unarmed animations.
  *  Never NULL. */
-const struct Mock230NpcDef*
-mock230_content_npc_default(void);
+const struct ToriRSServerNpcDef*
+ToriRSServer_ContentNpcDefault(void);
 
 /**
  * An authored `param=` row off an npc block, by param id.
@@ -590,13 +590,13 @@ mock230_content_npc_default(void);
  * A NULL def reports 0, so the caller does not branch twice.
  */
 int
-mock230_content_npc_param(
-    const struct Mock230NpcDef* def,
+ToriRSServer_ContentNpcParam(
+    const struct ToriRSServerNpcDef* def,
     int param_id,
     int32_t* out);
 
-/* Obj bonuses are not repeated here: they live on `struct Mock230ObjInfo` in
- * mock230.h, beside the wearpos fields, because both come out of the same
+/* Obj bonuses are not repeated here: they live on `struct ToriRSServerObjInfo` in
+ * torirs_server.h, beside the wearpos fields, because both come out of the same
  * one-pass decode of the obj config group. A second decode to build a parallel
  * table would cost a tenth of a second at boot and buy nothing. */
 
@@ -618,7 +618,7 @@ mock230_content_npc_param(
  * scripts and no persistence. They exist so a config shared with a LostCity
  * tree keeps its meaning rather than being quietly dropped.
  */
-struct Mock230VarpDef
+struct ToriRSServerVarpDef
 {
     int varp_id;
     const char* symbol;
@@ -633,7 +633,7 @@ struct Mock230VarpDef
      *
      * The escape hatch for docs/LOSTCITY_PORT_TRIAGE.md §7.5's class, and it is
      * declared in content because two readers need the same answer: sscompile
-     * refuses the write without it, and `mock230_world.c` counts one at runtime
+     * refuses the write without it, and `torirs_server_world.c` counts one at runtime
      * for the writers a compiler cannot see (a `::` cheat, C, a packet). See
      * `fields/varp.ini`.
      */
@@ -643,8 +643,8 @@ struct Mock230VarpDef
 /** Declaration for a varp, or NULL when nothing declared it. An undeclared
  *  varp is server-only — the safe default, and the one that keeps the mock's
  *  own bookkeeping variables off the wire. */
-const struct Mock230VarpDef*
-mock230_content_varp(int varp_id);
+const struct ToriRSServerVarpDef*
+ToriRSServer_ContentVarp(int varp_id);
 
 /* ------------------------------------------------------------------ */
 /* Enums                                                               */
@@ -662,7 +662,7 @@ mock230_content_varp(int varp_id);
  * Order is preserved. The gameframe is mounted in the order it is listed, and
  * the chatbox has to exist before anything writes to it.
  */
-struct Mock230EnumValue
+struct ToriRSServerEnumValue
 {
     int key;
     int value;
@@ -673,17 +673,17 @@ struct Mock230EnumValue
     const char* text;
 };
 
-struct Mock230EnumDef
+struct ToriRSServerEnumDef
 {
     const char* symbol;
-    enum Mock230PackKind input_kind;
-    enum Mock230PackKind output_kind;
+    enum ToriRSServerPackKind input_kind;
+    enum ToriRSServerPackKind output_kind;
     /*
      * Whether each side is *text* rather than a number.
      *
      * `input_kind`/`output_kind` cannot carry this: they name the pack a side
      * resolves against, and both `int` and `string` resolve against no pack at
-     * all, so both arrive as MOCK230_PACK_COUNT. The RuneScript `enum` opcode
+     * all, so both arrive as TORIRSSERVER_PACK_COUNT. The RuneScript `enum` opcode
      * has to know the difference because the output type decides which *stack*
      * it pushes onto — get it wrong and every later value in the script is read
      * off the wrong stack.
@@ -697,14 +697,14 @@ struct Mock230EnumDef
     /** Heap-owned. Growable: the cache's `configs/all.enum` has enums with
      *  more than a thousand values (max measured 1658), and a fixed 256-slot
      *  array was the reason ServerScript could not read those tables. */
-    struct Mock230EnumValue* values;
+    struct ToriRSServerEnumValue* values;
     int count;
     int capacity;
 };
 
 /** An enum by name, or NULL. */
-const struct Mock230EnumDef*
-mock230_content_enum(const char* symbol);
+const struct ToriRSServerEnumDef*
+ToriRSServer_ContentEnum(const char* symbol);
 
 /**
  * An enum by the id the `enum` namespace gives its name, or NULL.
@@ -713,33 +713,33 @@ mock230_content_enum(const char* symbol);
  * script carries the *number* tools/ss_allocate.py assigned, never the name. The
  * two lookups are the same table read two ways rather than two tables.
  */
-const struct Mock230EnumDef*
-mock230_content_enum_by_id(int enum_id);
+const struct ToriRSServerEnumDef*
+ToriRSServer_ContentEnumById(int enum_id);
 
 /* ------------------------------------------------------------------ */
 /* Loc definitions (doors, gates, stairs)                              */
 /* ------------------------------------------------------------------ */
 
-struct Mock230LocDef
+struct ToriRSServerLocDef
 {
     int loc_id;
     const char* symbol;
     /**
      * A `category` id, resolved through `pack/category.pack`, or -1.
      *
-     * This was a private two-valued door enum (`MOCK230_LOC_CATEGORY_DOOR_CLOSED`
+     * This was a private two-valued door enum (`TORIRSSERVER_LOC_CATEGORY_DOOR_CLOSED`
      * / `_OPENED`) until 2026-08-02, and the enum was wrong in the way that is
      * worst: it *aliased* onto the real namespace. Its values were 1 and 2, which
      * are `weapon_staff` and — nothing yet, but the next crawl could name it — so
      * handing it to `SSVM_ProviderGetByTrigger` as a category would have bound
      * every door in the game to a weapon's scripts. `interaction_category` in
-     * `mock230_world.c` answered -1 for locs rather than risk it, and that -1 was
+     * `torirs_server_world.c` answered -1 for locs rather than risk it, and that -1 was
      * the whole reason `[oploc1,_door_closed]` could not bind.
      *
      * It is one id space now: the cache's own opcode 61 for the 8,407 records
      * that state one, and ids from `content.ini`'s `server_base` for concepts the
      * cache does not group (`door_closed` is 8192). Read it through
-     * `mock230_loc_category`, which applies the overlay-then-cache order; this
+     * `ToriRSServer_LocCategory`, which applies the overlay-then-cache order; this
      * field is only the overlay's half.
      */
     int category;
@@ -751,34 +751,34 @@ struct Mock230LocDef
 /*
  * A `.loc` block's `op1=`..`op5=` are deliberately NOT a field here.
  *
- * They go straight to `mock230_scene_loc_op_overlay` as they are parsed, because
- * the only reader is `mock230_scene_loc_op` and `mock230_scene.c` is the half of
+ * They go straight to `ToriRSServer_SceneLocOpOverlay` as they are parsed, because
+ * the only reader is `ToriRSServer_SceneLocOp` and `torirs_server_scene.c` is the half of
  * the server that knows nothing about a content tree — `collision_doors_test`
  * links it against the cache alone. Storing them here and having the scene pull
  * them back out would reverse that, for no gain: nothing else asks a loc def
  * what its ops are.
  */
 
-const struct Mock230LocDef*
-mock230_content_loc(int loc_id);
+const struct ToriRSServerLocDef*
+ToriRSServer_ContentLoc(int loc_id);
 
 /** The authored loc defs by position, NULL past the end. For the callers that
- *  have to walk every one of them — `mock230_loc_category_members` counts the
+ *  have to walk every one of them — `ToriRSServer_LocCategoryMembers` counts the
  *  overlay's rows the way it counts the cache's. */
-const struct Mock230LocDef*
-mock230_content_loc_at(int index);
+const struct ToriRSServerLocDef*
+ToriRSServer_ContentLocAt(int index);
 
 /* ------------------------------------------------------------------ */
 /* Map spawns (content/maps/m<x>_<z>.jm2)                              */
 /* ------------------------------------------------------------------ */
 
-struct Mock230MapNpcSpawn
+struct ToriRSServerMapNpcSpawn
 {
     int npc_id;
     int x, z, level; /* absolute tile */
 };
 
-struct Mock230MapObjSpawn
+struct ToriRSServerMapObjSpawn
 {
     int obj_id;
     int count;
@@ -786,8 +786,8 @@ struct Mock230MapObjSpawn
 };
 
 /** Every npc spawn in the tree, in file order. */
-const struct Mock230MapNpcSpawn*
-mock230_content_npc_spawns(int* count);
+const struct ToriRSServerMapNpcSpawn*
+ToriRSServer_ContentNpcSpawns(int* count);
 
 /**
  * What `configs/all.param` declares param `param_id`'s value to be, as the
@@ -799,10 +799,10 @@ mock230_content_npc_spawns(int* count);
  * opcodes are marked `runtime_typed`.
  */
 char
-mock230_content_param_type(int param_id);
+ToriRSServer_ContentParamType(int param_id);
 
-const struct Mock230MapObjSpawn*
-mock230_content_obj_spawns(int* count);
+const struct ToriRSServerMapObjSpawn*
+ToriRSServer_ContentObjSpawns(int* count);
 
 /* ------------------------------------------------------------------ */
 /* Loading                                                             */
@@ -811,7 +811,7 @@ mock230_content_obj_spawns(int* count);
 /**
  * Read the whole tree.
  *
- * **Call after `mock230_objinfo_load` and `mock230_npcinfo_load`.** Bonuses,
+ * **Call after `ToriRSServer_ObjInfoLoad` and `ToriRSServer_NpcInfoLoad`.** Bonuses,
  * attack rate and damage type are seeded from the cache params those two
  * already decoded, and the config blocks overlay that. Loading in the other
  * order silently produces npcs with no bonuses, which reads as a combat-formula
@@ -822,14 +822,14 @@ mock230_content_obj_spawns(int* count);
  * an absent script pack falls back to the hardcoded C behaviour.
  */
 int
-mock230_content_load(const char* dir);
+ToriRSServer_ContentLoad(const char* dir);
 
 /* ------------------------------------------------------------------ */
 /* The server band (server/pack)                                       */
 /* ------------------------------------------------------------------ */
 
-/** What `mock230_content_load_server_band` found, for the boot log. */
-struct Mock230BandReport
+/** What `ToriRSServer_ContentLoadServerBand` found, for the boot log. */
+struct ToriRSServerBandReport
 {
     /** Band archives that opened and decoded, across every registered type. */
     int archives;
@@ -846,28 +846,28 @@ struct Mock230BandReport
      *  Expected during migration; reported per field, never fatal. */
     int text_only;
     /** Band archives over records the runtime never loads: no def, and the
-     *  seed is blind to the cache record (`mock230_npcinfo_known` — the
+     *  seed is blind to the cache record (`ToriRSServer_NpcInfoKnown` — the
      *  nameless multinpc instances). Nothing exists to compare them against
      *  and nothing is applied from them. */
     int unseeded;
 };
 
-/** `mock230_content_load_server_band` results. */
-enum Mock230BandStatus
+/** `ToriRSServer_ContentLoadServerBand` results. */
+enum ToriRSServerBandStatus
 {
     /** Verified identical to the text parse and applied over it. */
-    MOCK230_BAND_LOADED = 1,
-    /** No `server/pack` on disk — run `cachepack pack` (make mock230-servpack). */
-    MOCK230_BAND_MISSING = 0,
+    TORIRSSERVER_BAND_LOADED = 1,
+    /** No `server/pack` on disk — run `cachepack pack` (make torirsserver-servpack). */
+    TORIRSSERVER_BAND_MISSING = 0,
     /** Present but stale: a CRC/header refusal or a value disagreeing with the
      *  text parse. Nothing was applied; the text-loaded records stand. */
-    MOCK230_BAND_STALE = -1,
+    TORIRSSERVER_BAND_STALE = -1,
 };
 
 /**
  * The band load path: read `<dir>/server/pack`, prove it equivalent, prefer it.
  *
- * **Call after `mock230_content_load`** — the proof is against what that pass
+ * **Call after `ToriRSServer_ContentLoad`** — the proof is against what that pass
  * loaded, and the seeds come from the cache tables plus the text `[default]`
  * block it applied.
  *
@@ -880,13 +880,13 @@ enum Mock230BandStatus
  * is running on. Any refusal leaves the text parse standing, which is the
  * migration fallback PORTING_GUIDE §3.6 describes.
  */
-enum Mock230BandStatus
-mock230_content_load_server_band(
+enum ToriRSServerBandStatus
+ToriRSServer_ContentLoadServerBand(
     const char* dir,
-    struct Mock230BandReport* report);
+    struct ToriRSServerBandReport* report);
 
 void
-mock230_content_free(void);
+ToriRSServer_ContentFree(void);
 
 /**
  * Is this tile in a multi-combat zone? — `maps/multiway.csv`, the reference's
@@ -899,24 +899,24 @@ mock230_content_free(void);
  * restrictive rule.
  */
 int
-mock230_content_multiway(
+ToriRSServer_ContentMultiway(
     int x,
     int z,
     int level);
 
 /** Diagnostics: what the last load rejected. Zero means the tree is clean. */
 int
-mock230_content_error_count(void);
+ToriRSServer_ContentErrorCount(void);
 
 /**
  * Report a rejected config line from *another* reader, counting it here.
  *
- * `mock230_db.c` reads `.dbtable`/`.dbrow` and has to fail the same way this file
+ * `torirs_server_db.c` reads `.dbtable`/`.dbrow` and has to fail the same way this file
  * does, or a tree with a broken dbrow starts anyway and the fight is quietly
  * wrong. One counter, one prefix, one exit status.
  */
 void
-mock230_content_report_error(
+ToriRSServer_ContentReportError(
     const char* fmt,
     ...);
 

@@ -602,7 +602,7 @@ fire anywhere it was not already wrong.
 
 ```sh
 # build the lane's cache and the client
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 ./build_windows.ps1 -Opt                     # or: make -C src release
 
 # 1. see it (or not) — 850 frames, exit with a screenshot
@@ -794,7 +794,7 @@ footprint is now `[4224, 5760)` and its geometry `[4288, 5668]` sits inside.
 is the side an authored size can always reach.
 
 Both slabs are `blockwalk=0 blockrange=0`, and both collision writers gate on
-`blocks_walk != 0` (`world_collision.u.c:109`, `mock230_scene.c:353`), so
+`blocks_walk != 0` (`world_collision.u.c:109`, `torirs_server_scene.c:353`), so
 neither the anchor nor the size nor the offset reaches the walk map or the
 collision map.
 
@@ -831,7 +831,7 @@ looks like content, not like a bug.
 
 ```sh
 python3 tools/test_rs2012_map_port.py
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 ```
 
 ### The rest of the lane

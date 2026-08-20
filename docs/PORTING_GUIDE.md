@@ -29,7 +29,7 @@ Four repositories:
 
 | repo | what it is |
 |---|---|
-| this repo (`3draster`) | the client, the server (`src/net/mock/`, "mock230" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
+| this repo (`3draster`) | the client, the server (`src/torirsserver/`, "ToriRSServer" — a misnomer, it is *the* server), ServerScript (`src/serverscript/`), cachepack (`3rd/rscache/tools/cachepack/`) |
 | `OSRS-Content/osrs239-content` (submodule) | **the content tree** — the destination for all ported content |
 | `/Users/matthewevers/Documents/git_repos/LostCity_Server` | **the primary content reference.** `engine/` = Engine-TS (branch `254_zuk`), `content/` = the content tree (branch `254_inferno`). Rev **254** (Sept 2004), not 225 — the `_unpack/225` dir is decompiled reference data, not the tree itself |
 | `/Users/matthewevers/Documents/git_repos/2009scape` | **authentic mid-era (~Jan 2009 / rev 530) behaviour reference** (Java/Kotlin). Prefer over Kronos for anything that existed by 2009 (farming, hunter, construction, slayer, Pest Control, Barrows, mid-era quests). Never copy rev-530 ids; skip bots/holiday/RS2-only. **Summoning is no longer skipped** — it is a flagged port with its own queue: [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md). Queue: [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) |
@@ -59,10 +59,10 @@ OSRS-Content/osrs239-content/                ← source of truth for what it sta
       │ cachepack pack   (ONE baker, merges rank0+rank1, splits per fields/*.ini)
       ├────────► client cache (--out)   native fields + param:N projections + gamevals
       └────────► server/pack            opcode 64..255 bands + idx-128+ name tables
-      │ make -C src mock230-scripts     (ss_allocate.py → sscompile)
+      │ make -C src torirsserver-scripts     (ss_allocate.py → sscompile)
       └────────► server/scripts/build/{script.dat,script.idx}
 
-mock230 boot (mock230_boot.c — the order is a function, not a convention):
+ToriRSServer boot (torirs_server_boot.c — the order is a function, not a convention):
   cache.osrs239.baked  → obj/npc/seq/varbit configs, collision (client's own
                          collision_map.c, LINKED not reimplemented — flags and
                          routing), inv sizes — same bake the client boots
@@ -136,11 +136,11 @@ Measured from the reference (details in the triage and in
 | subsystem | owner | evidence |
 |---|---|---|
 | tick loop, 11 phases | ENGINE | `engine/src/engine/World.ts` `cycle()` |
-| pathfinding/collision | ENGINE | `rsmod-pathfinder` npm; here: linked client `collision_map.c` (tile flags **and** routing — `collision_map_route_tiles` / `collision_map_reached`, used by both `app.c` and `mock230_scene.c`) |
+| pathfinding/collision | ENGINE | `rsmod-pathfinder` npm; here: linked client `collision_map.c` (tile flags **and** routing — `collision_map_route_tiles` / `collision_map_reached`, used by both `app.c` and `torirs_server_scene.c`) |
 | op/ap interaction resolution | ENGINE | `Player.tryInteract` |
 | npc modes (wander/patrol/follow), hunt *mechanism* | ENGINE | `Npc.ts`, `HuntType.ts` |
 | queues/timers/delays *primitives* | ENGINE | `ScriptState` suspension |
-| player/npc info streams, packets | ENGINE | `rsbuf`; here: `rsareabuf` + `mock230_encode.c` |
+| player/npc info streams, packets | ENGINE | `rsbuf`; here: `rsareabuf` + `torirs_server_encode.c` |
 | **combat — all formulas, styles, spec, poison, pvp** | **CONTENT** | `skill_combat/` 52 files; engine has zero combat logic |
 | **shops** | **CONTENT** | `shop/scripts/shop.rs2` + varps/params/interfaces |
 | **dialogue trees** | **CONTENT** | engine provides `chatnpc`/`chatplayer`/`p_countdialog` ops only |
@@ -173,16 +173,16 @@ Any "yes" means write content instead of engine code:
    the register/namespace is the bug. Fix the namespace policy. **"A
    namespace that cannot grow is a bug, not a constraint."**
 5. Are you about to spell a script's name in C? → dispatch a trigger
-   instead. (The **10** named hooks in `mock230_scripts.c` are the
+   instead. (The **10** named hooks in `torirs_server_scripts.c` are the
    sanctioned exceptions — this line said 9 until 2026-08-01 and 11 until
    2026-08-02, which is the same decay item 7 is about; the list has now gone
-   both ways, `equip_level_message` coming off with `MOCK230_FALLBACK_OPHELD`. Do not grow that list casually,
+   both ways, `equip_level_message` coming off with `TORIRSSERVER_FALLBACK_OPHELD`. Do not grow that list casually,
    and note it is not the whole surface: `[proc,npc_default_chat]` goes
-   through `mock230_scripts_run_proc_on_npc` and the `mock230_say` family
+   through `ToriRSServer_ScriptsRunProcOnNpc` and the `ToriRSServer_Say` family
    names scripts outside the table.)
 6. Are you about to write C that runs "when content binds nothing"? → it is a
-   row in `enum Mock230Fallback` or it does not exist. That list is four long,
-   row in `enum Mock230Fallback` or it does not exist. That list is five long,
+   row in `enum ToriRSServerFallback` or it does not exist. That list is four long,
+   row in `enum ToriRSServerFallback` or it does not exist. That list is five long,
    each row names its blocker, and the selftest pins the count: it shrinks as
    the opcode surface widens (§2.5), and adding to it is not a choice a content
    port gets to make. See `osrs230_mockserver.md` §3.18.
@@ -195,7 +195,7 @@ Any "yes" means write content instead of engine code:
    categories" at every boot for two stages after categories landed — including
    through the commit whose own subject line was "the AI_QUEUE3 category rung".
    An expired reason is indistinguishable from a live one by reading.
-   `mock230_scripts_stale_blockers` catches the opcode-shaped half automatically
+   `ToriRSServer_ScriptsStaleBlockers` catches the opcode-shaped half automatically
    — the selftest goes red the day a cited opcode lands. The rest (a volume of C,
    an entity kind with no writer, two component lists that disagree) is on you,
    which is why each row cites the one command that settles it.
@@ -209,7 +209,7 @@ deleting C.
 Two things the first batch turned up, both worth knowing before the next one:
 **a move is a test**. Seeding hitpoints as xp instead of as a level made the
 engine compute the level for the first time and it came out 9, because
-`level_for_xp` (now `mock230_combat_level_for_xp`) summed the xp formula's
+`level_for_xp` (now `ToriRSServer_CombatLevelForXp`) summed the xp formula's
 terms without the reference's per-term `floor` — 94 of the 98 thresholds were
 one xp too high, invisible for as long as the only caller stated the level and
 the xp as two independent literals. Player saves store boosted + xp only and
@@ -229,18 +229,18 @@ derive base on load; `::setlevel` writes the matching XP threshold.
   visible: the C set only the SAY mask, which this client stores and never
   draws.
 - ~~four raw `"Nothing interesting happens."` literals~~ — **moved**, one
-  `[proc,nothing_interesting_message]` behind `mock230_say`
+  `[proc,nothing_interesting_message]` behind `ToriRSServer_Say`
 - ~~default appearance kit `k_default_kits[12]`~~ — **moved**,
   `player/configs/appearance.enum`, read by the encoder the way
-  `mock230_equipment.c` already reads `worn_slots`
+  `torirs_server_equipment.c` already reads `worn_slots`
 - ~~the npc `death_drop` fallback~~ — **moved** 2026-08-01, `[ai_queue3,_]` in
-  `skill_combat/npc_combat.rs2`; `enum Mock230Fallback` 7 → **6**. Not a
+  `skill_combat/npc_combat.rs2`; `enum ToriRSServerFallback` 7 → **6**. Not a
   trivial move by the list above's definition — it is the first completed
   Phase 3 eviction — but it belongs here because the *blocker* was trivial:
   there was not one. See below and `osrs230_mockserver.md` §3.18.
 - ~~the ground-obj take~~ — **moved** 2026-08-02, `[opobj3,_]` in
   `player/scripts/pickup.rs2` over five new `obj_*` opcodes and a new active-obj
-  entity binding; `enum Mock230Fallback` 6 → **5**. The second completed
+  entity binding; `enum ToriRSServerFallback` 6 → **5**. The second completed
   eviction and the first whose *order* was measured: the two selftest legs that
   assert the take stayed **green** under "unbind the script" while the C was
   still present (the fallback answered them) and turn red only after it is gone
@@ -248,7 +248,7 @@ derive base on load; `::setlevel` writes the matching XP threshold.
   is not a formality. `osrs230_mockserver.md` §3.18.
 - ~~wear/wield and drop~~ — **moved** 2026-08-02, `[opheld2,_] ~equip(last_slot)`
   and `[opheld5,_] ~dropslot(last_slot)` in `player/scripts/{equip,drop}.rs2`;
-  `enum Mock230Fallback` 5 → **4**. Third completed eviction, and the one whose
+  `enum ToriRSServerFallback` 5 → **4**. Third completed eviction, and the one whose
   blocker turned out not to be an opcode at all: the level requirement had no
   script-readable form, so binding `[opheld2,_]` would have dropped the gate in
   silence. `skill_combat/configs/levelrequire.dbtable` is that home, and building
@@ -282,12 +282,12 @@ derive base on load; `::setlevel` writes the matching XP threshold.
   78 loc records in this cache put "Bank" on a menu op and content bound one;
   `tools/bank_import.py` generates the other 77 as `[oploc<n>,<name>] ~openbank;`
   into `interface_bank/scripts/bank_booths.rs2`, `--check`ed by `test-port`.
-  `mock230_bank_open` is untouched and stays engine — what moved is which locs
+  `ToriRSServer_BankOpen` is untouched and stays engine — what moved is which locs
   reach it. Names and not a category because the three cache categories the
   booths carry have 63/44/1 members of which 58/11/1 say "Bank" (one of the
   strays is the Grand Exchange wall), and because the reference binds every
   booth by name too. `interaction_engine_loc` + `climb` deleted, count 6 → 5.
-- most of the `::` cheat ladder — `mock230_world.c:2388-2683` (`::pray`
+- most of the `::` cheat ladder — `torirs_server_world.c:2388-2683` (`::pray`
   already migrated to a `[debugproc]`; the rest follow the same pattern) —
   **still open, and the only trivial one left**
 
@@ -303,12 +303,12 @@ files. Both columns measured today:
 
 | row | the file it blamed | what the row actually is |
 |---|---:|---|
-| `opnpc` | `mock230_combat.c` 858 → **1,061** | `interaction_engine_npc`, **31 lines** — a strcmp on the cache's Attack verb plus the FACE_ENTITY latch. Combat stays engine either way |
+| `opnpc` | `torirs_server_combat.c` 858 → **1,061** | `interaction_engine_npc`, **31 lines** — a strcmp on the cache's Attack verb plus the FACE_ENTITY latch. Combat stays engine either way |
 | `oploc` | — | `interaction_engine_loc`, **84 lines** + `climb` **34** |
-| `opheld` | "equipment is C", then "seven opcodes" | the OPHELD arm of `handle_opheld` (150 lines total), ~50 of them. **Both reasons are now gone** (2026-08-02): `mock230_equipment.c` is **134** lines of component→worn-slot map and was never the policy, the *screen* is already content, and of the seven opcodes five landed and two were wrong. What is left is not an opcode — see below |
-| `inv_button` | `mock230_bank.c` 1,370 → **1,395** | `mock230_bank_quantity_for_op`, **107 lines** |
-| `if_button` | same | `mock230_bank_handle_button`, **64 lines** — and it is the *settings/deposit* ladder, not the quantity one; the two rows share one router |
-| world map | `mock230_worldmap.c` **199** | not a fallback row at all |
+| `opheld` | "equipment is C", then "seven opcodes" | the OPHELD arm of `handle_opheld` (150 lines total), ~50 of them. **Both reasons are now gone** (2026-08-02): `torirs_server_equipment.c` is **134** lines of component→worn-slot map and was never the policy, the *screen* is already content, and of the seven opcodes five landed and two were wrong. What is left is not an opcode — see below |
+| `inv_button` | `torirs_server_bank.c` 1,370 → **1,395** | `ToriRSServer_BankQuantityForOp`, **107 lines** |
+| `if_button` | same | `ToriRSServer_BankHandleButton`, **64 lines** — and it is the *settings/deposit* ladder, not the quantity one; the two rows share one router |
+| world map | `torirs_server_worldmap.c` **199** | not a fallback row at all |
 
 So the blocked surface is roughly **370 lines of dispatch**, not 3,200 lines of
 game. The 3,200 is what those 370 lines *reach*, and most of it (combat, the
@@ -372,7 +372,7 @@ from the old string.
 ~~The cheapest next unlock is therefore **structural, not an opcode**: give
 `[oploc<n>]` an active loc.~~ — **done 2026-08-02**, together with the expensive
 half it was supposed to only partly unblock. `dat2_config_loc.c` keeps config
-opcode 61 now; `mock230_loc_category` reads it. One correction the estimate got
+opcode 61 now; `ToriRSServer_LocCategory` reads it. One correction the estimate got
 wrong and it is worth carrying forward: the rscache change was **not** what
 landed the doors. Not one of this cache's 776 door records states a category, so
 `[oploc1,_door_closed]` needed the `category` namespace to be allowed to *grow*
@@ -383,13 +383,13 @@ categorised loc records, including the 63 the cache files as bank booths.
 Each surviving string is now written to be **checkable in one command** — a
 symbol as `ss_opcode.h` spells it, a `file:line`, a `wc -l`, a reference path —
 and the opcode-shaped half is machine-checked: every row lists the opcodes it is
-waiting on, and `mock230_scripts_stale_blockers` fails the selftest the moment
+waiting on, and `ToriRSServer_ScriptsStaleBlockers` fails the selftest the moment
 one of them is implemented. That is the guard against how the list actually
 failed. `ai_queue3` was not a wrong row; it was a right row whose reason had
 expired, printed unchanged at every boot for two stages. Prose cannot go stale
 loudly, so the citation is data as well as text. Two blockers are deliberately
 *not* covered, because they are not opcodes and a wrong assertion is worse than
-none: `opnpc` waits on 1,061 lines of `mock230_combat.c`, and `if_button` waits
+none: `opnpc` waits on 1,061 lines of `torirs_server_combat.c`, and `if_button` waits
 partly on `bank.rs2`'s bindings and `bank_set_events`'s arms naming different
 components (verified disjoint against `interfaces/bankmain.compack` — 23 vs 24,
 25 vs 26, 29 vs 30 — so eleven compiled `[if_button,bankmain:*]` scripts can
@@ -410,14 +410,14 @@ by a register, and per **namespace** by another register:
   `protocol`), name authority (`cache`=gameval / `authored` / `derived` /
   `imported`), gameval archive, `server_base` (first server-allocatable id:
   npc 20000, obj 40000, loc 70000, …), `cache_index`. Read by three
-  consumers — cachepack, sscompile, mock230 — as a contract, not shared code.
+  consumers — cachepack, sscompile, ToriRSServer — as a contract, not shared code.
 - **`fields/<type>.ini`** — the field register. Each field of a config type
   declares its client-side disposition and/or server-side opcode.
   **The default is `scope = server`, `client = drop`: a field reaches the
   client only because someone wrote that it does.**
 
 Field dispositions (see `3rd/rscache/tools/cachepack/cp_fields.h` and
-`src/net/mock/mock230_servercodec.h` — both written as prose, read them):
+`src/torirsserver/torirs_server_servercodec.h` — both written as prose, read them):
 
 | declaration | meaning | lands in |
 |---|---|---|
@@ -466,8 +466,8 @@ Ask in this order:
 3. `cachepack pack` — watch the per-field counts it reports; `client = error`
    or an undeclared opcode fails the build, silence is a bug.
 4. Server side: add the field to the type's decode table for
-   `mock230_servercodec.c` (generic over `(field table, record base)`) and
-   the runtime struct. `mock230_servercodec_test` iterates the registry, so
+   `torirs_server_servercodec.c` (generic over `(field table, record base)`) and
+   the runtime struct. `ToriRSServer_ServerCodecTest` iterates the registry, so
    a registered type without a `fields/<name>.ini` fails the test.
 5. If ServerScript should read it: expose it as a param (preferred — zero
    new opcodes) or add the `oc_/nc_/lc_` opcode with a **real signature** —
@@ -475,7 +475,7 @@ Ask in this order:
 
 ### 3.4 Recipe — new server-only record type
 
-Follow prayer, the worked example (`mock230_db.h`, and
+Follow prayer, the worked example (`torirs_server_db.h`, and
 `CONTENT_PACK_PLAN.md` §5.4 "declared but not implemented" for the parts
 still open): prefer a **dbtable** if the shape is tabular — the server
 already has a full `.dbtable`/`.dbrow` runtime with ids allocated above the
@@ -531,9 +531,9 @@ by hand (`herb_tar`, the QBD's npcs). It is compiled unless something explicitly
 leaves it out, because a build without it fails to resolve names rather than
 quietly playing without the content.
 
-**Selecting lanes.** `make -C src mock230-lanes` lists what a tree declares.
-A pack is built with `make -C src mock230-scripts-lanes MOCK230_SCRIPT_LANES="a b"
-MOCK230_SCRIPT_OUT=<dir>`; `mock230-scripts`, `-summoning`, `-curses` and
+**Selecting lanes.** `make -C src torirsserver-lanes` lists what a tree declares.
+A pack is built with `make -C src torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES="a b"
+TORIRSSERVER_SCRIPT_OUT=<dir>`; `torirsserver-scripts`, `-summoning`, `-curses` and
 `-summoning-curses` are that one recipe with the list filled in. A boot manifest
 names its lanes in `[content:lanes]`, one `lane=` per line, and `run-live.sh` /
 `run-live.ps1` compile exactly those — nothing infers the lane set from the
@@ -570,17 +570,17 @@ These four are why "what goes in which pack" currently *feels* unresolved
 even though the design is done. Close them before large-scale porting:
 
 1. **~~The server band is written but never read~~ — read at every boot now.**
-   `make -C src mock230-servpack` (`cachepack pack --server-only`, no cache
-   needed) rebuilds `server/pack`, and `mock230_boot_load` step 2b reads it:
+   `make -C src torirsserver-servpack` (`cachepack pack --server-only`, no cache
+   needed) rebuilds `server/pack`, and `ToriRSServer_BootLoad` step 2b reads it:
    every archive is verified identical to the text parse before being decoded
    over the live defs, a stale or unreadable band falls back to text loudly,
-   and `mock230_pack` fails on a band that disagrees with the tree. See
+   and `ToriRSServer_Pack` fails on a band that disagrees with the tree. See
    `osrs230_mockserver.md` §3.10b for the verification's three-way rule and
    what stays text (`huntmode`/`nomove` have no integer wire; `[default]`,
    patrol and `loc.category` were never band fields). What remains of this
    item is the last sub-step: remove the text parse for the band-carried
    fields now that boot proves the two identical.
-2. **~~Delete the second baker~~ — deleted.** `mock230_pack.c` is a validator
+2. **~~Delete the second baker~~ — deleted.** `torirs_server_pack.c` is a validator
    only now (861 lines, from 1,377): the whole `--cache-out` export — by then
    one register-driven `bake_params`, the successor of `bake_npc_params` /
    `bake_loc_params` — went, because `cachepack pack` emits the cache
@@ -613,7 +613,7 @@ end to end). Its "the format, and the rule for every future port" section is
 binding. The loop:
 
 1. **Measure first.** Triage §12 has the re-measure commands. Which opcodes
-   does the slice call that the engine lacks (`mock230_scripts_report_gaps`
+   does the slice call that the engine lacks (`ToriRSServer_ScriptsReportGaps`
    prints this at load)? Which names don't resolve? Do not start a slice
    whose opcode gaps you haven't listed.
 2. **Symbols before scripts.** Constants → categories → params/structs/
@@ -627,14 +627,14 @@ binding. The loop:
    gang varps are *swapped* between trees). Unresolved names fail at pack
    time, loudly, by design.
 5. **Port the scripts**, adapting per §4.2. Compile via
-   `make -C src mock230-scripts` (runs `tools/ss_allocate.py` then
+   `make -C src torirsserver-scripts` (runs `tools/ss_allocate.py` then
    `sscompile`). Remember: a fresh checkout has **no script pack** (build
    output is gitignored) — the server prints a banner and then does almost
    nothing, because the engine's fallbacks are gated on a pack being loaded.
    That is the symptom now; it used to be a game that played fine and was not
    the one in the content tree.
 6. **Verify in the real client, headlessly** (§7), and leave the check
-   permanent (a `mock230_pack` rule, a test, or a selftest stanza).
+   permanent (a `ToriRSServer_Pack` rule, a test, or a selftest stanza).
 
 ### 4.2 Era translation — rev 254 content on a rev 239 cache / 230 wire
 
@@ -677,7 +677,7 @@ The traps, all documented in the triage:
   `--domain loc` crawls them into `port/categories_loc.map`, 91 reference
   categories, 11 minted off this cache's own records and 2 `allocated` (the door
   pair). An allocated id must still be *stated* by an authored config block
-  before a trigger bound to it can fire, and `mock230_pack` is what says so. This gated
+  before a trigger bound to it can fire, and `ToriRSServer_Pack` is what says so. This gated
   `drop tables/`, which landed 2026-08-01 (triage §10.1) — and the way it landed
   is the pattern for the next slice that hits this: **six of its sixteen
   category subjects are bound as categories and the other ten are expanded to
@@ -704,7 +704,7 @@ The traps, all documented in the triage:
 
 From the Cook's Assistant precedent: boot the server, perform the content in
 the real client (headless harness), state persists across logout/login,
-`mock230_pack` at 0 errors, existing content untouched, and the gap report
+`ToriRSServer_Pack` at 0 errors, existing content untouched, and the gap report
 shows no *new* silently-missing opcodes. "It compiles" is not done;
 "the graphic plays but the character is frozen"-class bugs (anim priority,
 missing `IF_SETEVENTS`) only show up in the client.
@@ -861,7 +861,7 @@ re-porting cores already `done` on another queue.
    excluded), inventories `skill_*`, harvests deferred Notes from the other
    queues, and emits method-sized finish slices. A **port loop** (later)
    consumes one pending finish slice per tick with the normal §4.1 verify
-   (`mock230_pack --check-only`, `make -C src mock230-scripts`).
+   (`ToriRSServer_Pack --check-only`, `make -C src torirsserver-scripts`).
 4. Attack / Strength / Defence / Hitpoints / Ranged audit as separate skills
    but live under `skill_combat/`. Magic splits non-combat (`skill_magic/`)
    and combat casting (`skill_combat/`).
@@ -905,7 +905,7 @@ calls into. So the procedure is *discover the client's surface first*:
   the full orb); server obligations are `UPDATE_STAT` (boosted level is the
   consumed field; send base twice to pin the HP orb),
   `UPDATE_RUNENERGY` (77), `UPDATE_RUNWEIGHT` (27, **kilograms**). See
-  `mock230_player_systems.md` §2.3, `REV230_UI_BLANK_PANELS.md` §2.
+  `torirs_server_player_systems.md` §2.3, `REV230_UI_BLANK_PANELS.md` §2.
 - ~~**XP drops**~~ — **done**, and the diagnosis this entry used to carry was
   wrong on three counts. It said the blocker was "the non-terminating varc
   queue-shift loop in script 1004", that `IF_SETONSTATTRANSMIT` registered
@@ -960,7 +960,7 @@ are why this guide could be written.
 The §5.3 pass has been run, as a discovery-only exercise, across the
 interface surface. Each doc below states: the CS2 call graph with
 file:line, the varps/varbits/containers/host-ops the panel reads, what
-mock230 already does, and the LostCity precedent (or its confirmed
+ToriRSServer already does, and the LostCity precedent (or its confirmed
 absence). **They are server-requirements specs, not implementations** — per
 §2, re-grep the reference before writing code against any of them.
 
@@ -1027,7 +1027,7 @@ that fails loudly on a stale band.*
 **Phase 1 — engine substrate** (`osrs230_mockserver.md` §6.1 items 1, 3, 6)
 1. ~~Multiplayer~~ — **done.** Two embedded clients in one world see each
    other move, asserted in `embed_test.c` against the *client's own*
-   PLAYER_INFO reader. The change was not the raised `MOCK230_PLAYER_MAX`: it
+   PLAYER_INFO reader. The change was not the raised `TORIRSSERVER_PLAYER_MAX`: it
    was moving every "the client has been told about this" set off the world
    and onto the player (npc tracking, ground objs, the rebuild and login
    latches), plus a new per-player *player* tracking set; making
@@ -1040,7 +1040,7 @@ that fails loudly on a stale band.*
    `osrs230_mockserver.md` §6.1 step 1 for the full list, which item 2 below
    is what closes.
 2. ~~`ZoneMap` keyed `(zx,zz,level)` with buffered/replayable events~~ —
-   **done**, `src/net/mock/mock230_zone.{c,h}`; the whole of it is
+   **done**, `src/torirsserver/ToriRSServer_Zone.{c,h}`; the whole of it is
    `osrs230_mockserver.md` §3.17. Per-zone loc/obj/npc lists plus a per-tick
    event buffer, and the loc and obj packets moved onto it: a door one client
    opens is open for a client that connects *afterwards*, asserted in
@@ -1076,11 +1076,11 @@ that fails loudly on a stale band.*
    §3.18. Lookup is `ScriptProvider.getByTrigger` — exact type, then category,
    then the bare `_`, and nothing after that — and the `_` wildcard is the only
    fallback the design has. A trigger with no script does nothing, and says so
-   under `MOCK230_VERBOSE` for the triggers a *player* initiated, which is where
+   under `TORIRSSERVER_VERBOSE` for the triggers a *player* initiated, which is where
    the reference puts the message too.
 
    The C that still answers an unbound trigger is not deleted and not moved: it
-   is **enumerated**, in `enum Mock230Fallback`, each row naming its
+   is **enumerated**, in `enum ToriRSServerFallback`, each row naming its
    blocker, counted at boot and pinned by the selftest — it may shrink, it must
    not grow. Seven when this landed; **four** now — `ai_queue3`, `opobj` and
    `opheld` have all moved (Phase 3, 2026-08-01 and 2026-08-02). That is the same rule as §2.4's named
@@ -1111,7 +1111,7 @@ the one the retaliation was encoded to.
 
 This entry used to say the fight was outstanding and that closing it "needs the
 npc masks to be per-observer". Measured, that overstated it by a lot: of the
-~20 observer-relevant fields on `struct Mock230Npc`, exactly **one** is
+~20 observer-relevant fields on `struct ToriRSServerNpc`, exactly **one** is
 observer-dependent, and only in one bit. The reference does not have
 per-observer masks either — LostCity keeps one shared set and makes the *id*
 absolute (`target.slot + 32768`), telling each client its real slot. This tree
@@ -1123,7 +1123,7 @@ origin is one per world.
 
 **Phase 2 — symbols and surface** (triage §9 steps 2–5)
 Name-resolution gate → constants (1,562) → ~~npc categories (§7.6b)~~ **done**
-(19 npc names in `pack/category.pack`, `mock230_npc_category()`, and the
+(19 npc names in `pack/category.pack`, `ToriRSServer_NpcCategory()`, and the
 `[ai_queue3]` dispatch passes the rung) →
 param/struct/enum/dbtable ids → varp/varbit reclass → name maps → opcodes by
 leverage (param decoder → `loc_*` → `npc_*` → `runclientscript_ss` strings →
@@ -1131,10 +1131,10 @@ small-wide) → ~~undispatched triggers~~ **done** (queue/timer
 `osrs230_mockserver.md` §3.19, `*u` use-on §3.20, the zone family §3.21 — all
 four of the last, both granularities. What they needed was *name*-keyed dispatch,
 `[zone,<level>_<mx>_<mz>_<lx>_<lz>]`, which the numeric-subject
-`mock230_scripts_run_trigger` cannot express, plus two coordinate latches on the
+`ToriRSServer_ScriptsRunTrigger` cannot express, plus two coordinate latches on the
 player; the ZoneMap was not the blocker and is not in the path) → ~~`logout`~~
 **done 2026-08-05** (`osrs230_mockserver.md` §3.23 — dispatched from
-`mock230_world_remove_player` and not from `phase_logouts`, because a dropped
+`ToriRSServer_WorldRemovePlayer` and not from `phase_logouts`, because a dropped
 socket never reaches a tick phase, and *above* the save, because a logout script's
 job may be to move the player. What it unblocked was a resource: a session that
 ended inside a map instance leaked the reservation and saved the character on a
@@ -1142,7 +1142,7 @@ square the pool was about to re-issue). Still
 undispatched after step 5: `walktrigger`/`ai_walktrigger`,
 `advancestat`/`changestat`, `inv_buttond`, `ai_despawn`, `tutorial`,
 and the `*t` spell-target family (89 uses). Track via the generated
-`mock230_opcode_coverage.gen.h` (**260/401** on 2026-08-02, 246/399 two days
+`torirs_server_opcode_coverage.gen.h` (**260/401** on 2026-08-02, 246/399 two days
 before; this line said 224 and was 22 low, which is the reason the sentence
 after it exists) and the
 load-time gap report — **never via numbers typed in prose.**
@@ -1150,9 +1150,9 @@ load-time gap report — **never via numbers typed in prose.**
 **Phase 3 — evict the C content**
 The trivial list (§2.5) immediately — each is an hour. The blocked rows as
 Phase 2 unblocks each. *Gate: `grep` finds no game-facing string literals and
-no id constants in `src/net/mock/` outside the wire tables.*
+no id constants in `src/torirsserver/` outside the wire tables.*
 
-The mechanism is `enum Mock230Fallback` and nothing else: the C that answers a
+The mechanism is `enum ToriRSServerFallback` and nothing else: the C that answers a
 trigger content does not bind is **enumerated**, one row per behaviour, each
 naming its own blocker, counted at boot and pinned by the selftest. Evicting
 the C *is* deleting a row, and the order is not negotiable — **widen the
@@ -1233,11 +1233,11 @@ on it, not preparation for it**, and a corrected blocker on a row that stays is
 worth more than a deletion, because a wrong row is visible the moment someone
 tries to act on it and an expired reason is not visible at all. §2.5 has the
 corrected set and the measured sizes; the live text is at boot under
-`MOCK230_VERBOSE`, and it is the authority over both docs.
+`TORIRSSERVER_VERBOSE`, and it is the authority over both docs.
 
 Two things now enforce that. The opcode-shaped half of every blocker is
 **machine-checked** — each row lists the opcodes it cites and
-`mock230_scripts_stale_blockers` turns the selftest red the day one is
+`ToriRSServer_ScriptsStaleBlockers` turns the selftest red the day one is
 implemented, so the fix becomes "rewrite or delete the row", not "notice". And
 every string is written to be checkable in one command. Neither covers a blocker
 that is not an opcode, deliberately (§2.5).
@@ -1263,7 +1263,7 @@ was the expensive item and it was not the one that landed the doors; see §2.5.
 
 **One shortcut is available and is a trap.** `[opnpc2,_] p_opnpc(2)` would
 delete the `opnpc` row today with no new opcodes — and move nothing, because
-`SS_OP_P_OPNPC` calls `mock230_combat_engage` directly. All 1,061 lines would
+`SS_OP_P_OPNPC` calls `ToriRSServer_CombatEngage` directly. All 1,061 lines would
 stay, now unreachable from the list that exists to track them. The row's own
 `blocked_on` says so. Deleting a row without moving the behaviour is the one
 way to make this list lie.
@@ -1299,10 +1299,10 @@ Two of those three are the cross-cutting blockers §5.4 names — the fixed
 1-int/2-string shape of `runclientscript_ss`, and `container_for` needing to be
 a registry rather than a fourth `if`. **Both are discharged as of 2026-08-02**
 (`SS_OP_RUNCLIENTSCRIPTVARARG` 11003, and
-[`mock230_containers.md`](mock230_containers.md)) — and discharging the second
+[`torirs_server_containers.md`](torirs_server_containers.md)) — and discharging the second
 sharpened the third rather than clearing it: the registry resolves as
 `(srv, player, inv_id)` and branches on `owner_kind`, so a world-scoped
-container is expressible, but `mock230_container_scope()` classifies everything
+container is expressible, but `ToriRSServer_ContainerScope()` classifies everything
 as per-player because the client cache has no server `scope` field to read.
 Private inventory records can now be staged/cache-baked; `shop` remains blocked
 on the separate server-scope/listener/stock implementation.
@@ -1319,7 +1319,7 @@ features (bank PIN, skill guide, slayer rewards) → new per-player state
 mechanisms (trading's cross-player containers, clan chat's three op
 families, GE's matching engine).
 
-**Phase 6 — rename** (`osrs230_mockserver.md` §6.1 item 7): `mock230` is a
+**Phase 6 — rename** (`osrs230_mockserver.md` §6.1 item 7): `ToriRSServer` is a
 double misnomer; cheapest while consumers are few.
 
 ---
@@ -1343,28 +1343,28 @@ forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
   [`src/platform/platform.mk`](../src/platform/platform.mk) and nothing above
   that file tests `PLATFORM`; if you need a per-platform flag, add it there
   rather than branching in `src/makefile`. `make -C src lane-check-all` asserts
-  each lane's invariants. Script pack: `make -C src mock230-scripts`. Agents
+  each lane's invariants. Script pack: `make -C src torirsserver-scripts`. Agents
   sharing the repo must set a private objdir (`PLATFORM_OBJ_BASE`) —
   stale-`.o` races are real.
-- **Tests:** `make -C src test-db`, `test-mock230-coverage` (fails if the
+- **Tests:** `make -C src test-db`, `test-torirsserver-coverage` (fails if the
   generated coverage header is stale), `test-ss-provider` (the trigger lookup
   order — every way of getting it wrong still finds *a* script),
-  `mock230_servercodec_test`; cache
+  `ToriRSServer_ServerCodecTest`; cache
   fidelity `make -C 3rd/rscache test` (byte-exact round-trip is the bar;
   read `3rd/rscache/EXCEPTIONS.md` **before** touching rscache write paths);
   ServerScript conformance corpus = LostCity's 9,333 compiled scripts
   (`ss_corpus_test` — the corpus is test data, **not runnable content**).
-- **Content validation:** `mock230_pack --check-only` at 0 errors, always.
+- **Content validation:** `ToriRSServer_Pack --check-only` at 0 errors, always.
 - **In-client verification:** `SDL_VIDEODRIVER=dummy` + `TORIRS_SIM_CLICK_AT`
-  / `TORIRS_SIM_MOUSE_CLICK` / `TORIRS_EXIT_BMP` + `MOCK230_VERBOSE=1`.
+  / `TORIRS_SIM_MOUSE_CLICK` / `TORIRS_EXIT_BMP` + `TORIRSSERVER_VERBOSE=1`.
   `TORIRS_SIM_*` hooks run pre-loop. Memory debugging: `MallocScribble`,
   **not** ASAN (hangs on this machine).
 - **Determinism:** the VM seed is fixed (`0x5eed1234`); keep new randomness
   behind it.
 - **Never `git stash`** in this repo (restores the user's old stash on pop).
-  `pkill -f build/mock230` also kills `mock230_dev` — match tighter.
+  `pkill -f build/torirsserver` also kills `ToriRSServer_Dev` — match tighter.
 - **Distrust prose counts.** Coverage, id agreement, gap lists — all have
-  generated sources (`mock230_opcode_coverage.gen.h`, triage §12's
+  generated sources (`torirs_server_opcode_coverage.gen.h`, triage §12's
   commands). Re-measure; docs self-describe as having gone stale before.
 - **When a mounted panel draws nothing, it is a client bug until proven
   otherwise** (`REV230_UI_BLANK_PANELS.md` §1): `TORIRS_DUMP_TREE_EXIT=1` →
@@ -1398,7 +1398,7 @@ forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
   check that does not need the site to be reached.** A collision hides until the
   timer fires or the quest completes — nine of the twenty-three `settimer`/`queue`
   sites were once-per-account quest queues — so the check belongs at load over
-  the whole pack (`mock230_scripts_report_script_id_args`, selftest-pinned),
+  the whole pack (`ToriRSServer_ScriptsReportScriptIdArgs`, selftest-pinned),
   not only at the call. A compile-time `note:` on the ambiguity is the cheap
   companion; silence is what let it live.
 - **Docs are part of done.** Every landed system above has a topic doc that
@@ -1418,7 +1418,7 @@ For any substantial task, in this order:
    - server behavior → [`osrs230_mockserver.md`](osrs230_mockserver.md)
      header + §3.13b–d + §6.1
    - pack/cache work → [`CONTENT_PACK_PLAN.md`](CONTENT_PACK_PLAN.md) §0 +
-     §5.4, then `src/net/mock/mock230_servercodec.h` and
+     §5.4, then `src/torirsserver/torirs_server_servercodec.h` and
      `src/content/content_fields.h` (prose-quality headers)
    - content porting (LostCity / pre-254) → [`LOSTCITY_PORT_TRIAGE.md`](LOSTCITY_PORT_TRIAGE.md)
      §1, §9, §10.1, §12,

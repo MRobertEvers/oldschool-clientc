@@ -17,13 +17,13 @@ rooms) is still pending.
 
 Source, in the order it is easiest to read:
 
-- `src/net/mock/mock230_mapinstance.h` — the contract and the reason for each
+- `src/torirsserver/torirs_server_mapinstance.h` — the contract and the reason for each
   field. Read this before the doc if you only read one thing.
 - `src/serverscript/gen_opcode_meta.py`, the `# ---- map instances` block — why
   there are six commands and not one.
-- `src/net/mock/mock230_scene.c` `mock230_scene_build_instance` — the server's
+- `src/torirsserver/torirs_server_scene.c` `ToriRSServer_SceneBuildInstance` — the server's
   copy (collision + locs).
-- `src/net/mock/mock230_encode.c` `mock230_send_rebuild_region` — the wire.
+- `src/torirsserver/torirs_server_encode.c` `ToriRSServer_SendRebuildRegion` — the wire.
 - `src/engine/world_builder/world_builder.c` `WorldBuilder_RebuildInstance` —
   the client's copy (terrain + scenery).
 
@@ -116,9 +116,9 @@ owns its whole square, and a player who walks off the assembled edge into void i
 still inside the instance rather than mysteriously nowhere.
 
 `map_instance_alloc` may reserve up to **16×16 zones**
-(`MOCK230_MAPINSTANCE_ZONES`) — enough for The Gauntlet's 7×7 of 16-tile rooms
+(`TORIRSSERVER_MAPINSTANCE_ZONES`) — enough for The Gauntlet's 7×7 of 16-tile rooms
 (14×14). The client's scene is still a sliding **13×13** window
-(`MOCK230_MAPINSTANCE_SCENE_ZONES`); REBUILD_REGION never describes more than
+(`TORIRSSERVER_MAPINSTANCE_SCENE_ZONES`); REBUILD_REGION never describes more than
 that around the player.
 
 ## 4. The wire: REBUILD_REGION
@@ -158,7 +158,7 @@ disagree about how many blocks follow.
 Collision is the server's and scenery is the client's, so the copy is written
 twice. That is not duplication to be factored out — they need different data —
 but they must agree, which is why both consume the same
-`struct Mock230MapInstanceWindow` shape and the same rotation helpers.
+`struct ToriRSServerMapInstanceWindow` shape and the same rotation helpers.
 
 The direction differs *within* each half, and this is the part that bites:
 
@@ -192,10 +192,10 @@ source".
 ## 6. Verifying
 
 ```
-make -C src EMBED_SERVER=1 torirs && make -C src mock230-scripts
+make -C src EMBED_SERVER=1 torirs && make -C src torirsserver-scripts
 
 # the whole-square copy
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 TORIRS_MAX_FRAMES=1400 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 TORIRS_MAX_FRAMES=1400 \
   TORIRS_EXIT_BMP=/tmp/inst.bmp TORIRS_NET_CHEAT="mapinstance" \
   ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 
@@ -240,16 +240,16 @@ locs)`, then `REBUILD_REGION op=59 payload=941`. The 4,726 against the static
 build's 8,455 for the same square is the scene window, not a loss: an instance is
 one square inside a 13-zone scene, so the outer ring is void by construction.
 
-Tests: `test-mock230-coverage` (the generated opcode-coverage header must know
+Tests: `test-torirsserver-coverage` (the generated opcode-coverage header must know
 about all six), `test-ss-meta`, `test-ss-provider`, `test-ssc`,
-`test-world-builder`, `test-db`, `test-rsareabuf`, and `mock230_pack
+`test-world-builder`, `test-db`, `test-rsareabuf`, and `ToriRSServer_Pack
 --check-only` at 0 errors.
 
 ## 7. Known limits
 
 **One scene per world, so one instance at a time can be *collided* in.** The
 server keeps a single collision map for a single scene origin
-(`mock230_scene.c`), so `mock230_world_scene_rebuild` builds from whichever
+(`torirs_server_scene.c`), so `ToriRSServer_WorldSceneRebuild` builds from whichever
 instance contains the current centre. Two players in two different houses would
 share one collision map and one of them would be wrong. This is the mock server's
 pre-existing shape rather than something instances introduced — the same is
@@ -258,7 +258,7 @@ reservations exist so that the *registry* is not the thing that needs rewriting
 when the scene stops being a singleton.
 
 **Nothing frees an instance on its own.** No timeout, no last-player-out sweep.
-`mock230_mapinstance_reset` at world init/reset is the only automatic release, so
+`ToriRSServer_MapInstanceReset` at world init/reset is the only automatic release, so
 a handle cannot outlive the world that issued it, but within a session content
 owns the lifetime. `[debugproc,mapinstance_leave]` is the manual version.
 
@@ -271,13 +271,13 @@ login draws void with nothing to walk off. `[logout,_]`
 activity has a policy (`~inferno_on_logout`) and through
 `~map_instance_logout_release` where it does not. The engine's half is dispatching
 the trigger at all, and dispatching it *above* the save —
-`mock230_world_remove_player`, `osrs230_mockserver.md` §3.23. Pinned by the last
-leg of `mock230 --selftest`.
+`ToriRSServer_WorldRemovePlayer`, `osrs230_mockserver.md` §3.23. Pinned by the last
+leg of `ToriRSServer --selftest`.
 
 **A freed instance can still have npcs standing in it, and that is content's bug
 by design.** The engine will not delete them — a rule about when a minigame is
 over does not belong in the registry — but `map_instance_free` counts them and
-says so under `MOCK230_VERBOSE`, because the symptom otherwise appears one
+says so under `TORIRSSERVER_VERBOSE`, because the symptom otherwise appears one
 session later, as somebody else's boss already in the arena. Content's answer is
 a despawn keyed on *position* rather than on a list of npc types
 (`~inferno_despawn_arena`): an instance holds nothing but its own run's spawns,

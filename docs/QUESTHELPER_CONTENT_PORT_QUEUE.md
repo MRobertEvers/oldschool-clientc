@@ -85,8 +85,8 @@ playable end-to-end. It only becomes `done` when the whole quest is.
 
 Loop prompt: read this file + PORTING_GUIDE section 4 / section 4.6 / section 7; run
 `tools/questhelper_extract.py --check` on the next pending row; port it; NEVER
-park sibling lanes; verify (`mock230_pack --check-only`,
-`make -C src mock230-scripts`); update this file; re-arm. Stop only when the
+park sibling lanes; verify (`ToriRSServer_Pack --check-only`,
+`make -C src torirsserver-scripts`); update this file; re-arm. Stop only when the
 user stops the loop.
 
 ## Methodology (non-negotiable)
@@ -170,14 +170,14 @@ been audited yet as of the rule change -- every row below is effectively
 | `biohazard` | quest_biohazard | audited-fixed 2026-08-12: dialogue trees (chemist/errand boys/Guidor/Guidor's wife/Elena/King Lathas) are thorough and match Transcript:Biohazard closely, ending in the real `~quest_complete(quest_biohazard)` (3 QP, 1250 thieving xp, matches dbrow). One real quest-blocking gap: `quests/quest_biohazard/scripts/quest_biohazard_locs.rs2`'s `biohazard_climb_ladder` label (the wall-crossing cutscene) was fully written but **nothing anywhere ever called it** — Omart and Kilron both have real world `.spawn` entries but zero `[opnpc1,...]` Talk-to triggers, so a player who reached `^biohazard_released_pigeons` had no way to actually cross into West Ardougne. Added both NPC handlers (Omart: "Okay, let's do it"/"Not yet." choice + free repeat crossings; Kilron: return-trip + Mourner HQ location hint), matching Transcript:Biohazard's Omart/Kilron lines. |
 | `cooksassistant` | quest_cook | audited-fixed 2026-08-12: this is docs/PORTING_GUIDE.md's own §4.1 precedent slice, and it held up well — ingredient gather/hand-in, journal (3 states, wired), reward (300 cooking xp, 1 QP via `~quest_complete(quest_cooksassistant)`), and the post-quest small talk (`~p_choice4`, matches Transcript:Cook_(Lumbridge)'s post-quest tree) were all already correct. One real gap: the file's own header comment said "the player cannot decline the quest" because `~p_choice*` wasn't portable yet when this was first written — but `interface_chat/scripts/chat.rs2` implements `~p_choice2`/`~p_choice4` for real now (this file already uses `~p_choice4` for the post-quest chat), so the comment was stale and the decline branch was just never restored. Added the accept/decline `~p_choice2` on the initial offer with Transcript:Cook's_Assistant's refusal line ("Fine. I always knew you Adventurer types were callous beasts. Go on your merry way!"). |
 | `dwarfcannon` | quest_mcannon | audited-fixed 2026-08-12: state constants (0-11) and the journal (`mcannon_journal.rs2`) covered the whole quest, but nothing anywhere ever advanced `%mcannon` past what the railings/cave/crate scripts touch internally — the quest giver **Captain Lawgof** (`lawgof2`, dbrow startnpc) and **Nulodion** (`nulodion`) had zero `[opnpc1,...]` dialogue anywhere in the tree, so the quest could never even be started, `mcannontoolkit` (gates the cannon repair) and `ammo_mould` (gates `skill_smithing/scripts/smelting/cannonballs.rs2`'s own cannonball recipe) were never granted to any player, and there was no `~quest_complete` call in the whole quest. Added `quests/quest_mcannon/scripts/mcannon_commander.rs2` — full Lawgof + Nulodion talk-to state machine (accept/refuse quest offer, railing/watchtower/goblin-cave/cannon/Nulodion checkpoints, all matching Transcript:Dwarf_Cannon paraphrased) — granting `mcannonrailing1_obj`x6, `mcannontoolkit`, `nulodions_notes` + `ammo_mould` at the right checkpoints, ending in `stat_advance(crafting,7500)` + `~quest_complete(quest_dwarfcannon)`. Both npcs already had real world `.spawn` entries (`m40_54`/`m47_53`) — no hand-spawning needed. |
-| `eaglespeak` | quest_eaglepeak | audited-fixed 2026-08-12: unusually complete existing port (10 files) for a quest whose own header comment claims "Disguise / Asyff / puzzles deferred" — that comment is stale, same bug class as other rows' stale headers. All three crystal-feather puzzle chambers (bronze winch room, silver kebbit-trail room, golden birdseed/lever room), the stone eagle door, Asyff's disguise tailoring, the eagle-guard sneak, and the post-quest eyrie quick-travel are all fully scripted and match Transcript:Eagles'_Peak / Quick_guide, ending in the real `~quest_complete(quest_eaglespeak)` with reward (2 QP, 2500 hunter xp) matching the dbrow exactly. One real, confirmed quest-blocking gap: every dialogue trigger for Nickolaus (`eaglepeak_nickolaus_shout` in `eaglepeak.rs2`, `eaglepeak_nickolaus_normal` in `sneak.rs2`) was written against debug-spawn-only npc type names — cross-checked `server/scripts/areas/world/configs/m31_77.spawn` and `m36_54.spawn` (real cache-derived world spawns) and found the actual live npcs are named `eaglepeak_nickolaus` (cave/nest) and `eaglepeak_nickolaus_campsite` (external camp), neither of which had any `[opnpc1,...]` trigger anywhere in the tree — a live player could never actually talk to Nickolaus outside of the `::eaglepeakcave`/`::eaglepeaksneak`/`::eaglepeakcamp` debug commands, softlocking the whole quest after the cave-entrance stage. Fixed by wiring both real npc names into the existing (already-correct) dialogue logic: added `[opnpc1,eaglepeak_nickolaus]` alongside the shout trigger in `eaglepeak.rs2` (delegating to the nest logic once past the eagle guard), converted `sneak.rs2`'s nest/camp handler into a callable `[label,eaglepeak_nick_reached]` (kept the debug `_normal` trigger as a thin alias), and added `[opnpc1,eaglepeak_nickolaus_campsite]` in `camp.rs2`. Also fixed a latent fallthrough bug this exposed: the nest handler's `@eaglepeak_nick_camp;` call had no `return;` after it, so a real camp conversation would run its full dialogue and then immediately re-print "I'll meet you back at my camp outside" from the next `if` block — added the missing `return;` and a `quest < meet_camp` top gate on `camp.rs2`'s label (the real campsite npc is a persistent spawn, reachable before the quest has actually asked the player to go there). Cross-checked `quest_waterfall`/`quest_itwatchtower`/`quest_tree`'s dungeon puzzle scripts (no `loc_add` calls anywhere, i.e. their interior scenery relies on real baked map data, not script spawning) to confirm eaglepeak's `debugproc`-only `loc_add` calls for books/feeders/winches/pedestals are the same accepted convention (dev-testing convenience over real cache-baked scenery), not a second instance of the same missing-spawn bug — only the *npc* wiring was actually broken. Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics touching `quest_eaglepeak`. |
+| `eaglespeak` | quest_eaglepeak | audited-fixed 2026-08-12: unusually complete existing port (10 files) for a quest whose own header comment claims "Disguise / Asyff / puzzles deferred" — that comment is stale, same bug class as other rows' stale headers. All three crystal-feather puzzle chambers (bronze winch room, silver kebbit-trail room, golden birdseed/lever room), the stone eagle door, Asyff's disguise tailoring, the eagle-guard sneak, and the post-quest eyrie quick-travel are all fully scripted and match Transcript:Eagles'_Peak / Quick_guide, ending in the real `~quest_complete(quest_eaglespeak)` with reward (2 QP, 2500 hunter xp) matching the dbrow exactly. One real, confirmed quest-blocking gap: every dialogue trigger for Nickolaus (`eaglepeak_nickolaus_shout` in `eaglepeak.rs2`, `eaglepeak_nickolaus_normal` in `sneak.rs2`) was written against debug-spawn-only npc type names — cross-checked `server/scripts/areas/world/configs/m31_77.spawn` and `m36_54.spawn` (real cache-derived world spawns) and found the actual live npcs are named `eaglepeak_nickolaus` (cave/nest) and `eaglepeak_nickolaus_campsite` (external camp), neither of which had any `[opnpc1,...]` trigger anywhere in the tree — a live player could never actually talk to Nickolaus outside of the `::eaglepeakcave`/`::eaglepeaksneak`/`::eaglepeakcamp` debug commands, softlocking the whole quest after the cave-entrance stage. Fixed by wiring both real npc names into the existing (already-correct) dialogue logic: added `[opnpc1,eaglepeak_nickolaus]` alongside the shout trigger in `eaglepeak.rs2` (delegating to the nest logic once past the eagle guard), converted `sneak.rs2`'s nest/camp handler into a callable `[label,eaglepeak_nick_reached]` (kept the debug `_normal` trigger as a thin alias), and added `[opnpc1,eaglepeak_nickolaus_campsite]` in `camp.rs2`. Also fixed a latent fallthrough bug this exposed: the nest handler's `@eaglepeak_nick_camp;` call had no `return;` after it, so a real camp conversation would run its full dialogue and then immediately re-print "I'll meet you back at my camp outside" from the next `if` block — added the missing `return;` and a `quest < meet_camp` top gate on `camp.rs2`'s label (the real campsite npc is a persistent spawn, reachable before the quest has actually asked the player to go there). Cross-checked `quest_waterfall`/`quest_itwatchtower`/`quest_tree`'s dungeon puzzle scripts (no `loc_add` calls anywhere, i.e. their interior scenery relies on real baked map data, not script spawning) to confirm eaglepeak's `debugproc`-only `loc_add` calls for books/feeders/winches/pedestals are the same accepted convention (dev-testing convenience over real cache-baked scenery), not a second instance of the same missing-spawn bug — only the *npc* wiring was actually broken. Build: `mingw32-make -C src torirsserver-scripts` exit 0, no new diagnostics touching `quest_eaglepeak`. |
 | `eadgarsruse` | quest_eadgar | audited-fixed (2026-08-12): the biggest gap found in the whole IN-LC pass, now fully built. Landed all 7 follow-up items from the prior audit: (1) Sanfew (`sanfew.rs2` `sanfew_more_work`) now offers the real quest (Druidic Ritual + Herblore 31 + `%troll_freed_eadgar` gates matching the journal) and hands in goutweed for `~quest_complete(quest_eadgarsruse)` + 11,000 Herblore XP (matches dbrow) + 1 QP, with a separately-guarded repeatable post-quest hand-in so it can't re-fire the reward. (2) Eadgar's full dialogue tree (11 new labels: plan/parrot request/parrot hand-in/hide-plan/item list via `%eadgar_bits`+`%eadgar_chickens`+`%eadgar_grain`/potion hand-in/parrot-back/fake-man) spliced into the existing `troll_eadgar.rs2` triggers ahead of the stew-shop fallthrough — no competing trigger added. (3) Parrot catch: alco-chunks (vodka+pineapple_chunks, spliced into the existing shared `[opheldu,vodka]`/`[opheldu,pineapple_chunks]` blocks scoped via `last_item` so it can't bleed into gin/brandy) used on `eadgar_aviary_wall_hatch`, plus hide/fetch at the prison rack. (4) `%eadgar_bits` item collection wired, including Tegid's dirty-robe hand-in (`eadgar_druid_washing.rs2`, refuse → Sanfew-leverage line → grant, matching the transcript). (5) Troll thistle dry (fire, spliced into the shared cooking-fire trigger) → grind (pestle+mortar, new `herblore_grind_table` row) → mix into `ranarrvial` (spliced into the existing `[opheldu,ranarrvial]`). (6) Storeroom key (kitchen drawers)/unlock/goutweed pickup, with a probabilistic minor-damage roll standing in for the wiki's live-patrol guard AI (goutweed always obtainable, small chance of a hit — noted in-code as a simplification, not a silent gap). (7) Sanfew reward hand-in — done in (1). Trollheim Teleport spell gating deliberately left untouched (the spell itself has no quest-gate mechanism anywhere in `skill_magic/scripts/spells/teleport.rs2`, an independent pre-existing deferral; `%eadgar_quest = ^eadgar_complete` is the correct flag for that gate once it exists). All dialogue/mechanics verified against `Transcript:Eadgar's_Ruse` + Quick guide, not invented. Build verified clean across every chapter, no duplicate-trigger warnings on any of the 11 touched files. Quest is now fully playable start to finish. |
 | `heroesquest` | quest_hero | audited-fixed 2026-08-12: several files' own header comments claimed "full quest body (gangs/firebird/ice queen/grip) deferred", but that was stale — the quest is genuinely almost entirely built across `garv.rs2`/`grubor.rs2`/`trobert.rs2`/`brimhaven_scarface_mansion.rs2` (Black Arm disguise-as-deputy infiltration), `fire_feather.rs2` + `drop_tables/scripts/entrana_firebird.rs2` (firebird feather), `gerrant.rs2`/`oily_fishing_rod.rs2`/`skill_fishing/scripts/fishing_spots/lavafish.rs2` (lava eel), and `achietties.rs2` (start/turn-in, reward matches dbrow exactly: 3075 combat-stat xp x4, 2075 ranged, 2725 fishing, 2825 cooking, 1575 wc/fm, 2275 smithing, 2575 mining, 1325 herblore, 1 QP via real `~quest_complete`). Five real, connected gaps found and fixed: (1) `areas/varrock/scripts/katrine.rs2` and `straven.rs2` (Black Arm / Phoenix gang leaders) never touched `%heroquest` at all, so neither gang path's armband sub-quest could ever start (`quest_hero/scripts/grubor.rs2`'s password gate and `areas/area_brimhaven/scripts/brimhaven_thin.rs2`'s Alfonse gate both check exact `%heroquest` states nothing ever set) — added the missing "is there a way to get the rank of master thief" ask + candlestick hand-in branches to both NPCs' existing menus. (2) `drop_tables/scripts/grip.rs2` never dropped `grip_keys` (Transcript: "Take Grip's keyring"), so the treasure-room door in `brimhaven_scarface_mansion.rs2` could never be unlocked by anyone — added the drop. (3) that same door's unlock gate only recognised the Black Arm checkpoint, permanently locking out a Phoenix-path player even holding real `grip_keys` — broadened to check either gang's own checkpoint (soft single-player stand-in for the real two-player hand-off; noted in the code). (4) Ice Queen (White Wolf Mountain, level 111) had a world spawn but zero drop table anywhere in the tree, so `ice_gloves` — required by `fire_feather.rs2`'s `opheldu` burn-damage gate — was unobtainable; added `drop_tables/scripts/ice_queen.rs2` (100% drop per wiki, not one of the reference tree's 69/71 ported files). (5) `raw_lava_eel` had no cooking recipe anywhere in `skill_cooking/configs/cooking_generic.dbrow`, so a caught eel could never become the `lava_eel` Achietties wants — added the row (level 53, 30xp, never burns, per wiki). Not touched (non-blocking flavour only, no `%heroquest` gate reads it): `areas/entrana/scripts/high_priest_of_entrana.rs2` still has no Heroes' Quest branch confirming the firebird's existence. |
 | `holygrail` | quest_grail | audited-fixed (2026-08-12): dialogue trees were already thorough (king_arthur/merlin/brother_galahad/grail_crone/fisher_king/sir_percival/black_knight_titan/grail_realm_npcs all wired, journal complete); this pass closed the three physical-world gaps a prior audit found. (1) `sir_percival.rs2` gained `[oploc2,percy_sacks]` — a real, previously-unwired loc (wiki-confirmed coord 2962,3506, Goblin Village's east house) — searched with `magic_golden_feather` in inventory (matches the wiki's "must have the feather"), hand-spawning `sir_percival` via `npc_add` since he has no `.spawn` entry. (2) `quest_grail.rs2` gained `[opheld1,magic_whistle]` (the item's real `ifop1=Blow` verb), teleporting near the Brimhaven tower (wiki coord 2740,3232) — below `%grail_given_whistle` lands on the corrupted-realm square (`m43_73`, Black Knight Titan guarding the bridge), at/above it skips straight to the restored-realm square (`m41_73`, king_percival + holy_grail), since `black_knight_titan.rs2` has no dedicated "defeated" flag and that state is unreachable without already having gotten past him; re-blowing from inside either half returns to Brimhaven. (3) `quest_grail.rs2` gained `[opobj1,grail_bell]` (matches its real `ifop1=Ring` verb), teleporting beside `fisher_king`'s static spawn. All coordinates cross-checked against the wiki's raw Map templates and this cache's own static `.spawn` rosters. Build verified clean, no duplicate-trigger warnings on any touched file. |
 | `druidicritual` | quest_druid | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Druidic_Ritual) exactly — Kaqemeex's three opening branches (who are you / did you build this / in search of a quest) all converge correctly on the stone-circle quest offer with a real accept/decline (`druid_agree_to_help`/`druid_not_interested`) plus the "is there anything in this for me" herblore-reward detour (`areas/area_taverly/scripts/kaqemeex.rs2`), Sanfew's ingredient hand-in gates on all four enchanted meats (`sanfew.rs2`), the Cauldron of Thunder dip mechanic covers all four raw meats (`quest_druid.rs2`), and completion uses the real `~quest_complete(quest_druidicritual)` with reward (4 QP, `stat_advance(herblore,2500)` = 250 xp) matching the dbrow's `stat_xp_awarded` (stat 15, 2500) exactly. Kaqemeex's post-quest herblore-fundamentals speech and Sanfew's "no more work right now" post-quest branch are both present. No gaps found. Note: `quest_druidspirit` (this row's original secondary target) is not part of Druidic Ritual — it's the separate Nature Spirit quest, already correctly tracked under its own row (`naturespirit` above, found 2026-08-11); not touched here to avoid re-auditing under two names. |
-| `icthlarinslittlehelper` | quest_icthlarin | audited-fixed 2026-08-12: very thorough existing port (5 files, 696 lines) despite `icthlarin.rs2`'s own stale header claiming "jar guardians, embalming, carpenter, ceremony, Apmeken" were deferred — all four are fully scripted (`icthlarin_jar.rs2`: four canopic-jar Apparition guardians + return-the-jar puzzle; `icthlarin_embalm.rs2`: Embalmer salt/sap/linen + Carpenter willow-logs-for-holy-symbol; `icthlarin_ceremony.rs2`: east-chamber holy/unholy symbol swap + possessed priest fight + Icthlarin finale), ending in the real `~quest_complete(quest_icthlarinslittlehelper)` with reward (2 QP, 4500 thieving/4000 agility/4000 woodcutting xp) matching the dbrow's `stat_xp_awarded` exactly, and the Wanderer's hypnosis correctly hands out the wiki-accurate "Het" jar (`ics_little_canopic_jar_liver` — Het is the liver-jar god per Transcript:Icthlarin's_Little_Helper, so the file's own "random jar deferred" comment undersold what was actually already correct). One real, confirmed dialogue-accuracy gap: the Sphinx's riddle in `icthlarin_pyramid.rs2` was entirely wrong versus Transcript:Icthlarin's_Little_Helper — used an invented "how many cats to catch ten mice" riddle with a toothless wrong-answer response ("Wrong. Think carefully and return."), when the real riddle is "A husband and wife have six sons and each son has one sister. How many people are in the family?" with five real answer choices (7/9/12/14/I don't know) and a genuine risk: a *confirmed* wrong answer (7, 12, or 14) costs the player their cat, matching the wiki's well-known "you can lose your cat here" bite, while the correct answer (9) gets "Well answered, human. I guess you get to keep your cat." Rewired the whole exchange to match the transcript verbatim, added the confirm/reconsider risk step before actually taking the cat, and added an `ics_sphinx_take_cat` proc that removes whichever kitten/grown/overgrown cat variant the player is carrying (mirrors `areas/varrock/scripts/gertrude.rs2`'s own `fluffs_has_pet_cat` variant list, since this project gates the cat follower as a plain inventory item). Not touched (flavour-only, no state-gating role): the High Priest's optional deeper lore about Icthlarin/the Devourer/Menaphite theology that the transcript documents as skippable "I'd better get going" side-dialogue. Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics touching `quest_icthlarin`. |
+| `icthlarinslittlehelper` | quest_icthlarin | audited-fixed 2026-08-12: very thorough existing port (5 files, 696 lines) despite `icthlarin.rs2`'s own stale header claiming "jar guardians, embalming, carpenter, ceremony, Apmeken" were deferred — all four are fully scripted (`icthlarin_jar.rs2`: four canopic-jar Apparition guardians + return-the-jar puzzle; `icthlarin_embalm.rs2`: Embalmer salt/sap/linen + Carpenter willow-logs-for-holy-symbol; `icthlarin_ceremony.rs2`: east-chamber holy/unholy symbol swap + possessed priest fight + Icthlarin finale), ending in the real `~quest_complete(quest_icthlarinslittlehelper)` with reward (2 QP, 4500 thieving/4000 agility/4000 woodcutting xp) matching the dbrow's `stat_xp_awarded` exactly, and the Wanderer's hypnosis correctly hands out the wiki-accurate "Het" jar (`ics_little_canopic_jar_liver` — Het is the liver-jar god per Transcript:Icthlarin's_Little_Helper, so the file's own "random jar deferred" comment undersold what was actually already correct). One real, confirmed dialogue-accuracy gap: the Sphinx's riddle in `icthlarin_pyramid.rs2` was entirely wrong versus Transcript:Icthlarin's_Little_Helper — used an invented "how many cats to catch ten mice" riddle with a toothless wrong-answer response ("Wrong. Think carefully and return."), when the real riddle is "A husband and wife have six sons and each son has one sister. How many people are in the family?" with five real answer choices (7/9/12/14/I don't know) and a genuine risk: a *confirmed* wrong answer (7, 12, or 14) costs the player their cat, matching the wiki's well-known "you can lose your cat here" bite, while the correct answer (9) gets "Well answered, human. I guess you get to keep your cat." Rewired the whole exchange to match the transcript verbatim, added the confirm/reconsider risk step before actually taking the cat, and added an `ics_sphinx_take_cat` proc that removes whichever kitten/grown/overgrown cat variant the player is carrying (mirrors `areas/varrock/scripts/gertrude.rs2`'s own `fluffs_has_pet_cat` variant list, since this project gates the cat follower as a plain inventory item). Not touched (flavour-only, no state-gating role): the High Priest's optional deeper lore about Icthlarin/the Devourer/Menaphite theology that the transcript documents as skippable "I'd better get going" side-dialogue. Build: `mingw32-make -C src torirsserver-scripts` exit 0, no new diagnostics touching `quest_icthlarin`. |
 | `impcatcher` | quest_imp | audited-fixed 2026-08-12: matched wiki (Transcript:Imp_Catcher + Quick_guide) closely already; fixed two gaps — (1) `wizard_mizgog.rs2`'s quest-offer branch never let the player decline ("I've better things to do than chase imps."), always force-started the quest; added the accept/refuse `~p_choice2` + Mizgog's "That's great, thank you." accept line. (2) added the documented post-quest repeatable amulet trade ("Have you got another one of those fancy schmancy amulets?" -> trade 4 beads for another amulet of accuracy) that was entirely missing. Also added `wizard_grayzag.rs2`'s missing `[opnpc1,...]` talk-to dialogue (3 quest-state branches, Transcript:Wizard_Grayzag) — he had combat AI but no talk trigger at all. |
-| `legendsquest` | quest_legends | audit-in_progress (2026-08-12, updated): the two missing central NPCs from the prior note are now built, and the quest is genuinely completable start to finish through normal play — but real, wiki-noticeable soft-skip deviations remain, so this stays `audit-in_progress` rather than `audited-fixed`. Built: **Radimus Erkle** (new `radimus_erkle.rs2`) — start gate (5 prereq quests + 107 QP, matching the journal's own logic), a map-completion action (nothing previously produced `thkaramjamapcomp`), totem+map hand-in, 4x 30,000xp training sessions ending in the real `~quest_complete(quest_legends)`. **Gujuo** (new `gujuo.rs2`, plus `bullroarer.rs2` now actually spawns him via `~inzone_coord_pair_table`, previously a dead stub) — sacred-water/golden-bowl request, totem-pole placement, tribe-calling finale. **Ungadulu** (new `ungadulu.rs2`) — octagon rescue via book of binding, Yommi seeds, bravery-potion instructions (new `bravery_pot` recipe added to `skill_herblore/configs/brewing/brew.dbrow`), seed germination. **Viyeldi kill** (`viyeldi.rs2`) — real single-scripted-stab mechanic (matches the actual OSRS mechanic, not combat), sets `^legends_killed_viyeldi`, `deathdagger`→`deathdaggerdone`. Two load-bearing gaps beyond the original list were found and fixed mid-build: **`nezikchened.rs2`** (new) — LostCity's own combat script for this demon was never ported, so all 3 of his fight checkpoints (via Echned Zekin/Ungadulu/Irvig Senay's shared `summon_nezi_part3`) were unwinnable quest-wide; built using the same `ai_opplayer2`/`ai_queue3` pattern as the already-audited `san_tojalon.rs2`. **`legends_gem_shrine.rs2`** (new) — nothing anywhere granted `book_of_binding`, a hard Ungadulu prerequisite; gated on genuinely holding all 5 runes + 7 cut gems (soft-skipped the real per-rock puzzle since no carved-rock locs exist anywhere in `all.loc` to build it against). **Real remaining soft-skips, not yet closed** (each disclosed in-code): the gem/rune puzzle above is a single gated shortcut, not the wiki's actual per-rock mechanic; Gujuo's golden-bowl smithing is one-stepped instead of a separate furnace interaction; Yommi-tree growth is instant; and most significantly, totem-growing only checks the local tribal pool, so the entire Echned Zekin/Viyeldi/Nezikchened "deep water source" arc — while each piece is now individually functional — is bypassable rather than mandatory as in the real quest; the final Nezikchened fight also doesn't model the wiki's "must also beat the 3 Viyeldi warriors" branch if Viyeldi was killed directly. Build verified clean throughout (`mock230-scripts`, exit 0, 15215 scripts, no diagnostics on any touched file). Follow-up: make the deep-water-source arc mandatory (matching the wiki), and replace the gem-shrine shortcut with a real per-rock puzzle if/when the geometry exists. |
+| `legendsquest` | quest_legends | audit-in_progress (2026-08-12, updated): the two missing central NPCs from the prior note are now built, and the quest is genuinely completable start to finish through normal play — but real, wiki-noticeable soft-skip deviations remain, so this stays `audit-in_progress` rather than `audited-fixed`. Built: **Radimus Erkle** (new `radimus_erkle.rs2`) — start gate (5 prereq quests + 107 QP, matching the journal's own logic), a map-completion action (nothing previously produced `thkaramjamapcomp`), totem+map hand-in, 4x 30,000xp training sessions ending in the real `~quest_complete(quest_legends)`. **Gujuo** (new `gujuo.rs2`, plus `bullroarer.rs2` now actually spawns him via `~inzone_coord_pair_table`, previously a dead stub) — sacred-water/golden-bowl request, totem-pole placement, tribe-calling finale. **Ungadulu** (new `ungadulu.rs2`) — octagon rescue via book of binding, Yommi seeds, bravery-potion instructions (new `bravery_pot` recipe added to `skill_herblore/configs/brewing/brew.dbrow`), seed germination. **Viyeldi kill** (`viyeldi.rs2`) — real single-scripted-stab mechanic (matches the actual OSRS mechanic, not combat), sets `^legends_killed_viyeldi`, `deathdagger`→`deathdaggerdone`. Two load-bearing gaps beyond the original list were found and fixed mid-build: **`nezikchened.rs2`** (new) — LostCity's own combat script for this demon was never ported, so all 3 of his fight checkpoints (via Echned Zekin/Ungadulu/Irvig Senay's shared `summon_nezi_part3`) were unwinnable quest-wide; built using the same `ai_opplayer2`/`ai_queue3` pattern as the already-audited `san_tojalon.rs2`. **`legends_gem_shrine.rs2`** (new) — nothing anywhere granted `book_of_binding`, a hard Ungadulu prerequisite; gated on genuinely holding all 5 runes + 7 cut gems (soft-skipped the real per-rock puzzle since no carved-rock locs exist anywhere in `all.loc` to build it against). **Real remaining soft-skips, not yet closed** (each disclosed in-code): the gem/rune puzzle above is a single gated shortcut, not the wiki's actual per-rock mechanic; Gujuo's golden-bowl smithing is one-stepped instead of a separate furnace interaction; Yommi-tree growth is instant; and most significantly, totem-growing only checks the local tribal pool, so the entire Echned Zekin/Viyeldi/Nezikchened "deep water source" arc — while each piece is now individually functional — is bypassable rather than mandatory as in the real quest; the final Nezikchened fight also doesn't model the wiki's "must also beat the 3 Viyeldi warriors" branch if Viyeldi was killed directly. Build verified clean throughout (`torirsserver-scripts`, exit 0, 15215 scripts, no diagnostics on any touched file). Follow-up: make the deep-water-source arc mandatory (matching the wiki), and replace the gem-shrine shortcut with a real per-rock puzzle if/when the geometry exists. |
 | `ragandboneman` | quest_ragandbone | audited-ok 2026-08-12: matches wiki (Quick_guide + gameplay) exactly — Odd Old Man's accept/refuse/curious-about-the-mumbling branches, all 8 quest bone drops correctly wired onto their monsters (`ramunsheered*`/`ramsheered`, `bat`/`bat_unaggressive`/`olaf2_giant_bat`/`non_combat_bat`, `medium_frog` in `quest_ragandboneman/scripts/ragandboneman_drops.rs2`; `bear`/`goblin`/`giant_rat`/`unicorn` in `drop_tables/scripts/`; `monkey` spliced into the existing `quest_tbwt/scripts/tbwt_monkey.rs2` trigger rather than a second competing one), Fortunato's vinegar sale (1gp/jug, matches wiki), and the full vinegar-pour/bone-add/pot-boiler/light-logs/20-tick(=12s)-boil/retrieve mechanic for all 8 bones. Reward (`~quest_complete(quest_ragandboneman1)`, 500 cooking + 500 prayer xp, 1 QP) matches the dbrow exactly. No gaps found. |
 | `runemysteries` | quest_runemysteries | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Rune_Mysteries) — Duke Horacio/Sedridor/Aubury chains all cover lost-item replacement, refuse branches, re-talks, and post-quest lines. One out-of-scope note: the wiki's reward list includes 5 Kudos claimable at the Varrock Museum, but the Kudos system isn't implemented anywhere in this tree (cross-cutting dozens of quests) — not this quest's gap to close alone. |
 | `seaslug` | quest_seaslug | audited-fixed 2026-08-12: very thorough LC port already (caroline/holgart/kennith/kent/bailey/quest_seaslug.rs2 cover every wiki-documented (Transcript:Sea_Slug) scene incl. refuse, lost-torch replacement, and post-quest dialogue). Fixed two real gaps: (1) `caroline.rs2`'s completion queue awarded QP via a bespoke `%qp = add(...)` instead of `~quest_complete(quest_seaslug)`, silently skipping `%quests_completed_count` — every other audited quest in this table uses the real proc, now this one does too. (2) the "possessed fisherman" flavour dialogue (`fisherman.rs2`) only had 2 of the wiki's 6 randomised cryptic lines; expanded to all 6 (paraphrased, non-gating). |
@@ -188,20 +188,20 @@ been audited yet as of the rule change -- every row below is effectively
 | `watchtower` | quest_itwatchtower | audited-fixed 2026-08-12: very thorough existing port (14 files) covering every wiki-documented beat (rock cake theft, deathrune/skavid-map city guard riddle, 4-talker skavid word-learning puzzle + mad skavid final riddle, nightshade enclave-guard distraction, ogre shaman potions, Rock of Dalgroth mining, crystal-lever completion) with proper `~quest_complete(quest_watchtower)`. Fixed one real numeric bug: completion granted `stat_advance(magic, 153000)` (15300 xp) but the dbrow's own `stat_xp_awarded` and the wiki both say 152500 raw (15250 xp) — a 50xp overpay; corrected to match. |
 | `zogreflesheaters` | quest_zogreflesheaters | audited-fixed 2026-08-12: fixed a 10x-too-low XP bug (`stat_advance(ranged/fletching/herblore, 2000)` should have been `20000` per this codebase's tenths-XP convention, confirmed against the dbrow's `stat_xp_awarded` field and the wiki's 2,000/2,000/2,000 XP reward). Added the two missing item rewards (3 ourg bones, 2 zogre bones). Rebuilt the post-transformation Sithik dialogue as a proper repeatable 3-question `p_choice4` menu per the wiki transcript (was a flat monologue). Files: `quest_zogreflesheaters/scripts/{zogreflesheaters.rs2,zogre_finish.rs2}`. |
 | `thefremennikexiles` | quest_fremennikexiles (not `quest_viking`, which is `thefremenniktrials` — see below; this row's own prior "corrected 2026-08-11" mapping note was itself checked and confirmed accurate) | audited-fixed 2026-08-12: fresh full audit (no trace of the referenced 2026-08-11 correction pass was actually found in the tree, so this was re-verified from scratch). QP/XP/item rewards and the `~quest_complete` call already matched the wiki. Found and fixed a real silent-duplicate-trigger bug: `fremennikexiles.rs2` declared its own competing `[opnpc1,viking_woman]` (used as a Freygerd stand-in, since the cache has no dedicated Freygerd gameval), silently shadowing the pre-existing generic Fremennik Trials citizen dialogue and firing unconditionally for any player. Spliced into the existing trigger via a new guarded `fx_freygerd_relevant`/`fx_freygerd_talk` proc pair. Files: `quest_fremennikexiles/scripts/fremennikexiles.rs2`, `quest_viking/scripts/viking_citizen.rs2`. |
-| `thefremenniktrials` | quest_viking | audited-fixed (2026-08-12): all trials now implemented and the quest is completable end to end. Correction to the prior audit: the quest actually has **seven** council trial-judges, not six — Swensen the Navigator (a maze trial) was already scaffolded alongside the other six in `quest_viking.constant`/`quest_viking_progress.rs2`, and the wiki confirms 7-of-12 council votes are needed (the other 5 council members are joke-rejection citizens, already correctly implemented in `viking_citizen.rs2`). Built all 7: Sigli (real hand-spawned Draugen kill), Thorvald (real 4-phase Koschei gauntlet, 3-of-4 passes per wiki), Reveller/Manni (real 250gp keg purchase + hand-in, spliced into `poison_salesman.rs2`), Swensen (soft-skipped the physical maze — no maze geometry exists in this map region's cache — to a real 3-junction wrong-turn/retry puzzle), Olaf (real 40 WC/40 Crafting/25 Fletching gates + potato/cabbage/onion/pet-rock hand-in to Lalli the troll + raw-fish enchant hand-in to Fossegrimen), Peer (real 4-letter riddle with genuine wrong-answer retry; soft-skipped the multi-stage bucket/jug/vase escape room — no puzzle-house geometry in cache), and Sigmund (the explicit `"not wired yet"` stub rewritten into a real 13-NPC forward relay across 7 files, reusing Askeladden's real 5,000gp gate). Vote counter (`%viking`) now increments at 7 guarded, revisit-safe sites. Completion (`viking_brundt.rs2`'s existing 7-vote tally) now calls the real `~quest_complete(quest_fremenniktrials)` + `stat_advance(skill, 28124)` (2,812.4 XP across Attack/Strength/Defence/Hitpoints/Woodcutting/Fletching/Fishing/Crafting/Agility/Thieving) + 3 QP, matching the dbrow exactly. Minor non-blocking follow-up: `viking_journal.rs2`'s Sigmund-chain hint text was written for the wiki's original two-pass visit order and may read slightly out of step with the new single-pass relay — cosmetic only. Build verified clean (`mock230-scripts`, exit 0, 15215 scripts, no diagnostics on any of the 17 touched files; zero duplicate-trigger collisions across all 21 touched NPC names). |
+| `thefremenniktrials` | quest_viking | audited-fixed (2026-08-12): all trials now implemented and the quest is completable end to end. Correction to the prior audit: the quest actually has **seven** council trial-judges, not six — Swensen the Navigator (a maze trial) was already scaffolded alongside the other six in `quest_viking.constant`/`quest_viking_progress.rs2`, and the wiki confirms 7-of-12 council votes are needed (the other 5 council members are joke-rejection citizens, already correctly implemented in `viking_citizen.rs2`). Built all 7: Sigli (real hand-spawned Draugen kill), Thorvald (real 4-phase Koschei gauntlet, 3-of-4 passes per wiki), Reveller/Manni (real 250gp keg purchase + hand-in, spliced into `poison_salesman.rs2`), Swensen (soft-skipped the physical maze — no maze geometry exists in this map region's cache — to a real 3-junction wrong-turn/retry puzzle), Olaf (real 40 WC/40 Crafting/25 Fletching gates + potato/cabbage/onion/pet-rock hand-in to Lalli the troll + raw-fish enchant hand-in to Fossegrimen), Peer (real 4-letter riddle with genuine wrong-answer retry; soft-skipped the multi-stage bucket/jug/vase escape room — no puzzle-house geometry in cache), and Sigmund (the explicit `"not wired yet"` stub rewritten into a real 13-NPC forward relay across 7 files, reusing Askeladden's real 5,000gp gate). Vote counter (`%viking`) now increments at 7 guarded, revisit-safe sites. Completion (`viking_brundt.rs2`'s existing 7-vote tally) now calls the real `~quest_complete(quest_fremenniktrials)` + `stat_advance(skill, 28124)` (2,812.4 XP across Attack/Strength/Defence/Hitpoints/Woodcutting/Fletching/Fishing/Crafting/Agility/Thieving) + 3 QP, matching the dbrow exactly. Minor non-blocking follow-up: `viking_journal.rs2`'s Sigmund-chain hint text was written for the wiki's original two-pass visit order and may read slightly out of step with the new single-pass relay — cosmetic only. Build verified clean (`torirsserver-scripts`, exit 0, 15215 scripts, no diagnostics on any of the 17 touched files; zero duplicate-trigger collisions across all 21 touched NPC names). |
 | `deserttreasureii` / `deserttreasure2` | quest_deserttreasureii | audited-fixed 2026-08-12: QP/rewards/`~quest_complete` call already correct against the wiki. Found and fixed a silent duplicate `[opnpc1,camzodaal_ramarno_entrance]` trigger colliding with Defender of Varrock's Ramarno/sacred-forge handler; spliced the Whisperer-medallion soft-skip into the existing `dov_camdozaal.rs2` block instead. Files: `quest_deserttreasureii/scripts/deserttreasureii.rs2`, `quest_defenderofvarrock/scripts/dov_camdozaal.rs2`. |
 | `dragonslayer` / `dragonslayer1` | quest_dragon | audited-ok 2026-08-12: an unusually complete 11-file port that matches Quick_guide + Transcript:Dragon_Slayer_I almost verbatim end to end — Guildmaster's Champions'-Guild-access branch, Oziach's full map-piece/shield hint tree (with a real branch-menu that revisits any of the three pieces or the antidragon-shield hint in any order, matching the transcript's own non-linear structure), the Oracle's map-piece rhyme + 30-line random-flavour table, Wormbrain's full pay/kill/story/forget-it branches (goblinchat matches transcript), the Dwarven-mine magic-door 4-item puzzle (silk/lobster pot/unfired bowl/wizard's mind bomb), Melzar's Maze (6-coloured-key monster drops + chest), Duke Horacio's optional antidragon shield hand-out, Klarense's ship-purchase/repair/board dialogue (2000gp + 3-plank/12-nail hole patching), Ned's sail-to-Crandor cutscene, and Elvarg's fire-breath/melee AI (shield + Protect Magic maxhit reduction) all present and correct. Completion uses the real `~quest_complete(quest_dragonslayer1)`; reward `stat_advance(strength/defence, 186500)` (18,650 xp each) matches the dbrow's `stat_xp_awarded` (columndef 33: stat 1 and 2, both 186500) and the wiki exactly; 2 QP matches dbrow `questpoints`. No gaps found. |
 | `dragonslayerii` / `dragonslayer2` | quest_dragonslayer2 / quest_dragon | audited-fixed (2026-08-12, complete): every chapter of one of the wiki's longest quests now has real content; completion plumbing was already correct throughout. Built across four agent batches, verified after each that concurrent edits to the shared `dragonslayer2.rs2` file all coexisted (no clobbering). **Crandor arc**: real mine/mural/Spawn fight (level-100 combat, not click-to-win), real 24-piece Fossil Island map gather across 5 real search locs, real boat construction material gate. **Lithkren/dream chapter**: real dungeon traversal, dream potion reuses Dream Mentor's recipe, real HP-gated Robert the Strong fight using his actual combat stats. **Key-pieces/Vorkath chapter**: the cache shipped a complete, purpose-built but entirely unwired asset scaffold for this whole chapter — Kharazi Jungle maze got real golem combat + trap checks, Mort Myre got real crafting + dowsing, **Vorkath got a real HP-gated fight** with a periodic add-spawn special, Shayzien Crypts got a real logic puzzle, Ancient Cavern reforging got a real door/lighting/combine sequence. **Final chapter (diplomatic tour/waves/Galvek)**: real dialogue-gated recruitment checkpoints for Amik Varze/Lathas/Roald/Brundt using pre-reserved cache varbits nothing had wired; a real 13-dragon wave gauntlet across all three wave parts matching the wiki's breakdown; a real 4-phase Galvek fight (1200 HP, phase swaps via `npc_changetype` between four purpose-built variants at 900/600/300 HP thresholds, correct Protect-prayer-per-phase, the wiki's always-on fireball special). Disclosed remaining fidelity simplifications (all narrow, gated behind real content, not bare stubs): the map-rotation IF-puzzle and Shayzien riddle are single fixed-answer shortcuts rather than true per-player puzzles; the ship-defense minigame's play is narrated (gated behind the real recruit tour); wave/Vorkath's magic-ranged-poison-electric attack variety is simplified to melee; Galvek's tile-hazard phase mechanics (fire-trap/hurricane/tsunami/entombment) are flavor text, not real geometry. No bare unconditional soft-skip stubs remain anywhere in the quest. |
-| `taibwowannaitrio` | quest_tbwt | audited-fixed 2026-08-12: exceptionally thorough 8-file port matching Quick_guide + Transcript:Tai_Bwo_Wannai_Trio almost verbatim — Timfraku's title-selection opening, all three brothers' full dialogue trees (Tiadeche's karambwan-vessel fishing chain incl. the free-first-catch offer, Tinsay's three-item fetch-quest chain with the "how do I..." hint menu at every stage, Tamayu's agility-potion/poisoned-spear Shaikahan-hunt cutscene with a real pass/fail assessment based on spear+poison+agility state), Lubufu's apprentice chain, and the four separate "final" (village) NPCs that hand out the real per-brother rewards all present. Completion uses the real `~quest_complete(quest_taibwowannaitrio)`. Reward audit against Transcript/wiki's exact breakdown (1,500 fishing during via Lubufu + 5,000 fishing/5,000 cooking/2,500 attack+2,500 strength+rune spear from the three brothers' final dialogue + 2,000 coins from Timfraku) — every one of these matched the script exactly (`stat_advance(fishing,15000)` in `tbwt_lubufu.rs2`, `stat_advance(fishing/cooking,50000)` and `stat_advance(attack/strength,25000)` in the three `areas/area_karamja/scripts/tbwt_*_final.rs2` files, `inv_add(inv,coins,2000)` in `tbwt_timfraku.rs2`). One real gap: the wiki (Jogre_bones page) documents burning Jogre bones two ways -- a furnace (any Firemaking level, 25 Cooking xp, already implemented) or a tinderbox at Firemaking 30+ (90 Firemaking xp) -- and the tinderbox path didn't exist anywhere in the tree at all. Added it by splicing a `tbwt_jogre_bones` case into `skill_firemaking/scripts/firemaking.rs2`'s existing `[opheldu,tinderbox]` trigger (not a duplicate -- spliced per the standing rule) calling a new `[label,tbwt_light_jogre_bones]` in `quest_tbwt/scripts/tbwt_jogre_bones.rs2` (30 Firemaking level gate + `stat_advance(firemaking,900)`, matching the wiki's message and xp exactly). Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics on either touched file. |
+| `taibwowannaitrio` | quest_tbwt | audited-fixed 2026-08-12: exceptionally thorough 8-file port matching Quick_guide + Transcript:Tai_Bwo_Wannai_Trio almost verbatim — Timfraku's title-selection opening, all three brothers' full dialogue trees (Tiadeche's karambwan-vessel fishing chain incl. the free-first-catch offer, Tinsay's three-item fetch-quest chain with the "how do I..." hint menu at every stage, Tamayu's agility-potion/poisoned-spear Shaikahan-hunt cutscene with a real pass/fail assessment based on spear+poison+agility state), Lubufu's apprentice chain, and the four separate "final" (village) NPCs that hand out the real per-brother rewards all present. Completion uses the real `~quest_complete(quest_taibwowannaitrio)`. Reward audit against Transcript/wiki's exact breakdown (1,500 fishing during via Lubufu + 5,000 fishing/5,000 cooking/2,500 attack+2,500 strength+rune spear from the three brothers' final dialogue + 2,000 coins from Timfraku) — every one of these matched the script exactly (`stat_advance(fishing,15000)` in `tbwt_lubufu.rs2`, `stat_advance(fishing/cooking,50000)` and `stat_advance(attack/strength,25000)` in the three `areas/area_karamja/scripts/tbwt_*_final.rs2` files, `inv_add(inv,coins,2000)` in `tbwt_timfraku.rs2`). One real gap: the wiki (Jogre_bones page) documents burning Jogre bones two ways -- a furnace (any Firemaking level, 25 Cooking xp, already implemented) or a tinderbox at Firemaking 30+ (90 Firemaking xp) -- and the tinderbox path didn't exist anywhere in the tree at all. Added it by splicing a `tbwt_jogre_bones` case into `skill_firemaking/scripts/firemaking.rs2`'s existing `[opheldu,tinderbox]` trigger (not a duplicate -- spliced per the standing rule) calling a new `[label,tbwt_light_jogre_bones]` in `quest_tbwt/scripts/tbwt_jogre_bones.rs2` (30 Firemaking level gate + `stat_advance(firemaking,900)`, matching the wiki's message and xp exactly). Build: `mingw32-make -C src torirsserver-scripts` exit 0, no new diagnostics on either touched file. |
 | `naturespirit` | quest_druidspirit | audited-fixed (2026-08-12, complete): everything downstream of the quest starting was already complete and wiki-accurate (Filliman's full dialogue tree, grotto mechanics, ghast fights, real `~quest_complete(quest_naturespirit)` with correct reward). Two blockers kept it completely unstartable through normal play, both now fixed. Root cause: Nature Spirit's own prerequisite, Priest in Peril, was itself incomplete (fixed in the mid-era audit batch — see `quest_priestperil` there for full detail; that fix wired the missing essence-purification finale, unblocking `^priestperil_complete`). But fixing Priest in Peril alone wasn't sufficient — Drezel still had no Nature-Spirit quest-offer branch of his own, so `%druidspirit` never left `^druidspirit_not_started` even after Priest in Peril could complete. Added the offer (gated on Priest in Peril + Restless Ghost completion, matching this quest's own `druidspirit_journal.rs2` text almost verbatim) into the existing `[opnpc1,priestperiltrappedmonk2]` block in the mid-era batch's new `mausoleum_drezel.rs2`, setting `%druidspirit = ^druidspirit_started`. One independent, self-contained gap fixed earlier in this pass regardless of the blocker: the Mort Myre swamp-decay damage-over-time mechanic (`swamp_decay.rs2`'s `start_swampdecay_timer` proc) was fully written but never called anywhere; wired into `quest_druidspirit.rs2`'s `open_mortmyre_gate` on entry. Build verified clean throughout. Nature Spirit is now startable and completable through normal play for the first time. |
-| `murdermystery` | quest_murder | audited-fixed 2026-08-12: one of the most thorough ports audited this whole queue (20 files) -- the randomised 1-of-6 culprit system (`%murdersus = ~random_range(1,6)`), all six suspects' full poison-purchase/thread/alibi dialogue (`anna.rs2`/`bob.rs2`/`carol.rs2`/`david.rs2`/`elizabeth.rs2`/`frank.rs2`), the flour+flypaper fingerprint-matching puzzle (`quest_murder_prints.rs2`), the six poison-proof search locations each keyed to the right suspect (`quest_murder_poisonproof.rs2`: compost/beehive/drain/spiders'-nest/fountain/family-crest), the barrel/window/gate evidence collection (`quest_murder_barrels.rs2`, `quest_murder_window.rs2`), and the guard's tiered accusation dialogue (correctly requiring thread+fingerprint+poison-proof together for the real "conclusive proof" ending, matching the wiki's evidence-gating) were all cross-checked against Quick_guide and match exactly, including the "drop the necklace before turning in evidence" wiki tip (`murder_clear_evidence` sweeps `worn` as well as `inv`/`bank`, matching the wiki's warning that even worn evidence gets confiscated). Completion uses the real `~quest_complete(quest_murdermystery)`; also correctly spliced into the shared `gossipy_man`/`murderguard` NPCs' King's Ransom follow-up content without duplicating either trigger. One real numeric bug: completion granted `stat_advance(crafting, 14060)` (1406.0 xp) but the dbrow's own `stat_xp_awarded` (columndef 33: stat 12, value 14062) is 1406.2 xp -- a 0.2xp underpay; corrected `murder_guard.rs2`'s `[queue,murder_quest_complete]` to `14062`. Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics on the touched file. |
+| `murdermystery` | quest_murder | audited-fixed 2026-08-12: one of the most thorough ports audited this whole queue (20 files) -- the randomised 1-of-6 culprit system (`%murdersus = ~random_range(1,6)`), all six suspects' full poison-purchase/thread/alibi dialogue (`anna.rs2`/`bob.rs2`/`carol.rs2`/`david.rs2`/`elizabeth.rs2`/`frank.rs2`), the flour+flypaper fingerprint-matching puzzle (`quest_murder_prints.rs2`), the six poison-proof search locations each keyed to the right suspect (`quest_murder_poisonproof.rs2`: compost/beehive/drain/spiders'-nest/fountain/family-crest), the barrel/window/gate evidence collection (`quest_murder_barrels.rs2`, `quest_murder_window.rs2`), and the guard's tiered accusation dialogue (correctly requiring thread+fingerprint+poison-proof together for the real "conclusive proof" ending, matching the wiki's evidence-gating) were all cross-checked against Quick_guide and match exactly, including the "drop the necklace before turning in evidence" wiki tip (`murder_clear_evidence` sweeps `worn` as well as `inv`/`bank`, matching the wiki's warning that even worn evidence gets confiscated). Completion uses the real `~quest_complete(quest_murdermystery)`; also correctly spliced into the shared `gossipy_man`/`murderguard` NPCs' King's Ransom follow-up content without duplicating either trigger. One real numeric bug: completion granted `stat_advance(crafting, 14060)` (1406.0 xp) but the dbrow's own `stat_xp_awarded` (columndef 33: stat 12, value 14062) is 1406.2 xp -- a 0.2xp underpay; corrected `murder_guard.rs2`'s `[queue,murder_quest_complete]` to `14062`. Build: `mingw32-make -C src torirsserver-scripts` exit 0, no new diagnostics on the touched file. |
 | `shadowofthestorm` | quest_shadowstorm | audited-fixed (2026-08-12, complete): all six previously-flagged gaps closed. **Four-kiln search**: the cache already anticipated this exactly — `agrith_kiln_1..4` swap to a pre-authored `_lookin` variant while `%agrith_quest=60`; wired real `[oploc1,...]` triggers, wrong kilns give the wiki's own rejection line, right kiln grants the book once (roll via a previously-unused varbit). **Incantation puzzle**: real `p_choice5` submission using the wiki transcript's exact quoted phrase and its reverse; wrong answers retry. Simplification: fixed answer, not a full per-player permutation. **Clay golem interrogation**: turned out to already be fully built in the sibling `quest_golem/` files (real dialogue gate + item-gate) — the original audit missed it because it lives outside `quest_shadowstorm/`, not because it was missing. **Sigil chase**: replaced the flat `mesbox` with real content matching the wiki's scripted (not player-fought) death — narrated cutscene, a real ground-drop of Tanya's sigil, Eric's sigil via Evil Dave's dialogue using the transcript's exact quote. **Agrith-Naar fight**: previously had zero attack-back AI; added real combat with a Fire-Blast/protect-melee AI switch and a real weapon-gated finishing blow (must be wielding Silverlight/Darklight or he revives at 12 HP, same pattern used elsewhere in this codebase for weapon-gated boss finishes). Simplification: no Telekinetic Grab pull-teleport (no precedent function in the tree to reposition a player from NPC AI). **Six-gems bonus**: real conditional reward gated on `%golem_throne_gems` (confirmed live in `quest_golem/scripts/golem_portal.rs2`). **Tree-wide fix**: the `thosf_reward_lamp` "gap" turned out to have an established convention already (flavor item + direct `stat_advance`, no rub-UI, per `quest_pathofglouphrie`'s own precedent) — this quest's own code was just missing its half; fixed. No duplicate-trigger risk — grepped every NPC/loc/item name used tree-wide before adding, all clean. |
 | `undergroundpass` | quest_upass | audited-ok 2026-08-12: extremely thorough existing port (31 files, 2602 lines) -- spot-checked the full critical path against Transcript:Underground_Pass / Quick_guide and found it faithful everywhere checked: King Lathas's Biohazard-resolution and Underground Pass start dialogue (`areas/area_ardougne_east/scripts/king_lathas.rs2`) matches near-verbatim including the ranged-25 gate and `~setupassgrilltrap` grid seeding; Klank's tinderbox/gauntlets hand-out plus the wiki's 5000gp repurchase-a-lost-pair branch; the doll-of-Iban altar mechanic (`upass_tomb.rs2`'s `[oplocu,cave_temple_altar]`) matches the wiki's throw-the-doll-in-the-pit finale beat for beat, including the post-kill deathrune/firerune bonus loot and temple-collapse cutscene; the bloodwell/badge/unicorn-horn door-unlock mechanic (`upass_bloodwell.rs2`) is fully wired. Completion (`king_lathas.rs2`'s `[queue,upass_quest_complete]`) uses the real `~quest_complete(quest_undergroundpass)` with reward xp (30000 agility + 30000 attack = 3000/3000, matches dbrow `stat_xp_awarded` exactly) and 5 QP. One known, non-blocking gap: Iban's staff recharge at the well (`upass_bloodwell.rs2`'s `case ibanstaff`) is a no-op -- `%iban_staff_charges` doesn't exist anywhere in the port/vars map, i.e. this engine has no generic weapon-charge system yet; same class of cross-cutting/systemic gap as the reward-lamp note above, not specific to this quest. |
 | `thegrandtree` | quest_grandtree | audited-ok 2026-08-12: high-quality existing port (16 files, 1816 lines) matching Transcript:The_Grand_Tree / Quick_guide closely everywhere checked -- Hazelmere's bark-sample/scroll exchange, King Narnode's full 5-choice translation-verification dialogue tree (narrowing down to the exact wiki sentence "A man came to me with the King's seal...And Daconia rocks will kill the tree!"), the Foreman's exact three-question loyalty quiz (wife/favourite dish/girlfriend's name, wrong answers -> combat) in `foreman.rs2`, the Ka-Lu-Min shipyard gate password puzzle in `shipyardworker.rs2`, Femi's helped-free-vs-1000gp-toll branch, and the black demon fight/twig-pillar trapdoor unlock are all present and correct. Completion (`king_narnode.rs2`) uses the real `~quest_complete(quest_grandtree)` with reward xp (184000 attack + 79000 agility + 21500 magic = 18400/7900/2150, matches dbrow `stat_xp_awarded` exactly) and 5 QP. Several files' own header comments claim "Full Grand Tree quest body deferred" -- stale, same pattern as several other rows in this table; the body is in fact essentially complete. One minor, non-blocking simplification: the twig-on-pillar puzzle accepts any twig on any of the four pillars rather than enforcing the wiki's T-U-Z-O left-to-right order (any twig used anywhere, all four just need to end up out of the inventory) -- same end state reached, just without the wiki's negative feedback for a wrong slot; not worth a fix given this codebase's existing precedent for this class of puzzle simplification (see the Waterfall Quest row's pillar-rune note above). |
-| `thelosttribe` | quest_losttribe | audited-fixed 2026-08-12: matches Transcript:The_Lost_Tribe closely overall (Sigmund/Duke Horacio dialogue chains, brooch dig + Reldo/bookcase identification, goblin generals Bentnoze/Wartface's full in-character banter unlocking Goblin Bow/Salute, Mistag contact, HAM pickpocket/chest/crate silverware retrieval, treaty-signing cutscene) ending in the real `~quest_complete(quest_losttribe)` with reward (1 QP, 30000 mining xp = 3000, matches dbrow `stat_xp_awarded` exactly) plus a ring of life. The `lost_tribe_cook_witness` proc reused by Cook's Assistant (flagged in this loop's brief as a possible duplicate-trigger risk to check before touching) turned out to be a real, different bug: cross-checking Transcript:The_Lost_Tribe verbatim showed the cellar-incident eyewitness account ("Last night I was in the kitchen and I heard a noise from the cellar...") is spoken by **Bob** (Bob's Brilliant Axes), not the Cook -- the Cook's actual wiki line is an unrelated red herring ("Oh no, it's terrible, isn't it? There was rock dust everywhere, it got on all my ingredients!"). Moved the witness proc (renamed `lost_tribe_bob_witness`) from `[opnpc1,cook]` to `[opnpc1,bob]` (`areas/lumbridge/scripts/bob.rs2`, splicing into its existing block, not a competing one) and restored the Cook's correct red-herring line in `quest_cook.rs2`. Also added a real, wiki-documented, entirely-missing post-quest reward branch: the quest's reward list includes "A mining helmet from giving the brooch back to Mistag" (confirmed via the page's raw `{{Quest rewards}}` template, since the in-quest transcript doesn't cover post-quest interactions) -- added an `[opnpcu,lost_tribe_mistag_1op]` use-brooch-on-Mistag handler in `losttribe_mistag.rs2` granting `cave_goblin_mining_helmet_unlit` (one-time, gated on not already owning a helmet). Build: `mingw32-make -C src mock230-scripts` exit 0 after each fix, no new diagnostics on any touched file. |
+| `thelosttribe` | quest_losttribe | audited-fixed 2026-08-12: matches Transcript:The_Lost_Tribe closely overall (Sigmund/Duke Horacio dialogue chains, brooch dig + Reldo/bookcase identification, goblin generals Bentnoze/Wartface's full in-character banter unlocking Goblin Bow/Salute, Mistag contact, HAM pickpocket/chest/crate silverware retrieval, treaty-signing cutscene) ending in the real `~quest_complete(quest_losttribe)` with reward (1 QP, 30000 mining xp = 3000, matches dbrow `stat_xp_awarded` exactly) plus a ring of life. The `lost_tribe_cook_witness` proc reused by Cook's Assistant (flagged in this loop's brief as a possible duplicate-trigger risk to check before touching) turned out to be a real, different bug: cross-checking Transcript:The_Lost_Tribe verbatim showed the cellar-incident eyewitness account ("Last night I was in the kitchen and I heard a noise from the cellar...") is spoken by **Bob** (Bob's Brilliant Axes), not the Cook -- the Cook's actual wiki line is an unrelated red herring ("Oh no, it's terrible, isn't it? There was rock dust everywhere, it got on all my ingredients!"). Moved the witness proc (renamed `lost_tribe_bob_witness`) from `[opnpc1,cook]` to `[opnpc1,bob]` (`areas/lumbridge/scripts/bob.rs2`, splicing into its existing block, not a competing one) and restored the Cook's correct red-herring line in `quest_cook.rs2`. Also added a real, wiki-documented, entirely-missing post-quest reward branch: the quest's reward list includes "A mining helmet from giving the brooch back to Mistag" (confirmed via the page's raw `{{Quest rewards}}` template, since the in-quest transcript doesn't cover post-quest interactions) -- added an `[opnpcu,lost_tribe_mistag_1op]` use-brooch-on-Mistag handler in `losttribe_mistag.rs2` granting `cave_goblin_mining_helmet_unlit` (one-time, gated on not already owning a helmet). Build: `mingw32-make -C src torirsserver-scripts` exit 0 after each fix, no new diagnostics on any touched file. |
 | `junglepotion` | quest_junglepotion | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Jungle_Potion) closely — Trufitus's full offer tree (`trufitus.rs2`) has multiple decline branches at every stage ("I am sorry, but I am very busy." at 3 separate points, all routing to a real farewell label), the five-herb collection loop (snake weed/ardrigal/sito foil/volencia moss/rogues purse) with correct clue re-asks, wrong-herb/dirty-herb/not-fresh rejections, and the `%druidquest = ^druid_complete` prerequisite gate (Druidic Ritual) all match. Herb cleaning is correctly *not* duplicated per-quest — `skill_herblore/scripts/identify.rs2`'s generic `attempt_clean_herb` dbtable-driven proc already covers all 5 `unidentified_*` jungle herbs alongside regular grimy herbs. Reward (775 herblore xp = `stat_advance(herblore,7750)`, 1 QP) via real `~quest_complete(quest_junglepotion)`; journal (`junglepotion_journal.rs2`) tracks all 12 states including live `inv_total` re-checks and is wired in `interface_questjournal/scripts/quest_journal.rs2`. No gaps found. |
 | `recruitmentdrive` | quest_recruitmentdrive | IN-LC — CONTENT_PORT_QUEUE — audited-fixed (2026-08-12): two genuine bugs fixed. (1) Sir Kuam/Sir Leye room (`recruitmentdrive_kuam.rs2`) implemented a fictitious "no man may defeat me" gender mechanic (infinite heal on male players + a "soft skip" bypass) instead of the real wiki mechanic -- Sir Leye is blessed against blades, not gender ("no BLADE may defeat me"; killing him with a bladed weapon fails the test, warhammer/unarmed succeeds; Transcript:Recruitment_Drive + Sir_Leye wiki page). Rewrote to grant all 4 room weapons (steel sword/claws/battleaxe/warhammer, matching the wiki's "four weapons nearby") and check `inv_getobj(worn, ^wearpos_rhand)` on the killing blow. (2) Quest completion (`recruitmentdrive.rs2`) called `~quest_complete` but granted none of the wiki's reward (1,000.5 Prayer/Herblore/Agility XP + 3,000 coins) -- added via `stat_advance`; initiate armor/teleport/title deferred (no shop-unlock/spawn-teleport/title system in this engine). Reconciled `SCAPE2009_CONTENT_PORT_QUEUE.md` rows 22c/22h, which duplicate-tracked this same LC content (22h "Miss Cheevers" was stale-`pending`; the room is already fully implemented at `recruitmentdrive_cheevers.rs2`, now marked done there). Build clean. |
-| `regicide` | quest_regicide | audited-fixed (2026-08-12): the entire back half found missing in the prior audit is now built, and the quest is genuinely completable end to end via the real `~quest_complete(quest_regicide)` (3 QP + `stat_advance(agility, 137500)` = 13,750 XP + 15,000 coins, matching the dbrow and wiki exactly). Built: `king_lathas.rs2` gained a `@regicide_lathas_talk` intercept covering every mid-quest state through the "Tyras is dead" proof exchange and the real ending (hands in `regicide_iorwerth_message`, sets `^regicide_spoken_arianwyn` then `^regicide_complete`, grants reward); `koftik.rs2`'s Well of Voyage teleport was folded in (also fixed a latent bug where the "well ready" line showed regardless of quest state); the footprint puzzle (`regicide_camp_tracker.rs2`) now sets `^regicide_found_footprints` via the previously-unbound `regicide_old_camp_footprints_vis_op` multiloc; real melee combat AI was added to the Tyras-camp-guard (`regicide_tyras_guard.rs2`, mirrored from this quest's own `regicide_darkelf2` pattern) setting `^regicide_defeated_guard`/`^regicide_entered_camp`; a full bomb-crafting chain (new `regicide_bombcraft.rs2` — quicklime/sulphur/naphtha/cloth + catapult firing) was built, with the still/naphtha-mixing steps spliced into `quest_mourningsendparti/scripts/mend1_poison.rs2`'s pre-existing triggers for those same items rather than duplicating them (a real duplicate-trigger mistake was caught and fixed mid-build). Two new herblore grind entries (quicklime/sulphur) were added, and a `quest_biohazard/scripts/chemist.rs2` post-Biohazard dialogue gap this work exposed was fixed alongside. Soft-skips (all disclosed in-code): the fractionalising still's valve/pressure minigame is a flat coal-cost conversion; the forest branch/twig puzzle is three narrated `Follow` interactions rather than a spatial puzzle; guard-fight-then-camp-discovery collapses into one combat kill; the elf scout party greeting is narrated (no NPC exists in the pack for it); furnace glove-burn flavour detail was dropped. Build verified clean (`mock230-scripts`, exit 0, 15196+ scripts, no diagnostics on any touched file). |
+| `regicide` | quest_regicide | audited-fixed (2026-08-12): the entire back half found missing in the prior audit is now built, and the quest is genuinely completable end to end via the real `~quest_complete(quest_regicide)` (3 QP + `stat_advance(agility, 137500)` = 13,750 XP + 15,000 coins, matching the dbrow and wiki exactly). Built: `king_lathas.rs2` gained a `@regicide_lathas_talk` intercept covering every mid-quest state through the "Tyras is dead" proof exchange and the real ending (hands in `regicide_iorwerth_message`, sets `^regicide_spoken_arianwyn` then `^regicide_complete`, grants reward); `koftik.rs2`'s Well of Voyage teleport was folded in (also fixed a latent bug where the "well ready" line showed regardless of quest state); the footprint puzzle (`regicide_camp_tracker.rs2`) now sets `^regicide_found_footprints` via the previously-unbound `regicide_old_camp_footprints_vis_op` multiloc; real melee combat AI was added to the Tyras-camp-guard (`regicide_tyras_guard.rs2`, mirrored from this quest's own `regicide_darkelf2` pattern) setting `^regicide_defeated_guard`/`^regicide_entered_camp`; a full bomb-crafting chain (new `regicide_bombcraft.rs2` — quicklime/sulphur/naphtha/cloth + catapult firing) was built, with the still/naphtha-mixing steps spliced into `quest_mourningsendparti/scripts/mend1_poison.rs2`'s pre-existing triggers for those same items rather than duplicating them (a real duplicate-trigger mistake was caught and fixed mid-build). Two new herblore grind entries (quicklime/sulphur) were added, and a `quest_biohazard/scripts/chemist.rs2` post-Biohazard dialogue gap this work exposed was fixed alongside. Soft-skips (all disclosed in-code): the fractionalising still's valve/pressure minigame is a flat coal-cost conversion; the forest branch/twig puzzle is three narrated `Follow` interactions rather than a spatial puzzle; guard-fight-then-camp-discovery collapses into one combat kill; the elf scout party greeting is narrated (no NPC exists in the pack for it); furnace glove-burn flavour detail was dropped. Build verified clean (`torirsserver-scripts`, exit 0, 15196+ scripts, no diagnostics on any touched file). |
 | `tearsofguthix` | quest_tearsofguthix | IN-LC — CONTENT_PORT_QUEUE — audited-ok (2026-08-12): checked against the Tears_of_Guthix quest page + Quick_guide + Transcript. Start requirements (43 QP, Firemaking 49, Crafting 20, Mining 20) match `^tog_fm_req`/`^tog_craft_req`/`^tog_mine_req`/`^tog_qp_req` exactly; Juna's story-telling dialogue, "what are the Tears" branch, and stone-bowl crafting (chisel + tog_stone -> tog_bowl) match the wiki; completion correctly calls `~quest_complete(quest_tearsofguthix)` with 1,000 Crafting XP (`stat_advance(crafting, 10000)`), matching the wiki reward exactly. Pre-existing disclosed simplification (not a new finding, not fixed): the post-quest weekly Tears-collection minigame's XP-skill selection (`tog_soft_collect_tears` in `tearsofguthix_lantern.rs2`) picks the lowest-*level* skill among 15 non-combat skills with a flat 1000xp/collect, where the real mechanic (per the Tears_of_Guthix_(minigame) wiki page) is lowest-*experience* skill among ALL skills including combat (Attack/Strength/Defence/Ranged/Magic/Prayer/Hitpoints), with a per-tear formula `min(60, 10+110*floor(xp/27))` -- already commented "Soft ... full tears IF deferred" in the source; does not affect quest completion itself. |
 | `whatliesbelow` | quest_whatliesbelow | IN-LC — CONTENT_PORT_QUEUE — audited-fixed (2026-08-12): one genuine bug found and fixed, otherwise matches the wiki closely (Rat Burgiss → outlaw papers → Surok's letters/wand/bomb-book-alchemy flavour → Zaff/beacon-ring/soft-skipped King Roald fight → Rat reward; completion correctly calls `~quest_complete` with 8,000 Runecraft + 2,000 Defence XP, matching the wiki Rewards section exactly, `^wlb_rc_xp`/`^wlb_def_xp` = 80000/20000 tenths). The bug: the `surok_outlaw1..10` NPCs (wiki Quick_guide: "Kill 5 Outlaws just west of the Grand Exchange") have no static `.spawn` entry anywhere in the cache (`m49_52.spawn` covering `^wlb_outlaw_camp` has none) and were previously only ever `npc_add`-ed by the `::wlbpapers` debugproc -- through normal play (talking to Rat Burgiss), nothing ever spawned them, so the camp was permanently empty and the quest could not be started/completed outside debug. Added `~wlb_spawn_outlaws` (spawns 3 outlaws at the camp, guarded by `npc_find`) called from the real quest-accept dialogue and every re-visit while `^wlb_collect_papers`, plus a same-type respawn in the death handler (`wlb_outlaw_death` now takes `npc $type` and re-`npc_add`s at `npc_coord` after `~npc_default_death`, since a dynamically-`npc_add`-ed quest mob does not respawn on its own). Build clean. |
 
@@ -345,7 +345,7 @@ filed under `helpers/miniquests/` are at the end.
 | 70 | templeofikov | `templeofikov` | 419 | done (LC) | re-audit 2026-08-10: `quest_ikov` (`ikov_firewarrior.rs2`, `ikov_lucien.rs2`; dbrow `quest_templeofikov` journal wired) |
 | 71 | observatoryquest | `observatoryquest` | 424 | done (LC) | re-audit 2026-08-10: `quest_itgronigen` (`observatory_professor.rs2`, `observatory_assistant.rs2`, `goblin_guard.rs2`; dbrow `quest_observatory` journal wired) |
 | 72 | olafsquest | `olafsquest` | 425 | done | Apr 2007 -- Olaf Hradson, family carvings, Brine Rat Cavern; native dbrow `quest_olafs` (id 132, endstate 80, questpoints 1) + native varbit schema on basevars `olaf_var`/`olaf_extra_var`/`olaf2_extra_var` (`%olaf_quest_var`, `%olaf_ingrid_quest`/`%olaf_volf_quest`, `%olaf_fire_multi`, `%olaf2_gate_disk_1..4`, `%olaf2_walkway_1/2`, `%olaf2_killed_ulfric`, `%olaf2_gate_completed`) reused as-is, matching quest-helper's own VarbitID names exactly; picture-wall lever puzzle mechanic (right/top/left/bottom pairwise mod-5 rotation, fixed start top=2/right=3/bottom=2/left=1) derived from `PaintingWall.java`'s own hint-branch checkpoints, not guessed; dbrow `requirement_quests` wrong (resolves to Nature Spirit) -- hard-gated on The Fremennik Trials instead (`%viking = ^viking_complete`, `quest_viking` dir -- note this dir is mislabeled "Fremennik Exiles" in the IN-LC table above, it actually implements Fremennik Trials, confirmed via `quest_journal.rs2:643`); zero hand-spawning (every npc/ground item already world-spawned in `m42_58.spawn`/`m41_57.spawn`/`m42_158.spawn`, matching quest-helper's own coords); constants namespaced `^olafq_*` not `^olaf_*` (collided with `quest_viking.constant`'s own `^olaf_*` trial-judge constants); deferred: Agility-scaled barrel-repair fail chance, visual skull-disk model rotation (no verified per-rotation model id in the pack), flavour-only treasure-map/note viewer interfaces; see Log |
-| 73 | grimtales | `grimtales` | 427 | done | Jun 2007 -- Sylas's rare trinkets, Grimgnash's bedtime story, Miazrqa's shrinking-potion mouse maze, Glod atop the beanstalk; native dbrow `quest_grimtales` (id 135, endstate 60, questpoints 1) + native varbit schema on basevars `grim_main`/`grim_second` (`grim_quest`, `grim_storyline`, `grim_griffin_asleep`, `grim_given_feather`, `grim_dwarfquest`, `grim_dwarf_vis`, `grim_beard_climb`, `grim_pianotrack`, `grim_piano_used`, `grim_head_found`, `grim_show_musicsheet`, `grim_have_pendant`, `grim_stalk_state`, `grim_giant_dead`) reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` wrong (resolves to A Porcine of Interest) -- hard-gated on Witch's House instead (`%ballquest = ^ball_complete`, `quest_ball` dir); fixed a genuine pre-existing bug in that shared `quest_ball_locs.rs2` blocking this slice -- `open_witch_house_door`'s refusal condition fired whenever `%ballquest = ^ball_complete` (i.e. always, for every Grim Tales player, since Witch's House is a hard prereq), narrowed to `%ballquest < ^ball_started` only; merged a `grim_turnip` branch into the shared `skill_herblore/scripts/brew_potion.rs2`'s existing `[opheldu,tarrominvial]` trigger for the shrink-potion recipe rather than duplicating it; mouse-hole maze routed by `inzone` zone membership (quest-helper's own `Zone` bounds) rather than single coordinates, since the cache places multiple nail-wall climb instances per room; Glod hand-spawned in his own cloud instance (no world spawn, like Ulfric in Olaf's Quest); deferred: exact wrong-branch maze coordinates (routed to nearest correct room instead), Grimgnash's story wrong-answer text (original wording, not recoverable from wiki/helper), piano interface's own compartment-open/search buttons (world object's native `op3=Search` used instead), per-note piano highlight varbits, finer watchtower cosmetic beard-climb states, `grim_junglestatue`'s "second goblin" flavour object (no native op declared -- Glod drops the one goblin quest-helper's own step map actually requires); wiki https://oldschool.runescape.wiki/w/Grim_Tales/Quick_guide + Transcript:Grim_Tales; `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (13,736 scripts, up from 13,664; zero "error" hits, zero grim-tales-related warnings — only pre-existing native-cache "no Attack op" warnings on `grim_*` npc records already shipped by the cache); `mock230_pack --check-only` not runnable in this worktree (no `cache.osrs239` present -- pre-existing environment gap unrelated to this slice, ~960 pre-existing category/cache errors reproduce identically without this change); next = Haunted Mine (#76) |
+| 73 | grimtales | `grimtales` | 427 | done | Jun 2007 -- Sylas's rare trinkets, Grimgnash's bedtime story, Miazrqa's shrinking-potion mouse maze, Glod atop the beanstalk; native dbrow `quest_grimtales` (id 135, endstate 60, questpoints 1) + native varbit schema on basevars `grim_main`/`grim_second` (`grim_quest`, `grim_storyline`, `grim_griffin_asleep`, `grim_given_feather`, `grim_dwarfquest`, `grim_dwarf_vis`, `grim_beard_climb`, `grim_pianotrack`, `grim_piano_used`, `grim_head_found`, `grim_show_musicsheet`, `grim_have_pendant`, `grim_stalk_state`, `grim_giant_dead`) reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` wrong (resolves to A Porcine of Interest) -- hard-gated on Witch's House instead (`%ballquest = ^ball_complete`, `quest_ball` dir); fixed a genuine pre-existing bug in that shared `quest_ball_locs.rs2` blocking this slice -- `open_witch_house_door`'s refusal condition fired whenever `%ballquest = ^ball_complete` (i.e. always, for every Grim Tales player, since Witch's House is a hard prereq), narrowed to `%ballquest < ^ball_started` only; merged a `grim_turnip` branch into the shared `skill_herblore/scripts/brew_potion.rs2`'s existing `[opheldu,tarrominvial]` trigger for the shrink-potion recipe rather than duplicating it; mouse-hole maze routed by `inzone` zone membership (quest-helper's own `Zone` bounds) rather than single coordinates, since the cache places multiple nail-wall climb instances per room; Glod hand-spawned in his own cloud instance (no world spawn, like Ulfric in Olaf's Quest); deferred: exact wrong-branch maze coordinates (routed to nearest correct room instead), Grimgnash's story wrong-answer text (original wording, not recoverable from wiki/helper), piano interface's own compartment-open/search buttons (world object's native `op3=Search` used instead), per-note piano highlight varbits, finer watchtower cosmetic beard-climb states, `grim_junglestatue`'s "second goblin" flavour object (no native op declared -- Glod drops the one goblin quest-helper's own step map actually requires); wiki https://oldschool.runescape.wiki/w/Grim_Tales/Quick_guide + Transcript:Grim_Tales; `mingw32-make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0 (13,736 scripts, up from 13,664; zero "error" hits, zero grim-tales-related warnings — only pre-existing native-cache "no Attack op" warnings on `grim_*` npc records already shipped by the cache); `ToriRSServer_Pack --check-only` not runnable in this worktree (no `cache.osrs239` present -- pre-existing environment gap unrelated to this slice, ~960 pre-existing category/cache errors reproduce identically without this change); next = Haunted Mine (#76) |
 | 74 | thetouristtrap | `thetouristtrap` | 433 | done (LC) | re-audit 2026-08-10: `quest_desertrescue` (`irena.rs2`; dbrow `quest_touristtrap` journal wired) |
 | 75 | twilightspromise | `twilightspromise` | 433 | done |  |
 | 76 | hauntedmine | `hauntedmine` | 435 | done | Dec 2004 -- the Zealot's cart-tunnel dungeon, mine-cart lever puzzle, valve/lift race, Treus Dayth ambush, crystal outcrop; native dbrow `quest_hauntedmine` (id 68, endstate 11, questpoints 2, requirement_stats crafting 35 boostable, stat_xp_awarded strength 22000xp) + full native varbit schema on basevar `hauntedmine_bits` (`heardaboutkey`, `liftpoweredonce`/`liftpowerednow`, `begincart_fungus`/`endcart_fungus`, `pointspuzzlestarted`, 8 lever bits `lever_a/b/c/d/e/i/j/k`) reused as-is, matching quest-helper's own VarbitID names exactly; see Log |
@@ -392,8 +392,8 @@ filed under `helpers/miniquests/` are at the end.
 | 117 | biohazard | `biohazard` | 635 | done (LC) | OSRS has 7 rs2 files (not in PORT_QUEUE table) |
 | 118 | makingfriendswithmyarm | `makingfriendswithmyarm` | 640 | done |  |
 | 119 | swansong | `swansong` | 644 | done | May 2006 -- Herman Caranos's besieged Piscatoris Fishing Colony, the Wise Old Man's own "swan song", Franklin's wall repairs, Arnold's monkfish, Malignius Mortifer's failed skeletal army, the Sea Troll Queen; see Log |
-| 120 | royaltrouble | `royaltrouble` | 657 | done | May 2006 -- King Vargas's restlessness, a staged Miscellania/Etceteria feud, five Fremennik teens (Signy/Hild/Armod/Beigarth/Reinn) who failed their Trials, a Giant Sea Snake (level 149); thematically/mechanically linked to Throne of Miscellania (#99) -- same native npcs (misc_advisor_ghrim/misc_king_vargas/misc_queen_sigrid), branch merged into quest_misc's own existing opnpc1 triggers rather than duplicated; native dbrow `quest_royaltrouble` (id 112, endstate 30, questpoints 1, requirement_stats agility 40 + slayer 40, stat_xp_awarded agility/slayer/hitpoints 5000 each -- raw dbrow values /10, matches wiki exactly) + native varbit schema on basevars `royal_questvarbits` (`royal_quest`/`royal_misc`/`royal_etc`) and `royal_varbits` reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw + summarized, not verbatim -- exact intermediate breakpoint semantics reconstructed from the recovered ROYAL_MISC {10,20,30,40,50,60,80,110,120}/ROYAL_ETC {10,20,40} value sets + wiki step order, not independently confirmed); `%royal_liftstage`/`%royal_coalinengine` breakpoints ARE independently confirmed off this cache's own multivarbit .loc records (`royal_side_scaffold_multiloc`, `royal_top_scaffold_multiloc`, `royal_engine_platform_multiloc`, `royal_lift_platform_multiloc`) -- lift repair implemented as a real multi-step item-on-object puzzle (crates/beams/pulley beams/rope/coal engine) using those exact breakpoints, not narrated; dbrow `requirement_quests` resolves to The Corsair Curse (id 147) -- not a real prerequisite (same cache decode corruption flagged repeatedly on this queue) -- gated on Throne of Miscellania completion instead (`%misc_quest = ^misc_king_signed_treaty`); npcs=royal_misc_guard/royal_etc_guard (cache's own soldiers-being-blamed stand in for the wiki's unresolved Gunnhild/Leif/Frodi/Magnus/Helga/Haming/Matilda interviewees, cache wins), misc_sailor, royal_dwarf_drunk (Donal), royal_fremennik_teen3 (Armod, spokesperson), royal_sea_snake_mother_smaller (Giant Sea Snake boss, hand-spawned on trigger + `~npc_default_death`, same idiom as Contact's Giant Scarab), royal_cutscene_prince_brand/royal_cutscene_princess_astrid (dedicated intro-cutscene npcs, distinct from quest_misc's own Brand/Astrid, op1 added via additive .npc overlay); zero hand-spawning for every other npc (all world-spawned already); cave hazards (steam vents/falling rocks/slippery-rock plank) deferred as pass-through terrain, no damage/fail-chance system precedent in this tree; wiki https://oldschool.runescape.wiki/w/Royal_Trouble/Quick_guide + walkthrough (Transcript: page not fetched verbatim, paraphrased dialogue per copyright, same as King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (13,940 scripts, up from 13,887); `::royaltrouble` / `::royaltroublerun`; next = The Great Brain Robbery (#121) |
-| 121 | thegreatbrainrobbery | `thegreatbrainrobbery` | 659 | done | Mar 2007 -- Brother Tranquility's Harmony Island monastery has had its monks' brains stolen by Mi-Gor's zombie pirates for his machine, Barrelchest; Dr Fenkenstrain (Creature of Fenkenstrain, already implemented, hard-gated on `%creatureoffenkenstrain >= ^fenk_complete`) is smuggled to the island inside a crate of wooden cats to perform the transplants; native dbrow `quest_greatbrainrobbery` (id 130, endstate 130, questpoints 2, requirement_stats prayer 50 + construction 30 -- dbrow only encodes 2 stat rows, wiki's crafting 16 checked separately, stat_xp_awarded prayer 60000=6000xp + crafting 30000=3000xp + construction 20000=2000xp, raw dbrow /10 matches wiki exactly) + native varbit schema on basevars `brain_extra_var`/`brain_extra_var_2` (`brain_broken_steps`, `brain_read_prayers`, `brain_words`, `brain_fenk_puzzle`, `brain_crate`, `brain_barrel_setup`, `brain_clamp_given`/`brain_tongs_given`/`brain_hammer_given`/`brain_jars_given`/`brain_staples_given`, `brain_statue_pushed`, `brain_seen_wallbreaker`, `brain_multi_monk`) reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw); master progress is a plain varp `brain_quest_var` (0/10/20.../130, matching quest-helper's own steps.put keys 1:1) -- confirmed authoritative (not guessed) via this cache's own multi-npc records: `brain_tranquility`/`brain_island_tranquility` both declare `multivarp=brain_quest_var` swapping Brother Tranquility zombie->human exactly at value 100, and `brain_island_fenkenstrain` only renders `fenk_fenkenstrain_model` from value 70 on, both landing exactly on quest-helper's own step keys; crate-build puzzle (`%brain_crate` 1..5: Build/Add-bottom/Fill/cats-added/Fenk-inside) and door-breach puzzle (`%brain_barrel_setup` 2..5: keg/fuse/lit/gone) both independently confirmed via this cache's own `brain_fenk_crate` and `brain_mon_entrance_door_multi` native multiloc records, matching quest-helper's own VarbitRequirement thresholds exactly; statue passage and underwater stairs repair (`brain_statue_saradomin`, `brain_underwater_stairs_broken`, op1=Repair, no item needed) likewise cache-baked map locs with no `.spawn` entry anywhere in this tree (confirmed via grep) -- script triggers only, no hand-spawning needed for any of the puzzle geometry; dbrow `requirement_quests` decodes to Black Knights' Fortress/Lost City -- not real prerequisites (same cache decode corruption flagged repeatedly on this queue) -- real prereqs per wiki are Creature of Fenkenstrain (hard-gated, already implemented), Cabin Fever and Recipe for Disaster/Freeing Pirate Pete (both have native dbrow rows but zero scripts anywhere in server/scripts -- soft-skipped, matching this queue's established convention for unported sibling prereqs); npcs=brain_tranquility/brain_island_tranquility (Brother Tranquility, split by location, matches the queue's own `brainbrothe` abbreviation), werewolfshopkeeper1 (Rufus, already has a Talk-to stub in `areas/area_canifis/scripts/rufus.rs2` -- merged a crate-scheme branch into its existing `[opnpc1,werewolfshopkeeper1]` trigger rather than duplicating, matches queue's own `feverharmle` sample which resolves to `fever_harmless_teach`-family Mos Le'Harmless npcs, not directly used here since Tranquility himself starts on Mos Le'Harmless), fenk_fenkenstrain_model (Dr Fenkenstrain, already has a full Talk-to tree in `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2` for Creature of Fenkenstrain -- merged a branch into its existing `@fenk_talk` label rather than duplicating the trigger); brain_mi_gor/brain_barrel_chest hand-spawned on trigger for the final church confrontation, same idiom as Royal Trouble's Giant Sea Snake / Contact's Giant Scarab (neither has a `.spawn` entry); wooden-cat crafting implemented as a simplified oak-plank + knife make-action (no player-owned-house workshop flatpack minigame precedent anywhere in this tree -- deferred); surgical instruments (cranial clamp/brain tongs/3 bell jars/30 skull staples) drop from Sorebones kills via a simple scripted `obj_add` on `ai_queue3` death (no verified native drop table recoverable for these specific items); Barrelchest's own prayer-disabling special attack has no established mechanic precedent, left to the generic combat system, same reasoning as Royal Trouble's own boss; wiki https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery/Quick_guide + https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery (dialogue paraphrased per copyright, same convention as Royal Trouble/King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (14,078 scripts, up from 14,041; zero brain_-related errors/warnings); files: `quests/quest_thegreatbrainrobbery/{configs/thegreatbrainrobbery.constant,configs/thegreatbrainrobbery.varp,scripts/brain_{shared,tranquility,underwater,prayerbook,castle,door,finale,journal}.rs2}` + merges into `areas/area_canifis/scripts/rufus.rs2`, `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2`, `interface_questjournal/scripts/quest_journal.rs2`; next = Rum Deal (#122) |
+| 120 | royaltrouble | `royaltrouble` | 657 | done | May 2006 -- King Vargas's restlessness, a staged Miscellania/Etceteria feud, five Fremennik teens (Signy/Hild/Armod/Beigarth/Reinn) who failed their Trials, a Giant Sea Snake (level 149); thematically/mechanically linked to Throne of Miscellania (#99) -- same native npcs (misc_advisor_ghrim/misc_king_vargas/misc_queen_sigrid), branch merged into quest_misc's own existing opnpc1 triggers rather than duplicated; native dbrow `quest_royaltrouble` (id 112, endstate 30, questpoints 1, requirement_stats agility 40 + slayer 40, stat_xp_awarded agility/slayer/hitpoints 5000 each -- raw dbrow values /10, matches wiki exactly) + native varbit schema on basevars `royal_questvarbits` (`royal_quest`/`royal_misc`/`royal_etc`) and `royal_varbits` reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw + summarized, not verbatim -- exact intermediate breakpoint semantics reconstructed from the recovered ROYAL_MISC {10,20,30,40,50,60,80,110,120}/ROYAL_ETC {10,20,40} value sets + wiki step order, not independently confirmed); `%royal_liftstage`/`%royal_coalinengine` breakpoints ARE independently confirmed off this cache's own multivarbit .loc records (`royal_side_scaffold_multiloc`, `royal_top_scaffold_multiloc`, `royal_engine_platform_multiloc`, `royal_lift_platform_multiloc`) -- lift repair implemented as a real multi-step item-on-object puzzle (crates/beams/pulley beams/rope/coal engine) using those exact breakpoints, not narrated; dbrow `requirement_quests` resolves to The Corsair Curse (id 147) -- not a real prerequisite (same cache decode corruption flagged repeatedly on this queue) -- gated on Throne of Miscellania completion instead (`%misc_quest = ^misc_king_signed_treaty`); npcs=royal_misc_guard/royal_etc_guard (cache's own soldiers-being-blamed stand in for the wiki's unresolved Gunnhild/Leif/Frodi/Magnus/Helga/Haming/Matilda interviewees, cache wins), misc_sailor, royal_dwarf_drunk (Donal), royal_fremennik_teen3 (Armod, spokesperson), royal_sea_snake_mother_smaller (Giant Sea Snake boss, hand-spawned on trigger + `~npc_default_death`, same idiom as Contact's Giant Scarab), royal_cutscene_prince_brand/royal_cutscene_princess_astrid (dedicated intro-cutscene npcs, distinct from quest_misc's own Brand/Astrid, op1 added via additive .npc overlay); zero hand-spawning for every other npc (all world-spawned already); cave hazards (steam vents/falling rocks/slippery-rock plank) deferred as pass-through terrain, no damage/fail-chance system precedent in this tree; wiki https://oldschool.runescape.wiki/w/Royal_Trouble/Quick_guide + walkthrough (Transcript: page not fetched verbatim, paraphrased dialogue per copyright, same as King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0 (13,940 scripts, up from 13,887); `::royaltrouble` / `::royaltroublerun`; next = The Great Brain Robbery (#121) |
+| 121 | thegreatbrainrobbery | `thegreatbrainrobbery` | 659 | done | Mar 2007 -- Brother Tranquility's Harmony Island monastery has had its monks' brains stolen by Mi-Gor's zombie pirates for his machine, Barrelchest; Dr Fenkenstrain (Creature of Fenkenstrain, already implemented, hard-gated on `%creatureoffenkenstrain >= ^fenk_complete`) is smuggled to the island inside a crate of wooden cats to perform the transplants; native dbrow `quest_greatbrainrobbery` (id 130, endstate 130, questpoints 2, requirement_stats prayer 50 + construction 30 -- dbrow only encodes 2 stat rows, wiki's crafting 16 checked separately, stat_xp_awarded prayer 60000=6000xp + crafting 30000=3000xp + construction 20000=2000xp, raw dbrow /10 matches wiki exactly) + native varbit schema on basevars `brain_extra_var`/`brain_extra_var_2` (`brain_broken_steps`, `brain_read_prayers`, `brain_words`, `brain_fenk_puzzle`, `brain_crate`, `brain_barrel_setup`, `brain_clamp_given`/`brain_tongs_given`/`brain_hammer_given`/`brain_jars_given`/`brain_staples_given`, `brain_statue_pushed`, `brain_seen_wallbreaker`, `brain_multi_monk`) reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw); master progress is a plain varp `brain_quest_var` (0/10/20.../130, matching quest-helper's own steps.put keys 1:1) -- confirmed authoritative (not guessed) via this cache's own multi-npc records: `brain_tranquility`/`brain_island_tranquility` both declare `multivarp=brain_quest_var` swapping Brother Tranquility zombie->human exactly at value 100, and `brain_island_fenkenstrain` only renders `fenk_fenkenstrain_model` from value 70 on, both landing exactly on quest-helper's own step keys; crate-build puzzle (`%brain_crate` 1..5: Build/Add-bottom/Fill/cats-added/Fenk-inside) and door-breach puzzle (`%brain_barrel_setup` 2..5: keg/fuse/lit/gone) both independently confirmed via this cache's own `brain_fenk_crate` and `brain_mon_entrance_door_multi` native multiloc records, matching quest-helper's own VarbitRequirement thresholds exactly; statue passage and underwater stairs repair (`brain_statue_saradomin`, `brain_underwater_stairs_broken`, op1=Repair, no item needed) likewise cache-baked map locs with no `.spawn` entry anywhere in this tree (confirmed via grep) -- script triggers only, no hand-spawning needed for any of the puzzle geometry; dbrow `requirement_quests` decodes to Black Knights' Fortress/Lost City -- not real prerequisites (same cache decode corruption flagged repeatedly on this queue) -- real prereqs per wiki are Creature of Fenkenstrain (hard-gated, already implemented), Cabin Fever and Recipe for Disaster/Freeing Pirate Pete (both have native dbrow rows but zero scripts anywhere in server/scripts -- soft-skipped, matching this queue's established convention for unported sibling prereqs); npcs=brain_tranquility/brain_island_tranquility (Brother Tranquility, split by location, matches the queue's own `brainbrothe` abbreviation), werewolfshopkeeper1 (Rufus, already has a Talk-to stub in `areas/area_canifis/scripts/rufus.rs2` -- merged a crate-scheme branch into its existing `[opnpc1,werewolfshopkeeper1]` trigger rather than duplicating, matches queue's own `feverharmle` sample which resolves to `fever_harmless_teach`-family Mos Le'Harmless npcs, not directly used here since Tranquility himself starts on Mos Le'Harmless), fenk_fenkenstrain_model (Dr Fenkenstrain, already has a full Talk-to tree in `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2` for Creature of Fenkenstrain -- merged a branch into its existing `@fenk_talk` label rather than duplicating the trigger); brain_mi_gor/brain_barrel_chest hand-spawned on trigger for the final church confrontation, same idiom as Royal Trouble's Giant Sea Snake / Contact's Giant Scarab (neither has a `.spawn` entry); wooden-cat crafting implemented as a simplified oak-plank + knife make-action (no player-owned-house workshop flatpack minigame precedent anywhere in this tree -- deferred); surgical instruments (cranial clamp/brain tongs/3 bell jars/30 skull staples) drop from Sorebones kills via a simple scripted `obj_add` on `ai_queue3` death (no verified native drop table recoverable for these specific items); Barrelchest's own prayer-disabling special attack has no established mechanic precedent, left to the generic combat system, same reasoning as Royal Trouble's own boss; wiki https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery/Quick_guide + https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery (dialogue paraphrased per copyright, same convention as Royal Trouble/King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0 (14,078 scripts, up from 14,041; zero brain_-related errors/warnings); files: `quests/quest_thegreatbrainrobbery/{configs/thegreatbrainrobbery.constant,configs/thegreatbrainrobbery.varp,scripts/brain_{shared,tranquility,underwater,prayerbook,castle,door,finale,journal}.rs2}` + merges into `areas/area_canifis/scripts/rufus.rs2`, `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2`, `interface_questjournal/scripts/quest_journal.rs2`; next = Rum Deal (#122) |
 | 122 | rumdeal | `rumdeal` | 662 | done | Oct 2005 -- Pirate Pete's plan to get Captain Braindeath's zombie crew blind drunk so he can raid the island; native dbrow `quest_rumdeal` (id 95, endstate 19, questpoints 2, requirement_stats fishing50+prayer47+crafting42+slayer42+farming40, stat_xp_awarded fishing/prayer/farming 7000xp each) + native varbit schema on basevar `deal_var` (`deal_farming` blindweed patch 0-5, `deal_barrel` pressure-barrel sluglings 0-5, `deal_multi_hopper` brew control 0-2, all confirmed via native multiloc records) reused as-is; npcs=deal_pete,deal_captian_braindeath,deal_davey,deal_captian_donnie,deal_evil_spirit,deal_fever_spiders1 (queue's own abbreviated hint `dealevilsp`/`dealpete`/`dealcaptian` don't match real cache names -- cache wins); see Log |
 | 123 | templeoftheeye | `templeoftheeye` | 662 | done |  |
 | 124 | thefremennikisles | `thefremennikisles` | 670 | done | Feb 2007 -- King Gjuki's jester-spy plot against Mawnis Burowgar, two rounds of Jatizso tax collection, two bridge repairs, and the Ice Troll King; native dbrow `quest_fremennikisles` (id 127, endstate 340, questpoints 1, requirement_stats agility40+construction20) + native varbit schema on basevars `fris_r1` (`fris_quest`, `fris_task` troll counter, `fris_m_b3`/`fris_m_b4`/`fris_m_b5` bridges, `fris_king` Mawnis crown swap) and `fris_r2` (six `frisd_*_taxcollected` bits, shared/reset across both tax rounds) reused as-is; npcs=fris_r_king,fris_r_burgher_crown,fris_spymaster,frisd_oremerchant,frisd_weaponmerchant,frisd_izso_landlady,frisd_cook,frisd_armourmerchant,frisd_fishmerchant,fris_troll_king_true (cache spelling matches quest-helper's own NpcID names exactly, no drama this time); see Log |
@@ -402,7 +402,7 @@ filed under `helpers/miniquests/` are at the end.
 | 127 | enakhraslament | `enakhraslament` | 688 | done | Jan 2006 -- Lazim, Enakhra's ruined desert temple, Akthanakos; native dbrow `quest_enakhraslament` (id 103, endstate 70) + native varbit schema on three basevars (`enakh_quest_expositbits`/`enakh_multivarbits`/`enakh_varbits`) reused as-is; see Log |
 | 128 | perilousmoon | `perilousmoon` | 688 | done |  |
 | 129 | theslugmenace | `theslugmenace` | 694 | done | Sept 2006 -- Sir Tiffy Cashien's Temple Knights send the player to Witchaven to investigate a Zamorakian conspiracy (Col. O'Niall/Brother Maledict/Mayor Hobb), a ruined temple, torn documents, five elemental runes, and the Slug Prince; see Log |
-| 130 | cabinfever | `cabinfever` | 704 | done | Feb 2006 -- Bill Teach recruits the player to raid a rival pirate crew at sea; native dbrow `quest_cabinfever` (id 104, endstate 140, questpoints 2, requirement_stats smithing50+crafting45+ranged40+agility42, stat_xp_awarded crafting/smithing/agility 7000xp each, matches wiki exactly) + native varbit schema on basevars `fever_quest`/`fever_cannon_var`/`fever_extra_var`/`fever_storage_var` (`fever_hole_1/2/3`, `fever_holes_patched/proofed`, `fever_crate/chest/barrel`, `fever_plunder_points`, `fever_cannon`, `fever_cannon_powder/tamp/ammo/fuse/clean`, `fever_holes_in_the_hull`, `fever_gunpowder_barrel`) reused as-is, matching quest-helper's own VarbitID names exactly; queue's own hint `feverteach,feverteach,feverquest` resolves to real cache names `fever_teach`/`fever_quest_ship_teach` (cache wins, close but not identical spelling). dbrow `requirement_quests` decodes to Contact! (124) and A Soul's Bane (108) -- neither a real prerequisite, same known cache-decode-corruption failure mode this queue warns about repeatedly. Real prereqs per quest-helper's own getGeneralRequirements() are Pirate's Treasure FINISHED, Rum Deal FINISHED and Priest in Peril FINISHED; Pirate's Treasure (`%hunt >= ^hunt_complete`) and Rum Deal (`%deal_var >= ^deal_complete`) are both genuinely completable in this tree and hard-gated. Priest in Peril is soft-skipped and NOT gated on: `quest_priestperil.constant`'s own header documents its essence-bringing finale (`%priestperil` 10..60) as "deferred (blocked)", and grepping its scripts confirms `%priestperil` never advances past `^priestperil_meet_in_mausoleum` (8) anywhere in this tree -- hard-gating on it would make Cabin Fever itself permanently unstartable, so it isn't checked (documented, not silently dropped, matching the established convention for a corrupted/unportable prerequisite). Native multiloc records independently confirm every real breakpoint used (cache wins, not guessed): `fever_multi_hole_1/2/3` leak->planked->waterproofed at values 1/2; `fever_multi_chest/_crate/_barrel` closed->looted at value 1; `fever_multi_cannon` intact->destroyed->no_barrel->loaded at values 1/2/3 (quest-helper reuses this same var for "broken" (1) and, later, "fuse loaded and ready" (3) -- both kept); `fever_multi_hole_enemy_1/2/3` share one real counter, `fever_holes_in_the_hull` (0..3), sequentially revealing hull breaches -- this is the wiki's own "three holes in the enemy's ship" objective, mechanically confirmed (not narrated), driven directly by the final cannonball-firing phase instead of inventing a separate counter; `fever_multi_gunpowder_barrel` intact(0)->fused(2)->exploded(1), the cache's own non-monotonic order, matches quest-helper's `addedFuse`(2)/`explodedBarrel`(1) exactly; `fever_port_ship_teach` (dock-side "Bill Teach on his boat" wrapper) is a real `multivarp=fever_quest` record, invisible until value 10 -- independently confirms the master var really does jump 0->10 on first acceptance, used directly. This server only ever spawns the wrapper npc/loc types; `fever_teach`/`fever_port_ship_teach`/`fever_quest_ship_teach` all declare no op of their own in the cache -- additive overlay in `cabinfever.npc`, same convention as `royaltrouble.npc`/`theslugmenace.npc` (every multiloc wrapper used already carries its own real op -- Repair/Loot/Plunder/Load/Take-powder/Cross -- no loc overlay needed). All navigation between decks (ladders/nets/climb-down) is already handled by the generic climb system (`ladders_stairs/scripts/ladders.rs2`, cache-declared climb verbs) -- zero custom transport scripting needed for any of it; the ship-to-ship rope swing (`fever_sail1_hoistedl_climb`, reused by quest-helper's own `swingToBoat`/`swingToEnemyBoat`/`useRopeOnSailForSabo` alike) is one zone-aware (`distance(coord,...)`) teleport trigger. Every pirate crew/enemy npc (`fever_pirate_island_01..10`, `fever_pirate_millitia_01..10`, `fever_pirate_enemy_01..10`, `fever_smithing_smith`, `fever_harpoon_joe`, `fever_pirate_two_feet_charley`, `fever_mama_la_fiette`, `fever_dodgy_mike`) is already world-spawned (confirmed via grep of `areas/world/configs/*.spawn`) and pure flavour -- none gate any quest-helper step, none scripted. Simplifications (documented, no established precedent anywhere in this tree for the alternative): quest-helper's own 704 lines are mostly `ConditionalStep`/`Zone` bookkeeping to draw a helper arrow across geography that's already baked cache terrain here -- not reproduced. Locker searches (`fever_repair_locker`/`fever_weapons_locker`) grant a full requirement in one Search rather than quest-helper's own incremental per-item fetch loop, same convention as The Great Brain Robbery's crate-building simplification. Plunder containers grant a fixed split (crate 4 + chest 3 + barrel 3 = 10, matching `loot10`) rather than a random per-loot amount -- no drop-table precedent recoverable. The canister-firing phase ("fire with canisters until 3 pirates die") has no cannon-deals-damage-directly precedent anywhere in this tree (Royal Trouble's Giant Sea Snake / The Great Brain Robbery's Barrelchest both leave combat entirely to the generic system) -- a successful load/fire cycle is itself the real, required, repeatable action standing in for the kill, tracked via `%fever_quest` sub-values (111/112/113) rather than combat; the ball-firing phase instead drives the real `fever_holes_in_the_hull` counter directly. Misfire/wrong-ammo error handling (`canisterInWrong`/`resetCannon`) isn't modelled -- wrong ammo for the current phase is just refused with a hint message, no jammed-cannon state. `fever_rum`/`fever_gold`/`fever_smithed_anchor` and the enemy crew's own named weapons are native but never referenced by any quest-helper step -- deferred flavour. Wiki https://oldschool.runescape.wiki/w/Cabin_Fever/Quick_guide + quest-helper source fetched via GitHub raw (dialogue paraphrased, not verbatim, per copyright, same caveat as every prior slice). `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (14,342 scripts, up from 14,316); files: `quests/quest_cabinfever/{configs/cabinfever.{constant,varp,npc}, scripts/cabinfever_{shared,bill,transport,lockers,repair,sabotage,loot,cannon,journal}.rs2}` + wiring into `interface_questjournal/scripts/quest_journal.rs2`. This was previously a soft-skipped prerequisite for The Great Brain Robbery (#121) -- a real port here means a future tick could tighten that gate. Next pending row (smallest-first): #132 In Aid of the Myreque, 710 lines. |
+| 130 | cabinfever | `cabinfever` | 704 | done | Feb 2006 -- Bill Teach recruits the player to raid a rival pirate crew at sea; native dbrow `quest_cabinfever` (id 104, endstate 140, questpoints 2, requirement_stats smithing50+crafting45+ranged40+agility42, stat_xp_awarded crafting/smithing/agility 7000xp each, matches wiki exactly) + native varbit schema on basevars `fever_quest`/`fever_cannon_var`/`fever_extra_var`/`fever_storage_var` (`fever_hole_1/2/3`, `fever_holes_patched/proofed`, `fever_crate/chest/barrel`, `fever_plunder_points`, `fever_cannon`, `fever_cannon_powder/tamp/ammo/fuse/clean`, `fever_holes_in_the_hull`, `fever_gunpowder_barrel`) reused as-is, matching quest-helper's own VarbitID names exactly; queue's own hint `feverteach,feverteach,feverquest` resolves to real cache names `fever_teach`/`fever_quest_ship_teach` (cache wins, close but not identical spelling). dbrow `requirement_quests` decodes to Contact! (124) and A Soul's Bane (108) -- neither a real prerequisite, same known cache-decode-corruption failure mode this queue warns about repeatedly. Real prereqs per quest-helper's own getGeneralRequirements() are Pirate's Treasure FINISHED, Rum Deal FINISHED and Priest in Peril FINISHED; Pirate's Treasure (`%hunt >= ^hunt_complete`) and Rum Deal (`%deal_var >= ^deal_complete`) are both genuinely completable in this tree and hard-gated. Priest in Peril is soft-skipped and NOT gated on: `quest_priestperil.constant`'s own header documents its essence-bringing finale (`%priestperil` 10..60) as "deferred (blocked)", and grepping its scripts confirms `%priestperil` never advances past `^priestperil_meet_in_mausoleum` (8) anywhere in this tree -- hard-gating on it would make Cabin Fever itself permanently unstartable, so it isn't checked (documented, not silently dropped, matching the established convention for a corrupted/unportable prerequisite). Native multiloc records independently confirm every real breakpoint used (cache wins, not guessed): `fever_multi_hole_1/2/3` leak->planked->waterproofed at values 1/2; `fever_multi_chest/_crate/_barrel` closed->looted at value 1; `fever_multi_cannon` intact->destroyed->no_barrel->loaded at values 1/2/3 (quest-helper reuses this same var for "broken" (1) and, later, "fuse loaded and ready" (3) -- both kept); `fever_multi_hole_enemy_1/2/3` share one real counter, `fever_holes_in_the_hull` (0..3), sequentially revealing hull breaches -- this is the wiki's own "three holes in the enemy's ship" objective, mechanically confirmed (not narrated), driven directly by the final cannonball-firing phase instead of inventing a separate counter; `fever_multi_gunpowder_barrel` intact(0)->fused(2)->exploded(1), the cache's own non-monotonic order, matches quest-helper's `addedFuse`(2)/`explodedBarrel`(1) exactly; `fever_port_ship_teach` (dock-side "Bill Teach on his boat" wrapper) is a real `multivarp=fever_quest` record, invisible until value 10 -- independently confirms the master var really does jump 0->10 on first acceptance, used directly. This server only ever spawns the wrapper npc/loc types; `fever_teach`/`fever_port_ship_teach`/`fever_quest_ship_teach` all declare no op of their own in the cache -- additive overlay in `cabinfever.npc`, same convention as `royaltrouble.npc`/`theslugmenace.npc` (every multiloc wrapper used already carries its own real op -- Repair/Loot/Plunder/Load/Take-powder/Cross -- no loc overlay needed). All navigation between decks (ladders/nets/climb-down) is already handled by the generic climb system (`ladders_stairs/scripts/ladders.rs2`, cache-declared climb verbs) -- zero custom transport scripting needed for any of it; the ship-to-ship rope swing (`fever_sail1_hoistedl_climb`, reused by quest-helper's own `swingToBoat`/`swingToEnemyBoat`/`useRopeOnSailForSabo` alike) is one zone-aware (`distance(coord,...)`) teleport trigger. Every pirate crew/enemy npc (`fever_pirate_island_01..10`, `fever_pirate_millitia_01..10`, `fever_pirate_enemy_01..10`, `fever_smithing_smith`, `fever_harpoon_joe`, `fever_pirate_two_feet_charley`, `fever_mama_la_fiette`, `fever_dodgy_mike`) is already world-spawned (confirmed via grep of `areas/world/configs/*.spawn`) and pure flavour -- none gate any quest-helper step, none scripted. Simplifications (documented, no established precedent anywhere in this tree for the alternative): quest-helper's own 704 lines are mostly `ConditionalStep`/`Zone` bookkeeping to draw a helper arrow across geography that's already baked cache terrain here -- not reproduced. Locker searches (`fever_repair_locker`/`fever_weapons_locker`) grant a full requirement in one Search rather than quest-helper's own incremental per-item fetch loop, same convention as The Great Brain Robbery's crate-building simplification. Plunder containers grant a fixed split (crate 4 + chest 3 + barrel 3 = 10, matching `loot10`) rather than a random per-loot amount -- no drop-table precedent recoverable. The canister-firing phase ("fire with canisters until 3 pirates die") has no cannon-deals-damage-directly precedent anywhere in this tree (Royal Trouble's Giant Sea Snake / The Great Brain Robbery's Barrelchest both leave combat entirely to the generic system) -- a successful load/fire cycle is itself the real, required, repeatable action standing in for the kill, tracked via `%fever_quest` sub-values (111/112/113) rather than combat; the ball-firing phase instead drives the real `fever_holes_in_the_hull` counter directly. Misfire/wrong-ammo error handling (`canisterInWrong`/`resetCannon`) isn't modelled -- wrong ammo for the current phase is just refused with a hint message, no jammed-cannon state. `fever_rum`/`fever_gold`/`fever_smithed_anchor` and the enemy crew's own named weapons are native but never referenced by any quest-helper step -- deferred flavour. Wiki https://oldschool.runescape.wiki/w/Cabin_Fever/Quick_guide + quest-helper source fetched via GitHub raw (dialogue paraphrased, not verbatim, per copyright, same caveat as every prior slice). `mingw32-make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0 (14,342 scripts, up from 14,316); files: `quests/quest_cabinfever/{configs/cabinfever.{constant,varp,npc}, scripts/cabinfever_{shared,bill,transport,lockers,repair,sabotage,loot,cannon,journal}.rs2}` + wiring into `interface_questjournal/scripts/quest_journal.rs2`. This was previously a soft-skipped prerequisite for The Great Brain Robbery (#121) -- a real port here means a future tick could tighten that gate. Next pending row (smallest-first): #132 In Aid of the Myreque, 710 lines. |
 | 131 | icthlarinslittlehelper | `icthlarinslittlehelper` | 707 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_icthlarin`); this Queue row was stale, table-sync fix only. `quest_icthlarin` (5 files, 684 lines, dbrow `quest_icthlarinslittlehelper` journal wired `interface_questjournal/scripts/quest_journal.rs2:703`) |
 | 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | done | Jan 2006 -- Burgh de Rott repairs, Gadderanks's blood tithe raid, Ivan's Temple Trek escort, Rod of Ivandis; native dbrow `quest_inaidofthemyreque` (id 107, endstate 430, requirement_stats Crafting25/Mining15/Magic7) + native varbit schema on basevars `myreque_2_main_var`/`myreque2_multivar`/`myreque2_extravar` reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` decodes to Desert Treasure I (corrupt, known failure mode) -- real prereq (In Search of the Myreque FINISHED) soft-skipped since `%routequest` is never written anywhere in this tree (that quest has no scripted content beyond its own journal/dbrow, confirmed via grep -- row #65's "done (LC)" is optimistic); Crafting/Mining/Magic gate still hard-checked. Shares `myq5_veliaf_child` with Sins of the Father's own hub trigger (merged branch in `sinsofthefather.rs2`, not duplicated) and adds one case to the shared furnace hub (`skill_smithing/scripts/smelting/smelting.rs2`) for the Rod of Ivandis mould. See Log. |
 | 133 | betweenarock | `betweenarock` | 716 | done | Mar 2005 -- Dondakan the Dwarf's cannon-through-the-rock scheme uncovers a sealed Arzinian realm; dwarven lore book + 3 torn pages, a golden cannonball, four schematic fragments, a golden helmet, and an Avatar guardian boss; see Log |
@@ -493,7 +493,7 @@ filed under `helpers/miniquests/` are at the end.
   death handler. Everything else in this quest (Surok's letters/wand,
   Zaff/beacon-ring, soft-skipped King Roald fight, 8,000 Runecraft + 2,000
   Defence XP reward) already matched the wiki. `mingw32-make -C src
-  mock230-scripts` exit 0 after each fix (recruitmentdrive_kuam.rs2,
+  torirsserver-scripts` exit 0 after each fix (recruitmentdrive_kuam.rs2,
   recruitmentdrive.rs2, whatliesbelow.rs2, whatliesbelow_papers.rs2), no new
   warnings/errors on any touched file. **This closes out the IN-LC table's
   original 4-quest assignment for this tick, but the table is not yet fully
@@ -558,7 +558,7 @@ filed under `helpers/miniquests/` are at the end.
     brooch back to Mistag" (confirmed via the page's raw `{{Quest rewards}}`
     template) -- added an `[opnpcu,lost_tribe_mistag_1op]` handler granting
     `cave_goblin_mining_helmet_unlit` once.
-  - Build: `mingw32-make -C src mock230-scripts` exit 0 after every fix
+  - Build: `mingw32-make -C src torirsserver-scripts` exit 0 after every fix
     (checked incrementally), 15090 scripts compiled, zero new diagnostics
     touching any file this pass edited. Grepped every touched npc/trigger
     name tree-wide before adding to confirm no duplicate-trigger shadowing.
@@ -643,7 +643,7 @@ filed under `helpers/miniquests/` are at the end.
     trigger. One real numeric bug: completion granted
     `stat_advance(crafting, 14060)` (1406.0 xp) but the dbrow's own
     `stat_xp_awarded` is 14062 (1406.2 xp) -- a 0.2xp underpay; corrected.
-  - Build verified after each fix: `mingw32-make -C src mock230-scripts`
+  - Build verified after each fix: `mingw32-make -C src torirsserver-scripts`
     exit 0 throughout, no new diagnostics on any touched file (one build
     attempt mid-pass hit transient errors/link failures from a concurrent
     sibling agent's in-progress edits elsewhere in the tree; unrelated to
@@ -698,7 +698,7 @@ filed under `helpers/miniquests/` are at the end.
     mechanic entirely. Rewired to match Transcript:Icthlarin's_Little_Helper
     verbatim (real riddle, real 5-way answer choices, confirm-before-losing-
     the-cat risk step).
-  - Build: `mingw32-make -C src mock230-scripts` exit 0 after every fix
+  - Build: `mingw32-make -C src torirsserver-scripts` exit 0 after every fix
     (checked incrementally), 15087 scripts compiled, zero new diagnostics
     touching any file this pass edited. Grepped every touched npc/trigger
     name tree-wide before adding to confirm no duplicate-trigger shadowing.
@@ -720,7 +720,7 @@ filed under `helpers/miniquests/` are at the end.
   (`cluequest_lamp`, 200 coins, `trail_clue_beginner`), journal wire,
   `::xmarksthespot` / `::xmarksdig` / `::xmarksrun`; headless `::xmarksrun`
   MESSAGE_GAME payloads match dig→complete→OK; no new opcodes; scripts 6221;
-  `mock230_pack --check-only` 0 errors; next = Ribbiting Tale (#2)
+  `ToriRSServer_Pack --check-only` 0 errors; next = Ribbiting Tale (#2)
 - loop armed: AGENT_LOOP_TICK_questhelper_port every ~180s
 - slice 2 done: Ribbiting Tale — `%frog_quest` on `frog_quest_primary`,
   Marcellus/Sue/Gary/Dave/Jane/Cuthbert dialogue, axe log + orange tree chop +
@@ -1152,7 +1152,7 @@ filed under `helpers/miniquests/` are at the end.
   one generic "not yet" line for any partial set, transcript lists per-count
   wording) — cosmetic only, no missed gate. No new script written (nothing to
   port); row flipped `pending` → `done (LC)`. Verify: `mingw32-make -C src
-  sscompile` clean rebuild, then `mingw32-make -C src mock230-scripts` — ran
+  sscompile` clean rebuild, then `mingw32-make -C src torirsserver-scripts` — ran
   to completion through all `quest_hetty`/`hetty`/`rat` files with zero
   diagnostics on them; sole failure is the pre-existing, unrelated
   `ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2` missing
@@ -1235,7 +1235,7 @@ filed under `helpers/miniquests/` are at the end.
   introduction (belongs to Mourning's End Part I), post-quest crystal
   equipment replacement shop (`[opnpc3,roving_islwyn_2ops]` messages
   "not set up yet" rather than silently no-opping); `mingw32-make -C src
-  sscompile` clean, `mingw32-make -C src mock230-scripts` zero diagnostics
+  sscompile` clean, `mingw32-make -C src torirsserver-scripts` zero diagnostics
   on any new/touched file (only the pre-existing, unrelated
   `ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2` missing
   `%content_restrict_summoning_serverside` failure, out of scope); next =
@@ -1296,7 +1296,7 @@ filed under `helpers/miniquests/` are at the end.
   Abyss/Law Altar traversal (soft-skipped like every other slice's
   inter-area journeys), the multi-monk/assassin scene as a real client
   cutscene rather than narrated `mesbox` lines, Wanted! gate (see above).
-  `mingw32-make -C src sscompile` clean; `mingw32-make -C src mock230-scripts`
+  `mingw32-make -C src sscompile` clean; `mingw32-make -C src torirsserver-scripts`
   — full corpus build, zero diagnostics on any new/touched file, only
   failure in the whole tree is the pre-existing unrelated
   `ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2` missing
@@ -1362,7 +1362,7 @@ filed under `helpers/miniquests/` are at the end.
   one line added to `general_use/scripts/spade.rs2`'s existing dig-proc
   chain. Rewards: 3 QP, 1000 Crafting XP + 1000 Prayer XP (dbrow columndef 33
   stat_xp_awarded 10000/10000, passed to `stat_advance` unmodified since that
-  opcode's argument is tenths per `mock230_scripts.c`'s own comment —
+  opcode's argument is tenths per `torirs_server_scripts.c`'s own comment —
   cross-checked against `quest_priest`'s `stat_advance(prayer, 11250)` at
   Restless Ghost's completion, the real independently-known 1,125 Prayer XP
   reward for that quest passed the same undivided way), 750 coins, 1
@@ -1379,7 +1379,7 @@ filed under `helpers/miniquests/` are at the end.
   every other slice's inter-area travel gates on this queue), the castle
   stairs as a real object trigger (narrated only), item-loss replacement
   covered for key/scroll/letters but not exhaustively re-tested. `mingw32-make
-  -C src sscompile` clean; `mingw32-make -C src mock230-scripts` — full corpus
+  -C src sscompile` clean; `mingw32-make -C src torirsserver-scripts` — full corpus
   build, zero diagnostics on any new/touched file (confirmed by grepping the
   full build log for `makinghistory`/`kinglathas`/`silver_merchant`: no
   matches outside intent), only failure in the whole tree is the pre-existing
@@ -1491,7 +1491,7 @@ filed under `helpers/miniquests/` are at the end.
   8-slot swap table (triggers bind the real spawned base id regardless, so
   play is unaffected), and Entrana weapon/armour banking (soft-skipped like
   every other slice's inter-area travel gates on this queue).
-  `mingw32-make -C src sscompile` clean; `mingw32-make -C src mock230-scripts`
+  `mingw32-make -C src sscompile` clean; `mingw32-make -C src torirsserver-scripts`
   -- full corpus build, zero diagnostics on any new/touched file (confirmed
   by grepping the full build log for `handsand`/`betty.rs2`/`zogre_finish`/
   `pies.rs2`/`brew_potion`/`quest_journal.rs2`: no matches outside intent),
@@ -1589,7 +1589,7 @@ filed under `helpers/miniquests/` are at the end.
   tree yet, same class of gap as Hand in the Sand's Entrana banking),
   Shiratti's cupboard-search flavour beyond the two required torn-robe
   pieces. `mingw32-make -C src sscompile` clean; `mingw32-make -C src
-  mock230-scripts` -- full corpus build, zero diagnostics on any new/touched
+  torirsserver-scripts` -- full corpus build, zero diagnostics on any new/touched
   file (confirmed by grepping the full build log case-insensitively for
   `elid`: zero matches anywhere, including the diagnostics section); only
   failure in the whole tree is the pre-existing unrelated
@@ -1701,7 +1701,7 @@ filed under `helpers/miniquests/` are at the end.
   per-zone re-fetching if left behind), and the "stay behind the houses" /
   ranged-or-magic-only enforcement on the H.A.M. Mage/Archer fight (plain
   combat). `mingw32-make -C src sscompile` clean; `mingw32-make -C src
-  mock230-scripts` -- full corpus build, zero diagnostics on any new/touched
+  torirsserver-scripts` -- full corpus build, zero diagnostics on any new/touched
   file (confirmed by grepping the full build log case-insensitively for
   `anothersliceofham`/`dorgesh_urtaq`/`tegdak`/`slice_sigmund`/`slice_zanik`/
   `slice_artifact`/`goblin_cave_entrance`/`general_wartface`/
@@ -1794,7 +1794,7 @@ filed under `helpers/miniquests/` are at the end.
   tier as Bone Voyage's sailing / Sleeping Giants' supply matrix); Quest
   Helper's `getAnotherAwfulAnthem` recovery branch (a second copy if the
   first is lost) not ported. `mingw32-make -C src sscompile` clean;
-  `mingw32-make -C src mock230-scripts` -- grepping the full build log
+  `mingw32-make -C src torirsserver-scripts` -- grepping the full build log
   case-insensitively for `misc_king_vargas`/`misc_queen_sigrid`/
   `misc_princess_astrid`/`misc_prince_brand`/`misc_advisor_ghrim`/
   `misc_smithy`/`throneofmiscellania`/`quest_misc`/`chat_worried`: zero
@@ -1850,7 +1850,7 @@ filed under `helpers/miniquests/` are at the end.
   `feud_mayor_geom`, etc.) carry the declared ops (`op1=Talk-to` etc.) but
   this server never reads `multivarbit`/`multinpc` at runtime (only
   `cachepack`'s client-side encoder does, confirmed by grepping all of
-  `src/net/mock` -- multinpc resolution is a pure client rendering swap
+  `src/torirsserver` -- multinpc resolution is a pure client rendering swap
   here), so triggers had to bind to the **wrapper** gameval names, which is
   what the live server entity's type actually is; every other named npc
   (`feud_drunken_ali`, `feud_hag`, `feud_egyptian_minder` "Ali the Operator",
@@ -1877,7 +1877,7 @@ filed under `helpers/miniquests/` are at the end.
   Talk-to left to the engine's generic default chat, non-gating).
   **Also fixed two genuine pre-existing compile-blocking bugs hit while
   verifying** (same license as the prior tick's `chat_worried` fix): (1)
-  `src/makefile`'s `mock230-scripts`/`mock230-scripts-summoning` targets
+  `src/makefile`'s `torirsserver-scripts`/`torirsserver-scripts-summoning` targets
   passed `--pack .../ported/scape2009_summoning/pack` but never
   `.../configs`, so the summoning lane's own `content_restrict_summoning_serverside`
   varbit (declared in `ported/scape2009_summoning/configs/summoning.varbit`)
@@ -1886,7 +1886,7 @@ filed under `helpers/miniquests/` are at the end.
   This is more consequential than it looks: `SSC_CompileDir` sorts all
   `.rs2` paths and stops at the **first** hard error (`ssc_compile.c:2932-2935`),
   and `ported_scape2009_summoning` sorts alphabetically before `quests`
-  (`p` < `q`) -- so with the bug present, `mock230-scripts` was silently
+  (`p` < `q`) -- so with the bug present, `torirsserver-scripts` was silently
   never reaching **any** file under `server/scripts/quests/` (or anything
   else `>= "q"`) at all, meaning the "grep the log for my own files" bar
   every recent slice used (including this one's own first attempt) was a
@@ -1895,7 +1895,7 @@ filed under `helpers/miniquests/` are at the end.
   independent pre-existing bug: `quest_rovingelves/scripts/rovingelves_islwyn.rs2:48`
   referenced `^chat_surprised`, which does not exist (`chat.constant` only
   declares `^chat_shock`) -- fixed to `^chat_shock`. With both fixed,
-  `mingw32-make -C src mock230-scripts` now **exits 0** (13354 scripts
+  `mingw32-make -C src torirsserver-scripts` now **exits 0** (13354 scripts
   compiled, no failure at all, stronger than the "one known unrelated
   failure" bar); grepping the full log case-insensitively for `feud` is 0
   hits. `mingw32-make -C src sscompile` still clean/no-op. Next = Cold War
@@ -1904,8 +1904,8 @@ filed under `helpers/miniquests/` are at the end.
 - **re-verification tick (2026-08-11):** confirmed the prior tick's makefile
   fix in person before touching anything else -- `src/makefile:1733-1734`
   carries the `--pack $(SUMMONING_CLIENT_LANE)/pack` +
-  `--pack $(SUMMONING_CLIENT_LANE)/configs` pair on the `mock230-scripts`
-  target, and a clean `mingw32-make -C src mock230-scripts` genuinely exits 0
+  `--pack $(SUMMONING_CLIENT_LANE)/configs` pair on the `torirsserver-scripts`
+  target, and a clean `mingw32-make -C src torirsserver-scripts` genuinely exits 0
   (13354 scripts compiled, 0 case-insensitive `error` hits in the full log,
   166 lines total). Spot-checked all six named earlier "done" slices --
   Roving Elves (#17), Devious Minds (#21), Making History (#37), The Hand in
@@ -1989,7 +1989,7 @@ filed under `helpers/miniquests/` are at the end.
   `coldwar_debug.rs2:41`) -- no other file in this tree uses `\"` inside a
   `.rs2` string either, confirming it's unsupported rather than a typo; fixed
   by switching the handful of embedded quotes to single quotes. `mingw32-make
-  -C src mock230-scripts` exits 0 afterward: 13410 scripts compiled (13354 ->
+  -C src torirsserver-scripts` exits 0 afterward: 13410 scripts compiled (13354 ->
   13410, +56 from this slice's trigger blocks), 0 errors, 0
   warnings/notes naming any `coldwar`/`peng_`-prefixed file. Deferred (named,
   soft-skip tier matching this queue's convention -- e.g. Below Ice
@@ -2002,7 +2002,7 @@ filed under `helpers/miniquests/` are at the end.
   it mutates state directly like every prior slice's `*run` command -- but
   driving it through an actual built win64 client + simulated clicks was not
   run this tick, budget spent on the quest's own scope plus the
-  re-verification pass above; `mock230-scripts` compiling clean is the
+  re-verification pass above; `torirsserver-scripts` compiling clean is the
   verification bar this tick's instructions asked for). Next pending = Mourning's End Part I
   (#106, 575 lines) -- not yet re-verified against the fixed pack pipeline.
 - slice done: Mourning's End Part I (#106) -- two prior attempts on this exact
@@ -2124,7 +2124,7 @@ filed under `helpers/miniquests/` are at the end.
   Biohazard's own mourner-stew subplot
   (`areas/area_ardougne_west/scripts/doors.rs2`), and the four dyes to the
   base dye/cape-recolouring mechanic
-  (`skill_crafting/scripts/dye_cape.rs2`). `mock230-scripts` compiled clean
+  (`skill_crafting/scripts/dye_cape.rs2`). `torirsserver-scripts` compiled clean
   either way with no warning -- the duplication would have silently broken
   one implementation or the other for every player of any of those four
   systems, undetectable short of manually auditing every gameval this
@@ -2139,7 +2139,7 @@ filed under `helpers/miniquests/` are at the end.
   **Future ticks: grep every new opnpc/oploc/opheld header against the full
   `server/scripts` tree, not just the quest being ported, before assuming a
   cache-placed npc/loc/item has no existing trigger.** `mingw32-make -C src
-  mock230-scripts` exits 0 afterward (post-fix): 13472 scripts compiled
+  torirsserver-scripts` exits 0 afterward (post-fix): 13472 scripts compiled
   (13410 -> 13472; net lower than the pre-fix 13482 since seven duplicate
   top-level triggers were merged away rather than left standalone), 0
   errors, 0 warnings/notes naming any `mourning`/`mend1`-touched file (own or
@@ -2154,7 +2154,7 @@ filed under `helpers/miniquests/` are at the end.
   apple"/"pick up empty barrel" (quest-helper `DetailedQuestStep`s with no
   `ObjectID`) granted automatically at the adjacent gated beat; full
   interactive `TORIRS_SIM_CLICK_AT` client headless verification not run
-  this tick (same budget note as Cold War's own slice -- `mock230-scripts`
+  this tick (same budget note as Cold War's own slice -- `torirsserver-scripts`
   compiling clean is the verification bar these instructions asked for).
   Mourning's End Part II is explicitly out of scope for this slice (separate
   queue row) and was not touched. Next pending = Wanted! (#107, 580 lines).
@@ -2170,7 +2170,7 @@ filed under `helpers/miniquests/` are at the end.
   `QuestPointRequirement(32)`). `stat_xp_awarded` (18,50000) = Slayer 5000 XP,
   matching quest-helper's `ExperienceReward(SLAYER, 5000)` exactly (confirmed
   the dbtable's fixed-point scale independently by reading
-  `src/net/mock/mock230_scripts.c`'s `SS_OP_STAT_ADVANCE` case: "the
+  `src/torirsserver/torirs_server_scripts.c`'s `SS_OP_STAT_ADVANCE` case: "the
   reference's xp argument is already in tenths", so 50000 raw = 5000 display
   XP -- cross-checked against Cold War's own already-`done` dbrow, whose
   stat_xp_awarded (16,50000)/(12,20000)/(22,15000) match that same slice's
@@ -2287,13 +2287,13 @@ filed under `helpers/miniquests/` are at the end.
   mixing without parens and no `\"` inside string literals (this queue's two
   known recurring compile pitfalls) before compiling -- neither occurred this
   slice. `mingw32-make -C src sscompile` then `mingw32-make -C src
-  mock230-scripts` both exit 0: 13488 scripts compiled (13472 -> 13488, +16
+  torirsserver-scripts` both exit 0: 13488 scripts compiled (13472 -> 13488, +16
   from this slice's own trigger blocks), 0 errors, 0 warnings/notes naming
   any `wanted`-prefixed file, dialogue file, or the two shared files this
-  slice spliced into. `mock230_pack --check-only` also run: 963 pre-existing
+  slice spliced into. `ToriRSServer_Pack --check-only` also run: 963 pre-existing
   baseline errors (category-membership / cache-path issues, all predating
   this slice and none naming `wanted`) with zero new ones introduced --
-  `mock230-scripts` compiling clean is this tick's real verification bar per
+  `torirsserver-scripts` compiling clean is this tick's real verification bar per
   its own instructions. **Also closed one of the two gates this tick's
   instructions asked about**: `quest_deviousminds/scripts/
   deviousminds_monk.rs2`'s own `deviousminds_qualifies` proc had a header
@@ -2302,7 +2302,7 @@ filed under `helpers/miniquests/` are at the end.
   this cache yet to check against") -- now that `wanted_main` exists, added
   `if (%wanted_main < ^wanted_complete) { return(^false); }` to that proc
   (matching its existing three sibling checks) and updated the stale header
-  comment; re-ran `mock230-scripts` afterward, still exit 0, 0 new
+  comment; re-ran `torirsserver-scripts` afterward, still exit 0, 0 new
   warnings/errors naming `devious`. The instructions also named Mourning's
   End Part I as a quest that had soft-skipped/narrated around a Wanted! gate
   -- grepped `quest_mourningsendparti/` for `wanted` and found only an
@@ -2319,7 +2319,7 @@ filed under `helpers/miniquests/` are at the end.
   Solus's fight being a real single-target world spawn rather than
   quest-helper's stated "instanced fight"; full interactive
   `TORIRS_SIM_CLICK_AT` client headless verification not run this tick (same
-  budget note as every prior slice on this queue -- `mock230-scripts`
+  budget note as every prior slice on this queue -- `torirsserver-scripts`
   compiling clean is the verification bar these instructions asked for).
   Next pending = Death to the Dorgeshuun (#108, 587 lines).
 - slice 108 done: Death to the Dorgeshuun -- Zanik, Sigmund, the H.A.M. mill.
@@ -2396,7 +2396,7 @@ filed under `helpers/miniquests/` are at the end.
   and Zanik's "chosen commander" foreshadowing, which quest-helper's own
   step map only implies). Checked no `&`/`|` mixing without parens and no
   `\"` inside string literals before compiling. `mingw32-make -C src
-  sscompile` then `mingw32-make -C src mock230-scripts` both exit 0: 13520
+  sscompile` then `mingw32-make -C src torirsserver-scripts` both exit 0: 13520
   scripts compiled, 0 errors, 0 warnings/notes naming any `dttd`-prefixed
   file or the three shared files this slice spliced into; grep-verified
   every new/spliced trigger name (`[opnpc1,...]`/`[oploc1,...]`/
@@ -2413,7 +2413,7 @@ filed under `helpers/miniquests/` are at the end.
   tearsofguthix.rs2's own already-deferred full tears IF); damage-type
   restrictions on Sigmund (melee/magic only per quest-helper, not enforced
   here); full interactive `TORIRS_SIM_CLICK_AT` client headless verification
-  not run this tick (same budget note as every prior slice -- `mock230-
+  not run this tick (same budget note as every prior slice -- `torirsserver-
   scripts` compiling clean is the verification bar these instructions
   asked for). Next pending = My Arm's Big Adventure (#109, 589 lines).
 - slice 109 done: My Arm's Big Adventure -- Burntmeat, My Arm the troll who
@@ -2507,7 +2507,7 @@ filed under `helpers/miniquests/` are at the end.
   to exactly one definition across the whole `server/scripts` tree before
   and after this slice's edits (no silent duplicates, including the two
   pre-existing ones this slice fixed). `mingw32-make -C src sscompile` then
-  `mingw32-make -C src mock230-scripts` both exit 0: 13536 scripts compiled
+  `mingw32-make -C src torirsserver-scripts` both exit 0: 13536 scripts compiled
   (13520 -> 13536, +16 from this slice's own new triggers/procs/debugprocs),
   0 errors, 0 warnings/notes naming `myarm`, `maba_`,
   `eadgar_troll_chief_cook` or `makingfriendswithmyarm`; dbrow allocator
@@ -2528,7 +2528,7 @@ filed under `helpers/miniquests/` are at the end.
   Stronghold/roof ladder pathing (pre-existing generic dungeon traversal, not
   quest-gated); full interactive `TORIRS_SIM_CLICK_AT` client headless
   verification not run this tick (same budget note as every prior slice --
-  `mock230-scripts` compiling clean is the verification bar these
+  `torirsserver-scripts` compiling clean is the verification bar these
   instructions asked for). Next pending = The Giant Dwarf (#110, 589 lines).
 - slice 110 done: The Giant Dwarf -- Commander Veldaban, Blasidar the
   sculptor's statue of King Alvis, Vermundi/Saro-Dromund/Santiri-Thurgo's
@@ -2662,7 +2662,7 @@ filed under `helpers/miniquests/` are at the end.
   symbol `summoning_scroll_howl_scroll`, nothing to do with this slice) --
   caught by noticing the build output paths pointed at the main repo, not the
   worktree; re-ran `mingw32-make -C src sscompile` then `mingw32-make -C src
-  mock230-scripts` from the correct worktree root and both exit 0: 13562
+  torirsserver-scripts` from the correct worktree root and both exit 0: 13562
   scripts compiled (13536 -> 13562, +26 from this slice's own new triggers/
   procs/debugprocs), 0 errors, 0 warnings/notes naming `gdwarf`,
   `giantdwarf`, `thurgo`, `reldo_normal`, `twocats`, or `quest_journal`;
@@ -2678,7 +2678,7 @@ filed under `helpers/miniquests/` are at the end.
   spatial mechanic (narrated via dialogue); carry-weight gating on the
   bookcase climb; full interactive `TORIRS_SIM_CLICK_AT` client headless
   verification not run this tick (same budget note as every prior slice --
-  `mock230-scripts` compiling clean is the verification bar these
+  `torirsserver-scripts` compiling clean is the verification bar these
   instructions asked for). Next pending = Dragon Slayer (#111, 591 lines).
 - slice attempt on #111 Dragon Slayer (2026-08-11): grep-first check (step
   1) found it already fully implemented -- LC's own internal codename
@@ -2806,7 +2806,7 @@ filed under `helpers/miniquests/` are at the end.
   worktree (`c:/.../\.claude/worktrees/questhelper-port`, double-checked
   cwd before building per this tick's own warning about a prior mix-up);
   `mingw32-make -C src sscompile` then `mingw32-make -C src
-  mock230-scripts` both exit 0: 13587 scripts compiled (13562 -> 13587,
+  torirsserver-scripts` both exit 0: 13587 scripts compiled (13562 -> 13587,
   +25 from this slice's own new/spliced triggers), 0 errors; grep-verified
   every new/spliced trigger name (`murderwindow`, `murder_qip_spiralstairs`,
   `murder_qip_spiralstairstop`, `kr_sin_bookcase3a`,
@@ -2819,7 +2819,7 @@ filed under `helpers/miniquests/` are at the end.
   tree, and the build log has zero errors/warnings/notes naming
   `kingsransom` or any `kr_*` symbol. Deferred (soft-skip tier): full
   interactive `TORIRS_SIM_CLICK_AT` client headless verification not run
-  this tick (same budget note as every prior slice -- `mock230-scripts`
+  this tick (same budget note as every prior slice -- `torirsserver-scripts`
   compiling clean is the verification bar these instructions asked for);
   the tumbler puzzle widget and Knight Waves Training Grounds noted above.
   **Table bookkeeping note for the next tick:** rows #53 Contact! (355
@@ -2906,7 +2906,7 @@ filed under `helpers/miniquests/` are at the end.
   Quick_guide`) and quick-guide/transcript summaries fetched via WebFetch
   (not verbatim, per copyright). Build: ran from this worktree
   (`.claude/worktrees/questhelper-port`, cwd double-checked before building);
-  `mingw32-make -C src sscompile` then `mingw32-make -C src mock230-scripts`
+  `mingw32-make -C src sscompile` then `mingw32-make -C src torirsserver-scripts`
   both exit 0: 13606 scripts compiled (13587 -> 13606, +19 from this
   slice's own new/spliced triggers), 0 errors, 0 warnings/notes naming
   `contact` or any `contact_*` symbol; grep-verified every new/spliced
@@ -2921,7 +2921,7 @@ filed under `helpers/miniquests/` are at the end.
   lance/bow` cosmetic native bits (post-quest bank-access polish, no
   gameplay branch found in the guide); full interactive
   `TORIRS_SIM_CLICK_AT` client headless verification not run this tick (same
-  budget note as every prior slice -- `mock230-scripts` compiling clean is
+  budget note as every prior slice -- `torirsserver-scripts` compiling clean is
   the verification bar these instructions asked for).
 - staleness sweep on the remaining small unaudited rows per this tick's own
   recommendation: #72 Olaf's Quest, #73 Grim Tales, #76 Haunted Mine and #80
@@ -2994,7 +2994,7 @@ filed under `helpers/miniquests/` are at the end.
   blocked); the flavour-only Sven's map / Ulfric's note viewer interfaces
   (`interfaces/olaf2_treasuremap.if`, `olaf2_ulric_parchment.if`, neither
   gates progress in quest-helper's own step map). Verification:
-  `mingw32-make -C src sscompile` then `mingw32-make -C src mock230-scripts`
+  `mingw32-make -C src sscompile` then `mingw32-make -C src torirsserver-scripts`
   both exit 0: 13664 scripts compiled (13606 -> 13664, includes this tick's
   new files plus unrelated growth since the last logged count); 0 errors;
   grep of the full build log for "olaf" returned nothing (no warnings/notes
@@ -3081,17 +3081,17 @@ filed under `helpers/miniquests/` are at the end.
   system). Verification: `mingw32-make -C src sscompile` clean (built
   `build_win64/sscompile`, 0 diagnostics beyond pre-existing snprintf
   truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 13736 scripts compiled (13664 -> 13736, this
+  torirsserver-scripts` exit 0, 13736 scripts compiled (13664 -> 13736, this
   tick's 6 new files + 2 merged edits); grep of the full build log for
   "grim" returned zero errors and zero notes naming this slice (only
   pre-existing "no Attack op" warnings on native `grim_*` cache npc
   records already shipped before this port, e.g. `grim_giant_mouse`,
-  `grim_grimgnash`, unrelated to any script here); `mock230_pack
+  `grim_grimgnash`, unrelated to any script here); `ToriRSServer_Pack
   --check-only` could not run in this worktree (`cache.osrs239` is not
   present -- confirmed pre-existing/environmental: the same invocation
   reports ~960 category/cache errors that reproduce identically and
   mention no `grim_*` symbol, matching this queue's own "BUILD PIPELINE
-  NOTE" that `mock230-scripts` exit 0 is the real verification bar here).
+  NOTE" that `torirsserver-scripts` exit 0 is the real verification bar here).
   Next pending row (smallest-first): #76 Haunted Mine, 435 lines (#74/#75
   already `done`).
 - slice #76 done: Haunted Mine -- grep-first confirmed no LC proc (`lc_quests.txt`
@@ -3154,10 +3154,10 @@ filed under `helpers/miniquests/` are at the end.
   Transcript:Haunted_Mine. Verification: `mingw32-make -C src sscompile`
   clean (built `build_win64/sscompile`, 0 diagnostics beyond pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 13791 scripts compiled (13736 -> 13791); grep of
+  torirsserver-scripts` exit 0, 13791 scripts compiled (13736 -> 13791); grep of
   the full build log for "hauntedmine" and for "error" (case-insensitive)
   both returned zero hits -- no warnings or errors attributable to this
-  slice. `mock230_pack --check-only` not runnable in this worktree (no
+  slice. `ToriRSServer_Pack --check-only` not runnable in this worktree (no
   `cache.osrs239` present, same pre-existing environment gap every prior
   slice on this queue has noted). Next = Mountain Daughter (#80, 459 lines;
   #77/#78/#79 already `done`).
@@ -3220,11 +3220,11 @@ filed under `helpers/miniquests/` are at the end.
   Transcript:Mountain_Daughter. Verification: `mingw32-make -C src sscompile`
   clean (built `build_win64/sscompile`, 0 diagnostics beyond pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 13839 scripts compiled (13791 -> 13839); grep of
+  torirsserver-scripts` exit 0, 13839 scripts compiled (13791 -> 13839); grep of
   the full build log for "mdaughter"/"mountaindaughter"/"mdq_"/"error"
   (case-insensitive) all returned zero hits -- no warnings or errors
   attributable to this slice, and none attributable to the shared
-  `fremennikexiles.rs2` edit either. `mock230_pack --check-only` not runnable
+  `fremennikexiles.rs2` edit either. `ToriRSServer_Pack --check-only` not runnable
   in this worktree (no `cache.osrs239` present, same pre-existing environment
   gap every prior slice on this queue has noted). Bonus finding while
   auditing row #80's neighbours: row #54 Shades of Mort'ton was stale --
@@ -3306,11 +3306,11 @@ filed under `helpers/miniquests/` are at the end.
   lid directly instead), Western Provinces hard-diary hook. `mingw32-make
   -C src sscompile` clean (rebuilds `build_win64/sscompile`, only
   pre-existing snprintf-truncation warnings in the compiler itself);
-  `mingw32-make -C src mock230-scripts` exit 0, 13887 scripts compiled
+  `mingw32-make -C src torirsserver-scripts` exit 0, 13887 scripts compiled
   (13839 -> 13887); grep of the full build log for "swansong"/"swan_"
   (case-insensitive) returned zero hits -- no warnings or errors
   attributable to this slice or either merged shared-trigger edit.
-  `mock230_pack --check-only` not runnable in this worktree (no
+  `ToriRSServer_Pack --check-only` not runnable in this worktree (no
   `cache.osrs239` present, same pre-existing environment gap every prior
   slice on this queue has noted). Next pending row (smallest-first): #120
 - slice #120 done: Royal Trouble -- grep-first audit found no LC/2009scape
@@ -3391,12 +3391,12 @@ filed under `helpers/miniquests/` are at the end.
   not assumed) -- reworded the one line that needed an embedded quote
   instead. `mingw32-make -C src sscompile` clean (only pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C
-  src mock230-scripts` exit 0, 13940 scripts compiled (13887 -> 13940);
+  src torirsserver-scripts` exit 0, 13940 scripts compiled (13887 -> 13940);
   grep of the full build log for "royal_"/"royaltrouble" (case-insensitive)
   returned zero warnings or errors attributable to this slice or any of
   the three merged shared-trigger edits. `::royaltrouble` /
   `::royaltroublerun` debug commands added, matching every prior slice's
-  idiom; `mock230_pack --check-only` not runnable in this worktree (no
+  idiom; `ToriRSServer_Pack --check-only` not runnable in this worktree (no
   `cache.osrs239` present, same pre-existing environment gap every prior
   slice has noted). Wiki
   https://oldschool.runescape.wiki/w/Royal_Trouble/Quick_guide + full
@@ -3456,7 +3456,7 @@ filed under `helpers/miniquests/` are at the end.
   Barrelchest's broken anchor reward stays broken (post-quest pirate-smith
   repair flavour not implemented, same tier as other reward items needing
   later unlocks elsewhere in this tree). `mingw32-make -C src sscompile`
-  clean; `mingw32-make -C src mock230-scripts` exit 0, 14078 scripts
+  clean; `mingw32-make -C src torirsserver-scripts` exit 0, 14078 scripts
   compiled (14041 -> 14078); grep of the full build log for "brain"
   returned exactly one hit during development (an unknown-constant
   `^chat_evil` typo, fixed to `^chat_angry`, a real cache-confirmed mood
@@ -3464,7 +3464,7 @@ filed under `helpers/miniquests/` are at the end.
   https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery/Quick_guide +
   https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery (dialogue
   paraphrased, not verbatim, per copyright, same caveat as every prior
-  slice). `mock230_pack --check-only` not runnable in this worktree (no
+  slice). `ToriRSServer_Pack --check-only` not runnable in this worktree (no
   `cache.osrs239` present, same pre-existing environment gap every prior
   slice has noted). Next pending row (smallest-first): #122 Rum Deal, 662
   lines.
@@ -3567,13 +3567,13 @@ filed under `helpers/miniquests/` are at the end.
   rumdealrun]`, every `[proc,deal_*]`) -- zero collisions, no merges needed.
   `mingw32-make -C src sscompile` clean (only pre-existing snprintf-
   truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 14111 scripts compiled (14078 -> 14111); grep of
+  torirsserver-scripts` exit 0, 14111 scripts compiled (14078 -> 14111); grep of
   the full build log for "rumdeal"/"deal_" (case-insensitive) returned zero
   hits -- no warnings or errors attributable to this slice. `::rumdeal` /
   `::rumdealrun` debug commands added, matching every prior slice's idiom.
   Wiki https://oldschool.runescape.wiki/w/Rum_Deal/Quick_guide (dialogue
   paraphrased, not verbatim, per copyright, same caveat as every prior
-  slice). `mock230_pack --check-only` not runnable in this worktree (no
+  slice). `ToriRSServer_Pack --check-only` not runnable in this worktree (no
   `cache.osrs239` present, same pre-existing environment gap every prior
   slice has noted). Next pending row (smallest-first): #124 The Fremennik
   Isles, 670 lines.
@@ -3668,7 +3668,7 @@ filed under `helpers/miniquests/` are at the end.
   own reward-list text ("Around 20,000 coins in assorted rewards during
   quest") rather than an arbitrary guess. `mingw32-make -C src sscompile`
   clean (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14161 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14161 scripts
   compiled (14111 -> 14161); grep of the full build log for "fris"
   (case-insensitive) returned zero hits -- no warnings or errors
   attributable to this slice or any of the three merged shared-trigger
@@ -3683,7 +3683,7 @@ filed under `helpers/miniquests/` are at the end.
   merges into `skill_fletching/scripts/cut_logs.rs2`,
   `general_use/scripts/hammer.rs2`,
   `skill_crafting/scripts/leather/leather.rs2`,
-  `interface_questjournal/scripts/quest_journal.rs2`. `mock230_pack
+  `interface_questjournal/scripts/quest_journal.rs2`. `ToriRSServer_Pack
   --check-only` not runnable in this worktree (no `cache.osrs239` present,
   same pre-existing environment gap every prior slice has noted). Next
   pending row (smallest-first): #125 Garden of Tranquility, 684 lines.
@@ -3802,7 +3802,7 @@ filed under `helpers/miniquests/` are at the end.
   garden for the finale is a scripted dialogue exchange, not a real
   npc-follow simulation. `mingw32-make -C src sscompile` clean (only
   pre-existing snprintf-truncation warnings in the compiler itself);
-  `mingw32-make -C src mock230-scripts` exit 0, 14236 scripts compiled
+  `mingw32-make -C src torirsserver-scripts` exit 0, 14236 scripts compiled
   (14161 -> 14236); grep of the full build log for "garden" (case-
   insensitive) returned zero hits -- no warnings or errors attributable to
   this slice or any of the four merged shared-trigger edits. `::
@@ -3821,7 +3821,7 @@ filed under `helpers/miniquests/` are at the end.
   `skill_herblore/scripts/grind_ingredient.rs2`,
   `quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2`,
   `areas/varrock/scripts/king_roald.rs2`,
-  `interface_questjournal/scripts/quest_journal.rs2`. `mock230_pack
+  `interface_questjournal/scripts/quest_journal.rs2`. `ToriRSServer_Pack
   --check-only` not runnable in this worktree (no `cache.osrs239` present,
   same pre-existing environment gap every prior slice has noted). Next
   pending row (smallest-first): #127 Enakhra's Lament, 688 lines.
@@ -3910,10 +3910,10 @@ filed under `helpers/miniquests/` are at the end.
   quest-helper's own `getExperienceRewards()` exactly plus a Mining line the
   guide omits, both awarded), Akthanakos's Camulet. `mingw32-make -C src
   sscompile` clean (only pre-existing snprintf-truncation warnings in the
-  compiler itself); `mingw32-make -C src mock230-scripts` exit 0, 14281
+  compiler itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14281
   scripts compiled (14236 -> 14281); grep of the full build log for "enakh"
   (case-insensitive) returned zero hits -- no warnings or errors
-  attributable to this slice or the one shared-trigger merge. `mock230_pack
+  attributable to this slice or the one shared-trigger merge. `ToriRSServer_Pack
   --check-only` not runnable in this worktree (no `cache.osrs239` present,
   same pre-existing environment gap every prior slice has noted). Wiki
   https://oldschool.runescape.wiki/w/Enakhra's_Lament/Quick_guide (dialogue
@@ -4016,12 +4016,12 @@ filed under `helpers/miniquests/` are at the end.
   own `getExperienceRewards()` exactly, both awarded), unlocks purchasing
   Proselyte armour. `mingw32-make -C src sscompile` clean (only pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 14316 scripts compiled (14281 -> 14316, net +35
+  torirsserver-scripts` exit 0, 14316 scripts compiled (14281 -> 14316, net +35
   after the duplicate-trigger fix removed one competing top-level
   `[opnpc1,holgartlandtravel]`); grep of the full build log for "slug" /
   "holgart" (case-insensitive) returned zero hits both before and after the
   fix -- no warnings or errors attributable to this slice or any of the five
-  shared-trigger merges. `mock230_pack --check-only` not runnable in this
+  shared-trigger merges. `ToriRSServer_Pack --check-only` not runnable in this
   worktree (no `cache.osrs239` present, same pre-existing environment gap
   every prior slice has noted). `::theslugmenace` / `::theslugmenacerun`
   debug commands added, matching every prior slice's idiom. Wiki
@@ -4064,7 +4064,7 @@ filed under `helpers/miniquests/` are at the end.
   handling isn't modelled. Wiki https://oldschool.runescape.wiki/w/
   Cabin_Fever/Quick_guide + quest-helper source fetched via GitHub raw
   (dialogue paraphrased, per copyright). `mingw32-make -C src sscompile`
-  clean, `mingw32-make -C src mock230-scripts` exit 0 (14,342 scripts, up
+  clean, `mingw32-make -C src torirsserver-scripts` exit 0 (14,342 scripts, up
   from 14,316); no duplicate-trigger or duplicate-constant collisions
   (checked by hand against the whole tree). Files: `quests/quest_cabinfever/
   {configs/cabinfever.{constant,varp,npc}, scripts/cabinfever_{shared,bill,
@@ -4186,7 +4186,7 @@ filed under `helpers/miniquests/` are at the end.
   + quest-helper source fetched via GitHub raw (dialogue paraphrased, not
   verbatim, per copyright, same caveat as every prior slice). `mingw32-make
   -C src sscompile` clean (only pre-existing snprintf-truncation warnings in
-  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0, 14400
+  the compiler itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14400
   scripts compiled (up from 14342); grep of the full build log for
   "myreque"/"inaidofthemyreque" returned zero hits, and a full self-sweep of
   all 58 trigger headers this slice authored against the rest of the tree
@@ -4335,7 +4335,7 @@ filed under `helpers/miniquests/` are at the end.
   raw (dialogue paraphrased, not verbatim, per copyright, same caveat as
   every prior slice). `mingw32-make -C src sscompile` clean (only pre-
   existing snprintf-truncation warnings in the compiler itself);
-  `mingw32-make -C src mock230-scripts` exit 0, 14453 scripts compiled
+  `mingw32-make -C src torirsserver-scripts` exit 0, 14453 scripts compiled
   (up from 14400); grep of the full build log for "betweenarock"/
   "dwarfrock" returned zero hits, and a full self-sweep of all 53
   trigger headers this slice authored against the rest of the tree found
@@ -4433,7 +4433,7 @@ filed under `helpers/miniquests/` are at the end.
   Not this quest's file and not caused by this slice -- left alone, flagged
   here for a future tick to actually fix. `mingw32-make -C src sscompile`
   clean (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14486 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14486 scripts
   compiled (up from 14453, +33 -- exactly matching this slice's own
   27+5+1=33 authored script/proc blocks); a full self-sweep of every trigger
   header this slice authored (21 opnpc/oploc/opheld/oplocu triggers) against
@@ -4620,7 +4620,7 @@ filed under `helpers/miniquests/` are at the end.
   `.../Quick_guide` (dialogue paraphrased, not verbatim, per copyright,
   same caveat as every prior slice). `mingw32-make -C src sscompile`
   clean (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,557 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14,557 scripts
   compiled (up from 14,486, +71); full build log grepped for every
   touched/new filename (`lotg`, `landofthegoblins`, `quest_gobdip`,
   `dye_cape`, `golem_portal`, `brew_potion`, `hemenster_fishing`,
@@ -4744,7 +4744,7 @@ filed under `helpers/miniquests/` are at the end.
   `.../Quick_guide` (paraphrased, not verbatim, per copyright, same
   caveat as every prior slice). `mingw32-make -C src sscompile` clean
   (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,606 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14,606 scripts
   compiled (up from 14,557, +49); full build log grepped for `elem2`/
   `elementalworkshopii`/`elementalworkshop2` returned zero warnings or
   errors; a self-sweep of all 34 trigger headers this slice authored
@@ -4831,7 +4831,7 @@ filed under `helpers/miniquests/` are at the end.
   `action=parse` API to cross-check the corrupted dbrow requirement against
   quest-helper's `getGeneralRequirements()` independently. `mingw32-make -C
   src sscompile` clean (only pre-existing snprintf-truncation warnings in
-  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0,
+  the compiler itself); `mingw32-make -C src torirsserver-scripts` exit 0,
   14,670 scripts compiled (up from 14,606, +64); full build log grepped for
   `darknessofhallowvale`/`doh_`/`myq3_` returned zero warnings or errors; a
   tree-wide self-sweep of every trigger header this slice authored (51
@@ -4956,7 +4956,7 @@ filed under `helpers/miniquests/` are at the end.
   helper's own `GhostsAhoy.java`/`DyeShipSteps.java` fetched via GitHub raw
   (no local checkout on this machine). `mingw32-make -C src sscompile`
   clean (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,709 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14,709 scripts
   compiled (up from 14,670, +39), full build log grepped for `ahoy` returned
   zero warnings or errors. Self-sweep: every trigger header this slice
   authored (38 across 5 new files) confirmed exactly one definition each
@@ -5109,7 +5109,7 @@ filed under `helpers/miniquests/` are at the end.
   969 total matching the queue row's own line count) fetched via GitHub raw
   (no local checkout on this machine). `mingw32-make -C src sscompile`
   clean (only pre-existing snprintf-truncation warnings in the compiler
-  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,738 scripts
+  itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14,738 scripts
   compiled (up from 14,709, +29); full build log grepped for
   `eyeglo|theeyesofglouphrie|brimstail|hazelmere.rs2|king_narnode|
   icthlarin_embalm|grind_ingredient` returned zero warnings or errors. A
@@ -5252,7 +5252,7 @@ filed under `helpers/miniquests/` are at the end.
   machine); `tools/questhelper_extract.py forgettabletale --check` exit 0
   (every ItemID/NpcID/ObjectID/VarbitID resolves clean). `mingw32-make -C
   src sscompile` clean (only pre-existing snprintf-truncation warnings in
-  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0,
+  the compiler itself); `mingw32-make -C src torirsserver-scripts` exit 0,
   14,763 scripts compiled (up from 14,738, +25); full build log grepped for
   `forget|dwarf_city_rowdy|dwarf_city_dwarf_man6|dwarf_city_train_conductor|
   keldagrim_track_junction|brewing_vat_1|brewing_barrel_1|vat_valve_1|
@@ -5362,7 +5362,7 @@ filed under `helpers/miniquests/` are at the end.
   ItemID/NpcID/ObjectID/VarbitID resolves clean, including all 20
   puzzle-widget sub-varbits this port deliberately does not drive). `mingw32-
   make -C src sscompile` clean (only the pre-existing snprintf-truncation
-  warnings in the compiler itself); `mingw32-make -C src mock230-scripts`
+  warnings in the compiler itself); `mingw32-make -C src torirsserver-scripts`
   exit 0, 14,788 scripts compiled (up from 14,763, +25); full build log
   grepped case-insensitively for `tol_|toweroflife` returned zero warnings
   or errors. A manual duplicate-trigger sweep (not caught by `sscompile`,
@@ -5475,7 +5475,7 @@ filed under `helpers/miniquests/` are at the end.
   for the headless session since this quest's own gate depends on Part I).
   `mingw32-make -C src sscompile` clean (only the pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C src
-  mock230-scripts` exit 0, 14,793 scripts compiled; full build log grepped
+  torirsserver-scripts` exit 0, 14,793 scripts compiled; full build log grepped
   case-insensitively for `mourning|mend1|mend2` returned zero warnings,
   errors, or notes. A manual duplicate-trigger check confirmed
   `[opnpc1,mourning_arianwyn]` and `[opnpc1,mourner_hideout_head_mourner]`
@@ -5620,7 +5620,7 @@ filed under `helpers/miniquests/` are at the end.
   `interface_questjournal/scripts/quest_journal.rs2`. `::ej`/`::ejrun` debug
   hooks added, mirroring `::mend2run`'s idiom. `mingw32-make -C src
   sscompile` clean (only the pre-existing snprintf-truncation warnings in the
-  compiler itself); `mingw32-make -C src mock230-scripts` exit 0, 14,819
+  compiler itself); `mingw32-make -C src torirsserver-scripts` exit 0, 14,819
   scripts compiled (up from 14,793, +26); full build log grepped
   case-insensitively for `enlightenedjourney|ej_|zep_piccard_talk|
   zep_give_items_menu|zep_fly_to|monkeymadnessii|golem_portal|stringing|
@@ -5793,7 +5793,7 @@ filed under `helpers/miniquests/` are at the end.
   copyright caveat every prior slice on this queue has noted).
   `mingw32-make -C src sscompile` clean (only the pre-existing
   snprintf-truncation warnings in the compiler itself); `mingw32-make -C
-  src mock230-scripts` exit 0, 14,855 scripts compiled; full build log
+  src torirsserver-scripts` exit 0, 14,855 scripts compiled; full build log
   grepped case-insensitively for `onesmallfavour|osf_|favour_|slagilith|
   hammerspike|tassie|phantuwti|gnormadium|rantz|tindel|petra|cromperty|
   arhein|yanni|jungleforester|brian|apothecary|horvik|seth|johanhus|
@@ -5946,7 +5946,7 @@ filed under `helpers/miniquests/` are at the end.
   (1,756 lines, fetched via WebFetch summary, dialogue paraphrased not
   verbatim per copyright, same caveat as every prior slice).
   `mingw32-make -C src sscompile` clean, `mingw32-make -C src
-  mock230-scripts` exit 0 (14,905 scripts, up from 14,855; zero
+  torirsserver-scripts` exit 0 (14,905 scripts, up from 14,855; zero
   `lunar`-related warnings/errors in the build log); also fixed a genuine
   duplicate-trigger bug this slice would otherwise have introduced
   (`[opnpc1,lunar_oneiromancer]` merge into `dragonslayer2.rs2`, see
@@ -6081,9 +6081,9 @@ filed under `helpers/miniquests/` are at the end.
   (5) `lunar_seal_of_passage` and `%lunar_brazier_lit`/`canoeing_menu`
   (native carrier already claimed by `interface_farming/configs/
   farming_tools.varp`) reused directly, no new varp declared. `mingw32-
-  make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit
+  make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit
   0 (14,939 scripts, up from 14,905; zero `dreammentor`-related warnings/
-  errors in the build log, grep-confirmed). `mock230_pack --check-only`
+  errors in the build log, grep-confirmed). `ToriRSServer_Pack --check-only`
   was also attempted per the guardrails, but this isolated worktree has no
   `cache.osrs239` checked out (`cannot open the cache` is the tool's very
   first error) -- its whole-tree category/cache cross-reference is
@@ -6091,7 +6091,7 @@ filed under `helpers/miniquests/` are at the end.
   warnings, none naming `dreammentor` except one downstream-of-the-same-
   missing-cache false positive claiming `dream_inadequacy` has no Attack
   op, contradicted directly by `configs/all.npc`'s own `op2=Attack` on that
-  record) -- treated `sscompile`+`mock230-scripts` exit 0 as the real bar,
+  record) -- treated `sscompile`+`torirsserver-scripts` exit 0 as the real bar,
   same as every prior slice's own logged verification. Files: `quests/
   quest_dreammentor/{configs/dreammentor.{constant,varp}, scripts/
   dreammentor_{shared,cyrisus,dream,journal}.rs2}` + merges into
@@ -6183,7 +6183,7 @@ filed under `helpers/miniquests/` are at the end.
   found across every touched npc/loc (full-tree grep before and after
   writing, `[opnpc1,king_bolren]`/`[opnpc1,grandtree_hazelmere]` merged
   additively as hub-proc calls, everything else genuinely new). `mingw32-
-  make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0
+  make -C src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0
   (14,971 scripts, up from 14,939; zero `pog`/`pathofglouphrie`/`glouphrie`-
   named warnings/errors in the full build log). Files: `quests/quest_
   pathofglouphrie/{configs/pathofglouphrie.{constant,varp}, scripts/
@@ -6305,7 +6305,7 @@ filed under `helpers/miniquests/` are at the end.
   `bkfortressdoor1`-family locs confirmed already owned by `quest_
   blackknight`/`quest_kingsransom` and deliberately NOT re-triggered,
   everything else genuinely new). `mingw32-make -C src sscompile` clean,
-  `mingw32-make -C src mock230-scripts` exit 0 (15,001 scripts, up from
+  `mingw32-make -C src torirsserver-scripts` exit 0 (15,001 scripts, up from
   14,971; zero `wgs`/`guthixsleeps`-named warnings/errors anywhere in the
   full build log). Files: `quests/quest_whileguthixsleeps/{configs/
   whileguthixsleeps.{constant,varp}, scripts/wgs_{quest,journal}.rs2}` +
@@ -6366,7 +6366,7 @@ filed under `helpers/miniquests/` are at the end.
   https://oldschool.runescape.wiki/w/Recipe_for_Disaster/Quick_guide +
   Transcript:Recipe_for_Disaster/{Another_Cook's_Quest,Freeing_Evil_Dave,
   Freeing_the_Lumbridge_Guide,Freeing_the_Goblin_generals}. `mingw32-make -C
-  src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (15,024
+  src sscompile` clean, `mingw32-make -C src torirsserver-scripts` exit 0 (15,024
   scripts, up from 15,001; zero warnings or errors anywhere naming
   `recipefordisaster`/`rfd_*`). Remaining for a future tick: Mountain Dwarf,
   Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei/Monkey
@@ -6504,7 +6504,7 @@ filed under `helpers/miniquests/` are at the end.
   every hand-spawned npc and every ambassador loc/item confirmed genuinely
   free first). Incremental builds after every sub-quest, not just at the
   end: `mingw32-make -C src sscompile` clean and `mingw32-make -C src
-  mock230-scripts` exit 0 at each step (15,030 after Dwarf, 15,041 after
+  torirsserver-scripts` exit 0 at each step (15,030 after Dwarf, 15,041 after
   Pirate Pete, 15,050 after Uglogwee, 15,058 after Amik Varze, 15,065 after
   Awowogei, 15,077 after the finale -- up from 15,024 at the start of this
   tick), zero warnings or errors anywhere naming `recipefordisaster`/
@@ -6582,7 +6582,7 @@ filed under `helpers/miniquests/` are at the end.
     in-progress rather than rushing an unverified fix — a follow-up tick can
     pick this up directly from the table row's note.
   - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
-    mock230-scripts` exit 0, 15079 scripts compiled (up from 15077 at tick
+    torirsserver-scripts` exit 0, 15079 scripts compiled (up from 15077 at tick
     start — 2 new trigger/label blocks: `[opnpc1,wizard_grayzag]` +
     `[label,mizgog_more_amulets]`), zero new errors/warnings. No duplicate
     triggers (grepped `server/scripts` for every touched npc/trigger name
@@ -6652,7 +6652,7 @@ filed under `helpers/miniquests/` are at the end.
     `diseased_sheep.rs2` even cross-checks against Mourning's End Part I's
     later reuse of the same world npcs to avoid a duplicate trigger.
   - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
-    mock230-scripts` exit 0, 15081 scripts compiled (up from 15079 at tick
+    torirsserver-scripts` exit 0, 15081 scripts compiled (up from 15079 at tick
     start — 2 new triggers from the new `mcannon_commander.rs2` file:
     `[opnpc1,lawgof2]` + `[opnpc1,nulodion]`), zero new errors/warnings. No
     duplicate triggers (grepped `server/scripts` for every touched
@@ -6722,7 +6722,7 @@ filed under `helpers/miniquests/` are at the end.
     `eadgarsruse` above — the missing middle is a mini-quest's worth of new
     area/NPC/crafting content.
   - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
-    mock230-scripts` exit 0, 15081 scripts compiled (unchanged from pass 2
+    torirsserver-scripts` exit 0, 15081 scripts compiled (unchanged from pass 2
     — both fixes this pass edited existing trigger bodies, no new
     `[opnpc1,...]`/`[label,...]` triggers added), zero new errors/warnings.
     No duplicate triggers introduced (both edits are inside pre-existing
@@ -6787,7 +6787,7 @@ filed under `helpers/miniquests/` are at the end.
     second competing one), Fortunato's vinegar sale, and the full
     vinegar-pour/pot-boiler/20-tick-boil mechanic for all 8 bones. Reward
     matches the dbrow exactly. No gaps found.
-  - Build: `mingw32-make -C src mock230-scripts` exit 0 after every fix
+  - Build: `mingw32-make -C src torirsserver-scripts` exit 0 after every fix
     (checked incrementally, not just at the end), 15084 scripts compiled
     (up from 15081 at pass start — 3 new triggers: `[opnpc1,omart]` +
     `[opnpc1,kilron]` in biohazard, `[ai_queue3,ice_queen]` in the new
@@ -6887,7 +6887,7 @@ filed under `helpers/miniquests/` are at the end.
   — in both of the latter two cases, most or all of the needed items/locs
   turned out to already exist in cache configs with zero prior scripts, so
   the work was pure trigger-wiring, not new data authoring. Build verified
-  clean after the consolidated merge: `mock230-scripts` exit 0, 15,116
+  clean after the consolidated merge: `torirsserver-scripts` exit 0, 15,116
   scripts, no duplicate-trigger warnings on any of the ~22 touched files
   across all three quests. Remaining `audit-in_progress` rows needing the
   same treatment: `dragonslayerii` (likely largest — near-total soft-skip
@@ -6921,7 +6921,7 @@ filed under `helpers/miniquests/` are at the end.
   explicit "finish now, don't spawn background work" instruction, which
   worked. Future large-build agent prompts should state both constraints
   explicitly. Build verified clean after the consolidated merge:
-  `mock230-scripts` exit 0, 15,215 scripts, no duplicate-trigger warnings
+  `torirsserver-scripts` exit 0, 15,215 scripts, no duplicate-trigger warnings
   across the ~37 touched/new files spanning all three quests.
 
   **Remaining large-content backlog:** `dragonslayerii` (likely the
@@ -6955,7 +6955,7 @@ filed under `helpers/miniquests/` are at the end.
   zero prior scripts — pure trigger-wiring, not new data authoring, same
   pattern seen repeatedly across this whole build phase (Eadgar's Ruse,
   Troll Romance, Holy Grail all had this too). Build verified clean:
-  `mock230-scripts` exit 0, 15,286 scripts. Still open on this quest: the
+  `torirsserver-scripts` exit 0, 15,286 scripts. Still open on this quest: the
   four-kingdom diplomatic tour, ship-defense minigame, four dragon waves,
   and the four-phase Galvek fight — a genuinely separate follow-up batch.
 
@@ -6998,7 +6998,7 @@ filed under `helpers/miniquests/` are at the end.
     hole. Wired the offer branch into the same file's existing trigger,
     matching this quest's own journal text. Nature Spirit is now startable
     for the first time.
-  - Build verified clean after the consolidated merge: `mock230-scripts`
+  - Build verified clean after the consolidated merge: `torirsserver-scripts`
     exit 0, 15,360 scripts, no diagnostics on any touched file.
   - **Final state: every row across both the IN-LC (38 rows) and mid-era (6
     rows) wiki-accuracy audit tables is `audited-ok` or `audited-fixed`,

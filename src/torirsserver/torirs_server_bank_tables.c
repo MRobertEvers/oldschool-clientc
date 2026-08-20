@@ -2,14 +2,14 @@
  * The bank's CACHE facts: which inv holds how many slots, and where a varbit
  * sits inside its varp.
  *
- * Split out of `mock230_bank.c` so a binary can read them without linking a
- * bank. That is not a tidiness argument — it is what `mock230_pack` needs.
+ * Split out of `torirs_server_bank.c` so a binary can read them without linking a
+ * bank. That is not a tidiness argument — it is what `ToriRSServer_Pack` needs.
  *
  * The validator loads the content tree and checks it against the cache, and one
  * of its checks is that an `.inv` block does not restate a size the cache
- * already states (`mock230_content.c`, "inv size is a cache fact (config group
- * 5)"). That check reads `mock230_bank_inv_size`. With the whole of
- * `mock230_bank.c` behind that symbol the validator would have to link the
+ * already states (`torirs_server_content.c`, "inv size is a cache fact (config group
+ * 5)"). That check reads `ToriRSServer_BankInvSize`. With the whole of
+ * `torirs_server_bank.c` behind that symbol the validator would have to link the
  * bank's *wire* half too — IF_OPENSUB, UPDATE_INV_FULL, the container flush,
  * and from there the encoder and the server — none of which it has or wants.
  *
@@ -19,12 +19,12 @@
  * the source, still be read as coverage, and mean nothing.
  *
  * Nothing here sends a packet, touches a player, or needs a server. Everything
- * that does stayed in `mock230_bank.c`.
+ * that does stayed in `torirs_server_bank.c`.
  */
-#include "mock230_bank.h"
+#include "torirs_server_bank.h"
 
-#include "mock230.h"
-#include "mock230_ids.h"
+#include "torirs_server.h"
+#include "torirs_server_ids.h"
 
 #include <rscache.h>
 
@@ -191,22 +191,22 @@ load_varbits(struct RSCache_Dat2Disk* disk)
 }
 
 int
-mock230_bank_load(const char* cache_dir)
+ToriRSServer_BankLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
     int loaded;
 
-    mock230_bank_free();
+    ToriRSServer_BankFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
-        /* Same ../ fallback as mock230_objinfo_load: the binary is run both
+        /* Same ../ fallback as ToriRSServer_ObjInfoLoad: the binary is run both
          * from the repo root and from src/. */
         char parent[512];
         snprintf(parent, sizeof(parent), "../%s", cache_dir);
@@ -215,7 +215,7 @@ mock230_bank_load(const char* cache_dir)
     if( !disk )
     {
         fprintf(stderr,
-                "mock230: no cache at %s — bank varbits unavailable "
+                "torirsserver: no cache at %s — bank varbits unavailable "
                 "(settings cannot be pushed to the interface)\n",
                 cache_dir);
         return 0;
@@ -226,13 +226,13 @@ mock230_bank_load(const char* cache_dir)
     loaded = load_varbits(disk);
     RSCache_Dat2DiskFree(disk);
 
-    fprintf(stderr, "mock230: bank tables loaded (%d varbits, bank=%d slots)\n", loaded,
-            mock230_bank_inv_size(mock230_ids()->inv_bank));
+    fprintf(stderr, "torirsserver: bank tables loaded (%d varbits, bank=%d slots)\n", loaded,
+            ToriRSServer_BankInvSize(ToriRSServer_Ids()->inv_bank));
     return loaded;
 }
 
 void
-mock230_bank_free(void)
+ToriRSServer_BankFree(void)
 {
     free(g_varbits);
     g_varbits = NULL;
@@ -243,7 +243,7 @@ mock230_bank_free(void)
 }
 
 int
-mock230_bank_inv_size(int inv_id)
+ToriRSServer_BankInvSize(int inv_id)
 {
     if( !g_inv_sizes || inv_id < 0 || inv_id >= g_inv_count )
         return 0;
@@ -251,7 +251,7 @@ mock230_bank_inv_size(int inv_id)
 }
 
 int
-mock230_bank_varbit_resolve(
+ToriRSServer_BankVarbitResolve(
     int varbit_id,
     int* basevar,
     int* lsb,

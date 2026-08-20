@@ -1,13 +1,13 @@
 /*
- * Player persistence. See mock230_save.h.
+ * Player persistence. See torirs_server_save.h.
  */
 
-#include "mock230_save.h"
+#include "torirs_server_save.h"
 #include <assert.h>
 
-#include "mock230.h"
-#include "mock230_container.h"
-#include "mock230_content.h"
+#include "torirs_server.h"
+#include "torirs_server_container.h"
+#include "torirs_server_content.h"
 
 #include "3rd/ini/ini.h"
 #include "content/content_register.h"
@@ -33,12 +33,12 @@
  * where the same key now means something different, which is the only situation
  * a reader cannot detect on its own.
  */
-#define MOCK230_SAVE_VERSION 1
+#define TORIRSSERVER_SAVE_VERSION 1
 
 static const char*
 save_dir(void)
 {
-    const char* configured = getenv("MOCK230_SAVES");
+    const char* configured = getenv("TORIRSSERVER_SAVES");
 
     return configured ? configured : "saves";
 }
@@ -47,10 +47,10 @@ save_dir(void)
  * `mkdir -p` for the save directory.
  *
  * One `mkdir` was enough while the only path was the bare `saves`, and it stops
- * being enough the moment anything configures `MOCK230_SAVES` to something
+ * being enough the moment anything configures `TORIRSSERVER_SAVES` to something
  * nested — the mkdir fails with ENOENT, the fopen behind it fails too, and the
  * save is lost with one line on stderr that reads like a permissions problem.
- * `mock230_embed_test` points it at `build/embed_test_saves` so its runs cannot
+ * `ToriRSServer_EmbedTest` points it at `build/embed_test_saves` so its runs cannot
  * contaminate each other, which is what found this.
  */
 static void
@@ -76,7 +76,7 @@ save_mkdir_p(const char* dir)
 }
 
 const char*
-mock230_save_path(const char* display_name)
+ToriRSServer_SavePath(const char* display_name)
 {
     static char path[1024];
     char name[64];
@@ -119,7 +119,7 @@ static void
 write_items(
     FILE* file,
     const char* section,
-    const struct Mock230Item* slots,
+    const struct ToriRSServerItem* slots,
     int slot_count)
 {
     fprintf(file, "\n[%s]\n; <slot> = <obj> <count>\n", section);
@@ -135,7 +135,7 @@ static void
 write_item_vars(
     FILE* file,
     const char* section,
-    const struct Mock230Item* slots,
+    const struct ToriRSServerItem* slots,
     int slot_count)
 {
     int any = 0;
@@ -144,7 +144,7 @@ write_item_vars(
     {
         if( slots[slot].obj_id < 0 )
             continue;
-        for( int v = 0; v < MOCK230_ITEM_VAR_MAX; v++ )
+        for( int v = 0; v < TORIRSSERVER_ITEM_VAR_MAX; v++ )
         {
             if( slots[slot].var_key[v] < 0 )
                 continue;
@@ -162,7 +162,7 @@ write_item_vars(
 static void
 write_poh(
     FILE* file,
-    const struct Mock230PohState* poh)
+    const struct ToriRSServerPohState* poh)
 {
     fprintf(file,
             "\n[poh]\n"
@@ -212,7 +212,7 @@ write_poh(
             "; <slot> = <room_dbrow> <x> <z> <level> <rotation> <door_mask>\n");
     for( int i = 0; i < poh->room_count; i++ )
     {
-        const struct Mock230PohRoom* room = &poh->rooms[i];
+        const struct ToriRSServerPohRoom* room = &poh->rooms[i];
 
         fprintf(file, "%d = %d %d %d %d %d %d\n", i, room->dbrow, room->x,
                 room->z, room->level, room->rotation, room->door_mask);
@@ -223,7 +223,7 @@ write_poh(
             "; <slot> = <room> <hotspot> <furniture_dbrow> <rotation> <flags>\n");
     for( int i = 0; i < poh->decoration_count; i++ )
     {
-        const struct Mock230PohDecoration* decoration = &poh->decorations[i];
+        const struct ToriRSServerPohDecoration* decoration = &poh->decorations[i];
 
         fprintf(file, "%d = %d %d %d %d %d\n", i, decoration->room,
                 decoration->hotspot, decoration->furniture_dbrow,
@@ -232,8 +232,8 @@ write_poh(
 }
 
 int
-mock230_save_player(
-    const struct Mock230Player* player,
+ToriRSServer_SavePlayer(
+    const struct ToriRSServerPlayer* player,
     const char* path)
 {
     char temp[1100];
@@ -252,12 +252,12 @@ mock230_save_player(
     file = fopen(temp, "wb");
     if( !file )
     {
-        fprintf(stderr, "mock230: cannot write %s\n", temp);
+        fprintf(stderr, "torirsserver: cannot write %s\n", temp);
         return 0;
     }
 
     fprintf(file,
-            "; mock230 player save. Written by mock230_save.c; safe to hand-edit.\n"
+            "; ToriRSServer player save. Written by torirs_server_save.c; safe to hand-edit.\n"
             "; A key this server does not know is skipped, and a missing one keeps\n"
             "; whatever a fresh character would have — so an old save still loads.\n"
             "\n[player]\n"
@@ -269,11 +269,11 @@ mock230_save_player(
             "run_energy = %d\n"
             "run_toggle = %d\n"
             "client_layout_mode = %d\n",
-            MOCK230_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
+            TORIRSSERVER_SAVE_VERSION, player->display_name, player->x, player->z, player->level,
             player->run_energy, player->run_toggle, player->client_layout_mode);
 
     fprintf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
-    for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
     {
         /* Skip the untouched majority: 23 stats of `1 0` is noise in a file
          * whose whole point is being readable. Base level is derived from XP
@@ -284,10 +284,10 @@ mock230_save_player(
                 player->stat_xp_tenths[stat]);
     }
 
-    write_items(file, "inv", player->inv, MOCK230_INV_SLOTS);
-    write_item_vars(file, "inv_var", player->inv, MOCK230_INV_SLOTS);
-    write_items(file, "worn", player->worn, MOCK230_WORN_SLOTS);
-    write_item_vars(file, "worn_var", player->worn, MOCK230_WORN_SLOTS);
+    write_items(file, "inv", player->inv, TORIRSSERVER_INV_SLOTS);
+    write_item_vars(file, "inv_var", player->inv, TORIRSSERVER_INV_SLOTS);
+    write_items(file, "worn", player->worn, TORIRSSERVER_WORN_SLOTS);
+    write_item_vars(file, "worn_var", player->worn, TORIRSSERVER_WORN_SLOTS);
     if( player->bank.slots && player->bank.size > 0 )
     {
         write_items(file, "bank", player->bank.slots, player->bank.size);
@@ -308,9 +308,9 @@ mock230_save_player(
      * not own their storage, so the test is `owns_items` — no inv id in the
      * loop.
      */
-    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
     {
-        const struct Mock230Container* row = &player->containers[i];
+        const struct ToriRSServerContainer* row = &player->containers[i];
         char section[64];
 
         if( !row->used || !row->owns_items || !row->items || row->slots <= 0 )
@@ -325,20 +325,20 @@ mock230_save_player(
      * Only `scope=perm` varps.
      *
      * Content's decision, not the engine's — the same rule LostCity uses, and
-     * the reason `Mock230VarpDef.scope_perm` has been read off `.varp` configs
+     * the reason `ToriRSServerVarpDef.scope_perm` has been read off `.varp` configs
      * and ignored since that reader was written. An *undeclared* varp is server
      * bookkeeping and is deliberately not saved, matching the transmit gate's
      * default: if content never said the variable exists, the engine has no
      * business making it outlive the session.
      */
     fprintf(file, "\n[varps]\n; only varps whose .varp config says scope=perm\n");
-    for( int varp = 0; varp < MOCK230_VARP_COUNT; varp++ )
+    for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
     {
-        const struct Mock230VarpDef* def;
+        const struct ToriRSServerVarpDef* def;
 
         if( player->varps[varp] == 0 )
             continue;
-        def = mock230_content_varp(varp);
+        def = ToriRSServer_ContentVarp(varp);
         if( !def || !def->scope_perm )
             continue;
         fprintf(file, "%d = %d\n", varp, (int)player->varps[varp]);
@@ -350,7 +350,7 @@ mock230_save_player(
 
     if( rename(temp, path) != 0 )
     {
-        fprintf(stderr, "mock230: cannot replace %s\n", path);
+        fprintf(stderr, "torirsserver: cannot replace %s\n", path);
         remove(temp);
         return 0;
     }
@@ -384,7 +384,7 @@ enum SaveSection
 
 static void
 load_item(
-    struct Mock230Item* slots,
+    struct ToriRSServerItem* slots,
     int slot_count,
     const char* key,
     const char* value)
@@ -405,7 +405,7 @@ load_item(
 
 static void
 load_item_var(
-    struct Mock230Item* slots,
+    struct ToriRSServerItem* slots,
     int slot_count,
     const char* key,
     const char* value)
@@ -419,12 +419,12 @@ load_item_var(
     if( slot < 0 || slot >= slot_count || key_obj < 0 )
         return;
     val = atoi(value);
-    mock230_item_set_var(&slots[slot], key_obj, val);
+    ToriRSServer_ItemSetVar(&slots[slot], key_obj, val);
 }
 
 int
-mock230_load_player(
-    struct Mock230Player* player,
+ToriRSServer_LoadPlayer(
+    struct ToriRSServerPlayer* player,
     const char* path)
 {
     FILE* file;
@@ -434,7 +434,7 @@ mock230_load_player(
     struct INIElement element;
     enum SaveSection section = SAVE_NONE;
     int section_inv = -1;
-    struct Mock230Container* section_row = NULL;
+    struct ToriRSServerContainer* section_row = NULL;
     int version = 0;
     int poh_version = 0;
 
@@ -459,7 +459,7 @@ mock230_load_player(
     {
         free(data);
         fclose(file);
-        fprintf(stderr, "mock230: could not read %s\n", path);
+        fprintf(stderr, "torirsserver: could not read %s\n", path);
         return 0;
     }
     fclose(file);
@@ -468,7 +468,7 @@ mock230_load_player(
      * Clear the old house first so absent rows cannot survive from the previous
      * record. An absent save returned above and leaves the new-character
      * default alone. */
-    mock230_poh_init(&player->poh);
+    ToriRSServer_PohInit(&player->poh);
 
     ini_reader_init(&reader);
     while( ini_reader_next(&reader, data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
@@ -508,7 +508,7 @@ mock230_load_player(
                 section = SAVE_CONTAINER_VAR;
                 section_inv = atoi(element._section.name + 14);
                 section_row =
-                    mock230_container_resolve(player->world, player, (int32_t)section_inv);
+                    ToriRSServer_ContainerResolve(player->world, player, (int32_t)section_inv);
             }
             else if( strncmp(element._section.name, "container.", 10) == 0 )
             {
@@ -523,7 +523,7 @@ mock230_load_player(
                 section = SAVE_CONTAINER;
                 section_inv = atoi(element._section.name + 10);
                 section_row =
-                    mock230_container_resolve(player->world, player, (int32_t)section_inv);
+                    ToriRSServer_ContainerResolve(player->world, player, (int32_t)section_inv);
             }
             else
                 section = SAVE_NONE; /* a section from a newer server */
@@ -582,7 +582,7 @@ mock230_load_player(
             int xp;
             int n;
 
-            if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+            if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
                 break;
             n = sscanf(value, "%d %d %d", &a, &b, &c);
             if( n == 3 )
@@ -601,29 +601,29 @@ mock230_load_player(
                 break;
             /* Clamped on the way in as well as at every grant: the file is
              * hand-editable text, and a total outside the range would put the
-             * player somewhere `mock230_combat_add_xp` can never take them. */
-            xp = mock230_combat_clamp_xp(xp);
+             * player somewhere `ToriRSServer_CombatAddXp` can never take them. */
+            xp = ToriRSServer_CombatClampXp(xp);
             player->stat_xp_tenths[stat] = xp;
-            player->stat_level[stat] = mock230_combat_level_for_xp(xp / 10);
+            player->stat_level[stat] = ToriRSServer_CombatLevelForXp(xp / 10);
             player->stat_boosted[stat] = boosted;
             break;
         }
 
         case SAVE_INV:
-            load_item(player->inv, MOCK230_INV_SLOTS, key, value);
+            load_item(player->inv, TORIRSSERVER_INV_SLOTS, key, value);
             break;
         case SAVE_WORN:
-            load_item(player->worn, MOCK230_WORN_SLOTS, key, value);
+            load_item(player->worn, TORIRSSERVER_WORN_SLOTS, key, value);
             break;
         case SAVE_BANK:
             if( player->bank.slots && player->bank.size > 0 )
                 load_item(player->bank.slots, player->bank.size, key, value);
             break;
         case SAVE_INV_VAR:
-            load_item_var(player->inv, MOCK230_INV_SLOTS, key, value);
+            load_item_var(player->inv, TORIRSSERVER_INV_SLOTS, key, value);
             break;
         case SAVE_WORN_VAR:
-            load_item_var(player->worn, MOCK230_WORN_SLOTS, key, value);
+            load_item_var(player->worn, TORIRSSERVER_WORN_SLOTS, key, value);
             break;
         case SAVE_BANK_VAR:
             if( player->bank.slots && player->bank.size > 0 )
@@ -643,7 +643,7 @@ mock230_load_player(
         {
             int varp = atoi(key);
 
-            if( varp >= 0 && varp < MOCK230_VARP_COUNT )
+            if( varp >= 0 && varp < TORIRSSERVER_VARP_COUNT )
                 player->varps[varp] = (int32_t)atoi(value);
             break;
         }
@@ -652,85 +652,85 @@ mock230_load_player(
             if( strcmp(key, "schema_version") == 0 )
                 poh_version = atoi(value);
             else if( strcmp(key, "owns_house") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_OWNS_HOUSE, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_OWNS_HOUSE, atoi(value));
             else if( strcmp(key, "location") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCATION, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_LOCATION, atoi(value));
             else if( strcmp(key, "style") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_STYLE, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_STYLE, atoi(value));
             else if( strcmp(key, "locked") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_LOCKED, atoi(value));
             else if( strcmp(key, "door_mode") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_DOOR_MODE, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_DOOR_MODE, atoi(value));
             else if( strcmp(key, "teleport_inside") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TELEPORT_INSIDE, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TELEPORT_INSIDE, atoi(value));
             else if( strcmp(key, "default_build_mode") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_DEFAULT_BUILD_MODE, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_DEFAULT_BUILD_MODE, atoi(value));
             else if( strcmp(key, "grid_size") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_GRID_SIZE, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_GRID_SIZE, atoi(value));
             else if( strcmp(key, "servant_type") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_SERVANT_TYPE, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_SERVANT_TYPE, atoi(value));
             else if( strcmp(key, "servant_paid") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_SERVANT_PAID, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_SERVANT_PAID, atoi(value));
             else if( strcmp(key, "servant_last_task") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_SERVANT_LAST_TASK, atoi(value));
             else if( strcmp(key, "money_bag") == 0 )
-                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_MONEY_BAG, atoi(value));
+                ToriRSServer_PohSet(&player->poh, TORIRSSERVER_POH_FIELD_MONEY_BAG, atoi(value));
             else if( strcmp(key, "family_crest") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_FAMILY_CREST, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_FAMILY_CREST, atoi(value));
             else if( strcmp(key, "head_trophies") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_HEAD_TROPHIES, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_HEAD_TROPHIES, atoi(value));
             else if( strcmp(key, "fish_trophies") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_FISH_TROPHIES, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_FISH_TROPHIES, atoi(value));
             else if( strcmp(key, "spice_red") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_SPICE_RED, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_SPICE_RED, atoi(value));
             else if( strcmp(key, "spice_orange") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_SPICE_ORANGE, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_SPICE_ORANGE, atoi(value));
             else if( strcmp(key, "spice_brown") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_SPICE_BROWN, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_SPICE_BROWN, atoi(value));
             else if( strcmp(key, "spice_yellow") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_SPICE_YELLOW, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_SPICE_YELLOW, atoi(value));
             else if( strcmp(key, "tip_coins") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TIP_COINS, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TIP_COINS, atoi(value));
             else if( strcmp(key, "tip_platinum") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TIP_PLATINUM, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TIP_PLATINUM, atoi(value));
             else if( strcmp(key, "tip_notify") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TIP_NOTIFY, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TIP_NOTIFY, atoi(value));
             else if( strcmp(key, "tip_auto_bank") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TIP_AUTO_BANK, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TIP_AUTO_BANK, atoi(value));
             else if( strcmp(key, "treasure_coins") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_TREASURE_COINS, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_TREASURE_COINS, atoi(value));
             else if( strcmp(key, "treasure_ready_minute") == 0 )
-                mock230_poh_set(&player->poh,
-                                MOCK230_POH_FIELD_TREASURE_READY_MINUTE,
+                ToriRSServer_PohSet(&player->poh,
+                                TORIRSSERVER_POH_FIELD_TREASURE_READY_MINUTE,
                                 atoi(value));
             else if( strcmp(key, "boss_jars") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_BOSS_JARS, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_BOSS_JARS, atoi(value));
             else if( strcmp(key, "dummy_variants") == 0 )
-                mock230_poh_set(
-                    &player->poh, MOCK230_POH_FIELD_DUMMY_VARIANTS, atoi(value));
+                ToriRSServer_PohSet(
+                    &player->poh, TORIRSSERVER_POH_FIELD_DUMMY_VARIANTS, atoi(value));
             else if( strcmp(key, "games_prize_coins") == 0 )
-                mock230_poh_set(&player->poh,
-                                MOCK230_POH_FIELD_GAMES_PRIZE_COINS,
+                ToriRSServer_PohSet(&player->poh,
+                                TORIRSSERVER_POH_FIELD_GAMES_PRIZE_COINS,
                                 atoi(value));
             else if( strcmp(key, "style_unlocks") == 0 )
-                mock230_poh_set(&player->poh,
-                                MOCK230_POH_FIELD_STYLE_UNLOCKS,
+                ToriRSServer_PohSet(&player->poh,
+                                TORIRSSERVER_POH_FIELD_STYLE_UNLOCKS,
                                 atoi(value));
             break;
 
@@ -749,7 +749,7 @@ mock230_load_player(
             if( sscanf(value, "%d %d %d %d %d %d", &dbrow, &x, &z, &level,
                        &rotation, &door_mask) != 6 )
                 break;
-            mock230_poh_room_add(&player->poh, dbrow, x, z, level, rotation, door_mask);
+            ToriRSServer_PohRoomAdd(&player->poh, dbrow, x, z, level, rotation, door_mask);
             break;
         }
 
@@ -767,7 +767,7 @@ mock230_load_player(
             if( sscanf(value, "%d %d %d %d %d", &room, &hotspot, &furniture,
                        &rotation, &flags) != 5 )
                 break;
-            mock230_poh_decoration_set(
+            ToriRSServer_PohDecorationSet(
                 &player->poh, room, hotspot, furniture, rotation, flags);
             break;
         }
@@ -780,21 +780,21 @@ mock230_load_player(
 
     free(data);
 
-    if( version > MOCK230_SAVE_VERSION )
+    if( version > TORIRSSERVER_SAVE_VERSION )
         fprintf(stderr,
-                "mock230: %s is version %d and this server writes %d — fields this "
+                "torirsserver: %s is version %d and this server writes %d — fields this "
                 "server does not know were ignored\n",
-                path, version, MOCK230_SAVE_VERSION);
-    if( poh_version > MOCK230_POH_SCHEMA_VERSION )
+                path, version, TORIRSSERVER_SAVE_VERSION);
+    if( poh_version > TORIRSSERVER_POH_SCHEMA_VERSION )
         fprintf(stderr,
-                "mock230: %s has POH schema %d and this server writes %d — "
+                "torirsserver: %s has POH schema %d and this server writes %d — "
                 "unknown POH fields were ignored\n",
-                path, poh_version, MOCK230_POH_SCHEMA_VERSION);
-    if( !mock230_poh_validate(&player->poh) )
+                path, poh_version, TORIRSSERVER_POH_SCHEMA_VERSION);
+    if( !ToriRSServer_PohValidate(&player->poh) )
     {
-        fprintf(stderr, "mock230: %s contains an invalid POH record; using an empty house\n",
+        fprintf(stderr, "torirsserver: %s contains an invalid POH record; using an empty house\n",
                 path);
-        mock230_poh_init(&player->poh);
+        ToriRSServer_PohInit(&player->poh);
     }
     return 1;
 }

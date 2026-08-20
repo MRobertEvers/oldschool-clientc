@@ -4,7 +4,7 @@
 > can now add a friend and send a private message, in the real client, with the
 > real interface.**
 >
-> `src/net/mock/mock230_friends.{c,h}` is the service (§5.3), §3.5 is the wire,
+> `src/torirsserver/ToriRSServer_Friends.{c,h}` is the service (§5.3), §3.5 is the wire,
 > and §4.4 is this stage: eighteen host ops with measured stack shapes, the
 > friend-transmit repaint channel, and the outbound send seam. Proved in the
 > headless client, end to end, with no cheat and no second process — §8.2b.
@@ -203,14 +203,14 @@ set a name before you can chat."`). So content's share is small but real:
 2. **The list caps.** LostCity's are `members ? 200 : 100` friends
    (`FriendServerRepository.ts:231`) and 100 ignores (`:268`). Those are
    config-shaped constants and must not be C literals (§2.4 item 3). They go in
-   a content `.enum` read by the engine through `mock230_content_enum()` — the
-   same seam `mock230_bank.c:555` uses for `bank_tabs` and
-   `mock230_equipment.c:112` for `worn_slots`.
+   a content `.enum` read by the engine through `ToriRSServer_ContentEnum()` — the
+   same seam `torirs_server_bank.c:555` uses for `bank_tabs` and
+   `torirs_server_equipment.c:112` for `worn_slots`.
 3. **The one string this era adds that LostCity never had.** At rev 230 the
    *"X has logged in."* notification is a `MESSAGE_GAME` with chattype 5, sent
    by the server. It is a player-facing string, so it is content's, reached the
-   way `mock230_world.c:2047` already reaches `[proc,nothing_interesting_message]`
-   — `mock230_say`, documented in `mock230.h:2308` as being for exactly this
+   way `torirs_server_world.c:2047` already reaches `[proc,nothing_interesting_message]`
+   — `ToriRSServer_Say`, documented in `torirs_server.h:2308` as being for exactly this
    ("a message content should word but only the engine knows a name for").
 
 ### 2.3 The content diff — SPECIFIED HERE, NOT APPLIED
@@ -224,7 +224,7 @@ set a name before you can chat."`). So content's share is small but real:
 > The three corrections, so this section is not read on its own:
 >
 > 1. **`^private_message_max_chars` is now `^private_message_max_bytes`**, and
->    the engine accessor with it (`mock230_friends_cap_pm_bytes`). The cap counts
+>    the engine accessor with it (`ToriRSServer_FriendsCapPmBytes`). The cap counts
 >    *packed* wire bytes — `MessagePrivateHandler.ts:13` tests `input.length` on
 >    the raw slice, before `WordPack.unpack` — which is about two typed
 >    characters per byte. The old name lied by a factor of two.
@@ -236,7 +236,7 @@ set a name before you can chat."`). So content's share is small but real:
 > 3. **(c)'s two presence lines are reached through `FRIENDLOGIN` /
 >    `FRIENDLOGOUT` triggers**, not a named-proc hook table — content binds
 >    `[friendlogin,_]` / `[friendlogout,_]` (`CONTENT_ARCHITECTURE.md` §8.6).
->    Their engine call site is `social_notify_followers` in `mock230_world.c`,
+>    Their engine call site is `social_notify_followers` in `torirs_server_world.c`,
 >    which also owns the three rules content cannot express: who hears it,
 >    `isVisibleTo`, and not the subject of the sentence.
 
@@ -282,10 +282,10 @@ if_setevents(friends:ignore, 0, 0, ^if_event_op1);
 
 > **Corrected 2026-08-01, when the service landed.** The design said `.enum`,
 > with `inputtype=string` offered as an "equally readable" alternative. Both are
-> wrong, and the measurement is in `mock230_content.c`:
-> `struct Mock230EnumValue` has an `int key` and **no key text**
-> (`mock230_content.h:412-420`), and a `val=` key goes through `enum_operand`,
-> which for a non-pack input kind is `atoi(text)` (`mock230_content.c:1438`).
+> wrong, and the measurement is in `torirs_server_content.c`:
+> `struct ToriRSServerEnumValue` has an `int key` and **no key text**
+> (`torirs_server_content.h:412-420`), and a `val=` key goes through `enum_operand`,
+> which for a non-pack input kind is `atoi(text)` (`torirs_server_content.c:1438`).
 > So `inputtype=string` does not fail — it silently maps *every* key to 0.
 > That leaves the int-keyed form, which forces the C side to know that key 0
 > means `friend_max`: an index guessed from prose, which the design itself
@@ -313,7 +313,7 @@ could ever select. When an account model exists, that is the moment to add it.
 Until this file lands the engine says so, once, at boot:
 
 ```
-mock230: 3 friend/ignore cap(s) are not in any .constant — the lists are limited
+torirsserver: 3 friend/ignore cap(s) are not in any .constant — the lists are limited
 only by this server's array sizes. Content owns these: see
 docs/FRIENDS_PRIVATE_CHAT.md §2.3.
 ```
@@ -321,8 +321,8 @@ docs/FRIENDS_PRIVATE_CHAT.md §2.3.
 and falls back to its storage ceilings (256 friends, 128 ignores, 255 PM bytes —
 the last being the var-u8 packet's own limit). That is deliberate: a missing cap
 degrades to "as many as the array holds", never to a policy number invented in
-C. It is also why the caps are **not** in `mock230_ids`'s resolve table, which
-reports through the content error count and would fail `mock230_pack
+C. It is also why the caps are **not** in `ToriRSServer_Ids`'s resolve table, which
+reports through the content error count and would fail `ToriRSServer_Pack
 --check-only` for every other lane until this file exists. Moving them there is
 the right follow-up **on the day the constants land**.
 
@@ -336,7 +336,7 @@ the right follow-up **on the day the constants land**.
 // The reference never sends these -- its 2004 client derived them itself from
 // UPDATE_FRIENDLIST world-id transitions. At rev 230 the notification is a
 // server MESSAGE_GAME, so the sentence is the server's to word, so it is
-// content's. The engine calls these by name (mock230_say), the way
+// content's. The engine calls these by name (ToriRSServer_Say), the way
 // [proc,nothing_interesting_message] is already called.
 [proc,friend_login_notification](string $name)
 mes("<$name> has logged in.");
@@ -364,12 +364,12 @@ The login notification wants chattype **5** (`LOGINLOGOUTNOTIFICATION`), which
 this client already models as `RS_CHAT_TYPE_PRIVATE_SYSTEM`
 (`src/game/rs_chat.h:35`) and already renders and filters
 (`rs_chat_widgets.c:68`, `rs_chat.c:102`). ServerScript's `mes` (`SS_OP_MES`,
-`mock230_scripts.c:1346`) writes type 0 and there is no typed variant.
+`torirs_server_scripts.c:1346`) writes type 0 and there is no typed variant.
 
 Per §2.4 item 4 this is reported, not routed back into C: **the opcode surface
 is the bug.** The first landing uses plain `mes` (type 0 — correct text, black
 instead of cyan, no auto-expire); a `mes_type`-style opcode is a one-line
-follow-up for whichever lane owns `mock230_ops_*.c`. This lane is explicitly
+follow-up for whichever lane owns `ToriRSServer_Ops_*.c`. This lane is explicitly
 forbidden from adding those files, so it does not.
 
 ---
@@ -380,7 +380,7 @@ forbidden from adding those files, so it does not.
 
 `src/net/rev/osrs230/packetin.h:5-25` and `packetout.h:5-24` both state it:
 opcode *numbers* are RSProt's where a real one is known; **payload layouts are
-the lc254 ones**, because `src/net/mock` is the only producer and what matters
+the lc254 ones**, because `src/torirsserver` is the only producer and what matters
 is that the two ends agree. This feature follows that, and every layout below is
 the one **this repo's own decoder already implements** — which is also, checked
 row by row, the one `LostCity_Server/engine/src/network/game/server/codec/*Encoder.ts`
@@ -422,19 +422,19 @@ All six builders already exist and work; **none has a rev-230 opcode**, so
 
 ### 3.4 Two decode consequences the implementer must not skip
 
-- **`MESSAGE_GAME` currently throws its type byte away.** `mock230_encode.c:662`
+- **`MESSAGE_GAME` currently throws its type byte away.** `torirs_server_encode.c:662`
   writes `rsab_p1(&buf, 0)` and the rev-230 override at
   `src/net/rev/osrs230/osrs230_parse.c:381-393` does `memcpy(..., data + 1, ...)`,
   so `rs_gameproto_exec.c:505` files everything as `RS_CHAT_TYPE_GAME`. The
   login notification cannot exist until `struct PktMessageGame` carries the type
   and exec passes it through. The rest of the chat model already handles types
   3/5/6/7 (`rs_chat_widgets.c:46-80`, `rs_chat.c:82-107`).
-- **`mock230` does not link wordpack.** `MOCK230_CORE_SRCS`
-  (`src/makefile:251-264`) has `net/jbase37.c` only, and only via `MOCK230_SRCS`
+- **`ToriRSServer` does not link wordpack.** `TORIRSSERVER_CORE_SRCS`
+  (`src/makefile:251-264`) has `net/jbase37.c` only, and only via `TORIRSSERVER_SRCS`
   (`:859`). The fix is one line — add `net/wordpack.c` beside `net/jbase37.c` in
-  `MOCK230_SRCS`, for the same reason the comment at `:855-858` gives (the embed
+  `TORIRSSERVER_SRCS`, for the same reason the comment at `:855-858` gives (the embed
   test and `EMBED_SERVER=1` already link it out of `NET_CORE_OBJS`
-  (`:672`) / the client's own `SRCS` (`:220`), so putting it in `MOCK230_CORE_SRCS`
+  (`:672`) / the client's own `SRCS` (`:220`), so putting it in `TORIRSSERVER_CORE_SRCS`
   would be a duplicate symbol). Rejected alternative: a plaintext override in
   `osrs230_parse.c` — the client's *outbound* builder wordpacks, so a plaintext
   inbound would make the two halves disagree, and the reference filters and
@@ -451,11 +451,11 @@ could not say, plus the two things the plan got wrong.
 |---|---|
 | `src/net/rev/osrs230/packetin.h` | 29/56/21 named; **15's length 0 → 1**; new `{ 3, 3, CHAT_FILTER_SETTINGS }` row |
 | `src/net/rev/osrs230/packetout.h` | the six social rows at opcodes 3–8 |
-| `src/net/mock/mock230_encode.c` | five encoders + five opcode-enum/name rows |
-| `src/net/mock/mock230.h` | the five `mock230_send_*` declarations |
-| `src/net/mock/mock230_world.c` | the social section (~350 lines): three send helpers, the login dump, three handlers, six `k_packet_routes` rows, and the logout broadcast |
-| `src/makefile` | `net/wordpack.c` into `MOCK230_SRCS` |
-| `src/net/mock/test/embed_test.c` | `absorb_social` + three send helpers + 23 two-player assertions |
+| `src/torirsserver/torirs_server_encode.c` | five encoders + five opcode-enum/name rows |
+| `src/torirsserver/torirs_server.h` | the five `ToriRSServer_Send_*` declarations |
+| `src/torirsserver/torirs_server_world.c` | the social section (~350 lines): three send helpers, the login dump, three handlers, six `k_packet_routes` rows, and the logout broadcast |
+| `src/makefile` | `net/wordpack.c` into `TORIRSSERVER_SRCS` |
+| `src/torirsserver/test/embed_test.c` | `absorb_social` + three send helpers + 23 two-player assertions |
 
 **Nothing in `src/net/rev/gameproto_parse.c` or `src/game/rs_gameproto_exec.c`
 had to change.** Both already decoded and filed all five packets; they had
@@ -472,7 +472,7 @@ received all three and did not abort.
 **Two corrections to §3.**
 
 1. **§3.2's "leaving 15's length at 0 aborts on the first packet" is not what
-   happens** — measured by putting the 0 back. `mock230_send`'s own
+   happens** — measured by putting the 0 back. `ToriRSServer_Send`'s own
    `check_frame_length` catches it first and prints
    `op 15 (FRIENDLIST_LOADED) wrote 1 bytes, client frames it as 0`, and the
    client then frames a 0-length packet and takes the status byte as the next
@@ -494,19 +494,19 @@ received all three and did not abort.
   CS2 side asks through `chat_getfilter_*` and the server is the only source, so
   a client that was never told starts out disagreeing with the server about its
   own filters.
-- **The login dump is step 5b of `mock230_world_login`, after the panels are
+- **The login dump is step 5b of `ToriRSServer_WorldLogin`, after the panels are
   mounted**, not before. The friends panel builds its rows from the store on its
   onload; a store already populated when 429 mounts draws on the first paint,
   where a store filled afterwards needs the repaint channel of §4.3, which does
   not exist yet.
-- **The logout broadcast is at the *end* of `mock230_world_remove_player`**,
+- **The logout broadcast is at the *end* of `ToriRSServer_WorldRemovePlayer`**,
   after `player->active = 0`. Broadcasting earlier asks "is bob online" while
   bob's slot is still active and tells every follower the world of a player who
   has just left.
 
 **One structural limit, stated because it will bite.** The friend roster is
 *process*-scoped (it has to outlive a session — §5.3 decision 1) but *delivery*
-is world-scoped: `social_player_by_name37` scans this `Mock230Server`'s player
+is world-scoped: `social_player_by_name37` scans this `ToriRSServer`'s player
 pool. So a name can be online to the roster with no player slot to send to.
 Every send tolerates that and none treats it as an error. In the socket server,
 which accepts one connection at a time, this means cross-player delivery is
@@ -746,7 +746,7 @@ The service is keyed by **base-37 name**, not by player slot, and it must be:
 
 - `friends[]` and `ignores[]` per name, for names that are **not logged in** —
   the reference's `getFollowers()` walks every entry to answer "who has alice in
-  their list", and a per-`Mock230Player` array structurally cannot answer that.
+  their list", and a per-`ToriRSServerPlayer` array structurally cannot answer that.
 - `private_mode` per name (volatile, pushed up at login), and `world` (0 =
   offline / not visible, non-zero = online).
 
@@ -775,8 +775,8 @@ stored and echoed and never read.
 
 ### 5.2 What is deliberately NOT ported
 
-`mock230` is single-process and single-world (`grep -rln pthread_create
-src/net/mock/` returns nothing; `mock230_main.c:252-262` runs one session to
+`ToriRSServer` is single-process and single-world (`grep -rln pthread_create
+src/torirsserver/` returns nothing; `torirs_server_main.c:252-262` runs one session to
 completion before accepting the next). Everything below exists in the reference
 only to survive a multi-process 2004 deployment, and porting its *shape* is
 exactly the over-port §5.1 step 4 warns against:
@@ -806,7 +806,7 @@ exactly the over-port §5.1 step 4 warns against:
 
 ### 5.3 As landed
 
-`src/net/mock/mock230_friends.{c,h}`, ~560 lines including the prose. What it
+`src/torirsserver/ToriRSServer_Friends.{c,h}`, ~560 lines including the prose. What it
 holds and what it deliberately does not:
 
 | in the module | not in the module |
@@ -823,13 +823,13 @@ holds and what it deliberately does not:
 Four decisions worth stating, because each could reasonably have gone the other
 way:
 
-1. **The store is a file-static, not a field on `struct Mock230Server`.**
-   `serve()` (`mock230_main.c:115`) `memset`s the world at the top of every
+1. **The store is a file-static, not a field on `struct ToriRSServer`.**
+   `serve()` (`torirs_server_main.c:115`) `memset`s the world at the top of every
    connection, so a roster on the world would be erased between two sessions of
    one process — which is precisely the case this service exists for (alice
    adds bob while bob is offline). The reference gets process scope for free by
-   being a different process. `mock230_friends_reset()` is the only thing that
-   clears it, and it is **not** called from `mock230_world_reset`.
+   being a different process. `ToriRSServer_FriendsReset()` is the only thing that
+   clears it, and it is **not** called from `ToriRSServer_WorldReset`.
 
 2. **Entries are created by being *mentioned*, and never recycled.** Adding bob
    creates bob's entry even though nothing is written to it, because
@@ -849,18 +849,18 @@ way:
 
 Wired into the world in exactly three places, none of them a packet:
 
-- `mock230_world_set_display_name` derives `player->name37` (one place packs a
+- `ToriRSServer_WorldSetDisplayName` derives `player->name37` (one place packs a
   name, so the key and the name cannot drift);
-- `mock230_world_login` registers presence, with the reference's default chat
+- `ToriRSServer_WorldLogin` registers presence, with the reference's default chat
   modes (`Player.ts:307-309`, all three ON) since nothing persists them;
-- `mock230_world_remove_player` drops presence *before* the slot goes, keeping
+- `ToriRSServer_WorldRemovePlayer` drops presence *before* the slot goes, keeping
   the lists — that is what lets a follower still see the name with "Offline"
   beside it.
 
 Plus `phase_cleanup_player` clears `social_protect`, where the reference clears
 it in `resetEntity`.
 
-**Verified** by a new `mock230 --selftest` section ("the friend service"), which
+**Verified** by a new `ToriRSServer --selftest` section ("the friend service"), which
 covers: invalid names refused (including 0, which is what an unnamed player and
 an empty wire field both decode to); add / duplicate-add / delete / delete-absent
 results; followers answered for a name that has never logged in; every branch of
@@ -876,7 +876,7 @@ deleting the ignored-by-target branch from `isVisibleTo` and the cap check from
 reverted.
 
 What the selftest **cannot** cover, and nobody should read as covered: the
-content-cap path. `mock230_content_constant` reads the loaded tree and there is
+content-cap path. `ToriRSServer_ContentConstant` reads the loaded tree and there is
 no injection seam, so the cap assertion runs against the fallback ceiling. The
 day `social.constant` lands, re-run it and check the number in the failure
 message changes.
@@ -888,19 +888,19 @@ message changes.
 **Decision: in-memory only for the first landing. No save/load code is written,
 and no assertion in this feature may depend on relogin.**
 
-> **Landed as decided.** `mock230_friends.h` carries this decision as a boxed
+> **Landed as decided.** `torirs_server_friends.h` carries this decision as a boxed
 > comment at the top of the file, in the same words, because a reader who does
 > not know the reasoning will "fix" it by wiring the player save and be wrong.
-> Under `MOCK230_VERBOSE` the server also says it once per process, at the first
+> Under `TORIRSSERVER_VERBOSE` the server also says it once per process, at the first
 > registration: *"friend and ignore lists are in-memory only; a restart loses
-> them"*. There is no `mock230_friends_save`, no file format and no dead
+> them"*. There is no `ToriRSServer_FriendsSave`, no file format and no dead
 > function — which is the §3.15 failure this section was written to avoid.
 
 The facts this rests on, re-measured:
 
-- `mock230_save_player` / `mock230_load_player` have **no callers anywhere** —
+- `ToriRSServer_SavePlayer` / `ToriRSServer_LoadPlayer` have **no callers anywhere** —
   `grep -rn` over `src/` and `tools/` returns the prototypes at
-  `mock230_save.h:50,63` and the definitions at `mock230_save.c:101,227`, and
+  `torirs_server_save.h:50,63` and the definitions at `torirs_server_save.c:101,227`, and
   nothing else. Persistence has been dead code since it was written, so "a
   returning player" is not a case anything here can be tested against
   (PORTING_GUIDE §2.5).
@@ -908,7 +908,7 @@ The facts this rests on, re-measured:
   its own `friendlist` / `ignorelist` tables keyed by account, precisely because
   followers must be enumerable while offline. Chat modes are the exception —
   those *do* ride the save byte (`Player.ts:270`).
-- So even wiring `mock230_save_player`'s callers would not give this feature
+- So even wiring `ToriRSServer_SavePlayer`'s callers would not give this feature
   persistence. It needs a second, name-keyed store either way.
 
 Why not do that store now: it is a separable ~120-line change with its own
@@ -918,15 +918,15 @@ case that matters within one server run — *alice adds bob while bob is
 offline* — because the service is keyed by name and outlives any player slot.
 What a restart loses, it loses.
 
-**No dead code.** There will be no `mock230_friends_save()` with no callers.
+**No dead code.** There will be no `ToriRSServer_FriendsSave()` with no callers.
 That is the exact failure `osrs230_mockserver.md` §3.15 records — intent written
 down and later read as fact — and this section exists so the next reader knows
 the absence is a decision.
 
 The follow-up, when it lands, is the reference's shape: `saves/social.ini` keyed
 by name37, owned and written by the friend module, reusing the write-then-rename
-and name-sanitisation already in `mock230_save.c:45-78,113-118`. Wiring
-`mock230_save_player`'s two call sites is a **separate** work item with its own
+and name-sanitisation already in `torirs_server_save.c:45-78,113-118`. Wiring
+`ToriRSServer_SavePlayer`'s two call sites is a **separate** work item with its own
 commit and its own test — it turns on persistence for bank, stats and every
 quest varp on the same day, and the first thing it will expose is whichever of
 those has a load-order bug.
@@ -973,20 +973,20 @@ regardless. A varbit is not available: `[namespace:varbit] ids = cache`
 
 | file | reason |
 |---|---|
-| `src/net/mock/mock230_friends.{c,h}` | **LANDED** — the service: name37-keyed roster, presence, `isVisibleTo`, cap check against the content `.constant`s, pm ids. No PM *relay*: relaying is writing a packet to another player, which is the wire's |
-| `src/net/mock/mock230.h` | **LANDED** — per-player `name37` and the `socialProtect` tick latch. **Not** the three chat modes: they live in the service, single copy (§5.3 decision 4) |
-| `src/net/mock/mock230_world.c` (service half) | **LANDED** — `name37` derived in `set_display_name`, register in `world_login`, unregister in `remove_player`, latch cleared in `phase_cleanup_player`, and the selftest section |
-| `src/net/mock/mock230_encode.c` | **LANDED** — five new encoders + their opcode enum/name rows |
-| `src/net/mock/mock230_world.c` | **LANDED** — six `k_packet_routes` rows + three handlers, the login dump, the follower broadcasts and the logout broadcast. **Does not touch** the trigger dispatch or the nine `run_trigger` call sites |
-| `src/makefile` | **LANDED** — `net/wordpack.c` into `MOCK230_SRCS` (§3.4) and `mock230_friends.c` into `MOCK230_CORE_SRCS` |
-| `src/net/mock/test/embed_test.c` | **LANDED** — `absorb_social` + the two-player routing assertions (§8.3), then the six content-seam assertions of §8.2c |
-| `src/net/mock/mock230.h` (triggers) | **LANDED** — `FRIENDLOGIN` / `FRIENDLOGOUT` in the trigger table; no `struct Mock230Hooks` (`CONTENT_ARCHITECTURE.md` §8.6) |
-| `src/net/mock/mock230_scripts.c` | **LANDED** — `run_trigger_sv` for string-arg friend notifications. Hook table rows removed |
-| `src/net/mock/mock230_world.c` (`social_notify_followers`) | **LANDED** — the engine's three rules on this path (who hears it, `isVisibleTo`, not the subject) and the active-player switch that makes `mes` reach the right chatbox. Called from the end of `mock230_world_social_login` and the end of `mock230_world_remove_player` |
-| `src/net/mock/mock230_embed.{c,h}` | **LANDED, content stage** — `mock230_embed_disconnect`, the socket server's close sequence in-process. There was no way to log a player out in-process before, so nothing that happens on a logout could be asserted |
+| `src/torirsserver/ToriRSServer_Friends.{c,h}` | **LANDED** — the service: name37-keyed roster, presence, `isVisibleTo`, cap check against the content `.constant`s, pm ids. No PM *relay*: relaying is writing a packet to another player, which is the wire's |
+| `src/torirsserver/torirs_server.h` | **LANDED** — per-player `name37` and the `socialProtect` tick latch. **Not** the three chat modes: they live in the service, single copy (§5.3 decision 4) |
+| `src/torirsserver/torirs_server_world.c` (service half) | **LANDED** — `name37` derived in `set_display_name`, register in `world_login`, unregister in `remove_player`, latch cleared in `phase_cleanup_player`, and the selftest section |
+| `src/torirsserver/torirs_server_encode.c` | **LANDED** — five new encoders + their opcode enum/name rows |
+| `src/torirsserver/torirs_server_world.c` | **LANDED** — six `k_packet_routes` rows + three handlers, the login dump, the follower broadcasts and the logout broadcast. **Does not touch** the trigger dispatch or the nine `run_trigger` call sites |
+| `src/makefile` | **LANDED** — `net/wordpack.c` into `TORIRSSERVER_SRCS` (§3.4) and `torirs_server_friends.c` into `TORIRSSERVER_CORE_SRCS` |
+| `src/torirsserver/test/embed_test.c` | **LANDED** — `absorb_social` + the two-player routing assertions (§8.3), then the six content-seam assertions of §8.2c |
+| `src/torirsserver/torirs_server.h` (triggers) | **LANDED** — `FRIENDLOGIN` / `FRIENDLOGOUT` in the trigger table; no `struct ToriRSServerHooks` (`CONTENT_ARCHITECTURE.md` §8.6) |
+| `src/torirsserver/torirs_server_scripts.c` | **LANDED** — `run_trigger_sv` for string-arg friend notifications. Hook table rows removed |
+| `src/torirsserver/torirs_server_world.c` (`social_notify_followers`) | **LANDED** — the engine's three rules on this path (who hears it, `isVisibleTo`, not the subject) and the active-player switch that makes `mes` reach the right chatbox. Called from the end of `ToriRSServer_WorldSocialLogin` and the end of `ToriRSServer_WorldRemovePlayer` |
+| `src/torirsserver/ToriRSServer_Embed.{c,h}` | **LANDED, content stage** — `ToriRSServer_EmbedDisconnect`, the socket server's close sequence in-process. There was no way to log a player out in-process before, so nothing that happens on a logout could be asserted |
 
-Not touched, by lane rule: `src/net/mock/mock230_ops_*.c` (per-domain opcode
-files, another lane's), and `mock230_scripts.c`'s trigger dispatch.
+Not touched, by lane rule: `src/torirsserver/ToriRSServer_Ops_*.c` (per-domain opcode
+files, another lane's), and `torirs_server_scripts.c`'s trigger dispatch.
 
 ### Content
 
@@ -1003,8 +1003,8 @@ all four content-gated embed checks go SKIP → ok with the diff in place.
 |---|---|
 | `src/game/test/rs_social_test.c` | **LANDED in the verification pass** — the client half's only permanent check; see §8.5.3 for what it asserts and the five mutations that prove it can fail |
 | `src/makefile` | **LANDED** — the `test-social` target and its `.PHONY` entry |
-| `src/net/mock/test/embed_test.c` | **LANDED** — 23 social checks from the wire stage plus six content-gated ones |
-| `src/net/mock/mock230_world.c` (selftest section) | **LANDED** — the "the friend service" stanza |
+| `src/torirsserver/test/embed_test.c` | **LANDED** — 23 social checks from the wire stage plus six content-gated ones |
+| `src/torirsserver/torirs_server_world.c` (selftest section) | **LANDED** — the "the friend service" stanza |
 
 ---
 
@@ -1012,18 +1012,18 @@ all four content-gated embed checks go SKIP → ok with the diff in place.
 
 ### 8.1 What can be proven, and what cannot — stated up front
 
-**Exactly one harness in this tree can host two players: `src/net/mock/test/embed_test.c`**
-(`make -C src test-mock230-embed`). It calls `mock230_embed_connect`
-(`embed_test.c:484`; `MOCK230_EMBED_CLIENT_MAX = 4`), logs in alice and bob into
+**Exactly one harness in this tree can host two players: `src/torirsserver/test/embed_test.c`**
+(`make -C src test-torirsserver-embed`). It calls `ToriRSServer_EmbedConnect`
+(`embed_test.c:484`; `TORIRSSERVER_EMBED_CLIENT_MAX = 4`), logs in alice and bob into
 one world, and asserts on each peer's stream decoded with the *client's own*
-readers. It is the only caller of `mock230_embed_connect` in the tree.
+readers. It is the only caller of `ToriRSServer_EmbedConnect` in the tree.
 
 Everything else is single-player, and that is structural, not incidental:
 
 - the socket server accepts one connection at a time and `memset`s the world per
-  session (`mock230_main.c:252-262`, `serve()` at `:115`/`:179`);
+  session (`torirs_server_main.c:252-262`, `serve()` at `:115`/`:179`);
 - `--selftest` adds exactly one player;
-- `EMBED_SERVER=1` in the real client calls `mock230_embed_start()` only
+- `EMBED_SERVER=1` in the real client calls `ToriRSServer_EmbedStart()` only
   (`src/platform/net_transport_embed.c:91`) — client 0. Two `torirs` processes
   are two separate worlds.
 
@@ -1031,7 +1031,7 @@ So: **the renderer-level verification and the two-player verification cannot be
 the same run.** This plan does both, separately, and claims neither covers the
 other.
 
-A second honest limit: the mock's packet capture (`mock230_encode.c:225`)
+A second honest limit: the mock's packet capture (`torirs_server_encode.c:225`)
 records `(opcode, len, data)` with **no addressee**, so "the PM reached bob and
 not alice" is not expressible against it. §8.3 asserts on each peer's decoded
 byte stream instead, which is what the existing PLAYER_INFO assertions already
@@ -1041,11 +1041,11 @@ do and is the stronger form.
 
 **Ran and green** (`PLATFORM_OBJ_BASE=build_lane2` throughout):
 
-- `test-mock230-embed` — 23 new social assertions, listed in §8.3 as landed.
-- `mock230 --selftest`, `test-mock230-coverage`, `test-servercodec`,
-  `mock230_pack --check-only` (0 errors, 13 pre-existing warnings).
+- `test-torirsserver-embed` — 23 new social assertions, listed in §8.3 as landed.
+- `ToriRSServer --selftest`, `test-torirsserver-coverage`, `test-servercodec`,
+  `ToriRSServer_Pack --check-only` (0 errors, 13 pre-existing warnings).
 - The client links and runs: `make -C src EMBED_SERVER=1` clean, then
-  `SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 ./src/torirs --manifest
+  `SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 ./src/torirs --manifest
   manifest_osrs230_embed.ini` — the login burst emits `FRIENDLIST_LOADED`
   (op 15, 1 byte), `UPDATE_IGNORELIST` (op 21, 0 bytes) and
   `CHAT_FILTER_SETTINGS` (op 3, 3 bytes), the real client decodes all three,
@@ -1088,7 +1088,7 @@ line components. No cheat, no new ServerScript op, no second player.
 
 ```
 cd <worktree>
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_TICKS=... \
 TORIRS_SIM_CLICK_AT=<friends tab>  \
 TORIRS_SIM_KEYS="alice\n" ...      \
@@ -1143,7 +1143,7 @@ The run (the embed server names the player `guest`, so this is the design's
 self-addressed case):
 
 ```
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_HOOK="120,0x01AD000E;220,0x01AD9C7A" \
 TORIRS_SIM_TYPE="140,c103,c117,c101,c115,c116,k84;240,c104,c105,c32,c116,c104,c101,c114,c101,k84" \
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/friends.bmp TORIRS_DUMP_TREE_EXIT=1 \
@@ -1174,9 +1174,9 @@ back → the store → `friend_transmit_dirty` → script 631 → script 125 →
 | the *world* is right | `text="World 1"`, `color=0xdc10d` — script 125's green same-world branch, which only runs when `friend_getworld == map_world` |
 | the empty state is gone | `429:13` reads `text=""` |
 | the previous-name icon is correctly hidden | `429:40059 ownhide=1` (`friend_getname`'s second return is `""`) |
-| the send path reaches the server | `mock230: <- social name=89 target=guest result=0` |
+| the send path reaches the server | `torirsserver: <- social name=89 target=guest result=0` |
 | the repaint really re-ran | the row component ids advance 40056→40058 between the local add and the server echo, i.e. `cc_deleteall` + rebuild happened twice |
-| `chat_sendprivate` end to end | `mock230: <- MESSAGE_PRIVATE to=guest "Hi there"` |
+| `chat_sendprivate` end to end | `torirsserver: <- MESSAGE_PRIVATE to=guest "Hi there"` |
 | the PM reaches the chatbox both ways | `162:65` = `To Guest: hi there` (local echo on send), `162:66` = `From guest: Hi there` (op 29 decoded; `wordpack_unpack` sentence-cases, §3.5) |
 
 > **Two corrections to this run, from §8.5.** (1) Its build command silently
@@ -1243,13 +1243,13 @@ settled any other way:
   (`toplevel_osrs_stretch:stone9`) clicked first so the panel is visible. Worth
   knowing before the next server button is tested.
 
-Two-player, no renderer: `test-mock230-embed` gains six checks — the arming of
+Two-player, no renderer: `test-torirsserver-embed` gains six checks — the arming of
 both swap buttons, `^friend_max` reaching the service, the logout notification,
 the login notification, and that a self-listed player is not told about their own
 login. Each is a SKIP against a content tree without the diff and `ok` with it,
 and four mutations were used to prove they can go red (the content doc's §5).
 
-`mock230_embed_disconnect` is new and is why the logout half is testable at all:
+`ToriRSServer_EmbedDisconnect` is new and is why the logout half is testable at all:
 there was no in-process way to log a player *out*, so nothing that happens on a
 logout had a test it could be asserted in. It is the socket server's own close
 sequence minus the parts that assume the world goes away with the last
@@ -1261,7 +1261,7 @@ connection.
 below in three places, each measured:
 
 - **Step 1 is two assertions, not one.** The service state
-  (`mock230_friends_is_friend`) and the packet alice's client decoded are
+  (`ToriRSServer_FriendsIsFriend`) and the packet alice's client decoded are
   checked separately, because a handler that mutated the roster and forgot to
   send would pass a check that only looked at one of them.
 - **Step 3's PM text is asserted as `"Hi there"`, not `"hi there"`.**
@@ -1272,7 +1272,7 @@ below in three places, each measured:
   trailing space, and a message picked without noticing that reads as a
   round-trip bug. Both facts are in the test's comment so the next reader does
   not spend the afternoon on it.
-- **Step 5, the cap, is not there.** It cannot be: `mock230_friends_cap_friends`
+- **Step 5, the cap, is not there.** It cannot be: `ToriRSServer_FriendsCapFriends`
   falls back to the 256-entry storage ceiling until `social.constant` lands, so
   the test would need 257 sends at one social packet per tick, and the "mutate
   the cap and re-run" half — the half that makes it a test — has nothing to
@@ -1309,12 +1309,12 @@ In `embed_test.c`, after the existing alice/bob login:
 ### 8.4 The standing gates
 
 - `make -C src PLATFORM_OBJ_BASE=build_lane2` (restore `src/.last_flavor`
-  afterwards), `test-mock230-embed`, `test-mock230-coverage`,
-  `mock230_servercodec_test`, `test-db`.
+  afterwards), `test-torirsserver-embed`, `test-torirsserver-coverage`,
+  `ToriRSServer_ServerCodecTest`, `test-db`.
 - **`make -C src test-social`** — the client half (§8.5.3). New in the
   verification pass; it is the only gate that covers `rs_social.c`, the CS2
   host ops, the friend-transmit registration and the generated stack shapes.
-- `mock230_pack --check-only` at **0 errors**.
+- `ToriRSServer_Pack --check-only` at **0 errors**.
 - The content diff in §2.3 applied by its owning lane and re-verified — the
   content tree may change underneath this lane mid-run, so a content-smelling
   failure gets re-run before it is believed.
@@ -1344,7 +1344,7 @@ compiled without the define. Make tracks the source, not `CFLAGS`, and
 The previous stage documented the *opposite* direction (EMBED → plain **fails to
 link**, which is loud and self-announcing). This direction is silent in the way
 that matters: the build succeeds, the link line still pulls in every
-`mock230_*.o`, and the only symptom is one line at boot —
+`ToriRSServer_*.o`, and the only symptom is one line at boot —
 
 ```
 net: this build has no embedded server — rebuild with `make -C src torirs EMBED_SERVER=1`
@@ -1377,7 +1377,7 @@ there` in the chatbox. Use that command, not §8.2b's:
 ```sh
 rm -f src/build_lane2/net_transport_embed.o
 make -C src PLATFORM_OBJ_BASE=build_lane2 EMBED_SERVER=1
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_CLICK_AT="100,536,484" \
 TORIRS_SIM_HOOK="120,0x01AD000E;220,0x01AD9C7A" \
 TORIRS_SIM_TYPE="140,c103,c117,c101,c115,c116,k84;240,c104,c105,c32,c116,c104,c101,c114,c101,k84" \
@@ -1387,8 +1387,8 @@ TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/friends.bmp TORIRS_DUMP_TREE_EXIT=1 \
 
 #### 8.5.3 The client half had no permanent check
 
-The server half shipped with two gates (`mock230 --selftest`'s "the friend
-service" section and `test-mock230-embed`'s social block). The client half —
+The server half shipped with two gates (`ToriRSServer --selftest`'s "the friend
+service" section and `test-torirsserver-embed`'s social block). The client half —
 `rs_social.c`, the CS2 host ops, the friend-transmit registration, the
 `MANUAL_STACK` shapes — shipped with **none**: it was proved once, by hand, in a
 headless run, and nothing would have gone red if any of it regressed. That is
@@ -1415,17 +1415,17 @@ halves, and the seven generated stack shapes this family depends on.
 | `gen_opcode_stack.py`'s `3601` set to the old name-guess shape, regenerated | 1 FAIL — so a regeneration that loses `MANUAL_STACK` is now caught |
 
 And on the server side, for symmetry: dropping `isVisibleTo` from
-`social_send_world_update` reddens `test-mock230-embed` — **2** checks, not the
+`social_send_world_update` reddens `test-torirsserver-embed` — **2** checks, not the
 3 the wire stage recorded.
 
 #### 8.5.4 Two smaller corrections
 
-- **`mock230 --selftest` is intermittently red, and it is not this feature.**
+- **`ToriRSServer --selftest` is intermittently red, and it is not this feature.**
   One failure in 67 runs of the same binary (the content stage saw one in six).
   The failing check was not in the friend-service section and could not be
   re-provoked in 66 consecutive passes. The likely cause stands: the selftest
   loads `script.dat` from a hardcoded path in `OSRS-Content/` that another lane
-  rewrites, and it does **not** honour `MOCK230_CONTENT`. Re-run before
+  rewrites, and it does **not** honour `TORIRSSERVER_CONTENT`. Re-run before
   believing a content-smelling failure.
 - **`test-db`, `test-uitree` and `test-ui-slots` are red and all three
   predate this work** — confirmed by building each from the merge-base tree
@@ -1470,7 +1470,7 @@ And on the server side, for symmetry: dropping `isVisibleTo` from
   file list as a one-line fix, but if it slips it is a known, named gap and not
   a silent one.
 - **Fixing `SS_OP_UID` / `SS_OP_FINDUID`.** They return the constant 1 and
-  resolve only `srv->active_player` (`mock230_scripts.c:1991-2020, 3294-3297`),
+  resolve only `srv->active_player` (`torirs_server_scripts.c:1991-2020, 3294-3297`),
   which is wrong-by-construction now the pool holds 8 and is the single
   prerequisite for content ever addressing a second player. It is independently
   right, it is not this feature's, and this feature does not need it: nothing in
@@ -1483,7 +1483,7 @@ And on the server side, for symmetry: dropping `isVisibleTo` from
 1. **The assigned opcodes are this repo's, not RSProt's.** Whether ops 3–8
    outbound and 3 inbound match a real OldSchool 230 server is not verifiable
    here — RSProt is not vendored and no table records it. Under the doctrine in
-   `packetin.h:5-25` that does not matter while `src/net/mock` is the only
+   `packetin.h:5-25` that does not matter while `src/torirsserver` is the only
    producer, and the headers already say so. It would matter the day this client
    is pointed at a real server.
 2. **The sort ops are no-ops.** 3628-3643 are balanced and do nothing, so the

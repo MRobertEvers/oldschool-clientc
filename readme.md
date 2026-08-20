@@ -44,21 +44,21 @@ The client boots from a cache built from `OSRS-Content/osrs239-content/`:
 
 | Step | Command | Output |
 |---|---|---|
-| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
-| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
-| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
-| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+| ServerScript pack | `make -C src torirsserver-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src torirsserver-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src torirsserver-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src torirsserver-cache-check` | asserts all 23 tables |
 
 The bake takes `--base` when a pristine cache is present, so records the tree
 does not change keep the bytes they had. **Without a base it creates the cache**,
 and what lands is exactly what the tree states. Aim it elsewhere with:
 
 ```
-make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
-make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src torirsserver-cache TORIRSSERVER_CACHE_BASE=/path/to/cache.osrs239
 ```
 
-`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+`torirsserver-cache-check` lists any missing `main_file_cache.idxN` by number. A
 table with no idx file is a table the client cannot read, and `idx255`—the
 reference-table index—is what makes every other table reachable at all.
 
@@ -627,7 +627,7 @@ same — *nothing happens* — and the cause can be at any of eight stages.
 | 4 | Raw hits are classified into the pickset + hover tile | [torirs_pick.c](src/render/torirs_pick.c) `ToriRS_PickHitsClassify` |
 | 5 | Minimenu turns the pickset into rows; the terrain row becomes `Walk here` | [rs_minimenu_world.c](src/game/rs_minimenu_world.c) `RS_Minimenu_AddWorldRows` |
 | 6 | The default row runs → `MOVE_GAMECLICK` | [app.c](src/app.c) `app_try_move` |
-| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [mock230_world.c](src/net/mock/mock230_world.c) `handle_move` → `mock230_world_walk_to` |
+| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [torirs_server_world.c](src/torirsserver/torirs_server_world.c) `handle_move` → `ToriRSServer_WorldWalkTo` |
 | 8 | BFS + the unreachable fallback | [collision_map.c](src/engine/world_builder/collision_map.c) `collision_map_route_tiles` |
 
 Stages 1–6 are the client deciding **which tile you clicked**. Stages 7–8 are
@@ -752,7 +752,7 @@ fought the echo and made the player stutter.
 `handle_move` rejects a click more than a scene away, ends any pending
 interaction (walking off *is* a new interaction — it stops you swinging at
 what you were fighting, retires a queued op, and closes an open dialogue), then
-calls `mock230_world_walk_to`, which BFS-routes and subsamples the path into at
+calls `ToriRSServer_WorldWalkTo`, which BFS-routes and subsamples the path into at
 most 25 dest-first **corner** waypoints. `SET_MAP_FLAG` is sent only if a route
 was found.
 
@@ -774,7 +774,7 @@ movement at all* when the box is empty. The era table picks one as
 decides, because the client never routes; set both ends anyway so they cannot
 disagree when the era changes. Overrides:
 `[features:boot] ground_click_nearest=` and `TORIRS_GROUND_CLICK_NEAREST` on
-the client, `MOCK230_GROUND_CLICK_NEAREST` on the server (which prints the
+the client, `TORIRSSERVER_GROUND_CLICK_NEAREST` on the server (which prints the
 resolved value in its boot line).
 
 This is the whole of "click across a river and walk up to the bank instead of
@@ -811,7 +811,7 @@ arena edge:
 ```
 world_pick: mouse=120,140 count=3 hover_tile=50,55,0
 minimenu: walk-click scene=50,55 abs=6426,111
-mock230: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
+torirsserver: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
 ```
 
 `nearest=1` is the `box10_rect` fallback firing.
@@ -834,14 +834,14 @@ Work down the chain — each variable answers exactly one stage.
 | `TORIRS_PICK_DEBUG=1\|all` | what the raster says is under the pointer |
 | `TORIRS_LOC_DEBUG=1` | lifts the non-interactive gate, so inactive locs show in the pickset |
 | `TORIRS_NET_DEBUG=1` | `minimenu: walk-click`, `trymove:`, and the packet |
-| `MOCK230_VERBOSE=1` | `mock230: route ... nearest=N arrive=x,z` |
+| `TORIRSSERVER_VERBOSE=1` | `torirsserver: route ... nearest=N arrive=x,z` |
 
 The whole thing reproduces headlessly, no human at the mouse:
 
 ```sh
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=out.bmp TORIRS_NET_CHEAT=zuk \
 TORIRS_SIM_CLICK_AT="560,120,140" TORIRS_WORLD_PICK_DEBUG=1 \
-TORIRS_NET_DEBUG=1 MOCK230_VERBOSE=1 \
+TORIRS_NET_DEBUG=1 TORIRSSERVER_VERBOSE=1 \
     src/torirs --manifest manifest_osrs239.ini --user testc --pass test
 ```
 
@@ -1016,7 +1016,7 @@ where the ids are recorded now. `app_sync_textures` drains them with
 nothing on a tick that built no geometry. `CollectMissingTextures` is still there
 for one-shot audits of a built scene; nothing calls it per frame.
 
-Measured, `-O0`, 1000 frames headless against `src/build/mock230`:
+Measured, `-O0`, 1000 frames headless against `src/build/torirsserver`:
 
 | build                              | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
 | ---------------------------------- | ------------------- | -------- | ---------------------- |

@@ -102,7 +102,7 @@ What the web block swaps:
 
 Same script, same arguments as a native run — `web` is the only difference. It
 builds what is missing, starts the IO server, and opens the page. For a local
-live `osrs230`/`osrs239` manifest it also starts a native `mock230` child: the
+live `osrs230`/`osrs239` manifest it also starts a native `ToriRSServer` child: the
 browser reaches that server over WebSocket while cache reads still use
 `io_server`. Ctrl-C (or any signal that stops the script) stops both children,
 so no stale listener holds either port.
@@ -123,7 +123,7 @@ make -C src io-server
 
 The server serves `build-web/` over `GET` and answers cache reads on `POST /io`.
 It is the only process needed for an offline run; a local live
-`osrs230`/`osrs239` run also needs `mock230` on the game port. `io_server`
+`osrs230`/`osrs239` run also needs `ToriRSServer` on the game port. `io_server`
 options: `--manifest <boot.ini>` (recommended — it is the same file the native
 client reads, so the two cannot disagree about cache identity), or `--rev
 <name> <cache_dir>`; plus `--port`, `--root`, `--boot-root`, `--config`,

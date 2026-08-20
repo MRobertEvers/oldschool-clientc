@@ -229,9 +229,9 @@ corpus experiments and tests.
 
 ```
 src/makefile
-  cs2-opt:            $(CACHEPACK_BIN) cs2opt --src $(MOCK230_CONTENT_DIR) \
-                        --base $(MOCK230_CACHE_BASE) --level $(CS2_OPT_LEVEL)
-  mock230-cache:      … $(if $(CS2_OPT),--cs2-opt,) ; when CS2_OPT=1 depends on cs2-opt
+  cs2-opt:            $(CACHEPACK_BIN) cs2opt --src $(TORIRSSERVER_CONTENT_DIR) \
+                        --base $(TORIRSSERVER_CACHE_BASE) --level $(CS2_OPT_LEVEL)
+  torirsserver-cache:      … $(if $(CS2_OPT),--cs2-opt,) ; when CS2_OPT=1 depends on cs2-opt
 ```
 
 `CS2_OPT` defaults off until the gates in §7 pass; then the default flips and
@@ -613,7 +613,7 @@ The term covers three things here; all three are in scope:
 | 6 | O3: cache-constant folding, CSE, invariant hoisting; `CS2_OPT` default on | differential clean; payoff table in this document; EXCEPTIONS-style list of what is skipped and why |
 
 Each phase lands behind its level flag; nothing before phase 6 changes what a
-default `make mock230-cache` ships.
+default `make torirsserver-cache` ships.
 
 ---
 

@@ -87,7 +87,7 @@
       "loot_contract": "No ordinary or bones drop; successful banishment grants quest completion only.",
       "test_ids": [
         "quest-combat-contract:delrith",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
@@ -582,7 +582,7 @@
       "loot_contract": "Khazard Ogre has only independent 1/400 long-bone and 1/5013 curved-bone tertiary rolls; the scorpion and General have no drops; Bouncer drops one vile ashes. Quest completion grants 1,000 coins, 12,175 Attack XP, 2,175 Thieving XP and retains the Khazard armour set.",
       "test_ids": [
         "quest-combat-contract:fight-arena",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The jail and opponent-release transitions use authored dialogue and teleports; full camera, guard-walk and temporary-door choreography remains pending.",
@@ -709,7 +709,7 @@
       "loot_contract": "Ceril route only: owner-private Alomone has the current exact level-13 stats and always drops one bones; Carnillean armour is searched from the nearby chest only after his death and remains drop-trickable until hand-in. The Hazeel route uses a non-attackable Alomone, poison, Hazeel's mark, chest key and Hazeel scroll, and can never receive kill credit or armour. Both endings grant 1,500 Thieving XP and 2,000 coins; Ceril's fake ending additionally grants 5 coins.",
       "test_ids": [
         "quest-combat-contract:hazeel-cult",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The resurrection and Butler-arrest scenes retain the ported dialogue/teleports; complete camera, movement, animation and audio choreography remains pending.",
@@ -864,7 +864,7 @@
       "test_ids": [
         "quest-combat-contract:grand-tree",
         "quest-combat-contract:elemental-weakness",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The complete route and encounter choreography retain ported dialogue, movement and teleports, but omitted camera and audio details are not yet restored.",
@@ -1064,7 +1064,7 @@
       "test_ids": [
         "quest-combat-contract:underground-pass",
         "quest-combat-contract:underground-pass-static-spawns",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The dungeon keeps its five hard-coordinate legacy map squares; encounter actors, credit and drops are instance-equivalent, but the scenery route is not copied into one private dynamic map.",
@@ -2253,7 +2253,7 @@
         "quest-combat-contract:regicide-guard",
         "quest-combat-contract:regicide-bomb",
         "quest-combat-contract:regicide-reward",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The route uses the cache's generic obstacle destination table for successful forest crossings; trap consequences, level gates and encounter state are authored.",
@@ -2365,7 +2365,7 @@
         "quest-combat-contract:tai-bwo-tamayu",
         "quest-combat-contract:tai-bwo-item-pipelines",
         "quest-combat-contract:tai-bwo-postquest",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The cache-era cutscene uses fixed four-tick choreography where the source port used a generic NPC integer variable unavailable in this tree.",
@@ -2495,7 +2495,7 @@
         "quest-combat-contract:troll-stronghold-keys",
         "quest-combat-contract:troll-stronghold-loot",
         "quest-combat-contract:troll-stronghold-reward",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The 1/4 troll-bone tertiary remains gated off until Rag and Bone Man II's collection state is implemented; every unconditional and Slayer-conditional current tertiary is present.",
@@ -2771,7 +2771,7 @@
         "quest-combat-contract:fremennik-draugen",
         "quest-combat-contract:fremennik-loadout",
         "quest-combat-contract:fremennik-citizen-loot",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actors occupy the shared classic map squares rather than cloned modern instances.",
@@ -2890,7 +2890,7 @@
         "quest-combat-contract:horror-junior",
         "quest-combat-contract:horror-mother",
         "quest-combat-contract:horror-casket-books",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actors occupy the shared classic lighthouse map rather than cloned modern instances.",
@@ -2986,7 +2986,7 @@
         "quest-combat-contract:mm1-demon",
         "quest-combat-contract:mm1-allied-credit",
         "quest-combat-contract:mm1-reward",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actors occupy the shared classic banana-plantation map rather than a cloned modern instance.",
@@ -3088,7 +3088,7 @@
         "quest-combat-contract:haunted-mine-dayth",
         "quest-combat-contract:haunted-mine-loot-recovery",
         "quest-combat-contract:haunted-mine-salve",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actor occupies the shared classic boss room rather than a cloned modern instance.",
@@ -3187,7 +3187,7 @@
         "quest-combat-contract:troll-romance-arrg",
         "quest-combat-contract:troll-romance-loot",
         "quest-combat-contract:troll-romance-reward",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actor occupies the shared classic Troll arena rather than a cloned modern instance.",
@@ -3271,7 +3271,7 @@
         "quest-combat-contract:myreque-hound",
         "quest-combat-contract:myreque-no-loot",
         "quest-combat-contract:myreque-death-retry",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The owner-private actor occupies the shared classic chamber rather than a cloned modern instance.",
@@ -3588,7 +3588,7 @@
         "quest-combat-contract:ghosts-ahoy-three-chests",
         "quest-combat-contract:ghosts-ahoy-lobster",
         "quest-combat-contract:ghosts-ahoy-map-captain",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The Wiki labels the beginner clue merely Rare; 1/128 is an explicit cache-era calibration rather than a published exact denominator.",
@@ -3672,7 +3672,7 @@
       "test_ids": [
         "quest-combat-contract:one-small-favour-slagilith",
         "quest-combat-contract:one-small-favour-dwarf-gang",
-        "mock230-selftest:npc-owner-visibility"
+        "torirsserver-selftest:npc-owner-visibility"
       ],
       "known_gaps": [
         "The eight-step landing-light take/cut/replace puzzle is still collapsed into one dialogue action.",

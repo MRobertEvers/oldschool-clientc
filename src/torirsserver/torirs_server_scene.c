@@ -21,10 +21,10 @@
  *   walks through the long side of a table.
  */
 
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 
-#include "mock230.h"
-#include "mock230_mapinstance.h"
+#include "torirs_server.h"
+#include "torirs_server_mapinstance.h"
 
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
@@ -65,7 +65,7 @@ static unsigned char g_link_below[SCENE_TILES][SCENE_TILES];
  * See gather_terrain_square for why the two are separate passes. */
 static uint8_t g_settings[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
 
-static struct Mock230SceneLoc* g_locs;
+static struct ToriRSServerSceneLoc* g_locs;
 static int g_loc_count;
 static int g_loc_capacity;
 
@@ -79,7 +79,7 @@ static int g_loc_config_count;
 /* ------------------------------------------------------------------ */
 
 struct CollisionMap*
-mock230_scene_collision(int level)
+ToriRSServer_SceneCollision(int level)
 {
     if( level < 0 || level >= SCENE_LEVELS )
         return NULL;
@@ -87,19 +87,19 @@ mock230_scene_collision(int level)
 }
 
 int
-mock230_scene_base_x(void)
+ToriRSServer_SceneBaseX(void)
 {
     return g_base_x;
 }
 
 int
-mock230_scene_base_z(void)
+ToriRSServer_SceneBaseZ(void)
 {
     return g_base_z;
 }
 
 int
-mock230_scene_contains(
+ToriRSServer_SceneContains(
     int x,
     int z)
 {
@@ -110,16 +110,16 @@ mock230_scene_contains(
 }
 
 int
-mock230_scene_walk_blocked(
+ToriRSServer_SceneWalkBlocked(
     int level,
     int x,
     int z)
 {
     struct CollisionMap* collision;
 
-    if( !mock230_scene_contains(x, z) )
+    if( !ToriRSServer_SceneContains(x, z) )
         return 1;
-    collision = mock230_scene_collision(level);
+    collision = ToriRSServer_SceneCollision(level);
     if( !collision )
         return 1;
     return (collision_map_tile(collision, x - g_base_x, z - g_base_z) &
@@ -128,8 +128,8 @@ mock230_scene_walk_blocked(
                : 0;
 }
 
-struct Mock230SceneLoc*
-mock230_scene_loc(int slot)
+struct ToriRSServerSceneLoc*
+ToriRSServer_SceneLoc(int slot)
 {
     if( slot < 0 || slot >= g_loc_count )
         return NULL;
@@ -156,12 +156,12 @@ loc_config(int loc_id)
  * A `.loc` block's `op1=`..`op5=`, pushed in by the content loader.
  *
  * Pushed rather than pulled, which is the whole design of it. The obvious shape
- * — `mock230_scene_loc_op` calling `mock230_content_loc` and reading the def —
+ * — `ToriRSServer_SceneLocOp` calling `ToriRSServer_ContentLoc` and reading the def —
  * points this file at the content tree, and this file is deliberately the half
- * that knows nothing about one: `collision_doors_test` links `mock230_scene.c`
+ * that knows nothing about one: `collision_doors_test` links `torirs_server_scene.c`
  * against the cache alone and would stop linking. So content *tells* the scene,
- * the same way it tells `mock230_locinfo_param_overlay` about a param and
- * `mock230_objinfo_category_overlay` about a category, and a binary with no
+ * the same way it tells `ToriRSServer_LocInfoParamOverlay` about a param and
+ * `ToriRSServer_ObjInfoCategoryOverlay` about a category, and a binary with no
  * content simply has no overlays and reads rank 0 — which is the right answer
  * for one, not a degraded one.
  *
@@ -191,7 +191,7 @@ loc_op_overlay(int loc_id)
 }
 
 void
-mock230_scene_loc_op_overlay(
+ToriRSServer_SceneLocOpOverlay(
     int loc_id,
     int op_num,
     const char* text)
@@ -227,7 +227,7 @@ mock230_scene_loc_op_overlay(
 }
 
 void
-mock230_scene_loc_op_overlay_reset(void)
+ToriRSServer_SceneLocOpOverlayReset(void)
 {
     for( int i = 0; i < g_loc_op_overlay_count; i++ )
     {
@@ -241,7 +241,7 @@ mock230_scene_loc_op_overlay_reset(void)
 }
 
 int
-mock230_scene_loc_op_overlay_count(void)
+ToriRSServer_SceneLocOpOverlayCount(void)
 {
     return g_loc_op_overlay_count;
 }
@@ -318,7 +318,7 @@ load_loc_configs(
 }
 
 const char*
-mock230_scene_loc_op(
+ToriRSServer_SceneLocOp(
     int loc_id,
     int op_num)
 {
@@ -329,7 +329,7 @@ mock230_scene_loc_op(
         return NULL;
 
     /*
-     * Rank 1 over rank 0 — the same merge `mock230_loc_category` applies one
+     * Rank 1 over rank 0 — the same merge `ToriRSServer_LocCategory` applies one
      * field over, and for the same reason: the cache states what the *client*
      * offers, and a server op the client must not offer has nowhere else to live.
      * `op3=hidden` in a `.loc` block is the whole point, and until this read
@@ -351,8 +351,8 @@ mock230_scene_loc_op(
 }
 
 int
-mock230_loc_resolve_transform(
-    struct Mock230Player* player,
+ToriRSServer_LocResolveTransform(
+    struct ToriRSServerPlayer* player,
     int base_loc_id)
 {
     const struct RSCache_Dat2ConfigLoc* cfg;
@@ -365,10 +365,10 @@ mock230_loc_resolve_transform(
         return base_loc_id;
 
     if( cfg->transform_varbit != -1 )
-        index = mock230_varbit_get(player, cfg->transform_varbit);
+        index = ToriRSServer_VarbitGet(player, cfg->transform_varbit);
     else if( cfg->transform_varp != -1 )
     {
-        if( cfg->transform_varp >= 0 && cfg->transform_varp < MOCK230_VARP_COUNT )
+        if( cfg->transform_varp >= 0 && cfg->transform_varp < TORIRSSERVER_VARP_COUNT )
             index = (int)player->varps[cfg->transform_varp];
     }
 
@@ -386,7 +386,7 @@ mock230_loc_resolve_transform(
 /* ------------------------------------------------------------------ */
 
 static void apply_terrain_column(int scene_x, int scene_z);
-static void restamp_after_removal(const struct Mock230SceneLoc* removed);
+static void restamp_after_removal(const struct ToriRSServerSceneLoc* removed);
 
 /*
  * Which collision primitive a loc contributes, by shape. Mirrors
@@ -403,7 +403,7 @@ static void restamp_after_removal(const struct Mock230SceneLoc* removed);
  */
 static void
 apply_loc_collision(
-    struct Mock230SceneLoc* loc,
+    struct ToriRSServerSceneLoc* loc,
     int add)
 {
     const struct RSCache_Dat2ConfigLoc* config = loc_config(loc->loc_id);
@@ -479,7 +479,7 @@ apply_loc_collision(
              * its un-rotated rectangle, i.e. the wrong tiles.
              *
              * Do NOT "fix" this by removing the pre-rotation in `record_loc` —
-             * `mock230_scene_find_loc` and `interaction_target` both need the
+             * `ToriRSServer_SceneFindLoc` and `interaction_target` both need the
              * rotated footprint. The two consumers want different things and
              * this is the one that wants the raw config.
              */
@@ -512,7 +512,7 @@ apply_loc_collision(
  */
 static void
 loc_stamp_box(
-    const struct Mock230SceneLoc* loc,
+    const struct ToriRSServerSceneLoc* loc,
     int* x0,
     int* z0,
     int* x1,
@@ -550,7 +550,7 @@ loc_stamp_box(
  * re-stamping more than strictly necessary costs time and nothing else.
  */
 static void
-restamp_after_removal(const struct Mock230SceneLoc* removed)
+restamp_after_removal(const struct ToriRSServerSceneLoc* removed)
 {
     int x0, z0, x1, z1;
 
@@ -574,7 +574,7 @@ restamp_after_removal(const struct Mock230SceneLoc* removed)
 
     for( int i = 0; i < g_loc_count; i++ )
     {
-        struct Mock230SceneLoc* other = &g_locs[i];
+        struct ToriRSServerSceneLoc* other = &g_locs[i];
         int ox0, oz0, ox1, oz1;
 
         if( other == removed || !other->active )
@@ -601,7 +601,7 @@ restamp_after_removal(const struct Mock230SceneLoc* removed)
  * player standing on a bridge is on the same plane as the locs he can see and
  * click, and content addressing them with a plain coord finds them. This
  * server only shifted the collision stamp, which left every bridged loc a
- * plane above every lookup that could reach it: `mock230_scene_find_loc` (the
+ * plane above every lookup that could reach it: `ToriRSServer_SceneFindLoc` (the
  * click), `loc_find` (content), and the ZoneMap the wire is built from. The
  * Dragonkin coffer is the case that surfaced it — `~rs2012_qbd_prepare_coffer`
  * found nothing on the player's level and added a *second* coffer beside the
@@ -616,11 +616,11 @@ record_loc_at(
     int angle)
 {
     const struct RSCache_Dat2ConfigLoc* config = loc_config(map_loc->loc_id);
-    struct Mock230SceneLoc* loc;
+    struct ToriRSServerSceneLoc* loc;
 
     if( !config )
         return;
-    if( !mock230_scene_contains(abs_x, abs_z) )
+    if( !ToriRSServer_SceneContains(abs_x, abs_z) )
         return;
 
     if( g_link_below[abs_x - g_base_x][abs_z - g_base_z] )
@@ -631,7 +631,7 @@ record_loc_at(
     if( g_loc_count == g_loc_capacity )
     {
         int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
-        struct Mock230SceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerSceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
 
         assert(grown);
         g_locs = grown;
@@ -660,11 +660,11 @@ record_loc_at(
     }
     loc->active = 1;
     /* From the map square, which is what makes its slot a tombstone rather than
-     * reusable once something removes it — see mock230_scene_add_loc. */
+     * reusable once something removes it — see ToriRSServer_SceneAddLoc. */
     loc->is_static = 1;
     /* The map square carries no menu of its own: what this loc offers is what
      * its loctype offers. */
-    mock230_loc_ops_default(&loc->ops);
+    ToriRSServer_LocOpsDefault(&loc->ops);
 
     apply_loc_collision(loc, 1);
 }
@@ -786,7 +786,7 @@ apply_bridges(void)
 
 /* TEMPORARY DEBUG: raw tile settings + link_below, for the ToB map survey. */
 int
-mock230_scene_debug_settings(int level, int x, int z)
+ToriRSServer_SceneDebugSettings(int level, int x, int z)
 {
     int sx = x - g_base_x;
     int sz = z - g_base_z;
@@ -841,7 +841,7 @@ scene_build_begin(
     char keys[600];
 
     assert(profile);
-    mock230_scene_free();
+    ToriRSServer_SceneFree();
 
     g_base_x = (zone_x - 6) * 8;
     g_base_z = (zone_z - 6) * 8;
@@ -849,12 +849,12 @@ scene_build_begin(
     *profile = RSCache_ProfileZero();
     profile->game = RSCACHE_GAME_OLDSCHOOL;
     profile->epoch = RSCACHE_EPOCH_DAT2;
-    profile->revision = MOCK230_CACHE_REVISION;
+    profile->revision = TORIRSSERVER_CACHE_REVISION;
 
     if( !open_disk(cache_dir, &disk, resolved, sizeof(resolved)) )
     {
         fprintf(stderr,
-                "mock230: no cache at %s — collision disabled (walk through walls)\n",
+                "torirsserver: no cache at %s — collision disabled (walk through walls)\n",
                 cache_dir);
         g_base_x = g_base_z = -1;
         return NULL;
@@ -866,7 +866,7 @@ scene_build_begin(
      * rscache, which is fine — the mock opens one cache. */
     snprintf(keys, sizeof(keys), "%s/xteas.json", resolved);
     if( !RSCache_XteaConfigLoadKeys(keys) )
-        fprintf(stderr, "mock230: no %s — encrypted map squares will not decode\n", keys);
+        fprintf(stderr, "torirsserver: no %s — encrypted map squares will not decode\n", keys);
 
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
@@ -878,7 +878,7 @@ scene_build_begin(
          * ToriRS_FeatureTable.route_window_tiles and
          * docs/OSRS_PATHING_LOS.md §5.1. */
         collision_map_set_route_window(g_collision[level],
-                                       mock230_scene_features()->route_window_tiles);
+                                       ToriRSServer_SceneFeatures()->route_window_tiles);
     }
     memset(g_link_below, 0, sizeof(g_link_below));
     memset(g_settings, 0, sizeof(g_settings));
@@ -888,7 +888,7 @@ scene_build_begin(
 }
 
 int
-mock230_scene_build(
+ToriRSServer_SceneBuild(
     const char* cache_dir,
     int zone_x,
     int zone_z)
@@ -941,7 +941,7 @@ mock230_scene_build(
 
     locs_before = g_loc_count;
     RSCache_Dat2DiskFree(disk);
-    fprintf(stderr, "mock230: scene built at zone %d,%d (base %d,%d — %d locs)\n", zone_x,
+    fprintf(stderr, "torirsserver: scene built at zone %d,%d (base %d,%d — %d locs)\n", zone_x,
             zone_z, g_base_x, g_base_z, locs_before);
     return 1;
 }
@@ -954,7 +954,7 @@ mock230_scene_build(
  * Copy one source zone's tile settings into one destination zone, turned.
  *
  * Walks the *destination* and asks where each tile came from, which is why this
- * uses `mock230_mapinstance_rotate_to_src` and the loc pass below uses the other
+ * uses `ToriRSServer_MapInstanceRotateToSrc` and the loc pass below uses the other
  * one. Only the settings byte is copied: collision is all the server wants from
  * terrain. Heights, overlays and tile shapes matter to the client and travel
  * over the wire as a descriptor for it to resolve itself.
@@ -962,7 +962,7 @@ mock230_scene_build(
 static void
 gather_terrain_zone(
     const struct RSCache_MapTerrain* terrain,
-    const struct Mock230MapInstanceZone* zone,
+    const struct ToriRSServerMapInstanceZone* zone,
     int dst_level,
     int dst_zone_x,
     int dst_zone_z)
@@ -982,7 +982,7 @@ gather_terrain_zone(
             if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 ||
                 scene_z >= SCENE_TILES )
                 continue;
-            mock230_mapinstance_rotate_to_src(zone->rotation, dx, dz, &sx, &sz);
+            ToriRSServer_MapInstanceRotateToSrc(zone->rotation, dx, dz, &sx, &sz);
             g_settings[dst_level][scene_x][scene_z] =
                 terrain
                     ->tiles_xyz[RSCACHE_MAP_TILE_COORD(src_local_zone_x * 8 + sx,
@@ -1008,7 +1008,7 @@ gather_terrain_zone(
 static void
 record_locs_zone(
     const struct RSCache_MapLocs* locs,
-    const struct Mock230MapInstanceZone* zone,
+    const struct ToriRSServerMapInstanceZone* zone,
     int dst_level,
     int dst_zone_x,
     int dst_zone_z)
@@ -1049,7 +1049,7 @@ record_locs_zone(
             size_z = config->size_z;
         }
 
-        mock230_mapinstance_rotate_to_dst(zone->rotation, sx, sz, size_x, size_z, &dx, &dz);
+        ToriRSServer_MapInstanceRotateToDst(zone->rotation, sx, sz, size_x, size_z, &dx, &dz);
         angle = (map_loc->orientation + zone->rotation) & 3;
         record_loc_at(map_loc, g_base_x + dst_zone_x * 8 + dx,
                       g_base_z + dst_zone_z * 8 + dz, dst_level, angle);
@@ -1069,20 +1069,20 @@ record_locs_zone(
  */
 static int
 window_source_squares(
-    const struct Mock230MapInstanceWindow* window,
+    const struct ToriRSServerMapInstanceWindow* window,
     int* out_x,
     int* out_z,
     int capacity)
 {
     int count = 0;
 
-    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
     {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+        for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
         {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+            for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
             {
-                const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+                const struct ToriRSServerMapInstanceZone* zone = &window->zones[level][zx][zz];
                 int map_x;
                 int map_z;
                 int seen = 0;
@@ -1108,20 +1108,20 @@ window_source_squares(
 }
 
 int
-mock230_scene_build_instance(
+ToriRSServer_SceneBuildInstance(
     const char* cache_dir,
     int zone_x,
     int zone_z,
-    const struct Mock230MapInstanceWindow* window)
+    const struct ToriRSServerMapInstanceWindow* window)
 {
     struct RSCache profile;
     struct RSCache_Dat2Disk* disk;
     /* One per descriptor is the ceiling: every zone could name a different
      * square. In practice this is 1 to 4. */
-    int square_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
-                 MOCK230_MAPINSTANCE_SCENE_ZONES];
-    int square_z[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
-                 MOCK230_MAPINSTANCE_SCENE_ZONES];
+    int square_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                 TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
+    int square_z[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                 TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
     int square_count;
     int locs_before;
 
@@ -1140,11 +1140,11 @@ mock230_scene_build_instance(
 
         if( !terrain )
             continue;
-        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+        for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
-                    const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+                    const struct ToriRSServerMapInstanceZone* zone = &window->zones[level][zx][zz];
 
                     if( !zone->set || (zone->src_zone_x >> 3) != square_x[s] ||
                         (zone->src_zone_z >> 3) != square_z[s] )
@@ -1165,11 +1165,11 @@ mock230_scene_build_instance(
 
         if( !locs )
             continue;
-        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+        for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
-                    const struct Mock230MapInstanceZone* zone = &window->zones[level][zx][zz];
+                    const struct ToriRSServerMapInstanceZone* zone = &window->zones[level][zx][zz];
 
                     if( !zone->set || (zone->src_zone_x >> 3) != square_x[s] ||
                         (zone->src_zone_z >> 3) != square_z[s] )
@@ -1184,14 +1184,14 @@ mock230_scene_build_instance(
     locs_before = g_loc_count;
     RSCache_Dat2DiskFree(disk);
     fprintf(stderr,
-            "mock230: instanced scene built at zone %d,%d (base %d,%d — %d source zones, %d "
+            "torirsserver: instanced scene built at zone %d,%d (base %d,%d — %d source zones, %d "
             "locs)\n",
             zone_x, zone_z, g_base_x, g_base_z, window->set_count, locs_before);
     return 1;
 }
 
 void
-mock230_scene_free(void)
+ToriRSServer_SceneFree(void)
 {
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
@@ -1212,7 +1212,7 @@ mock230_scene_free(void)
 /* ------------------------------------------------------------------ */
 
 int
-mock230_scene_find_loc(
+ToriRSServer_SceneFindLoc(
     int x,
     int z,
     int level,
@@ -1222,7 +1222,7 @@ mock230_scene_find_loc(
 
     for( int i = 0; i < g_loc_count; i++ )
     {
-        struct Mock230SceneLoc* loc = &g_locs[i];
+        struct ToriRSServerSceneLoc* loc = &g_locs[i];
 
         if( !loc->active || loc->level != level )
             continue;
@@ -1244,7 +1244,7 @@ mock230_scene_find_loc(
 }
 
 int
-mock230_scene_find_loc_id(
+ToriRSServer_SceneFindLocId(
     int x,
     int z,
     int level,
@@ -1252,12 +1252,12 @@ mock230_scene_find_loc_id(
 {
     for( int i = 0; i < g_loc_count; i++ )
     {
-        struct Mock230SceneLoc* loc = &g_locs[i];
+        struct ToriRSServerSceneLoc* loc = &g_locs[i];
 
         /* The loc's own south-west corner and its own id, both exact: this is
          * `loc_find`'s question, and the reference answers it with
          * `Zone.getLoc(x, z, locId)` — locs keyed by their corner tile,
-         * filtered by type. `mock230_scene_find_loc`'s footprint-plus-fallback
+         * filtered by type. `ToriRSServer_SceneFindLoc`'s footprint-plus-fallback
          * is the *click* resolver and deliberately answers a different
          * question; asking it here made `loc_find(coord, X)` report true for
          * any loc standing on the tile. */
@@ -1271,7 +1271,7 @@ mock230_scene_find_loc_id(
 }
 
 int
-mock230_scene_find_loc_exact(
+ToriRSServer_SceneFindLocExact(
     int x,
     int z,
     int level,
@@ -1289,7 +1289,7 @@ mock230_scene_find_loc_exact(
      * Three tiers, and each one is load-bearing:
      *
      *   1. an active loc a `loc_add` put here. A `loc_add` leaves the map
-     *      square's own loc standing beside it (mock230_scene_add_loc), so "the
+     *      square's own loc standing beside it (ToriRSServer_SceneAddLoc), so "the
      *      loc on this tile" for a following `loc_change` / `loc_del` is the
      *      added one. Answering with the square's instead would let a door that
      *      swung past a wall close by deleting that wall.
@@ -1301,7 +1301,7 @@ mock230_scene_find_loc_exact(
      */
     for( int i = g_loc_count - 1; i >= 0; i-- )
     {
-        struct Mock230SceneLoc* loc = &g_locs[i];
+        struct ToriRSServerSceneLoc* loc = &g_locs[i];
 
         if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
             continue;
@@ -1326,12 +1326,12 @@ mock230_scene_find_loc_exact(
 }
 
 int
-mock230_scene_replace_loc(
+ToriRSServer_SceneReplaceLoc(
     int slot,
     int loc_id,
     int angle)
 {
-    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+    struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
     const struct RSCache_Dat2ConfigLoc* config;
 
     if( !loc )
@@ -1342,10 +1342,10 @@ mock230_scene_replace_loc(
 
     /* An *inactive* slot is revived rather than refused, which is how a
      * `loc_del` on a map-square loc is undone: the tombstone stays in the array
-     * (see mock230_scene_add_loc) precisely so the tile can be put back without
+     * (see ToriRSServer_SceneAddLoc) precisely so the tile can be put back without
      * the caller having to know whether it is currently there. Its collision is
      * already gone, so there is nothing to take away first. */
-    if( getenv("MOCK230_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
+    if( getenv("TORIRSSERVER_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
         fprintf(stderr, "  DOORTRACE replace slot=%d %d -> %d\n", slot, loc->loc_id, loc_id);
     if( loc->active )
         apply_loc_collision(loc, 0);
@@ -1367,7 +1367,7 @@ mock230_scene_replace_loc(
 }
 
 int
-mock230_scene_add_loc(
+ToriRSServer_SceneAddLoc(
     int x,
     int z,
     int level,
@@ -1376,11 +1376,11 @@ mock230_scene_add_loc(
     int angle)
 {
     const struct RSCache_Dat2ConfigLoc* config = loc_config(loc_id);
-    struct Mock230SceneLoc* loc;
+    struct ToriRSServerSceneLoc* loc;
 
     if( !config )
         return -1;
-    if( !mock230_scene_contains(x, z) )
+    if( !ToriRSServer_SceneContains(x, z) )
         return -1;
 
     /*
@@ -1399,11 +1399,11 @@ mock230_scene_add_loc(
      * for a world that cycles one on a timer.
      */
     {
-        int prior = mock230_scene_find_loc_exact(x, z, level, shape);
-        struct Mock230SceneLoc* held = mock230_scene_loc(prior);
+        int prior = ToriRSServer_SceneFindLocExact(x, z, level, shape);
+        struct ToriRSServerSceneLoc* held = ToriRSServer_SceneLoc(prior);
 
         if( held && held->active && !held->is_static )
-            mock230_scene_remove_loc(prior);
+            ToriRSServer_SceneRemoveLoc(prior);
     }
 
     /*
@@ -1430,7 +1430,7 @@ mock230_scene_add_loc(
         if( g_loc_count == g_loc_capacity )
         {
             int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
-            struct Mock230SceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
+            struct ToriRSServerSceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
 
             assert(grown);
             g_locs = grown;
@@ -1463,17 +1463,17 @@ mock230_scene_add_loc(
      * previous occupant's menu, so this is a reset and not an initialisation:
      * without it, the second loc to land in a recycled slot would inherit the
      * first one's overrides. */
-    mock230_loc_ops_default(&loc->ops);
+    ToriRSServer_LocOpsDefault(&loc->ops);
     apply_loc_collision(loc, 1);
     return (int)(loc - g_locs);
 }
 
 void
-mock230_scene_loc_set_ops(
+ToriRSServer_SceneLocSetOps(
     int slot,
-    const struct Mock230LocOps* ops)
+    const struct ToriRSServerLocOps* ops)
 {
-    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+    struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
     assert(ops);
     assert(loc);
@@ -1482,13 +1482,13 @@ mock230_scene_loc_set_ops(
 }
 
 const char*
-mock230_scene_loc_placement_op(
+ToriRSServer_SceneLocPlacementOp(
     int slot,
     int loc_id,
     int op_num)
 {
-    const struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
-    const char* type_op = mock230_scene_loc_op(loc_id, op_num);
+    const struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
+    const char* type_op = ToriRSServer_SceneLocOp(loc_id, op_num);
 
     if( op_num < 1 || op_num > 5 )
         return NULL;
@@ -1498,17 +1498,17 @@ mock230_scene_loc_placement_op(
      * drew it from in that case, because nothing overrode it. */
     if( !loc )
         return type_op;
-    return mock230_loc_ops_label(&loc->ops, op_num, type_op);
+    return ToriRSServer_LocOpsLabel(&loc->ops, op_num, type_op);
 }
 
 int
-mock230_scene_remove_loc(int slot)
+ToriRSServer_SceneRemoveLoc(int slot)
 {
-    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+    struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
     if( !loc || !loc->active )
         return 0;
-    if( getenv("MOCK230_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
+    if( getenv("TORIRSSERVER_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
         fprintf(stderr, "  DOORTRACE remove slot=%d id=%d\n", slot, loc->loc_id);
     apply_loc_collision(loc, 0);
     loc->active = 0;
@@ -1516,15 +1516,15 @@ mock230_scene_remove_loc(int slot)
 }
 
 /*
- * `mock230_scene_next_changed_loc` was here, and with it the `changed` flag on
+ * `ToriRSServer_SceneNextChangedLoc` was here, and with it the `changed` flag on
  * every scene loc.
  *
  * It had one caller — phase 10, re-sending opened doors after a REBUILD_NORMAL —
- * and it could never have worked: `mock230_scene_build` calls
- * `mock230_scene_free` first, so by the time the rebuild's re-send ran, the
+ * and it could never have worked: `ToriRSServer_SceneBuild` calls
+ * `ToriRSServer_SceneFree` first, so by the time the rebuild's re-send ran, the
  * array carrying the flags had been freed and re-read from the cache. The
- * durable record of a loc mutation is `struct Mock230ZoneLoc` in the ZoneMap
- * now, which is also what puts collision back (`mock230_world_locs_reapply`).
+ * durable record of a loc mutation is `struct ToriRSServerZoneLoc` in the ZoneMap
+ * now, which is also what puts collision back (`ToriRSServer_WorldLocsReapply`).
  */
 
 /* ------------------------------------------------------------------ */
@@ -1537,13 +1537,13 @@ static const int k_step_dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
 static const int k_step_dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
 
 void
-mock230_scene_set_features(struct ToriRS_FeatureTable const* features)
+ToriRSServer_SceneSetFeatures(struct ToriRS_FeatureTable const* features)
 {
     g_features = features;
 }
 
 struct ToriRS_FeatureTable const*
-mock230_scene_features(void)
+ToriRSServer_SceneFeatures(void)
 {
     if( !g_features )
         g_features = ToriRS_Features_OSRS();
@@ -1551,28 +1551,28 @@ mock230_scene_features(void)
 }
 
 int
-mock230_scene_can_step(
+ToriRSServer_SceneCanStep(
     int level,
     int x,
     int z,
     int dir)
 {
-    return mock230_scene_can_step_extra(level, x, z, dir, 0);
+    return ToriRSServer_SceneCanStepExtra(level, x, z, dir, 0);
 }
 
 int
-mock230_scene_can_step_extra(
+ToriRSServer_SceneCanStepExtra(
     int level,
     int x,
     int z,
     int dir,
     int extra_flag)
 {
-    return mock230_scene_can_step_typed(level, x, z, dir, extra_flag, COLL_TYPE_NORMAL);
+    return ToriRSServer_SceneCanStepTyped(level, x, z, dir, extra_flag, COLL_TYPE_NORMAL);
 }
 
 int
-mock230_scene_can_step_typed(
+ToriRSServer_SceneCanStepTyped(
     int level,
     int x,
     int z,
@@ -1582,12 +1582,12 @@ mock230_scene_can_step_typed(
 {
     if( dir < 0 || dir > 7 )
         return 0;
-    return mock230_scene_can_travel_typed(
+    return ToriRSServer_SceneCanTravelTyped(
         level, x, z, k_step_dx[dir], k_step_dz[dir], 1, extra_flag, coll_type);
 }
 
 int
-mock230_scene_can_travel(
+ToriRSServer_SceneCanTravel(
     int level,
     int x,
     int z,
@@ -1596,12 +1596,12 @@ mock230_scene_can_travel(
     int size,
     int extra_flag)
 {
-    return mock230_scene_can_travel_typed(
+    return ToriRSServer_SceneCanTravelTyped(
         level, x, z, offset_x, offset_z, size, extra_flag, COLL_TYPE_NORMAL);
 }
 
 int
-mock230_scene_can_travel_typed(
+ToriRSServer_SceneCanTravelTyped(
     int level,
     int x,
     int z,
@@ -1611,13 +1611,13 @@ mock230_scene_can_travel_typed(
     int extra_flag,
     int coll_type)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map || size < 1 )
         return 0;
-    if( !mock230_scene_contains(x, z) )
+    if( !ToriRSServer_SceneContains(x, z) )
         return 0;
-    if( !mock230_scene_contains(x + offset_x, z + offset_z) )
+    if( !ToriRSServer_SceneContains(x + offset_x, z + offset_z) )
         return 0;
     return collision_map_can_travel_typed(
         map, x - g_base_x, z - g_base_z, offset_x, offset_z, size, extra_flag, coll_type);
@@ -1628,17 +1628,17 @@ mock230_scene_can_travel_typed(
  * depending on who is asking, so this hands back the bits and lets the caller
  * decide which question it meant. */
 int
-mock230_scene_tile_flags(int level, int x, int z)
+ToriRSServer_SceneTileFlags(int level, int x, int z)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
-    if( !map || !mock230_scene_contains(x, z) )
+    if( !map || !ToriRSServer_SceneContains(x, z) )
         return 0;
     return collision_map_tile(map, x - g_base_x, z - g_base_z);
 }
 
 int
-mock230_scene_line_of_sight(
+ToriRSServer_SceneLineOfSight(
     int level,
     int sx,
     int sz,
@@ -1650,11 +1650,11 @@ mock230_scene_line_of_sight(
     int dh,
     int extra)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map )
         return 0;
-    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+    if( !ToriRSServer_SceneContains(sx, sz) || !ToriRSServer_SceneContains(dx, dz) )
         return 0;
     return collision_map_line_of_sight(
         map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh,
@@ -1662,7 +1662,7 @@ mock230_scene_line_of_sight(
 }
 
 int
-mock230_scene_line_of_walk(
+ToriRSServer_SceneLineOfWalk(
     int level,
     int sx,
     int sz,
@@ -1674,11 +1674,11 @@ mock230_scene_line_of_walk(
     int dh,
     int extra)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map )
         return 0;
-    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+    if( !ToriRSServer_SceneContains(sx, sz) || !ToriRSServer_SceneContains(dx, dz) )
         return 0;
     return collision_map_line_of_walk(
         map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh,
@@ -1686,7 +1686,7 @@ mock230_scene_line_of_walk(
 }
 
 int
-mock230_scene_checkvis(
+ToriRSServer_SceneCheckvis(
     int checkvis,
     int level,
     int from_x,
@@ -1696,15 +1696,15 @@ mock230_scene_checkvis(
 {
     /* HuntVis.OFF / LINEOFSIGHT / LINEOFWALK — LostCity HuntVis.ts. */
     if( checkvis == 1 )
-        return mock230_scene_line_of_sight(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1,
+        return ToriRSServer_SceneLineOfSight(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1,
                                            0);
     if( checkvis == 2 )
-        return mock230_scene_line_of_walk(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1, 0);
+        return ToriRSServer_SceneLineOfWalk(level, from_x, from_z, to_x, to_z, 1, 1, 1, 1, 0);
     return 1;
 }
 
 int
-mock230_scene_approached(
+ToriRSServer_SceneApproached(
     int level,
     int sx,
     int sz,
@@ -1715,18 +1715,18 @@ mock230_scene_approached(
     int dw,
     int dh)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map )
         return 0;
-    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+    if( !ToriRSServer_SceneContains(sx, sz) || !ToriRSServer_SceneContains(dx, dz) )
         return 0;
     return collision_map_approached(
         map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh);
 }
 
 int
-mock230_scene_approached_pvp(
+ToriRSServer_SceneApproachedPvp(
     int level,
     int sx,
     int sz,
@@ -1737,20 +1737,20 @@ mock230_scene_approached_pvp(
     int dw,
     int dh)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map )
         return 0;
-    if( !mock230_scene_contains(sx, sz) || !mock230_scene_contains(dx, dz) )
+    if( !ToriRSServer_SceneContains(sx, sz) || !ToriRSServer_SceneContains(dx, dz) )
         return 0;
-    if( !mock230_scene_features()->los_symmetric_pvp )
-        return mock230_scene_approached(level, sx, sz, dx, dz, sw, sh, dw, dh);
+    if( !ToriRSServer_SceneFeatures()->los_symmetric_pvp )
+        return ToriRSServer_SceneApproached(level, sx, sz, dx, dz, sw, sh, dw, dh);
     return collision_map_approached_symmetric(
         map, sx - g_base_x, sz - g_base_z, dx - g_base_x, dz - g_base_z, sw, sh, dw, dh);
 }
 
 void
-mock230_scene_change_occupancy(
+ToriRSServer_SceneChangeOccupancy(
     int level,
     int x,
     int z,
@@ -1758,17 +1758,17 @@ mock230_scene_change_occupancy(
     int mask,
     int add)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map || size < 1 || mask == 0 )
         return;
-    if( !mock230_scene_contains(x, z) )
+    if( !ToriRSServer_SceneContains(x, z) )
         return;
     collision_map_change_square(map, x - g_base_x, z - g_base_z, size, mask, add);
 }
 
 int
-mock230_scene_naive_path(
+ToriRSServer_SceneNaivePath(
     int level,
     int src_x,
     int src_z,
@@ -1783,7 +1783,7 @@ mock230_scene_naive_path(
     int* out_x,
     int* out_z)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
     int sx;
     int sz;
     int ok;
@@ -1791,7 +1791,7 @@ mock230_scene_naive_path(
     assert(out_x && out_z);
     if( !map )
         return 0;
-    if( !mock230_scene_contains(src_x, src_z) || !mock230_scene_contains(dest_x, dest_z) )
+    if( !ToriRSServer_SceneContains(src_x, src_z) || !ToriRSServer_SceneContains(dest_x, dest_z) )
         return 0;
     ok = collision_map_naive_path(
         map, src_x - g_base_x, src_z - g_base_z, dest_x - g_base_x, dest_z - g_base_z,
@@ -1800,7 +1800,7 @@ mock230_scene_naive_path(
         return 0;
     *out_x = sx + g_base_x;
     *out_z = sz + g_base_z;
-    if( !mock230_scene_contains(*out_x, *out_z) )
+    if( !ToriRSServer_SceneContains(*out_x, *out_z) )
         return 0;
     return 1;
 }
@@ -1854,12 +1854,12 @@ rotate_force_approach(int force_approach, int angle)
 }
 
 void
-mock230_scene_loc_approach(
+ToriRSServer_SceneLocApproach(
     int slot,
     struct CollisionApproach* out)
 {
-    struct Mock230SceneLoc* loc;
-    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    struct ToriRSServerSceneLoc* loc;
+    struct ToriRS_FeatureTable const* features = ToriRSServer_SceneFeatures();
     const struct RSCache_Dat2ConfigLoc* config;
     int shape;
     int sized;
@@ -1870,7 +1870,7 @@ mock230_scene_loc_approach(
     out->mover_size = 1;
     out->kind = COLL_APPROACH_EXACT;
 
-    loc = mock230_scene_loc(slot);
+    loc = ToriRSServer_SceneLoc(slot);
     if( !loc || !loc->active )
         return;
 
@@ -1902,11 +1902,11 @@ mock230_scene_loc_approach(
 }
 
 void
-mock230_scene_npc_approach(
+ToriRSServer_SceneNpcApproach(
     int size,
     struct CollisionApproach* out)
 {
-    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    struct ToriRS_FeatureTable const* features = ToriRSServer_SceneFeatures();
     int s;
 
     assert(out);
@@ -1924,11 +1924,11 @@ mock230_scene_npc_approach(
 }
 
 void
-mock230_scene_obj_approach(
+ToriRSServer_SceneObjApproach(
     int retry_adjacent,
     struct CollisionApproach* out)
 {
-    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    struct ToriRS_FeatureTable const* features = ToriRSServer_SceneFeatures();
 
     assert(out);
     memset(out, 0, sizeof(*out));
@@ -1953,9 +1953,9 @@ mock230_scene_obj_approach(
 }
 
 void
-mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out)
+ToriRSServer_SceneOpNearestOpts(struct CollisionNearestOpts* out)
 {
-    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    struct ToriRS_FeatureTable const* features = ToriRSServer_SceneFeatures();
 
     assert(out);
     out->range = features->op_click_nearest_range;
@@ -1964,9 +1964,9 @@ mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out)
 }
 
 void
-mock230_scene_ground_nearest_opts(struct CollisionNearestOpts* out)
+ToriRSServer_SceneGroundNearestOpts(struct CollisionNearestOpts* out)
 {
-    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+    struct ToriRS_FeatureTable const* features = ToriRSServer_SceneFeatures();
 
     assert(out);
     collision_nearest_opts_from_model(features->ground_click_nearest_model, out);
@@ -1987,15 +1987,15 @@ route_trace(
     int arrive_x,
     int arrive_z)
 {
-    if( !getenv("MOCK230_VERBOSE") )
+    if( !getenv("TORIRSSERVER_VERBOSE") )
         return;
     fprintf(stderr,
-            "mock230: route level=%d from=%d,%d to=%d,%d steps=%d nearest=%d arrive=%d,%d\n",
+            "torirsserver: route level=%d from=%d,%d to=%d,%d steps=%d nearest=%d arrive=%d,%d\n",
             level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
 }
 
 int
-mock230_scene_route(
+ToriRSServer_SceneRoute(
     int level,
     int from_x,
     int from_z,
@@ -2005,7 +2005,7 @@ mock230_scene_route(
     int* path_z,
     int max_steps)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
     int steps;
     int nearest = 0;
     int arrive_x = to_x;
@@ -2020,7 +2020,7 @@ mock230_scene_route(
 
     /* An endpoint outside the built scene is unreachable — do not straight-line
      * through walls the map has not been asked about. */
-    if( !mock230_scene_contains(from_x, from_z) || !mock230_scene_contains(to_x, to_z) )
+    if( !ToriRSServer_SceneContains(from_x, from_z) || !ToriRSServer_SceneContains(to_x, to_z) )
     {
         route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
         return -1;
@@ -2037,7 +2037,7 @@ mock230_scene_route(
          */
         struct CollisionNearestOpts nearest_opts;
 
-        mock230_scene_ground_nearest_opts(&nearest_opts);
+        ToriRSServer_SceneGroundNearestOpts(&nearest_opts);
         steps = collision_map_route_tiles(
             map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z, NULL,
             &nearest_opts, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
@@ -2059,7 +2059,7 @@ mock230_scene_route(
 }
 
 int
-mock230_scene_route_op(
+ToriRSServer_SceneRouteOp(
     int level,
     int from_x,
     int from_z,
@@ -2072,7 +2072,7 @@ mock230_scene_route_op(
     int* out_arrive_x,
     int* out_arrive_z)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
     struct CollisionNearestOpts nearest_opts;
     int steps;
     int nearest = 0;
@@ -2097,13 +2097,13 @@ mock230_scene_route_op(
     if( !map )
         return route_straight(from_x, from_z, to_x, to_z, path_x, path_z, max_steps);
 
-    if( !mock230_scene_contains(from_x, from_z) || !mock230_scene_contains(to_x, to_z) )
+    if( !ToriRSServer_SceneContains(from_x, from_z) || !ToriRSServer_SceneContains(to_x, to_z) )
     {
         route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
         return -1;
     }
 
-    mock230_scene_op_nearest_opts(&nearest_opts);
+    ToriRSServer_SceneOpNearestOpts(&nearest_opts);
     steps = collision_map_route_tiles(
         map, from_x - g_base_x, from_z - g_base_z, to_x - g_base_x, to_z - g_base_z, approach,
         &nearest_opts, path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
@@ -2128,7 +2128,7 @@ mock230_scene_route_op(
 }
 
 int
-mock230_scene_reached(
+ToriRSServer_SceneReached(
     int level,
     int x,
     int z,
@@ -2136,7 +2136,7 @@ mock230_scene_reached(
     int dst_z,
     struct CollisionApproach const* approach)
 {
-    struct CollisionMap* map = mock230_scene_collision(level);
+    struct CollisionMap* map = ToriRSServer_SceneCollision(level);
 
     if( !map )
     {
@@ -2151,7 +2151,7 @@ mock230_scene_reached(
             return dx == 0 && dz == 0;
         return dx <= 1 && dz <= 1 && !(dx == 1 && dz == 1);
     }
-    if( !mock230_scene_contains(x, z) || !mock230_scene_contains(dst_x, dst_z) )
+    if( !ToriRSServer_SceneContains(x, z) || !ToriRSServer_SceneContains(dst_x, dst_z) )
         return 0;
     return collision_map_reached(
         map, x - g_base_x, z - g_base_z, dst_x - g_base_x, dst_z - g_base_z, approach);

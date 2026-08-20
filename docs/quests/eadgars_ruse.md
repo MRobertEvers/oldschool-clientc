@@ -612,7 +612,7 @@ must not be replaced with quest-local random damage or global player queues.
   rewards without 100→110, or an ungated advertised unlock.
 - Verify each Sanfew/Burntmeat/Eadgar/Pete branch and all spell/tablet/portal/
   crate entry points authorize server-side.
-- Run `make -C src mock230-scripts` and the revision-239 pack check.
+- Run `make -C src torirsserver-scripts` and the revision-239 pack check.
 
 ### Start, route, and dialogue tests
 

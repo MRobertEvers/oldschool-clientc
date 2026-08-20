@@ -8,7 +8,7 @@
  * read by everything that loads symbols. Before this there were three tables,
  * in two languages, that agreed by accident:
  *
- *   mock230_content.c   k_namespaces[]        13 rows
+ *   torirs_server_content.c   k_namespaces[]        13 rows
  *   ssc_symbols.c       kind_for_pack()       21 filenames
  *   cachepack           cp_names_load         20 registered types
  *
@@ -39,7 +39,7 @@
  * stores and validates the key there — so a typo is caught, by the only tool with
  * a reason to care.
  *
- * `mock230_pack` is the one thing on this side that reads a membership *file*,
+ * `ToriRSServer_Pack` is the one thing on this side that reads a membership *file*,
  * and it reads it to check it: `server_base` lives in this register and cachepack
  * links nothing from `src/`, so the id half of the plan's §3.3 has to run here.
  * It uses cachepack's own parser rather than a second one (`cp_membership.c`

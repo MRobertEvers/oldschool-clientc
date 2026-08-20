@@ -278,7 +278,7 @@ setVar(id, value) { … this.vars[varp.id] = value;
 ```
 
 `ifOpenSub` writes immediately too, so **a script's source order is the packet
-order**, and content relies on it. `mock230_world_mark_varp` encodes the packet
+order**, and content relies on it. `ToriRSServer_WorldMarkVarp` encodes the packet
 now; the fixed 64-entry change list and its silent drop-past-the-end are gone
 with it. What batching bought was a dedupe — ten varbit writes into one varp used
 to queue it ten times — and sending ten packets is what the reference does, at
@@ -343,10 +343,10 @@ ownership state, and its rows are `cc_setonop`-only in this cache.
 Headless, embedded server, real clicks. BMPs read, not tree dumps.
 
 ```
-SDL_VIDEODRIVER=dummy MOCK230_SAVES=$S/saves TORIRS_MAX_FRAMES=900 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=$S/saves TORIRS_MAX_FRAMES=900 \
 TORIRS_NET_CHEAT="slayerpoints 5000;talk slayer_master_1_tureal 5" \
 TORIRS_SIM_CLICK_AT="500,278,88;600,294,259" \
-TORIRS_EXIT_BMP=$S/buy.bmp MOCK230_VERBOSE=1 \
+TORIRS_EXIT_BMP=$S/buy.bmp TORIRSSERVER_VERBOSE=1 \
   ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 ```
 
@@ -359,7 +359,7 @@ TORIRS_EXIT_BMP=$S/buy.bmp MOCK230_VERBOSE=1 \
   with content constants that never met it.
 - Click Slug Salter's padlock → the confirm dialog: *"Slug Salter — Automatically
   salt Rockslugs… Pay 10 points?"* with Back / Confirm.
-- Click **Confirm** → `mock230: <- IF_BUTTON1 426:10 sub=1`, the padlock becomes
+- Click **Confirm** → `torirsserver: <- IF_BUTTON1 426:10 sub=1`, the padlock becomes
   a green tick, the header reads **4,990**, the chat reads "You unlock that
   Slayer reward. You have 4990 points left." (Slug Salter is the cache's 10, off
   the 5,000 the cheat above grants — an earlier draft of this line said 990,
@@ -412,10 +412,10 @@ the top follow-on and it is not slayer-specific** — every `db_getfield` on an
 optional column in the cache is on it.
 
 **The server cannot read a cache dbtable, so 67 prices are transcribed.**
-`mock230_db.c` parses the *authored* grammar (`column=name,type` /
+`torirs_server_db.c` parses the *authored* grammar (`column=name,type` /
 `data=column,value`); `configs/all.dbtable` and `configs/all.dbrow` are machine
 exports in a different one (`columndef=N:name,type` / `values=N:tuple:value`).
-`mock230_db_load` walks them — they are under the content dir — and skips every
+`ToriRSServer_DbLoad` walks them — they are under the content dir — and skips every
 line it does not recognise, so all 259 cache tables load as a name and an id with
 zero columns and all 16,711 cache rows load with no data.
 `docs/skill_guide.md` §7 found the same thing from the other direction; this is
@@ -425,7 +425,7 @@ Teaching the parser the export grammar is bounded but not free, and the cost was
 measured before deciding against it here: 16,711 rows at ~528 bytes of row header
 each is ~8.8 MB before values, 241k lines to parse at every boot, and six type
 words the runtime does not resolve (`graphic`, `model`, `idkit`, `mapelement`,
-`track`, `synth`) — which `mock230_db.c`'s own header says must be fixed by
+`track`, `synth`) — which `torirs_server_db.c`'s own header says must be fixed by
 naming those namespaces, *not* by widening the type list. So the economy lives in
 `slayer_unlock.enum`, generated, marked, and cross-checked by §7's selftest,
 which charges the cache's price for five named unlocks.
@@ -441,7 +441,7 @@ underline without recoloring glyphs.
 
 ## 7. The permanent check
 
-`mock230 --selftest`, section **"slayer rewards"** (`mock230_world.c`). It sends
+`ToriRSServer --selftest`, section **"slayer rewards"** (`torirs_server_world.c`). It sends
 a real `OPNPC5` at Turael and real `IF_BUTTON1`s at the confirm overlay, and
 asserts:
 
@@ -471,7 +471,7 @@ Proven to fail, by mutation:
 | `^slayer_extend_all_percent` 95 → 100 | `"Extend remaining 29 tasks" costs 2731 points at this revision (95% of 2875, floored) — 2125 left, expected 2269` |
 | drop the `bit / 32` split in `~slayer_unlock_set` | `bit 51 belongs in slayer_rewards_unlocks1 bit 19, that varp reads 0x0` (+6 more) |
 | swap the two statements in `~slayer_rewards_open` | `the master varp must precede the mount (varp 20, mount 19)` |
-| `mock230_world_mark_varp` returns without sending (i.e. the old phase-10 batching) | `the open should transmit slayer_misc (4844)` + `(varp -1, mount 19)` + two login-burst failures |
+| `ToriRSServer_WorldMarkVarp` returns without sending (i.e. the old phase-10 batching) | `the open should transmit slayer_misc (4844)` + `(varp -1, mount 19)` + two login-burst failures |
 | `scope=perm` → `scope=temp` on `slayer_rewards_unlocks1` | `all three ownership words should survive a logout (0x2 0x0 0x4)` |
 
 The last is the one worth keeping: two thirds of the catalogue comes back and one

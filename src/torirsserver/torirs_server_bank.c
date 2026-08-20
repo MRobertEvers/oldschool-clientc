@@ -3,7 +3,7 @@
  *
  * Two separate things live here, and only the first is interesting. The third
  * — the cache-derived inv-size and varbit tables — moved to
- * `mock230_bank_tables.c`, so a binary that needs only those facts (the content
+ * `torirs_server_bank_tables.c`, so a binary that needs only those facts (the content
  * validator) does not have to link the wire half below to get them.
  *
  *   1. The **arithmetic** — deposit, withdraw, note/un-note, insert vs swap.
@@ -14,7 +14,7 @@
  *      applies.
  *   2. The **settings**, which at rev 230 are varbits — bit ranges inside
  *      shared varplayers. Resolved through the cache (see
- *      `mock230_bank_tables.c`), never written down.
+ *      `torirs_server_bank_tables.c`), never written down.
  *   3. The **wire**: two IF_OPENSUBs and an UPDATE_INV_FULL of the bank
  *      container.
  *
@@ -24,15 +24,15 @@
  * this small: the client already knows how to draw a bank, and it only needs to
  * be told what is in one.
  *
- * See docs/mock230_bank.md.
+ * See docs/torirs_server_bank.md.
  */
-#include "mock230_bank.h"
+#include "torirs_server_bank.h"
 
-#include "mock230_container.h"
+#include "torirs_server_container.h"
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_ids.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_ids.h"
 
 #include <rscache.h>
 
@@ -46,26 +46,26 @@
 /* ------------------------------------------------------------------ */
 
 void
-mock230_bank_set_varbit(
-    struct Mock230Server* srv,
+ToriRSServer_BankSetVarbit(
+    struct ToriRSServer* srv,
     int varbit_id,
     int value)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int basevar;
     int lsb;
     int msb;
     uint32_t mask;
     uint32_t current;
 
-    if( !mock230_bank_varbit_resolve(varbit_id, &basevar, &lsb, &msb) )
+    if( !ToriRSServer_BankVarbitResolve(varbit_id, &basevar, &lsb, &msb) )
     {
-        fprintf(stderr, "mock230: varbit %d is not in the cache; not sent\n", varbit_id);
+        fprintf(stderr, "torirsserver: varbit %d is not in the cache; not sent\n", varbit_id);
         return;
     }
-    if( basevar < 0 || basevar >= MOCK230_VARP_COUNT )
+    if( basevar < 0 || basevar >= TORIRSSERVER_VARP_COUNT )
     {
-        fprintf(stderr, "mock230: varbit %d lives in varp %d, past MOCK230_VARP_COUNT\n",
+        fprintf(stderr, "torirsserver: varbit %d lives in varp %d, past TORIRSSERVER_VARP_COUNT\n",
                 varbit_id, basevar);
         return;
     }
@@ -80,12 +80,12 @@ mock230_bank_set_varbit(
     if( (int32_t)current == player->varps[basevar] )
         return;
     player->varps[basevar] = (int32_t)current;
-    mock230_world_mark_varp(player, basevar);
+    ToriRSServer_WorldMarkVarp(player, basevar);
 }
 
 int
-mock230_bank_get_varbit(
-    struct Mock230Server* srv,
+ToriRSServer_BankGetVarbit(
+    struct ToriRSServer* srv,
     int varbit_id)
 {
     int basevar;
@@ -93,9 +93,9 @@ mock230_bank_get_varbit(
     int msb;
     uint32_t mask;
 
-    if( !mock230_bank_varbit_resolve(varbit_id, &basevar, &lsb, &msb) )
+    if( !ToriRSServer_BankVarbitResolve(varbit_id, &basevar, &lsb, &msb) )
         return 0;
-    if( basevar < 0 || basevar >= MOCK230_VARP_COUNT )
+    if( basevar < 0 || basevar >= TORIRSSERVER_VARP_COUNT )
         return 0;
     mask = (msb - lsb) >= 31 ? 0xffffffffu : (((1u << (msb - lsb + 1)) - 1u));
     return (int)(((uint32_t)srv->active_player->varps[basevar] >> lsb) & mask);
@@ -106,11 +106,11 @@ mock230_bank_get_varbit(
 /* ------------------------------------------------------------------ */
 
 static int
-inv_free_slots(const struct Mock230Player* player)
+inv_free_slots(const struct ToriRSServerPlayer* player)
 {
     int free_slots = 0;
 
-    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         if( player->inv[i].obj_id < 0 )
             free_slots++;
     return free_slots;
@@ -118,10 +118,10 @@ inv_free_slots(const struct Mock230Player* player)
 
 static int
 inv_slot_of(
-    const struct Mock230Player* player,
+    const struct ToriRSServerPlayer* player,
     int obj_id)
 {
-    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         if( player->inv[i].obj_id == obj_id )
             return i;
     return -1;
@@ -129,12 +129,12 @@ inv_slot_of(
 
 static void
 inv_write(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int slot,
     int obj_id,
     int count)
 {
-    if( slot < 0 || slot >= MOCK230_INV_SLOTS )
+    if( slot < 0 || slot >= TORIRSSERVER_INV_SLOTS )
         return;
     player->inv[slot].obj_id = count > 0 ? obj_id : -1;
     player->inv[slot].count = count > 0 ? count : 0;
@@ -151,18 +151,18 @@ inv_write(
 /*
  * `out_fresh_slot`, when non-NULL, receives the inv slot a *single fresh
  * unstackable unit* landed in — `count == 1`, not merged onto anything —
- * else -1. See mock230_item_vars_copy: a charged item withdrawn from the
+ * else -1. See ToriRSServer_ItemVarsCopy: a charged item withdrawn from the
  * bank needs to know exactly which slot to write its charges into, and
  * "the slot a brand-new unit took" is the only shape that is unambiguous.
  */
 static int
 inv_add_ex(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int obj_id,
     int count,
     int* out_fresh_slot)
 {
-    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
     int added = 0;
 
     if( out_fresh_slot )
@@ -176,7 +176,7 @@ inv_add_ex(
 
         if( slot < 0 )
         {
-            for( int i = 0; i < MOCK230_INV_SLOTS && slot < 0; i++ )
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS && slot < 0; i++ )
                 if( player->inv[i].obj_id < 0 )
                     slot = i;
         }
@@ -188,7 +188,7 @@ inv_add_ex(
         return count;
     }
 
-    for( int i = 0; i < MOCK230_INV_SLOTS && added < count; i++ )
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS && added < count; i++ )
     {
         if( player->inv[i].obj_id >= 0 )
             continue;
@@ -204,11 +204,11 @@ inv_add_ex(
 /** How many of `obj_id` the backpack could still take. */
 static int
 inv_space_for(
-    const struct Mock230Player* player,
+    const struct ToriRSServerPlayer* player,
     int obj_id,
     int wanted)
 {
-    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
     int free_slots = inv_free_slots(player);
 
     if( info->stackable )
@@ -218,7 +218,7 @@ inv_space_for(
 
 static void
 bank_write(
-    struct Mock230Bank* bank,
+    struct ToriRSServerBank* bank,
     int slot,
     int obj_id,
     int count)
@@ -232,7 +232,7 @@ bank_write(
 
 static int
 bank_slot_of(
-    const struct Mock230Bank* bank,
+    const struct ToriRSServerBank* bank,
     int obj_id)
 {
     for( int i = 0; i < bank->size; i++ )
@@ -244,11 +244,11 @@ bank_slot_of(
 /* Contiguous tab prefix: tab 1 owns [0, size0), tab 2 owns [size0, size0+size1),
  * …, main (tab 0) owns everything past the sum. Matches bank_gettabrange CS2. */
 static int
-bank_tab_prefix(const struct Mock230Bank* bank)
+bank_tab_prefix(const struct ToriRSServerBank* bank)
 {
     int sum = 0;
 
-    for( int i = 0; i < MOCK230_BANK_TABS; i++ )
+    for( int i = 0; i < TORIRSSERVER_BANK_TABS; i++ )
         sum += bank->tab_size[i];
     return sum;
 }
@@ -256,14 +256,14 @@ bank_tab_prefix(const struct Mock230Bank* bank)
 /** Tab holding `slot`: 1..9, or 0 for main. */
 static int
 bank_tab_for_slot(
-    const struct Mock230Bank* bank,
+    const struct ToriRSServerBank* bank,
     int slot)
 {
     int end = 0;
 
     if( slot < 0 )
         return 0;
-    for( int t = 0; t < MOCK230_BANK_TABS; t++ )
+    for( int t = 0; t < TORIRSSERVER_BANK_TABS; t++ )
     {
         end += bank->tab_size[t];
         if( slot < end )
@@ -275,21 +275,21 @@ bank_tab_for_slot(
 /** First slot of tab `tab` (1..9), or the main prefix when tab is 0 / past end. */
 static int
 bank_tab_start(
-    const struct Mock230Bank* bank,
+    const struct ToriRSServerBank* bank,
     int tab)
 {
     int start = 0;
 
     if( tab <= 0 )
         return bank_tab_prefix(bank);
-    for( int t = 1; t < tab && t <= MOCK230_BANK_TABS; t++ )
+    for( int t = 1; t < tab && t <= TORIRSSERVER_BANK_TABS; t++ )
         start += bank->tab_size[t - 1];
     return start;
 }
 
 static void
 bank_shift_left(
-    struct Mock230Bank* bank,
+    struct ToriRSServerBank* bank,
     int from)
 {
     if( from < 0 || from >= bank->size )
@@ -303,7 +303,7 @@ bank_shift_left(
 
 static void
 bank_shift_right(
-    struct Mock230Bank* bank,
+    struct ToriRSServerBank* bank,
     int at)
 {
     if( at < 0 || at >= bank->size )
@@ -318,19 +318,19 @@ bank_shift_right(
 }
 
 static void
-bank_push_tab_settings(struct Mock230Server* srv)
+bank_push_tab_settings(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
 
     /* Sizes only — currenttab is owned by content / CS2 switchtab. */
     for( int i = 0; tabs && i < tabs->count; i++ )
     {
         int tab = tabs->values[i].key;
 
-        if( tab < 0 || tab >= MOCK230_BANK_TABS )
+        if( tab < 0 || tab >= TORIRSSERVER_BANK_TABS )
             continue;
-        mock230_bank_set_varbit(srv, tabs->values[i].value, bank->tab_size[tab]);
+        ToriRSServer_BankSetVarbit(srv, tabs->values[i].value, bank->tab_size[tab]);
     }
 }
 
@@ -339,19 +339,19 @@ bank_push_tab_settings(struct Mock230Server* srv)
  * Updates tab_size[] and re-pushes the tab varbits while the bank is open.
  */
 void
-mock230_bank_move_to_tab(
-    struct Mock230Server* srv,
+ToriRSServer_BankMoveToTab(
+    struct ToriRSServer* srv,
     int from_slot,
     int dest_tab)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    struct Mock230Item item;
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    struct ToriRSServerItem item;
     int old_tab;
     int insert;
 
     if( from_slot < 0 || from_slot >= bank->size )
         return;
-    if( dest_tab < 0 || dest_tab > MOCK230_BANK_TABS )
+    if( dest_tab < 0 || dest_tab > TORIRSSERVER_BANK_TABS )
         return;
     if( bank->slots[from_slot].obj_id < 0 )
         return;
@@ -399,22 +399,22 @@ mock230_bank_move_to_tab(
 }
 
 int
-mock230_bank_count_player(
-    struct Mock230Player* player,
+ToriRSServer_BankCountPlayer(
+    struct ToriRSServerPlayer* player,
     int obj_id)
 {
-    struct Mock230Bank* bank = &player->bank;
+    struct ToriRSServerBank* bank = &player->bank;
     int slot = bank_slot_of(bank, obj_id);
 
     return slot >= 0 ? bank->slots[slot].count : 0;
 }
 
 int
-mock230_bank_count(
-    struct Mock230Server* srv,
+ToriRSServer_BankCount(
+    struct ToriRSServer* srv,
     int obj_id)
 {
-    return mock230_bank_count_player(srv->active_player, obj_id);
+    return ToriRSServer_BankCountPlayer(srv->active_player, obj_id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -437,23 +437,23 @@ mock230_bank_count(
  * packet going out on every deposit.
  */
 static void
-bank_transmit(struct Mock230Server* srv)
+bank_transmit(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
     int used = 0;
 
     for( int i = 0; i < bank->size; i++ )
         if( bank->slots[i].obj_id >= 0 )
             used = i + 1;
 
-    mock230_send_inv_full(
-        srv->active_player, mock230_ids()->com_bankmain_items, mock230_ids()->inv_bank, bank->slots, used);
+    ToriRSServer_SendInvFull(
+        srv->active_player, ToriRSServer_Ids()->com_bankmain_items, ToriRSServer_Ids()->inv_bank, bank->slots, used);
 }
 
 void
-mock230_bank_flush(struct Mock230Server* srv)
+ToriRSServer_BankFlush(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
 
     if( !bank->dirty )
         return;
@@ -470,27 +470,27 @@ mock230_bank_flush(struct Mock230Server* srv)
 /** Push every setting the interface reads. Sent on open, because the client's
  *  copy of a varp is whatever the last session left there. */
 static void
-bank_push_settings(struct Mock230Server* srv)
+bank_push_settings(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     /* Tab index -> the varbit holding that tab's size. A keyed table rather
      * than `first + index`: see interface_bank/configs/bank.enum. */
-    const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
+    const struct ToriRSServerEnumDef* tabs = ToriRSServer_ContentEnum("bank_tabs");
 
-    mock230_bank_set_varbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_quantity_type, bank->quantity_mode);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_requestedquantity, bank->requested_quantity);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_currenttab, bank->current_tab);
-    mock230_bank_set_varbit(srv, ids->varbit_bank_tab_display, bank->tab_display);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_withdrawnotes, bank->note_mode);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_insertmode, bank->insert_mode);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_quantity_type, bank->quantity_mode);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_requestedquantity, bank->requested_quantity);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_currenttab, bank->current_tab);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_tab_display, bank->tab_display);
     for( int i = 0; tabs && i < tabs->count; i++ )
     {
         int tab = tabs->values[i].key;
 
-        if( tab < 0 || tab >= MOCK230_BANK_TABS )
+        if( tab < 0 || tab >= TORIRSSERVER_BANK_TABS )
             continue;
-        mock230_bank_set_varbit(srv, tabs->values[i].value, bank->tab_size[tab]);
+        ToriRSServer_BankSetVarbit(srv, tabs->values[i].value, bank->tab_size[tab]);
     }
 
     /*
@@ -499,7 +499,7 @@ bank_push_settings(struct Mock230Server* srv)
      * whatever the varp happened to hold draws an incinerator and a deposit-
      * worn button over a bank that implements neither.
      */
-    mock230_bank_set_varbit(srv, ids->varbit_bank_showincinerator, 0);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_showincinerator, 0);
     /*
      * `bank_leaveplaceholders` is NOT pushed to 0 any more.
      *
@@ -513,7 +513,7 @@ bank_push_settings(struct Mock230Server* srv)
      */
     /* The side panel draws a lock overlay on every inventory slot unless told
      * to ignore the lock varbit, which the mock never sets. */
-    mock230_bank_set_varbit(srv, ids->varbit_bank_side_slot_ignore, 1);
+    ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_side_slot_ignore, 1);
 }
 
 /*
@@ -540,10 +540,10 @@ bank_push_settings(struct Mock230Server* srv)
  * not stop at 5.
  */
 static void
-bank_set_events(struct Mock230Server* srv)
+bank_set_events(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     const int ops_1_to_10 = 0x7fe;
     const int op_1 = 1 << 1;
     const int drag_depth_1 = 1 << 17;
@@ -557,25 +557,25 @@ bank_set_events(struct Mock230Server* srv)
         ids->com_bankmain_deposit_worn,
     };
 
-    mock230_send_if_setevents(
+    ToriRSServer_SendIfSetevents(
         srv->active_player,
         ids->com_bankmain_items,
         0,
         bank->size - 1,
         ops_1_to_10 | drag_depth_1 | drag_target);
-    mock230_send_if_setevents(
+    ToriRSServer_SendIfSetevents(
         srv->active_player,
         ids->com_bankside_items,
         0,
-        MOCK230_INV_SLOTS - 1,
+        TORIRSSERVER_INV_SLOTS - 1,
         ops_1_to_10 | drag_depth_1 | drag_target | useable_on);
 
     for( size_t i = 0; i < sizeof(k_buttons) / sizeof(k_buttons[0]); i++ )
-        mock230_send_if_setevents(srv->active_player, k_buttons[i], 0, 0, op_1);
+        ToriRSServer_SendIfSetevents(srv->active_player, k_buttons[i], 0, 0, op_1);
 
     /* Tab strip: CS2 creates backgrounds 0..9 and icons at 10+tab. Ops for
      * View tab / Collapse; drag target so items can be dropped onto a tab. */
-    mock230_send_if_setevents(
+    ToriRSServer_SendIfSetevents(
         srv->active_player,
         ids->com_bankmain_tabs,
         0,
@@ -584,17 +584,17 @@ bank_set_events(struct Mock230Server* srv)
 }
 
 void
-mock230_bank_open(struct Mock230Server* srv)
+ToriRSServer_BankOpen(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     if( bank->open )
         return;
 
     /* The reference compacts on open, because a drag can leave gaps and the
      * client lays the grid out from slot order. */
-    mock230_bank_reorganize(srv);
+    ToriRSServer_BankReorganize(srv);
     bank->note_mode = 0;
     bank->open = 1;
 
@@ -608,16 +608,16 @@ mock230_bank_open(struct Mock230Server* srv)
      * sidebar replacement. The side panel has to arrive after the main one
      * because the sidebar's own CS2 keys "is a modal open" off the main mount.
      */
-    mock230_send_if_opensub(
+    ToriRSServer_SendIfOpensub(
         srv->active_player,
         ids->iface_gameframe,
-        MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
+        TORIRSSERVER_COM_CHILD(ids->com_gameframe_mainmodal),
         ids->iface_bankmain,
         0);
-    mock230_send_if_opensub(
+    ToriRSServer_SendIfOpensub(
         srv->active_player,
         ids->iface_gameframe,
-        MOCK230_COM_CHILD(ids->com_gameframe_sidemodal),
+        TORIRSSERVER_COM_CHILD(ids->com_gameframe_sidemodal),
         ids->iface_bankside,
         3);
 
@@ -627,12 +627,12 @@ mock230_bank_open(struct Mock230Server* srv)
      * inv container the client already holds — but its paint hook only runs on
      * a transmit, so it has to be re-sent or the panel mounts empty. */
     bank_transmit(srv);
-    mock230_send_inv_full(
+    ToriRSServer_SendInvFull(
         srv->active_player,
         ids->com_bankside_items,
         ids->inv_backpack,
         srv->active_player->inv,
-        MOCK230_INV_SLOTS);
+        TORIRSSERVER_INV_SLOTS);
     bank->dirty = 0;
 
     /* Capacity under occupiedslots — CS2 never writes it. Content's openbank
@@ -641,39 +641,39 @@ mock230_bank_open(struct Mock230Server* srv)
         char capacity[16];
 
         snprintf(capacity, sizeof(capacity), "%d", bank->size);
-        mock230_send_if_settext(srv->active_player, ids->com_bankmain_capacity, capacity);
+        ToriRSServer_SendIfSettext(srv->active_player, ids->com_bankmain_capacity, capacity);
     }
 
     /* Bonus rows: [if_open,bankmain] ~equipment_refresh (IF_OPENSUB fires it). */
 }
 
 void
-mock230_bank_close(struct Mock230Server* srv)
+ToriRSServer_BankClose(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     if( !bank->open )
         return;
     bank->open = 0;
 
-    mock230_send_if_closesub(srv->active_player, ids->com_gameframe_mainmodal);
-    mock230_send_if_closesub(srv->active_player, ids->com_gameframe_sidemodal);
+    ToriRSServer_SendIfClosesub(srv->active_player, ids->com_gameframe_mainmodal);
+    ToriRSServer_SendIfClosesub(srv->active_player, ids->com_gameframe_sidemodal);
 
     /* The sidebar's inventory tab is a different interface from the bank's side
      * panel, and it was never unmounted — but its container binding is, so the
      * backpack has to be re-sent against the tab's own component or the tab
      * comes back empty. */
-    mock230_send_inv_full(
+    ToriRSServer_SendInvFull(
         srv->active_player,
         ids->com_inventory_items,
         ids->inv_backpack,
         srv->active_player->inv,
-        MOCK230_INV_SLOTS);
+        TORIRSSERVER_INV_SLOTS);
 
     /* The reference compacts on close as well, in a queued script, so a bank
      * re-opened later is already tidy. */
-    mock230_bank_reorganize(srv);
+    ToriRSServer_BankReorganize(srv);
 }
 
 /* ------------------------------------------------------------------ */
@@ -686,13 +686,13 @@ mock230_bank_close(struct Mock230Server* srv)
  * A note carries `noted_template` (the shared 799-style template record) and
  * `noted_id` (the item it stands for); a plain item carries neither. So the
  * un-note direction reads straight out of the record, and the note direction
- * needs the reverse index mock230_objinfo builds — nothing in the cache points
+ * needs the reverse index ToriRSServer_ObjInfo builds — nothing in the cache points
  * from an item to its note.
  */
 static int
 uncert(int obj_id)
 {
-    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
 
     return info->noted_template >= 0 && info->noted_id >= 0 ? info->noted_id : obj_id;
 }
@@ -700,7 +700,7 @@ uncert(int obj_id)
 static int
 cert(int obj_id)
 {
-    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
 
     return info->cert_id >= 0 ? info->cert_id : obj_id;
 }
@@ -717,13 +717,13 @@ cert(int obj_id)
  */
 static int
 bank_add_ex(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int obj_id,
     int count,
     int* out_fresh_slot)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     int slot;
     int dest_tab;
 
@@ -753,7 +753,7 @@ bank_add_ex(
      * `bank_slot_of` cannot find it because a placeholder is a *different obj*
      * (14730 for a bronze sword), which is exactly why this needs its own scan.
      */
-    slot = mock230_container_placeholder_slot(bank->slots, bank->size, obj_id);
+    slot = ToriRSServer_ContainerPlaceholderSlot(bank->slots, bank->size, obj_id);
     if( slot >= 0 )
     {
         bank_write(bank, slot, obj_id, count);
@@ -763,18 +763,18 @@ bank_add_ex(
     }
 
     /* New stack: land in the viewed tab (varbit), else main after the prefix. */
-    dest_tab = mock230_bank_get_varbit(srv, ids->varbit_bank_currenttab);
-    if( dest_tab < 0 || dest_tab > MOCK230_BANK_TABS || dest_tab == 15 )
+    dest_tab = ToriRSServer_BankGetVarbit(srv, ids->varbit_bank_currenttab);
+    if( dest_tab < 0 || dest_tab > TORIRSSERVER_BANK_TABS || dest_tab == 15 )
         dest_tab = 0;
     bank->current_tab = dest_tab;
 
-    if( dest_tab >= 1 && dest_tab <= MOCK230_BANK_TABS )
+    if( dest_tab >= 1 && dest_tab <= TORIRSSERVER_BANK_TABS )
     {
         int insert = bank_tab_start(bank, dest_tab) + bank->tab_size[dest_tab - 1];
 
         if( insert < 0 || insert >= bank->size || bank->slots[bank->size - 1].obj_id >= 0 )
         {
-            mock230_say(srv, "bank_full_message", NULL);
+            ToriRSServer_Say(srv, "bank_full_message", NULL);
             return 0;
         }
         if( bank->slots[insert].obj_id >= 0 )
@@ -803,7 +803,7 @@ bank_add_ex(
         }
         if( slot < 0 )
         {
-            mock230_say(srv, "bank_full_message", NULL);
+            ToriRSServer_Say(srv, "bank_full_message", NULL);
             return 0;
         }
         bank_write(bank, slot, obj_id, count);
@@ -815,17 +815,17 @@ bank_add_ex(
 
 
 int
-mock230_bank_deposit(
-    struct Mock230Server* srv,
+ToriRSServer_BankDeposit(
+    struct ToriRSServer* srv,
     int inv_slot,
     int amount)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int obj_id;
     int held;
     int banked;
 
-    if( inv_slot < 0 || inv_slot >= MOCK230_INV_SLOTS )
+    if( inv_slot < 0 || inv_slot >= TORIRSSERVER_INV_SLOTS )
         return 0;
     obj_id = player->inv[inv_slot].obj_id;
     if( obj_id < 0 )
@@ -834,10 +834,10 @@ mock230_bank_deposit(
     /* A stack deposits from the one slot; a non-stackable obj deposits from
      * every slot holding it, which is what "Deposit-All" means for 25 bones. */
     held = 0;
-    if( mock230_objinfo(obj_id)->stackable )
+    if( ToriRSServer_ObjInfo(obj_id)->stackable )
         held = player->inv[inv_slot].count;
     else
-        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id == obj_id )
                 held += player->inv[i].count;
 
@@ -847,14 +847,14 @@ mock230_bank_deposit(
         return 0;
 
     /* A single unstackable unit deposited from the exact slot clicked carries
-     * its vars into the bank slot it opens — see mock230_item_vars_copy and
+     * its vars into the bank slot it opens — see ToriRSServer_ItemVarsCopy and
      * bank_add_ex's comment on why anything else (a merge, or more than one
      * unit) is left alone. Snapshot before inv_write clears the source. */
     {
         int fresh_slot = -1;
-        int carry_vars = amount == 1 && !mock230_objinfo(obj_id)->stackable &&
+        int carry_vars = amount == 1 && !ToriRSServer_ObjInfo(obj_id)->stackable &&
                           player->inv[inv_slot].obj_id == obj_id;
-        struct Mock230Item saved;
+        struct ToriRSServerItem saved;
 
         if( carry_vars )
             saved = player->inv[inv_slot];
@@ -862,7 +862,7 @@ mock230_bank_deposit(
         if( banked <= 0 )
             return 0;
         if( carry_vars && banked == 1 && fresh_slot >= 0 )
-            mock230_item_vars_copy(&srv->active_player->bank.slots[fresh_slot], &saved);
+            ToriRSServer_ItemVarsCopy(&srv->active_player->bank.slots[fresh_slot], &saved);
     }
 
     /* Take it back out of the backpack, starting with the slot that was
@@ -877,7 +877,7 @@ mock230_bank_deposit(
             inv_write(player, inv_slot, obj_id, player->inv[inv_slot].count - take);
             remaining -= take;
         }
-        for( int i = 0; i < MOCK230_INV_SLOTS && remaining > 0; i++ )
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS && remaining > 0; i++ )
         {
             int take;
 
@@ -892,16 +892,16 @@ mock230_bank_deposit(
 }
 
 int
-mock230_bank_deposit_worn(
-    struct Mock230Server* srv,
+ToriRSServer_BankDepositWorn(
+    struct ToriRSServer* srv,
     int worn_slot,
     int amount)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int obj_id;
     int banked;
 
-    if( worn_slot < 0 || worn_slot >= MOCK230_WORN_SLOTS )
+    if( worn_slot < 0 || worn_slot >= TORIRSSERVER_WORN_SLOTS )
         return 0;
     obj_id = player->worn[worn_slot].obj_id;
     if( obj_id < 0 )
@@ -913,8 +913,8 @@ mock230_bank_deposit_worn(
 
     {
         int fresh_slot = -1;
-        int carry_vars = amount == 1 && !mock230_objinfo(obj_id)->stackable;
-        struct Mock230Item saved;
+        int carry_vars = amount == 1 && !ToriRSServer_ObjInfo(obj_id)->stackable;
+        struct ToriRSServerItem saved;
 
         if( carry_vars )
             saved = player->worn[worn_slot];
@@ -922,7 +922,7 @@ mock230_bank_deposit_worn(
         if( banked <= 0 )
             return 0;
         if( carry_vars && banked == 1 && fresh_slot >= 0 )
-            mock230_item_vars_copy(&srv->active_player->bank.slots[fresh_slot], &saved);
+            ToriRSServer_ItemVarsCopy(&srv->active_player->bank.slots[fresh_slot], &saved);
     }
 
     player->worn[worn_slot].count -= banked;
@@ -934,18 +934,18 @@ mock230_bank_deposit_worn(
     player->worn_dirty |= 1u << worn_slot;
     /* Taking equipment off changes what the player looks like, and the
      * appearance mask is the only thing that tells anyone. */
-    player->masks |= MOCK230_PMASK_APPEARANCE;
+    player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
     return banked;
 }
 
 int
-mock230_bank_withdraw(
-    struct Mock230Server* srv,
+ToriRSServer_BankWithdraw(
+    struct ToriRSServer* srv,
     int bank_slot,
     int amount)
 {
-    struct Mock230Player* player = srv->active_player;
-    struct Mock230Bank* bank = &player->bank;
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerBank* bank = &player->bank;
     int obj_id;
     int form;
     int space;
@@ -966,13 +966,13 @@ mock230_bank_withdraw(
     {
         /* Every obj is withdrawable; not every obj has a note form. The
          * reference says so and withdraws the item anyway. */
-        mock230_say(srv, "bank_not_notable_message", NULL);
+        ToriRSServer_Say(srv, "bank_not_notable_message", NULL);
     }
 
     space = inv_space_for(player, form, amount);
     if( space <= 0 )
     {
-        mock230_say(srv, "bank_withdraw_no_space_message", NULL);
+        ToriRSServer_Say(srv, "bank_withdraw_no_space_message", NULL);
         return 0;
     }
     if( space < amount )
@@ -980,17 +980,17 @@ mock230_bank_withdraw(
         /* The reference distinguishes these two, and they are genuinely
          * different situations: one stack that will not fit versus a pile of
          * separate items that will not all fit. */
-        if( mock230_objinfo(form)->stackable )
-            mock230_say(srv, "bank_withdraw_too_many_message", NULL);
+        if( ToriRSServer_ObjInfo(form)->stackable )
+            ToriRSServer_Say(srv, "bank_withdraw_too_many_message", NULL);
         else
-            mock230_say(srv, "bank_carry_message", NULL);
+            ToriRSServer_Say(srv, "bank_carry_message", NULL);
         amount = space;
     }
 
     {
         int fresh_slot = -1;
-        int carry_vars = amount == 1 && form == obj_id && !mock230_objinfo(obj_id)->stackable;
-        struct Mock230Item saved;
+        int carry_vars = amount == 1 && form == obj_id && !ToriRSServer_ObjInfo(obj_id)->stackable;
+        struct ToriRSServerItem saved;
 
         if( carry_vars )
             saved = bank->slots[bank_slot];
@@ -998,7 +998,7 @@ mock230_bank_withdraw(
         if( moved <= 0 )
             return 0;
         if( carry_vars && moved == 1 && fresh_slot >= 0 )
-            mock230_item_vars_copy(&player->inv[fresh_slot], &saved);
+            ToriRSServer_ItemVarsCopy(&player->inv[fresh_slot], &saved);
     }
     bank_write(bank, bank_slot, obj_id, bank->slots[bank_slot].count - moved);
     /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
@@ -1018,43 +1018,43 @@ mock230_bank_withdraw(
 }
 
 int
-mock230_bank_deposit_all_inv(struct Mock230Server* srv)
+ToriRSServer_BankDepositAllInv(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int moved = 0;
 
-    for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
     {
         if( player->inv[i].obj_id < 0 )
             continue;
-        moved += mock230_bank_deposit(srv, i, player->inv[i].count);
+        moved += ToriRSServer_BankDeposit(srv, i, player->inv[i].count);
     }
     return moved;
 }
 
 int
-mock230_bank_deposit_all_worn(struct Mock230Server* srv)
+ToriRSServer_BankDepositAllWorn(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int moved = 0;
 
-    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
     {
         if( player->worn[i].obj_id < 0 )
             continue;
-        moved += mock230_bank_deposit_worn(srv, i, player->worn[i].count);
+        moved += ToriRSServer_BankDepositWorn(srv, i, player->worn[i].count);
     }
     return moved;
 }
 
 void
-mock230_bank_move_slot(
-    struct Mock230Server* srv,
+ToriRSServer_BankMoveSlot(
+    struct ToriRSServer* srv,
     int from,
     int to)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
-    int insert = mock230_bank_get_varbit(srv, mock230_ids()->varbit_bank_insertmode);
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    int insert = ToriRSServer_BankGetVarbit(srv, ToriRSServer_Ids()->varbit_bank_insertmode);
 
     if( from < 0 || from >= bank->size || to < 0 || to >= bank->size || from == to )
         return;
@@ -1062,7 +1062,7 @@ mock230_bank_move_slot(
     /* Content owns `%bank_insertmode`; read the varbit, not a C mirror. */
     if( !insert )
     {
-        struct Mock230Item swap = bank->slots[from];
+        struct ToriRSServerItem swap = bank->slots[from];
 
         bank->slots[from] = bank->slots[to];
         bank->slots[to] = swap;
@@ -1074,7 +1074,7 @@ mock230_bank_move_slot(
      * destination, swapping as it goes, so everything between shuffles up by
      * one rather than being displaced. This is LostCity's `insert_bank`. */
     {
-        struct Mock230Item moving = bank->slots[from];
+        struct ToriRSServerItem moving = bank->slots[from];
         int step = from < to ? 1 : -1;
 
         for( int i = from; i != to; i += step )
@@ -1085,9 +1085,9 @@ mock230_bank_move_slot(
 }
 
 void
-mock230_bank_reorganize(struct Mock230Server* srv)
+ToriRSServer_BankReorganize(struct ToriRSServer* srv)
 {
-    struct Mock230Bank* bank = &srv->active_player->bank;
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
     int prefix = bank_tab_prefix(bank);
     int write = prefix;
 
@@ -1115,8 +1115,8 @@ mock230_bank_reorganize(struct Mock230Server* srv)
  * fallback call site compiles; it never acts.
  */
 int
-mock230_bank_handle_button(
-    struct Mock230Server* srv,
+ToriRSServer_BankHandleButton(
+    struct ToriRSServer* srv,
     int uid,
     int sub,
     int obj,
@@ -1131,8 +1131,8 @@ mock230_bank_handle_button(
 }
 
 int
-mock230_bank_resume_countdialog(
-    struct Mock230Server* srv,
+ToriRSServer_BankResumeCountdialog(
+    struct ToriRSServer* srv,
     int amount)
 {
     /* Content parks on p_countdialog and resumes through the VM. */
@@ -1146,26 +1146,26 @@ mock230_bank_resume_countdialog(
 /* ------------------------------------------------------------------ */
 
 void
-mock230_bank_init_player(struct Mock230Player* player)
+ToriRSServer_BankInitPlayer(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Bank* bank = &player->bank;
-    const struct Mock230Ids* ids = mock230_ids();
-    int size = mock230_bank_inv_size(ids->inv_bank);
+    struct ToriRSServerBank* bank = &player->bank;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int size = ToriRSServer_BankInvSize(ids->inv_bank);
 
-    mock230_bank_shutdown_player(player);
+    ToriRSServer_BankShutdownPlayer(player);
 
     /*
      * No cache means no inv config; fall back to a usable container rather than
      * to zero, so only the client's own grid decides how much is reachable.
      *
-     * The `size > MOCK230_BANK_SLOTS` half of this test used to be here too,
+     * The `size > TORIRSSERVER_BANK_SLOTS` half of this test used to be here too,
      * described as the same fallback. It was not — it was a clamp, and the
      * cache says 1410, so every bank this server ever allocated was **190 slots
      * short of the container the client walks**. The allocation is a calloc;
      * there was never a ceiling for it to enforce.
      */
     if( size <= 0 )
-        size = MOCK230_BANK_SLOTS;
+        size = TORIRSSERVER_BANK_SLOTS;
 
     bank->slots = calloc((size_t)size, sizeof(*bank->slots));
     assert(bank->slots);
@@ -1182,29 +1182,29 @@ mock230_bank_init_player(struct Mock230Player* player)
     bank->requested_quantity = 0;
     bank->current_tab = 0;
     bank->tab_display = 0;
-    bank->pending_kind = MOCK230_BANK_PENDING_NONE;
+    bank->pending_kind = TORIRSSERVER_BANK_PENDING_NONE;
     bank->pending_slot = -1;
     memset(bank->tab_size, 0, sizeof(bank->tab_size));
     bank->dirty = 0;
 
     /*
      * Into the registry, over the allocation the bank owns and the flag
-     * `mock230_bank_flush` reads. Whole-container rather than per-slot: 1410
+     * `ToriRSServer_BankFlush` reads. Whole-container rather than per-slot: 1410
      * slots cannot be addressed by a 32-bit mask, and the registry refuses the
      * combination rather than shifting past the width — which is what the two
-     * hand-rolled `inv_del` dirty paths in mock230_scripts.c were doing.
+     * hand-rolled `inv_del` dirty paths in torirs_server_scripts.c were doing.
      */
-    mock230_container_adopt(player, ids->inv_bank, bank->slots, bank->size, NULL, &bank->dirty,
+    ToriRSServer_ContainerAdopt(player, ids->inv_bank, bank->slots, bank->size, NULL, &bank->dirty,
                             0);
 }
 
 void
-mock230_bank_shutdown_player(struct Mock230Player* player)
+ToriRSServer_BankShutdownPlayer(struct ToriRSServerPlayer* player)
 {
     /* The registry row points at the array this is about to free, so it goes
      * first. It never owned the storage — `owns_items` is 0 for an adopted
      * row — so forgetting it frees nothing twice. */
-    mock230_container_forget(player, mock230_ids()->inv_bank);
+    ToriRSServer_ContainerForget(player, ToriRSServer_Ids()->inv_bank);
     free(player->bank.slots);
     player->bank.slots = NULL;
     player->bank.size = 0;
@@ -1214,8 +1214,8 @@ mock230_bank_shutdown_player(struct Mock230Player* player)
  * than "the primary player's", which is what leaked a bank per logout the
  * moment there were two. */
 void
-mock230_bank_shutdown(struct Mock230Server* srv)
+ToriRSServer_BankShutdown(struct ToriRSServer* srv)
 {
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
-        mock230_bank_shutdown_player(&srv->players[i]);
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        ToriRSServer_BankShutdownPlayer(&srv->players[i]);
 }

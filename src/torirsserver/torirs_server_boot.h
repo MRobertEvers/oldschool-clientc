@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_BOOT_H
-#define SRC_NET_MOCK_MOCK230_BOOT_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_BOOT_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_BOOT_H
 
 /*
  * Bringing the server's static data up, in the one order that works.
@@ -11,7 +11,7 @@
  *   - the content tree seeds combat bonuses from params the *cache* loaders
  *     decoded, so loading content first yields npcs with no bonuses — which
  *     reads as a combat-formula bug, not a load-order one;
- *   - mock230_ids_resolve looks names up in packs the content load installed,
+ *   - ToriRSServer_IdsResolve looks names up in packs the content load installed,
  *     so running it first leaves every engine-addressed id at -1;
  *   - the bank resolves its container by an id those two steps produced.
  *
@@ -20,7 +20,7 @@
  * drift. So it is a function, and there is exactly one of it.
  */
 
-struct Mock230BootConfig
+struct ToriRSServerBootConfig
 {
     /** Cache the config decoders and the scene read from. */
     const char* cache_dir;
@@ -34,13 +34,13 @@ struct Mock230BootConfig
 };
 
 /**
- * Defaults, with the MOCK230_* environment overrides applied.
+ * Defaults, with the TORIRSSERVER_* environment overrides applied.
  *
  * `cache_dir` / `content_dir` / `script_dir` point into static storage owned by
  * this module, so the config may be copied but must not outlive the process.
  */
 void
-mock230_boot_defaults(struct Mock230BootConfig* config);
+ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config);
 
 /**
  * Run every loader, in order. Returns the number of content errors — non-zero
@@ -49,16 +49,16 @@ mock230_boot_defaults(struct Mock230BootConfig* config);
  * anyone wanted.
  */
 int
-mock230_boot_load(const struct Mock230BootConfig* config);
+ToriRSServer_BootLoad(const struct ToriRSServerBootConfig* config);
 
-/** Release everything mock230_boot_load allocated. */
+/** Release everything ToriRSServer_BootLoad allocated. */
 void
-mock230_boot_free(void);
+ToriRSServer_BootFree(void);
 
 /** The origin zone for a home tile. Derived rather than configured — two
  *  numbers that have to agree are one number. */
 static inline int
-mock230_boot_zone(int home_tile)
+ToriRSServer_BootZone(int home_tile)
 {
     return home_tile >> 3;
 }

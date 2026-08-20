@@ -675,7 +675,7 @@ cp_membership_emit(
  * The first of the two agreement checks docs/PACK_ENTITY_SPLIT_PLAN.md §3.3
  * names. The second is against the id range and is *not* here: `server_base`
  * belongs to `src/content/content_register.c` and cachepack links nothing from
- * `src/`, so `mock230_pack` runs that half against the register it already holds.
+ * `src/`, so `ToriRSServer_Pack` runs that half against the register it already holds.
  *
  * Returns 0 when a disagreement no gate can explain was found. The large,
  * legitimate populations §8.5 records are counted and printed rather than failed

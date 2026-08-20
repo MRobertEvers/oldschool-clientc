@@ -22,10 +22,10 @@
  * reason resolution belongs somewhere a test can reach it.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
 
-#include "mock230_content.h"
+#include "torirs_server_content.h"
 
 #include <rscache.h>
 
@@ -49,19 +49,19 @@ static int g_seq_count;
  * flinch and every emote — a linear scan over 14,000 records per animation is
  * the kind of cost that only shows up under load.
  *
- * `MOCK230_SEQ_PRIORITY_DEFAULT` is the reference client's own default for a
+ * `TORIRSSERVER_SEQ_PRIORITY_DEFAULT` is the reference client's own default for a
  * record that omits opcode 5, and it is also what an id past the end of the
  * table reports. That second case matters: a sequence named out of `seq.pack`
  * but absent from the cache would otherwise report 0 and lose every comparison,
  * which is a silent "this animation never plays" rather than an error.
  */
-#define MOCK230_SEQ_PRIORITY_DEFAULT 5
+#define TORIRSSERVER_SEQ_PRIORITY_DEFAULT 5
 
 static uint8_t* g_seq_priority;
 static int g_seq_priority_count;
 
 int
-mock230_seqinfo_load(const char* cache_dir)
+ToriRSServer_SeqInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -70,11 +70,11 @@ mock230_seqinfo_load(const char* cache_dir)
     int table;
     int loaded = 0;
 
-    mock230_seqinfo_free();
+    ToriRSServer_SeqInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -115,7 +115,7 @@ mock230_seqinfo_load(const char* cache_dir)
     }
     g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count);
     assert(g_seq_priority);
-    memset(g_seq_priority, MOCK230_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
+    memset(g_seq_priority, TORIRSSERVER_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
 
     g_seqs = (struct SeqName*)calloc((size_t)archive->file_count, sizeof(*g_seqs));
     assert(g_seqs);
@@ -127,9 +127,9 @@ mock230_seqinfo_load(const char* cache_dir)
 
         if( !seq )
             continue;
-        if( getenv("MOCK230_SEQ_DUMP") )
+        if( getenv("TORIRSSERVER_SEQ_DUMP") )
         {
-            int want = atoi(getenv("MOCK230_SEQ_DUMP"));
+            int want = atoi(getenv("TORIRSSERVER_SEQ_DUMP"));
             int id = archive->file_ids[i];
 
             if( want > 0 && id >= want && id <= want + 9 )
@@ -166,14 +166,14 @@ mock230_seqinfo_load(const char* cache_dir)
 
     /* OldSchool stopped writing debug names into sequence records, and rev 239
      * has none at all. That is not an error: pack/seq.pack names all 14,413 of
-     * them, and mock230_seq_by_name falls through to it. */
-    fprintf(stderr, "mock230: sequence debug names loaded (%d named%s, %d priorities)\n", loaded,
+     * them, and ToriRSServer_SeqByName falls through to it. */
+    fprintf(stderr, "torirsserver: sequence debug names loaded (%d named%s, %d priorities)\n", loaded,
             loaded ? "" : " — falling back to pack/seq.pack", g_seq_priority_count);
     return loaded;
 }
 
 void
-mock230_seqinfo_free(void)
+ToriRSServer_SeqInfoFree(void)
 {
     if( g_seqs )
     {
@@ -189,15 +189,15 @@ mock230_seqinfo_free(void)
 }
 
 int
-mock230_seq_priority(int seq_id)
+ToriRSServer_SeqPriority(int seq_id)
 {
     if( seq_id < 0 || seq_id >= g_seq_priority_count || !g_seq_priority )
-        return MOCK230_SEQ_PRIORITY_DEFAULT;
+        return TORIRSSERVER_SEQ_PRIORITY_DEFAULT;
     return g_seq_priority[seq_id];
 }
 
 int
-mock230_seq_priority_known(int seq_id)
+ToriRSServer_SeqPriorityKnown(int seq_id)
 {
     return seq_id >= 0 && seq_id < g_seq_priority_count && g_seq_priority != NULL;
 }
@@ -215,7 +215,7 @@ mock230_seq_priority_known(int seq_id)
  * without a content tree beside it.
  */
 int
-mock230_seq_by_name(const char* name)
+ToriRSServer_SeqByName(const char* name)
 {
     assert(name);
     for( int i = 0; i < g_seq_count; i++ )
@@ -223,5 +223,5 @@ mock230_seq_by_name(const char* name)
         if( strcmp(g_seqs[i].name, name) == 0 )
             return g_seqs[i].id;
     }
-    return mock230_content_symbol(MOCK230_PACK_SEQ, name);
+    return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SEQ, name);
 }

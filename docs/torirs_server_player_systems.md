@@ -15,17 +15,17 @@ Read [`osrs230_mockserver.md`](osrs230_mockserver.md) first for the protocol and
 the tick; this is only what sits on top.
 
 ```
-make -C src mock230-dev              # the server, on 43597
-make -C src test-mock230-dev         # game logic, no socket
+make -C src torirsserver-dev              # the server, on 43597
+make -C src test-torirsserver-dev         # game logic, no socket
 ./run-live.sh manifest_osrs230_dev.ini testc test
 ```
 
-`mock230-dev` builds `src/build/dev_mock230`, a second binary from the same
+`torirsserver-dev` builds `src/build/dev_torirsserver`, a second binary from the same
 sources listening on 43597 instead of 43595, with `manifest_osrs230_dev.ini`
 pointed at it. It exists so two sessions can run side by side. The name is
-`dev_mock230` and not `mock230_dev` on purpose: the usual way to stop a stray
-server is `pkill -f build/mock230`, and that pattern would take a
-`build/mock230_dev` down with it.
+`dev_torirsserver` and not `ToriRSServer_Dev` on purpose: the usual way to stop a stray
+server is `pkill -f build/torirsserver`, and that pattern would take a
+`build/ToriRSServer_Dev` down with it.
 
 New `::` commands, all for the headless harness (`TORIRS_NET_CHEAT=`):
 
@@ -61,7 +61,7 @@ clicking it runs the component's local CS2 hook, and nothing happens.
 So the login burst now arms what it owns:
 
 ```c
-mock230_equipment_arm_worn_tab(srv);   /* 387:1 op1 — "View equipment stats" */
+ToriRSServer_EquipmentArmWornTab(srv);   /* 387:1 op1 — "View equipment stats" */
 ```
 
 The prayer half of that arming is `[proc,prayer_login]` in content now: 29
@@ -236,7 +236,7 @@ null-object field when the authoritative destination slot is empty.
 
 ### 1.6 Server side
 
-- `mock230_equipment_worn_slot()` maps `387:15..25` to a wear slot, reading the
+- `ToriRSServer_EquipmentWornSlot()` maps `387:15..25` to a wear slot, reading the
   `worn_slots` **.enum** (`player/configs/worn.enum`) rather than a C table —
   the component's gameval name *is* the answer, `wornitems:slot7` being wear
   slot 7, which is also why the eleven are not a straight run. It is
@@ -292,7 +292,7 @@ client sends for the static worn tab.
 
 ### 2.1 The model
 
-Energy is kept in hundredths of a percent (`MOCK230_RUN_ENERGY_MAX = 10000`)
+Energy is kept in hundredths of a percent (`TORIRSSERVER_RUN_ENERGY_MAX = 10000`)
 because that is the unit OldSchool's drain formula is written in — one running
 step off an unencumbered player costs 67 of them, and a percent is not fine
 enough to hold the remainder. The wire and the orb carry the percent.
@@ -310,7 +310,7 @@ walking one.
 
 Weight comes out of the obj records themselves (config opcode 75, in grams), so
 there is no table: a cape weighs what OldSchool says a cape weighs.
-`mock230_objinfo` now carries `weight` beside the wearpos fields, from the same
+`ToriRSServer_ObjInfo` now carries `weight` beside the wearpos fields, from the same
 single decode pass.
 
 ### 2.2 Toggle, and why it is not a mirror of the packet flag
@@ -377,7 +377,7 @@ Two client-side gaps had to be closed for any of it to be visible:
 
 ### 2.4 Verified
 
-`make -C src test-mock230-dev` covers the drain arithmetic against the starting
+`make -C src test-torirsserver-dev` covers the drain arithmetic against the starting
 kit's real weight, the regen clamp at full, and that running out clears both the
 toggle and varp 173. The same selftest drives `IF_BUTTON1` against both
 `orbs:runbutton` and `settings_side:runmode` and asserts `run_toggle` follows.
@@ -486,10 +486,10 @@ right — not five in a column.
 eighteen component names, the labels, the "+0" convention, the column order and
 the tick-to-seconds conversion — every one of those being a wording or a layout
 decision. The engine's remaining share is three functions in
-`mock230_equipment.c`, none of which names a component: when to repaint, the way
+`torirs_server_equipment.c`, none of which names a component: when to repaint, the way
 in for the `::equipstats` cheat, and the wearability gate.
 
-That move deleted a second sum over the worn container. `mock230_equipment_bonus`
+That move deleted a second sum over the worn container. `ToriRSServer_EquipmentBonus`
 existed only for this screen, beside the one the fight already rolls against;
 `~equipment_refresh` now calls `~equip_get_bonuses` (skill_combat/combat_stats.rs2),
 so there is one, and the screen cannot disagree with the fight. The weapon speed
@@ -513,7 +513,7 @@ wire. Bank open paints the same numbers onto `bankmain:*` via the same hook.
   unlock data the mock has none of. OpenRune's own screen prints "TODO" for all
   three.
 - **Ranged strength now reads for real.** It is cache param 189, outside the
-  contiguous 0..11 bonus block `mock230_objinfo` projects into `bonus[]` — which
+  contiguous 0..11 bonus block `ToriRSServer_ObjInfo` projects into `bonus[]` — which
   is why it printed +0 while the screen summed that array. `oc_param` reads the
   general per-record param table and has no such limit, and
   `~equip_get_bonuses` was already summing `rangebonus` for the combat block, so
@@ -544,8 +544,8 @@ book counting from zero, and it is only a row key — nothing packs these into a
 mask any more.
 
 It was a bespoke `.prayer` grammar the engine parsed, which existed only because
-nothing could read a `.dbrow` yet (`mock230_db.h`); when that stopped being true
-the grammar, the parser and `mock230_prayer.{c,h}` all went. What is left in the
+nothing could read a `.dbrow` yet (`torirs_server_db.h`); when that stopped being true
+the grammar, the parser and `ToriRSServer_Prayer.{c,h}` all went. What is left in the
 engine is `db_find`/`db_getfield`, which know nothing about prayer.
 
 Levels and drain rates are OldSchool's, transcribed from xrsps's
@@ -572,7 +572,7 @@ block, so turning a protection prayer on is an appearance change like putting on
 a helmet, and everyone who can see the player learns about it through the
 `PLAYER_INFO` they were going to get anyway. `headicons_set` — the one opcode
 the engine offers here, and it knows nothing about prayer — sets
-`MOCK230_PMASK_APPEARANCE`, and that is the whole of the delivery.
+`TORIRSSERVER_PMASK_APPEARANCE`, and that is the whole of the delivery.
 
 The generic world state remains a bitmask because older protocol families can
 carry several bits. Rev239 does not put that mask on the wire: its authoritative
@@ -661,7 +661,7 @@ that component lights `%prayer_rockskin` rather than `%prayer_sharpeye`.
 
 ### 4.6 Verified
 
-`make -C src test-mock230-dev` covers the level gate, group replacement, the
+`make -C src test-torirsserver-dev` covers the level gate, group replacement, the
 drain arithmetic (12 units a tick against 60 = a point every fifth tick), and
 that running out clears both the prayers and the icon mask. In the client,
 `TORIRS_NET_CHEAT="pray 18"` draws the Protect from Melee icon above the
@@ -725,7 +725,7 @@ Everything else is `~prayer_toggle`'s: the level gate, the points gate, the
 exclusion groups, the drain accumulator and the overhead icon. `~quickprayer_activate`
 deactivates everything and then calls it once per selected bit.
 
-**Verified in the client** (headless, SDL dummy, against a live mock230):
+**Verified in the client** (headless, SDL dummy, against a live ToriRSServer):
 
 | what | how | result |
 |---|---|---|
@@ -989,7 +989,7 @@ show/hide the XP drop widget on login and on clicking the orb").
 1. Arms **op1|op2** (`^xpdrops_orb_events`).
 2. On op1, toggles `%xpdrops_enabled` and calls `~xpdrops_sync_mount`
    (`if_opensub` / `if_closesub` on `toplevel_osrs_stretch:xp_drops`, type 1).
-   That stretch spelling is a **role alias**: `mock230_remap_gameframe_slot_uid`
+   That stretch spelling is a **role alias**: `ToriRSServer_RemapGameframeSlotUid`
    rewrites any gameframe-top `:role` (not only `:mainmodal` / `:sidemodal` /
    `:floater`) onto the live top, so under Fixed the mount lands on
    `toplevel:xp_drops`. Nested panels like `orbs:xp_drops` are not rewritten.
@@ -998,7 +998,7 @@ show/hide the XP drop widget on login and on clicking the orb").
    `~xpdrops_sync_mount` also runs from `~orbs_login` and after
    `if_opentop` in `gameframe_apply_mode`.
 
-**Verified** (mock230 selftest, Fixed top 548): encoding
+**Verified** (ToriRSServer selftest, Fixed top 548): encoding
 `toplevel_osrs_stretch:xp_drops` remaps to `toplevel:xp_drops`; orb op1 under
 Fixed emits `IF_OPENSUB` into that live slot; `orbs:xp_drops` is left alone.
 
@@ -1014,10 +1014,10 @@ Fixed emits `IF_OPENSUB` into that live slot; `orbs:xp_drops` is left alone.
 | `src/app.c` | drag machine, click order, headicons fallback |
 | `src/net/net_out.c`, `src/net/rev/osrs230/packetout.h` | component uid at the revision's width |
 | `src/cs2vm2/cs2vm2.c`, `src/game/rs_cs2_host.c` | `RUNENERGY_VISIBLE` / `RUNWEIGHT_VISIBLE` |
-| `src/net/mock/mock230_equipment.{c,h}` | the stats screen |
+| `src/torirsserver/ToriRSServer_Equipment.{c,h}` | the stats screen |
 | `skill_prayer/` (content) | prayers: the dbtable, the toggle, the drain, `::pray` |
-| `src/net/mock/mock230_world.c` | run energy, worn-slot map, the `::` commands |
-| `src/net/mock/mock230_objinfo.c` | obj weight from the cache |
+| `src/torirsserver/torirs_server_world.c` | run energy, worn-slot map, the `::` commands |
+| `src/torirsserver/torirs_server_objinfo.c` | obj weight from the cache |
 | `src/game/rs_cs2_dispatch.{c,h}` | the dirty-flag table, `RS_CS2_TransmitsPending`, the pump — §5.3 |
 | `src/game/test/rs_cs2_transmit_pump_test.c` | `test-cs2-transmit-pump`, one flag at a time |
 | `src/game/rs_cs2_host.c` | stat-transmit hook registry, `RS_CS2Host_NotifyStatChanged` |

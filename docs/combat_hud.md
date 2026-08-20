@@ -89,7 +89,7 @@ with `>= 0`).
 ### 1b. …and the two ids were swapped
 
 Once the splat rendered, it rendered the *wrong* one: hits drew a block and
-misses drew damage. The mock's `MOCK230_HIT_DAMAGE 0` / `MOCK230_HIT_BLOCK 1`
+misses drew damage. The mock's `TORIRSSERVER_HIT_DAMAGE 0` / `TORIRSSERVER_HIT_BLOCK 1`
 predated being able to read the table, and are backwards — resolving each id to
 its sprite and measuring the sprite's dominant colour settles it:
 
@@ -191,11 +191,11 @@ implicit clear. `65535` on the wire is "face nothing".
 LostCity drives the latch every entity turn via `PathingEntity.setFaceEntity()`
 from the current pathing interaction target (and combat keeps that target alive
 with `p_opnpc` / `npc_setmode`). The client then turns toward that id every
-cycle. This server mirrors that with `mock230_player_set_face_entity` in the
+cycle. This server mirrors that with `ToriRSServer_PlayerSetFaceEntity` in the
 player phase **before** approach / `process_interaction`: prefer `combat_target`,
 else a pending npc/player interaction, else clear. That is what makes walk-to-
 attack face the npc during approach, not only after engage. NPCs clear idle
-latches with `mock230_npc_face_clear_if_idle` when neither combat nor a
+latches with `ToriRSServer_NpcFaceClearIfIdle` when neither combat nor a
 player-facing mode holds a target. Enter-view re-emits a latched `FACE_ENTITY`
 (LostCity info `lowdefinition`).
 
@@ -204,7 +204,7 @@ it. Every path that drops a target — the target dies, the player dies, the
 player walks away, or the player does something else — left the entity staring
 at where the fight used to be.
 
-**The clear fix (server).** `mock230_combat_stop_player` / `_stop_npc` do both
+**The clear fix (server).** `ToriRSServer_CombatStopPlayer` / `_stop_npc` do both
 halves together: drop `combat_target` *and* raise `FACE_ENTITY` with −1. Every
 drop site now goes through them, including the ones that are not about combat
 at all:
@@ -221,7 +221,7 @@ At rev 239 there is a third half: `p_opnpc(2)` re-arms the player's pathing
 interaction between swings. LostCity's `PathingEntity.clearInteraction()`
 clears the target and target op together; clearing only this mock's
 `combat_target` left that armed interaction able to acquire the same npc again.
-`mock230_combat_stop_player_at` now clears both atomically, including when an
+`ToriRSServer_CombatStopPlayerAt` now clears both atomically, including when an
 npc death walks every player rather than the current `active_player`. The combat
 selftest pins both death directions: npc target, player target, interaction and
 both face latches are empty immediately after the lethal hit.
@@ -246,7 +246,7 @@ classic face latch stores a server pool pid, but the gamepack's NPC
 `Face.Entity` block names a player by their PLAYER_INFO/GPI index. The local
 player in pool slot 0 is installed at GPI slot 1, so encoding 0 left the C
 client with no target to resolve and no yaw to calculate. The rev-239 adapter
-now passes player face targets through `mock230_wire_player_index`, the same
+now passes player face targets through `ToriRSServer_WirePlayerIndex`, the same
 mapping used by login and PLAYER_INFO.
 
 ---
@@ -288,14 +288,14 @@ client unpacks them with).
 
 **What was done.**
 
-- *Server*: a varbit table (`mock230_varbit.c`), decoded from the same config
+- *Server*: a varbit table (`torirs_server_varbit.c`), decoded from the same config
   group the client reads, with read/write that patches the bits inside the base
   varp and marks it for transmission — so a varbit is a *view* of a varp and
   goes through the same transmit gate and small/large encoder choice as any
-  other. `mock230_world_sync_combat_varbits` recomputes both from the equipped
+  other. `ToriRSServer_WorldSyncCombatVarbits` recomputes both from the equipped
   weapon and the player's stats, in phase 9, and writes only on change
   (derived state compares; authored state does not — see the varp section of
-  `mock230_content.md`).
+  `torirs_server_content.md`).
 - *Content*: `varbit.pack` names the two, `combat_tab.varp` declares their
   container varps `transmit=yes`, and the four `AttackTab` varps
   (`com_mode`, `option_nodef`, `sa_energy`, `sa_attack`) are written by
@@ -303,8 +303,8 @@ client unpacks them with).
 - *Client*: `ToriRS_Objtype` gained the `category` field, which the adaptor was
   dropping.
 
-**What is still missing, precisely.** `Mock230ObjInfo` needs the one line
-`entry->category = obj->category;` in `mock230_objinfo.c`'s `record()`. Without
+**What is still missing, precisely.** `ToriRSServerObjInfo` needs the one line
+`entry->category = obj->category;` in `torirs_server_objinfo.c`'s `record()`. Without
 it the equipped weapon always reports category 0 and the panel stays empty even
 with a scimitar on. I applied it three times during this work and each time it
 was overwritten by concurrent edits to that file, so it is called out here
@@ -317,8 +317,8 @@ varbit table, the sync, the transmit path, the packs — is in place and tested;
 ## Verifying
 
 ```
-make -C src && make -C src mock230
-./src/build/mock230 43595 &
+make -C src && make -C src ToriRSServer
+./src/build/torirsserver 43595 &
 
 # stats tab (sidebar icon 2)
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=900 TORIRS_EXIT_BMP=/tmp/stats.bmp \

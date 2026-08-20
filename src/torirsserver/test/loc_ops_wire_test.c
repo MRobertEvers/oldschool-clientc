@@ -39,8 +39,8 @@
 
 #include "rsareabuf.h"
 
-#include "../mock230_wire.h"
-#include "../mock230_zone.h"
+#include "../torirs_server_wire.h"
+#include "../torirs_server_zone.h"
 
 #include "packets/loc_add_change_v2.h"
 #include "rsprot_buffer.h"
@@ -101,10 +101,10 @@ struct Decoded
  * generated codec — the same pair a live server and client use. */
 static int
 roundtrip(
-    const struct Mock230ZoneEvent* event,
+    const struct ToriRSServerZoneEvent* event,
     struct Decoded* out)
 {
-    const struct Mock230Wire* wire = mock230_wire_by_name("osrs239");
+    const struct ToriRSServerWire* wire = ToriRSServer_WireByName("osrs239");
     struct RSAreaBuf buf;
     uint8_t bytes[512];
     Rsprot_MsgLocAddChangeV2_opsElem ops[256];
@@ -157,7 +157,7 @@ roundtrip(
 int
 main(void)
 {
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZoneEvent event;
     struct Decoded got;
 
     /* ---------------------------------------------------------------
@@ -166,12 +166,12 @@ main(void)
      * case a regression would break most widely.
      * --------------------------------------------------------------- */
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
+    event.kind = TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE;
     event.pos = (3 << 4) | 5;
     event.shape = 0; /* wall_straight */
     event.angle = 2; /* loc_east */
     event.id = 15056; /* farming_shed_poordoor — the Lumbridge Swamp hut door */
-    mock230_loc_ops_default(&event.ops);
+    ToriRSServer_LocOpsDefault(&event.ops);
 
     if( !roundtrip(&event, &got) )
     {
@@ -194,7 +194,7 @@ main(void)
      * row (invisible door) or leaves "Open" showing beside it.
      * --------------------------------------------------------------- */
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
+    event.kind = TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE;
     event.pos = (3 << 4) | 6;
     event.shape = 0;
     event.angle = 3;
@@ -226,7 +226,7 @@ main(void)
      * does not, because each label names its own index.
      * --------------------------------------------------------------- */
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
+    event.kind = TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE;
     event.pos = 0;
     event.shape = 9; /* wall_diagonal */
     event.angle = 1;

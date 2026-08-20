@@ -27,7 +27,7 @@ listener was dropped and the panel showed 0/100 over a rake that really was in
 it. **Persistence** had never had a caller, and when it got one it still did not
 work, because a loaded varp is not a *changed* varp and nothing sent it.
 And **`oc_desc`** was a declared opcode with no implementation because
-`mock230_objinfo` decoded the examine text and threw it away.
+`ToriRSServer_ObjInfo` decoded the examine text and threw it away.
 
 None of the four says anything at the point of failure. Three of them produce a
 panel that looks completely correct until you interact with it.
@@ -193,19 +193,19 @@ A cap reached quietly is a cap that gets diagnosed as a missing packet.
 
 ### 2.3 Persistence: two callers, and then a third thing
 
-`mock230_save_player` / `mock230_load_player` were written complete and had
+`ToriRSServer_SavePlayer` / `ToriRSServer_LoadPlayer` were written complete and had
 **no callers anywhere** — dead code since they landed, which is why
 `player/newplayer.rs2`'s `%newplayer_seeded` gate reads as a declaration of
 intent. Three changes made them real:
 
-1. **Load** at the top of `mock230_world_login`, before step 1. Everything below
+1. **Load** at the top of `ToriRSServer_WorldLogin`, before step 1. Everything below
    *sends* what the load changed, and `[login,_]` (phase 7, next tick) needs
    `%newplayer_seeded` already restored or a returning player is re-dealt the
    opening kit.
-2. **Save** at the top of `mock230_world_remove_player`, while the player is
+2. **Save** at the top of `ToriRSServer_WorldRemovePlayer`, while the player is
    still whole — the bank is freed and the slot released below it. Both hosts
    call it, so both get persistence from one call.
-3. `mock230_embed_stop` now **logs its clients out** instead of freeing their
+3. `ToriRSServer_EmbedStop` now **logs its clients out** instead of freeing their
    sessions where they stand. It never mattered while `remove_player` only
    released a slot the process was about to drop; it matters the moment the save
    lives there, because closing the embedded client — which is how anyone
@@ -221,8 +221,8 @@ directly — the same shape, and for the same reason, as the containers sent in
 full beside it. Non-zero is the right filter: the client starts every session
 with a zeroed varp table, so a zero is already agreed.
 
-Two side effects worth knowing about, both handled: `mock230 --selftest` and
-`mock230_embed_test` now read a save at login, so both point `MOCK230_SAVES` at
+Two side effects worth knowing about, both handled: `ToriRSServer --selftest` and
+`ToriRSServer_EmbedTest` now read a save at login, so both point `TORIRSSERVER_SAVES` at
 their own directory and wipe it — a run whose result depends on the previous
 run's file is not a test. And `save_dir()` needed `mkdir -p`: one `mkdir` was
 enough for the bare `saves` and silently failed for anything nested.
@@ -234,7 +234,7 @@ answer at all: `SS_OP_OC_DESC` (4204) was declared and uncovered, and the note
 beside the config-query batch said *"the obj record's examine text is read by
 nothing here"*. It was true, and it was a load-time drop rather than a decoder
 gap — `RSCache_Dat2ConfigObj.examine` (config opcode 3) has been decoded all
-along and `mock230_objinfo`'s `record()` simply did not copy it.
+along and `ToriRSServer_ObjInfo`'s `record()` simply did not copy it.
 
 Three lines to store it, one host case to push it, and a note record inherits
 the item's line the same way it already inherits its name (`[cert_rake]` is
@@ -260,7 +260,7 @@ All of it, except the four seams above. `server/scripts/interface_farming/`:
 Two things in there used to be transcriptions of cache data rather than reads
 of it, and both are marked as such: the twelve capacities (`enum_2193`) and the
 watering can's charge table (`enum_136`). **That limitation is retired** —
-`mock230_content.c` now loads `configs/all.enum` as rank-0 config (authored
+`torirs_server_content.c` now loads `configs/all.enum` as rank-0 config (authored
 `.enum` under `server/scripts` still wins on name), so
 `enum_getoutputcount(enum_2193)` is expressible. The constants remain until a
 follow-up rewrites those two tables to read the cache; the Character Summary /
@@ -293,10 +293,10 @@ one.
 Headless, embedded server, real clicks. BMPs read, not tree dumps.
 
 ```
-SDL_VIDEODRIVER=dummy MOCK230_SAVES=$S/saves \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=$S/saves \
 TORIRS_NET_CHEAT="farmkit" TORIRS_MAX_FRAMES=1200 \
 TORIRS_SIM_CLICK_AT="300,455,160,1;310,400,190;450,375,291;600,555,228" \
-TORIRS_EXIT_BMP=$S/all.bmp MOCK230_VERBOSE=1 \
+TORIRS_EXIT_BMP=$S/all.bmp TORIRSSERVER_VERBOSE=1 \
   ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 ```
 
@@ -323,8 +323,8 @@ Screenshots at `scratchpad/ui2/{open2,kit,store2,all,rm,relog3}.png`.
 
 ## 5. The permanent check
 
-`mock230 --selftest`, section **"the tool leprechaun's store"**
-(`mock230_world.c`). It walks the player to the leprechaun, sends a real
+`ToriRSServer --selftest`, section **"the tool leprechaun's store"**
+(`torirs_server_world.c`). It walks the player to the leprechaun, sends a real
 `OPNPC3`, and asserts:
 
 - **two** IF_OPENSUBs, `farming_tools` → `mainmodal` type 0 and

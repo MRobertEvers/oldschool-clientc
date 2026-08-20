@@ -482,8 +482,8 @@ add C only for a missing reusable VM/protocol capability.
 - assert no active `Soft-skip`, injected-click win, free shop item, direct
   puzzle solution write, missing production spawn, or falsely advertised
   unbound operation remains undisclosed;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

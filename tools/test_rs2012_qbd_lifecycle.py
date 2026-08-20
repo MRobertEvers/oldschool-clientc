@@ -20,7 +20,7 @@ CONSTANTS = QBD / "configs/rs2012_qbd.constant"
 MANIFEST = ROOT / "manifest_osrs239_rs2012.ini"
 LOGOUT = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
 DEATH = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
-WORLD = ROOT / "src/net/mock/mock230_world.c"
+WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
 
 
 def block(text: str, header: str) -> str:
@@ -166,7 +166,7 @@ def main() -> None:
     # rs2012_qbd_coffer_open mounts it immediately before transmitting ID 2000.
     world = WORLD.read_text(encoding="utf-8")
     for fragment in (
-        "mock230_bank_inv_size(qbd_reward_inv) == 10",
+        "ToriRSServer_BankInvSize(qbd_reward_inv) == 10",
         "contents_listeners == 1",
         "arrival_queues == 0 && close_armed == 1",
         "player->active_script == NULL",

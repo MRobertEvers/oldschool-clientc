@@ -372,11 +372,11 @@ Written by `cachepack import`, checked by a new `tools/port_scape2009_ids.py --c
 
 Unchanged from the existing path — **new archives need no JS5 wiring**.
 
-1. `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals` (`src/makefile:1677`, target `make -C src mock230-cache`).
+1. `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals` (`src/makefile:1677`, target `make -C src torirsserver-cache`).
    - `--base` copies the pristine cache first. **Mandatory** — `EXCEPTIONS.md` B4: `RSCache_Dat2DiskWriteArchive` appends and re-points, orphaning old sectors, so repacking in place grows forever. The recipe already `rm -rf`s the output.
    - For a new archive id, `cp_reference_sync` (`cp_binary.c:375-470`) grows **both** the reference table's `archives` array (indexed by archive id, gaps at `index == -1`) and its ascending `ids` list; `cp_reference_set_name` names it (`cp_assets.c:1350`).
    - CRC gotcha, `EXCEPTIONS.md` H4: the reference-table CRC covers the container **minus** the u16 version trailer. Get it wrong and the client rejects the archive. This is already right; don't re-derive it.
-2. `mock230-cache-check` asserts all 23 idx tables landed.
+2. `torirsserver-cache-check` asserts all 23 idx tables landed.
 3. **Point both the world and JS5 at the bake.** `js5_server --cache cache.osrs239.baked` and `[cache:boot] dir=cache.osrs239.baked`. This is the one-cache rule; `manifest_osrs239.ini` boots pristine `cache.osrs239` and will not see a single ported record — which is, usefully, the flag-off client for free.
 4. The client's metadata-prime barrier (`docs/JS5_INCREMENTAL_CACHE.md`, "Boot contract") validates `255/255` and every reference table **before `App_Init`**, then fills the sparse local cache on demand. A new archive is served like any other.
 5. Verify with `tools/js5_cache_verify.py` and `tools/js5_probe.py`.
@@ -437,14 +437,14 @@ Per the `npc-anims-from-rig-catalog` memory note, the rig-share gate is the reli
 ### T4 — In-client, headless, permanent (the PORTING_GUIDE §4.3 bar)
 
 ```sh
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
   TORIRS_SIM_CLICK_AT=… TORIRS_EXIT_BMP=build/verify/familiar.bmp \
   src/build/torirs --manifest manifest_osrs239_summoning.ini
 ```
 
 Plus `audioprobe --sweep cache.osrs239.baked osrs239` → 0 failures, and a `::debugproc` per slice.
 
-**Leave the check permanent** — a `mock230_pack` rule, a `make -C src test-*` target, or a selftest stanza. "It compiles" is not done (`PORTING_GUIDE.md:633-640`).
+**Leave the check permanent** — a `ToriRSServer_Pack` rule, a `make -C src test-*` target, or a selftest stanza. "It compiles" is not done (`PORTING_GUIDE.md:633-640`).
 
 ⚠️ `test_cachepack_fidelity.sh` **skips loudly when no cache is present, and a skip reads as a pass** (the `pristine-baseline-skips` trap). Any CI claim about a summoning bake must assert the suite actually ran.
 
@@ -580,17 +580,17 @@ Client headroom is exact: `src/game/rs_player_stats.h:11` `#define RS_PLAYER_STA
 
 | # | Layer | File | Edit |
 |---|---|---|---|
-| 1 | server C | `src/net/mock/mock230.h:558` | `MOCK230_STAT_COUNT = 23` → `25`. 40 call sites, all `< MOCK230_STAT_COUNT` bounds or `[MOCK230_STAT_COUNT]` arrays (measured). `stat_dirty` is `uint32_t` — 25 fits. `mock230_save.c:202/491` is id-keyed ini, so saves stay forward/backward compatible. |
+| 1 | server C | `src/torirsserver/torirs_server.h:558` | `TORIRSSERVER_STAT_COUNT = 23` → `25`. 40 call sites, all `< TORIRSSERVER_STAT_COUNT` bounds or `[TORIRSSERVER_STAT_COUNT]` arrays (measured). `stat_dirty` is `uint32_t` — 25 fits. `torirs_server_save.c:202/491` is id-keyed ini, so saves stay forward/backward compatible. |
 | 2 | skill-name pack | `OSRS-Content/osrs239-content/pack/stat.pack` | append `23=sailing` **and** `24=summoning`. The file stops at `22=construction` today, so it already disagrees with the cache; adding 23 is a correctness fix with no behaviour (nothing awards Sailing xp). Namespace is `ids = protocol, names = authored`, not swept by `ss_allocate.py` — a hand edit is the sanctioned path. |
 | 3 | ServerScript stat commands | none | `ssc_compile.c:755-771` gives `STAT*`/`NPC_STAT*` opcodes `base_hint = SSC_SYM_STAT`, so `stat_base(summoning)`, `stat_advance(summoning, …)`, `stat(summoning)` resolve **the moment #2 lands**. No compiler change. |
-| 4 | xp table | none | `mock230_combat.c:400-441` `g_xp_table[99]` is per-level, skill-agnostic. `rs_player_stats.c:19-24` likewise. |
+| 4 | xp table | none | `torirs_server_combat.c:400-441` `g_xp_table[99]` is per-level, skill-agnostic. `rs_player_stats.c:19-24` likewise. |
 | 5 | total level | see §1 | three implementations, two auto-extend, one is deliberately frozen |
 | 6 | combat level | **none — verified safe by construction** | see §1 |
-| 7 | validator | `src/net/mock/mock230_pack.c:336` | already `< MOCK230_STAT_COUNT`; widens with #1. Lets an obj carry `require=summoning,N`. |
+| 7 | validator | `src/torirsserver/torirs_server_pack.c:336` | already `< TORIRSSERVER_STAT_COUNT`; widens with #1. Lets an obj carry `require=summoning,N`. |
 
 ### Name-collision guard (`[advancestat,summoning]`)
 
-`ssc_compile.c:2286-2296` resolves a trigger subject with `SSC_SYM_UNKNOWN` — any namespace, first match wins. Measured: **`summoning` and `sailing` are free in every `pack/*.pack` and every `configs/all.*.compack` today.** The Summoning content port will add ~80 objs and ~120 npcs; **no ported record may be named exactly `summoning`** (use `summoning_pouch`, `summoning_obelisk`, `spirit_wolf`, …). Add this as a `mock230_pack --check-only` rule: *every name in `pack/stat.pack` must be unique across all namespaces.* That is a two-line check and it converts a silent mis-resolution into a load error.
+`ssc_compile.c:2286-2296` resolves a trigger subject with `SSC_SYM_UNKNOWN` — any namespace, first match wins. Measured: **`summoning` and `sailing` are free in every `pack/*.pack` and every `configs/all.*.compack` today.** The Summoning content port will add ~80 objs and ~120 npcs; **no ported record may be named exactly `summoning`** (use `summoning_pouch`, `summoning_obelisk`, `spirit_wolf`, …). Add this as a `ToriRSServer_Pack --check-only` rule: *every name in `pack/stat.pack` must be unique across all namespaces.* That is a two-line check and it converts a silent mis-resolution into a load error.
 
 ---
 
@@ -599,7 +599,7 @@ Client headroom is exact: `src/game/rs_player_stats.h:11` `#define RS_PLAYER_STA
 **Combat level must not move, and it cannot.** All three implementations name stats explicitly — none loops:
 
 - `src/game/rs_player_stats.c:76-89` — `RS_SKILL_{DEFENCE,HITPOINTS,PRAYER,ATTACK,STRENGTH,RANGED,MAGIC}` only.
-- `src/net/mock/mock230_combat.c:913-925` — `MOCK230_STAT_{DEFENCE,HITPOINTS,PRAYER,ATTACK,STRENGTH}` only.
+- `src/torirsserver/torirs_server_combat.c:913-925` — `TORIRSSERVER_STAT_{DEFENCE,HITPOINTS,PRAYER,ATTACK,STRENGTH}` only.
 - `server/scripts/player/scripts/combat_level.rs2:5-11` — `stat_base(defence|hitpoints|prayer|attack|strength|ranged|magic)` only.
 
 **No change, and no risk.** Add a regression assertion anyway (§7).
@@ -618,8 +618,8 @@ Client headroom is exact: `src/game/rs_player_stats.h:11` `#define RS_PLAYER_STA
 
 - osrs239: `src/net/rev/osrs239/osrs239_parse.c:755-763` — `g1 invisibleBoostedLevel, g1 level, g1_add128 stat, g4_3412 xp`.
 - osrs230: `src/net/rev/osrs230/osrs230_parse.c:380-400` — `g1 stat, g1 base, g4 xp, g1 boosted`.
-- Encoder: `mock230_encode.c:1572-1600` `mock230_send_stat` → `pl->update_stat` (rev-dispatched) or the 7-byte fallback.
-- Transmit loop: `mock230_world.c:8925-8935`, `for stat < MOCK230_STAT_COUNT` + `stat_dirty` bit.
+- Encoder: `torirs_server_encode.c:1572-1600` `ToriRSServer_SendStat` → `pl->update_stat` (rev-dispatched) or the 7-byte fallback.
+- Transmit loop: `torirs_server_world.c:8925-8935`, `for stat < TORIRSSERVER_STAT_COUNT` + `stat_dirty` bit.
 
 The only bound in the whole path is a **stale comment**: `src/net/rev/revpacket.h:116` `int stat; /* g1: 0-22 */`. Fix the comment.
 
@@ -633,12 +633,12 @@ The only bound in the whole path is a **stale comment**: `src/net/rev/revpacket.
 **Therefore the server-side rule is: never transmit stat 24 unless the flag is on.** Concretely, gate it at the single transmit site rather than at every writer:
 
 ```c
-/* mock230_world.c, phase_client_out stat loop */
-for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+/* torirs_server_world.c, phase_client_out stat loop */
+for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
 {
     if( (player->stat_dirty & (1u << stat)) == 0 )
         continue;
-    if( stat == MOCK230_STAT_SUMMONING && !srv->feature_summoning )
+    if( stat == TORIRSSERVER_STAT_SUMMONING && !srv->feature_summoning )
         continue;                      /* a client without the record cannot draw it */
     ...
 }
@@ -802,7 +802,7 @@ CACHEPACK_CS2_NAMES=~/Documents/git_repos/cs2/src/main/resources/org/runestar/cs
     --src OSRS-Content/osrs239-content --assets=scripts
 #    ⚠ this also rewrites script_73.cs2 / script_7304.cs2, which carry hand-authored
 #      comments guarded by tools/check_crystal_set_contract.py (a hard prerequisite
-#      of mock230-cache). Re-apply those two comments, or unpack selectively.
+#      of torirsserver-cache). Re-apply those two comments, or unpack selectively.
 
 # 1. edit, keeping the `// <id>` header line
 
@@ -813,7 +813,7 @@ mkdir -p /tmp/cs2src && cp <edited>.cs2 /tmp/cs2src/
 #    require: "compiled N, failed 0"
 
 # 3. bake
-make -C src mock230-cache          # cachepack pack --base cache.osrs239 \
+make -C src torirsserver-cache          # cachepack pack --base cache.osrs239 \
                                    #   --out cache.osrs239.baked --assets --binary --gamevals
 
 # 4. run
@@ -1044,14 +1044,14 @@ The gate varbit is then `content_restrict_summoning_serverside`: `basevar=conten
 ### 5.3 What does *not* need to change
 
 - `pack/varp.alloc` — the gate rides an existing cache varp; no new varp.
-- `MOCK230_VARP_COUNT` (6217, already exceeded by `varp.alloc` at 6225) — untouched here, but flag it separately; it is a live silent-drop bug.
-- `src/features/features.h` — this is the **client-era** table (`ToriRS_FeatureTable`, resolved from cache lineage by `ToriRS_Features_ForCache`, which discards `revision`). Summoning is not an era divergence. **Do not add a field here.** Adding one would make `ForCache` a liar and would still not reach the server, which builds its own copy in `mock230_boot.c:98` and only honours `MOCK230_GROUND_CLICK_NEAREST`.
+- `TORIRSSERVER_VARP_COUNT` (6217, already exceeded by `varp.alloc` at 6225) — untouched here, but flag it separately; it is a live silent-drop bug.
+- `src/features/features.h` — this is the **client-era** table (`ToriRS_FeatureTable`, resolved from cache lineage by `ToriRS_Features_ForCache`, which discards `revision`). Summoning is not an era divergence. **Do not add a field here.** Adding one would make `ForCache` a liar and would still not reach the server, which builds its own copy in `torirs_server_boot.c:98` and only honours `TORIRSSERVER_GROUND_CLICK_NEAREST`.
 
 ### 5.4 The flag, in three layers
 
 | layer | mechanism | what it gates | cost |
 |---|---|---|---|
-| **1. bake** (primary) | which cache is baked / booted. `manifest_osrs239.ini` → pristine `cache.osrs239` = flag-off client, for free. `make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239.summoning` + `manifest_osrs239_summoning.ini` = flag-on. | every client-visible record: the 25th cell, the enums, the guide rows, the orb, the sprites | zero new mechanism |
+| **1. bake** (primary) | which cache is baked / booted. `manifest_osrs239.ini` → pristine `cache.osrs239` = flag-off client, for free. `make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239.summoning` + `manifest_osrs239_summoning.ini` = flag-on. | every client-visible record: the 25th cell, the enums, the guide rows, the orb, the sprites | zero new mechanism |
 | **2. server** | `^summoning_enabled` in `ported_scape2009_summoning/configs/summoning.constant`, tested at the top of every ported entry point; plus the one C branch in §2 gating the stat-24 transmit | all server behaviour, and third-party-client safety | one constant + one `if` |
 | **3. in-cache soft gate** (polish) | `script_8950` `case 24` → `content_restrict_summoning_serverside` on varp 4940 bit 1 | lets **one** baked cache ship both states: cell greys out, Total level excludes it, guide still opens | needs §5.2 |
 
@@ -1098,9 +1098,9 @@ if (%summoning_enabled = 0) { return; }
 @levelup;                      // the shared label in levelup/scripts/levelup.rs2
 ```
 
-`mock230_combat_add_xp` (`mock230_combat.c:469-508`) fires `SS_TRIGGER_ADVANCESTAT` with the stat as subject on any base-level change; the shared `[label,levelup]` does `mes("You feel yourself getting stronger."); ~summary_combat_level_push;`.
+`ToriRSServer_CombatAddXp` (`torirs_server_combat.c:469-508`) fires `SS_TRIGGER_ADVANCESTAT` with the stat as subject on any base-level change; the shared `[label,levelup]` does `mes("You feel yourself getting stronger."); ~summary_combat_level_push;`.
 
-**Be explicit that the level-up card is a pre-existing gap, not a Summoning bug.** Measured: `interfaces/levelup_display` (interface 233) exists with per-skill children (`57=sailing`, `58=com_58`), and **no clientscript and no `.rs2` in the tree references `interface_233`.** No skill gets a level-up card today. `SS_OP_MIDI_JINGLE 2064` likewise has a name in `mock230_wire.c:1282` and no handler. Add `59=summoning` + a `[summoning]` block to `levelup_display.{if,compack}` for parity (2-line diff, mirrors `[sailing]`: `type=0 width=479 height=96 layer=15269888 hidden=yes`), and record the gap in the queue rather than trying to close it inside this slice.
+**Be explicit that the level-up card is a pre-existing gap, not a Summoning bug.** Measured: `interfaces/levelup_display` (interface 233) exists with per-skill children (`57=sailing`, `58=com_58`), and **no clientscript and no `.rs2` in the tree references `interface_233`.** No skill gets a level-up card today. `SS_OP_MIDI_JINGLE 2064` likewise has a name in `torirs_server_wire.c:1282` and no handler. Add `59=summoning` + a `[summoning]` block to `levelup_display.{if,compack}` for parity (2-line diff, mirrors `[sailing]`: `type=0 width=479 height=96 layer=15269888 hidden=yes`), and record the gap in the queue rather than trying to close it inside this slice.
 
 ---
 
@@ -1190,36 +1190,36 @@ Any spike that fails changes the design, not the schedule.
 ### Unit / build gates
 ```sh
 make -C src test-content        # test-content-register, test-servercodec, test-ss-symbols,
-                                # mock230-scripts, mock230-servpack, test-membership,
-                                # mock230-pack, test-server-clean, test-port
-make -C src test-mock230        # ./src/build/mock230 --selftest
-make -C src test-mock230-coverage
+                                # torirsserver-scripts, torirsserver-servpack, test-membership,
+                                # torirsserver-pack, test-server-clean, test-port
+make -C src test-ToriRSServer        # ./src/build/torirsserver --selftest
+make -C src test-torirsserver-coverage
 make -C 3rd/rscache test
-src/build/mock230_pack --check-only     # must be 0 errors
+src/build/ToriRSServer_Pack --check-only     # must be 0 errors
 ```
 
 New assertions to add (each must be proved able to fail by mutating the impl — the `verify-blocker` rule):
 
 | assertion | where |
 |---|---|
-| `MOCK230_STAT_COUNT == 25` and `stat.pack` names exactly ids 0..24 with no gap | `mock230_pack` validator |
-| every `pack/stat.pack` name is unique across **all** namespaces (`summoning`, `sailing`) | `mock230_pack` validator — this is the `[advancestat]` mis-resolution guard |
-| `mock230_combat_level()` is invariant under `stat_level[24] = 1..99` | `mock230_world.c` selftest |
+| `TORIRSSERVER_STAT_COUNT == 25` and `stat.pack` names exactly ids 0..24 with no gap | `ToriRSServer_Pack` validator |
+| every `pack/stat.pack` name is unique across **all** namespaces (`summoning`, `sailing`) | `ToriRSServer_Pack` validator — this is the `[advancestat]` mis-resolution guard |
+| `ToriRSServer_CombatLevel()` is invariant under `stat_level[24] = 1..99` | `torirs_server_world.c` selftest |
 | `~player_combat_level` is invariant under `stat_advance(summoning, 13034431)` | a `::debugproc` in the ported lane |
-| `enum_681` keys are contiguous 1..N in the baked cache | `mock230_pack` or a `test-port` check |
+| `enum_681` keys are contiguous 1..N in the baked cache | `ToriRSServer_Pack` or a `test-port` check |
 | every `skill_features` / `skill_guide_subsections` row is present in `dbindex_213`/`212` | `tools/gen_dbindex.py --check`, wired into `test-port` |
 | CS2 compile gate: every edited `.cs2` compiles standalone | a `make -C src test-cs2-edited` target running `cs2 compile` over the edited ids, requiring `failed 0` |
-| stat 24 is not transmitted when `feature_summoning == 0` | `test-mock230-embed` — flip the flag, award xp, assert no `UPDATE_STAT` with `stat=24` on the wire |
-| saves round-trip: a 24-stat save loads on a 23-stat build and vice versa | `mock230_save` selftest |
+| stat 24 is not transmitted when `feature_summoning == 0` | `test-torirsserver-embed` — flip the flag, award xp, assert no `UPDATE_STAT` with `stat=24` on the wire |
+| saves round-trip: a 24-stat save loads on a 23-stat build and vice versa | `ToriRSServer_Save` selftest |
 
 ### Headless screenshot assertions
 
 ```sh
-SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 MOCK230_SAVES=$SCRATCH/saves \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 TORIRSSERVER_SAVES=$SCRATCH/saves \
 TORIRS_SIM_HOOK=... TORIRS_EXIT_BMP=build/summ_tab.bmp \
   src/build/torirs --manifest manifest_osrs239_summoning.ini --user testc --pass test
 ```
-(use a scratch `MOCK230_SAVES` — headless runs are not independent)
+(use a scratch `TORIRSSERVER_SAVES` — headless runs are not independent)
 
 | # | scenario | assertion |
 |---|---|---|
@@ -1231,7 +1231,7 @@ TORIRS_SIM_HOOK=... TORIRS_EXIT_BMP=build/summ_tab.bmp \
 | S6 | click the "Familiars" tab in the guide | ≥1 row renders; row text matches the authored dbrow; `%varcint1173 = 1` |
 | S7 | award Summoning xp | an XP droplet appears with the Summoning icon; the counter panel lists Summoning |
 | S8 | boot with the orb | a 5th 57×34 orb at (54,158); its number equals `stat(24)`; `orb_store`/`orb_contentrecom` hidden |
-| S9 | click the orb's special-move button | server sees `[if_button,orbs:summoningbutton]` (assert via `MOCK230_ECHO_MES`) |
+| S9 | click the orb's special-move button | server sees `[if_button,orbs:summoningbutton]` (assert via `TORIRSSERVER_ECHO_MES`) |
 | S10 | **flag-off client, flag-on server** | award Summoning xp; assert the client logs nothing, does not crash, and `RS_PlayerStats` slot 24 stays 0 (the transmit gate held) |
 
 Triage order when a panel is blank, in this order: `TORIRS_DUMP_TREE_EXIT=1` → `TORIRS_DUMP_BOUNDS=320` → `TORIRS_DUMP_SETSIZE` → `TORIRS_CS2_TRACE=1`.
@@ -1271,7 +1271,7 @@ Add a `docs/SUMMONING_PORT.md` topic doc and a `port/summoning_530.map` ledger u
 | # | slice | gate |
 |---|---|---|
 | 0 | doc amendments (§9) + Spike 0 (§7) | spikes pass |
-| 1 | `MOCK230_STAT_COUNT = 25`; `stat.pack` `23=sailing`, `24=summoning`; transmit gate; uniqueness validator; `revpacket.h:116` comment | `test-content`, `test-mock230`, save round-trip |
+| 1 | `TORIRSSERVER_STAT_COUNT = 25`; `stat.pack` `23=sailing`, `24=summoning`; transmit gate; uniqueness validator; `revpacket.h:116` comment | `test-content`, `test-ToriRSServer`, save round-trip |
 | 2 | `tools/gen_dbindex.py` + byte-identical regeneration of all 294 | `git diff` empty |
 | 3 | sprites 20000-20003 + `pack/8_sprites.pack` | archive 20000 in the bake |
 | 4 | enum overlays in the ported lane (`681, 108, 680, 255, 5917, 1497, 1505`) | S2 unchanged, `enum_681` has 25 contiguous keys |
@@ -1295,7 +1295,7 @@ Slices 1-5 give a Summoning skill you can `::setlevel` and see in the tab. That 
 5. **The `cachepack unpack --assets=scripts` refresh will clobber `script_73.cs2` / `script_7304.cs2`** and trip `check_crystal_set_contract.py`. Unpack selectively or re-apply the two comments.
 6. **A real Jagex/RuneLite 239 client will fault on stat 24.** The transmit gate in §2 is a correctness requirement, not a convenience.
 7. **The 190×261 sidebar slot is hard.** If the pitch-26 grid reads badly, fallback 2 (a dedicated clientscript for the Summoning cell only) is the escape hatch; do not try to grow `[universe]`.
-8. **`MOCK230_VARP_COUNT = 6217` is already exceeded by `pack/varp.alloc` (6225)** and over-range writes are silently dropped. Not caused by this work, but the Summoning port will allocate varps into that region — fix it before slice 10.
+8. **`TORIRSSERVER_VARP_COUNT = 6217` is already exceeded by `pack/varp.alloc` (6225)** and over-range writes are silently dropped. Not caused by this work, but the Summoning port will allocate varps into that region — fix it before slice 10.
 9. **Everything above is the *skill*.** The familiars, pouches, scrolls, obelisks, the familiar sidebar tab (161 has `side0..side13` and **no spare slot**), and the rev-530 → osrs239 asset transcode are separate design questions with their own, larger, risks — notably that no `rs530` cache profile exists and `cachepack` cannot unpack RS2 sharded configs at all.
 
 ===== DESIGN: design-server-content =====
@@ -1314,16 +1314,16 @@ I re-measured the load-bearing claims from recon before designing. **Five recon 
 | `enum_681` key 24 → **stat 23 = Sailing** | `configs/all.enum` `[enum_681] val=24,23` | **Summoning is stat 24, not 23.** 2009scape's `SUMMONING = 23` is a direct collision. |
 | `pack/stat.pack` ends at `22=construction` | verified, 23 lines | `23=sailing` is *missing* and must land **first**, or key 24 lands on a nameless hole. |
 | `RS_PLAYER_STATS_SKILL_COUNT 25` | `src/game/rs_player_stats.h:11` | Client already addresses stat 24. Stat 24 is the **last** slot — no headroom after. |
-| `MOCK230_STAT_COUNT = 23` | `src/net/mock/mock230.h:558` | → 25. `stat_dirty` is `uint32_t`; 25 bits fits. |
+| `TORIRSSERVER_STAT_COUNT = 23` | `src/torirsserver/torirs_server.h:558` | → 25. `stat_dirty` is `uint32_t`; 25 bits fits. |
 | **CORRECTED:** NPC_INFO v5 has a 16-bit per-client index, then a 14-bit initial definition | rev239 writer/reader regression: index 321 + high definition 20000 | `content_register.c:63`'s `server_base = 20000` is valid. Type 20000 uses the same-packet extended/update + mask-`0x1` transformed-16-bit replacement. No roster tiering or id budget follows from the direct initial-field width. |
 | `script_8950` `case 23 → ~script8951(1) → ~script607 → %varbit18166`, and varbit 18166 is named **`content_restrict_sailing_serverside`** | `scripts/script_8950.cs2`, `configs/all.varbit.compack:16780` | **The feature flag already exists as a shipped, cache-native, per-skill, server-driven pattern.** Recon said "no content feature-flag mechanism exists" — wrong. Consumed by `script_393` (lock overlay) and `script_1007`/`1008`/`1320` (total level / total xp / F2P level), all as `if (~script8950($stat) = 0)`. |
 
 **Four corrections to recon** beyond those:
 
-1. **varp headroom is fine.** `MOCK230_VARP_SERVER_HEADROOM = 1024` (not 512), ceiling 6729, high-water `6225=bank_wornview`. ~500 free varps. Recon's "already past the ceiling" is stale.
+1. **varp headroom is fine.** `TORIRSSERVER_VARP_SERVER_HEADROOM = 1024` (not 512), ceiling 6729, high-water `6225=bank_wornview`. ~500 free varps. Recon's "already past the ceiling" is stale.
 2. **`[namespace:varbit] ids = cache`** (`content.ini`) — varbits **cannot be allocated** today. This is the real blocker for the feature flag, not the absence of a mechanism.
-3. **The BoB inv is cheaper than recon claims.** `mock230_bank.c:127 load_inv_sizes` reads inv sizes *from the cache disk*, not from a content walker. Baking the inv record into `cache.osrs239.baked` is sufficient for the server — **no `.inv` walker in `mock230_content.c` is needed.** `content_register.c:69` already gives inv `server_base = 2000` (cache max 1025).
-4. **No natural boosted-level restore tick exists in mock230** (`grep stat_boosted` — only explicit `stat_heal`/`stat_boost`/HP sync). So summoning points naturally *don't* regenerate, which is the correct behaviour, for free. Leave a comment so a future restore tick excludes stat 24 alongside prayer.
+3. **The BoB inv is cheaper than recon claims.** `torirs_server_bank.c:127 load_inv_sizes` reads inv sizes *from the cache disk*, not from a content walker. Baking the inv record into `cache.osrs239.baked` is sufficient for the server — **no `.inv` walker in `torirs_server_content.c` is needed.** `content_register.c:69` already gives inv `server_base = 2000` (cache max 1025).
+4. **No natural boosted-level restore tick exists in ToriRSServer** (`grep stat_boosted` — only explicit `stat_heal`/`stat_boost`/HP sync). So summoning points naturally *don't* regenerate, which is the correct behaviour, for free. Leave a comment so a future restore tick excludes stat 24 alongside prayer.
 
 ### Decisions
 
@@ -1336,7 +1336,7 @@ I re-measured the load-bearing claims from recon before designing. **Five recon 
 
 ## 1. The literal content tree
 
-Provenance is marked three ways, because a directory name is invisible to `sscompile`, `cachepack` and `mock230` (all three walk recursively and only skip a leading `.`): (a) the folder name, (b) a `PROVENANCE.md`, (c) the mandatory `// Policy: 2009scape <Class>.java` header on every `.rs2` — the existing house convention (295 files already carry a `2009scape` header).
+Provenance is marked three ways, because a directory name is invisible to `sscompile`, `cachepack` and `ToriRSServer` (all three walk recursively and only skip a leading `.`): (a) the folder name, (b) a `PROVENANCE.md`, (c) the mandatory `// Policy: 2009scape <Class>.java` header on every `.rs2` — the existing house convention (295 files already carry a `2009scape` header).
 
 ```
 OSRS-Content/osrs239-content/
@@ -1440,7 +1440,7 @@ Recon proposed inventing a flag. Don't: the cache ships one.
 ^summoning_enabled = 1
 ```
 
-read by `[proc,summoning_enabled]` and asserted at the top of every entry point. Flipping it is `make -C src mock230-scripts` — no C, no env var, no namespace. This satisfies PORTING_GUIDE §2.4 items 2–3 (no game-facing constant in C).
+read by `[proc,summoning_enabled]` and asserted at the top of every entry point. Flipping it is `make -C src torirsserver-scripts` — no C, no env var, no namespace. This satisfies PORTING_GUIDE §2.4 items 2–3 (no game-facing constant in C).
 
 **Layer 3 — the client tab/totals.** The `[login]` script writes the shipped gate varbit:
 
@@ -1479,7 +1479,7 @@ Two slices, in this order.
 | file | edit |
 |---|---|
 | `pack/stat.pack` | `24=summoning` |
-| `src/net/mock/mock230.h:558` | `MOCK230_STAT_COUNT = 23` → `25`. Widens `stat_level/boosted/xp_tenths[]` and npc `stat_drain[]`. `stat_dirty` is `uint32_t` — 25 bits fits. |
+| `src/torirsserver/torirs_server.h:558` | `TORIRSSERVER_STAT_COUNT = 23` → `25`. Widens `stat_level/boosted/xp_tenths[]` and npc `stat_drain[]`. `stat_dirty` is `uint32_t` — 25 bits fits. |
 | `configs/all.enum` | `[enum_681] val=25,24` · `[enum_108] valstr=25,Summoning` · `[enum_680] valstr=24,Summoning` · `[enum_255] val=24,<sprite>` · `[enum_5917] val=24,<silhouette>` · `[enum_1497] val=24,1` |
 | `interfaces/stats.{if,compack}` | 25th cell + `[universe]` / `[total]` geometry (see §Risks R4) |
 | `server/scripts/levelup/scripts/levelup.rs2` | `[advancestat,summoning]` → `[label,levelup]` |
@@ -1489,13 +1489,13 @@ Three hazards, all measured:
 
 - **`enum_681` must have no key gap.** `script_1007`/`1008`/`1320` walk from key 1 until `null`. Adding key 26 without 25 silently truncates total level for every skill after the hole.
 - **`[advancestat,summoning]` resolves unhinted.** `ssc_compile.c:2286` resolves trigger subjects with `SSC_SYM_UNKNOWN`. It is safe *today* (no `summoning` symbol exists in any pack) and becomes a silent mis-resolution the moment a summoning obj/npc/loc is named exactly `summoning`. **Rule for this port: never name any record bare `summoning`.** Prefix everything (`summoning_pouch_*`, `summoning_obelisk`).
-- **Save compatibility.** `mock230_save.c:491` rejects `stat >= MOCK230_STAT_COUNT` on load, and `:207` skips untouched stats on write. Widening 23→25 is forward-compatible; narrowing back is not. Assert this in `mock230_save`'s selftest.
+- **Save compatibility.** `torirs_server_save.c:491` rejects `stat >= TORIRSSERVER_STAT_COUNT` on load, and `:207` skips untouched stats on write. Widening 23→25 is forward-compatible; narrowing back is not. Assert this in `ToriRSServer_Save`'s selftest.
 
 ---
 
 ## 4. Data model — where each number lives
 
-**Server-side truth: one dbtable.** Server dbtables are read from text by `mock230_db_load`, so there is **no `dbindex/*.dbi` hand-editing** (that is only for cache-side, CS2-read tables). This kills the recon's "single most fragile step".
+**Server-side truth: one dbtable.** Server dbtables are read from text by `ToriRSServer_DbLoad`, so there is **no `dbindex/*.dbi` hand-editing** (that is only for cache-side, CS2-read tables). This kills the recon's "single most fragile step".
 
 ```
 // summoning_pouch.dbtable
@@ -1514,7 +1514,7 @@ column5=point_cost,int     column11=combat,boolean      ← explicit, see below
 
 **Client-visible data: obj params**, not a new enum. `param` already has membership (`pack/param.client`, 44 live entries) and an allocator sweep in `ss_allocate.py`. Put `summoning_level`, `summoning_familiar`, `summoning_point_cost` on each pouch obj; the infuse-list CS2 reads them with `oc_param`. This reuses the proven path instead of exercising `pack/enum.client`, which has zero entries and has never been used.
 
-**Player state: 8 varps**, all `scope=perm` so they persist (`mock230_save.c:260`), all `transmit=` per column. `pack/varp.server` gets 8 lines; `ss_allocate.py` mints ids from 6226.
+**Player state: 8 varps**, all `scope=perm` so they persist (`torirs_server_save.c:260`), all `transmit=` per column. `pack/varp.server` gets 8 lines; `ss_allocate.py` mints ids from 6226.
 
 | varp | transmit | holds |
 |---|---|---|
@@ -1583,9 +1583,9 @@ sound_synth(summon_npc, 0, 0);
 
 **This is the only genuinely new entity relation the port needs.** Verified:
 
-- `npc_run_mode` (`mock230_world.c:2752`) resolves the followed player as `srv->active_player`, with a comment at `:2773` admitting it: *"this mode machine asks 'whose turn is it' in a phase where it is nobody's … That is a separate defect."* `phase_npcs` never calls `mock230_world_set_active`, so during phase 4 `active_player` is whatever leaked from the previous tick. With `MOCK230_PLAYER_MAX = 8`, two summoners means both familiars follow the same arbitrary player.
-- `run_trigger_script` (`mock230_scripts.c:1666`) sets `SSVM_ENT_PLAYER` from `srv->active_player` for **every** trigger including `[ai_timer]`/`[ai_queue]`/`[ai_spawn]` — so a familiar's own AI reads a stale player's varps.
-- `npc_uid` has **no generation counter** (`mock230_scripts.c:4585` says so outright). A uid stashed across a despawn resolves to whoever took the slot.
+- `npc_run_mode` (`torirs_server_world.c:2752`) resolves the followed player as `srv->active_player`, with a comment at `:2773` admitting it: *"this mode machine asks 'whose turn is it' in a phase where it is nobody's … That is a separate defect."* `phase_npcs` never calls `ToriRSServer_WorldSetActive`, so during phase 4 `active_player` is whatever leaked from the previous tick. With `TORIRSSERVER_PLAYER_MAX = 8`, two summoners means both familiars follow the same arbitrary player.
+- `run_trigger_script` (`torirs_server_scripts.c:1666`) sets `SSVM_ENT_PLAYER` from `srv->active_player` for **every** trigger including `[ai_timer]`/`[ai_queue]`/`[ai_spawn]` — so a familiar's own AI reads a stale player's varps.
+- `npc_uid` has **no generation counter** (`torirs_server_scripts.c:4585` says so outright). A uid stashed across a despawn resolves to whoever took the slot.
 
 **Per PORTING_GUIDE §2.4 item 5 and §4.4/§4.5 step 4** — the vocabulary the engine offers scripts may grow; a one-off C hook may not, and the opcode is logged in the queue's opcode-gap table *and implemented in the same slice*. Three new opcodes in the extra band (next free is **11022**, `ss_opcode.h:453`):
 
@@ -1597,7 +1597,7 @@ sound_synth(summon_npc, 0, 0);
 
 Engine changes (three, all small and all narrowing existing behaviour rather than adding a branch):
 
-1. `struct Mock230Npc` (`mock230.h:1563`) gains `int owner_pid; uint32_t owner_gen;` — zeroed by `npc_spawn`, so an unowned npc is unchanged.
+1. `struct ToriRSServerNpc` (`torirs_server.h:1563`) gains `int owner_pid; uint32_t owner_gen;` — zeroed by `npc_spawn`, so an unowned npc is unchanged.
 2. `npc_run_mode` (`:2757`) resolves `player` from `owner_pid` **when set**, falling back to `srv->active_player` otherwise. This fixes the documented defect for owned npcs without touching any existing npc's behaviour, and it is the honest form of what `osrs230_mockserver.md §6.1` asks for.
 3. `run_trigger_script` (`:1666`) prefers `npc->owner_pid` over `srv->active_player` when the trigger is an `ai_*` and the npc is owned.
 
@@ -1617,7 +1617,7 @@ Deliberately **not** doing: leashing. `maybe_aggress`/`target_within_maxrange` m
 
 ## 6. Lifetime, dismiss, logout, death, call
 
-**One timer, not four.** `MOCK230_TIMER_MAX = 8` per player and existing content already competes for those slots. Decay, point drain, special regen, HUD sync and the two warnings all live in a single `[timer,summoning_tick]` at interval 1.
+**One timer, not four.** `TORIRSSERVER_TIMER_MAX = 8` per player and existing content already competes for those slots. Decay, point drain, special regen, HUD sync and the two warnings all live in a single `[timer,summoning_tick]` at interval 1.
 
 ```
 [timer,summoning_tick]
@@ -1674,8 +1674,8 @@ Points **are** `stat_boosted[24]`. This is the design's biggest simplification: 
 - **Drain per tick**: same op, driven by the accumulator.
 - **Obelisk renew**: `stat_heal(summoning, stat_base(summoning), 0)` — restores to full. `SS_OP_SET_SKILL_LEVEL 2106` is unimplemented and is **not needed**; `stat_heal` covers it.
 - **Potions** (`[opheld1,summoning_potion_4]` …): `stat_heal(summoning, calc(7 + stat_base(summoning) / 4), 0)` per `SummoningEffect.java` (`base 7 + level*0.25`). The super-restore mix and the special-restore side effect (`+15` special) are content one-liners.
-- **No natural regeneration** — verified absent from the engine, which is the correct behaviour. Leave a comment at `mock230_combat.c:502` so a future restore tick excludes stat 24 alongside prayer.
-- **Combat level**: all three implementations (`mock230_combat_level`, `[proc,player_combat_level]`, `RS_PlayerStats_RecomputeCombatLevel`) name their stats explicitly, so Summoning stays out by construction. 2009scape's `+staticLevel/8` term is **deliberately not ported** — it would change every existing player's combat level.
+- **No natural regeneration** — verified absent from the engine, which is the correct behaviour. Leave a comment at `torirs_server_combat.c:502` so a future restore tick excludes stat 24 alongside prayer.
+- **Combat level**: all three implementations (`ToriRSServer_CombatLevel`, `[proc,player_combat_level]`, `RS_PlayerStats_RecomputeCombatLevel`) name their stats explicitly, so Summoning stays out by construction. 2009scape's `+staticLevel/8` term is **deliberately not ported** — it would change every existing player's combat level.
 
 ---
 
@@ -1710,7 +1710,7 @@ Note the bug **not** ported: `SummoningCreator.java:122` hardcodes the obelisk a
 
 Energy: `%summoning_special` 0..60, `+15` per 50 ticks (2 minutes to full), per-familiar cost from `summoning_pouch:spec_cost`.
 
-**Arming — nothing is clickable until `IF_SETEVENTS`**, and events are purged when the interface unmounts, so arming goes in `[if_open]`, which fires from `mock230_encode.c:933` on every mount:
+**Arming — nothing is clickable until `IF_SETEVENTS`**, and events are purged when the interface unmounts, so arming goes in `[if_open]`, which fires from `torirs_server_encode.c:933` on every mount:
 
 ```
 [if_open,summoning_side]
@@ -1746,14 +1746,14 @@ stat_advance(summoning, ~summoning_scroll_xp($scroll), true);
 
 ## 10. Beast of Burden
 
-Containers here are LostCity's model: **resolve-or-create by inv id**, `mock230_container.h:57-96`, `containers[MOCK230_CONTAINER_MAX = 16]` per player. The size comes from `mock230_bank_inv_size(inv_id)`, and — this is the load-bearing measurement — that reads **from the cache disk** (`mock230_bank.c:127 load_inv_sizes`), not from a content walker. So:
+Containers here are LostCity's model: **resolve-or-create by inv id**, `torirs_server_container.h:57-96`, `containers[TORIRSSERVER_CONTAINER_MAX = 16]` per player. The size comes from `ToriRSServer_BankInvSize(inv_id)`, and — this is the load-bearing measurement — that reads **from the cache disk** (`torirs_server_bank.c:127 load_inv_sizes`), not from a content walker. So:
 
 **What is actually needed** (much less than recon claimed):
 
 1. `configs/all.inv` gains `[summoning_bob] size=30`, `all.inv.compack` gains `2000=summoning_bob`. Ids ≥ 2000 per `content_register.c:69` (cache max 1025). `configs/` is rank-0 and machine-owned, so this must be a **merge**, not a hand-truncate — see §Risks R5. The alternative that avoids touching rank 0 entirely is a rank-1 `summoning.inv` under `server/scripts/ported_2009scape_summoning/configs/`, which `cachepack`'s config roots already pick up; prefer this and prove it.
 2. `content.ini` `+[namespace:inv] ids = server, names = cache, membership = authored`; `fields/inv.ini` declaring `size` as `scope = client`; `pack/inv.client` naming `summoning_bob` — without it the record is `cp_pack.c` **cell (c)**, a hard error.
-3. `make -C src mock230-cache` bakes it, and **both the world and JS5 point at `cache.osrs239.baked`** (the one-cache rule). `load_inv_sizes` then sizes it; `mock230_container_resolve` stops returning NULL; all 27 `inv_*` opcodes work unchanged.
-4. **No new `.inv` walker in `mock230_content.c`.** This is the simplification that makes BoB tractable in tier 1.
+3. `make -C src torirsserver-cache` bakes it, and **both the world and JS5 point at `cache.osrs239.baked`** (the one-cache rule). `load_inv_sizes` then sizes it; `ToriRSServer_ContainerResolve` stops returning NULL; all 27 `inv_*` opcodes work unchanged.
+4. **No new `.inv` walker in `torirs_server_content.c`.** This is the simplification that makes BoB tractable in tier 1.
 
 **The interface.** Rev 230 has **no `TYPE_INV`** — items are `cc_create`d type-5 graphics with `SETOBJECT`. So `interfaces/ported_2009scape/summoning_bob.if` is a container + a builder clientscript (`scripts/ported_2009scape/script_12001.cs2`) modelled on the bank's `script274` (`cc_create($c, 5, …) + cc_setoutline(1) + cc_setsize(36,32,0,0)`). Mount as **type 0 (modal)** so it blocks world input.
 
@@ -1765,11 +1765,11 @@ Containers here are LostCity's model: **resolve-or-create by inv id**, `mock230_
 
 ## 11. Familiar combat
 
-`mock230_combat.c` is strictly player ↔ npc: `Mock230Player.combat_target` is an npc slot, `Mock230Npc.combat_target` is a player pid, and **there is no npc↔npc loop anywhere**. Death credit is `death_credit_players[]`, player-indexed.
+`torirs_server_combat.c` is strictly player ↔ npc: `ToriRSServerPlayer.combat_target` is an npc slot, `ToriRSServerNpc.combat_target` is a player pid, and **there is no npc↔npc loop anywhere**. Death credit is `death_credit_players[]`, player-indexed.
 
 **Tier 1 does not add one.** A tier-1 combat familiar deals damage entirely from content: the special (or an `[ai_timer]`) reads the owner's current combat target and calls `npc_damage` — implemented, credited via the existing player-indexed path so the owner gets the xp and the drop, exactly as `Familiar.sendFamiliarHit` does (`target.getImpactHandler().handleImpact(owner, …)`). Impact delay `2 + dist/2`, range 8, all content arithmetic.
 
-**Tier 3, if wanted**, is where an npc↔npc pairing lands: `Mock230Npc.combat_target_npc`, a second approach/attack-clock path in `mock230_combat_npc_tick`, retaliation, and death credit routed through the owner. That is a substantial engine slice — it should be planned and costed on its own, not smuggled in under Summoning. Auto-assist (`Familiar.java:258-270`, gated on all three parties being in multi) is meaningless without wilderness/multi zones and is out of scope.
+**Tier 3, if wanted**, is where an npc↔npc pairing lands: `ToriRSServerNpc.combat_target_npc`, a second approach/attack-clock path in `ToriRSServer_CombatNpcTick`, retaliation, and death credit routed through the owner. That is a substantial engine slice — it should be planned and costed on its own, not smuggled in under Summoning. Auto-assist (`Familiar.java:258-270`, gated on all three parties being in multi) is meaningless without wilderness/multi zones and is out of scope.
 
 ---
 
@@ -1858,11 +1858,11 @@ Same shape for a loc, plus `pack/loc.client`.
 ### Phase C — the 24th stat
 
 - **C1** `pack/stat.pack` `+23=sailing`. Alone. `make -C src test-content` green.
-- **C2** `MOCK230_STAT_COUNT` 23→25; `pack/stat.pack +24=summoning`; save round-trip selftest in `mock230_save`.
+- **C2** `TORIRSSERVER_STAT_COUNT` 23→25; `pack/stat.pack +24=summoning`; save round-trip selftest in `ToriRSServer_Save`.
 - **C3** `configs/all.enum` — the six enum rows (§3). **No key gap in `enum_681`.**
 - **C4** `interfaces/stats.{if,compack}` 25th cell + `[universe]`/`[total]` geometry; `levelup.rs2` `[advancestat,summoning]`.
 - **C5** Skill guide: `^skill_guide_summoning = 25`, `if_setevents`, `[if_button2,stats:summoning]`, plus `dbrow`s in `skill_guide_subsections` (212) / `skill_features` (213) **and the hand-edited `dbindex/dbindex_21{2,3}.dbi`** — the one place with no regenerator. Client-side tables only; the server tables in §4 need none.
-- **C6** `make -C src mock230-cache`; boot `manifest_osrs230_embed.ini`; screenshot the stats tab headlessly. Summoning cell present, greyed.
+- **C6** `make -C src torirsserver-cache`; boot `manifest_osrs230_embed.ini`; screenshot the stats tab headlessly. Summoning cell present, greyed.
 
 ### Phase D — the feature gate
 
@@ -1882,10 +1882,10 @@ Same shape for a loc, plus `pack/loc.client`.
 
 ### Phase F — engine: owner-bound familiars
 
-- **F1** `Mock230Npc.owner_pid` / `owner_gen`; zeroed on spawn.
-- **F2** Opcodes 11022–11024 (`ss_opcode.h`, `mock230_ops_npc.c`, `gen_opcode_meta.py`, coverage regen).
+- **F1** `ToriRSServerNpc.owner_pid` / `owner_gen`; zeroed on spawn.
+- **F2** Opcodes 11022–11024 (`ss_opcode.h`, `torirs_server_ops_npc.c`, `gen_opcode_meta.py`, coverage regen).
 - **F3** `npc_run_mode:2757` and `run_trigger_script:1666` resolve the owner when set. Existing npcs unchanged.
-- **F4** Selftest in `mock230_world.c`: two players, two owned npcs, assert each follows its own owner across 20 ticks. **Mutate the impl to prove the assertion can fail** before claiming coverage.
+- **F4** Selftest in `torirs_server_world.c`: two players, two owned npcs, assert each follows its own owner across 20 ticks. **Mutate the impl to prove the assertion can fail** before claiming coverage.
 
 ### Phase G — tier-1 content, in dependency order
 
@@ -1910,7 +1910,7 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 
 ### Definition of done, per slice
 
-`mock230_pack --check-only` 0 errors · `make -C src test-content` green (incl. `test-membership`, `test-server-clean`, `test-port`) · `make -C src test-mock230` + `test-mock230-coverage` green · verified in the real client headlessly (`SDL_VIDEODRIVER=dummy` + `TORIRS_SIM_*` + `TORIRS_EXIT_BMP`) with a `::` debugproc, and the check left **permanent** · state persists across logout/login · existing content untouched · one queue log line recording `scripts N; pack 0 errors`.
+`ToriRSServer_Pack --check-only` 0 errors · `make -C src test-content` green (incl. `test-membership`, `test-server-clean`, `test-port`) · `make -C src test-ToriRSServer` + `test-torirsserver-coverage` green · verified in the real client headlessly (`SDL_VIDEODRIVER=dummy` + `TORIRS_SIM_*` + `TORIRS_EXIT_BMP`) with a `::` debugproc, and the check left **permanent** · state persists across logout/login · existing content untouched · one queue log line recording `scripts N; pack 0 errors`.
 
 ---
 
@@ -1921,12 +1921,12 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 - **R3 — CORRECTED: `loc` `server_base = 70000` exceeds the measured wire.** Rev239 `LOC_ADD_CHANGE_V2` writes an exact 16-bit `p2Alt3`; 70000 truncates to 4464. Source obelisk 28716 is mapped to the free native-contiguous target id 62201. This is not analogous to NPC_INFO, whose 14-bit field is an initial definition and whose high-definition update path is conditional.
 - **R4 — the stats tab has no free cell.** `[universe]` is 190×261 with a 3×8 grid at 62px columns and `[total]` at y=241; `1 + 8*30 + 19 + 1 = 261` exactly. A 25th cell needs `[universe]` and `[total]` geometry changed, and the sidebar container that hosts it lives in gameframe 161 — **unverified whether rev-239's sidebar renders a taller 320 without clipping.**
 - **R5 — `configs/` is machine-owned and `test-server-clean` guards it.** Whether a hand-added line in `configs/all.inv.compack` survives the next `cachepack unpack` is unverified (`content.ini:19-22` claims pack saves merge, but that guarantee is stated for `pack/<ns>.pack`, not for `all.<ns>.compack`). Prefer the rank-1 `.inv` route and prove it empirically in E3.
-- **R6 — no authored CS2 has ever existed in this tree.** Every `pack/12_clientscripts.pack` line is `<id>=script_<id>`; zero named script files, zero ids above the cache's. Also **95 of 9,368 committed `.cs2` sources do not compile back today** (stale, written by an older cachepack), including `script_1904.cs2` (the skill-guide layout builder, `unknown command '_1703'`). Fresh decompiles round-trip exactly, so `cachepack unpack --assets=scripts` is the fix — but it will overwrite the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trip `tools/check_crystal_set_contract.py`, a hard prerequisite of `mock230-cache`. Re-apply those comments or unpack selectively.
+- **R6 — no authored CS2 has ever existed in this tree.** Every `pack/12_clientscripts.pack` line is `<id>=script_<id>`; zero named script files, zero ids above the cache's. Also **95 of 9,368 committed `.cs2` sources do not compile back today** (stale, written by an older cachepack), including `script_1904.cs2` (the skill-guide layout builder, `unknown command '_1703'`). Fresh decompiles round-trip exactly, so `cachepack unpack --assets=scripts` is the fix — but it will overwrite the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trip `tools/check_crystal_set_contract.py`, a hard prerequisite of `torirsserver-cache`. Re-apply those comments or unpack selectively.
 - **R7 — `CACHEPACK_CS2_NAMES` is an undeclared hard dependency.** Without the RuneStar names dir, `^iftype_graphic` and friends do not resolve and *every* edited script silently reverts to base bytes. `src/makefile:1675` hard-codes `$(HOME)/Documents/git_repos/cs2/…`. Its `stat-names.tsv` stops at 22 — harmless (`stat_24` is a legal spelling, `cs2_names.c:630-677`), but decompiled sources will spell the skill `stat_24`, not `summoning`.
 - **R8 — the point-drain formula is a 2009scape invention**, not Jagex-verified (`Familiar.java:126-185`, GL #1903). Record that in `port/summoning530.map`; it is a design decision the port inherits, not a fact.
 - **R9 — four rev-530 lifetime values look like source bugs**, and they feed the drain divisor: Void torcher/shifter 9,400 ticks vs 2,700 for the other two Void familiars; Rune minotaur 15,100 vs ≤6,600. None are in tier 1; fix them in tier 2 rather than copying.
 - **R10 — sound.** Only `SUMMON_NPC_188` is safely present; 4161/4164/4214/4265/4372 are all above 3826, the documented OSRS divergence point, and must be transcoded. `Familiar.java:713` TODOs the missing per-familiar summon sounds — 2009scape has no such table, so tier 1 ships one shared summon sound.
-- **R11 — not investigated:** whether `MOCK230_PLAYER_MAX = 8` × 16 containers + a BoB row hits a static ceiling; the RSProt/osrs239 codec path for a 25th stat; `mock230_mapinstance` interaction with owned npcs.
+- **R11 — not investigated:** whether `TORIRSSERVER_PLAYER_MAX = 8` × 16 containers + a BoB row hits a static ceiling; the RSProt/osrs239 codec path for a 25th stat; `ToriRSServer_MapInstance` interaction with owned npcs.
 
 ===== DESIGN: design-flag-and-risk =====
 # Summoning port — flag architecture, verification, risk register, phasing
@@ -1940,7 +1940,7 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 | Recon claim | Reality **[verified]** | Consequence |
 |---|---|---|
 | "Summoning is stat 23 (2009scape's index)" | `configs/all.enum` `[enum_681]` `val=24,23`; `[enum_680]` `val=24,23`; `interfaces/stats.compack` `24=sailing`. **Stat 23 is Sailing in the osrs239 cache.** | Summoning must be **stat 24**. `RS_PLAYER_STATS_SKILL_COUNT 25` (`src/game/rs_player_stats.h:11`) makes 24 the last addressable slot — **zero client C change**. |
-| "`pack/varp.alloc` (6225) has already breached `MOCK230_VARP_COUNT` (6217)" | `MOCK230_VARP_SERVER_HEADROOM = 1024` (`mock230.h:325`), so `MOCK230_VARP_COUNT = 6729`. High-water 6225. | **Not a blocker.** Delete this from the risk list; ~500 varps of headroom. |
+| "`pack/varp.alloc` (6225) has already breached `TORIRSSERVER_VARP_COUNT` (6217)" | `TORIRSSERVER_VARP_SERVER_HEADROOM = 1024` (`torirs_server.h:325`), so `TORIRSSERVER_VARP_COUNT = 6729`. High-water 6225. | **Not a blocker.** Delete this from the risk list; ~500 varps of headroom. |
 | "a 25th skill needs a taller interface 320 grid" | The grid already has 24 cells and cell 24 is **Sailing**, which this tree does not implement (`pack/stat.pack` stops at `22=construction`, no sailing anywhere in server content). | **No geometry change.** Summoning takes the existing cell 24. This is the single biggest scope reduction available and it should be the primary plan. |
 | "new pouch objs will hard-error the bake (cell c)" | True, and it is *the flag surface*: `record_is_client()` (`cp_pack.c:524-528`) returns false for any rank-1 record whose type lacks `records = client`. Only `dbtable/dbrow/param/enum` declare it **[verified: `grep ^records fields/`]**. `obj`, `npc`, `loc`, `varp` do not. | An authored pouch/familiar is **server-only by construction**. It reaches the client cache only via an explicit `pack/<ns>.client` line. That is a per-entity, opt-in, already-implemented gate. |
 
@@ -1968,9 +1968,9 @@ same-packet extended/update + mask-`0x1` transformed-16-bit replacement path. Th
 
 | Layer | Name | Kind | Where declared | What it does |
 |---|---|---|---|---|
-| **Build** | `SUMMONING=1` | make variable | `src/makefile` (new targets `mock230-cache-summoning`, `mock230-scripts-summoning`, `mock230-summoning`) | Selects whether the overlay bake and the second script pack are produced at all. **Default unset.** |
+| **Build** | `SUMMONING=1` | make variable | `src/makefile` (new targets `torirsserver-cache-summoning`, `torirsserver-scripts-summoning`, `torirsserver-summoning`) | Selects whether the overlay bake and the second script pack are produced at all. **Default unset.** |
 | **Client boot** | `[cache:boot] dir=cache.osrs239.summoning` | existing manifest key | `manifest_osrs239_summoning.ini` (new file, copy of `manifest_osrs230_embed.ini` with one line changed) | Which cache the client loads. No new manifest schema, no `bootmanifest.c` change. |
-| **Server boot** | `MOCK230_SCRIPTS=<tree>/server/scripts/build-summoning` | existing env var (`mock230_boot.c`) | set by the summoning manifest's launcher / the make run target | Which compiled script pack the server loads. No new env var. |
+| **Server boot** | `TORIRSSERVER_SCRIPTS=<tree>/server/scripts/build-summoning` | existing env var (`torirs_server_boot.c`) | set by the summoning manifest's launcher / the make run target | Which compiled script pack the server loads. No new env var. |
 | **Content compile** | `^summoning_enabled` | ServerScript constant | `ported_scape2009_summoning/server/scripts/configs/summoning.constant` | Every ported entry point opens `if (^summoning_enabled = 0) { return; }`. Defence in depth against a mis-staged build. |
 | **Content runtime** | `%summoning_enabled` | server varp, `transmit=no`, `scope=perm` | same folder, `summoning.varp` | Per-account kill switch and the hook a future Wolf-Whistle-style unlock hangs on. |
 | **Client CS2** | *(none required)* | — | — | With the flag off the summoning cache records **do not exist**, so there is nothing for CS2 to hide. The `script_8950` → `script_8951` → `%varbit18166` chain (the shipped Sailing gate **[verified]**) stays available as an optional in-game unlock in a later phase. |
@@ -1998,7 +1998,7 @@ Why this is invisible with the flag off, mechanically:
 
 1. **cachepack configs** — the walk roots are `configs/` and `server/scripts/` only (`cp_pack.c:1669`). `ported_scape2009_summoning/` is neither.
 2. **cachepack assets** — `import_one` walks `pack/<ns>.pack`, not the directory (`cp_assets.c:1383-1387`: *"a file whose name it does not list has no id to be written to"*). The base tree's pack files gain no lines.
-3. **mock230 content** — `walk_configs` (`mock230_content.c:2879`) recurses `server/scripts` only.
+3. **ToriRSServer content** — `walk_configs` (`torirs_server_content.c:2879`) recurses `server/scripts` only.
 4. **sscompile** — `collect_sources` (`ssc_compile.c:2867`) recurses `--src`, which is `server/scripts`.
 
 No walker is modified. No `.` -prefix parking (forbidden by `.cursor/rules/no-park-sibling-content.mdc`). No sibling lane touched.
@@ -2040,8 +2040,8 @@ The two things the staging tool must get right, and they are the spike in Phase 
 - No file under any cachepack walk root changes.
 - No `pack/*.pack` asset line is added.
 - No `pack/*.client` line is added.
-- The one base-tree file the port edits unconditionally is `pack/stat.pack` (`23=sailing`, `24=summoning`) — and `stat` is `names = authored` with **no gameval archive**, so it is never packed into the cache. It is read by `sscompile` and `mock230_content.c` only.
-- The one C change (`MOCK230_STAT_COUNT`) is server-side and touches no cache.
+- The one base-tree file the port edits unconditionally is `pack/stat.pack` (`23=sailing`, `24=summoning`) — and `stat` is `names = authored` with **no gameval archive**, so it is never packed into the cache. It is read by `sscompile` and `torirs_server_content.c` only.
+- The one C change (`TORIRSSERVER_STAT_COUNT`) is server-side and touches no cache.
 
 Two checks, both permanent:
 
@@ -2071,14 +2071,14 @@ Two checks, both permanent:
 
 | Packet | Behaviour | Severity | Mitigation |
 |---|---|---|---|
-| `UPDATE_STAT` stat=24 | `rs_gameproto_exec.c:561-575` bounds against `RS_PLAYER_STATS_SKILL_COUNT` = 25. **24 passes**, xp is stored, nothing renders it. Silent no-op. | none | none needed. Note that bumping `MOCK230_STAT_COUNT` to 25 makes the login refresh loop transmit stats 23 and 24 at level 1/xp 0 — two extra packets, harmless, but confirm the seed loop's dirty-marking so it is not a per-tick cost. |
+| `UPDATE_STAT` stat=24 | `rs_gameproto_exec.c:561-575` bounds against `RS_PLAYER_STATS_SKILL_COUNT` = 25. **24 passes**, xp is stored, nothing renders it. Silent no-op. | none | none needed. Note that bumping `TORIRSSERVER_STAT_COUNT` to 25 makes the login refresh loop transmit stats 23 and 24 at level 1/xp 0 — two extra packets, harmless, but confirm the seed loop's dirty-marking so it is not a per-tick cost. |
 | NPC spawn of a familiar id absent from the client cache | NpcType lookup falls to the nameless placeholder. Renders as a blank blocking entity. **Not verified.** | medium | Server gate is the answer; see below. |
 | Inventory slot holding a pouch obj absent from the cache | Slot with no model/name. | medium | same |
 | **`IF_OPENSUB` for an interface group the cache has no archive for** | **Unverified and the dangerous one.** No "missing interface" handler was found. The tree's own precedent (`memory/cs2-yield-missing-targets`: *never yield un-loadable ids*) says an interface load that never completes is a stuck open-sub, i.e. a soft hang. | **high** | see below |
 
 **Mitigation, and it is the whole answer:** the flag is *paired* — the summoning script pack and the summoning cache are produced by the same `SUMMONING=1` build and named by the same manifest. There is no supported configuration in which a summoning server faces a vanilla client. Enforce it:
 
-- `manifest_osrs239_summoning.ini` is the only manifest whose launcher sets `MOCK230_SCRIPTS=.../build-summoning`, and it is the only manifest pointing at `cache.osrs239.summoning`.
+- `manifest_osrs239_summoning.ini` is the only manifest whose launcher sets `TORIRSSERVER_SCRIPTS=.../build-summoning`, and it is the only manifest pointing at `cache.osrs239.summoning`.
 - `^summoning_enabled` is `0` in the base tree's copy of the constant and `1` only in the staged summoning script tree. A mis-staged build summons nothing rather than opening a missing interface.
 - Phase-0 must **verify the missing-interface behaviour empirically** (boot the pristine cache, `IF_OPENSUB` a nonexistent group id from a debugproc, watch for a hang). If it hangs, file it as a pre-existing client robustness bug and fix it independently — do not let Summoning own it.
 
@@ -2132,16 +2132,16 @@ make -C 3rd/rscache/tools cachepack cs2 port_npc find_named
 
 # --- content, flag OFF (must be green before and after every summoning commit)
 make -C src test-content
-#   = test-content-register test-servercodec test-ss-symbols mock230-scripts
-#     mock230-servpack test-membership mock230-pack test-server-clean test-port
-src/build/mock230_pack --check-only                 # 0 errors, always
+#   = test-content-register test-servercodec test-ss-symbols torirsserver-scripts
+#     torirsserver-servpack test-membership torirsserver-pack test-server-clean test-port
+src/build/ToriRSServer_Pack --check-only                 # 0 errors, always
 python3 tools/check_summoning_isolation.py --check   # NEW: the byte-identity gate
 
 # --- engine / VM
-make -C src test-mock230                 # includes ./src/build/mock230 --selftest
-make -C src test-mock230-coverage        # fails on a stale opcode table
-make -C src test-mock230-embed
-make -C src test-ss-provider test-db test-mock230-param test-mock230-npc
+make -C src test-ToriRSServer                 # includes ./src/build/torirsserver --selftest
+make -C src test-torirsserver-coverage        # fails on a stale opcode table
+make -C src test-torirsserver-embed
+make -C src test-ss-provider test-db test-torirsserver-param test-torirsserver-npc
 
 # --- cache fidelity (read 3rd/rscache/EXCEPTIONS.md FIRST)
 make -C 3rd/rscache test
@@ -2149,11 +2149,11 @@ cachepack verify --cache cache.osrs239 --rev osrs239 \
   --src OSRS-Content/osrs239-content --assets      # lost-here == 0 per type
 
 # --- the flag-off bake, unchanged
-make -C src mock230-cache
+make -C src torirsserver-cache
 shasum -a 256 cache.osrs239.baked/main_file_cache.dat2   # compare to the recorded baseline
 
 # --- the flag-on bake + scripts
-make -C src SUMMONING=1 mock230-summoning
+make -C src SUMMONING=1 torirsserver-summoning
 cachepack verify --cache cache.osrs239.summoning --rev osrs239 \
   --src build/summoning-overlay
 3rd/rscache/tools/cs2/cs2 compile --cache cache.osrs239 --rev osrs239 \
@@ -2162,7 +2162,7 @@ cachepack verify --cache cache.osrs239.summoning --rev osrs239 \
 #   (cp_decode.c:2447-2452 ships base bytes and only a counter says so)
 
 # --- headless in-client proof (per slice, left permanent)
-MOCK230_SAVES=$(mktemp -d) SDL_VIDEODRIVER=dummy MOCK230_VERBOSE=1 \
+TORIRSSERVER_SAVES=$(mktemp -d) SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_HOOK=... TORIRS_EXIT_BMP=build/summoning_slice1.bmp \
   src/build/torirs --manifest manifest_osrs239_summoning.ini --user testc --pass test
 
@@ -2177,12 +2177,12 @@ Memory-debugging on this machine is `MallocScribble`, **not ASAN** (`ENABLE_ASAN
 | Phase | Acceptance |
 |---|---|
 | **0 Prerequisites** | `rev_dat2_rs530.c` exists and decodes rev-530 npc/obj/seq/model/framemap with a full exact-consumption sweep, not a spot check. The framemap V3→V1 transcode bug in `tools/common/cache_write.c:545-580` is fixed with a test that fails on the old code. `stage_summoning_overlay.py` produces a cache where `cmp` against the pass-1 bake differs only in the archives the overlay states. Docs amended. `check_summoning_isolation.py --check` green. Missing-interface behaviour empirically characterised. |
-| **1 Vertical slice** | With `manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `mock230_pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
+| **1 Vertical slice** | With `manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `ToriRSServer_Pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
 | **2 Skill surfaces** | Skill guide opens on Summoning and lists real rows from a new dbtable (with the `dbindex_21{2,3}.dbi` hand-edit verified by an actual `db_find` hit, not by inspection). Points orb renders and drains. Obelisk loc gives Renew-points. Infusion UI produces a pouch from ingredients with correct xp. |
 | **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; every rev-530 definition id has a recorded osrs239 cache/config mapping. No acceptance criterion is derived from the direct initial-definition width. |
 | **4 Beast of Burden** | `fields/inv.ini` + `[namespace:inv]` landed (this unblocks `shop` too — bank the credit). BoB container opens, stores, withdraws, spills on death, **survives logout** (the `clear()` vs `dismiss()` asymmetry). |
 
-Every phase additionally: state persists across logout/login; no new silently-missing opcodes in `mock230_scripts_report_gaps`; **prove the assertion can fail** before claiming coverage (mutate the impl / unbind the script).
+Every phase additionally: state persists across logout/login; no new silently-missing opcodes in `ToriRSServer_ScriptsReportGaps`; **prove the assertion can fail** before claiming coverage (mutate the impl / unbind the script).
 
 ---
 
@@ -2196,10 +2196,10 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 | **4** | **Framemap V3→V1 transcode is a silent no-op.** `tools/common/cache_write.c:545-580` re-encodes without clearing `has_transform_actor`/`has_masks`/`tail`, so `RSCache_Dat2FramemapEncode` emits V3 blocks into a V1 cache. | high | Every ported familiar T-poses or animates to garbage, with no error | Fix it in Phase 0 with a test that fails on the current code (decode a real 530 framemap, downgrade, assert the byte length and the V1 shape). This is a **pre-existing library bug**; fixing it may move 634/727 behaviour — A/B before attributing anything to Summoning. |
 | **5** | **The chained overlay bake is unproven and the "add" path has never been run.** All five `pack/*.client` files have zero data lines; `PACK_ENTITY_SPLIT_PLAN.md §11.1` says step 4 "author" is unexercised. | high | Phase 0 slips; worst case the byte-identity design needs the cachepack `--overlay` fallback | Spike it first with a throwaway two-component interface at id 969 and one new obj at 40000, before designing anything on top. Budget a full day. Fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`). |
 | **6** | **`IF_OPENSUB` for a group absent from the cache may hang the client.** Unverified; no missing-interface handler found. | medium | A flag-mismatched boot is a soft hang, not an error message | Characterise it in Phase 0 with a debugproc. Pair the flag (§2.2) so the mismatch is unreachable in supported configurations. If it does hang, fix it as an independent client-robustness slice — do not let Summoning own it. |
-| **7** | **Headless runs are not independent.** A shared `saves/` carries state between runs; a "passing" screenshot can be a previous run's state. `pkill -f build/mock230` also kills `mock230_dev`. | high | False greens on every acceptance criterion | `MOCK230_SAVES=$(mktemp -d)` on **every** headless invocation, no exceptions, baked into the make recipe rather than left to the operator. Never bare `pkill`. |
+| **7** | **Headless runs are not independent.** A shared `saves/` carries state between runs; a "passing" screenshot can be a previous run's state. `pkill -f build/torirsserver` also kills `ToriRSServer_Dev`. | high | False greens on every acceptance criterion | `TORIRSSERVER_SAVES=$(mktemp -d)` on **every** headless invocation, no exceptions, baked into the make recipe rather than left to the operator. Never bare `pkill`. |
 | **8** | **`embed_test` decode is broken pre-existing** — nothing decodes past login. | certain | Any embed-path failure gets misattributed to Summoning | A/B against `HEAD~` before blaming any change. Do not add summoning coverage to `embed_test` until it is fixed; use the real client headless path as the oracle instead. |
-| **9** | **`fields/inv.ini` / `[namespace:inv]` do not exist**, which is the same blocker that has kept `shop` unportable. `mock230_container_resolve` returns NULL for an inv the cache does not size, and every container op aborts. | certain | Beast of Burden is unshippable; ~1 week of unplanned prerequisite work | Move BoB to **Phase 4** and treat the inv namespace as its own slice with its own acceptance, credited against `shop` as well. Do not let it block Phases 1-3. |
-| **10** | **Engine `active_player` staleness.** `npc_run_mode` (`mock230_world.c:2764`) follows `srv->active_player`, which `phase_npcs` never sets; `run_trigger_script` (`mock230_scripts.c:1666`) sets ACTIVE_PLAYER from the same stale pointer for `ai_*` triggers. npc uids have no generation counter. | certain | With two players, both familiars follow one arbitrary player and every `[ai_timer]` reads a stale player's varps | Fix generically in Phase 1: add `owner_pid` + a generation counter to `Mock230Npc`; resolve the player from the owner in `npc_run_mode` and in `ai_*` dispatch; add generic opcodes `NPC_SETOWNER` / `NPC_OWNER` in the **11000+ EXTRA band**, logged in the queue's opcode-gap table before the C is written. Frame it as fixing a documented pre-existing defect (`osrs230_mockserver.md §6.1`), not as summoning plumbing. |
+| **9** | **`fields/inv.ini` / `[namespace:inv]` do not exist**, which is the same blocker that has kept `shop` unportable. `ToriRSServer_ContainerResolve` returns NULL for an inv the cache does not size, and every container op aborts. | certain | Beast of Burden is unshippable; ~1 week of unplanned prerequisite work | Move BoB to **Phase 4** and treat the inv namespace as its own slice with its own acceptance, credited against `shop` as well. Do not let it block Phases 1-3. |
+| **10** | **Engine `active_player` staleness.** `npc_run_mode` (`torirs_server_world.c:2764`) follows `srv->active_player`, which `phase_npcs` never sets; `run_trigger_script` (`torirs_server_scripts.c:1666`) sets ACTIVE_PLAYER from the same stale pointer for `ai_*` triggers. npc uids have no generation counter. | certain | With two players, both familiars follow one arbitrary player and every `[ai_timer]` reads a stale player's varps | Fix generically in Phase 1: add `owner_pid` + a generation counter to `ToriRSServerNpc`; resolve the player from the owner in `npc_run_mode` and in `ai_*` dispatch; add generic opcodes `NPC_SETOWNER` / `NPC_OWNER` in the **11000+ EXTRA band**, logged in the queue's opcode-gap table before the C is written. Frame it as fixing a documented pre-existing defect (`osrs230_mockserver.md §6.1`), not as summoning plumbing. |
 
 **Standing hazards, not ranked because they are procedural:** never `git stash` in this repo (a no-op push turns `pop` into restoring an old stash); no ASAN on this Mac; distrust prose counts in docs — re-measure from generated sources; a bare name in argument position resolves to the wrong namespace and never fails, so never name a ported record exactly `summoning` (prefix everything `summoning_*` and lint for it — `[advancestat,summoning]` resolves via an unhinted `SSC_SYM_UNKNOWN` lookup at `ssc_compile.c:2286`).
 
@@ -2215,13 +2215,13 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 
 One familiar, end to end, and the skill exists.
 
-- **Stat 24.** `pack/stat.pack` += `23=sailing`, `24=summoning`; `MOCK230_STAT_COUNT` 23→25.
+- **Stat 24.** `pack/stat.pack` += `23=sailing`, `24=summoning`; `TORIRSSERVER_STAT_COUNT` 23→25.
   Overlay: `enum_681 val=25,24`, component `34=summoning_stats_cell`, dedicated script 1198,
   `script_8950` case 24, and the corrected row layout. The exact source-222 wolf head is remapped
   to the marked target sprite name at target id 229; Sailing is not displaced.
 - **Assets.** Port npc 6829 (+ its combat twin if the flag design keeps twins) with `port_npc --from-rev rs530 --to-rev osrs239`, then `cachepack unpack` the result into the ported folder. Model, framemap, seqs, the `bas` type — **note `bas` has no cachepack type**, so either add one or set explicit anim slots on the ported npc rather than relying on BAS.
 - **Objs.** `spirit_wolf_pouch`, `pouch`, `spirit_shards`, `gold_charm` at ids 40000+, with `pack/obj.client` created (`cachepack membership --types obj`) and a `[namespace:obj] membership = authored` block in the overlay's `content.ini`.
-- **Server.** `owner_pid` + generation counter on `Mock230Npc`; `NPC_SETOWNER`/`NPC_OWNER` opcodes; owner-aware `npc_run_mode` and `ai_*` dispatch. `[opheld1,spirit_wolf_pouch]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)` → `settimer` for decay → dismiss. Points as `stat_base/stat_sub` on stat 24.
+- **Server.** `owner_pid` + generation counter on `ToriRSServerNpc`; `NPC_SETOWNER`/`NPC_OWNER` opcodes; owner-aware `npc_run_mode` and `ai_*` dispatch. `[opheld1,spirit_wolf_pouch]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)` → `settimer` for decay → dismiss. Points as `stat_base/stat_sub` on stat 24.
 - **UI.** Reuse an existing sidebar slot or defer the tab entirely — Phase 1 does **not** need interface 662's analogue. Dismiss via a debugproc + the familiar's npc op. This keeps the 161 sidebar geometry problem out of the slice.
 
 **Demo:** log in, `::setlevel summoning 20`, click the pouch, a wolf appears and follows you to Varrock, log out and back in, it is still there, timer expires, it leaves. Four BMPs.
@@ -2233,7 +2233,7 @@ Skill guide (dbtable 212/213 rows + the hand-edited `dbindex_21{2,3}.dbi` — **
 Familiars grouped by shared mechanics, never by an NPC-id budget. Scrolls + special moves. Charm drops (the 1222-npc drop table needs a 530→239 cache/config id map; expect heavy attrition because definitions differ between revisions, not because of the direct 14-bit initial-definition field). Skill boosts. Foragers.
 
 ### Phase 4 — Beast of Burden
-`fields/inv.ini` + `[namespace:inv]` + the `.inv` walker + world-scoped `mock230_container_scope()`. Then BoB containers, interfaces, the logout `clear()` vs death `dismiss()` asymmetry.
+`fields/inv.ini` + `[namespace:inv]` + the `.inv` walker + world-scoped `ToriRSServer_ContainerScope()`. Then BoB containers, interfaces, the logout `clear()` vs death `dismiss()` asymmetry.
 
 ### Phase 5 — Polish
 Sidebar tab if deferred. `script_8950` per-account unlock. Wolf Whistle. Sounds (only sound 188 is safe; 4161/4164/4214/4265/4372 are above the 3826 divergence point and need transcoding).

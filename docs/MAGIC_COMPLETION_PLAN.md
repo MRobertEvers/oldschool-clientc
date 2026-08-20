@@ -82,9 +82,9 @@ return;
 ```
 
 `SS_OP_NPC_STATSUB` (2541) is **hosted and complete**
-(`src/net/mock/mock230_scripts.c:5742`): it writes `Mock230Npc.stat_drain[]`,
+(`src/torirsserver/torirs_server_scripts.c:5742`): it writes `ToriRSServerNpc.stat_drain[]`,
 `npc_stat()` reads the drain back (`:5710`), `npc_statadd` is the mirror, and
-`mock230_combat.c:2094` clears the drain on respawn. So **Confuse, Weaken,
+`torirs_server_combat.c:2094` clears the drain on respawn. So **Confuse, Weaken,
 Curse, Vulnerability, Enfeeble and Stun all spend runes, pay XP, play their
 graphic — and drain nothing.** Six live spells are cosmetic. This is a one-proc
 fix (§1.4), not an engine gap.
@@ -96,9 +96,9 @@ The client selects its book from **`%varbit4070`** — cache name **`spellbook`*
 standard/ancient/lunar/arceuus (`configs/all.varbit:20353`, read by
 `scripts/script_2611.cs2` `[proc,magic_spellbook_redraw]`). Content already
 writes cache varbits by name (`%varbit_108 = ^true;` in
-`quests/quest_mm/scripts/mm_zooknock.rs2:99`), and `mock230_varbit_set` on the
+`quests/quest_mm/scripts/mm_zooknock.rs2:99`), and `ToriRSServer_VarbitSet` on the
 server side is the only write the client honours — the client's own `pop_varbit`
-is discarded (`mock230_world.c:17306`). **`%spellbook = 1` should be all a
+is discarded (`torirs_server_world.c:17306`). **`%spellbook = 1` should be all a
 spellbook switch takes.** Verify before building on it (§1.1).
 
 **3. "The ancient/lunar/arceuus assets aren't in this cache."**
@@ -132,7 +132,7 @@ cannot open.
 Without this **three of the four books are unreachable**, and 115 of the 132
 components can never be clicked no matter what is bound to them.
 
-- Write `%spellbook` = 0/1/2/3. Confirm `mock230_varbit_set` transmits and the
+- Write `%spellbook` = 0/1/2/3. Confirm `ToriRSServer_VarbitSet` transmits and the
   client redraws (`script_2611` is `if_setonvartransmit`-driven via
   `magic_spellbook_redraw`).
 - **`basevar=alternate_spells` is a carrier**: other varbits share it. Follow
@@ -205,7 +205,7 @@ banana + greegree).
 ### 1.6 P2 / blocked — everything two-player
 
 `SS_OP_P_OPPLAYERT` (2084) is **declared but not hosted**, and
-`MOCK230_PLAYER_MAX` is 1 (queue row #2, "secondary player"). That blocks
+`TORIRSSERVER_PLAYER_MAX` is 1 (queue row #2, "secondary player"). That blocks
 **every** player-targeted spell: Teleother ×3, Teleport Block, Bounty Target,
 Heal Other, Heal Group, Vengeance Other, Energy Transfer, Stat Spy, Cure Other,
 Cure Group, and all six Tele Group spells. Build these as **casts on a target
@@ -576,7 +576,7 @@ Not spellbook components, but the difference between "the button works" and
 
 | Gap | Blocks | Disposition |
 |---|---|---|
-| `SS_OP_P_OPPLAYERT` (2084) declared, **not hosted**; `MOCK230_PLAYER_MAX = 1` | 15 spells (§1.6) | **blocked → skills queue #2.** Build the rows + graphics + costs; degrade the target |
+| `SS_OP_P_OPPLAYERT` (2084) declared, **not hosted**; `TORIRSSERVER_PLAYER_MAX = 1` | 15 spells (§1.6) | **blocked → skills queue #2.** Build the rows + graphics + costs; degrade the target |
 | IF3 `name=` dropped before the client | tooltips/minimenu on all 132 | **P0**, register from CS2 ([`if3-opbase-and-target-hooks-dropped`]) |
 | `~pvm_stat_change_effect` is an empty `return;` while `NPC_STATSUB` is live | 6 live spells + Shadow ×4 + corruption ×2 | **not an engine gap any more** — content fix (§1.4) |
 | Multiway not modelled (`~player_in_combat_check` returns `true`) | AoE burst/barrage should be single-target outside multi | documented in-file; decide whether to model or keep |
@@ -593,9 +593,9 @@ Per [`serverscript-guard-testing-confounds`] and
 path proves nothing. For each slice:
 
 ```
-make -C src mock230-scripts          # after EVERY config change
-./src/build/mock230_pack --check-only # expect 0 errors
-make -C src test-mock230              # re-depends on mock230-scripts
+make -C src torirsserver-scripts          # after EVERY config change
+./src/build/ToriRSServer_Pack --check-only # expect 0 errors
+make -C src test-ToriRSServer              # re-depends on torirsserver-scripts
 ```
 
 Then a real cast, not just a compile:

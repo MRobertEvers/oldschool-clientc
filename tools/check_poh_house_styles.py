@@ -35,9 +35,9 @@ def main() -> None:
     rooms = (SCRIPTS / "poh_rooms.rs2").read_text(encoding="utf-8")
     build = (SCRIPTS / "poh_build.rs2").read_text(encoding="utf-8")
     runtime = (CONFIGS / "poh_runtime_generated.dbrow").read_text(encoding="utf-8")
-    header = (ROOT / "src/net/mock/mock230_poh.h").read_text(encoding="utf-8")
-    engine = (ROOT / "src/net/mock/mock230_poh.c").read_text(encoding="utf-8")
-    save = (ROOT / "src/net/mock/mock230_save.c").read_text(encoding="utf-8")
+    header = (ROOT / "src/torirsserver/torirs_server_poh.h").read_text(encoding="utf-8")
+    engine = (ROOT / "src/torirsserver/torirs_server_poh.c").read_text(encoding="utf-8")
+    save = (ROOT / "src/torirsserver/torirs_server_save.c").read_text(encoding="utf-8")
 
     styles = (
         ("basic_wood", 0, "0_29_110_0_0", 1, 5000),
@@ -147,14 +147,14 @@ def main() -> None:
     ):
         require(token in estate, f"missing redecoration transaction token {token!r}")
 
-    require("MOCK230_POH_SCHEMA_VERSION = 8" in header,
+    require("TORIRSSERVER_POH_SCHEMA_VERSION = 8" in header,
             "POH schema must include style entitlements")
-    require("MOCK230_POH_STYLE_MAX = 11" in header,
+    require("TORIRSSERVER_POH_STYLE_MAX = 11" in header,
             "engine style bound must match the twelve cache planes")
-    require("MOCK230_POH_FIELD_STYLE_UNLOCKS = 29" in header and
+    require("TORIRSSERVER_POH_FIELD_STYLE_UNLOCKS = 29" in header and
             "style_unlocks" in engine and "style_unlocks" in save,
             "durable style entitlements are not wired end to end")
-    require("value > MOCK230_POH_STYLE_MAX" in engine,
+    require("value > TORIRSSERVER_POH_STYLE_MAX" in engine,
             "engine must reject absent style ordinals")
 
     print(

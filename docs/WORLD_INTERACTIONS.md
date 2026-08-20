@@ -390,7 +390,7 @@ from the outside:
 
 | Symbol | Op | What it actually was |
 | --- | --- | --- |
-| `tgod_vines_cut` | `op1=Cut` | **The loom defect again, in ported quest content.** The Garden of Death binds `[oploc1,tgod_vines]` — the multiloc *shell*. The server resolves a multiloc **before** it dispatches (`mock230_loc_resolve_transform`, `mock230_world.c:1631`), so the trigger only ever fires on the resolved rung and the shell binding never ran once. The whole vine step of the quest was a dead click. Now bound to `tgod_vines_inspect` / `_cut` / `_squeeze`, whose ladder the quest's own `^god_vines`=22 already matched. |
+| `tgod_vines_cut` | `op1=Cut` | **The loom defect again, in ported quest content.** The Garden of Death binds `[oploc1,tgod_vines]` — the multiloc *shell*. The server resolves a multiloc **before** it dispatches (`ToriRSServer_LocResolveTransform`, `torirs_server_world.c:1631`), so the trigger only ever fires on the resolved rung and the shell binding never ran once. The whole vine step of the quest was a dead click. Now bound to `tgod_vines_inspect` / `_cut` / `_squeeze`, whose ladder the quest's own `^god_vines`=22 already matched. |
 | `elid_herbalist` (Zahur) | `op4=Clean` | Only `op1=Talk-to` was bound, by Beneath Cursed Sands. The 200-coin herb-cleaning service — the thing most players know her for — did nothing. `areas/area_desert/scripts/zahur_services.rs2`. Her `op3=Decant` and `op5=Make unfinished potion(s)` stay unbound on purpose; both are noted in that file. |
 | `fossil_cep_grown` | `op1=Cut` | The **Sulliuscep**, and the cache ships all of it: six `fossil_cep_multi1..6` placements keyed on the `fossil_cep` varbit, `fossil_cep_sprout` for the five that are not grown, and all three yields. Woodcutting 65 for 127 xp; `skill_woodcutting/scripts/sulliuscep.rs2`. It could not be another `woodcutting_trees` row like redwood because its yield is three-way and it does not deplete into a loc — the varbit moves and the *next* mushroom grows, which is why players run a circuit. |
 
@@ -535,8 +535,8 @@ absolute paths, and confirm the `compiled N scripts` line:
 ```sh
 S=/path/to/private/scratch
 make -C src sscompile      PLATFORM_OBJ_BASE=$S
-make -C src mock230-scripts PLATFORM_OBJ_BASE=$S    # confirm "compiled N scripts"
-./src/build_opt/mock230 --selftest                  # A/B against a pre-change run
+make -C src torirsserver-scripts PLATFORM_OBJ_BASE=$S    # confirm "compiled N scripts"
+./src/build_opt/torirsserver --selftest                  # A/B against a pre-change run
 ```
 
 Normalize before diffing failure sets (`sed -E 's/-?[0-9]+/N/g'`) — the selftest

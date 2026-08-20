@@ -168,7 +168,7 @@ boot:
 
 - client — `[features:boot] ground_click_nearest=ring3|box10_rect|none`, or
   `TORIRS_GROUND_CLICK_NEAREST` (env wins);
-- mock server — `MOCK230_GROUND_CLICK_NEAREST`, same three names. Its boot line
+- mock server — `TORIRSSERVER_GROUND_CLICK_NEAREST`, same three names. Its boot line
   prints the resolved value.
 
 The op/interaction click keeps its own pair of fields
@@ -299,7 +299,7 @@ Graardor to make it miss" tank technique, and it is why the random step-off must
 mechanic, exactly as it would delete safespots (§2.2).
 
 This tree implements `stepAwayFromTarget` (`collision_map_naive_path`'s random
-cardinal, via `mock230_world_npc_walk_to`). The `isTargetBusy` Red-X branch —
+cardinal, via `ToriRSServer_WorldNpcWalkTo`). The `isTargetBusy` Red-X branch —
 an NPC under a target that is itself mid-interaction stands still instead of
 stepping — is **not** implemented.
 
@@ -330,7 +330,7 @@ player still only moves one tile.
 One means `interaction_path_to_pathing_target` skips the branch entirely and
 falls through to the same `walk_to_approach` every other approach uses. Set for
 `osrs` and `server_routed`; override per boot with
-`MOCK230_UNDER_TARGET_ROUTES_OUT=0|1` (the server owns this outright — the
+`TORIRSSERVER_UNDER_TARGET_ROUTES_OUT=0|1` (the server owns this outright — the
 client sends `OPNPC` with no coordinates and never routes, so there is no client
 half to keep in step).
 
@@ -481,7 +481,7 @@ beside the owner and the owner then steps away again.
 
 Reading `follow_x/z` from an npc mover is a two-tick error, not a one-tick one —
 `follow_x` is published *before* the target's own movement, so a mover in the
-earlier phase sees the tile before the target's last step. `mock230_world.c`
+earlier phase sees the tile before the target's last step. `torirs_server_world.c`
 `npc_walk_to_player` did this and familiars held a four-tile gap.
 
 ### 5.2 `playerfollow` is the one mover that runs
@@ -490,7 +490,7 @@ Every other npc mover takes one tile per tick. A follower takes up to **two**,
 because an owner who runs covers two and a follower that walks loses a tile a
 tick for as long as they keep going — with no leash on `playerfollow` to stop
 it. NPC_INFO has carried the op since forever (tracked update type 2, two 3-bit
-directions); the second direction goes in `Mock230Npc.run_dir`.
+directions); the second direction goes in `ToriRSServerNpc.run_dir`.
 
 Combat pursuit deliberately does **not** run. Outrunning a monster is a
 mechanic.
@@ -564,16 +564,16 @@ Those bits collide with rsmod's route-blocker tier (bits 22–30). See §7.3.
 | Ray cast + LoS / LoW / approached | `collision_map.c` |
 | Occupancy `change_square` + `can_travel` + naive path | `collision_map.c` |
 | Shape-keyed `exitStrategy` + exclusive rectangle | `collision_map.c` |
-| Scene world-coord wrappers + `checkvis` | `mock230_scene.c` |
-| Naive NPC movement (no flood), waypoints, stuck counters | `mock230_world.c` |
-| Player BFS → **corner** waypoints (max 25) + greedy `takeStep` | `mock230_world.c` `queue_path_as_waypoints` |
-| `last_step` / `follow`, occupancy on step/spawn/death | `mock230_world.c`, `mock230_combat.c` |
-| AP LoS gate (npc casts backwards) | `mock230_world_process_interaction` |
-| Symmetric PvP AP | `mock230_world.c`, `mock230_ops_player.c` |
-| `CollisionType` strategies + `COLL_FLAG_ROOF` | `collision_map.c`, `mock230_scene.c` |
+| Scene world-coord wrappers + `checkvis` | `torirs_server_scene.c` |
+| Naive NPC movement (no flood), waypoints, stuck counters | `torirs_server_world.c` |
+| Player BFS → **corner** waypoints (max 25) + greedy `takeStep` | `torirs_server_world.c` `queue_path_as_waypoints` |
+| `last_step` / `follow`, occupancy on step/spawn/death | `torirs_server_world.c`, `torirs_server_combat.c` |
+| AP LoS gate (npc casts backwards) | `ToriRSServer_WorldProcessInteraction` |
+| Symmetric PvP AP | `torirs_server_world.c`, `torirs_server_ops_player.c` |
+| `CollisionType` strategies + `COLL_FLAG_ROOF` | `collision_map.c`, `torirs_server_scene.c` |
 | Configurable BFS window (`route_window`) | `collision_map.c` |
 | Occupancy re-stamp after a scene rebuild | `world_occupancy_restamp` |
-| Exit from under a pathing target (§2.5) | `mock230_world.c` `interaction_path_to_pathing_target` |
+| Exit from under a pathing target (§2.5) | `torirs_server_world.c` `interaction_path_to_pathing_target` |
 | Era flags (`pathing_mode`, `approach_model`, …) | `features.h` / `features.c` |
 | `blockwalk` / `blocksight` / `moverestrict` / `forceapproach` | fields + content/codec |
 
@@ -584,10 +584,10 @@ The window is a property of the **router**, not of the loaded scene:
 - `CollisionMap.route_window` (tiles, centred on the mover; 0 = the whole map).
 - A fresh map is 0 (Client-TS floods the resident scene).
 - `ToriRS_FeatureTable.route_window_tiles`: 0 for `lostcity`, **128** for
-  `osrs` / `server_routed`. `mock230_scene_reset` applies it on the server;
+  `osrs` / `server_routed`. `ToriRSServer_SceneReset` applies it on the server;
   `App_WorldLoadFinish` applies it on the client after every scene rebuild.
 
-At `MOCK230_SCENE_TILES = 104` the two agree until a map wider than 128
+At `TORIRSSERVER_SCENE_TILES = 104` the two agree until a map wider than 128
 exists; `test_route_window` builds a 300-tile map to exercise the clamp.
 
 ### 7.1b Corner waypoints (not run-starts)
@@ -608,7 +608,7 @@ also used to overwrite the last stored turn with the raw destination (a
 beeline through walls); it now drops destination-end corners like the
 reference `pop()`.
 
-Pinned by the `mock230 --selftest` movement L-corridor leg.
+Pinned by the `ToriRSServer --selftest` movement L-corridor leg.
 
 ### 7.2 `moverestrict` → `CollisionType`
 
@@ -674,5 +674,5 @@ carries the xrsps lighting flags.
   wall bits
 - `test_force_approach_rotation`
 
-`./src/build/mock230 --selftest`: ordinary npc does not block a player; door /
+`./src/build/torirsserver --selftest`: ordinary npc does not block a player; door /
 ladder / large-NPC approach under the shared collision map.

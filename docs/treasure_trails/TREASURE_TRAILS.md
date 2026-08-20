@@ -134,9 +134,9 @@ Clue scrolls are also not yet on any drop table — nothing gives one out.
 
 ## 5. Engine changes this slice needed
 
-- `mock230_pack` did not link (three symbols). `mock230_dbinfo.c` and
-  `mock230_healthbarinfo.c` joined `MOCK230_PACK_SRCS`; `mock230_world_set_varp_on`
-  joined `mock230_pack_stubs.c`.
+- `ToriRSServer_Pack` did not link (three symbols). `torirs_server_dbinfo.c` and
+  `torirs_server_healthbarinfo.c` joined `TORIRSSERVER_PACK_SRCS`; `ToriRSServer_WorldSetVarpOn`
+  joined `torirs_server_pack_stubs.c`.
 - **`cachepack`'s merge disagreed with the runtime about param precedence.**
   `param` is a map key whose sub-key identifies the slot, but the "is this a
   list?" test answered yes for it, so two files stating one param both survived
@@ -145,8 +145,8 @@ Clue scrolls are also not yet on any drop table — nothing gives one out.
   `vile_ashes`/`big_bones` while the world said "drops nothing", and no re-pack
   could converge them. Fixed in `cp_merge.c` by ranking three layers instead of
   two — cache 0, `*.generated.*` 1, hand-authored 2 — which is what
-  `mock230_content.c` has always done with its three-pass npc load. This took
-  `mock230_pack` from 1 error to **0** for the first time.
+  `torirs_server_content.c` has always done with its three-pass npc load. This took
+  `ToriRSServer_Pack` from 1 error to **0** for the first time.
 - A content bug the above surfaced: `[skeletonmage]` was authored in two files
   with different `attack_anim`, one of them the giant skeleton's against a base
   skeleton rig.

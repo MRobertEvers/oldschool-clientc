@@ -5,7 +5,7 @@
 # Why this exists
 # ---------------
 # This content tree is edited by more than one session at a time. A plain
-# `make -C src mock230-scripts` therefore fails for reasons that have nothing to
+# `make -C src torirsserver-scripts` therefore fails for reasons that have nothing to
 # do with your change: during one CoX session the first error moved between
 # `quest_troll.rs2:177`, `quest_troll.rs2:268`, `combat.rs2:354` and
 # `flamtaer_temple.rs2:2` on identical CoX input, every one of them in a file

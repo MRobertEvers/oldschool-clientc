@@ -27,7 +27,7 @@ cd "$ROOT"
 C=OSRS-Content/osrs239-content
 
 [ -x src/build_opt/sscompile ] || make -C src sscompile >/dev/null
-[ -x src/build_opt/mock230 ] || make -C src mock230 >/dev/null
+[ -x src/build_opt/torirsserver ] || make -C src ToriRSServer >/dev/null
 
 echo "--- allocate ids ---"
 python3 tools/ss_allocate.py --tree $C >/dev/null
@@ -99,25 +99,25 @@ fi
 
 echo "--- selftest (CoX checks only) ---"
 if [ -n "$CONTENT_ROOT" ]; then
-    out=$(MOCK230_CONTENT="$CONTENT_ROOT" \
-          MOCK230_SCRIPTS="$CONTENT_ROOT/server/scripts/build" \
-          ./src/build_opt/mock230 --selftest 2>&1 || true)
+    out=$(TORIRSSERVER_CONTENT="$CONTENT_ROOT" \
+          TORIRSSERVER_SCRIPTS="$CONTENT_ROOT/server/scripts/build" \
+          ./src/build_opt/torirsserver --selftest 2>&1 || true)
 else
-    out=$(./src/build_opt/mock230 --selftest 2>&1 || true)
+    out=$(./src/build_opt/torirsserver --selftest 2>&1 || true)
 fi
 # Positive evidence that the CoX block executed. Grepping only for failures
 # cannot distinguish "passed" from "never ran", and "never ran" is the common
 # case when something upstream in the suite dies: a missing cache, a segfault
 # in the collision section, a content tree that would not load. Every one of
 # those used to be reported here as a CoX pass.
-if ! echo "$out" | grep -q '^mock230 selftest: Chambers of Xeric$'; then
+if ! echo "$out" | grep -q '^ToriRSServer selftest: Chambers of Xeric$'; then
     echo "the selftest never reached the CoX section - reporting nothing."
     echo "  last lines of the run:"
     echo "$out" | tail -5 | sed 's/^/    /'
     exit 1
 fi
 COX_FAIL='Chambers of Xeric|::cox|entering CoX|leaving CoX'
-cox_lines=$(echo "$out" | grep -E "$COX_FAIL" | grep -v '^mock230 selftest: Chambers of Xeric$' || true)
+cox_lines=$(echo "$out" | grep -E "$COX_FAIL" | grep -v '^ToriRSServer selftest: Chambers of Xeric$' || true)
 if [ -n "$cox_lines" ]; then
     echo "$cox_lines"
     echo "RESULT: CoX selftest FAILED"

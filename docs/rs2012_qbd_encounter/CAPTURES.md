@@ -20,14 +20,14 @@ Run (BMP film strip every 20 frames from frame 400, cheats rotating one per
 180 frames ≈ 3.6 s):
 
 ```sh
-SDL_VIDEODRIVER=dummy MOCK230_SAVES=<scratch-saves> TORIRS_NO_CACHE_BAKE=1 \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=<scratch-saves> TORIRS_NO_CACHE_BAKE=1 \
 TORIRS_NET_CHEAT='rs2012qbdmanifest;rs2012qbdheal;…;rs2012qbddrain;rs2012qbdrestore;…' \
 TORIRS_NET_CHEAT_EVERY=180 TORIRS_NET_CHEAT_ROTATE=1 \
 TORIRS_BMP_SERIES=<dir>,400,20,240 TORIRS_MAX_FRAMES=5600 \
 ./run-live.sh manifest_osrs239_rs2012.ini qbdshot test
 ```
 
-`MOCK230_SAVES` must point at a scratch directory — headless runs write the
+`TORIRSSERVER_SAVES` must point at a scratch directory — headless runs write the
 save back, so a shared one carries state (and deaths) between runs.
 `TORIRS_NO_CACHE_BAKE=1` avoids the from-scratch `cache.osrs239.rs2012`
 repack that `RS2012_QBD_TD.md` records as corrupting QBD's awake render.
@@ -58,7 +58,7 @@ offset, which is why each wall type needs its own spawn anchor (§6.1).
 
 - Wall rows reach the client as real spot-animations
   (`spawn_spotanim: id=10019 model=110101 seq=22043`), one row per tick, 60
-  rows per three-wave cast — asserted on the wire by the mock230 selftest
+  rows per three-wave cast — asserted on the wire by the ToriRSServer selftest
   stanza and observed in the client log.
 - Worms hatch, face, and approach.
 - Drain → intermission → restore → next phase runs end to end through the

@@ -1357,7 +1357,7 @@ def do_author(o):
     log("")
     log("next: repoint the npc record's model<N>= at %s if it does not already,"
         % ", ".join(str(p) for p in o.pack_id))
-    log("      then re-pack the cache:  make -C src mock230-cache-rs2012")
+    log("      then re-pack the cache:  make -C src torirsserver-cache-rs2012")
 
 
 def main():

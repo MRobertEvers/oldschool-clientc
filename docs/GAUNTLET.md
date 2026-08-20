@@ -32,7 +32,7 @@ engine surfaces:
 
 | Surface | Role |
 |---|---|
-| `map_instance_*` | 14×14-zone instance (7×7 of 16-tile rooms). Scene window stays 13×13; instance storage raised to 16 (`MOCK230_MAPINSTANCE_ZONES`) |
+| `map_instance_*` | 14×14-zone instance (7×7 of 16-tile rooms). Scene window stays 13×13; instance storage raised to 16 (`TORIRSSERVER_MAPINSTANCE_ZONES`) |
 | `inv_setvar` / `inv_getvar` (EXTRA **11016** / **11017**) | Per-slot ints keyed by obj — LC commented signatures, never wired there. Crystal charges use the item obj as key |
 
 ## Map squares (measured)
@@ -93,10 +93,10 @@ fight reaches phase two. That is a reference bug and is **not** reproduced —
 so a single bad rectangle offset does not misdraw a tile — it kills the fight,
 and only on the roll that picks that pattern in that phase. `::gauntletrun`
 walks every rectangle of every pattern of every phase for that reason, and is
-run by `mock230 --selftest`.
+run by `ToriRSServer --selftest`.
 
 A whole pattern is armed on one tick, and the engine's loc-revert table is a
-fixed array: `MOCK230_LOC_REVERT_MAX` was raised from 128 to 512 because the
+fixed array: `TORIRSSERVER_LOC_REVERT_MAX` was raised from 128 to 512 because the
 paired-band pattern alone is 96 entries, and an overflow there does not fail
 loudly — it warns on stderr and leaves the tile permanently damaging.
 
@@ -117,7 +117,7 @@ by singing / drain paths.
 - `::gauntletrun` — encounter assertions: the shared combat invariant that
   preparing a player hit leaves the intended npc active, the arena origin
   against the boss room, the floor cycle adding up, and every floor rectangle
-  inside the arena. Wired into `mock230 --selftest`
+  inside the arena. Wired into `ToriRSServer --selftest`
 - `::~gauntlet` / `::~gauntlethm` — force SotE complete + lobby
 - `::~gauntletreward` — flag reward chest (normal completion)
 - `::~crystalsing` — shards/seeds/tools + tele near Prif bowl

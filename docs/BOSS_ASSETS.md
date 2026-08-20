@@ -271,7 +271,7 @@ onto that plane (zone LOC_* packets apply to the player's current level only).
 The port mirrors that: `p_teleport` to plane 1 → `~inferno_spawn_flanks` →
 `p_delay(1)` → back to plane 0 → then the L0 seal collapse. Plane changes must
 **not** REBUILD the scene (that would wipe the L1 flanks); see
-`mock230_world_player_level_changed`. Do not bake flanks into the client cache.
+`ToriRSServer_WorldPlayerLevelChanged`. Do not bake flanks into the client cache.
 
 ## Four engine defects the Zuk fight uncovered (2026-08-04)
 
@@ -369,9 +369,9 @@ looking like "the fight is just sitting there".
    `[proc,npc_projectile]` computed an honest flight time and had the
    `projanim_pl` / `projanim_npc` call **commented out**, under a header saying
    the opcodes were "declared but not hosted yet". They are hosted
-   (`mock230_scripts.c` `SS_OP_PROJANIM_PL`/`_NPC` → `mock230_zone_projanim`).
+   (`torirs_server_scripts.c` `SS_OP_PROJANIM_PL`/`_NPC` → `ToriRSServer_ZoneProjanim`).
    Blocker decay again, and this one was tree-wide: *every* ranged and magic
-   attack in the content tree drew nothing. `MOCK230_PROJ_DEBUG=1` counts the
+   attack in the content tree drew nothing. `TORIRSSERVER_PROJ_DEBUG=1` counts the
    sends — 0 before, 14 in a 4,500-frame Zuk run after.
 
 2. **The blocked shot fired nothing at all.** When the player is behind the
@@ -409,7 +409,7 @@ looking like "the fight is just sitting there".
    re-queues a destination the client is already walking to.
 
 `::zuktest` reports each milestone with the tick it landed on and the deadline
-it had. Read it headlessly with `MOCK230_ECHO_MES=1`, which mirrors every `mes`
+it had. Read it headlessly with `TORIRSSERVER_ECHO_MES=1`, which mirrors every `mes`
 to stderr — a content self-test that reports through the chat box is otherwise
 invisible to a headless run. A healthy fight:
 
@@ -426,7 +426,7 @@ The wave number is the one to read: **95 = ready (35) + `^inferno_add_wave_first
 (60)**, to the tick. That equality is the whole point of the test — it is what
 distinguishes a wave clock advancing once per tick from one advancing once per
 attack cooldown, and the two are indistinguishable from any single screenshot.
-`MOCK230_PROJ_DEBUG=1` alongside it counted 16 sends against the test's 13
+`TORIRSSERVER_PROJ_DEBUG=1` alongside it counted 16 sends against the test's 13
 shots; the extra three are the add wave's own attacks, which is the cheapest
 confirmation that the spawned mager and ranger are live rather than merely
 present.
@@ -604,7 +604,7 @@ survive indefinitely unexamined. It is not stale:
 
 The encounter has been instanced since it landed — `~inferno_enter` and both Zuk
 debugprocs go through `~map_instance_from_square(^inferno_template)`, and a
-headless `TORIRS_NET_CHEAT="zuk"` with `MOCK230_VERBOSE=1` prints `map instance 1
+headless `TORIRS_NET_CHEAT="zuk"` with `TORIRSSERVER_VERBOSE=1` prints `map instance 1
 reserved 8x8 zones at 6400,64` followed by `instanced scene built at zone 803,13`.
 So "one instance per encounter" was already true, and **death already released
 it** (`[playerdeath,_]` → `player/death.rs2` → `~inferno_on_death` →
@@ -623,7 +623,7 @@ only bites the *next* session:
    `x = 6431, z = 104`, a tile inside a square the allocator was free to
    re-issue, so the character logged back in on void with nothing to walk off.
    Fixed on both sides — the engine dispatches `[logout]` from
-   `mock230_world_remove_player` *above* the save
+   `ToriRSServer_WorldRemovePlayer` *above* the save
    (`osrs230_mockserver.md` §3.23), and `player/logout.rs2` calls
    `~inferno_on_logout`, which clears the session, teleports to
    `^inferno_exit_pad` and frees. The same run now saves `x = 2495, z = 5112`,
@@ -637,11 +637,11 @@ only bites the *next* session:
    list of npc types: `map_instance_find(npc_coord) = %map_instance_handle`
    cannot go stale the way a type list does the first time a wave gains a
    monster — and a stale type list fails silently. `map_instance_free` now counts
-   what is left behind and says so under `MOCK230_VERBOSE`; measured, `freed with
+   what is left behind and says so under `TORIRSSERVER_VERBOSE`; measured, `freed with
    2 npc(s) still inside` before, silent after.
 
 Both are pinned rather than described. The reservation half is the last leg of
-`mock230 --selftest` and goes red under either mutation (an empty `[logout,_]`
+`ToriRSServer --selftest` and goes red under either mutation (an empty `[logout,_]`
 body, or the engine dispatch removed). The npc half is the diagnostic line
 itself, which fires the moment `~inferno_despawn_arena` is dropped from
 `~inferno_clear_session`.

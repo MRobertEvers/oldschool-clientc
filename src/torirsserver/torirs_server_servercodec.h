@@ -1,5 +1,5 @@
-#ifndef MOCK230_SERVERCODEC_H
-#define MOCK230_SERVERCODEC_H
+#ifndef TORIRSSERVER_SERVERCODEC_H
+#define TORIRSSERVER_SERVERCODEC_H
 
 /*
  * The server band of a config record, as bytes.
@@ -23,7 +23,7 @@
  * ## One codec, not one per type
  *
  * Everything below is generic over a `(field table, record base)` pair. There is
- * no `Mock230_ServerNpcEncode`, and that is the point: adding `obj` or `prayer`
+ * no `ToriRSServer_ServerNpcEncode`, and that is the point: adding `obj` or `prayer`
  * must be a `fields/<type>.ini` plus a table of offsets, never a second copy of
  * this file. A per-type codec is how the two directions come to disagree — and
  * here they would disagree twice over, once between encode and decode and once
@@ -44,7 +44,7 @@
  * means a record that encodes under one opcode and decodes under another — with
  * no error, because both are valid streams. The register is the single source;
  * this file holds only the mapping from opcode to *field*, which is the part C
- * has to know. `mock230_servercodec_test` walks every registered type against the
+ * has to know. `ToriRSServer_ServerCodecTest` walks every registered type against the
  * register, so a type added without a register row fails the build.
  *
  * ## The band
@@ -61,7 +61,7 @@
  * by either side.
  */
 
-#include "mock230_content.h"
+#include "torirs_server_content.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -112,11 +112,11 @@ struct ServerType
  * add the type to the test as well.
  */
 const struct ServerType*
-Mock230_ServerTypes(int* out_count);
+ToriRSServer_ServerTypes(int* out_count);
 
 /** By register name (`npc`, `loc`), or NULL. */
 const struct ServerType*
-Mock230_ServerTypeFor(const char* name);
+ToriRSServer_ServerTypeFor(const char* name);
 
 /**
  * Encode the server-only fields of `record` into `out`.
@@ -128,7 +128,7 @@ Mock230_ServerTypeFor(const char* name);
  * distinguishable from "zero".
  *
  * `defaults` is what a field is compared against to decide whether to emit it —
- * normally `mock230_content_npc_default()`. Passed rather than looked up so the
+ * normally `ToriRSServer_ContentNpcDefault()`. Passed rather than looked up so the
  * comparison is visible at the call site and so this file links without the
  * content loader behind it. **Never compared against zero:** `death_drop`
  * defaults to -1 and obj 0 is a real obj, so a zero-compare would emit the field
@@ -137,16 +137,16 @@ Mock230_ServerTypeFor(const char* name);
  * Returns bytes written, or 0 if `out_capacity` is too small.
  */
 uint32_t
-Mock230_ServerEncode(
+ToriRSServer_ServerEncode(
     const struct ServerType* type,
     const void* record,
     const void* defaults,
     uint8_t* out,
     uint32_t out_capacity);
 
-/** An upper bound on what `Mock230_ServerEncode` will write for `type`. */
+/** An upper bound on what `ToriRSServer_ServerEncode` will write for `type`. */
 uint32_t
-Mock230_ServerEncodeBound(const struct ServerType* type);
+ToriRSServer_ServerEncodeBound(const struct ServerType* type);
 
 /**
  * Decode a server-band stream over `record`.
@@ -161,7 +161,7 @@ Mock230_ServerEncodeBound(const struct ServerType* type);
  * and never a silent skip, because an unknown opcode's payload width is unknown.
  */
 int
-Mock230_ServerDecode(
+ToriRSServer_ServerDecode(
     const struct ServerType* type,
     void* record,
     const uint8_t* src,

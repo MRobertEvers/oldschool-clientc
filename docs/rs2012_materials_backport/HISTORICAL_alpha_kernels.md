@@ -203,7 +203,7 @@ src/build_win64/rs2012_material_bake.exe --alpha-textures --alpha-report
 
 # apply, keep priorities (do NOT run rs2012_strip_priorities), re-pack, run
 src/build_win64/rs2012_material_bake.exe --alpha-textures --apply
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --soft3d
 ```
 
@@ -223,12 +223,12 @@ Those are the masks' own texture ids - the fringe, the fur edge and the neck
 blob - with nothing between them and the face. `tex_miss=0` means every textured
 face found its texture.
 
-> **Two known gates fail for unrelated reasons.** `mock230-cache-rs2012` exits
+> **Two known gates fail for unrelated reasons.** `torirsserver-cache-rs2012` exits
 > non-zero *after* producing the cache: the sprite fidelity gate reports every
 > sprite as length-changed, and it does so for the **stock** `cache.osrs239`
 > too (8559/8559, including the `codec` column, which is the library's own
 > decode→encode with no text involved). That is a pre-existing codec or gate
-> regression, not this work. `mock230-cache-check` — all 23 tables present —
+> regression, not this work. `torirsserver-cache-check` — all 23 tables present —
 > does pass.
 
 ## 6. Appendix — the materials

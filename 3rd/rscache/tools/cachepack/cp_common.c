@@ -452,7 +452,7 @@ cp_resolve_ref_or_null(
      *
      * LostCity writes "no value" as the literal `null`, in a param value and as a
      * param default alike, and the server already resolves it that way in one
-     * place for the same reason — see mock230_content_symbol_checked, whose note
+     * place for the same reason — see ToriRSServer_ContentSymbolChecked, whose note
      * this mirrors. Stated here rather than at the two call sites so the
      * convention has one home.
      *

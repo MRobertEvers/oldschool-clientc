@@ -45,7 +45,7 @@ it:
 >    of ticks and then delivered merged, so it was empty at frames 830 and 845
 >    and showed the summed value `3,600` at 860. Vary `TORIRS_MAX_FRAMES` before
 >    entering step 1 — one extra run, and it changes which subsystem you go
->    looking in. See `mock230_player_systems.md` §5.4.
+>    looking in. See `torirs_server_player_systems.md` §5.4.
 > 1. `TORIRS_DUMP_TREE_EXIT=1` — is the interface in the tree at all, under the
 >    slot you expect? If not, it is a packet.
 > 2. `TORIRS_DUMP_BOUNDS=<group>` — is the geometry sane? A 190x261 sidebar
@@ -127,7 +127,7 @@ drawn pixels and hitboxes cannot disagree.
 
 **Symptom.** Clicking the globe on the minimap did nothing. No packet left.
 
-**Root cause.** `mock230_worldmap.c` armed **160:53**, and had a paragraph of
+**Root cause.** `torirs_server_worldmap.c` armed **160:53**, and had a paragraph of
 reasoning for it: OpenRune's rev-235 gameval table names `160:55`
 `orbs:worldmap` and `160:53` `wiki_icon`, so components must have been inserted
 between the revisions and the rev-230 orb must be the lower id.
@@ -154,7 +154,7 @@ So the server armed the wiki button; the orb kept its cache-declared ops
 went nowhere. Exactly the §2.2 failure mode the porting guide describes, arrived
 at from the other direction.
 
-**Fix.** `MOCK230_ORB_WORLDMAP_CHILD` 53 → 55. The literal stays — a symbol from
+**Fix.** `TORIRSSERVER_ORB_WORLDMAP_CHILD` 53 → 55. The literal stays — a symbol from
 a different revision is what caused this — but it is now the one the cache's own
 script names, with the evidence beside it.
 
@@ -183,7 +183,7 @@ tracked, and so the only one that could be closed. Anything a content script
 opened with `if_openmain` was permanent.
 
 **Fix.** Two fields on the player recording what sits in each of the gameframe's
-modal slots, written by `mock230_note_modal_mount` — called from the
+modal slots, written by `ToriRSServer_NoteModalMount` — called from the
 **`IF_OPENSUB` / `IF_CLOSESUB` encoders**, not from each opener, so a new opener
 cannot forget to register. `CLOSE_MODAL` then:
 
@@ -194,7 +194,7 @@ cannot forget to register. `CLOSE_MODAL` then:
 3. otherwise drops the mount, which for everything else is the whole of closing
    it.
 
-`mock230.h`, `mock230_encode.c`, `mock230_world.c`.
+`torirs_server.h`, `torirs_server_encode.c`, `torirs_server_world.c`.
 
 ---
 
@@ -561,7 +561,7 @@ knowing they are there:
 | `TORIRS_CC_DEBUG=1` | every `cc_create`, its parent and the uid it produced |
 | `TORIRS_SIM_CLICK_AT="frame,x,y[;…]"` | drive the UI headlessly |
 | `TORIRS_NET_DEBUG=1` | `if-opensub` / `if-closesub` / `if_setevents` as the client sees them |
-| `MOCK230_VERBOSE=1` | the server's side of the same |
+| `TORIRSSERVER_VERBOSE=1` | the server's side of the same |
 | `3rd/rscache/tools/cs2/cs2 decompile \| disassemble` | what the panel is actually asking for |
 
 The disassembler earned its keep twice: the DB stack shape and the array element
@@ -693,7 +693,7 @@ into chatmodal now calls `UITree_ReclaimInterfaceGroup` (see
 
 **Diff discipline note.** 2-/4-/5-option runs still need a temporary
 `hans.rs2` swap of `~p_choice3` → `~p_choice2`/`4`/`5` plus
-`make -C src mock230-scripts`; revert and confirm the diff is empty afterward.
+`make -C src torirsserver-scripts`; revert and confirm the diff is empty afterward.
 
 **Also found and fixed in passing (earlier):** `make -C src test-chat-widgets`
 failed to *link* (`_strtobase37` undefined) — `src/makefile` had
@@ -703,9 +703,9 @@ failed to *link* (`_strtobase37` undefined) — `src/makefile` had
 
 After the §5 layout fix and the §6b engine fixes in
 [`REV230_UI_OWNERSHIP.md`](REV230_UI_OWNERSHIP.md), live choice clicks can still
-look dead if `run-live.sh` left a **stale** `mock230` on the port (it never
-replaces an existing listener). Kill `43595`, rebuild `mock230` + `torirs`,
-restart; `MOCK230_VERBOSE=1` should show `IF_BUTTON1 219:1 sub=N`.
+look dead if `run-live.sh` left a **stale** `ToriRSServer` on the port (it never
+replaces an existing listener). Kill `43595`, rebuild `ToriRSServer` + `torirs`,
+restart; `TORIRSSERVER_VERBOSE=1` should show `IF_BUTTON1 219:1 sub=N`.
 
 Separately: short Hans body text sitting high in the parchment is **not** a
 blank-panel / unpack bug. Deob + pristine cache encode `chat_left` body

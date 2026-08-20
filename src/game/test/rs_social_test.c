@@ -2,8 +2,8 @@
  * The CLIENT half of friends / ignore / private chat, as a test.
  *
  * Why this file exists. When the feature landed, the server half had two
- * permanent checks (`mock230 --selftest`'s "the friend service" section and
- * `test-mock230-embed`'s social block) and the client half had **none** — the
+ * permanent checks (`ToriRSServer --selftest`'s "the friend service" section and
+ * `test-torirsserver-embed`'s social block) and the client half had **none** — the
  * store, the CS2 host ops and the friend-transmit repaint channel were proved
  * once, by hand, in a headless run, and nothing would have gone red if any of
  * them regressed. Every failure this feature actually hit was on the client

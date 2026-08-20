@@ -750,7 +750,7 @@ routing, fleet instance, dragon combat, Galvek, and post-quest services.
 - No condensed writes 1–4 remain in the native investigation fields.
 - No required handler is a message-only soft-skip; every cache symbol resolves.
 - No quest Destroy item falls through to generic public drop.
-- `make -C src mock230-scripts` and `mock230_pack --check-only` pass against the
+- `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` pass against the
   intended cache.
 
 ### State and migration tests

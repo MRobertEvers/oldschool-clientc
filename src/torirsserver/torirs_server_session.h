@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_SESSION_H
-#define SRC_NET_MOCK_MOCK230_SESSION_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_SESSION_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_SESSION_H
 
 /*
  * One client's connection: the login handshake, the two ISAAC ciphers, and the
@@ -23,13 +23,13 @@
  * when the stream came up; the world does the rest.
  */
 
-#include "mock230_transport.h"
+#include "torirs_server_transport.h"
 
 #include <stdint.h>
 
 struct Isaac;
-struct Mock230Server;
-struct Mock230Player;
+struct ToriRSServer;
+struct ToriRSServerPlayer;
 
 enum
 {
@@ -38,15 +38,15 @@ enum
      * bytes) or one game packet plus whatever arrived behind it; the reader
      * compacts after every drain.
      */
-    MOCK230_SESSION_IN_MAX = 16384,
+    TORIRSSERVER_SESSION_IN_MAX = 16384,
 };
 
-enum Mock230SessionState
+enum ToriRSServerSessionState
 {
     /** Awaiting INIT_GAME_CONNECTION (opcode 14). */
-    MOCK230_SESSION_INIT = 0,
+    TORIRSSERVER_SESSION_INIT = 0,
     /** Session id sent; awaiting GAMELOGIN (opcode 16) and its block. */
-    MOCK230_SESSION_LOGIN,
+    TORIRSSERVER_SESSION_LOGIN,
     /**
      * A JS5 (cache download) connection.
      *
@@ -58,19 +58,19 @@ enum Mock230SessionState
      *
      * Nothing here is ciphered: JS5 runs before any ISAAC pair exists.
      */
-    MOCK230_SESSION_JS5,
+    TORIRSSERVER_SESSION_JS5,
     /** Ciphers armed; the game stream is running. */
-    MOCK230_SESSION_ONLINE,
+    TORIRSSERVER_SESSION_ONLINE,
     /** Peer gone, or the stream went unrecoverable. */
-    MOCK230_SESSION_DEAD,
+    TORIRSSERVER_SESSION_DEAD,
 };
 
-struct Mock230Session
+struct ToriRSServerSession
 {
-    struct Mock230Transport transport;
-    enum Mock230SessionState state;
+    struct ToriRSServerTransport transport;
+    enum ToriRSServerSessionState state;
 
-    uint8_t in[MOCK230_SESSION_IN_MAX];
+    uint8_t in[TORIRSSERVER_SESSION_IN_MAX];
     int in_len;
 
     struct Isaac* cipher_out; /* server -> client opcode scramble */
@@ -91,7 +91,7 @@ struct Mock230Session
      * whichever one logged in first. `player->session` is the same edge read the
      * other way, and the encoders have used it since the encoder pass.
      */
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
 
     /*
      * A packet whose opcode has been descrambled but whose body has not all
@@ -107,7 +107,7 @@ struct Mock230Session
      */
     int pending_opcode;
 
-    /** Raised when the game stream arms; cleared by mock230_session_take_login
+    /** Raised when the game stream arms; cleared by ToriRSServer_SessionTakeLogin
      *  so the caller runs the world's login burst exactly once. */
     int login_raised;
 
@@ -121,7 +121,7 @@ struct Mock230Session
      * init block, because no REBUILD_LOGIN follows it, and that block cannot
      * be written until the player exists and its save has been read. So the
      * response is deferred to the world's login path, and this is how it knows
-     * (see mock230_world_login).
+     * (see ToriRSServer_WorldLogin).
      */
     int reconnect;
 
@@ -141,20 +141,20 @@ struct Mock230Session
  * Over a socket the client gets these from its manifest and the two ends agree
  * by configuration. In-process there is no manifest, and a test that restated
  * the modulus would be a second copy that can drift from the private half in
- * mock230_session.c. The exponent is the protocol's fixed 10001.
+ * torirs_server_session.c. The exponent is the protocol's fixed 10001.
  */
-extern const char* const MOCK230_RSA_PUBLIC_EXPONENT;
-extern const char* const MOCK230_RSA_PUBLIC_MODULUS;
+extern const char* const TORIRSSERVER_RSA_PUBLIC_EXPONENT;
+extern const char* const TORIRSSERVER_RSA_PUBLIC_MODULUS;
 
 /** Take over a transport. Does not touch it until the first pump. */
 void
-mock230_session_init(
-    struct Mock230Session* session,
-    const struct Mock230Transport* transport,
+ToriRSServer_SessionInit(
+    struct ToriRSServerSession* session,
+    const struct ToriRSServerTransport* transport,
     int verbose);
 
 void
-mock230_session_free(struct Mock230Session* session);
+ToriRSServer_SessionFree(struct ToriRSServerSession* session);
 
 /**
  * Move whatever the transport has into the session and advance as far as the
@@ -164,31 +164,31 @@ mock230_session_free(struct Mock230Session* session);
  * session is dead, which is the caller's cue to stop.
  */
 int
-mock230_session_pump(
-    struct Mock230Session* session,
-    struct Mock230Server* srv);
+ToriRSServer_SessionPump(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv);
 
 /** 1 exactly once, on the pump that armed the game stream. The caller answers
  *  it by initialising the world and sending the login burst. */
 int
-mock230_session_take_login(struct Mock230Session* session);
+ToriRSServer_SessionTakeLogin(struct ToriRSServerSession* session);
 
 /** Frame-level write. Bytes are already scrambled and framed by the encoder. */
 int
-mock230_session_send(
-    struct Mock230Session* session,
+ToriRSServer_SessionSend(
+    struct ToriRSServerSession* session,
     const uint8_t* data,
     int len);
 
 int
-mock230_session_alive(const struct Mock230Session* session);
+ToriRSServer_SessionAlive(const struct ToriRSServerSession* session);
 
 /** A descriptor to select() on, or -1 when there is nothing to wait on —
  *  which is what an embedded session always reports. */
 int
-mock230_session_pollfd(const struct Mock230Session* session);
+ToriRSServer_SessionPollfd(const struct ToriRSServerSession* session);
 
 void
-mock230_session_kill(struct Mock230Session* session);
+ToriRSServer_SessionKill(struct ToriRSServerSession* session);
 
 #endif

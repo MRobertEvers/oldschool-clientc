@@ -566,8 +566,8 @@ Required static/build commands after implementation:
 python3 tools/questhelper_extract.py creatureoffenkenstrain --check
 python3 tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --var fenk_quest
 python3 tools/loc_var_audit.py --tree OSRS-Content/osrs239-content --var fenk_conductor_repaired
-make -C src mock230-scripts
-src/build/mock230_pack --check-only
+make -C src torirsserver-scripts
+src/build/ToriRSServer_Pack --check-only
 git diff --check
 ```
 

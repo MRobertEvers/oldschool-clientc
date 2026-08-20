@@ -171,7 +171,7 @@ frame → input_prep/platform_poll → command_drain → surface_sync → app_ru
       → display(render/pick_finish/present) → window_sync → frame_post → server
 ```
 
-`server` wraps `mock230_embed_pump` (and therefore `mock230_world_tick` when
+`server` wraps `ToriRSServer_EmbedPump` (and therefore `ToriRSServer_WorldTick` when
 the 600 ms schedule fires). Residual = frame_mean − sum(stage means). Nested
 stages (cs2 inside logic) can make residual negative; read stage columns, not
 the residual, for attribution. The historical sections below describe the
@@ -613,9 +613,9 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
 | idle / ui / world harness p95 &lt; 20 ms                               | PASS (CSVs in `tools/perf/results/19e81d70-*.csv`)              |
 | headless embed `TORIRS_EXIT_BMP`                                       | wrote successfully (`EMBED_SERVER=1 TORIDRAW_OPT=1`)            |
-| `mock230_pack --check-only`                                            | **0 errors**, 15 warnings                                       |
-| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-mock230-embed` | green                                                           |
-| `test-mock230-coverage`                                                | green                                                           |
+| `ToriRSServer_Pack --check-only`                                            | **0 errors**, 15 warnings                                       |
+| `test-uitree`, `bench-uitree`, `test-cache-trim`, `test-torirsserver-embed` | green                                                           |
+| `test-torirsserver-coverage`                                                | green                                                           |
 | `make -C 3rd/rscache test`                                             | green (`cachepack-fidelity: all bars met`)                      |
 | `readme.md` UITree performance section                                 | points at this doc; historical 84% ToriDraw figure marked stale |
 
@@ -625,11 +625,11 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | idle / ui / world harness p95 &lt; 20 ms                                                                                                                                       | PASS at 5.67 / 5.71 / 6.21 ms (`tools/perf/results/61548478-*.csv`)                                                                |
 | incremental layout vs forced full resolve, 900 frames × 3 scenarios                                                                                                            | 0 box mismatches                                                                                                                   |
-| `mock230_pack --check-only`                                                                                                                                                    | **0 errors**, 15 warnings                                                                                                          |
+| `ToriRSServer_Pack --check-only`                                                                                                                                                    | **0 errors**, 15 warnings                                                                                                          |
 | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-chat-widgets`, `test-minimap`                                                                          | green                                                                                                                              |
 | `test-cs1`, `test-cs1vm`                                                                                                                                                       | green (`test-cs1` needed `perf/torirs_perf.c` added to its hand-picked link list — the harness counters had broken it)             |
 | `test-db`, `test-cs2-{math,string,component-param,triggerop,dialect}`, `test-cache-trim`, `test-task-order`, `test-world`, `test-inv`, `test-varp`, `test-varc`, `test-social` | green                                                                                                                              |
-| `test-mock230-embed`                                                                                                                                                           | green                                                                                                                              |
+| `test-torirsserver-embed`                                                                                                                                                           | green                                                                                                                              |
 | `test-ui-slots`                                                                                                                                                                | fails on `manifest must state [cache:boot] identity` — pre-existing, the target passes a bare `../cache254` rather than a manifest |
 
 Windowed eye-check is left to the operator (`./run-live.sh manifest_osrs230_embed.ini`

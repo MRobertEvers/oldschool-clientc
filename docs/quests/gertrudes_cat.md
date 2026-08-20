@@ -520,7 +520,7 @@ Gate D commands and evidence:
 2. Quest-specific static audit: state writers/readers, trigger uniqueness,
    six-coordinate/spawn equality, symbolic resolution, completion/journal/cheat
    registration, and no undisclosed `deferred`/legacy UI marker.
-3. `make -C src mock230-scripts` and `mock230_pack --check-only` against the
+3. `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` against the
    intended cache.
 4. Automated route and shared-cat tests covering the matrix above.
 5. Two-client headless smoke from Gertrude through every forced crate roll,

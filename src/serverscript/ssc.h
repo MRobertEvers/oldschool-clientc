@@ -81,7 +81,7 @@ enum
     SSC_MAX_ASSIGN_TARGETS = 32,
     /* Values in a `queue*(...)(a, b, c)` / `runclientscript*(...)(…)` vararg
      * block. 28 covers `ge_pricechecker_prices` (script 785); keep in lockstep
-     * with MOCK230_RUNCLIENTSCRIPT_ARG_MAX and PKT_RUNCLIENTSCRIPT_ARG_MAX. */
+     * with TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX and PKT_RUNCLIENTSCRIPT_ARG_MAX. */
     SSC_MAX_VARARG_TYPES = 28,
 };
 
@@ -327,7 +327,7 @@ SSC_SymbolsLoadDbTableDir(
  *
  * The `basevar=` key on each varbit record is the only statement anywhere of
  * which varp a varbit lives inside, and the cache is its author — the same file
- * `mock230_varbit.c` calls "the authority for" the ranges. The compiler reads it
+ * `torirs_server_varbit.c` calls "the authority for" the ranges. The compiler reads it
  * rather than deriving anything: a second opinion about which varps are shared
  * would be a second opinion that can drift.
  *
@@ -395,7 +395,7 @@ SSC_SymbolsLoadConstantDir(
  * The compiler used to be *looser than the server it feeds*, in two places, and
  * both are silent:
  *
- *   - **A constant declared twice.** `mock230_content.c`'s loader errors with
+ *   - **A constant declared twice.** `torirs_server_content.c`'s loader errors with
  *     `is declared twice`; `SSC_SymbolsAdd` appends unconditionally and the
  *     binary search then returns whichever copy `qsort` — which is not stable —
  *     happened to land first. So one loader refuses the tree and the other
@@ -405,7 +405,7 @@ SSC_SymbolsLoadConstantDir(
  *
  *   - **A `%name` that is two kinds at once.** `content.ini`'s `vardomain`
  *     column declares varp/varbit/varn/vars to share one RuneScript name domain
- *     and `mock230_content.c` enforces it; the compiler never read the column,
+ *     and `torirs_server_content.c` enforces it; the compiler never read the column,
  *     so `resolve_variable` silently tried VARP first. That precedence is what
  *     `docs/LOSTCITY_PORT_TRIAGE.md` §7.5 is about: a name that is both compiles
  *     to the whole-varp write and clobbers every varbit packed into it. The cost

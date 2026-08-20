@@ -6,7 +6,7 @@ Two things are being defended, and only the second is about the tool:
   1. `--check-carriers` must go RED when a script writes a loc-transform varbit
      whose carrier varp is not declared `transmit=yes`. That is the failure
      mode the whole file exists for — it is invisible at compile time (the
-     varbit resolves), invisible at run time (`mock230_world_mark_varp` drops
+     varbit resolves), invisible at run time (`ToriRSServer_WorldMarkVarp` drops
      the packet with no message), and invisible on screen (the loc simply never
      changes). 204 varbits were in that state when the check was written.
 

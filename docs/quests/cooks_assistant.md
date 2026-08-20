@@ -442,8 +442,8 @@ Required static/build commands after implementation:
 
 ```sh
 python3 tools/questhelper_extract.py cooksassistant --check
-make -C src mock230-scripts
-src/build/mock230_pack --check-only
+make -C src torirsserver-scripts
+src/build/ToriRSServer_Pack --check-only
 git diff --check
 ```
 

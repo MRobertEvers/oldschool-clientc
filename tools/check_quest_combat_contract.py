@@ -281,13 +281,13 @@ SPELL_CONSTANTS = CONTENT / "skill_combat/configs/magic/spells.constant"
 PLAYER_MAGIC = CONTENT / "skill_combat/scripts/player/player_magic.rs2"
 PARAM_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/param.alloc"
 SPAWN_GENERATOR = ROOT / "tools/gen_spawns.py"
-MOCK_HEADER = ROOT / "src/net/mock/mock230.h"
-MOCK_WORLD = ROOT / "src/net/mock/mock230_world.c"
-MOCK_ENCODE = ROOT / "src/net/mock/mock230_encode.c"
-MOCK_SCRIPTS = ROOT / "src/net/mock/mock230_scripts.c"
-MOCK_NPC_OPS = ROOT / "src/net/mock/mock230_ops_npc.c"
-MOCK_CONTENT = ROOT / "src/net/mock/mock230_content.c"
-MOCK_CONTENT_HEADER = ROOT / "src/net/mock/mock230_content.h"
+MOCK_HEADER = ROOT / "src/torirsserver/torirs_server.h"
+MOCK_WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
+MOCK_ENCODE = ROOT / "src/torirsserver/torirs_server_encode.c"
+MOCK_SCRIPTS = ROOT / "src/torirsserver/torirs_server_scripts.c"
+MOCK_NPC_OPS = ROOT / "src/torirsserver/torirs_server_ops_npc.c"
+MOCK_CONTENT = ROOT / "src/torirsserver/torirs_server_content.c"
+MOCK_CONTENT_HEADER = ROOT / "src/torirsserver/torirs_server_content.h"
 CONTENT_REGISTER = ROOT / "src/content/content_register.c"
 CONTENT_INI = ROOT / "OSRS-Content/osrs239-content/content.ini"
 VARN_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varn.alloc"
@@ -663,24 +663,24 @@ def check_owned_npc_runtime() -> None:
     npc_ops = MOCK_NPC_OPS.read_text()
     require_text(
         header,
-        ("mock230_world_npc_visible_to", "owned npcs are private to the exact login"),
+        ("ToriRSServer_WorldNpcVisibleTo", "owned npcs are private to the exact login"),
         "owned NPC API",
     )
     require_text(
         world,
         (
-            "mock230_world_npc_visible_to(",
-            "mock230_world_npc_owner(srv, npc) == player",
+            "ToriRSServer_WorldNpcVisibleTo(",
+            "ToriRSServer_WorldNpcOwner(srv, npc) == player",
             "an owned npc is hidden from another player",
             "abandoned private encounter actor",
         ),
         "owned NPC lifecycle",
     )
-    require(encode.count("mock230_world_npc_visible_to(srv, npc, player)") >= 4,
+    require(encode.count("ToriRSServer_WorldNpcVisibleTo(srv, npc, player)") >= 4,
             "owned NPC encoding: both wire paths must filter tracked and added NPCs")
-    require(scripts.count("mock230_world_npc_visible_to") >= 4,
+    require(scripts.count("ToriRSServer_WorldNpcVisibleTo") >= 4,
             "owned NPC script lookup: find-all/find/finduid visibility gates missing")
-    require(npc_ops.count("mock230_world_npc_visible_to") >= 2,
+    require(npc_ops.count("ToriRSServer_WorldNpcVisibleTo") >= 2,
             "owned NPC iterator lookup: zone/hunt visibility gates missing")
 
     require_text(
@@ -695,16 +695,16 @@ def check_owned_npc_runtime() -> None:
     )
     require_text(
         MOCK_CONTENT_HEADER.read_text(),
-        ("MOCK230_PACK_VARN", "MOCK230_PACK_VARS"),
+        ("TORIRSSERVER_PACK_VARN", "TORIRSSERVER_PACK_VARS"),
         "NPC/world variable pack kinds",
     )
     require_text(
         MOCK_CONTENT.read_text(),
         (
-            '[MOCK230_PACK_VARN] = "varn"',
-            '[MOCK230_PACK_VARS] = "vars"',
-            "highest >= MOCK230_NPC_VAR_MAX",
-            "highest >= MOCK230_VARS_COUNT",
+            '[TORIRSSERVER_PACK_VARN] = "varn"',
+            '[TORIRSSERVER_PACK_VARS] = "vars"',
+            "highest >= TORIRSSERVER_NPC_VAR_MAX",
+            "highest >= TORIRSSERVER_VARS_COUNT",
         ),
         "NPC/world variable allocation bounds",
     )

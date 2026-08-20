@@ -224,8 +224,8 @@ the tiles the even-size bias moves. Both the graphic **and** the tile step are
 asserted, so a rule that draws the west arc on the east tile cannot pass.
 
 ```sh
-make -C src mock230-scripts
-MOCK230_GEARRUN=1 ./src/build_opt/mock230 --selftest 2>&1 | grep -i gearrun
+make -C src torirsserver-scripts
+TORIRSSERVER_GEARRUN=1 ./src/build_opt/torirsserver --selftest 2>&1 | grep -i gearrun
 ```
 
 Negative control, run rather than assumed: changing `modulo($size, 2) = 0` to

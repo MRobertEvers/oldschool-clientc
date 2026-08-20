@@ -157,7 +157,7 @@ HOST_CC ?= $(strip \
 
 # Sub-make into a vendored tool tree. Those makefiles default to `CC ?= cc`,
 # which exists on macOS and Linux but not in a MinGW toolchain (gcc only), so
-# `make -C src mock230-servpack` on Windows died in the child with a bare
+# `make -C src torirsserver-servpack` on Windows died in the child with a bare
 # "The system cannot find the file specified". `?=` there means this wins
 # without the vendored files needing to change.
 SUBMAKE = $(MAKE) CC=$(HOST_CC)
@@ -476,44 +476,44 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	serverscript/ssvm_provider.c serverscript/ssvm_strpool.c serverscript/ssvm.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
-MOCK230_CORE_SRCS = net/mock/mock230_world.c \
-	net/mock/mock230_cox_sim.c \
-	net/mock/mock230_encode.c net/mock/mock230_wire.c js5/server/js5_server_cache.c \
-	net/mock/mock230_interface_state.c \
-	net/mock/mock230_poh.c \
-	net/mock/mock239_playerinfo.c \
-	net/mock/mock239_interface_setters.c \
-	net/mock/mock239_varp.c \
-	net/mock/mock239_interface_inbound.c \
-	net/mock/mock239_runclientscript.c \
-	net/mock/mock239_inbound.c \
-	net/mock/mock230_objinfo.c \
-	net/mock/mock230_split.c \
-	net/mock/mock230_runenergy.c \
-	net/mock/mock230_healthbarinfo.c \
-	net/mock/mock230_npcinfo.c net/mock/mock230_combat.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_scripts.c net/mock/mock230_ws.c net/mock/mock230_content.c \
-	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_db.c \
-	net/mock/mock230_paramtable.c \
-	net/mock/mock230_locinfo.c net/mock/mock230_structinfo.c \
-	net/mock/mock230_dbinfo.c \
-	net/mock/mock230_ops_db.c \
-	net/mock/mock230_ops_param.c \
-	net/mock/mock230_ops_loc.c \
-	net/mock/mock230_ops_npc.c \
-	net/mock/mock230_ops_obj.c \
-	net/mock/mock230_ops_inv.c \
-	net/mock/mock230_ops_player.c \
-	net/mock/mock230_ops_poh.c \
-	net/mock/mock230_bank.c net/mock/mock230_bank_tables.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
-	net/mock/mock230_shop.c \
-	net/mock/mock230_friends.c \
-	net/mock/mock230_ids.c \
-	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
-	net/mock/mock230_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
-	net/mock/mock230_zone.c net/mock/mock230_zone_index.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
+TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
+	torirsserver/torirs_server_cox_sim.c \
+	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
+	torirsserver/torirs_server_interface_state.c \
+	torirsserver/torirs_server_poh.c \
+	torirsserver/mock239_playerinfo.c \
+	torirsserver/mock239_interface_setters.c \
+	torirsserver/mock239_varp.c \
+	torirsserver/mock239_interface_inbound.c \
+	torirsserver/mock239_runclientscript.c \
+	torirsserver/mock239_inbound.c \
+	torirsserver/torirs_server_objinfo.c \
+	torirsserver/torirs_server_split.c \
+	torirsserver/torirs_server_runenergy.c \
+	torirsserver/torirs_server_healthbarinfo.c \
+	torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_combat.c torirsserver/torirs_server_seqinfo.c \
+	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_db.c \
+	torirsserver/torirs_server_paramtable.c \
+	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_structinfo.c \
+	torirsserver/torirs_server_dbinfo.c \
+	torirsserver/torirs_server_ops_db.c \
+	torirsserver/torirs_server_ops_param.c \
+	torirsserver/torirs_server_ops_loc.c \
+	torirsserver/torirs_server_ops_npc.c \
+	torirsserver/torirs_server_ops_obj.c \
+	torirsserver/torirs_server_ops_inv.c \
+	torirsserver/torirs_server_ops_player.c \
+	torirsserver/torirs_server_ops_poh.c \
+	torirsserver/torirs_server_bank.c torirsserver/torirs_server_bank_tables.c torirsserver/torirs_server_container.c torirsserver/torirs_server_equipment.c \
+	torirsserver/torirs_server_shop.c \
+	torirsserver/torirs_server_friends.c \
+	torirsserver/torirs_server_ids.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
 
@@ -538,7 +538,7 @@ EMBED_SERVER_DUP_SRCS = features/features.c \
 	engine/world_builder/collision_map.c \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
-SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(MOCK230_CORE_SRCS))
+SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
 EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
@@ -595,12 +595,12 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 test-mock230-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
+.PHONY: test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
-.PHONY: mock230-scripts-lanes mock230-lanes
+.PHONY: torirsserver-scripts-lanes torirsserver-lanes
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1047,9 +1047,9 @@ endef
 
 # A bake is not a compile: it reads the lane's directories directly, so it names
 # its own path here rather than discovering it from lane.ini the way the script
-# compile does. Recursive `=` so MOCK230_CONTENT_DIR (defined further down, and
+# compile does. Recursive `=` so TORIRSSERVER_CONTENT_DIR (defined further down, and
 # overridable) is expanded when a recipe runs.
-RS2012_QBD_TD_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
+RS2012_QBD_TD_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/rs2012_qbd_td
 
 # Both the source cache and the tree are usually supplied from outside, and on
 # Windows the usual mistake is a backslash path, which make's shell eats
@@ -1058,16 +1058,16 @@ RS2012_QBD_TD_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
 define RS2012_REQUIRE_LANE
 	@test -d "$(RS2012_QBD_TD_LANE)" || { \
 		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_LANE)" >&2; \
-		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
+		echo "  TORIRSSERVER_CONTENT_DIR=$(TORIRSSERVER_CONTENT_DIR)" >&2; \
 		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
-		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
+		case '$(TORIRSSERVER_CONTENT_DIR)' in *\\*) \
 			echo "  (that path contains backslashes -- use forward slashes)" >&2;; esac; \
 		exit 1; }
 endef
 
 # Re-backport the QBD/TD lane from the RS727 cache into the content tree, then
-# tell you to re-pack. Writes $(MOCK230_CONTENT_DIR) in place -- point that at
-# the tree you mean (see the note at MOCK230_CONTENT_DIR).
+# tell you to re-pack. Writes $(TORIRSSERVER_CONTENT_DIR) in place -- point that at
+# the tree you mean (see the note at TORIRSSERVER_CONTENT_DIR).
 #
 # This exists because the bake was previously a hand-typed command whose one
 # load-bearing flag (--matte) lived only in a branch name, so no two machines
@@ -1077,9 +1077,9 @@ rs2012-lane-bake: rs2012-material-bake
 	$(RS2012_REQUIRE_SRC_CACHE)
 	$(RS2012_REQUIRE_LANE)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/rs2012_material_bake \
-		--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+		--cache $(RS2012_SRC_CACHE) --tree $(TORIRSSERVER_CONTENT_DIR) \
 		--matte $(RS2012_LANE_MATTE) --apply
-	@echo "rs2012-lane-bake: wrote $(MOCK230_CONTENT_DIR); now run mock230-cache-rs2012"
+	@echo "rs2012-lane-bake: wrote $(TORIRSSERVER_CONTENT_DIR); now run torirsserver-cache-rs2012"
 
 # Determinism gate. Two bakes into disposable directories must be byte-identical;
 # if they are not, the bake has picked up uninitialised or address-dependent
@@ -1092,7 +1092,7 @@ rs2012-lane-bake-check: rs2012-material-bake
 		cd $(REPO_ROOT) && for run in a b; do \
 			mkdir -p "$$tmp/$$run"; \
 			./src/$(OBJ_DIR)/rs2012_material_bake \
-				--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+				--cache $(RS2012_SRC_CACHE) --tree $(TORIRSSERVER_CONTENT_DIR) \
 				--matte $(RS2012_LANE_MATTE) --models-out "$$tmp/$$run" >/dev/null || exit 1; \
 		done; \
 		if diff -r "$$tmp/a" "$$tmp/b" >/dev/null; then \
@@ -1106,7 +1106,7 @@ rs2012-lane-bake-check: rs2012-material-bake
 
 # RS2012 models were authored against a z-buffered client, so their face render
 # priorities never ordered anything; honouring them overrides ToriDraw's depth
-# sort. Rewrites the lane's OB3 assets, so re-run mock230-cache-rs2012 after.
+# sort. Rewrites the lane's OB3 assets, so re-run torirsserver-cache-rs2012 after.
 rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_strip_priorities \
@@ -1498,7 +1498,7 @@ test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
 # ServerScript (LostCity RuneScript) reader / compiler / VM.
 #
 # Engine-agnostic by construction: libc plus 3rd/rsareabuf and nothing else, so
-# it links into the standalone mock230 server without dragging in SDL, the task
+# it links into the standalone ToriRSServer server without dragging in SDL, the task
 # queue or the client's UI tree. Every target here links only the subsystem's
 # own sources. See docs/serverscript.md.
 #
@@ -1642,7 +1642,7 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o
 # the wrong players rather than erroring.
 test-mock239-playerinfo: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test \
-		net/mock/test/mock239_playerinfo_test.c net/mock/mock239_playerinfo.c \
+		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
@@ -1652,8 +1652,8 @@ test-mock239-playerinfo: $(OBJ_DIR)
 # fail directly rather than only as a click that appears to do nothing.
 test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_inbound_test \
-		net/mock/test/mock239_interface_inbound_test.c \
-		net/mock/mock239_interface_inbound.c net/mock/mock239_inbound.c \
+		torirsserver/test/mock239_interface_inbound_test.c \
+		torirsserver/mock239_interface_inbound.c torirsserver/mock239_inbound.c \
 		$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_inbound_test
 
@@ -1662,32 +1662,32 @@ test-mock239-inbound: $(OBJ_DIR) $(OBJ_DIR)/jbase37.o $(OBJ_DIR)/rsprot_buf.o
 # a second implementation with the same possible mistake.
 test-mock239-runclientscript: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_runclientscript_test \
-		net/mock/test/mock239_runclientscript_test.c \
-		net/mock/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_runclientscript_test.c \
+		torirsserver/mock239_runclientscript.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_runclientscript_test
 
 # Every additional fixed-body rev239 model/interface setter. The expected
 # bodies are independent literal RSProt fixtures, not a decode round-trip.
 test-mock239-interface-setters: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_interface_setters_test \
-		net/mock/test/mock239_interface_setters_test.c \
-		net/mock/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_interface_setters_test.c \
+		torirsserver/mock239_interface_setters.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_interface_setters_test
 
 test-mock239-varp: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_varp_test \
-		net/mock/test/mock239_varp_test.c \
-		net/mock/mock239_varp.c $(RSAREABUF_DIR)/rsareabuf.c
+		torirsserver/test/mock239_varp_test.c \
+		torirsserver/mock239_varp.c $(RSAREABUF_DIR)/rsareabuf.c
 	./$(OBJ_DIR)/mock239_varp_test
 
 # Server->client revision-239 interface authority and golden packet bodies.
 # Expected bytes are literal fixtures taken from RSProt's encoders rather than
 # decoded through a mirror of this implementation.
-test-mock230-interface-state: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_interface_state_test \
-		net/mock/test/mock230_interface_state_test.c \
-		net/mock/mock230_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
-	./$(OBJ_DIR)/mock230_interface_state_test
+test-torirsserver-interface-state: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_InterfaceStateTest \
+		torirsserver/test/torirs_server_interface_state_test.c \
+		torirsserver/torirs_server_interface_state.c $(RSAREABUF_DIR)/rsareabuf.c
+	./$(OBJ_DIR)/ToriRSServer_InterfaceStateTest
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test \
@@ -1716,7 +1716,7 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test \
-		net/test/net_loopback_test.c net/mock/mock_server.c \
+		net/test/net_loopback_test.c torirsserver/mock_server.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	./$(OBJ_DIR)/net_loopback_test
 
@@ -2020,8 +2020,8 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 
 # The CLIENT half of friends / ignore / private chat: the store, the CS2 host
 # ops, the friend-transmit registration, and the generated stack shapes. The
-# server half already has two gates (`mock230 --selftest` and
-# `test-mock230-embed`); every bug this feature actually hit was on this side of
+# server half already has two gates (`ToriRSServer --selftest` and
+# `test-torirsserver-embed`); every bug this feature actually hit was on this side of
 # the wire, and it had none. Needs no cache and no server on purpose — a gate
 # that can SKIP is a gate that eventually only ever skips.
 test-social: $(OBJ_DIR) $(OBJS)
@@ -2092,12 +2092,12 @@ test-revconfig: $(OBJ_DIR)
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
 # on-login burst, and a 600 ms game tick driving movement, npcs, inventory and
-# equipment. Run: src/build/mock230 [port]. See docs/osrs230_mockserver.md.
+# equipment. Run: src/build/torirsserver [port]. See docs/osrs230_mockserver.md.
 #
 # Everything but main(). Split out so the same server can be linked into a host
-# that has its own entry point — the in-process build (test-mock230-embed) is
+# that has its own entry point — the in-process build (test-torirsserver-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-# jbase37 and wordpack are here rather than in MOCK230_CORE_SRCS because the
+# jbase37 and wordpack are here rather than in TORIRSSERVER_CORE_SRCS because the
 # embed test already links both as objects out of NET_CORE_OBJS, and the client
 # under EMBED_SERVER=1 already has both in SRCS — listing them in both places is
 # a duplicate symbol. The appearance encoder needs jbase37: a player's name goes
@@ -2105,13 +2105,13 @@ test-revconfig: $(OBJ_DIR)
 # directions: the client's outbound builder wordpacks, so the server unpacks to
 # read the message and packs again to relay it (docs/FRIENDS_PRIVATE_CHAT.md
 # §3.4 — a plaintext override on the inbound side was rejected because it would
-# make the two halves of net_out.c/mock230 disagree).
-MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CORE_SRCS)
+# make the two halves of net_out.c/torirsserver disagree).
+TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
 # Dedicated read-only, multi-client JS5 cache service.
 #
-# It is separate from mock230 because a client uses ONE port for JS5 and the
+# It is separate from ToriRSServer because a client uses ONE port for JS5 and the
 # game, choosing with its first byte — so the two cannot both own 43594 in a
-# finished deployment, and the branch belongs in mock230_session's handshake.
+# finished deployment, and the branch belongs in ToriRSServer_Session's handshake.
 # This binary exists because it is the half that can be verified today against
 # a real OldSchool client and against Jagex's own service:
 #
@@ -2141,31 +2141,31 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/mock_js5 (compatibility name)"
 
-mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+torirsserver: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/mock230"
+	@echo "built $(OBJ_DIR)/torirsserver"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
 # It exists so two people (or two agents) can each hold a live session against
 # their own server without fighting over the port or over one output file.
 # manifest_osrs230_dev.ini points at it; everything else is identical.
 #
-# The name is `dev_mock230`, not `mock230_dev`, on purpose: the usual way to
-# stop a stray server is `pkill -f build/mock230`, and that pattern is a prefix
-# match — anything named `mock230*` in the same directory dies with it.
-mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+# The name is `dev_torirsserver`, not `ToriRSServer_Dev`, on purpose: the usual way to
+# stop a stray server is `pkill -f build/torirsserver`, and that pattern is a prefix
+# match — anything named `ToriRSServer*` in the same directory dies with it.
+torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/dev_mock230"
+	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
 # suite a gate at all.
@@ -2179,9 +2179,9 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 #
 # **The site was found on 2026-08-08, and it was a use-after-free in the
 # selftest's own fixture, not an uninitialised read in the engine.** The
-# re-flood stanza took `mock230_scene_find_loc` for the castle door, then called
+# re-flood stanza took `ToriRSServer_SceneFindLoc` for the castle door, then called
 # `selftest_park_player`, then dereferenced the loc. A park ends in
-# `maybe_rebuild` -> `mock230_scene_build` -> `mock230_scene_free`, which
+# `maybe_rebuild` -> `ToriRSServer_SceneBuild` -> `ToriRSServer_SceneFree`, which
 # `free()`s `g_locs` — so both the slot index and the pointer died at the park,
 # and the interaction was latched on whatever the freed page happened to hold.
 # Under scribble that reads 0x55555555 every time, which is why poisoning made
@@ -2189,7 +2189,7 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 # PASSED for the wrong reason, routing 74 steps to a loc 34 tiles away.
 #
 # The fixture now resolves the loc after the park (the same rule `p_oploc`
-# states for itself in mock230_ops_player.c: a rebuild reallocates the array
+# states for itself in torirs_server_ops_player.c: a rebuild reallocates the array
 # underneath anything holding into it). Both checks were mutation-tested
 # afterwards — skipping `queue_path_as_waypoints` in the re-flood turns exactly
 # those two red — so they measure the engine path they name rather than the heap.
@@ -2201,44 +2201,44 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 # runs. A suite whose failure count wandered 10..14 could not answer "did I
 # break something", which is exactly how four regressions reached a user with
 # "baseline, no regression" attached to them.
-test-mock230-dev: mock230-dev
+test-torirsserver-dev: torirsserver-dev
 	cd $(REPO_ROOT) && MallocScribble=1 MallocPreScribble=1 \
-		./src/$(OBJ_DIR)/dev_mock230 --selftest
+		./src/$(OBJ_DIR)/dev_torirsserver --selftest
 
-# A third binary on 43599, same deal as mock230-dev above — one more parallel
+# A third binary on 43599, same deal as torirsserver-dev above — one more parallel
 # session that owns its own port and its own output file.
 # manifest_osrs230_alt.ini points at it.
-mock230-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43599 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
-	@echo "built $(OBJ_DIR)/alt_mock230"
+	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
-test-mock230-alt: mock230-alt
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/alt_mock230 --selftest
+test-torirsserver-alt: torirsserver-alt
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/alt_torirsserver --selftest
 
 # A fourth binary on 43601, for the bank work. Same sources, same reason as the
 # two above: a live session that owns its own port and its own output file.
 # manifest_osrs230_bank.ini points at it.
-# `rsprot_buf.o` is in this list because $(MOCK230_SRCS) includes
-# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `mock230`
-# links it and this target did not, so `mock230-bank` had been failing to link
+# `rsprot_buf.o` is in this list because $(TORIRSSERVER_SRCS) includes
+# mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `ToriRSServer`
+# links it and this target did not, so `torirsserver-bank` had been failing to link
 # since that file joined the sources — a build break nothing ran often enough to
 # notice.
-mock230-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_mock230 $(MOCK230_SRCS) \
+	$(CC) $(CFLAGS) -DTORIRSSERVER_DEFAULT_PORT=43601 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
-	@echo "built $(OBJ_DIR)/bank_mock230"
+	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
-test-mock230-bank: mock230-bank
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/bank_mock230 --selftest
+test-torirsserver-bank: torirsserver-bank
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/bank_torirsserver --selftest
 
 # Mock server game logic with no socket: movement, scene rebuild, equipment
 # (including the cache's wearpos_2/3 slot claims), inventory drag, npc roaming.
@@ -2246,25 +2246,25 @@ test-mock230-bank: mock230-bank
 # the equipment checks need the cache's wearpos fields to mean anything.
 # Compile the mock's own content. The content itself lives in the OSRS-Content
 # submodule, so a checkout without `git submodule update --init` has none of it.
-# The output lands in mock230/scripts/build, which that repo's .gitignore
+# The output lands in ToriRSServer/scripts/build, which that repo's .gitignore
 # excludes (`build/`), so a fresh checkout has no script pack until this runs.
 # That IS fatal now, in the sense that matters: the engine's fallbacks are gated
-# on a pack being loaded (enum Mock230Fallback), so a server without one prints
+# on a pack being loaded (enum ToriRSServerFallback), so a server without one prints
 # a banner and then does almost nothing, rather than answering every trigger out
 # of C and playing a second, silently different game.
 # Ids are rev-230 ids from cache.osrs239, NOT LostCity's.
 #
 # `?=` so a content tree elsewhere (a second clone parked on a porting branch,
 # which is how the ported/ lanes are usually carried) can be selected by
-# exporting MOCK230_CONTENT_DIR once, instead of repeating it on every make
+# exporting TORIRSSERVER_CONTENT_DIR once, instead of repeating it on every make
 # command line. A command-line assignment still wins over both.
-MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+TORIRSSERVER_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 # The four ported/ lanes used to be spelled out here — SUMMONING_CLIENT_LANE,
 # RS2012_QBD_TD_CLIENT_LANE, CURSES_CLIENT_LANE, HERBLORE_ITEMS_LANE — and
 # threaded through every compile recipe as --pack and --component-root roots.
 # Each lane now describes itself in `<content>/ported/<lane>/lane.ini`, which is
 # what makes adding a fifth lane, or leaving one out, a content edit rather than
-# a makefile edit. See the mock230-scripts-lanes recipe below and
+# a makefile edit. See the torirsserver-scripts-lanes recipe below and
 # src/serverscript/ssc_lane.h. The cache bakes and the per-lane cs2 tests still
 # name their own lane paths (SUMMONING_LANE, CURSES_LANE, RS2012_QBD_TD_LANE):
 # a bake is not a compile and reads different directories.
@@ -2281,7 +2281,7 @@ MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 # docs/CRYSTAL_SET_COMMAND.md.
 check-crystal-set-contract:
 	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test \
-		--content $(MOCK230_CONTENT_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR)
 
 check-gauntlet-contract:
 	@cd $(REPO_ROOT) && python3 tools/check_gauntlet_contract.py
@@ -2291,11 +2291,11 @@ check-gauntlet-contract:
 # and only this can: four courses were paying the wrong amount when it was
 # written, and nothing in the tree noticed.
 check-agility-xp:
-	@cd $(REPO_ROOT) && python3 tools/agility_xp_audit.py --tree $(MOCK230_CONTENT_DIR)
+	@cd $(REPO_ROOT) && python3 tools/agility_xp_audit.py --tree $(TORIRSSERVER_CONTENT_DIR)
 
 .PHONY: check-wintertodt-rewards
 check-wintertodt-rewards:
-	@cd $(REPO_ROOT) && python3 tools/wintertodt_reward_audit.py --tree $(MOCK230_CONTENT_DIR)
+	@cd $(REPO_ROOT) && python3 tools/wintertodt_reward_audit.py --tree $(TORIRSSERVER_CONTENT_DIR)
 
 check-godwars-manifest:
 	@cd $(REPO_ROOT) && python3 tools/generate_godwars_combat_manifest.py --check
@@ -2305,19 +2305,19 @@ check-godwars-contract:
 
 # These targets consume the already-compiled full content pack. Keeping the
 # script build separate lets a God Wars evidence run diagnose its own lane even
-# when an unrelated content contract blocks the aggregate mock230-scripts gate.
+# when an unrelated content contract blocks the aggregate torirsserver-scripts gate.
 .PHONY: godwars-evidence check-godwars-evidence test-godwars-restart
-godwars-evidence: mock230 check-godwars-manifest check-godwars-contract
+godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --skip-contracts \
-		--server src/$(OBJ_DIR)/mock230
+		--server src/$(OBJ_DIR)/torirsserver
 
-check-godwars-evidence: mock230 check-godwars-manifest check-godwars-contract
+check-godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --check --skip-contracts \
-		--server src/$(OBJ_DIR)/mock230
+		--server src/$(OBJ_DIR)/torirsserver
 
-test-godwars-restart: mock230
+test-godwars-restart: ToriRSServer
 	@cd $(REPO_ROOT) && python3 tools/test_godwars_restart.py \
-		--server src/$(OBJ_DIR)/mock230 \
+		--server src/$(OBJ_DIR)/torirsserver \
 		--scripts OSRS-Content/osrs239-content/server/scripts/build
 
 check-quest-combat-manifest:
@@ -2419,9 +2419,9 @@ check-tob-pillar-contract:
 
 test-construction-catalog:
 	@cd $(REPO_ROOT) && python3 tools/check_construction_catalog.py --self-test \
-		--content $(MOCK230_CONTENT_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR)
 	@cd $(REPO_ROOT) && python3 tools/generate_construction_crosswalk.py --check \
-		--content $(MOCK230_CONTENT_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR)
 	@cd $(REPO_ROOT) && python3 tools/generate_poh_quest_status.py --check
 
 test-poh-quest-status:
@@ -2436,10 +2436,10 @@ test-poh-league-hall:
 test-poh-house-styles:
 	@cd $(REPO_ROOT) && python3 tools/check_poh_house_styles.py
 
-test-mock230-poh: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_poh_test \
-		net/mock/test/mock230_poh_test.c net/mock/mock230_poh.c
-	./$(OBJ_DIR)/mock230_poh_test
+test-torirsserver-poh: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_PohTest \
+		torirsserver/test/torirs_server_poh_test.c torirsserver/torirs_server_poh.c
+	./$(OBJ_DIR)/ToriRSServer_PohTest
 
 test-poh-servants:
 	@cd $(REPO_ROOT) && python3 tools/check_poh_servants.py
@@ -2458,15 +2458,15 @@ test-poh-servants:
 #
 # Now a lane describes itself, in `<content>/ported/<lane>/lane.ini`, and
 # sscompile reads that (src/serverscript/ssc_lane.h). Nothing below names a lane
-# path, a lane's packs or a lane's components; MOCK230_SCRIPT_LANES names lanes,
+# path, a lane's packs or a lane's components; TORIRSSERVER_SCRIPT_LANES names lanes,
 # and a lane not named is genuinely not in the pack.
 #
 # The two --pack defaults sscompile applies with no --pack at all are exactly
-# $(MOCK230_CONTENT_DIR)/pack and /configs, and --constants defaults to --src,
+# $(TORIRSSERVER_CONTENT_DIR)/pack and /configs, and --constants defaults to --src,
 # which is the real tree rather than a staged copy of it. So the whole command
 # is the source, the output and the lanes.
-MOCK230_SCRIPT_LANES ?=
-MOCK230_SCRIPT_OUT ?= $(MOCK230_CONTENT_DIR)/server/scripts/build
+TORIRSSERVER_SCRIPT_LANES ?=
+TORIRSSERVER_SCRIPT_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
 
 # Allocate first, then compile: a `.enum` or `.dbtable` block declares a record
 # by name and the compiler needs a number, so tools/ss_allocate.py has to have
@@ -2475,21 +2475,21 @@ MOCK230_SCRIPT_OUT ?= $(MOCK230_CONTENT_DIR)/server/scripts/build
 # check-crystal-set-contract on every pack, lane build included: it is the one
 # gate that spans the client and server halves at once (docs/CRYSTAL_SET_COMMAND.md),
 # so a lane build that skipped it could ship half a fix. The heavier content
-# contracts hang off mock230-scripts alone — see there.
-mock230-scripts-lanes: sscompile check-crystal-set-contract
-	@mkdir -p $(MOCK230_SCRIPT_OUT)
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
+# contracts hang off torirsserver-scripts alone — see there.
+torirsserver-scripts-lanes: sscompile check-crystal-set-contract
+	@mkdir -p $(TORIRSSERVER_SCRIPT_OUT)
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(TORIRSSERVER_CONTENT_DIR)
 	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--out $(MOCK230_SCRIPT_OUT) \
-		--content-root $(MOCK230_CONTENT_DIR) \
-		$(foreach lane,$(MOCK230_SCRIPT_LANES),--lane $(lane))
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--out $(TORIRSSERVER_SCRIPT_OUT) \
+		--content-root $(TORIRSSERVER_CONTENT_DIR) \
+		$(foreach lane,$(TORIRSSERVER_SCRIPT_LANES),--lane $(lane))
 
 # What lanes this tree declares, and which of them a bare build would compile.
-mock230-lanes: sscompile
+torirsserver-lanes: sscompile
 	@./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--content-root $(MOCK230_CONTENT_DIR) --list-lanes
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--content-root $(TORIRSSERVER_CONTENT_DIR) --list-lanes
 
 # The ordinary pack: the base tree plus the lanes whose descriptors say
 # `default=on` — the additive ones base content already names (the QBD's records,
@@ -2499,36 +2499,36 @@ mock230-lanes: sscompile
 # This is the target every content contract hangs off, so it carries them all;
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed.
-mock230-scripts: check-selftest-registration check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
-	@$(MAKE) mock230-scripts-lanes \
-		MOCK230_SCRIPT_LANES= \
-		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build
+torirsserver-scripts: check-selftest-registration check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES= \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
 
 # Summoning on. Same sources, same symbol roots; the lane is added rather than
 # unlocked, so nothing about the default pack can drift into this one.
-mock230-scripts-summoning:
-	@$(MAKE) mock230-scripts-lanes \
-		MOCK230_SCRIPT_LANES=scape2009_summoning \
-		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
+torirsserver-scripts-summoning:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=scape2009_summoning \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning
 
 # Ancient Curses on, Summoning off: the two lanes are independent, and a build
 # that wants both is the target below rather than this one twice.
-mock230-scripts-curses:
-	@$(MAKE) mock230-scripts-lanes \
-		MOCK230_SCRIPT_LANES=rs558_ancient_curses \
-		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_curses
+torirsserver-scripts-curses:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES=rs558_ancient_curses \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_curses
 
-test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
+test-summoning-phase3: torirsserver-scripts torirsserver-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py
 
-# The server band, `mock230-scripts`' sibling (PORTING_GUIDE §3.6 item 1): the
+# The server band, `torirsserver-scripts`' sibling (PORTING_GUIDE §3.6 item 1): the
 # npc/loc server fields the boot reads from <content>/server/pack instead of
 # re-parsing the text overlays. `--server-only` is the cheap form — no cache is
 # copied or opened; a full `cachepack pack` writes the identical bands. Without
 # this the boot warns and falls back to the text parse — which is still a real
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
-.PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale \
+.PHONY: test-rs2012-server-overlay torirsserver-cache-rs2012 test-cache-overlay-stale \
 	test-droptable-versions test-loc-var-audit check-loc-var-carriers
 
 # The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
@@ -2547,11 +2547,11 @@ test-loc-var-audit:
 # script that sets a loc's transform varbit whose carrier is not declared
 # `transmit=yes` updates the server and nothing else, and the multiloc never
 # moves for anybody. Nothing else in the build can see it — sscompile only
-# checks that the varbit resolves, and mock230_world_mark_varp drops the packet
+# checks that the varbit resolves, and ToriRSServer_WorldMarkVarp drops the packet
 # without a word. 204 written varbits were in that state, over 1,811 loc
 # placements, before this ran.
 check-loc-var-carriers:
-	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(MOCK230_CONTENT_DIR) \
+	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(TORIRSSERVER_CONTENT_DIR) \
 		--check-carriers
 
 # The two drop-table invariants that shipped broken and that nothing else can
@@ -2569,10 +2569,10 @@ test-rs2012-server-overlay:
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_server_overlay.py \
 		--cachepack $(CACHEPACK_BIN)
 
-mock230-servpack: test-rs2012-server-overlay
+torirsserver-servpack: test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src $(MOCK230_CONTENT_DIR) --server-only
+		--src $(TORIRSSERVER_CONTENT_DIR) --server-only
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE §1, `cachepack pack ──► client cache (--out)`).
@@ -2587,9 +2587,9 @@ mock230-servpack: test-rs2012-server-overlay
 # When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
 # interface imports, sprites, native config fields, authored client patches.
 # Pure server work — scripts, db tables, params, varps, npc/loc server fields —
-# travels by `mock230-scripts` + `mock230-servpack` alone, and the world boots
+# travels by `torirsserver-scripts` + `torirsserver-servpack` alone, and the world boots
 # from the pristine cache by default (the one-cache rule: the world reads what
-# JS5 serves; MOCK230_CACHE_DIR_DEFAULT in mock230.h). When you do bake, point
+# JS5 serves; TORIRSSERVER_CACHE_DIR_DEFAULT in torirs_server.h). When you do bake, point
 # BOTH the world and JS5 at the result.
 #
 # `--base` copies the pristine cache first, so every record the tree does not
@@ -2599,38 +2599,38 @@ mock230-servpack: test-rs2012-server-overlay
 # Base and output are variables, not literals, so a bake can be aimed somewhere
 # else without editing this file:
 #
-#   make -C src mock230-cache MOCK230_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
+#   make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
 #
 # The default output stays `cache.osrs239.baked` because manifest_osrs239_net.ini
 # and the rev-230 manifests name that directory. Previously `--base`/`--out`
-# were spelled literally in the recipe while MOCK230_CACHE_DIR was used only by
+# were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
 # the `rm -rf` above them, so the two could disagree and the wrong tree would be
 # cleared.
-MOCK230_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
-MOCK230_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
+TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
+TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
 # Optional RuneStar CS2 name tables (script/graphic/…). Without them, ~proc
 # calls into .cs2b-only scripts cannot resolve (PROC no longer falls back to a
 # sole clientscript alias — that rebound trampoline wrappers to themselves).
 # Pack then keeps the base bytes. With the tables, trampolines recompile to the
 # real proc id.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
-mock230-cache: check-crystal-set-contract
+torirsserver-cache: check-crystal-set-contract
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@# --base is optional. With one, the pristine cache is copied and every record
 	@# the tree does not change keeps the bytes it had. Without one, cachepack
 	@# creates the cache and what lands is exactly what the content tree states --
 	@# so a missing base is a narrower cache, not an error.
-	rm -rf $(MOCK230_CACHE_DIR)
+	rm -rf $(TORIRSSERVER_CACHE_DIR)
 	cd $(REPO_ROOT) && \
 		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
 			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
 		fi; \
 		$(CACHEPACK_BIN) pack \
-		--src $(MOCK230_CONTENT_DIR) \
-		$(if $(wildcard $(MOCK230_CACHE_BASE)),--base $(MOCK230_CACHE_BASE),) \
-		--out $(MOCK230_CACHE_DIR) \
+		--src $(TORIRSSERVER_CONTENT_DIR) \
+		$(if $(wildcard $(TORIRSSERVER_CACHE_BASE)),--base $(TORIRSSERVER_CACHE_BASE),) \
+		--out $(TORIRSSERVER_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(MOCK230_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(TORIRSSERVER_CACHE_DIR)
 
 # Every dat2 table an OldSchool cache carries, by idx id — the OSRS column of
 # DAT2_TABLE_IDS_OSRS in 3rd/rscache/src/dat2disk.c. 16/17 and 23 are unused in
@@ -2642,23 +2642,23 @@ mock230-cache: check-crystal-set-contract
 # --assets/--binary, gamevals from --gamevals), so a missing flag silently costs
 # a table rather than failing — which is exactly what --gamevals did before it
 # was added above.
-MOCK230_CACHE_TABLES = 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255
+TORIRSSERVER_CACHE_TABLES = 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255
 
-mock230-cache-check:
-	@test -f "$(MOCK230_CACHE_DIR)/main_file_cache.dat2" || { \
-		echo "mock230-cache-check: no cache at $(MOCK230_CACHE_DIR)" >&2; exit 1; }
-	@missing=""; for t in $(MOCK230_CACHE_TABLES); do \
-		[ -f "$(MOCK230_CACHE_DIR)/main_file_cache.idx$$t" ] || missing="$$missing $$t"; \
+torirsserver-cache-check:
+	@test -f "$(TORIRSSERVER_CACHE_DIR)/main_file_cache.dat2" || { \
+		echo "torirsserver-cache-check: no cache at $(TORIRSSERVER_CACHE_DIR)" >&2; exit 1; }
+	@missing=""; for t in $(TORIRSSERVER_CACHE_TABLES); do \
+		[ -f "$(TORIRSSERVER_CACHE_DIR)/main_file_cache.idx$$t" ] || missing="$$missing $$t"; \
 	done; \
 	if [ -n "$$missing" ]; then \
-		echo "mock230-cache-check: $(MOCK230_CACHE_DIR) is missing idx:$$missing" >&2; \
+		echo "torirsserver-cache-check: $(TORIRSSERVER_CACHE_DIR) is missing idx:$$missing" >&2; \
 		echo "  A table with no .idx file is a table the client cannot read." >&2; \
 		exit 1; \
 	fi; \
-	echo "mock230-cache-check: all $(words $(MOCK230_CACHE_TABLES)) tables present in $(MOCK230_CACHE_DIR)"
+	echo "torirsserver-cache-check: all $(words $(TORIRSSERVER_CACHE_TABLES)) tables present in $(TORIRSSERVER_CACHE_DIR)"
 
 # The cache-727 QBD/TD client records are isolated below `ported/` and therefore
-# do not enter an ordinary `mock230-cache` bake. Compose that marked lane through
+# do not enter an ordinary `torirsserver-cache` bake. Compose that marked lane through
 # its audited sparse stager, then verify the client-facing interface/sprite/script
 # archives against the resulting cache. `manifest_osrs239_rs2012.ini` points the
 # client at this directory; main.c hands the same resolved path to the embedded
@@ -2667,45 +2667,45 @@ RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
 RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
 RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012
 
-mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
+torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack audioprobe
-	@# --base is optional, exactly as in mock230-cache. With a base cache the
+	@# --base is optional, exactly as in torirsserver-cache. With a base cache the
 	@# stager emits the sparse lane overlay and the pack resolves everything
 	@# else from the base -- much less to copy and to write. Without one it
 	@# stages the base tree behind the lane (--full) and unions the pack
 	@# indexes, so the content repo alone produces a complete cache. The two
-	@# routes must agree on the lane; `mock230-cache-rs2012-check` proves it.
+	@# routes must agree on the lane; `torirsserver-cache-rs2012-check` proves it.
 	@cd $(REPO_ROOT) && python3 tools/test_stage_rs2012_overlay.py
 	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR) \
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR) \
 		$(if $(wildcard $(RS2012_CACHE_BASE)),,--full)
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--content $(MOCK230_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
+		--content $(TORIRSSERVER_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
 	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_BASE))" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "/" || { \
-		echo "mock230-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
+		echo "torirsserver-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
 	rm -rf "$(RS2012_CACHE_DIR)"
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(RS2012_OVERLAY_DIR) \
 		$(if $(wildcard $(RS2012_CACHE_BASE)),--base $(RS2012_CACHE_BASE),) \
 		--out $(RS2012_CACHE_DIR) --rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(RS2012_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(RS2012_CACHE_DIR)
 	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
 		cd $(REPO_ROOT) && $(CACHEPACK_BIN) verify \
 			--cache $(RS2012_CACHE_DIR) --rev osrs239 --src $(RS2012_OVERLAY_DIR) \
 			--assets=interfaces,sprites,scripts,synth,songs,samples,patches --tmp "$$tmp"
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--content $(MOCK230_CONTENT_DIR) \
+		--content $(TORIRSSERVER_CONTENT_DIR) \
 		--cache $(RS2012_CACHE_DIR) --audioprobe $(AUDIOPROBE_BIN)
-	@echo "mock230-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
+	@echo "torirsserver-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
 
 # The 2009scape Summoning client records are deliberately absent from the
 # ordinary content walk.  A feature-on cache is a second pass over the explicit
 # marked-lane staging tree.  Its CS2 gate is separate because the committed
 # ordinary tree has known stale sources: cachepack keeps base bytes when a
 # source declines, so only an exact non-zero `compiled N, failed 0` is evidence.
-SUMMONING_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
+SUMMONING_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/scape2009_summoning
 SUMMONING_OVERLAY_DIR = $(REPO_ROOT)/build/summoning-overlay
 SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.summoning
@@ -2718,7 +2718,7 @@ test-summoning-cs2:
 		expected=$$(find "$(SUMMONING_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-summoning-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(SUMMONING_LANE)/scripts" \
-			--raw "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+			--raw "$(TORIRSSERVER_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -2726,20 +2726,20 @@ test-summoning-cs2:
 
 test-summoning-isolation:
 	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 
 # Phase 5a establishes whether a generated roster candidate may enter the
 # feature-on cache at all. It deliberately has no roster render/summon proof;
 # that bounded cohort acceptance is Phase 5b.
 test-summoning-phase5a:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5a.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # Phase 5b admits one exact closure beside the held review-only experiment.
 # It runs before a feature-on bake, never before the ordinary cache path.
 test-summoning-phase5b:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # Superseded by the 77 per-familiar cohorts merged from v3, which cover all 45
 # of this cohort's sources and claim its destination ranges. Kept, but out of
@@ -2753,7 +2753,7 @@ test-summoning-phase5c-corpus:
 # UI, actual familiar transfer rules, and shared shop scope remain separate.
 test-summoning-phase6:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 test-summoning-phase6-cache:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6_cache.py \
@@ -2764,13 +2764,13 @@ test-summoning-phase6-cache:
 # adds one rev-727 object, for 68 packed icons and 63 inventory models total.
 test-summoning-scroll-assets:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_scroll_assets.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 # The Pets subsection has 33 rows sourced from the rev-727 guide.  Each row
 # owns a packed display object and inventory model so script 1904 can render it.
 test-summoning-pet-guide-assets:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_pet_guide_assets.py \
-		--tree $(MOCK230_CONTENT_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR)
 
 test-summoning-specials:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_specials.py
@@ -2782,35 +2782,35 @@ test-summoning-source-provenance:
 # Runtime proof is intentionally separate from the cache and port gates. It
 # retains the Phase-5b structural/staging fingerprint as a prerequisite, builds
 # a normal non-ASAN embedded client, and drives a fresh real pouch UI.
-test-summoning-phase5b-runtime: test-summoning-phase5b mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase5b-runtime: test-summoning-phase5b torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 ENABLE_ASAN=0 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b_runtime.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase6b: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-phase6b: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6b.py
 
-test-summoning-phase7d: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-phase7d: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase7d.py
 
 # Familiar npc op1. Needs the client because the proof is the real OPNPC1
 # packet; --static-only drops that and checks the bindings and source values.
-test-summoning-interact: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-interact: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_interact.py
 
 # The familiar leash: an owner who teleports away gets their familiar back.
 # Needs the client because where an npc stands is only observable through a
 # live session; --static-only drops that and checks the shared leash range.
-test-summoning-leash: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-leash: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_leash.py
 
 # The same leash across a map instance, for both kinds of follower. Nobody walks
 # into a private copy of a square, so this is the crossing `playerfollow` cannot
 # make — and a pet had no tick to leash from at all. Two client runs.
-test-summoning-instance: mock230-cache-summoning mock230-scripts-summoning
+test-summoning-instance: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_instance.py
 
 # Recompile summoning_dialogue.rs2 from the checked-in transcript corpus. The
@@ -2820,12 +2820,12 @@ test-summoning-instance: mock230-cache-summoning mock230-scripts-summoning
 summoning-dialogue:
 	@cd $(REPO_ROOT) && python3 tools/generate_familiar_dialogue_script.py
 
-test-summoning-phase7f: mock230-pack
+test-summoning-phase7f: torirsserver-pack
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase7f.py
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX) \
-		--content $(MOCK230_CONTENT_DIR) --cache $(MOCK230_CACHE_BASE) --check-only
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_Pack$(PLATFORM_EXE_SUFFIX) \
+		--content $(TORIRSSERVER_CONTENT_DIR) --cache $(TORIRSSERVER_CACHE_BASE) --check-only
 
-summoning-texture-review: mock230-cache-summoning
+summoning-texture-review: torirsserver-cache-summoning
 	@cd $(REPO_ROOT) && python3 tools/build_summoning_texture_review.py
 
 test-summoning-import:
@@ -2859,26 +2859,26 @@ CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
 # As with SUMMONING_LANE: the cs2 test compiles the lane's own scripts, so it
 # needs the path, not the lane.ini discovery the server-script build uses.
-CURSES_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
+CURSES_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/rs558_ancient_curses
 
-mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
+torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test-curses-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(CURSES_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-curses: no base cache at $(CURSES_CACHE_BASE); run mock230-cache first" >&2; exit 1; }
+		echo "torirsserver-cache-curses: no base cache at $(CURSES_CACHE_BASE); run torirsserver-cache first" >&2; exit 1; }
 	@cd $(REPO_ROOT) && python3 tools/stage_curses_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(CURSES_OVERLAY_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(CURSES_OVERLAY_DIR)
 	rm -rf "$(CURSES_CACHE_DIR)"
 	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
 		$(CACHEPACK_BIN) pack --src $(CURSES_OVERLAY_DIR) \
 		--base $(CURSES_CACHE_BASE) --out $(CURSES_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(CURSES_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(CURSES_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(CURSES_CACHE_DIR)" --rev osrs239 \
 		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 463 547 6723 7053 7054 7055 7823 >"$$log" 2>&1; \
 		cat "$$log"; \
-		grep -Rqs 'return(6035)' "$$tmp" || { echo "mock230-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
-		grep -Rqs 'varbit20412' "$$tmp" || { echo "mock230-cache-curses: the active-mask varbit did not reach the baked cache" >&2; exit 1; }; \
+		grep -Rqs 'return(6035)' "$$tmp" || { echo "torirsserver-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
+		grep -Rqs 'varbit20412' "$$tmp" || { echo "torirsserver-cache-curses: the active-mask varbit did not reach the baked cache" >&2; exit 1; }; \
 		echo "curses cs2: third-book arm and mask varbit present in $(CURSES_CACHE_DIR)"
 
 # ------------------------------------------------------------------
@@ -2895,13 +2895,13 @@ CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.rs2012-summoning-curses
 # Both gated lanes at once, for manifest_osrs239_torirs.ini. Two names on one
 # line rather than a third recipe: that the combination is expressible at all,
 # without restating either lane's inputs, is the point of the descriptors.
-mock230-scripts-summoning-curses:
-	@$(MAKE) mock230-scripts-lanes \
-		MOCK230_SCRIPT_LANES="scape2009_summoning rs558_ancient_curses" \
-		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses
+torirsserver-scripts-summoning-curses:
+	@$(MAKE) torirsserver-scripts-lanes \
+		TORIRSSERVER_SCRIPT_LANES="scape2009_summoning rs558_ancient_curses" \
+		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning_curses
 
 # The curses overlay on top of the rs2012+Summoning cache. Same recipe as
-# mock230-cache-curses with the base and output moved, which is why the id
+# torirsserver-cache-curses with the base and output moved, which is why the id
 # bases were picked clear of every other lane in the first place.
 #
 # The rs2012+Summoning cache is treated as an INPUT that must already exist,
@@ -2914,12 +2914,12 @@ mock230-scripts-summoning-curses:
 # .cursor/rules/no-park-sibling-content.mdc forbids — but neither should a
 # stale fingerprint in another lane block this one from baking.
 #
-#   make -C src mock230-cache-rs2012-summoning   # when that test is green again
-mock230-cache-all:
+#   make -C src torirsserver-cache-rs2012-summoning   # when that test is green again
+torirsserver-cache-all:
 	@test -f "$(CURSES_ALL_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-all: no base cache at $(CURSES_ALL_CACHE_BASE)." >&2; \
-		echo "  build it with: make -C src mock230-cache-rs2012-summoning" >&2; exit 1; }
-	@$(MAKE) --no-print-directory mock230-cache-curses \
+		echo "torirsserver-cache-all: no base cache at $(CURSES_ALL_CACHE_BASE)." >&2; \
+		echo "  build it with: make -C src torirsserver-cache-rs2012-summoning" >&2; exit 1; }
+	@$(MAKE) --no-print-directory torirsserver-cache-curses \
 		CURSES_CACHE_BASE=$(CURSES_ALL_CACHE_BASE) \
 		CURSES_CACHE_DIR=$(CURSES_ALL_CACHE_DIR)
 
@@ -2933,7 +2933,7 @@ test-curses-cs2:
 		expected=$$(find "$(CURSES_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(CURSES_LANE)/scripts" \
-			--cache "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+			--cache "$(TORIRSSERVER_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -2941,20 +2941,20 @@ test-curses-cs2:
 
 test-curses-isolation:
 	@cd $(REPO_ROOT) && python3 tools/check_curses_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2 test-cache-overlay-stale
+torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2 test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
+		echo "torirsserver-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
+		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
 	rm -rf "$(SUMMONING_CACHE_DIR)"
 	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
 		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
-	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
+	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@$(MAKE) --no-print-directory test-summoning-phase6-cache
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
@@ -2962,7 +2962,7 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		cat "$$log"; grep -qx 'decompiled 9, failed 0, total 9' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
-		echo "mock230-cache-summoning: verified 9 clientscript archives"
+		echo "torirsserver-cache-summoning: verified 9 clientscript archives"
 
 # Both marked lanes in one cache, for manifest_osrs239_rs2012_summoning.ini.
 #
@@ -2975,88 +2975,88 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 # exactly as that bake wrote them.
 #
 # Order is QBD/TD first. The Summoning lane's CS2 is authored and gated against
-# the pristine cache (test-summoning-cs2 compiles with --raw MOCK230_CACHE_BASE),
+# the pristine cache (test-summoning-cs2 compiles with --raw TORIRSSERVER_CACHE_BASE),
 # so it is the layer that must land last, on top of whatever the other lane
 # staged.
 #
-# Base and output must be different directories: mock230-cache-summoning deletes
+# Base and output must be different directories: torirsserver-cache-summoning deletes
 # its output before packing, so aiming both at one path would delete the base
 # mid-recipe. The QBD/TD cache is reused as-is rather than rebuilt into a
 # private copy — it is the same bytes manifest_osrs239_rs2012.ini boots, which
 # is what makes a defect seen here reproducible there.
 RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 
-.PHONY: mock230-cache-rs2012-summoning
-mock230-cache-rs2012-summoning:
+.PHONY: torirsserver-cache-rs2012-summoning
+torirsserver-cache-rs2012-summoning:
 	@test -f "$(RS2012_CACHE_DIR)/main_file_cache.dat2" || { \
-		echo "mock230-cache-rs2012-summoning: no QBD/TD base at $(RS2012_CACHE_DIR)" >&2; \
+		echo "torirsserver-cache-rs2012-summoning: no QBD/TD base at $(RS2012_CACHE_DIR)" >&2; \
 		echo "  That cache is this composition's first layer; bake it with" >&2; \
-		echo "    $(MAKE) -C src mock230-cache-rs2012" >&2; \
+		echo "    $(MAKE) -C src torirsserver-cache-rs2012" >&2; \
 		exit 1; }
 	@test "$(abspath $(RS2012_SUMMONING_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_DIR))" || { \
-		echo "mock230-cache-rs2012-summoning: output must differ from its base" >&2; exit 1; }
-	@$(MAKE) --no-print-directory mock230-cache-summoning \
+		echo "torirsserver-cache-rs2012-summoning: output must differ from its base" >&2; exit 1; }
+	@$(MAKE) --no-print-directory torirsserver-cache-summoning \
 		SUMMONING_CACHE_BASE=$(RS2012_CACHE_DIR) \
 		SUMMONING_CACHE_DIR=$(RS2012_SUMMONING_CACHE_DIR)
-	@echo "mock230-cache-rs2012-summoning: use ./run-live.sh manifest_osrs239_rs2012_summoning.ini"
+	@echo "torirsserver-cache-rs2012-summoning: use ./run-live.sh manifest_osrs239_rs2012_summoning.ini"
 
-test-summoning-phase1: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
-		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase4: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase4c: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4c.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase4d: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4d.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
 # Ordinary world replies must not be mistaken for unfinished CS2/UI ticks, and
 # a real settlement pause must not discard its pending mouse-up. This burst used
 # to inject ten releases but reach the world-click path only six or seven times.
-test-cs2-world-click-responsiveness: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_cs2_world_click_responsiveness.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase4e: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4e.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
-test-summoning-phase4f: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4f.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
-		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
 # Content validator + cache exporter. Separate binary from the server: it needs
@@ -3070,29 +3070,29 @@ test-summoning-phase4f: mock230-cache-summoning mock230-scripts-summoning mock23
 # about which lines a file holds. It depends on nothing but stdio, which is why
 # this direction of borrowing is the safe one: cachepack still links nothing from
 # src/ (see cp_register.h).
-MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
-	net/mock/mock230_db.c \
-	net/mock/mock230_ids.c \
-	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
-	net/mock/mock230_dbinfo.c net/mock/mock230_healthbarinfo.c \
-	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
-	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_zone_index.c net/mock/mock230_varbit.c \
-	net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
-	net/mock/mock230_shop.c net/mock/mock230_bank_tables.c \
+TORIRSSERVER_PACK_SRCS = torirsserver/torirs_server_pack.c torirsserver/torirs_server_content.c \
+	torirsserver/torirs_server_db.c \
+	torirsserver/torirs_server_ids.c \
+	torirsserver/torirs_server_objinfo.c torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_seqinfo.c \
+	torirsserver/torirs_server_dbinfo.c torirsserver/torirs_server_healthbarinfo.c \
+	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_paramtable.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_varbit.c \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+	torirsserver/torirs_server_shop.c torirsserver/torirs_server_bank_tables.c \
 	engine/world_builder/collision_map.c features/features.c \
-	net/mock/mock230_pack_stubs.c \
+	torirsserver/torirs_server_pack_stubs.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
-mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -I$(RSCACHE_DIR)/tools/cachepack \
-		-o $(OBJ_DIR)/mock230_pack $(MOCK230_PACK_SRCS) \
+		-o $(OBJ_DIR)/ToriRSServer_Pack $(TORIRSSERVER_PACK_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	@echo "built $(OBJ_DIR)/mock230_pack"
+	@echo "built $(OBJ_DIR)/ToriRSServer_Pack"
 
-# `mock230-scripts` and not just `mock230`: combat, prayer and the interface
+# `torirsserver-scripts` and not just `ToriRSServer`: combat, prayer and the interface
 # arming are content now, so an assertion about them is an assertion about
 # `script.dat`. Without this the selftest happily runs a binary built from
 # today's C against a script pack built days ago — which is not a stale-result
@@ -3100,8 +3100,8 @@ mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-mock230: mock230 mock230-scripts mock230-servpack check-crystal-set-contract check-gauntlet-contract
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230 --selftest
+test-torirsserver: ToriRSServer torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/torirsserver --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
 # core and the host command seam, so it cannot disagree with them — provided it
@@ -3110,29 +3110,29 @@ test-mock230: mock230 mock230-scripts mock230-servpack check-crystal-set-contrac
 # The failure direction is safe either way: a stale table over-reports, so the
 # load-time gap report nags about an opcode that is actually implemented rather
 # than hiding one that is not.
-test-mock230-coverage:
-	python3 net/mock/gen_opcode_coverage.py --check
+test-torirsserver-coverage:
+	python3 torirsserver/gen_opcode_coverage.py --check
 
 # The `*_param` family: the loc and struct tables, and the stack the result
 # lands on. Links the server minus its main(), plus the three compiler-only
-# sources — `MOCK230_CORE_SRCS` already carries the VM, the register and ini,
+# sources — `TORIRSSERVER_CORE_SRCS` already carries the VM, the register and ini,
 # which is why `SSC_SRCS` cannot be used whole here.
 #
 # It needs the real cache and the real content tree, and it is exhaustive over
 # both param groups, so it is a second-long test rather than an instant one.
-# `net/wordpack.c` for the same reason MOCK230_SRCS carries it: MESSAGE_PRIVATE
-# put wordpack calls into mock230_encode.c and mock230_world.c, both of which are
-# in MOCK230_CORE_SRCS, so every consumer of CORE needs it. These three targets
+# `net/wordpack.c` for the same reason TORIRSSERVER_SRCS carries it: MESSAGE_PRIVATE
+# put wordpack calls into torirs_server_encode.c and torirs_server_world.c, both of which are
+# in TORIRSSERVER_CORE_SRCS, so every consumer of CORE needs it. These three targets
 # were authored on a branch where that was not yet true, which is why the merge
 # was textually clean and then failed at `_wordpack_pack, referenced from`.
-PARAM_TEST_SRCS = $(MOCK230_CORE_SRCS) net/jbase37.c net/wordpack.c \
+PARAM_TEST_SRCS = $(TORIRSSERVER_CORE_SRCS) net/jbase37.c net/wordpack.c \
 	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
-.PHONY: test-mock230-param
-test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+.PHONY: test-torirsserver-param
+test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/param_test \
-		net/mock/test/param_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/param_test \
+		torirsserver/test/param_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
@@ -3145,29 +3145,29 @@ test-mock230-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/to
 .PHONY: test-run-energy
 test-run-energy: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/run_energy_test \
-		net/mock/test/run_energy_test.c net/mock/mock230_runenergy.c features/features.c
+		torirsserver/test/run_energy_test.c torirsserver/torirs_server_runenergy.c features/features.c
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/run_energy_test
 
 # Shared dynamic-map session registers: bounded slots, signed values and the
 # important handle-reuse invariant (a new tenant never inherits the old
 # tenant's game phase, score or prize balance).
-.PHONY: test-mock230-mapinstance
-test-mock230-mapinstance: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+.PHONY: test-torirsserver-mapinstance
+test-torirsserver-mapinstance: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/mock230_mapinstance_test \
-		net/mock/test/mock230_mapinstance_test.c net/mock/mock230_mapinstance.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/ToriRSServer_MapInstanceTest \
+		torirsserver/test/torirs_server_mapinstance_test.c torirsserver/torirs_server_mapinstance.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_mapinstance_test
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_MapInstanceTest
 
 # `split_init`: which markup a continuation row inherits. Links the splitter and
 # the string pool only -- the world and the VM are supplied as two stub seams in
 # the test itself, so this stays instant despite needing the real cache font.
-.PHONY: test-mock230-split
-test-mock230-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+.PHONY: test-torirsserver-split
+test-torirsserver-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/split_test \
-		net/mock/test/split_test.c net/mock/mock230_split.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/split_test \
+		torirsserver/test/split_test.c torirsserver/torirs_server_split.c \
 		serverscript/ssvm_strpool.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
@@ -3181,15 +3181,15 @@ test-mock230-split: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # on 75 of the game's doors.
 #
 # Only the scene builder and the collision map link here: no content, no VM, no
-# world. `mock230_varbit_get` is stubbed in the test for the multiloc resolve.
+# world. `ToriRSServer_VarbitGet` is stubbed in the test for the multiloc resolve.
 # TORIRS_COLLISION_DOORS_FULL=1 sweeps the whole overworld instead of the
 # curated squares (~45s).
 .PHONY: test-collision-doors
 test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/collision_doors_test \
-		net/mock/test/collision_doors_test.c \
-		net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/collision_doors_test \
+		torirsserver/test/collision_doors_test.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
@@ -3205,9 +3205,9 @@ test-collision-doors: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # needs. Same link line: it builds a real scene out of real map squares.
 loc-placement-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_placement_probe \
-		net/mock/test/loc_placement_probe.c \
-		net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/loc_placement_probe \
+		torirsserver/test/loc_placement_probe.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
@@ -3216,25 +3216,25 @@ loc-placement-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 .PHONY: walkable-probe
 walkable-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/walkable_probe \
-		net/mock/test/walkable_probe.c \
-		net/mock/mock230_scene.c net/mock/mock230_loc_ops.c net/mock/mock230_mapinstance.c \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/walkable_probe \
+		torirsserver/test/walkable_probe.c \
+		torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
 		engine/world_builder/collision_map.c features/features.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/walkable_probe"
 
-# The `loc_*` / `lc_*` config reads. Same two halves as test-mock230-param and
+# The `loc_*` / `lc_*` config reads. Same two halves as test-torirsserver-param and
 # the same link line, plus one thing that test does not need: it builds a real
 # scene and adds a real loc to it, because `loc_param` and `loc_name` read the
 # *active* loc and a fixture that set the pointer to a made-up slot would prove
 # nothing about the slot-not-pointer convention that exists to survive a rebuild.
-.PHONY: test-mock230-loc
-test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+.PHONY: test-torirsserver-loc
+test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/loc_test \
-		net/mock/test/loc_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/loc_test \
+		torirsserver/test/loc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
@@ -3242,15 +3242,15 @@ test-mock230-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 
 # The `npc_*` / `nc_*` reads and the hunt searches. Same two halves and the same
 # link line again, plus the one thing the other two do not need: a real (zeroed,
-# heap-allocated) `struct Mock230Server`, because `npc_hunt` and `npc_huntall`
+# heap-allocated) `struct ToriRSServer`, because `npc_hunt` and `npc_huntall`
 # walk the npc roster and write the shared iterator. Still no world, no socket
 # and no pack — the npcs go straight into the pool.
-.PHONY: test-mock230-npc
-test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+.PHONY: test-torirsserver-npc
+test-torirsserver-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/mock -o $(OBJ_DIR)/npc_test \
-		net/mock/test/npc_test.c $(PARAM_TEST_SRCS) \
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/npc_test \
+		torirsserver/test/npc_test.c $(PARAM_TEST_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm
@@ -3270,9 +3270,9 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content test-port test-membership test-dbindex
-test-content: test-content-register test-servercodec test-ss-symbols test-construction-catalog mock230-scripts mock230-servpack test-membership mock230-pack test-server-clean test-port
+test-content: test-content-register test-servercodec test-ss-symbols test-construction-catalog torirsserver-scripts torirsserver-servpack test-membership torirsserver-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_Pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
 
 # The separation property, pinned as a command: pure server work touches no
@@ -3285,9 +3285,9 @@ test-content: test-content-register test-servercodec test-ss-symbols test-constr
 # This is the gate that turns "server content stays out of the client cache"
 # from a design intent into a failure you can see, and it fails on the tree
 # this refactor started from (ss_allocate appended to the compacks).
-test-server-clean: mock230-scripts mock230-servpack
+test-server-clean: torirsserver-scripts torirsserver-servpack
 	@echo "--- server-clean: a server build must not touch client-side files ---"
-	@cd $(MOCK230_CONTENT_DIR) && \
+	@cd $(TORIRSSERVER_CONTENT_DIR) && \
 	DIRTY=$$(git status --porcelain -- configs 'pack/*.pack' 'pack/*.client' 2>/dev/null); \
 	if [ -n "$$DIRTY" ]; then \
 		echo "test-server-clean: the server pipeline modified client-side files:"; \
@@ -3308,7 +3308,7 @@ test-server-clean: mock230-scripts mock230-servpack
 #                              a field to; and every record the tree authors is
 #                              named by a file. Needs the two-rank merge, which is
 #                              the packer's, so it runs in cachepack.
-#   membership vs the id range in `mock230_pack`, below — `server_base` is the
+#   membership vs the id range in `ToriRSServer_Pack`, below — `server_base` is the
 #                              register's and cachepack links nothing from src/.
 #
 # Split across two binaries because each half runs where its authority lives, and
@@ -3320,7 +3320,7 @@ test-membership:
 	@echo "--- membership: entities against provenance ---"
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) membership \
-		--src $(MOCK230_CONTENT_DIR) --check-only
+		--src $(TORIRSSERVER_CONTENT_DIR) --check-only
 
 # The port's name-resolution gate (docs/LOSTCITY_PORT_TRIAGE.md §9 step 2).
 #
@@ -3404,33 +3404,33 @@ test-membership:
 test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets
 	@echo "--- port: the name-resolution gate ---"
 	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
-		--src $(MOCK230_CONTENT_DIR)/server/scripts \
-		--pack $(MOCK230_CONTENT_DIR)/pack \
-		--pack $(MOCK230_CONTENT_DIR)/configs \
+		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
+		--pack $(TORIRSSERVER_CONTENT_DIR)/pack \
+		--pack $(TORIRSSERVER_CONTENT_DIR)/configs \
 		--check
 	@cd $(REPO_ROOT) && python3 tools/port_name_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_constant_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_category_crawl.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_config_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_vars_diff.py --check
 	@cd $(REPO_ROOT) && python3 tools/cs2_varp_audit.py --check
 	@cd $(REPO_ROOT) && python3 tools/port_names_diff.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/port_droptables_check.py \
-		--tree $(MOCK230_CONTENT_DIR) --check -v
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_summoning_ids.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/gen_dbindex.py --check
 	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
-		--tree $(MOCK230_CONTENT_DIR) --check
+		--tree $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/ladder_import.py \
-		--content $(MOCK230_CONTENT_DIR) --check
+		--content $(TORIRSSERVER_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/bank_import.py \
-		--content $(MOCK230_CONTENT_DIR) --check
+		--content $(TORIRSSERVER_CONTENT_DIR) --check
 
 test-dbindex:
 	@cd $(REPO_ROOT) && python3 tools/test_gen_dbindex.py
@@ -3444,7 +3444,7 @@ test-dbindex:
 test-ss-symbols: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ssc_symbols_test \
 		serverscript/test/ssc_symbols_test.c $(SSC_SRCS)
-	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(MOCK230_CONTENT_DIR)
+	./$(OBJ_DIR)/ssc_symbols_test $(OBJ_DIR) $(TORIRSSERVER_CONTENT_DIR)
 
 # The npc server-band codec, and its agreement with `fields/npc.ini`.
 #
@@ -3455,7 +3455,7 @@ test-ss-symbols: $(OBJ_DIR)
 # are well-formed. The value just lands somewhere else.
 test-servercodec: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/servercodec_test \
-		net/mock/test/mock230_servercodec_test.c net/mock/mock230_servercodec.c \
+		torirsserver/test/torirs_server_servercodec_test.c torirsserver/torirs_server_servercodec.c \
 		$(RSCACHE_DIR)/src/rsbuffer.c
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test \
 		OSRS-Content/osrs239-content/fields
@@ -3472,11 +3472,11 @@ test-servercodec: $(OBJ_DIR)
 test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o \
 		$(OBJ_DIR)/jbase37.o
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/loc_ops_wire_test \
-		net/mock/test/loc_ops_wire_test.c \
-		net/mock/mock230_wire.c net/mock/mock230_loc_ops.c \
-		net/mock/mock230_interface_state.c net/mock/mock239_interface_setters.c \
-		net/mock/mock239_runclientscript.c net/mock/mock239_varp.c \
-		net/mock/mock239_inbound.c net/mock/mock239_interface_inbound.c \
+		torirsserver/test/loc_ops_wire_test.c \
+		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
+		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
+		torirsserver/mock239_runclientscript.c torirsserver/mock239_varp.c \
+		torirsserver/mock239_inbound.c torirsserver/mock239_interface_inbound.c \
 		net/wordpack.c $(RSCACHE_DIR)/src/rsbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) \
@@ -3491,7 +3491,7 @@ test-content-register: $(OBJ_DIR)
 # The server hosted in-process: a real client subsystem and a real server joined
 # by two byte buffers, no socket and no thread. Links the server core (no
 # main()) against the client's net stack. If this hangs, the login handshake has
-# gone back to blocking — see net/mock/test/embed_test.c.
+# gone back to blocking — see torirsserver/test/embed_test.c.
 # net_out.c, pkt_player_info.c and pkt_npc_info.c are here because the
 # two-client half of the test drives the *client's* encoder for a ground click
 # and the client's own readers for PLAYER_INFO and NPC_INFO — asserting on the
@@ -3505,13 +3505,13 @@ test-content-register: $(OBJ_DIR)
 # door one client opens being open for a client that connects later), so the
 # whole multi-client half of the zone work was going unverified with nothing
 # saying so.
-test-mock230-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230_embed_test \
-		net/mock/test/embed_test.c $(MOCK230_CORE_SRCS) \
+test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
+		torirsserver/test/embed_test.c $(TORIRSSERVER_CORE_SRCS) \
 		net/net_out.c net/rev/packets/pkt_player_info.c \
 		net/rev/packets/pkt_npc_info.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
-	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_embed_test
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
 
 # WebSocket frame codec: mask/deframe/ping/incomplete/back-to-back, no socket.
 test-ws-frame: $(OBJ_DIR)

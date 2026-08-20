@@ -27,7 +27,7 @@ cd "$ROOT"
 OUT=build/cox_sprites
 WORK=build/cox_sprites/frames
 # The EMBEDDED manifest, not the TCP one. `manifest_osrs239_net.ini` expects a
-# separately-launched mock230 on port 43596 and fails with "Connection refused"
+# separately-launched ToriRSServer on port 43596 and fails with "Connection refused"
 # -- and the client then renders a perfectly good empty world, so the sheets come
 # out looking like a raid with no monsters in it rather than like an error.
 # `transport=embed` runs the server in-process, which is what makes this one
@@ -82,7 +82,7 @@ echo "$ENCOUNTERS" | while IFS='|' read -r name cheats; do
     # from that path must not abort the whole sweep -- the frames it already
     # wrote are the point.
     SDL_VIDEODRIVER=dummy \
-    MOCK230_SAVES="$WORK/saves" \
+    TORIRSSERVER_SAVES="$WORK/saves" \
     TORIRS_NET_CHEAT="$cheats" \
     TORIRS_MAX_FRAMES=$MAXFRAMES \
     TORIRS_BMP_SERIES="$WORK/$name,$START,$STEP,$COUNT" \

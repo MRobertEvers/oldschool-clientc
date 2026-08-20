@@ -115,7 +115,7 @@ enum
  *
  * Both models charge ONCE PER TICK, not per step, and both stop at a 64 kg
  * ceiling; they disagree about what the level does. Implemented in
- * net/mock/mock230_runenergy.c, which is the only place either appears.
+ * torirsserver/torirs_server_runenergy.c, which is the only place either appears.
  */
 enum ToriRS_RunEnergyModel
 {
@@ -264,7 +264,7 @@ struct ToriRS_FeatureTable
      *
      * Both halves of this tree read the same field: the client for its
      * legacy-era local BFS (app.c), the mock server for every ground click it
-     * routes (mock230_scene_route). They must not disagree.
+     * routes (ToriRSServer_SceneRoute). They must not disagree.
      */
     int ground_click_nearest_model;
     /*
@@ -431,7 +431,7 @@ struct ToriRS_FeatureTable
      * against the same account — a measurement of "how far can I run" that
      * cannot be compared to the other model proves nothing.
      *
-     * Overridable per boot with MOCK230_RUN_ENERGY=classic|osrs2025.
+     * Overridable per boot with TORIRSSERVER_RUN_ENERGY=classic|osrs2025.
      */
     int run_energy_model;
 

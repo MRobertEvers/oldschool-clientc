@@ -226,7 +226,7 @@ per appearance change — one per equip, never a burst.
 ### Verified
 
 ```
-src/build/mock230 43596 &
+src/build/torirsserver 43596 &
 SDL_VIDEODRIVER=dummy TORIRS_ANIM_DEBUG=1 TORIRS_MAX_FRAMES=1900 \
   TORIRS_SIM_CLICK_AT="200,634,186;400,534,433;700,601,186;1000,533,230;1200,573,230" \
   TORIRS_EXIT_BMP=build/eq.bmp src/torirs --manifest manifest_osrs230.ini --user testc --pass test

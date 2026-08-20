@@ -20,10 +20,10 @@
  * Uses the real cache font metrics (archive 13, p12_full) at the journal's real
  * 415px row width, because a width-independent version of this test would not
  * exercise the soft-wrap branch at all. Run:
- *   make -C src test-mock230-split
+ *   make -C src test-torirsserver-split
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include "ssvm.h"
 
@@ -40,14 +40,14 @@
 #define JOURNAL_LINES 210
 
 /*
- * The two seams `mock230_split.c` reaches out through. Supplying them here
+ * The two seams `torirs_server_split.c` reaches out through. Supplying them here
  * rather than linking the world and the VM is what keeps this an instant test:
  * neither one takes part in any assertion below.
  */
 const char*
-mock230_world_cache_dir(void)
+ToriRSServer_WorldCacheDir(void)
 {
-    return MOCK230_CACHE_DIR_DEFAULT;
+    return TORIRSSERVER_CACHE_DIR_DEFAULT;
 }
 
 void
@@ -98,7 +98,7 @@ static void
 test_journal(struct SSVM_State* state)
 {
     printf("\n-- The Restless Ghost, after speaking to the ghost --\n");
-    if( !mock230_split_init(state, RestlessGhost, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    if( !ToriRSServer_SplitInit(state, RestlessGhost, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
     {
         printf("FAIL split_init: %s\n", state->err.message);
         Failures++;
@@ -147,7 +147,7 @@ test_soft_wrap(struct SSVM_State* state)
         "has to find a space to cut on rather than a pipe.";
 
     printf("\n-- soft wrap, colour open across the break --\n");
-    if( !mock230_split_init(state, text, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    if( !ToriRSServer_SplitInit(state, text, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
     {
         printf("FAIL split_init: %s\n", state->err.message);
         Failures++;
@@ -169,7 +169,7 @@ test_no_leak_without_close(struct SSVM_State* state)
     /* `<str>` with no `</str>`, the shape all journal content uses, and a hard
      * break straight after it. */
     printf("\n-- an unclosed <str> ends at its own hard break --\n");
-    if( !mock230_split_init(state, "<str>done|next", JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    if( !ToriRSServer_SplitInit(state, "<str>done|next", JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
     {
         printf("FAIL split_init: %s\n", state->err.message);
         Failures++;

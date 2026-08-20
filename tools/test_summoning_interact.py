@@ -107,9 +107,9 @@ def run_client(saves: Path, env_extra: dict[str, str], frames: int) -> str:
         env.pop(key, None)
     env.update(
         {
-            "MOCK230_SAVES": str(saves),
-            "MOCK230_SCRIPTS": str(SCRIPTS),
-            "MOCK230_CACHE": str(CACHE),
+            "TORIRSSERVER_SAVES": str(saves),
+            "TORIRSSERVER_SCRIPTS": str(SCRIPTS),
+            "TORIRSSERVER_CACHE": str(CACHE),
             "SDL_VIDEODRIVER": "dummy",
             "TORIRS_MAX_FRAMES": str(frames),
             "TORIRS_NET_DEBUG": "1",
@@ -286,7 +286,7 @@ def main() -> int:
         "summoning_dialogue.rs2 is stale against the corpus: " + stale.stderr.strip(),
     )
     # Every spoken string must survive this era's chat interface: `<` opens a
-    # colour tag, and mock230_send_if_settext builds its packet in 512 bytes.
+    # colour tag, and ToriRSServer_SendIfSettext builds its packet in 512 bytes.
     spoken = re.findall(r'"([^"]*)"', dialogue)
     expect(spoken, "the generated dialogue has no strings")
     bad = [s for s in spoken if "<" in s or ">" in s]

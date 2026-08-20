@@ -114,7 +114,7 @@ That declaration is new. It used to say `ids = cache`, in
 cannot create one either way"*. Both halves were stale — the encoders exist
 (`RSCache_Dat2ConfigDbTableEncode`, held to byte-identity against every record in
 `cache.osrs239`), and a *cache* encoder was never what a server table needed:
-`mock230_db.c` parses the server's own text. `tools/ss_allocate.py` had both
+`torirs_server_db.c` parses the server's own text. `tools/ss_allocate.py` had both
 namespaces in `DEFAULT_SERVER_NAMESPACES` the whole time, so `coord_pair_table`
 (259) and `combat_style_table` (260) were allocated and worked while the register
 said they could not exist. `docs/CONTENT_ARCHITECTURE.md` §8.2(c), third
@@ -125,10 +125,10 @@ occurrence.
 Less than the compack header claims, and this was checked by reading the code
 rather than the comments.
 
-- `validate_id_bases` (`src/net/mock/mock230_pack.c:553`) checks that each
+- `validate_id_bases` (`src/torirsserver/torirs_server_pack.c:553`) checks that each
   namespace's declared `server_base` is **above the cache's largest id**, and
   reports ids that sit between the two. It is not a boot check — it lives in the
-  `mock230_pack` validator binary, run by `make -C src test-content`. It reads
+  `ToriRSServer_Pack` validator binary, run by `make -C src test-content`. It reads
   `ContentRegister_Defaults`, **not** the tree's `content.ini`, so it checks the
   C table's base and nothing the ini says.
 - It checks the *base*, never an individual authored id. An authored block
@@ -138,8 +138,8 @@ rather than the comments.
 - Nothing at all checks that `configs/all.dbrow`'s `table=` lines agree with
   `configs/all.dbtable.compack`. See §6.
 
-The compack header's line *"`mock230_content.c` checks it on every boot"* is
-wrong on both the file and the "every authored id" scope. `mock230_content.c`
+The compack header's line *"`torirs_server_content.c` checks it on every boot"* is
+wrong on both the file and the "every authored id" scope. `torirs_server_content.c`
 checks name **collisions** (`validate_symbols`), not id bounds.
 
 ---
@@ -157,13 +157,13 @@ cache.osrs239                  cachepack unpack            OSRS-Content/osrs239-
 
 server/scripts/**/configs/*.dbtable ──┬─► ssc_symbols.c ──► `table:column` compiles to
                                       │                     (table << 12) | (column << 4)
-server/scripts/**/configs/*.dbrow   ──┴─► mock230_db.c  ──► db_find / db_getfield at runtime
+server/scripts/**/configs/*.dbrow   ──┴─► torirs_server_db.c  ──► db_find / db_getfield at runtime
 ```
 
 The two server readers want different halves. `ssc_symbols.c` reads only
 `.dbtable`, because a column *index* is all the compiler needs — it counts
 `column=` lines in order, which is the third trap in §4.1 stated a second way.
-`mock230_db.c` reads both, in two passes, because a `data=` line cannot be
+`torirs_server_db.c` reads both, in two passes, because a `data=` line cannot be
 parsed without its column's declared tuple types: `data=coord_pair,A,B` is two
 coords or one string depending on the table.
 
@@ -210,7 +210,7 @@ when unnamed (`columndef=7:,int`) — the field's position is what makes the lin
 parseable.
 
 **`columndef` and not `column`, which it was called first.** The server's own
-`.dbtable` grammar is `column=<name>,<type>...`, and `mock230_db_load` walks the
+`.dbtable` grammar is `column=<name>,<type>...`, and `ToriRSServer_DbLoad` walks the
 whole content tree for `*.dbtable`, which matches `configs/all.dbtable`. So
 `column=13:startcoord,coord` reached the *server's* parser as a column named
 `13:startcoord` with one unrecognised type, and the mock refused to boot. Two
@@ -331,7 +331,7 @@ column=damagestyle,int,LIST
 column=damagetype,int,LIST
 ```
 
-`LIST`, `INDEXED` and `REQUIRED` are *flags*, not types; `mock230_db.c` tells
+`LIST`, `INDEXED` and `REQUIRED` are *flags*, not types; `torirs_server_db.c` tells
 them apart by being upper-case, which is the only discriminator the format
 offers.
 
@@ -367,7 +367,7 @@ reference authors the table; so does this tree. `docs/CONTENT_ARCHITECTURE.md`
 
 Note what the server does **not** get: the cache's 16,711 rows *with their values*.
 It does, however, read the files — see the phantom-load finding in §8. An earlier
-draft of this document said `mock230_db.c` "loads only the server population",
+draft of this document said `torirs_server_db.c` "loads only the server population",
 which is false; it loads whatever `*.dbtable`/`*.dbrow` it finds anywhere under
 the content directory, and `configs/all.dbtable` matches.
 
@@ -378,7 +378,7 @@ the content directory, and `configs/all.dbtable` matches.
 | change | what to run |
 |---|---|
 | edit a `data=` in a server `.dbrow` | restart the server. No rebuild — the text is read at load. |
-| add a server table or row *name* | `make -C src mock230-scripts` (runs `ss_allocate.py`, then `sscompile`) |
+| add a server table or row *name* | `make -C src torirsserver-scripts` (runs `ss_allocate.py`, then `sscompile`) |
 | add or reorder a **column** | see the trap in §4.1 — reordering re-points every consumer |
 | rename a cache table | below |
 
@@ -404,7 +404,7 @@ Four steps, verified end to end on table 0 (`quest`):
    general warning `CONTENT_ARCHITECTURE.md` §6.4 gives for other types.
 3. **Round-trip.** `cachepack verify … --types dbtable,dbrow` → 246/246 and
    16,711/16,711 exact, `lost-here` 0.
-4. **Gates.** `make -C src test-content`, `make -C src test-mock230`, and a
+4. **Gates.** `make -C src test-content`, `make -C src test-ToriRSServer`, and a
    booted embed binary.
 
 ### What none of that proves — and the defect it found
@@ -432,9 +432,9 @@ cachepack: unknown dbtable reference '_quest__id__sortname__displayname'
 Done. 16957 records written, 0 failed, 0 unknown keys, 1 unresolved names.
 ```
 
-**Nothing else in the tree notices a stale `table=`.** `mock230_db.c` reads only
+**Nothing else in the tree notices a stale `table=`.** `torirs_server_db.c` reads only
 the server population; `sscompile` reads the compack, not the data files; the
-client reads the cache. `make -C src test-mock230` stays green through it. That
+client reads the cache. `make -C src test-ToriRSServer` stays green through it. That
 is a finding, not a failure: renames are validated by `cachepack pack` and by
 nothing else.
 
@@ -761,7 +761,7 @@ music table by id or by position, and attributing them needs evidence the cache
 does not carry. Leaving it unclaimed is correct; what is new is that the cost is
 known — 1,196 names, and a decisive test to re-run against any future proposal.
 
-**The server ingests the cache's own db config files.** `mock230_db_load` walks
+**The server ingests the cache's own db config files.** `ToriRSServer_DbLoad` walks
 the entire content directory for `*.dbtable` and `*.dbrow`, and
 `configs/all.dbtable` / `configs/all.dbrow` match. Proved rather than reasoned: a
 deliberately malformed line in `configs/all.dbrow` is reported as
@@ -788,9 +788,9 @@ column=displayname,string
 
 resolves through `SSC_SymbolsFind(…, SSC_SYM_DBTABLE)`, which searches the
 *whole* namespace including the cache half. `quest:displayname` compiled, the db
-column count went 3 → 6, `mock230_pack` reported 0 errors, `ss_allocate --check`
+column count went 3 → 6, `ToriRSServer_Pack` reported 0 errors, `ss_allocate --check`
 exited 0 (no allocation — the name already has a line), and
-`make -C src test-mock230` passed. Probe reverted.
+`make -C src test-ToriRSServer` passed. Probe reverted.
 
 So no mechanism needs inventing. What is missing is a *check*, and the
 recommendation is a narrow one: **`validate_id_bases` should also report

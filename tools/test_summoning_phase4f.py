@@ -347,10 +347,10 @@ def run_client(
     env = os.environ.copy()
     env.update(
         {
-            "MOCK230_SAVES": saves,
-            "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-            "MOCK230_CACHE": str(args.cache.resolve()),
-            "MOCK230_EXT_DEBUG": "1",
+            "TORIRSSERVER_SAVES": saves,
+            "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+            "TORIRSSERVER_CACHE": str(args.cache.resolve()),
+            "TORIRSSERVER_EXT_DEBUG": "1",
             "SDL_VIDEODRIVER": "dummy",
         }
     )

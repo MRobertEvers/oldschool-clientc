@@ -78,7 +78,7 @@ struct HostRecord
     int last_int_arg;
 
     /* RUNCLIENTSCRIPTVARARG, recorded exactly as the mock server's host case
-     * pops it (mock230_scripts.c, `case SS_OP_RUNCLIENTSCRIPTVARARG`). */
+     * pops it (torirs_server_scripts.c, `case SS_OP_RUNCLIENTSCRIPTVARARG`). */
     int run_count;
     int32_t run_script_id;
     int run_argc;
@@ -781,7 +781,7 @@ test_coord_subject(void)
      *    be indexed, and a later reader would reasonably conclude the trigger is
      *    keyed.
      *  - the stored **name** is the header's raw text, character for character.
-     *    `mock230_scripts_run_trigger_at` rebuilds that string with an
+     *    `ToriRSServer_ScriptsRunTriggerAt` rebuilds that string with an
      *    `snprintf` and asks `getByName`; if the lexer ever normalised a coord
      *    token, or the compiler zero-padded a component, every `[zone]` in the
      *    tree would stop running and nothing would report it.
@@ -918,7 +918,7 @@ test_runclientscript_vararg(void)
  * The compiler's own guards on the vararg list.
  *
  * `SSC_MAX_VARARG_TYPES` is the first of three caps the same value has to pass
- * (the mock host's `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` and the client's
+ * (the mock host's `TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX` and the client's
  * `PKT_RUNCLIENTSCRIPT_ARG_MAX` are the other two), and it is the only one that
  * can refuse *before* anything is on the wire. Refusing is the point: the
  * failure mode it replaces is a clientscript run with some of its arguments,
@@ -1001,7 +1001,7 @@ test_script_name_argument(void)
  * `inv` TYPE at all, and `(inv $x)` recorded its param type as `int`. Nothing in
  * a compiled script could notice — an inv rides the int stack either way — so
  * the only observable is the one consumer that reads `param_types` back:
- * `mock230_scripts_run_debugproc`, which resolves each argument through the pack
+ * `ToriRSServer_ScriptsRunDebugproc`, which resolves each argument through the pack
  * named by its type. With `inv` recorded as `int` it ran `strtol` over the
  * container's *name* and passed container 0 instead.
  *

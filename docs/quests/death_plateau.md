@@ -425,7 +425,7 @@ primary state. Shared fixes land in the owning actor/skill/quest system.
 | Area | Required evidence |
 | --- | --- |
 | Static identity | Metadata ID 58, dbrow index 23, varp 314, states 0–80, side carriers, one trigger owner, all actors/locs/spawns resolve |
-| Build | `make -C src mock230-scripts` and `mock230_pack --check-only` against intended cache |
+| Build | `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` against intended cache |
 | Quest Helper | `python3 tools/questhelper_extract.py deathplateau --check` exits 0 |
 | Start/dialogue | No requirements; accept/refuse/re-talk; both branch orders; baseline and postquest menus |
 | Gamble | 0/over-held/>1000; normal win/loss/tie; 60/101/1000 bankroll paths; Blurberry; cancellation/logout; IOU exactly once |

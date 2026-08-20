@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Generate the mock server's jingle id -> duration table.
 
-    tools/gen_jingle_lengths.py > src/net/mock/mock230_jingle_lengths.gen.h
+    tools/gen_jingle_lengths.py > src/torirsserver/torirs_server_jingle_lengths.gen.h
 
 `SS_OP_MIDI_LENGTH` and the rev-239 MIDI_JINGLE packet's `length_in_millis`
-field both need a jingle's duration, and mock230 has no live cache access at
+field both need a jingle's duration, and ToriRSServer has no live cache access at
 script-command time (see `AMBIENTSOUND`'s soundscape id for the same
-constraint, worked around the same way `mock230_music_regions.gen.h` works
+constraint, worked around the same way `torirs_server_music_regions.gen.h` works
 around the region table having no cache source: compute it once, offline, and
 commit the answer).
 
@@ -39,7 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 AUDIOPROBE = ROOT / "3rd/rscache/tools/audioprobe/audioprobe"
 CACHE = ROOT / "cache.osrs239"
-OUT = ROOT / "src/net/mock/mock230_jingle_lengths.gen.h"
+OUT = ROOT / "src/torirsserver/torirs_server_jingle_lengths.gen.h"
 JINGLE_COUNT = 315
 
 
@@ -165,12 +165,12 @@ def main():
     lines.append(" * `SS_OP_MIDI_LENGTH` and MIDI_JINGLE's own length field both read this.")
     lines.append(" */")
     lines.append("")
-    lines.append("#ifndef SRC_NET_MOCK_MOCK230_JINGLE_LENGTHS_GEN_H")
-    lines.append("#define SRC_NET_MOCK_MOCK230_JINGLE_LENGTHS_GEN_H")
+    lines.append("#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_JINGLE_LENGTHS_GEN_H")
+    lines.append("#define SRC_TORIRSSERVER_TORIRS_SERVER_JINGLE_LENGTHS_GEN_H")
     lines.append("")
-    lines.append(f"#define MOCK230_JINGLE_LENGTH_COUNT {JINGLE_COUNT}")
+    lines.append(f"#define TORIRSSERVER_JINGLE_LENGTH_COUNT {JINGLE_COUNT}")
     lines.append("")
-    lines.append("static const int k_mock230_jingle_length_ms[MOCK230_JINGLE_LENGTH_COUNT] = {")
+    lines.append("static const int k_ToriRSServer_JingleLengthMs[TORIRSSERVER_JINGLE_LENGTH_COUNT] = {")
     for i in range(0, len(lengths), 10):
         row = ", ".join(str(v) for v in lengths[i : i + 10])
         lines.append(f"    {row},")

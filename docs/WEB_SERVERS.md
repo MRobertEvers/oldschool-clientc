@@ -207,7 +207,7 @@ make -C src web
 `run-live.sh web <manifest> …` drives the wire lane end to end, starting
 `io_server` as its own child so a stopped script does not leave a process
 holding the port. For a local live `osrs230`/`osrs239` manifest it also starts
-native `mock230` on the game port; the browser reaches it over WebSocket.
+native `ToriRSServer` on the game port; the browser reaches it over WebSocket.
 
 ## Ports
 

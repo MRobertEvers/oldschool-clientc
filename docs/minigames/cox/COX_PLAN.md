@@ -247,13 +247,13 @@ Still open:
 
 ### 1.1 The map-instance ceiling is the design constraint ✅
 
-From [`mock230_mapinstance.h`](../../../src/net/mock/mock230_mapinstance.h):
+From [`torirs_server_mapinstance.h`](../../../src/torirsserver/torirs_server_mapinstance.h):
 
 ```
-MOCK230_MAPINSTANCE_MAX          8    concurrent instances
-MOCK230_MAPINSTANCE_ZONES       16    zones per axis per reservation  (128 tiles)
-MOCK230_MAPINSTANCE_SCENE_ZONES 13    zones the wire can describe     (104 tiles)
-MOCK230_MAPINSTANCE_LEVELS       4    planes
+TORIRSSERVER_MAPINSTANCE_MAX          8    concurrent instances
+TORIRSSERVER_MAPINSTANCE_ZONES       16    zones per axis per reservation  (128 tiles)
+TORIRSSERVER_MAPINSTANCE_SCENE_ZONES 13    zones the wire can describe     (104 tiles)
+TORIRSSERVER_MAPINSTANCE_LEVELS       4    planes
 ```
 
 With the room pitch now measured at **4 zones** (§0.3), the geometry resolves —
@@ -320,7 +320,7 @@ inventories, and the Olm phase machine. Proposed split:
 | Storage unit contents | player-scoped `inv` | Persists between raids, emptied on re-entry 📖 |
 
 ⚠️ Instance flags are a small fixed set. Count what CoX needs against what
-`mock230_mapinstance.h` actually provides before committing — this may need a
+`torirs_server_mapinstance.h` actually provides before committing — this may need a
 proper per-instance content struct rather than a flag array.
 
 ### 1.4 Engine work anticipated
@@ -1113,13 +1113,13 @@ Done in this pass:
 
 Partly verified at runtime:
 
-- ✅ **CoX content loads clean into the server.** `mock230` was built and booted
+- ✅ **CoX content loads clean into the server.** `ToriRSServer` was built and booted
   against an isolated tree; the content loader reported **zero** errors from
   `minigame_cox` (all 130 remaining loader errors were in `skill_construction`,
   `quest_upass`, `quest_arena` and other packages this work never touched).
 - ✅ `cox_selftest.rs2` exists with seven checks — points scale, points guarded
   outside a raid, loot cap, unique %, unique-% ceiling, and **both** death
-  penalty branches — and a `SELFTEST_CHECK` pair in `mock230_world.c` beside
+  penalty branches — and a `SELFTEST_CHECK` pair in `torirs_server_world.c` beside
   `::hamstoreroomtest`.
 
 ### ✅ Blocker resolved — and the cause was my own tooling
@@ -1151,7 +1151,7 @@ session's in-flight edit breaks the shared one (which happened repeatedly:
 
 ### Historic: the symptom as it looked before the cause was found
 
-`mock230_scripts_run_debugproc(srv, "coxrun")` returns `MOCK230_TRIGGER_RAN`,
+`ToriRSServer_ScriptsRunDebugproc(srv, "coxrun")` returns `TORIRSSERVER_TRIGGER_RAN`,
 but the fixture's very first statement never takes effect: with
 `%mock_quest_progress = 99` as the literal first line of the debugproc, the C
 side still reads back the `-1` it seeded. So the proc is reported as found and
@@ -1171,25 +1171,25 @@ What has been ruled out:
   block writes that same varp successfully **in the same run**.
 - Not the C harness: the CoX block is structurally identical to the ham block
   (seed −1, run, assert 0, restore) and its message text does reach stdout.
-- Not a stale binary or stale pack: `mock230` rebuilt; pack rebuilt after every
+- Not a stale binary or stale pack: `ToriRSServer` rebuilt; pack rebuilt after every
   source edit and its mtime checked against the source file's.
 - Not a compile failure: clean under `tools/cox_compile_check.sh --selftest`.
 - **Not a dispatch prefix collision** (my first hypothesis, and it was wrong).
-  `mock230_scripts_run_debugproc` does an exact `SSVM_ProviderGetByName` on
-  `"[debugproc,coxrun]"` ([`mock230_scripts.c:3607`](../../../src/net/mock/mock230_scripts.c#L3607))
-  and returns `MOCK230_TRIGGER_NONE` when absent. `TRIGGER_RAN` therefore means
+  `ToriRSServer_ScriptsRunDebugproc` does an exact `SSVM_ProviderGetByName` on
+  `"[debugproc,coxrun]"` ([`torirs_server_scripts.c:3607`](../../../src/torirsserver/torirs_server_scripts.c#L3607))
+  and returns `TORIRSSERVER_TRIGGER_NONE` when absent. `TRIGGER_RAN` therefore means
   the script was found *and* `run_hook_sv` returned truthy. The sibling
   `[debugproc,cox]` cannot be intercepting it.
 - **Inconclusive, do not repeat:** grepping `script.dat` for the string
   `coxrun` finds nothing — but it also finds nothing for `hamstoreroomtest`,
   which demonstrably works. Trigger names resolve to ids and are not stored as
   text, so that check says nothing either way.
-- **Inconclusive:** `MOCK230_VERBOSE=1` printed no dispatch line for *either*
+- **Inconclusive:** `TORIRSSERVER_VERBOSE=1` printed no dispatch line for *either*
   `coxrun` or `hamstoreroomtest`, so `srv->verbose` is evidently not set from
   that variable at this point in the run.
 
 Next things to try, in order of expected yield:
-1. Instrument `mock230_scripts_run_hook_sv` to log the script name and its
+1. Instrument `ToriRSServer_ScriptsRunHookSv` to log the script name and its
    return, so "found and truthy" can be separated from "actually executed".
 2. Check whether the debugproc executes against a different player than the one
    the harness inspects — the ham fixture also does `npc_del`/npc work, so it
@@ -1305,7 +1305,7 @@ defences:
    mutate the implementation and confirm the test goes red. A test that passes
    against a stubbed-out mechanic is worse than no test.
 3. **Watch for the shapes that have bitten this tree before:**
-   - A new `param=` name needs a `mock230_content.c` branch too
+   - A new `param=` name needs a `torirs_server_content.c` branch too
      ([`npc-overlay-param-whitelist`])
    - Authored `.npc` blocks must **restate** anim rows ([`zulrah-implementation`])
    - `p_oploc` checks the **base** multiloc op — the brazier and crystal locs are
@@ -1319,7 +1319,7 @@ defences:
    pre-existing ([`embed-test-decode-broken`]).
 5. **Points regression:** a scripted raid with a fixed damage script must produce
    a stable point total across runs. Shared-RNG false regressions are a known
-   trap here ([`mock230-selftest-operational-notes`]).
+   trap here ([`torirsserver-selftest-operational-notes`]).
 
 ---
 
@@ -1457,7 +1457,7 @@ yt-dlp --skip-download --write-auto-subs --sub-langs "en.*" --sub-format vtt \
 
 - [`minigame_gauntlet/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_gauntlet/) — the architectural precedent
 - [`minigame_inferno/`](../../../OSRS-Content/osrs239-content/server/scripts/minigames/minigame_inferno/) — tick-scripted multi-wave boss, ground effects
-- [`mock230_mapinstance.h`](../../../src/net/mock/mock230_mapinstance.h) — instance limits and the rotation contract
+- [`torirs_server_mapinstance.h`](../../../src/torirsserver/torirs_server_mapinstance.h) — instance limits and the rotation contract
 - [`docs/GAUNTLET.md`](../../GAUNTLET.md), [`docs/minigames/FIGHT_CAVES.md`](../FIGHT_CAVES.md)
 
 ---
@@ -1707,7 +1707,7 @@ Ordered by how far the fight drifts from the real one. File references are to
 **F0 — nothing in the raid is on a clock: 21 `[ai_timer]` hooks, zero
 `npc_settimer` calls.** Found while checking F8. The engine gates the trigger on
 an interval the npc does not have by default
-([`mock230_world.c:3872`](../../../src/net/mock/mock230_world.c#L3872)):
+([`torirs_server_world.c:3872`](../../../src/torirsserver/torirs_server_world.c#L3872)):
 
 ```c
 if( npc->active && npc->timer_interval > 0 )
@@ -1715,7 +1715,7 @@ if( npc->active && npc->timer_interval > 0 )
     if( ++npc->timer_clock >= npc->timer_interval )
     {
         npc->timer_clock = 0;
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
     }
 }
 ```
@@ -2054,7 +2054,7 @@ tools/cox_sim.sh --selftest      # prove the harness can fail
 `tools/cox_sim.sh` compiles the package, enters the raid, makes the player
 unkillable, runs world ticks, and asserts the strategy guide's timings against a
 tick-by-tick trace of what the encounters actually did. The assertions live in
-[`src/net/mock/mock230_cox_sim.c`](../../../src/net/mock/mock230_cox_sim.c),
+[`src/torirsserver/torirs_server_cox_sim.c`](../../../src/torirsserver/torirs_server_cox_sim.c),
 in its own translation unit so a few hundred lines of encounter assertions do not
 grow inside a selftest file three sessions edit at once.
 
@@ -2071,7 +2071,7 @@ zeroes `amount` in the one player damage funnel, which is the exact number the
 harness exists to read. Under `::god` a boss that hits for 30 and a boss that
 does not attack at all are indistinguishable. `player->hitmark_count` is not a
 way round it either — the hitmark list describes one tick and is cleared at the
-end of every one, so sampling it after `mock230_world_tick` returns 0 forever.
+end of every one, so sampling it after `ToriRSServer_WorldTick` returns 0 forever.
 The first version of the harness asserted on exactly that column and reported
 "Olm never landed a hitsplat" against a boss landing them correctly. So the
 player is held at 99 and topped back up after each tick, with the drop recorded
@@ -2107,7 +2107,7 @@ audit, and each was found by watching a trace rather than by reading code.
 **F23 — every encounter's attack was on a trigger the engine never fires.**
 The engine's npc combat tick fires **`[ai_opplayer2]`** for the swing and gates
 it on `attack_clock`, advanced by the record's `param=attackrate`
-(`mock230_combat.c`). `applayer2` is the *approach* action, consumed by the mode
+(`torirs_server_combat.c`). `applayer2` is the *approach* action, consumed by the mode
 phase before the clock-owned swing. Every CoX encounter — Tekton, Vasa, the
 Guardians, the shamans, the mystics, the Muttadiles, the ice demon — had its
 damage hook on `[ai_applayer2]`. **Nothing in the raid could land a hit through
@@ -2205,7 +2205,7 @@ and composes each into a labelled sheet.
 Two traps, both hit on the first run:
 
 - **Use the embedded manifest.** `manifest_osrs239_net.ini` expects a separately
-  launched mock230 on port 43596; without it the client fails with "Connection
+  launched ToriRSServer on port 43596; without it the client fails with "Connection
   refused" and then renders a perfectly good *empty* world. The sheets come out
   looking like a raid with no monsters in it rather than like an error.
   `manifest_osrs239.ini` is `transport=embed` and needs no second process.

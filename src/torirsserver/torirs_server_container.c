@@ -1,12 +1,12 @@
 /*
- * The container registry. See mock230_container.h.
+ * The container registry. See torirs_server_container.h.
  */
 
-#include "mock230_container.h"
+#include "torirs_server_container.h"
 
-#include "mock230.h"
-#include "mock230_bank.h"
-#include "mock230_shop.h"
+#include "torirs_server.h"
+#include "torirs_server_bank.h"
+#include "torirs_server_shop.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -18,12 +18,12 @@
 /* ------------------------------------------------------------------ */
 
 static void
-item_clear_vars(struct Mock230Item* item)
+item_clear_vars(struct ToriRSServerItem* item)
 {
     int i;
 
     assert(item);
-    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    for( i = 0; i < TORIRSSERVER_ITEM_VAR_MAX; i++ )
     {
         item->var_key[i] = -1;
         item->var_val[i] = 0;
@@ -31,8 +31,8 @@ item_clear_vars(struct Mock230Item* item)
 }
 
 int
-mock230_item_get_var(
-    const struct Mock230Item* item,
+ToriRSServer_ItemGetVar(
+    const struct ToriRSServerItem* item,
     int key_obj)
 {
     int i;
@@ -40,7 +40,7 @@ mock230_item_get_var(
     assert(item);
     if( item->obj_id < 0 )
         return 0;
-    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    for( i = 0; i < TORIRSSERVER_ITEM_VAR_MAX; i++ )
     {
         if( item->var_key[i] == key_obj )
             return item->var_val[i];
@@ -49,8 +49,8 @@ mock230_item_get_var(
 }
 
 void
-mock230_item_set_var(
-    struct Mock230Item* item,
+ToriRSServer_ItemSetVar(
+    struct ToriRSServerItem* item,
     int key_obj,
     int value)
 {
@@ -60,7 +60,7 @@ mock230_item_set_var(
     assert(item);
     if( item->obj_id < 0 )
         return;
-    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    for( i = 0; i < TORIRSSERVER_ITEM_VAR_MAX; i++ )
     {
         if( item->var_key[i] == key_obj )
         {
@@ -70,13 +70,13 @@ mock230_item_set_var(
         if( free_i < 0 && item->var_key[i] < 0 )
             free_i = i;
     }
-    assert(free_i >= 0 && "Mock230Item var table full");
+    assert(free_i >= 0 && "ToriRSServerItem var table full");
     item->var_key[free_i] = key_obj;
     item->var_val[free_i] = value;
 }
 
 /*
- * `mock230_container_set` and `mock230_container_add` never carry a slot's
+ * `ToriRSServer_ContainerSet` and `ToriRSServer_ContainerAdd` never carry a slot's
  * vars to another slot — the former clears them on any obj_id change (that is
  * correct: a *different* obj landing in a slot must not inherit the old
  * occupant's charges), and the latter never writes them at all, so a
@@ -84,19 +84,19 @@ mock230_item_set_var(
  * its charge count. This is the primitive that lets a caller carry a single
  * unstackable unit's vars across such a move deliberately, once it knows the
  * source and destination genuinely are the same logical item (see
- * mock230_ops_inv.c's `INV_MOVEFROMSLOT` / `INV_MOVEITEM` arms and
- * mock230_bank.c's deposit/withdraw, which are the two shapes that need it).
+ * torirs_server_ops_inv.c's `INV_MOVEFROMSLOT` / `INV_MOVEITEM` arms and
+ * torirs_server_bank.c's deposit/withdraw, which are the two shapes that need it).
  */
 void
-mock230_item_vars_copy(
-    struct Mock230Item* dst,
-    const struct Mock230Item* src)
+ToriRSServer_ItemVarsCopy(
+    struct ToriRSServerItem* dst,
+    const struct ToriRSServerItem* src)
 {
     int i;
 
     assert(dst);
     assert(src);
-    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    for( i = 0; i < TORIRSSERVER_ITEM_VAR_MAX; i++ )
     {
         dst->var_key[i] = src->var_key[i];
         dst->var_val[i] = src->var_val[i];
@@ -108,44 +108,44 @@ mock230_item_vars_copy(
 /* ------------------------------------------------------------------ */
 
 int
-mock230_container_scope(int32_t inv_id)
+ToriRSServer_ContainerScope(int32_t inv_id)
 {
     /*
      * Every inv defaults to per-player. The one exception is a shop: content
-     * declares `scope=shared` in a `.inv` file (mock230_content.c's
+     * declares `scope=shared` in a `.inv` file (torirs_server_content.c's
      * load_inv_config, docs/SHOPS_PLAN.md §3.1), which registers a
-     * Mock230ShopDef with `shared` set. An inv nothing declared a shop
+     * ToriRSServerShopDef with `shared` set. An inv nothing declared a shop
      * definition for — the overwhelming majority of the namespace, including
      * the player's own backpack/worn/bank — is not asked and stays PLAYER.
      */
-    if( mock230_shop_is_shared(inv_id) )
-        return MOCK230_CONTAINER_WORLD;
-    return MOCK230_CONTAINER_PLAYER;
+    if( ToriRSServer_ShopIsShared(inv_id) )
+        return TORIRSSERVER_CONTAINER_WORLD;
+    return TORIRSSERVER_CONTAINER_PLAYER;
 }
 
 /* ------------------------------------------------------------------ */
 /* Table access                                                        */
 /* ------------------------------------------------------------------ */
 
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 table_for(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int scope,
     int* out_count)
 {
-    if( scope == MOCK230_CONTAINER_WORLD )
+    if( scope == TORIRSSERVER_CONTAINER_WORLD )
     {
-        *out_count = MOCK230_WORLD_CONTAINER_MAX;
+        *out_count = TORIRSSERVER_WORLD_CONTAINER_MAX;
         return srv ? srv->world_containers : NULL;
     }
-    *out_count = MOCK230_CONTAINER_MAX;
+    *out_count = TORIRSSERVER_CONTAINER_MAX;
     return player ? player->containers : NULL;
 }
 
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 find_row(
-    struct Mock230Container* table,
+    struct ToriRSServerContainer* table,
     int count,
     int32_t inv_id)
 {
@@ -155,9 +155,9 @@ find_row(
     return NULL;
 }
 
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 free_row(
-    struct Mock230Container* table,
+    struct ToriRSServerContainer* table,
     int count)
 {
     for( int i = 0; i < count; i++ )
@@ -168,11 +168,11 @@ free_row(
 
 static void
 row_init(
-    struct Mock230Container* row,
+    struct ToriRSServerContainer* row,
     int32_t inv_id,
     int slots,
     int scope,
-    struct Mock230Player* owner)
+    struct ToriRSServerPlayer* owner)
 {
     memset(row, 0, sizeof(*row));
     row->used = 1;
@@ -184,7 +184,7 @@ row_init(
     /*
      * The transmit shape is a function of the size and nothing else.
      * UPDATE_INV_PARTIAL indexes its slots out of a 32-bit mask
-     * (mock230_encode.c: `dirty & (1u << i)`), so anything larger has to be
+     * (torirs_server_encode.c: `dirty & (1u << i)`), so anything larger has to be
      * re-sent whole. The backpack (28) and worn set (14) land on the per-slot
      * side by measurement rather than by being named here.
      */
@@ -195,22 +195,22 @@ row_init(
 /* Resolve                                                             */
 /* ------------------------------------------------------------------ */
 
-struct Mock230Container*
-mock230_container_resolve(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+struct ToriRSServerContainer*
+ToriRSServer_ContainerResolve(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id)
 {
     int scope;
     int count = 0;
-    struct Mock230Container* table;
-    struct Mock230Container* row;
+    struct ToriRSServerContainer* table;
+    struct ToriRSServerContainer* row;
     int slots;
 
     if( inv_id < 0 )
         return NULL;
 
-    scope = mock230_container_scope(inv_id);
+    scope = ToriRSServer_ContainerScope(inv_id);
     table = table_for(srv, player, scope, &count);
     if( !table )
         return NULL;
@@ -224,9 +224,9 @@ mock230_container_resolve(
      * declared `size=` (docs/SHOPS_PLAN.md §8.5 — a `pack/inv.alloc` id for a
      * region this cache snapshot never packed a real inv for). Still not a
      * container if neither names one. */
-    slots = mock230_bank_inv_size((int)inv_id);
+    slots = ToriRSServer_BankInvSize((int)inv_id);
     if( slots <= 0 )
-        slots = mock230_shop_content_size(inv_id);
+        slots = ToriRSServer_ShopContentSize(inv_id);
     if( slots <= 0 )
         return NULL;
 
@@ -234,12 +234,12 @@ mock230_container_resolve(
     if( !row )
     {
         fprintf(stderr,
-                "mock230: container table full (%d rows); inv %d cannot be registered\n",
+                "torirsserver: container table full (%d rows); inv %d cannot be registered\n",
                 count, (int)inv_id);
         return NULL;
     }
 
-    row_init(row, inv_id, slots, scope, scope == MOCK230_CONTAINER_WORLD ? NULL : player);
+    row_init(row, inv_id, slots, scope, scope == TORIRSSERVER_CONTAINER_WORLD ? NULL : player);
     row->items = calloc((size_t)slots, sizeof(*row->items));
     assert(row->items);
     row->owns_items = 1;
@@ -252,24 +252,24 @@ mock230_container_resolve(
     return row;
 }
 
-struct Mock230Container*
-mock230_container_adopt(
-    struct Mock230Player* player,
+struct ToriRSServerContainer*
+ToriRSServer_ContainerAdopt(
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
-    struct Mock230Item* items,
+    struct ToriRSServerItem* items,
     int slots,
     uint32_t* slot_dirty_ref,
     int* dirty_ref,
     int appearance)
 {
-    struct Mock230Container* row;
+    struct ToriRSServerContainer* row;
 
     if( inv_id < 0 || slots <= 0 )
         return NULL;
     assert(player);
     assert(items);
 
-    row = find_row(player->containers, MOCK230_CONTAINER_MAX, inv_id);
+    row = find_row(player->containers, TORIRSSERVER_CONTAINER_MAX, inv_id);
     if( row && row->owns_items )
     {
         free(row->items);
@@ -277,15 +277,15 @@ mock230_container_adopt(
         row->owns_items = 0;
     }
     if( !row )
-        row = free_row(player->containers, MOCK230_CONTAINER_MAX);
+        row = free_row(player->containers, TORIRSSERVER_CONTAINER_MAX);
     if( !row )
     {
-        fprintf(stderr, "mock230: container table full; inv %d cannot be adopted\n",
+        fprintf(stderr, "torirsserver: container table full; inv %d cannot be adopted\n",
                 (int)inv_id);
         return NULL;
     }
 
-    row_init(row, inv_id, slots, MOCK230_CONTAINER_PLAYER, player);
+    row_init(row, inv_id, slots, TORIRSSERVER_CONTAINER_PLAYER, player);
     row->items = items;
     row->owns_items = 0;
     row->appearance = (uint8_t)(appearance ? 1 : 0);
@@ -297,7 +297,7 @@ mock230_container_adopt(
     if( slot_dirty_ref && !row->per_slot )
     {
         fprintf(stderr,
-                "mock230: inv %d has %d slots and cannot carry a per-slot dirty mask\n",
+                "torirsserver: inv %d has %d slots and cannot carry a per-slot dirty mask\n",
                 (int)inv_id, slots);
         row->slot_dirty_ref = NULL;
         row->per_slot = 0;
@@ -308,14 +308,14 @@ mock230_container_adopt(
 }
 
 void
-mock230_container_forget(
-    struct Mock230Player* player,
+ToriRSServer_ContainerForget(
+    struct ToriRSServerPlayer* player,
     int32_t inv_id)
 {
-    struct Mock230Container* row;
+    struct ToriRSServerContainer* row;
 
     assert(player);
-    row = find_row(player->containers, MOCK230_CONTAINER_MAX, inv_id);
+    row = find_row(player->containers, TORIRSSERVER_CONTAINER_MAX, inv_id);
     if( !row )
         return;
     /* A private row may be painted by a different player. Retire every
@@ -325,7 +325,7 @@ mock230_container_forget(
      * also be listening to their own row with the same inv id. */
     for( int i = 0; i < row->listener_count; i++ )
         if( row->listeners[i].player )
-            mock230_send_if_clearinv(row->listeners[i].player,
+            ToriRSServer_SendIfClearinv(row->listeners[i].player,
                                      row->listeners[i].component);
     if( row->owns_items )
         free(row->items);
@@ -333,16 +333,16 @@ mock230_container_forget(
 }
 
 void
-mock230_container_shutdown_player(struct Mock230Player* player)
+ToriRSServer_ContainerShutdownPlayer(struct ToriRSServerPlayer* player)
 {
     assert(player);
-    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
     {
-        struct Mock230Container* row = &player->containers[i];
+        struct ToriRSServerContainer* row = &player->containers[i];
 
         for( int l = 0; l < row->listener_count; l++ )
             if( row->listeners[l].player )
-                mock230_send_if_clearinv(row->listeners[l].player,
+                ToriRSServer_SendIfClearinv(row->listeners[l].player,
                                          row->listeners[l].component);
         if( row->owns_items )
             free(row->items);
@@ -351,14 +351,14 @@ mock230_container_shutdown_player(struct Mock230Player* player)
 }
 
 void
-mock230_container_shutdown(struct Mock230Server* srv)
+ToriRSServer_ContainerShutdown(struct ToriRSServer* srv)
 {
     assert(srv);
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
-        mock230_container_shutdown_player(&srv->players[i]);
-    for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        ToriRSServer_ContainerShutdownPlayer(&srv->players[i]);
+    for( int i = 0; i < TORIRSSERVER_WORLD_CONTAINER_MAX; i++ )
     {
-        struct Mock230Container* row = &srv->world_containers[i];
+        struct ToriRSServerContainer* row = &srv->world_containers[i];
 
         if( row->owns_items )
             free(row->items);
@@ -374,20 +374,20 @@ mock230_container_shutdown(struct Mock230Server* srv)
  * is asked for the address of its own field here, at the point of use, so a
  * memset or a struct copy cannot leave a row pointing at a stale twin. */
 static uint32_t*
-slot_mask_of(struct Mock230Container* row)
+slot_mask_of(struct ToriRSServerContainer* row)
 {
     return row->slot_dirty_ref ? row->slot_dirty_ref : &row->slot_dirty_own;
 }
 
 static int*
-dirty_of(struct Mock230Container* row)
+dirty_of(struct ToriRSServerContainer* row)
 {
     return row->dirty_ref ? row->dirty_ref : &row->dirty_own;
 }
 
 void
-mock230_container_mark(
-    struct Mock230Container* container,
+ToriRSServer_ContainerMark(
+    struct ToriRSServerContainer* container,
     int slot)
 {
     assert(container);
@@ -404,11 +404,11 @@ mock230_container_mark(
         *dirty_of(container) = 1;
     }
     if( container->appearance && container->owner )
-        container->owner->masks |= MOCK230_PMASK_APPEARANCE;
+        container->owner->masks |= TORIRSSERVER_PMASK_APPEARANCE;
 }
 
 void
-mock230_container_mark_all(struct Mock230Container* container)
+ToriRSServer_ContainerMarkAll(struct ToriRSServerContainer* container)
 {
     assert(container);
     if( !container->used )
@@ -425,29 +425,29 @@ mock230_container_mark_all(struct Mock230Container* container)
         *dirty_of(container) = 1;
     }
     if( container->appearance && container->owner )
-        container->owner->masks |= MOCK230_PMASK_APPEARANCE;
+        container->owner->masks |= TORIRSSERVER_PMASK_APPEARANCE;
 }
 
 /*
  * May this cell hold an obj at a count of zero?
  *
  * Two things do, and the encoder writes the pair independently for exactly this
- * reason (mock230_encode.c: "`obj_id >= 0` is the occupancy test, not
+ * reason (torirs_server_encode.c: "`obj_id >= 0` is the occupancy test, not
  * `count > 0`"):
  *
  *   - A **bank placeholder**. An obj that carries a placeholder *template* is
- *     one (mock230.h's table: 14730 has template 14401 and stands for 1277),
+ *     one (torirs_server.h's table: 14730 has template 14401 and stands for 1277),
  *     and it exists only to hold a slot at zero. Content creates it through
  *     `inv_setslot(bank, $slot, $placeholder, 0)` — `~bank_leave_placeholder`,
  *     interface_bank/scripts/bank_placeholder.rs2:77.
  *   - A **shop's baseline line**, kept in place at zero rather than deleted so
  *     it still draws, still prices and can still restock. See
- *     mock230_container_clear_slot for the three bugs deleting it caused, and
- *     mock230_shop.c's restock walk, which reaches zero by subtraction.
+ *     ToriRSServer_ContainerClearSlot for the three bugs deleting it caused, and
+ *     torirs_server_shop.c's restock walk, which reaches zero by subtraction.
  *
  * Everything else at zero is a wedge. `obj_id >= 0` is the occupancy test in
- * every free-slot scan the server has — `mock230_container_add`'s,
- * `inv_freespace`, `inv_itemspace`, mock230_bank.c's `inv_free_slots` — so such
+ * every free-slot scan the server has — `ToriRSServer_ContainerAdd`'s,
+ * `inv_freespace`, `inv_itemspace`, torirs_server_bank.c's `inv_free_slots` — so such
  * a cell counts as full while holding nothing, and for an unstackable it never
  * heals: the add loop only writes cells whose obj is negative. A backpack
  * collecting these starts answering "did not fit" over cells the player can see
@@ -459,25 +459,25 @@ mock230_container_mark_all(struct Mock230Container* container)
  */
 static int
 zero_count_is_meaningful(
-    const struct Mock230Container* container,
+    const struct ToriRSServerContainer* container,
     int obj_id)
 {
     assert(container);
     if( obj_id < 0 )
         return 0;
-    if( mock230_objinfo(obj_id)->placeholder_template >= 0 )
+    if( ToriRSServer_ObjInfo(obj_id)->placeholder_template >= 0 )
         return 1;
-    return mock230_shop_has_stock_line(container->inv_id, obj_id) != 0;
+    return ToriRSServer_ShopHasStockLine(container->inv_id, obj_id) != 0;
 }
 
 void
-mock230_container_set(
-    struct Mock230Container* container,
+ToriRSServer_ContainerSet(
+    struct ToriRSServerContainer* container,
     int slot,
     int obj_id,
     int count)
 {
-    struct Mock230Item* item;
+    struct ToriRSServerItem* item;
 
     assert(container);
     if( !container->used || !container->items )
@@ -498,7 +498,7 @@ mock230_container_set(
         item->obj_id = obj_id;
         item->count = count;
     }
-    mock230_container_mark(container, slot);
+    ToriRSServer_ContainerMark(container, slot);
 }
 
 /*
@@ -537,7 +537,7 @@ mock230_container_set(
  * server-side `inv.dat`, and this cache's inv config carries only size — so the
  * containers that genuinely always stack are named here instead, in
  * `always_stacks()` below (the bank and the collection log; see
- * mock230_ids.h for why each). That is a smaller and more honest gap than the
+ * torirs_server_ids.h for why each). That is a smaller and more honest gap than the
  * old one: those two are the whole of what this tree adds an unstackable pile
  * to in bulk (`[proc,newplayer_bank]` says `inv_add(bank, logs, 100)`), and
  * everything else now behaves the way `~pickup_obj_check_for_space` already
@@ -555,19 +555,19 @@ mock230_container_set(
  * A bank placeholder is the slot an item came out of, remembered — so the item
  * coming back has to land in that slot rather than beside it, or the feature
  * does the opposite of what it is for. The link is the obj record's own
- * (opcode 148, `Mock230ObjInfo.placeholder_id`), read forward: an *item* states
+ * (opcode 148, `ToriRSServerObjInfo.placeholder_id`), read forward: an *item* states
  * its placeholder and no template.
  *
  * Not gated on the container being a bank, and it needs no gate: a placeholder
  * obj only ever exists in one, so the scan cannot match anywhere else.
  */
 int
-mock230_container_placeholder_slot(
-    const struct Mock230Item* items,
+ToriRSServer_ContainerPlaceholderSlot(
+    const struct ToriRSServerItem* items,
     int slots,
     int obj_id)
 {
-    const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
     int placeholder;
 
     if( slots <= 0 )
@@ -587,32 +587,32 @@ mock230_container_placeholder_slot(
  *
  * LostCity's `InvType.stackType == ALWAYS_STACK`, for the invs this tree can
  * answer without a server-side inv definition — the two are named and explained
- * in mock230_ids.h. Every other inv follows the obj record. Kept as one function
+ * in torirs_server_ids.h. Every other inv follows the obj record. Kept as one function
  * so the day a real stack-policy field lands, this is its only caller-visible
  * seam; an unresolved id is -1 and matches no container.
  */
 static int
-always_stacks(const struct Mock230Container* container)
+always_stacks(const struct ToriRSServerContainer* container)
 {
-    const struct Mock230Ids* ids = mock230_ids();
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     /* A shop says so in its own `.inv` (`stackall=yes`), which is the real
      * `stackType` field rather than a name this file had to invent. The two
      * hardcoded ids below are the containers that have no `.inv` to say it in. */
-    if( mock230_shop_stackall(container->inv_id) )
+    if( ToriRSServer_ShopStackall(container->inv_id) )
         return 1;
     return container->inv_id == ids->inv_bank ||
            container->inv_id == ids->inv_collection_log;
 }
 
 int
-mock230_container_stacks_obj(
-    const struct Mock230Container* container,
+ToriRSServer_ContainerStacksObj(
+    const struct ToriRSServerContainer* container,
     int obj_id)
 {
     if( obj_id < 0 )
         return 0;
-    if( mock230_objinfo(obj_id)->stackable )
+    if( ToriRSServer_ObjInfo(obj_id)->stackable )
         return 1;
     return container && always_stacks(container);
 }
@@ -620,14 +620,14 @@ mock230_container_stacks_obj(
 /*
  * Empty one slot — and a shop's baseline slot empties to ZERO, not to nothing.
  *
- * This is LostCity's `stockobj`, the one thing `mock230_container_add`'s header
+ * This is LostCity's `stockobj`, the one thing `ToriRSServer_ContainerAdd`'s header
  * says was left out of the `Inventory` port. Buying a store's last pot used to
  * run `items[slot].obj_id = -1`, and three things followed from that one line:
  *
  *   1. The cell vanished from the shop. `shop_main_update` (clientscript 1076)
  *      does `cc_sethide(true)` on a slot whose `inv_getobj` is null, so an
  *      out-of-stock line is not drawn greyed at 0 — it is not drawn at all.
- *   2. It never came back. `mock230_shop_restock_tick` skips `obj_id < 0`
+ *   2. It never came back. `ToriRSServer_ShopRestockTick` skips `obj_id < 0`
  *      because it reads the baseline off the obj that is *in* the slot, so the
  *      slot it needed to refill no longer named an obj. A bought-out line was
  *      gone until the next server boot re-seeded it.
@@ -640,8 +640,8 @@ mock230_container_stacks_obj(
  * which is what `allstock`'s own one-a-minute decay is for.
  */
 void
-mock230_container_clear_slot(
-    struct Mock230Container* container,
+ToriRSServer_ContainerClearSlot(
+    struct ToriRSServerContainer* container,
     int slot)
 {
     int obj_id;
@@ -652,25 +652,25 @@ mock230_container_clear_slot(
     if( slot < 0 || slot >= container->slots )
         return;
     obj_id = container->items[slot].obj_id;
-    if( obj_id >= 0 && mock230_shop_has_stock_line(container->inv_id, obj_id) )
+    if( obj_id >= 0 && ToriRSServer_ShopHasStockLine(container->inv_id, obj_id) )
     {
-        mock230_container_set(container, slot, obj_id, 0);
+        ToriRSServer_ContainerSet(container, slot, obj_id, 0);
         return;
     }
-    mock230_container_set(container, slot, -1, 0);
+    ToriRSServer_ContainerSet(container, slot, -1, 0);
 }
 
 /*
  * The real body, with an optional `out_slot` for callers that need to know
- * exactly where a unit landed — see mock230_item_vars_copy's comment.
+ * exactly where a unit landed — see ToriRSServer_ItemVarsCopy's comment.
  * `*out_slot` is only ever set when the placement is unambiguous: a single
  * unstackable unit (count == 1 at entry) that landed in exactly one slot.
  * Every other shape (a merged stack, more than one unit, nothing added)
  * leaves it at -1, because "which slot" has no one answer there.
  */
 static int
-mock230_container_add_ex(
-    struct Mock230Container* container,
+ToriRSServer_ContainerAddEx(
+    struct ToriRSServerContainer* container,
     int obj_id,
     int count,
     int assure_full,
@@ -690,7 +690,7 @@ mock230_container_add_ex(
     if( obj_id < 0 || count <= 0 )
         return 0;
 
-    stackable = mock230_container_stacks_obj(container, obj_id);
+    stackable = ToriRSServer_ContainerStacksObj(container, obj_id);
 
     for( int i = 0; i < container->slots; i++ )
     {
@@ -698,7 +698,7 @@ mock230_container_add_ex(
             free_slots++;
     }
     placeholder_slot =
-        mock230_container_placeholder_slot(container->items, container->slots, obj_id);
+        ToriRSServer_ContainerPlaceholderSlot(container->items, container->slots, obj_id);
 
     if( stackable )
     {
@@ -737,7 +737,7 @@ mock230_container_add_ex(
         }
         if( count <= 0 )
             return 0;
-        mock230_container_set(container, slot, obj_id, have + count);
+        ToriRSServer_ContainerSet(container, slot, obj_id, have + count);
         /* A merge onto an existing stack is never a single fresh unit even
          * when `requested == 1` — the destination slot already had vars of
          * its own (or none), and this is not the "carry a charge" shape. */
@@ -757,7 +757,7 @@ mock230_container_add_ex(
         return 0;
     if( placeholder_slot >= 0 )
     {
-        mock230_container_set(container, placeholder_slot, obj_id, 1);
+        ToriRSServer_ContainerSet(container, placeholder_slot, obj_id, 1);
         if( out_slot && requested == 1 )
             *out_slot = placeholder_slot;
         added++;
@@ -766,7 +766,7 @@ mock230_container_add_ex(
     {
         if( container->items[i].obj_id >= 0 )
             continue;
-        mock230_container_set(container, i, obj_id, 1);
+        ToriRSServer_ContainerSet(container, i, obj_id, 1);
         if( out_slot && requested == 1 )
             *out_slot = i;
         added++;
@@ -775,28 +775,28 @@ mock230_container_add_ex(
 }
 
 int
-mock230_container_add(
-    struct Mock230Container* container,
+ToriRSServer_ContainerAdd(
+    struct ToriRSServerContainer* container,
     int obj_id,
     int count,
     int assure_full)
 {
-    return mock230_container_add_ex(container, obj_id, count, assure_full, NULL);
+    return ToriRSServer_ContainerAddEx(container, obj_id, count, assure_full, NULL);
 }
 
 int
-mock230_container_add_out_slot(
-    struct Mock230Container* container,
+ToriRSServer_ContainerAddOutSlot(
+    struct ToriRSServerContainer* container,
     int obj_id,
     int count,
     int assure_full,
     int* out_slot)
 {
-    return mock230_container_add_ex(container, obj_id, count, assure_full, out_slot);
+    return ToriRSServer_ContainerAddEx(container, obj_id, count, assure_full, out_slot);
 }
 
 void
-mock230_container_clean(struct Mock230Container* container)
+ToriRSServer_ContainerClean(struct ToriRSServerContainer* container)
 {
     assert(container);
     if( !container->used )
@@ -806,9 +806,9 @@ mock230_container_clean(struct Mock230Container* container)
 }
 
 int
-mock230_container_is_dirty(const struct Mock230Container* container)
+ToriRSServer_ContainerIsDirty(const struct ToriRSServerContainer* container)
 {
-    struct Mock230Container* row = (struct Mock230Container*)container;
+    struct ToriRSServerContainer* row = (struct ToriRSServerContainer*)container;
 
     if( !row || !row->used )
         return 0;
@@ -816,9 +816,9 @@ mock230_container_is_dirty(const struct Mock230Container* container)
 }
 
 uint32_t
-mock230_container_slot_mask(const struct Mock230Container* container)
+ToriRSServer_ContainerSlotMask(const struct ToriRSServerContainer* container)
 {
-    struct Mock230Container* row = (struct Mock230Container*)container;
+    struct ToriRSServerContainer* row = (struct ToriRSServerContainer*)container;
 
     if( !row || !row->used || !row->per_slot )
         return 0;
@@ -864,13 +864,13 @@ mock230_container_slot_mask(const struct Mock230Container* container)
  * be per-slot (Bob's is 7) and a sale merges into a line that already has a cell.
  */
 static int
-full_capacity(const struct Mock230Container* row)
+full_capacity(const struct ToriRSServerContainer* row)
 {
     int used = 0;
 
     if( row->per_slot )
         return row->slots;
-    if( mock230_shop_def(row->inv_id) )
+    if( ToriRSServer_ShopDef(row->inv_id) )
         return row->slots;
     for( int i = 0; i < row->slots; i++ )
         if( row->items[i].obj_id >= 0 )
@@ -885,17 +885,17 @@ full_capacity(const struct Mock230Container* row)
  * unbind the owner or every other guest from their copies of 675:11. */
 static int
 listener_matches(
-    const struct Mock230Container* row,
+    const struct ToriRSServerContainer* row,
     int i,
-    struct Mock230Player* player)
+    struct ToriRSServerPlayer* player)
 {
     return row->listeners[i].player == player;
 }
 
 static int
 unbind_row(
-    struct Mock230Container* row,
-    struct Mock230Player* player,
+    struct ToriRSServerContainer* row,
+    struct ToriRSServerPlayer* player,
     int32_t component)
 {
     int dropped = 0;
@@ -917,7 +917,7 @@ unbind_row(
              * UPDATE_INV_FULL. */
             if( !cleared )
             {
-                mock230_send_if_clearinv(player, component);
+                ToriRSServer_SendIfClearinv(player, component);
                 cleared = 1;
             }
             dropped++;
@@ -930,9 +930,9 @@ unbind_row(
 }
 
 int
-mock230_container_unbind(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_ContainerUnbind(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t component)
 {
     int dropped = 0;
@@ -946,19 +946,19 @@ mock230_container_unbind(
     {
         for( int p = 0; p < srv->player_count; p++ )
         {
-            struct Mock230Player* owner = &srv->players[p];
+            struct ToriRSServerPlayer* owner = &srv->players[p];
 
             if( !owner->active )
                 continue;
-            for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+            for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
                 dropped += unbind_row(&owner->containers[i], player, component);
         }
-        for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_WORLD_CONTAINER_MAX; i++ )
             dropped += unbind_row(&srv->world_containers[i], player, component);
     }
     else
     {
-        for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
             dropped += unbind_row(&player->containers[i], player, component);
     }
     return dropped;
@@ -966,9 +966,9 @@ mock230_container_unbind(
 
 static int
 bind_row(
-    struct Mock230Server* srv,
-    struct Mock230Container* row,
-    struct Mock230Player* viewer,
+    struct ToriRSServer* srv,
+    struct ToriRSServerContainer* row,
+    struct ToriRSServerPlayer* viewer,
     int32_t inv_id,
     int32_t component)
 {
@@ -991,13 +991,13 @@ bind_row(
     /* A component listens to at most one inv; move it if it was elsewhere.
      * Only this player's prior binding of `component` moves — a shared row's
      * other listeners are other players and must not be touched. */
-    mock230_container_unbind(srv, viewer, component);
+    ToriRSServer_ContainerUnbind(srv, viewer, component);
 
-    if( row->listener_count >= MOCK230_CONTAINER_LISTENERS_MAX )
+    if( row->listener_count >= TORIRSSERVER_CONTAINER_LISTENERS_MAX )
     {
         fprintf(stderr,
-                "mock230: inv %d already has %d listeners; cannot bind component %d\n",
-                (int)inv_id, MOCK230_CONTAINER_LISTENERS_MAX, (int)component);
+                "torirsserver: inv %d already has %d listeners; cannot bind component %d\n",
+                (int)inv_id, TORIRSSERVER_CONTAINER_LISTENERS_MAX, (int)component);
         return 0;
     }
 
@@ -1009,50 +1009,50 @@ bind_row(
      * interface being painted needs it: a paint hook only runs on a transmit,
      * so a panel mounted before the container existed stays empty otherwise.
      * Only this listener's first_seen is cleared — other listeners keep theirs. */
-    mock230_send_inv_full(viewer, (int)component, (int)inv_id, row->items, full_capacity(row));
+    ToriRSServer_SendInvFull(viewer, (int)component, (int)inv_id, row->items, full_capacity(row));
     row->listeners[listener_i].first_seen = 0;
     return 1;
 }
 
 int
-mock230_container_bind(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_ContainerBind(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
     int32_t component)
 {
-    return bind_row(srv, mock230_container_resolve(srv, player, inv_id), player, inv_id,
+    return bind_row(srv, ToriRSServer_ContainerResolve(srv, player, inv_id), player, inv_id,
                     component);
 }
 
 int
-mock230_container_bind_from(
-    struct Mock230Server* srv,
-    struct Mock230Player* owner,
-    struct Mock230Player* viewer,
+ToriRSServer_ContainerBindFrom(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* owner,
+    struct ToriRSServerPlayer* viewer,
     int32_t inv_id,
     int32_t component)
 {
     if( !owner || !viewer )
         return 0;
-    return bind_row(srv, mock230_container_resolve(srv, owner, inv_id), viewer, inv_id,
+    return bind_row(srv, ToriRSServer_ContainerResolve(srv, owner, inv_id), viewer, inv_id,
                     component);
 }
 
 void
-mock230_container_flush(struct Mock230Player* player)
+ToriRSServer_ContainerFlush(struct ToriRSServerPlayer* player)
 {
     assert(player);
-    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
     {
-        struct Mock230Container* row = &player->containers[i];
+        struct ToriRSServerContainer* row = &player->containers[i];
         int dirty;
         int any_first_seen = 0;
 
         if( !row->used || !row->items )
             continue;
 
-        dirty = mock230_container_is_dirty(row);
+        dirty = ToriRSServer_ContainerIsDirty(row);
         for( int l = 0; l < row->listener_count; l++ )
         {
             if( row->listeners[l].first_seen )
@@ -1070,14 +1070,14 @@ mock230_container_flush(struct Mock230Player* player)
              * Exception: an external dirty_ref means another flush owns the
              * bit. The bank is the case — its row exists for resolve and dirty
              * (so `inv_del(bank,…)` marks correctly) but transmit still runs
-             * through mock230_bank_flush, which gates on bank.open. Cleaning
+             * through ToriRSServer_BankFlush, which gates on bank.open. Cleaning
              * here would clear bank.dirty before that flush could send
              * UPDATE_INV_FULL. Folding bank transmit into this table means
              * moving bank.open onto the binding; that is a real simplification
              * and not this stage's.
              */
             if( dirty && !row->dirty_ref )
-                mock230_container_clean(row);
+                ToriRSServer_ContainerClean(row);
             continue;
         }
 
@@ -1087,52 +1087,52 @@ mock230_container_flush(struct Mock230Player* player)
         for( int l = 0; l < row->listener_count; l++ )
         {
             int32_t component = row->listeners[l].component;
-            struct Mock230Player* target = row->listeners[l].player;
+            struct ToriRSServerPlayer* target = row->listeners[l].player;
 
             if( !target )
                 continue;
             if( !dirty && !row->listeners[l].first_seen )
                 continue;
             if( row->per_slot && dirty && !row->listeners[l].first_seen )
-                mock230_send_inv_partial(target, (int)component, (int)row->inv_id, row->items,
-                                         row->slots, mock230_container_slot_mask(row));
+                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id, row->items,
+                                         row->slots, ToriRSServer_ContainerSlotMask(row));
             else
-                mock230_send_inv_full(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id, row->items,
                                       full_capacity(row));
             row->listeners[l].first_seen = 0;
         }
-        mock230_container_clean(row);
+        ToriRSServer_ContainerClean(row);
     }
 }
 
 void
-mock230_container_flush_world(struct Mock230Server* srv)
+ToriRSServer_ContainerFlushWorld(struct ToriRSServer* srv)
 {
     assert(srv);
-    for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORLD_CONTAINER_MAX; i++ )
     {
-        struct Mock230Container* row = &srv->world_containers[i];
+        struct ToriRSServerContainer* row = &srv->world_containers[i];
         int dirty;
         int any_first_seen = 0;
 
         if( !row->used || !row->items )
             continue;
 
-        dirty = mock230_container_is_dirty(row);
+        dirty = ToriRSServer_ContainerIsDirty(row);
         for( int l = 0; l < row->listener_count; l++ )
         {
             if( row->listeners[l].first_seen )
                 any_first_seen = 1;
         }
 
-        /* Same "nobody is painting from it" drop as mock230_container_flush —
+        /* Same "nobody is painting from it" drop as ToriRSServer_ContainerFlush —
          * see its comment. A shared row's dirty_ref is always NULL (every
          * shop row owns its own dirty state), so that branch does not apply
          * here. */
         if( row->listener_count == 0 )
         {
             if( dirty )
-                mock230_container_clean(row);
+                ToriRSServer_ContainerClean(row);
             continue;
         }
 
@@ -1142,20 +1142,20 @@ mock230_container_flush_world(struct Mock230Server* srv)
         for( int l = 0; l < row->listener_count; l++ )
         {
             int32_t component = row->listeners[l].component;
-            struct Mock230Player* target = row->listeners[l].player;
+            struct ToriRSServerPlayer* target = row->listeners[l].player;
 
             if( !target )
                 continue; /* should not happen on a world row; skip rather than crash */
             if( !dirty && !row->listeners[l].first_seen )
                 continue;
             if( row->per_slot && dirty && !row->listeners[l].first_seen )
-                mock230_send_inv_partial(target, (int)component, (int)row->inv_id, row->items,
-                                         row->slots, mock230_container_slot_mask(row));
+                ToriRSServer_SendInvPartial(target, (int)component, (int)row->inv_id, row->items,
+                                         row->slots, ToriRSServer_ContainerSlotMask(row));
             else
-                mock230_send_inv_full(target, (int)component, (int)row->inv_id, row->items,
+                ToriRSServer_SendInvFull(target, (int)component, (int)row->inv_id, row->items,
                                       full_capacity(row));
             row->listeners[l].first_seen = 0;
         }
-        mock230_container_clean(row);
+        ToriRSServer_ContainerClean(row);
     }
 }

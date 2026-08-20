@@ -1,6 +1,6 @@
 /* Session-local map-instance flags and integer registers. */
 
-#include "mock230_mapinstance.h"
+#include "torirs_server_mapinstance.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -28,47 +28,47 @@ main(int argc, char** argv)
     int handle;
     int recycled;
 
-    mock230_mapinstance_reset();
-    handle = mock230_mapinstance_alloc(cache_dir, 8, 8);
+    ToriRSServer_MapInstanceReset();
+    handle = ToriRSServer_MapInstanceAlloc(cache_dir, 8, 8);
     CHECK_EQ(handle > 0, 1, "instance allocated");
-    CHECK_EQ(mock230_mapinstance_set_owner(handle, 77), 1, "instance owner writes");
-    CHECK_EQ(mock230_mapinstance_find_owner(77, 0), handle,
+    CHECK_EQ(ToriRSServer_MapInstanceSetOwner(handle, 77), 1, "instance owner writes");
+    CHECK_EQ(ToriRSServer_MapInstanceFindOwner(77, 0), handle,
              "owner lookup accepts a zero flag mask");
-    CHECK_EQ(mock230_mapinstance_flag_set(handle, 0x40000000, 1), 1,
+    CHECK_EQ(ToriRSServer_MapInstanceFlagSet(handle, 0x40000000, 1), 1,
              "high content-family flag writes");
-    CHECK_EQ(mock230_mapinstance_find_owner(77, 0x40000000), handle,
+    CHECK_EQ(ToriRSServer_MapInstanceFindOwner(77, 0x40000000), handle,
              "owner lookup requires the requested family flag");
-    CHECK_EQ(mock230_mapinstance_find_owner(77, 1), 0,
+    CHECK_EQ(ToriRSServer_MapInstanceFindOwner(77, 1), 0,
              "owner lookup rejects a missing flag");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, 0), 0, "register starts clear");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, MOCK230_MAPINSTANCE_VARS - 1), 0,
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, 0), 0, "register starts clear");
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, TORIRSSERVER_MAPINSTANCE_VARS - 1), 0,
              "last register starts clear");
-    CHECK_EQ(mock230_mapinstance_var_set(handle, 0, 42), 1, "first register writes");
-    CHECK_EQ(mock230_mapinstance_var_set(handle, MOCK230_MAPINSTANCE_VARS - 1, INT_MIN), 1,
+    CHECK_EQ(ToriRSServer_MapInstanceVarSet(handle, 0, 42), 1, "first register writes");
+    CHECK_EQ(ToriRSServer_MapInstanceVarSet(handle, TORIRSSERVER_MAPINSTANCE_VARS - 1, INT_MIN), 1,
              "last register accepts signed values");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, 0), 42, "first register reads");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, MOCK230_MAPINSTANCE_VARS - 1), INT_MIN,
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, 0), 42, "first register reads");
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, TORIRSSERVER_MAPINSTANCE_VARS - 1), INT_MIN,
              "last register reads signed value");
-    CHECK_EQ(mock230_mapinstance_var_set(handle, -1, 1), 0, "negative slot rejected");
-    CHECK_EQ(mock230_mapinstance_var_set(handle, MOCK230_MAPINSTANCE_VARS, 1), 0,
+    CHECK_EQ(ToriRSServer_MapInstanceVarSet(handle, -1, 1), 0, "negative slot rejected");
+    CHECK_EQ(ToriRSServer_MapInstanceVarSet(handle, TORIRSSERVER_MAPINSTANCE_VARS, 1), 0,
              "past-end slot rejected");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, -1), 0, "invalid read is zero");
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, -1), 0, "invalid read is zero");
 
-    CHECK_EQ(mock230_mapinstance_free(handle), 1, "instance freed");
-    CHECK_EQ(mock230_mapinstance_var_get(handle, 0), 0, "dead instance reads zero");
-    recycled = mock230_mapinstance_alloc(cache_dir, 8, 8);
+    CHECK_EQ(ToriRSServer_MapInstanceFree(handle), 1, "instance freed");
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, 0), 0, "dead instance reads zero");
+    recycled = ToriRSServer_MapInstanceAlloc(cache_dir, 8, 8);
     CHECK_EQ(recycled, handle, "allocator recycled handle");
-    CHECK_EQ(mock230_mapinstance_var_get(recycled, 0), 0,
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(recycled, 0), 0,
              "recycled instance erased first register");
-    CHECK_EQ(mock230_mapinstance_var_get(recycled, MOCK230_MAPINSTANCE_VARS - 1), 0,
+    CHECK_EQ(ToriRSServer_MapInstanceVarGet(recycled, TORIRSSERVER_MAPINSTANCE_VARS - 1), 0,
              "recycled instance erased last register");
-    mock230_mapinstance_reset();
+    ToriRSServer_MapInstanceReset();
 
     if( g_fail )
     {
-        printf("mock230_mapinstance_test: %d failure(s)\n", g_fail);
+        printf("ToriRSServer_MapInstanceTest: %d failure(s)\n", g_fail);
         return 1;
     }
-    printf("mock230_mapinstance_test: all checks passed\n");
+    printf("ToriRSServer_MapInstanceTest: all checks passed\n");
     return 0;
 }

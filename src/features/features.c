@@ -110,7 +110,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
      * docs/AGILITY_COMPLETION_PLAN.md), and the graceful / stamina / ring of
      * endurance multipliers all modify this pair. A rev-230-exact boot that
      * wants the pre-rework arithmetic asks for it with
-     * MOCK230_RUN_ENERGY=classic rather than by editing this line.
+     * TORIRSSERVER_RUN_ENERGY=classic rather than by editing this line.
      */
     .run_energy_model = TORIRS_RUN_ENERGY_OSRS_2025,
     /* `settings_interface_resizing` (gameval name, archive 14). Absent from

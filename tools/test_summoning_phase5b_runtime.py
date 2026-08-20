@@ -107,7 +107,7 @@ def main() -> int:
                 # exit frame proves the active portrait before the separate
                 # Call/Dismiss clone intentionally hides it.
                 "TORIRS_SIM_CLICK_AT": "220,540,230,1;270,540,260;350,635,185;410,677,226",
-                "MOCK230_VERBOSE": "1",
+                "TORIRSSERVER_VERBOSE": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_NET_DEBUG": "1",
@@ -368,11 +368,11 @@ def assert_actual_pouch_path(log: str, expect: object) -> None:
         "actual pouch: visible Summon row is not native action=2231/op=5",
     )
     check(
-        "mock230: <- IF_BUTTONX 149:0 sub=0 obj=46000 op=6 subop=-1" in log,
+        "torirsserver: <- IF_BUTTONX 149:0 sub=0 obj=46000 op=6 subop=-1" in log,
         "actual pouch: Summon did not serialize as the rev239 dynamic IF_BUTTONX op=6",
     )
     check(
-        re.search(r"mock230: <- OPHELD4 obj=46000 \(Dreadfowl pouch\) slot=0 com=149\|0", log)
+        re.search(r"torirsserver: <- OPHELD4 obj=46000 \(Dreadfowl pouch\) slot=0 com=149\|0", log)
         is not None,
         "actual pouch: IF_BUTTONX op=6 was not canonically dispatched as OPHELD4",
     )
@@ -510,7 +510,7 @@ def runtime_env(bmp: Path, max_frames: int) -> dict[str, str]:
     """No-cheat environment for a persisted-state relog."""
     return {
         "TORIRS_MAX_FRAMES": str(max_frames),
-        "MOCK230_VERBOSE": "1",
+        "TORIRSSERVER_VERBOSE": "1",
         "TORIRS_NET_DEBUG": "1",
         "TORIRS_NPC_HEAD_DEBUG": "1",
         "TORIRS_ANIM_DEBUG": "1",
@@ -540,14 +540,14 @@ def run_client(
         "TORIRS_DUMP_BOUNDS",
         "TORIRS_DUMP_EMIT_EXIT",
         "TORIRS_EXIT_BMP",
-        "MOCK230_VERBOSE",
+        "TORIRSSERVER_VERBOSE",
     ):
         env.pop(key, None)
     env.update(
         {
-            "MOCK230_SAVES": str(saves.resolve()),
-            "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-            "MOCK230_CACHE": str(args.cache.resolve()),
+            "TORIRSSERVER_SAVES": str(saves.resolve()),
+            "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+            "TORIRSSERVER_CACHE": str(args.cache.resolve()),
             "SDL_VIDEODRIVER": "dummy",
         }
     )

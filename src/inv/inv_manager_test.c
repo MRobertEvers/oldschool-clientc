@@ -333,7 +333,7 @@ test_clear_selected_slot_deselects(void)
  * The bug this pins: a container sized from the first packet about it, then
  * unable to hold anything past that size for the rest of the session.
  *
- * mock230 writes UPDATE_INV_FULL's capacity as the *used prefix* of the
+ * ToriRSServer writes UPDATE_INV_FULL's capacity as the *used prefix* of the
  * container, so a login that restored 17 backpack items announces 17 slots.
  * Every UPDATE_INV_PARTIAL after that names a real slot 0..27, and the eleven
  * above the prefix were being dropped: the server placed the item (it fills the

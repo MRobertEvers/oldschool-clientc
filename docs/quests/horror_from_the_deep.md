@@ -756,8 +756,8 @@ their owning systems.
 - every irreversible item action has a checked transaction and idempotent
   support-state assertion;
 - `python3 tools/questhelper_extract.py horrorfromthedeep --check` passes;
-- quest-specific transition tests, `make -C src mock230-scripts`, and
-  `mock230_pack --check-only` pass against the intended cache.
+- quest-specific transition tests, `make -C src torirsserver-scripts`, and
+  `ToriRSServer_Pack --check-only` pass against the intended cache.
 
 ### Acceptance and route tests
 

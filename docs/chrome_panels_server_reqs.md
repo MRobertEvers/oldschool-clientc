@@ -92,7 +92,7 @@ Several row procs call `~xpdrops_data_get` (`script_1002.cs2`), which reads
 (`configs/all.varp.compack:1227-1275,4964-4965`, confirmed present, e.g.
 `1228=xpdrops_total_start`, `1253=xpdrops_attack_end`) — shared with the
 unrelated XP-drops number-panel feature. These already ride the generic
-`.varp` transmit wire (`src/net/mock/mock230_content.c:1686-1694`), the same
+`.varp` transmit wire (`src/torirsserver/torirs_server_content.c:1686-1694`), the same
 mechanism `%qp` needs in `docs/questlist_chatmenu_levelup.md` §1.2. **Nothing
 declares them**: `grep -rn "xpdrops_.*_start\|xpdrops_.*_end" server/scripts/`
 is empty.
@@ -109,7 +109,7 @@ dead in this cache. Nothing server- or engine-side can make it fire.
 
 ### 1.2 Server obligations
 
-| state | needed for | delivery | mock230 status |
+| state | needed for | delivery | ToriRSServer status |
 |---|---|---|---|
 | `STAT_XP`/`STAT_BASE`, timer dispatch | the whole tracking/rate display | already-landed transports | **landed, sufficient** |
 | `xpdrops_<skill>_start`/`_end` `.varp` overlay, `transmit=yes` (likely `scope=perm`) | "Set Goal" only | generic varp wire | **not declared** — small, isolated gap |
@@ -149,7 +149,7 @@ The actual gap is nine CS2 host ops the panel calls directly
 **confirmed zero cases for any of them** in `src/cs2vm2/cs2vm2.c`
 (`grep -n "case 78[0-2][0-9]:"` → nothing), so any is reached they hit
 `CS2VM2_ReportUnimplementedOpcode`. This is a **client VM gap**, not
-something mock230's server code addresses.
+something ToriRSServer's server code addresses.
 
 > **Superseded in part, 2026-08-02 (§7).** "Nine" was an undercount — the
 > measured closure is 20+ opcodes, and the panel's reached path today is
@@ -176,7 +176,7 @@ writes a player's levels/xp into a separate SQL table (`hiscore`/
 **write-only, no read path anywhere in that checkout**, and structurally the
 same "separate service, not a RuneScript trigger" shape
 `docs/PORTING_GUIDE.md` §5.2 already names for LostCity's `FriendServer`. If
-mock230 ever wants real hiscore data, the LostCity-shaped move is a
+ToriRSServer ever wants real hiscore data, the LostCity-shaped move is a
 persistence-sync service, not content.
 
 ---
@@ -235,13 +235,13 @@ from any server gap.
 
 ### 3.1 Server obligations — loot-tracker-specific vs. pre-existing
 
-| what | scope | mock230 status |
+| what | scope | ToriRSServer status |
 |---|---|---|
 | A new packet/dbtable/RUNCLIENTSCRIPT push for tracker data | loot-tracker-specific | **not evidenced as needed** — pending `script7166` re-decompile |
 | `.varp`/`.varbit` overlay for the view/ignore/value-mode toggles (`settings_varp_ehc_5`, `loottools_varp1`) | loot-tracker-specific, minor | **not declared** (`grep` confirms zero hits under `server/scripts/`) — same class as `bank_closing`/`shop_quantity` in `docs/shop_server_reqs.md` §5 |
 | CS2 opcodes 7613/7614/7616/7617/7621 | loot-tracker-specific, client-side | **not implemented** in this build's VM |
 | Re-decompile `script_7166`/`script_7133` | prerequisite to everything else here | **corpus gap**, confirmed missing |
-| NPC-death drop-roll mechanism | **pre-existing, already documented** — NOT loot-tracker-specific; the tracker has nothing to show without it, same as it has nothing to show without NPCs existing | **mostly landed** — `mock230_world_npc_died` (`mock230_world.c:3360-3382`, confirmed) runs `[ai_queue3,<npc>]` drop scripts with a `param=death_drop` fallback; 71/71 LostCity `drop tables/scripts` confirmed present, 69 compiling (97.2%, `docs/LOSTCITY_PORT_TRIAGE.md`), blocked on npc-category plumbing for the rest |
+| NPC-death drop-roll mechanism | **pre-existing, already documented** — NOT loot-tracker-specific; the tracker has nothing to show without it, same as it has nothing to show without NPCs existing | **mostly landed** — `ToriRSServer_WorldNpcDied` (`torirs_server_world.c:3360-3382`, confirmed) runs `[ai_queue3,<npc>]` drop scripts with a `param=death_drop` fallback; 71/71 LostCity `drop tables/scripts` confirmed present, 69 compiling (97.2%, `docs/LOSTCITY_PORT_TRIAGE.md`), blocked on npc-category plumbing for the rest |
 
 ### 3.2 LostCity precedent
 
@@ -443,7 +443,7 @@ python3 src/cs2vm2/gen_opcode_stack.py
 #       cs2_command.gen.h [table size 8023], 53 acknowledged conflicts"
 
 make -C src PLATFORM_OBJ_BASE=/tmp/wfobj_vm EMBED_SERVER=1 -j4
-make -C src mock230-scripts        # the debugprocs live in the script pack
+make -C src torirsserver-scripts        # the debugprocs live in the script pack
 
 for p in xptracker loottools hiscores; do
   SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1500 TORIRS_NET_CHEAT="$p" \
@@ -577,7 +577,7 @@ not total GP — see §7.6 kill-count mapping note.
 
 ### 8.4 Verified by clicking
 
-Against embed / mock230, `TORIRS_SIM_CLICK_AT` at the measured button centres
+Against embed / ToriRSServer, `TORIRS_SIM_CLICK_AT` at the measured button centres
 (x 744; y 21 / 57 / 93 — icons stay right-anchored after widen). Re-measured
 2026-08-03 after the mount fix:
 
@@ -607,7 +607,7 @@ new canvas), not the old x≈744 on a 765 canvas.
 1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it
    lives inside that block, the same way `TORIRS_DUMP_TREE_EXIT` does. Without
    it the dump is silently empty and reads as "the component does not exist".
-2. **`MOCK230_VERBOSE` on the client does nothing.** `manifest_osrs230.ini`
+2. **`TORIRSSERVER_VERBOSE` on the client does nothing.** `manifest_osrs230.ini`
    connects to an *external* server on `localhost:43595`; the verbose flag has
    to be set on that server's own process. Chasing "the server never received
    my packet" through a log that structurally cannot contain it is the whole

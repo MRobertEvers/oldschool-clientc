@@ -1,11 +1,11 @@
-#ifndef SRC_NET_MOCK_MOCK239_PLAYERINFO_H
-#define SRC_NET_MOCK_MOCK239_PLAYERINFO_H
+#ifndef SRC_TORIRSSERVER_MOCK239_PLAYERINFO_H
+#define SRC_TORIRSSERVER_MOCK239_PLAYERINFO_H
 
 /*
  * PLAYER_INFO v5 — the revision-239 player stream.
  *
  * This is a different CODEC from the classic bitstream next door in
- * mock230_encode.c, not a different field order, which is why it is its own
+ * torirs_server_encode.c, not a different field order, which is why it is its own
  * file and why the wire adapter refuses PLAYER_INFO at 239 until this is
  * wired in. Without it no OldSchool client reaches the world: the stream is
  * how a client learns that it exists.

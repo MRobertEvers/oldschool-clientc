@@ -1,6 +1,6 @@
-#include "net/mock/mock239_inbound.h"
+#include "torirsserver/mock239_inbound.h"
 
-#include "net/mock/mock239_interface_inbound.h"
+#include "torirsserver/mock239_interface_inbound.h"
 #include "net/jbase37.h"
 #include "net/rev/pktnames.h"
 
@@ -487,10 +487,10 @@ mock239_inbound_translate(
      *
      * Neither name has a world handler yet, and that is deliberate rather than
      * missed: rev 230 assigns no OPPLAYERU opcode at all (see the
-     * `opplayeru`/`applayeru` note in mock230_world.c) and no content in this
+     * `opplayeru`/`applayeru` note in torirs_server_world.c) and no content in this
      * tree binds `[applayert]` — PvP magic is deferred in
      * docs/MAGIC_CONTENT_PORT_PLAN.md. An unrouted name is dropped by
-     * mock230_world_handle, so this decodes correctly and waits, instead of
+     * ToriRSServer_WorldHandle, so this decodes correctly and waits, instead of
      * being a shape nobody has read.
      */
     case PKTOUT_NAME_OPPLAYERT:

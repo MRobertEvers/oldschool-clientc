@@ -630,7 +630,7 @@ has_suffix(
 
 /* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
  * path with stat() instead -- portable across the unix and win32 builds. Same
- * shape as mock230_path_is_dir() in src/net/mock/mock230_content.c. */
+ * shape as ToriRSServer_PathIsDir() in src/torirsserver/torirs_server_content.c. */
 static int
 ssc_path_is_dir(const char* path)
 {
@@ -744,7 +744,7 @@ SSC_SymbolsLoadPackDir(
  * 12, and the symbol is 786444.
  *
  * Call after the pack directories, since it reads the interface symbols they load.
- * Mirrors `load_component_symbols` in `src/net/mock/mock230_content.c` — the server
+ * Mirrors `load_component_symbols` in `src/torirsserver/torirs_server_content.c` — the server
  * was taught this and the compiler was not, which is why every component reference
  * in RuneScript stopped resolving.
  */
@@ -1033,7 +1033,7 @@ SSC_SymbolsLoadDbTableDir(
  * The relation is one key — `basevar=` on a varbit record — and it exists in
  * exactly one place, `configs/all.<varbit>`, written by `cachepack unpack` out of
  * config group 14. Nothing here re-derives it, guesses it, or keeps a list; the
- * compiler reads the same file `mock230_varbit.c`'s header calls the authority.
+ * compiler reads the same file `torirs_server_varbit.c`'s header calls the authority.
  *
  * The filename is composed from the register rather than typed, so a tree that
  * spells the namespace differently is still read: `ContentRegister` says which
@@ -1487,7 +1487,7 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
      * its param type as `int` (parse_header_lists' "a type the symbol table does
      * not know is int" fallback). Nothing in a compiled script noticed, because
      * an inv rides the int stack either way; what it broke is the one consumer
-     * that reads `param_types` back, `mock230_scripts_run_debugproc`, which then
+     * that reads `param_types` back, `ToriRSServer_ScriptsRunDebugproc`, which then
      * ran `strtol("collection_transmit")` and passed container 0.
      *
      * Lookups are kind-specific (SSC_SymbolsFind walks every entry with the

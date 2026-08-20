@@ -13,7 +13,7 @@
  * The whole obj table decodes in about 0.1 s, so it is read once at startup
  * rather than lazily per id.
  */
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -22,10 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct Mock230ObjInfo* g_objs;
+static struct ToriRSServerObjInfo* g_objs;
 static int g_obj_count;
 
-static const struct Mock230ObjInfo k_unknown = {
+static const struct ToriRSServerObjInfo k_unknown = {
     .name = "item",
     .wearpos = -1,
     .wearpos_2 = -1,
@@ -44,7 +44,7 @@ static const struct Mock230ObjInfo k_unknown = {
 /*
  * Copy the combat bonuses out of the record's param table.
  *
- * Param ids 0..11 are the twelve equipment bonuses (see Mock230CombatParam) and
+ * Param ids 0..11 are the twelve equipment bonuses (see ToriRSServerCombatParam) and
  * 14 is the attack rate in ticks — an OldSchool convention, documented by
  * OpenRune's ParamMapper and confirmed against cache.osrs230 before anything
  * was built on it. Anything else in the table is left alone: `params` also
@@ -86,7 +86,7 @@ read_combat_params(
 /* Equipment requirements                                              */
 /* ------------------------------------------------------------------ */
 
-static struct Mock230ObjRequire* g_requires;
+static struct ToriRSServerObjRequire* g_requires;
 static int g_require_count;
 static int g_require_capacity;
 static int g_require_from_cache;
@@ -106,13 +106,13 @@ gates_wearing(int stat)
 {
     switch( stat )
     {
-    case MOCK230_STAT_ATTACK:
-    case MOCK230_STAT_DEFENCE:
-    case MOCK230_STAT_STRENGTH:
-    case MOCK230_STAT_HITPOINTS:
-    case MOCK230_STAT_RANGED:
-    case MOCK230_STAT_PRAYER:
-    case MOCK230_STAT_MAGIC:
+    case TORIRSSERVER_STAT_ATTACK:
+    case TORIRSSERVER_STAT_DEFENCE:
+    case TORIRSSERVER_STAT_STRENGTH:
+    case TORIRSSERVER_STAT_HITPOINTS:
+    case TORIRSSERVER_STAT_RANGED:
+    case TORIRSSERVER_STAT_PRAYER:
+    case TORIRSSERVER_STAT_MAGIC:
         return 1;
     default:
         return 0;
@@ -142,7 +142,7 @@ require_index(int obj_id)
     return -(low + 1); /* -(insertion point) - 1, like bsearch's cousins */
 }
 
-static struct Mock230ObjRequire*
+static struct ToriRSServerObjRequire*
 require_slot(int obj_id)
 {
     int index = require_index(obj_id);
@@ -154,8 +154,8 @@ require_slot(int obj_id)
     if( g_require_count == g_require_capacity )
     {
         int capacity = g_require_capacity ? g_require_capacity * 2 : 256;
-        struct Mock230ObjRequire* grown =
-            (struct Mock230ObjRequire*)realloc(g_requires, (size_t)capacity * sizeof(*grown));
+        struct ToriRSServerObjRequire* grown =
+            (struct ToriRSServerObjRequire*)realloc(g_requires, (size_t)capacity * sizeof(*grown));
 
         if( !grown )
             return NULL;
@@ -170,8 +170,8 @@ require_slot(int obj_id)
     return &g_requires[index];
 }
 
-const struct Mock230ObjRequire*
-mock230_obj_require(int obj_id)
+const struct ToriRSServerObjRequire*
+ToriRSServer_ObjRequire(int obj_id)
 {
     int index;
 
@@ -182,15 +182,15 @@ mock230_obj_require(int obj_id)
 }
 
 int
-mock230_obj_require_set(
+ToriRSServer_ObjRequireSet(
     int obj_id,
     const int* stats,
     const int* levels,
     int count)
 {
-    struct Mock230ObjRequire* entry;
+    struct ToriRSServerObjRequire* entry;
 
-    if( obj_id < 0 || count < 0 || count > MOCK230_OBJ_REQUIRE_MAX )
+    if( obj_id < 0 || count < 0 || count > TORIRSSERVER_OBJ_REQUIRE_MAX )
         return 0;
     entry = require_slot(obj_id);
     if( !entry )
@@ -206,7 +206,7 @@ mock230_obj_require_set(
 }
 
 void
-mock230_obj_require_counts(
+ToriRSServer_ObjRequireCounts(
     int* total,
     int* from_cache)
 {
@@ -265,7 +265,7 @@ read_requirements(
         levels[count] = level[i];
         count++;
     }
-    if( count && mock230_obj_require_set(obj_id, stats, levels, count) )
+    if( count && ToriRSServer_ObjRequireSet(obj_id, stats, levels, count) )
         g_require_from_cache++;
 }
 
@@ -282,7 +282,7 @@ read_requirements(
  * lands on the int stack or the string stack, "and no decoder here keeps a
  * general per-record param table to answer that from". This is that table. The
  * type half now exists too, in `configs/all.param` — see
- * `mock230_content_param_type`.
+ * `ToriRSServer_ContentParamType`.
  *
  * Flat and sorted rather than per-obj lists: 53,853 rows across 11,712 objs, so
  * one array of 12-byte rows is ~630 KB and a lookup is two binary searches'
@@ -378,8 +378,8 @@ read_params(
     }
 }
 
-const struct Mock230ObjParam*
-mock230_obj_param(
+const struct ToriRSServerObjParam*
+ToriRSServer_ObjParam(
     int obj_id,
     int param_id)
 {
@@ -396,13 +396,13 @@ mock230_obj_param(
         else if( row->obj_id > obj_id || (row->obj_id == obj_id && row->key > param_id) )
             high = mid - 1;
         else
-            return (const struct Mock230ObjParam*)row;
+            return (const struct ToriRSServerObjParam*)row;
     }
     return NULL;
 }
 
 void
-mock230_objinfo_param_overlay(
+ToriRSServer_ObjInfoParamOverlay(
     int obj_id,
     int param_id,
     int value)
@@ -420,7 +420,7 @@ mock230_objinfo_param_overlay(
      * content tree with many authored obj params consequently spent most of
      * embedded-server startup sorting the same rows thousands of times.
      *
-     * This is the same lower-bound search as mock230_obj_param. If the row is
+     * This is the same lower-bound search as ToriRSServer_ObjParam. If the row is
      * present, replace it. Otherwise `low` is its sorted insertion point, so a
      * single memmove preserves the lookup invariant immediately (including for
      * another overlay of the same key later in this load).
@@ -474,7 +474,7 @@ record(
     int obj_id,
     const struct RSCache_Dat2ConfigObj* obj)
 {
-    struct Mock230ObjInfo* entry;
+    struct ToriRSServerObjInfo* entry;
 
     if( obj_id < 0 || obj_id >= g_obj_count )
         return;
@@ -539,7 +539,7 @@ record(
 }
 
 int
-mock230_objinfo_load(const char* cache_dir)
+ToriRSServer_ObjInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -550,7 +550,7 @@ mock230_objinfo_load(const char* cache_dir)
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -569,7 +569,7 @@ mock230_objinfo_load(const char* cache_dir)
     {
         fprintf(
             stderr,
-            "mock230: no cache at %s — equipment slots unavailable (items stay unwearable)\n",
+            "torirsserver: no cache at %s — equipment slots unavailable (items stay unwearable)\n",
             cache_dir);
         return 0;
     }
@@ -580,7 +580,7 @@ mock230_objinfo_load(const char* cache_dir)
     if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) ||
         archive->file_count <= 0 )
     {
-        fprintf(stderr, "mock230: obj config archive missing from %s\n", cache_dir);
+        fprintf(stderr, "torirsserver: obj config archive missing from %s\n", cache_dir);
         if( archive )
             RSCache_Dat2DiskArchiveFree(archive);
         RSCache_Dat2DiskFree(disk);
@@ -683,14 +683,14 @@ mock230_objinfo_load(const char* cache_dir)
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
     fprintf(stderr,
-            "mock230: obj metadata loaded (%d records from %s, %d params in %zu KB)\n",
+            "torirsserver: obj metadata loaded (%d records from %s, %d params in %zu KB)\n",
             loaded, cache_dir, g_obj_param_count,
             ((size_t)g_obj_param_count * sizeof(struct ObjParam)) / 1024);
     return loaded;
 }
 
 void
-mock230_objinfo_free(void)
+ToriRSServer_ObjInfoFree(void)
 {
     for( int i = 0; i < g_obj_count; i++ )
     {
@@ -718,7 +718,7 @@ mock230_objinfo_free(void)
 }
 
 int
-mock230_objinfo_category_overlay(
+ToriRSServer_ObjInfoCategoryOverlay(
     int obj_id,
     int category)
 {
@@ -726,13 +726,13 @@ mock230_objinfo_category_overlay(
 
     /*
      * Rank 1 over rank 0, one field, in place — and in place is the difference
-     * from `mock230_objinfo_param_overlay`, which keeps its own table because a
-     * param has no home in `struct Mock230ObjInfo`. Category does have one, and
-     * every reader already goes through it (`mock230_objinfo(id)->category`), so
+     * from `ToriRSServer_ObjInfoParamOverlay`, which keeps its own table because a
+     * param has no home in `struct ToriRSServerObjInfo`. Category does have one, and
+     * every reader already goes through it (`ToriRSServer_ObjInfo(id)->category`), so
      * a side table would be a second answer to a question with one field.
      *
-     * Safe to write here only because the boot order puts `mock230_objinfo_load`
-     * before `mock230_content_load` (mock230_boot.c). An obj id the cache never
+     * Safe to write here only because the boot order puts `ToriRSServer_ObjInfoLoad`
+     * before `ToriRSServer_ContentLoad` (torirs_server_boot.c). An obj id the cache never
      * decoded has no slot to overlay, and that is a content bug rather than a
      * silent one — the caller reports it.
      */
@@ -740,14 +740,14 @@ mock230_objinfo_category_overlay(
         return 0;
     g_objs[obj_id].category = category;
     /* An id the cache left unnamed is still overlayable, but it has to become
-     * `known` or `mock230_objinfo` hands back the shared blank and the category
+     * `known` or `ToriRSServer_ObjInfo` hands back the shared blank and the category
      * this line just set is unreachable. */
     g_objs[obj_id].known = 1;
     return 1;
 }
 
 int
-mock230_obj_category_members(int category)
+ToriRSServer_ObjCategoryMembers(int category)
 {
     int members = 0;
 
@@ -761,8 +761,8 @@ mock230_obj_category_members(int category)
     return members;
 }
 
-const struct Mock230ObjInfo*
-mock230_objinfo(int obj_id)
+const struct ToriRSServerObjInfo*
+ToriRSServer_ObjInfo(int obj_id)
 {
     /* Keyed on `known`, not on the name: a record with no name is still a
      * record, and every one of the game's ~8,000 notes is one. */
@@ -772,7 +772,7 @@ mock230_objinfo(int obj_id)
 }
 
 int
-mock230_objinfo_count(void)
+ToriRSServer_ObjInfoCount(void)
 {
     return g_objs ? g_obj_count : 0;
 }

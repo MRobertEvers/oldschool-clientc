@@ -3,24 +3,24 @@
  *
  * No costs, requirements, room compatibility, hotspot membership, XP, or
  * instance geometry live here. Those are Construction rules and cache data.
- * This file only moves validated integers between the VM and Mock230PohState.
+ * This file only moves validated integers between the VM and ToriRSServerPohState.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
-#include "mock230_save.h"
+#include "torirs_server_save.h"
 #include "ss_opcode.h"
 #include "ssvm.h"
 
 int
-mock230_ops_poh(
+ToriRSServer_OpsPoh(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player =
-        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct ToriRSServerPlayer* player =
+        (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
 
     (void)dot;
     if( !player )
@@ -28,7 +28,7 @@ mock230_ops_poh(
     switch( opcode )
     {
     case SS_OP_POH_STATE_RESET:
-        mock230_poh_reset(&player->poh);
+        ToriRSServer_PohReset(&player->poh);
         return 1;
 
     case SS_OP_POH_STATE_GET:
@@ -37,7 +37,7 @@ mock230_ops_poh(
 
         if( !SSVM_PopInt(state, &field) )
             return 1;
-        SSVM_PushInt(state, mock230_poh_get(&player->poh, field));
+        SSVM_PushInt(state, ToriRSServer_PohGet(&player->poh, field));
         return 1;
     }
 
@@ -48,7 +48,7 @@ mock230_ops_poh(
 
         if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &field) )
             return 1;
-        SSVM_PushInt(state, mock230_poh_set(&player->poh, field, value));
+        SSVM_PushInt(state, ToriRSServer_PohSet(&player->poh, field, value));
         return 1;
     }
 
@@ -62,7 +62,7 @@ mock230_ops_poh(
                 return 1;
         }
         SSVM_PushInt(state,
-                     mock230_poh_room_add(&player->poh, values[0], values[1],
+                     ToriRSServer_PohRoomAdd(&player->poh, values[0], values[1],
                                           values[2], values[3], values[4],
                                           values[5]));
         return 1;
@@ -79,7 +79,7 @@ mock230_ops_poh(
 
         if( !SSVM_PopInt(state, &field) || !SSVM_PopInt(state, &room) )
             return 1;
-        SSVM_PushInt(state, mock230_poh_room_get(&player->poh, room, field));
+        SSVM_PushInt(state, ToriRSServer_PohRoomGet(&player->poh, room, field));
         return 1;
     }
 
@@ -94,7 +94,7 @@ mock230_ops_poh(
         }
         SSVM_PushInt(
             state,
-            mock230_poh_decoration_set(&player->poh, values[0], values[1],
+            ToriRSServer_PohDecorationSet(&player->poh, values[0], values[1],
                                        values[2], values[3], values[4]));
         return 1;
     }
@@ -110,15 +110,15 @@ mock230_ops_poh(
             return 1;
         SSVM_PushInt(
             state,
-            mock230_poh_decoration_get(&player->poh, room, hotspot, field));
+            ToriRSServer_PohDecorationGet(&player->poh, room, hotspot, field));
         return 1;
     }
 
     case SS_OP_POH_STATE_COMMIT:
         SSVM_PushInt(
             state,
-            mock230_poh_validate(&player->poh) &&
-                mock230_save_player(player, mock230_save_path(player->display_name)));
+            ToriRSServer_PohValidate(&player->poh) &&
+                ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(player->display_name)));
         return 1;
 
     case SS_OP_POH_ROOM_SET:
@@ -131,7 +131,7 @@ mock230_ops_poh(
             !SSVM_PopInt(state, &room) )
             return 1;
         SSVM_PushInt(
-            state, mock230_poh_room_set(&player->poh, room, field, value));
+            state, ToriRSServer_PohRoomSet(&player->poh, room, field, value));
         return 1;
     }
 
@@ -141,7 +141,7 @@ mock230_ops_poh(
 
         if( !SSVM_PopInt(state, &room) )
             return 1;
-        SSVM_PushInt(state, mock230_poh_room_remove(&player->poh, room));
+        SSVM_PushInt(state, ToriRSServer_PohRoomRemove(&player->poh, room));
         return 1;
     }
 

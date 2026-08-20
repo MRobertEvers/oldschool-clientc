@@ -5,7 +5,7 @@
  * The revision-239 GAMELOGIN block, stated once for both ends.
  *
  * The client driver (src/net/loginproto_osrs239.c) writes it and the mock
- * server (src/net/mock/mock239_login.c) reads it, and they must agree byte for
+ * server (src/torirsserver/mock239_login.c) reads it, and they must agree byte for
  * byte or the ISAAC seeds come out wrong and every packet after the handshake
  * is noise. Stating the layout here rather than twice in prose is the whole
  * point of the file: the transcription source is RSProt's LoginBlockDecoder

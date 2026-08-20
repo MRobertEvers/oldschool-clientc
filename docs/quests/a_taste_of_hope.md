@@ -572,8 +572,8 @@ Minimum repository checks after implementation:
 
 ```sh
 python3 tools/questhelper_extract.py atasteofhope --check
-make -C src mock230-scripts
-mock230_pack --check-only
+make -C src torirsserver-scripts
+ToriRSServer_Pack --check-only
 ```
 
 Also run quest-specific state, transform, item, cutscene, combat, instance,

@@ -35,7 +35,7 @@ marker, so a hand-written header survives a regeneration — which is exactly wh
 **Output goes to the server's allocation ledger, `pack/<ns>.alloc`** — never to
 `configs/all.<ns>.compack`, which is the cache's member index and the file
 `cachepack unpack` regenerates. The two are layers of one namespace: every
-reader (mock230_content.c, ssc_symbols.c, cachepack's cp_names.c) loads the
+reader (torirs_server_content.c, ssc_symbols.c, cachepack's cp_names.c) loads the
 compack and then the ledger, and refuses a name bound in both. This tool used
 to append below a marker *inside* the compack, which meant every server feature
 edited a client-side file and `--gamevals` carried the server's dbrow names
@@ -133,7 +133,7 @@ def server_namespaces(tree):
 
 # The four namespaces whose names do NOT live beside a config archive.
 #
-# This mirrors `pack_kind_is_config()` in src/net/mock/mock230_content.c and has to:
+# This mirrors `pack_kind_is_config()` in src/torirsserver/torirs_server_content.c and has to:
 # the runtime reads `pack/<ns>.pack` for these and `configs/all.<ns>.compack` for
 # everything else, so a file written to the other location is a file nothing reads.
 #
@@ -141,7 +141,7 @@ def server_namespaces(tree):
 # was armed. Promoting `category` so the 20 LostCity-only npc categories can get an
 # id (docs/LOSTCITY_PORT_TRIAGE.md §16.7) is a one-line change to content.ini, and
 # the moment it landed this tool would have created `configs/all.category.compack`
-# while `pack/category.pack` — the file both mock230 and sscompile load — stayed
+# while `pack/category.pack` — the file both ToriRSServer and sscompile load — stayed
 # untouched. Two authorities, silent disagreement; docs/CONTENT_ARCHITECTURE.md
 # §8.2(c) for the third time.
 NON_CONFIG_NAMESPACES = ('3_interfaces', 'component', 'stat', 'category')
@@ -199,7 +199,7 @@ def ported_layers(tree, ns):
     An imported lane mints ids of its own, outside the rank-0 cache's member
     compacks, and states them in `ported/<lane>/pack/<ns>.alloc` beside
     `ported/<lane>/configs/all.<ns>.compack`. Every other reader already layers
-    them over the ordinary symbols — `mock230_content.c: load_ported_pack_symbols`,
+    them over the ordinary symbols — `torirs_server_content.c: load_ported_pack_symbols`,
     `cp_names.c: cp_names_load_ported_allocs`, and sscompile's `--pack` list — so
     this tool has to see them too, or it allocates a *second* id for a name a lane
     has already bound.
@@ -208,8 +208,8 @@ def ported_layers(tree, ns):
     `ported/rs558_ancient_curses`, and this tool, seeing only the base tree,
     appended `6353=prayer_curses_0` to `pack/varp.alloc`. Both readers then
     refused the tree — 2 of the 15 content load errors that failed
-    `mock230 --selftest`'s "the content tree should load clean" — and
-    `make mock230-servpack` would not pack at all.
+    `ToriRSServer --selftest`'s "the content tree should load clean" — and
+    `make torirsserver-servpack` would not pack at all.
     """
     root = os.path.join(tree, 'ported')
     if not os.path.isdir(root):
@@ -292,9 +292,9 @@ def register_bases():
     authority in fact, and nothing compared them. What that cost, measured:
     `struct` reads 8000 in the register and the allocator would have handed out
     6500; `varp` read 8000 while nineteen server varps already sat at 5705..5723,
-    and 8000 is past `MOCK230_VARP_COUNT` (6217), so the first varp allocated at
+    and 8000 is past `TORIRSSERVER_VARP_COUNT` (6217), so the first varp allocated at
     the declared floor would have been silently dropped by
-    `mock230_world_set_varp`'s bounds check — docs/CONTENT_ARCHITECTURE.md §8.3's
+    `ToriRSServer_WorldSetVarp`'s bounds check — docs/CONTENT_ARCHITECTURE.md §8.3's
     named failure mode, re-armed.
 
     Read, not restated. The path is derived from this file's own location because
@@ -319,7 +319,7 @@ def declared_base(tree, ns, bases=None):
     the floor is where *ours* start, so an id in a log reads as ours at a glance.
     The allocator takes `max(floor, mark + 1)`, which is also what
     `lc_pack_alloc_from` does on the C side — two implementations of one rule, and
-    a boot check (`validate_id_bases` in mock230_pack.c) that holds the floor above
+    a boot check (`validate_id_bases` in torirs_server_pack.c) that holds the floor above
     whatever the cache actually reaches.
 
     `content.ini` *overlays* the register, exactly as it does for `ids` and

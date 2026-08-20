@@ -293,7 +293,7 @@ local_bake(
     /* The project's own target, not a hand-assembled cachepack line: it knows
      * about the base cache, the asset flags and the CS2 name tables, and a
      * second copy of that here would drift from the one the build uses. */
-    snprintf(command, sizeof(command), "cd '%s' && make -C src mock230-cache 2>&1", host->repo_root);
+    snprintf(command, sizeof(command), "cd '%s' && make -C src torirsserver-cache 2>&1", host->repo_root);
 
     pipe = popen(command, "r");
     if( !pipe )

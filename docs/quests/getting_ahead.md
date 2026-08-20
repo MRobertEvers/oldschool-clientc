@@ -548,7 +548,7 @@ Gate D commands and evidence:
    bindings, support-bit consumers, symbolic resolution, instance ownership,
    completion/journal/cheat registration, and no undisclosed `soft-skip` or
    `Deferred` marker.
-3. `make -C src mock230-scripts` and `mock230_pack --check-only` against the
+3. `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` against the
    intended cache.
 4. Automated route, transaction, combat, migration, two-player, tannery, and
    NMZ tests covering the matrix above.

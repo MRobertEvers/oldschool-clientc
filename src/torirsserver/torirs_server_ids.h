@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_IDS_H
-#define SRC_NET_MOCK_MOCK230_IDS_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_IDS_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_IDS_H
 
 /*
  * Every id the engine addresses by hand, resolved from the content tree at boot.
@@ -12,7 +12,7 @@
  * the numbers live in one place, beside a name, checked against the cache.
  *
  * So: the index files state the ids, the table below names the ones the engine
- * needs, and `mock230_ids_resolve` fills it in once. Nothing downstream holds a
+ * needs, and `ToriRSServer_IdsResolve` fills it in once. Nothing downstream holds a
  * literal. Adding an interface means a line in `pack/3_interfaces.pack` — which
  * `cachepack unpack` seeds from the cache's own gameval table — and a field here;
  * a symbol that has moved between revisions then fails loudly at boot instead of
@@ -20,7 +20,7 @@
  *
  * Two kinds of number are deliberately NOT here:
  *
- *   - **Storage ceilings** (MOCK230_BANK_TABS, MOCK230_INV_SLOTS). Those size
+ *   - **Storage ceilings** (TORIRSSERVER_BANK_TABS, TORIRSSERVER_INV_SLOTS). Those size
  *     C arrays, so they have to be compile-time constants; content decides how
  *     much of the array is used and the loader checks it fits.
  *   - **Protocol encodings** (mask bits, op numbers, IF_OPENSUB types). Those
@@ -34,16 +34,16 @@
  * halves: an IF_OPENSUB, which names the parent and the child separately, and a
  * router matching an incoming uid against an interface.
  */
-#define MOCK230_COM_GROUP(uid) (((uid) >> 16) & 0xffff)
-#define MOCK230_COM_CHILD(uid) ((uid) & 0xffff)
-#define MOCK230_COM(iface, child) (((iface) << 16) | ((child) & 0xffff))
+#define TORIRSSERVER_COM_GROUP(uid) (((uid) >> 16) & 0xffff)
+#define TORIRSSERVER_COM_CHILD(uid) ((uid) & 0xffff)
+#define TORIRSSERVER_COM(iface, child) (((iface) << 16) | ((child) & 0xffff))
 
-struct Mock230Ids
+struct ToriRSServerIds
 {
     /* --- Interfaces (pack/interface.pack) --- */
 
     /** toplevel_osrs_stretch, the default gameframe at login. Session current
-     *  top lives on Mock230Player.gameframe_iface after if_opentop. */
+     *  top lives on ToriRSServerPlayer.gameframe_iface after if_opentop. */
     int iface_gameframe;
     int iface_toplevel;
     int iface_toplevel_pre_eoc;
@@ -77,7 +77,7 @@ struct Mock230Ids
      * The two containers that stack an obj the obj record says never stacks —
      * LostCity's `InvType.stackType = ALWAYS_STACK`, which this cache's inv
      * config cannot carry (`fields/inv.ini`: size and params, nothing else).
-     * `mock230_container_add` reads them by id, so they are named once here
+     * `ToriRSServer_ContainerAdd` reads them by id, so they are named once here
      * rather than at the add.
      *
      * A bank holds one cell per obj id by definition. The collection log is the
@@ -97,7 +97,7 @@ struct Mock230Ids
      * literals for the usual reason -- the ids are a cache fact and the content
      * tree is where cache facts are named -- and the WIDTHS deliberately do not
      * live beside them: those come from the records themselves, through
-     * `mock230_healthbar_width`.
+     * `ToriRSServer_HealthbarWidth`.
      */
     int healthbar_standard;
     /** Size 4. */
@@ -178,7 +178,7 @@ struct Mock230Ids
      * that exists only to hold the escape binding; `close` is the red X in the
      * corner. Neither carries an onop script, so both are the server's.
      *
-     * The orb that opens it is NOT here — see mock230_worldmap.c.
+     * The orb that opens it is NOT here — see torirs_server_worldmap.c.
      */
     int com_worldmap_esckey;
     int com_worldmap_close;
@@ -216,7 +216,7 @@ struct Mock230Ids
 
     /*
      * Ids only. Which bits of which varplayer each one occupies comes from
-     * config group 14 at runtime — see mock230_bank_varbit_resolve — because
+     * config group 14 at runtime — see ToriRSServer_BankVarbitResolve — because
      * that is the same table the client unpacks them with.
      */
     int varbit_bank_withdrawnotes;
@@ -246,26 +246,26 @@ struct Mock230Ids
     int bank_qty_all;
     /** Ticks a dropped obj stays on the floor — `^lootdrop_duration`, which
      *  drop_tables/configs/lootdrop.constant has stated all along while
-     *  `MOCK230_LOOT_TICKS` said the same 200 in C beside it. */
+     *  `TORIRSSERVER_LOOT_TICKS` said the same 200 in C beside it. */
     int lootdrop_duration;
 };
 
-/** The table. Every field is -1 until mock230_ids_resolve has run. */
-const struct Mock230Ids*
-mock230_ids(void);
+/** The table. Every field is -1 until ToriRSServer_IdsResolve has run. */
+const struct ToriRSServerIds*
+ToriRSServer_Ids(void);
 
 /**
- * Fill it in. **Call after mock230_content_load**, which is where the packs and
+ * Fill it in. **Call after ToriRSServer_ContentLoad**, which is where the packs and
  * constants come from.
  *
  * Returns the number of names that did not resolve; each one is reported
- * through the content error count, so `mock230_pack` fails on it too. A
+ * through the content error count, so `ToriRSServer_Pack` fails on it too. A
  * non-zero return means the server will address something that does not exist —
  * it is not fatal, because a mock with no content tree is a supported way to
  * run the network layer on its own, but nothing that needs the missing id will
  * work.
  */
 int
-mock230_ids_resolve(void);
+ToriRSServer_IdsResolve(void);
 
 #endif

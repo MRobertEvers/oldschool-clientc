@@ -217,7 +217,7 @@ make -C src EMBED_SERVER=1 TORIDRAW_NO_SIMD=1 ENABLE_UBSAN=1 -j"$(sysctl -n hw.n
 cp -f src/torirs src/torirs_ubsan
 
 env TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_RUN=fixN \
-  TORIRS_TRANSPORT=embed MOCK230_REV=osrs239 \
+  TORIRS_TRANSPORT=embed TORIRSSERVER_REV=osrs239 \
   UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
   ./src/torirs_ubsan --manifest manifest_osrs239_rs2012.ini \
   --user qbdrepro --pass test --soft3d \
@@ -300,7 +300,7 @@ Re-pack afterwards; models are assets:
 
 ```sh
 make -C src rs2012-strip-priorities && src/build/rs2012_strip_priorities --apply
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 ```
 
 ## The grey QBD is not a missing texture

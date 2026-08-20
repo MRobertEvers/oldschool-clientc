@@ -632,7 +632,7 @@ state or a thin visual stub.
   without setup/fire/ownership handlers.
 - Verify every public Nulodion Trade/talk arm and cannon op enforces state and
   owner server-side.
-- Run `make -C src mock230-scripts` and the revision-239 pack check.
+- Run `make -C src torirsserver-scripts` and the revision-239 pack check.
 
 ### Quest state, dialogue, and item tests
 

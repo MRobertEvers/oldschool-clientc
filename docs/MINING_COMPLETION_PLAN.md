@@ -129,7 +129,7 @@ player *also* carrying a pickaxe the checker recognises. Add
 
 `mining.rs2` comments claim "obj overlays only accept `levelrequire`". That is
 **not true** — `fields/obj.ini:3` documents ordinary `param=<name>,<value>` rows
-via `mock230_objinfo_param_overlay`, and `equipment.obj` uses them. The two
+via `ToriRSServer_ObjInfoParamOverlay`, and `equipment.obj` uses them. The two
 30-line switch procs (`~mining_pickaxe_rate`, `~mining_pickaxe_anim`) can become
 LostCity's `param=mining_rate` / `param=mining_animation`
 (`skill_mining/configs/pickaxes.param`), read with `oc_param($pickaxe, …)`.
@@ -150,13 +150,13 @@ return (scale(sub(4000, $playercount), 4000, $base));
 ```
 
 `SS_OP_SCALE` (4618) is implemented. `SS_OP_PLAYERCOUNT` (**1018**) is **not** —
-`src/net/mock/mock230_opcode_coverage.gen.h` has 1016 `MAP_PLAYERCOUNT` but no
+`src/torirsserver/torirs_server_opcode_coverage.gen.h` has 1016 `MAP_PLAYERCOUNT` but no
 1018. Three options, in preference order:
 
 1. Write the proc against `map_playercount` (zone-local, already implemented).
    Wrong semantics at scale, right answer at this server's population.
-2. Implement `SS_OP_PLAYERCOUNT` in `mock230_scripts.c` and regenerate coverage
-   (`python3 net/mock/gen_opcode_coverage.py`; `make -C src test-mock230-coverage`).
+2. Implement `SS_OP_PLAYERCOUNT` in `torirs_server_scripts.c` and regenerate coverage
+   (`python3 torirsserver/gen_opcode_coverage.py`; `make -C src test-torirsserver-coverage`).
 3. Ship `~scale_by_playercount` as identity and leave a comment.
 
 Pick (1) or (2) — but the proc must exist and be called, because every new
@@ -171,12 +171,12 @@ all** — the check is unwritable as-is.
 **Landed as direct enumeration, not a category mint.** Minting `gem_necklace`
 in `pack/category.pack` and assigning it via a server `.obj` overlay was the
 first attempt, matching how `mining_rock_normal`/`maplink_transition` mint
-categories on **locs**. It does not carry over to objs: `mock230_content.c`'s
+categories on **locs**. It does not carry over to objs: `torirs_server_content.c`'s
 `obj_config_key` refuses a `category=<name>` overlay line on a cache-defined
 obj today ("obj key `category` is the cache's to state, ignored") — loc's
 `category=` overlay and obj's are two different code paths, and only the
 loc one accepts an overlay. A same-named function
-(`mock230_objinfo_category_overlay`) exists but was mid-flight in a
+(`ToriRSServer_ObjInfoCategoryOverlay`) exists but was mid-flight in a
 concurrent session's uncommitted changes to that exact file when this was
 implemented — not something to build on top of un-landed.
 
@@ -561,8 +561,8 @@ Minimum suite, in a new `skill_mining/scripts/mining_selftest.rs2`:
 6. **Perks** — prospector XP multiplier, Varrock armour double, gloves
    no-deplete, each proven by a mutation.
 
-Run headless against a throwaway `MOCK230_SAVES` directory — headless runs share
+Run headless against a throwaway `TORIRSSERVER_SAVES` directory — headless runs share
 state, and a stale profile's Mining level will decide the result of every level
 gate above.
 
-Pack check after every slice: `mock230_pack` must stay at **0 errors**.
+Pack check after every slice: `ToriRSServer_Pack` must stay at **0 errors**.

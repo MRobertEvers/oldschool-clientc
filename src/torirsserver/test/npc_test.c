@@ -8,18 +8,18 @@
  * ── Half 1: the table (no VM) ────────────────────────────────────────
  *
  * Re-decodes the whole npc config group with the rscache decoder directly and
- * then asks `mock230_npcinfo_record` about *every* record's `category` and
+ * then asks `ToriRSServer_NpcInfoRecord` about *every* record's `category` and
  * `ops[]`. Exhaustive rather than spot-checked: `category` is a new field on an
  * existing struct and the failure mode of forgetting to copy it is a table full
  * of zeroes, which reads as "the cache states no categories" — a plausible
  * sentence about data rather than an obvious bug.
  *
- * The half that matters most is the *nameless* records. `mock230_npcinfo()`
+ * The half that matters most is the *nameless* records. `ToriRSServer_NpcInfo()`
  * hides any record with no name behind a "Someone" placeholder, and 1,585 of
  * the records that carry a category have no name. So this half also asserts,
  * for a record it finds at run time, that the gated accessor reports 0 and the
  * ungated one reports the real category — which is the whole reason
- * `mock230_npcinfo_record` was added.
+ * `ToriRSServer_NpcInfoRecord` was added.
  *
  * ── Half 2: the entity and the stack (with the VM) ───────────────────
  *
@@ -35,7 +35,7 @@
  * where content wrote `def_string` underflows and aborts inside the VM — a
  * comparison on the int stack would never see it.
  *
- * `mock230_ops_npc` reaches `struct Mock230Server` for the roster and the
+ * `ToriRSServer_OpsNpc` reaches `struct ToriRSServer` for the roster and the
  * iterator, so unlike the loc and param tests this one binds a real (zeroed,
  * heap-allocated) server. It still needs no world, no socket and no pack: the
  * npcs are written straight into the pool.
@@ -44,9 +44,9 @@
  * found in the decoded data at run time.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
-#include "mock230_content.h"
+#include "torirs_server_content.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -133,7 +133,7 @@ npc_group_open(
     group->profile = RSCache_ProfileZero();
     group->profile.game = RSCACHE_GAME_OLDSCHOOL;
     group->profile.epoch = RSCACHE_EPOCH_DAT2;
-    group->profile.revision = MOCK230_CACHE_REVISION;
+    group->profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     group->disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !group->disk )
@@ -150,7 +150,7 @@ npc_group_open(
     }
     RSCache_Dat2DiskArchiveInitMetadata(group->disk, group->archive);
     /* The npc decoder branches on the group revision, exactly as
-     * mock230_npcinfo.c does before decoding this archive. */
+     * torirs_server_npcinfo.c does before decoding this archive. */
     RSCache_ProfileSetGroupRevision(&group->profile, RSCACHE_TYPE_NPC,
                                     group->archive->revision);
     group->files = RSCache_FileListNewFromDecode(
@@ -251,7 +251,7 @@ audit_records(
     {
         int id = group.archive->file_ids[i];
         struct RSCache_Dat2ConfigNpc* npc;
-        const struct Mock230NpcInfo* info;
+        const struct ToriRSServerNpcInfo* info;
         int named;
 
         npc = RSCache_Dat2ConfigNpcNewDecodeProfile(&group.profile, group.files->files[i],
@@ -261,7 +261,7 @@ audit_records(
         records++;
         named = npc->name && strcmp(npc->name, "null") != 0;
 
-        info = mock230_npcinfo_record(id);
+        info = ToriRSServer_NpcInfoRecord(id);
         if( !info )
         {
             missing_row++;
@@ -318,7 +318,7 @@ audit_records(
         for( int p = 0; p < npc->params.count; p++ )
         {
             int key = npc->params.keys[p];
-            char declared = mock230_content_param_type(key);
+            char declared = ToriRSServer_ContentParamType(key);
 
             if( !npc->params.values[p] )
                 continue;
@@ -351,7 +351,7 @@ audit_records(
     printf("  note %d records, %d with a category (%d of them nameless), %d with ops\n",
            records, with_category, nameless_with_category, with_ops);
 
-    /* The reason mock230_npcinfo_record exists, asserted rather than argued:
+    /* The reason ToriRSServer_NpcInfoRecord exists, asserted rather than argued:
      * the gated accessor is *wrong* for this record and the ungated one is
      * right. If the cache ever stops holding a nameless categorised record this
      * fails loudly rather than quietly passing on an empty set. */
@@ -359,15 +359,15 @@ audit_records(
           "the cache has nameless records that carry a category");
     if( out->nameless_cat_npc >= 0 )
     {
-        CHECK_EQ(mock230_npcinfo_record(out->nameless_cat_npc)->category,
+        CHECK_EQ(ToriRSServer_NpcInfoRecord(out->nameless_cat_npc)->category,
                  out->nameless_category, "the ungated row answers for a nameless record");
-        CHECK_EQ(mock230_npcinfo(out->nameless_cat_npc)->category, 0,
+        CHECK_EQ(ToriRSServer_NpcInfo(out->nameless_cat_npc)->category, 0,
                  "the name-gated accessor would have answered 0");
     }
 
     /* An id past the end of the table is NULL, not a placeholder that looks
      * like a record with no category. */
-    CHECK(mock230_npcinfo_record(-1) == NULL, "a negative id has no row");
+    CHECK(ToriRSServer_NpcInfoRecord(-1) == NULL, "a negative id has no row");
 }
 
 /* ------------------------------------------------------------------ */
@@ -386,23 +386,23 @@ struct Fixture
 /*
  * The hosts under test, and nothing else.
  *
- * `mock230_ops_param` rides along because `mock230_push_typed_param` lives in
+ * `ToriRSServer_OpsParam` rides along because `ToriRSServer_PushTypedParam` lives in
  * it; a script here that reached any other host command would find none, which
  * is the right blast radius.
  */
 static int
 host_command(struct SSVM_State* state, int opcode, int dot)
 {
-    if( mock230_ops_param(state, opcode, dot) )
+    if( ToriRSServer_OpsParam(state, opcode, dot) )
         return 1;
-    return mock230_ops_npc(state, opcode, dot);
+    return ToriRSServer_OpsNpc(state, opcode, dot);
 }
 
 static int
 fixture_compile(
     struct Fixture* fixture,
     const struct Subjects* subjects,
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const char* source)
 {
     char src_dir[300];
@@ -510,7 +510,7 @@ fixture_close(struct Fixture* fixture)
 static int
 run_stack(
     struct Fixture* fixture,
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const char* name,
     int slot,
     int32_t* out,
@@ -564,7 +564,7 @@ run_stack(
 static void
 expect_abort(
     struct Fixture* fixture,
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const char* name,
     int slot,
     const char* msg)
@@ -658,13 +658,13 @@ enum
 
 static void
 place_npc(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot,
     int type,
     int dx,
     int dz)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
     memset(npc, 0, sizeof(*npc));
     npc->active = 1;
@@ -679,7 +679,7 @@ place_npc(
 }
 
 static void
-test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
+test_ops(struct ToriRSServer* srv, const struct Subjects* subjects)
 {
     struct Fixture fixture;
     int32_t result = 0;
@@ -843,7 +843,7 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
      * obj 0.
      */
     place_npc(srv, near_slot, subjects->authored_npc, 1, 0);
-    srv->npcs[near_slot].def = mock230_content_npc(subjects->authored_npc);
+    srv->npcs[near_slot].def = ToriRSServer_ContentNpc(subjects->authored_npc);
     if( run_stack(&fixture, srv, "[proc,t_param_authored]", near_slot, &result, NULL) )
         CHECK_EQ(result, subjects->authored_value,
                  "npc_param reads a param authored only in the content overlay");
@@ -853,7 +853,7 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
         /* The same param on a record the cache also carries, with a different
          * value: rank 1 has to win. */
         place_npc(srv, near_slot, subjects->override_npc, 1, 0);
-        srv->npcs[near_slot].def = mock230_content_npc(subjects->override_npc);
+        srv->npcs[near_slot].def = ToriRSServer_ContentNpc(subjects->override_npc);
         if( run_stack(&fixture, srv, "[proc,t_param_override]", near_slot, &result, NULL) )
             CHECK_EQ(result, subjects->override_value,
                      "the authored overlay beats the cache record");
@@ -920,7 +920,7 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
 
     /*
      * huntall fills the shared iterator, which `npc_findnext` walks — and
-     * findnext lives in mock230_scripts.c, which this fixture deliberately does
+     * findnext lives in torirs_server_scripts.c, which this fixture deliberately does
      * not bind. So the assertion is on the iterator itself, which is both
      * stricter and independent of the other file.
      */
@@ -945,8 +945,8 @@ test_ops(struct Mock230Server* srv, const struct Subjects* subjects)
         CHECK(saw_near && saw_far, "npc_huntall collected both huntable npcs");
         /* The op2 filter is the whole difference between huntall and
          * findallany. A nameless record with no op2 must not be in the list. */
-        if( mock230_npcinfo_record(subjects->nameless_cat_npc) &&
-            !mock230_npcinfo_record(subjects->nameless_cat_npc)->ops[1] )
+        if( ToriRSServer_NpcInfoRecord(subjects->nameless_cat_npc) &&
+            !ToriRSServer_NpcInfoRecord(subjects->nameless_cat_npc)->ops[1] )
             CHECK(!saw_nameless, "npc_huntall skipped the npc with no op2");
     }
 
@@ -1024,9 +1024,9 @@ main(void)
     const char* cache_dir;
     const char* content_dir;
     struct Subjects subjects;
-    struct Mock230Server* srv;
+    struct ToriRSServer* srv;
 
-    cache_dir = resolve_dir(MOCK230_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
+    cache_dir = resolve_dir(TORIRSSERVER_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
     content_dir = resolve_dir("OSRS-Content/osrs239-content", content_scratch,
                               sizeof(content_scratch));
 
@@ -1034,8 +1034,8 @@ main(void)
 
     /* The param declarations first: half 1 asks each param what it is declared
      * as while it picks subjects. */
-    mock230_content_load(content_dir);
-    if( !mock230_npcinfo_load(cache_dir) )
+    ToriRSServer_ContentLoad(content_dir);
+    if( !ToriRSServer_NpcInfoLoad(cache_dir) )
     {
         printf("  FAIL npc metadata did not load from %s\n", cache_dir);
         return 1;
@@ -1048,16 +1048,16 @@ main(void)
      * can tell "read the default" from "pushed zero". */
     for( int key = 0; key < 4096 && subjects.default_param_key < 0; key++ )
     {
-        if( mock230_content_param_type(key) == 0 )
+        if( ToriRSServer_ContentParamType(key) == 0 )
             continue;
-        if( mock230_content_param_type(key) == 's' || mock230_content_param_type(key) == 'S' )
+        if( ToriRSServer_ContentParamType(key) == 's' || ToriRSServer_ContentParamType(key) == 'S' )
             continue;
-        if( mock230_content_param_default(key) == 0 )
+        if( ToriRSServer_ContentParamDefault(key) == 0 )
             continue;
-        if( mock230_npc_param(subjects.int_param_npc, key) )
+        if( ToriRSServer_NpcParam(subjects.int_param_npc, key) )
             continue;
         subjects.default_param_key = key;
-        subjects.default_param_value = mock230_content_param_default(key);
+        subjects.default_param_value = ToriRSServer_ContentParamDefault(key);
     }
 
     /*
@@ -1069,7 +1069,7 @@ main(void)
     for( int id = 0; id < 40000 && (subjects.override_npc < 0 || subjects.authored_npc < 0);
          id++ )
     {
-        const struct Mock230NpcDef* def = mock230_content_npc(id);
+        const struct ToriRSServerNpcDef* def = ToriRSServer_ContentNpc(id);
 
         if( !def || def->param_count <= 0 )
             continue;
@@ -1077,13 +1077,13 @@ main(void)
         {
             /* The death_drop shape: authored, and *absent* from the cache
              * record, so a cache-only read answers the declared default. */
-            if( mock230_npc_param(id, def->params[i].key) )
+            if( ToriRSServer_NpcParam(id, def->params[i].key) )
                 continue;
             /* And whose authored value differs from the param's declared
              * `default=` — otherwise "read the overlay" and "fall through to
              * the default" produce the same number and the check proves
              * nothing. */
-            if( mock230_content_param_default(def->params[i].key) == def->params[i].value )
+            if( ToriRSServer_ContentParamDefault(def->params[i].key) == def->params[i].value )
                 continue;
             subjects.authored_npc = id;
             subjects.authored_key = def->params[i].key;
@@ -1091,8 +1091,8 @@ main(void)
         }
         for( int i = 0; i < def->param_count; i++ )
         {
-            const struct Mock230NpcParam* row =
-                mock230_npc_param(id, def->params[i].key);
+            const struct ToriRSServerNpcParam* row =
+                ToriRSServer_NpcParam(id, def->params[i].key);
 
             if( !row || row->sval || row->ival == def->params[i].value )
                 continue;
@@ -1115,7 +1115,7 @@ main(void)
 
         for( int id = 0; id < 40000; id++ )
         {
-            const struct Mock230NpcDef* def = mock230_content_npc(id);
+            const struct ToriRSServerNpcDef* def = ToriRSServer_ContentNpc(id);
             int32_t value = 0;
 
             if( !def || def->param_count <= 0 )
@@ -1124,7 +1124,7 @@ main(void)
             for( int i = 0; i < def->param_count; i++ )
             {
                 rows++;
-                if( !mock230_content_npc_param(def, def->params[i].key, &value) ||
+                if( !ToriRSServer_ContentNpcParam(def, def->params[i].key, &value) ||
                     value != def->params[i].value )
                     unreachable++;
             }
@@ -1139,13 +1139,13 @@ main(void)
                subjects.authored_key, subjects.authored_value,
                subjects.override_npc >= 0 ? "" : " (no cache-overriding case found)");
 
-    srv = (struct Mock230Server*)calloc(1, sizeof(*srv));
+    srv = (struct ToriRSServer*)calloc(1, sizeof(*srv));
     assert(srv);
     test_ops(srv, &subjects);
     free(srv);
 
-    mock230_npcinfo_free();
-    mock230_content_free();
+    ToriRSServer_NpcInfoFree();
+    ToriRSServer_ContentFree();
 
     if( g_fail )
     {

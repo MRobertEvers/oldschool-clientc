@@ -13,8 +13,8 @@ Queue rows this closes: **#56–#62** in
 ## Implementation status (2026-08-16)
 
 **Done: S1, S2, S3, S4, S5, S6, S8, S9, S11, S12, S14, plus `::smithingrun`
-wired into `mock230 --selftest`.** Verified: clean `make -C src
-mock230-scripts` + `make -C src mock230`, and `./src/build_opt/mock230
+wired into `ToriRSServer --selftest`.** Verified: clean `make -C src
+torirsserver-scripts` + `make -C src ToriRSServer`, and `./src/build_opt/torirsserver
 --selftest` passes `::smithingrun` with no new failures against the
 pre-existing baseline (the varp collision, `NPC_FINDOWNED`, `::maxstats`, the
 running-tick-cost check, and the castle-door pair — none smithing-related).
@@ -196,7 +196,7 @@ The XP-per-bar constants the whole table rests on
 |---|---|
 | Stat id | `pack/stat.pack` → `13=smithing` |
 | Display name | `general/configs/stat.enum` |
-| XP curve | generic `g_xp_table`, `src/net/mock/mock230_combat.c:527` |
+| XP curve | generic `g_xp_table`, `src/torirsserver/torirs_server_combat.c:527` |
 | Level-up trigger | `levelup/scripts/levelup.rs2` → `[advancestat,smithing]` |
 | Skill guide | `interface_skill_guide/configs/skill_guide.constant` |
 | XP drops | `interface_chrome/configs/xpdrops.varp` |
@@ -771,9 +771,9 @@ before the refactor.
 
 ## 11. Verification
 
-- `make -C src mock230-scripts` after every config change — the compack and the
+- `make -C src torirsserver-scripts` after every config change — the compack and the
   scripts must be rebuilt together.
-- Headless: use a scratch `MOCK230_SAVES`; runs are **not** independent.
+- Headless: use a scratch `TORIRSSERVER_SAVES`; runs are **not** independent.
 - **S1:** click each `category=772` anvil with a hammer and one bar of each tier;
   every one must open a menu. Then click `camdozaal_anvil` and confirm it does
   not.

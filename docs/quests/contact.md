@@ -471,8 +471,8 @@ Required commands/evidence before `verified-modern`:
 
 ```text
 python3 tools/questhelper_extract.py contact --check
-make -C src mock230-scripts
-mock230_pack --check-only <intended-cache arguments>
+make -C src torirsserver-scripts
+ToriRSServer_Pack --check-only <intended-cache arguments>
 quest-specific static/state/ownership tests
 real-client start-to-reward smoke with route, instance, and lamp captures
 two-player encounter isolation smoke

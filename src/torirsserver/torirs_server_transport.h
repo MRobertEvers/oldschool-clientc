@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_TRANSPORT_H
-#define SRC_NET_MOCK_MOCK230_TRANSPORT_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_TRANSPORT_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_TRANSPORT_H
 
 /*
  * The byte-stream seam: where the server's bytes come from and go to, with no
@@ -7,7 +7,7 @@
  *
  * There are two implementations and the server cannot tell them apart:
  *
- *   - **socket** wraps `struct Mock230Conn`, which is itself already two things
+ *   - **socket** wraps `struct ToriRSServerConn`, which is itself already two things
  *     (raw TCP and RFC 6455) sniffed per client. That layering stays.
  *   - **memory** is a pair of byte FIFOs, for a server hosted *inside* the
  *     client's process. Nothing is framed, nothing blocks and no fd exists.
@@ -16,7 +16,7 @@
  * implementation's real constraint: in-process, client and server run on one
  * thread, so any blocking read in the server is a deadlock rather than a stall.
  * Making the transport non-blocking is what forced the login handshake to
- * become a state machine (mock230_session.c) — which is the change that
+ * become a state machine (torirs_server_session.c) — which is the change that
  * actually buys the embedding, the vtable just names the seam.
  *
  * Contract, and all three implementations must honour it exactly:
@@ -33,9 +33,9 @@
 
 #include <stdint.h>
 
-struct Mock230Conn;
+struct ToriRSServerConn;
 
-struct Mock230Transport
+struct ToriRSServerTransport
 {
     void* ctx;
     int (*recv)(void* ctx, uint8_t* dst, int max);
@@ -57,7 +57,7 @@ struct Mock230Transport
  * — impossible on one thread — or drop, which corrupts the stream silently.
  * Growing and compacting is the only behaviour with no failure mode.
  */
-struct Mock230Pipe
+struct ToriRSServerPipe
 {
     uint8_t* data;
     int cap;
@@ -71,28 +71,28 @@ struct Mock230Pipe
 /** Append. Returns `len`, or -1 once closed. Grows as needed; only an
  *  allocation failure can short-write, and that returns -1 too. */
 int
-mock230_pipe_write(
-    struct Mock230Pipe* pipe,
+ToriRSServer_PipeWrite(
+    struct ToriRSServerPipe* pipe,
     const uint8_t* src,
     int len);
 
 /** Take up to `max`. Returns the count, 0 when empty, or -1 when the writer
  *  closed *and* nothing is left — so a reader drains before it sees the end. */
 int
-mock230_pipe_read(
-    struct Mock230Pipe* pipe,
+ToriRSServer_PipeRead(
+    struct ToriRSServerPipe* pipe,
     uint8_t* dst,
     int max);
 
 /** Live bytes. */
 int
-mock230_pipe_available(const struct Mock230Pipe* pipe);
+ToriRSServer_PipeAvailable(const struct ToriRSServerPipe* pipe);
 
 void
-mock230_pipe_close(struct Mock230Pipe* pipe);
+ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe);
 
 void
-mock230_pipe_free(struct Mock230Pipe* pipe);
+ToriRSServer_PipeFree(struct ToriRSServerPipe* pipe);
 
 /* ------------------------------------------------------------------ */
 /* Implementations                                                     */
@@ -100,9 +100,9 @@ mock230_pipe_free(struct Mock230Pipe* pipe);
 
 /** Over an accepted (and already sniffed) connection. */
 void
-mock230_transport_socket(
-    struct Mock230Transport* transport,
-    struct Mock230Conn* conn);
+ToriRSServer_TransportSocket(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerConn* conn);
 
 /**
  * The two ends of an in-process connection.
@@ -112,10 +112,10 @@ mock230_transport_socket(
  * time" a property of the transport layer instead of a property of whoever is
  * sharing the process-wide config tables.
  */
-struct Mock230MemoryEnds
+struct ToriRSServerMemoryEnds
 {
-    struct Mock230Pipe* to_server;
-    struct Mock230Pipe* to_client;
+    struct ToriRSServerPipe* to_server;
+    struct ToriRSServerPipe* to_client;
 };
 
 /**
@@ -127,10 +127,10 @@ struct Mock230MemoryEnds
  * drain whatever the server said on its way out.
  */
 void
-mock230_transport_memory(
-    struct Mock230Transport* transport,
-    struct Mock230MemoryEnds* ends,
-    struct Mock230Pipe* to_server,
-    struct Mock230Pipe* to_client);
+ToriRSServer_TransportMemory(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerMemoryEnds* ends,
+    struct ToriRSServerPipe* to_server,
+    struct ToriRSServerPipe* to_client);
 
 #endif

@@ -11,7 +11,7 @@ Run the solve first; this only copies what it produced:
 
     tools/rs2012_qbd_prio.sh
     python3 tools/rs2012_qbd_register_authored.py
-    make -C src mock230-cache-rs2012
+    make -C src torirsserver-cache-rs2012
 
 Idempotent: re-running replaces the block and the lines rather than doubling
 them, so re-solving the models is a two-command refresh.
@@ -106,7 +106,7 @@ def main() -> int:
     ledger.write_text("\n".join(rows) + "\n")
 
     print(f"registered {NPC_SYMBOL} as npc {NPC_ID}, models {[d for _, d in PAIRS]}")
-    print("re-pack with: make -C src mock230-cache-rs2012")
+    print("re-pack with: make -C src torirsserver-cache-rs2012")
     return 0
 
 

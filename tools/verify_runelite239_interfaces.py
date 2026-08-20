@@ -82,7 +82,7 @@ CLIENT_RUNTIME_FAILURES = (
 # (for example UPDATE_PID while that packet is under investigation) are not an
 # interface-contract failure and are intentionally outside this expression.
 INTERFACE_WIRE_GAP = re.compile(
-    r"^mock230:\s+osrs239\s+(?:payload for (IF_[A-Z0-9_]+) is not transcribed|"
+    r"^torirsserver:\s+osrs239\s+(?:payload for (IF_[A-Z0-9_]+) is not transcribed|"
     r"has no (IF_[A-Z0-9_]+) -- dropping it)",
     re.MULTILINE,
 )
@@ -211,8 +211,8 @@ def log_health_evidence(client_log: str, server_log: str) -> list[str]:
             f"expected {EXPECTED_INJECTED}")
     require(f"CS2AutoLogin: logging in as {EXPECTED_LOGIN}" in runtime,
             f"current RuneLite run did not log in as {EXPECTED_LOGIN}")
-    require(f"mock230: login user='{EXPECTED_LOGIN}' session=ok" in server_log,
-            f"mock230 did not accept the controlled account {EXPECTED_LOGIN}")
+    require(f"torirsserver: login user='{EXPECTED_LOGIN}' session=ok" in server_log,
+            f"ToriRSServer did not accept the controlled account {EXPECTED_LOGIN}")
     for label, pattern in CLIENT_RUNTIME_FAILURES:
         match = pattern.search(runtime)
         if match is not None:
@@ -591,19 +591,19 @@ def main() -> int:
         evidence.append(audit_evidence(main_audit, 25))
 
         require(CLIENT_LOG.is_file(), f"RuneLite log is missing: {CLIENT_LOG}")
-        require(SERVER_LOG.is_file(), f"mock230 log is missing: {SERVER_LOG}")
+        require(SERVER_LOG.is_file(), f"ToriRSServer log is missing: {SERVER_LOG}")
         client_log = CLIENT_LOG.read_text(encoding="utf-8", errors="replace")
         server_log = SERVER_LOG.read_text(encoding="utf-8", errors="replace")
         health_evidence = log_health_evidence(client_log, server_log)
         for expected in (
-            "mock230: <- IF_BUTTON1 239:11 sub=115",
-            "mock230: <- IF_BUTTON2 239:11 sub=3",
-            "mock230: <- IF_BUTTON2 216:2 sub=0",
-            "mock230: <- IF_BUTTON1 216:2 sub=12",
-            "mock230: <- IF_BUTTON1 109:41",
+            "torirsserver: <- IF_BUTTON1 239:11 sub=115",
+            "torirsserver: <- IF_BUTTON2 239:11 sub=3",
+            "torirsserver: <- IF_BUTTON2 216:2 sub=0",
+            "torirsserver: <- IF_BUTTON1 216:2 sub=12",
+            "torirsserver: <- IF_BUTTON1 109:41",
         ):
             require(expected in server_log, f"server trigger evidence missing: {expected}")
-        require(server_log.count("mock230: <- IF_BUTTON3 239:11 sub=115") >= 2,
+        require(server_log.count("torirsserver: <- IF_BUTTON3 239:11 sub=115") >= 2,
                 "music playlist add/remove did not reach IF_BUTTON3 twice")
 
         REPORT.write_text(

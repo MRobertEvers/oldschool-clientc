@@ -29,17 +29,17 @@ against today's tree:
 
 | blocker as stated | today |
 |---|---|
-| `SS_OP_OC_COST` (4202) declared-and-uncovered | **cleared** — `mock230_ops_obj.c:287` |
-| `SS_OP_RUNCLIENTSCRIPTVARARG` for `shop_main_init`'s 4 ints + string | **cleared** — `mock230_scripts.c:6665` |
-| `container_for` resolves only off `active_player`, three hardcoded cases | **cleared** — `mock230_container_resolve(srv, player, inv_id)` is a registry over all 1,026 cache invs |
+| `SS_OP_OC_COST` (4202) declared-and-uncovered | **cleared** — `torirs_server_ops_obj.c:287` |
+| `SS_OP_RUNCLIENTSCRIPTVARARG` for `shop_main_init`'s 4 ints + string | **cleared** — `torirs_server_scripts.c:6665` |
+| `container_for` resolves only off `active_player`, three hardcoded cases | **cleared** — `ToriRSServer_ContainerResolve(srv, player, inv_id)` is a registry over all 1,026 cache invs |
 | no `fields/inv.ini`, no `[namespace:inv]` in `content.ini` | **cleared** — both exist; `fields/inv.ini` declares `inv.size` and explicitly reserves stock/scope for a server-side slice |
 | `SS_OP_INV_STOCKBASE` (4325) | **still missing** |
 | `SS_OP_INV_ALLSTOCK` (4303) | **still missing** |
-| world-scope persistence / boot re-seed | **still missing** — `mock230_container_scope()` returns `MOCK230_CONTAINER_PLAYER` unconditionally; the WORLD table exists and is empty by construction |
+| world-scope persistence / boot re-seed | **still missing** — `ToriRSServer_ContainerScope()` returns `TORIRSSERVER_CONTAINER_PLAYER` unconditionally; the WORLD table exists and is empty by construction |
 
 Two further gaps the survey did not name, both found by this pass:
 
-* **No `.inv` config parser server-side.** `mock230_content.c:3607-3630` walks
+* **No `.inv` config parser server-side.** `torirs_server_content.c:3607-3630` walks
   `.param .constant .enum .varp .npc .obj .loc .spawn`. There is no `.inv`, so
   `stockN=`/`restock=`/`allstock=`/`scope=` have a grammar (LostCity's) and a
   declared home (`fields/inv.ini` says where they must *not* go) but no reader.
@@ -265,7 +265,7 @@ each is the previous one's precondition.
 ### 3.1 `.inv` server config parser + `scope` classification
 
 *Files:* `OSRS-Content/osrs239-content/fields/inv.ini`,
-`src/net/mock/mock230_content.c`, `src/net/mock/mock230_container.c`
+`src/torirsserver/torirs_server_content.c`, `src/torirsserver/torirs_server_container.c`
 
 Add the server half of the inv field register — the file already says the shape
 of this and refuses to pretend otherwise:
@@ -285,12 +285,12 @@ carries. (LostCity's `.inv` files state `size=40`; ours must not, and the
 import must drop it rather than fight it.)
 
 Then `walk_configs(path, ".inv", load_inv_config)` alongside the other eight,
-and `mock230_container_scope()` stops being a constant: it returns
-`MOCK230_CONTAINER_WORLD` for an inv the tree declared `scope=shared`. The
+and `ToriRSServer_ContainerScope()` stops being a constant: it returns
+`TORIRSSERVER_CONTAINER_WORLD` for an inv the tree declared `scope=shared`. The
 registry's world table already exists and is already keyed correctly — this
 fills it.
 
-**Trap, from `mock230_container.h`:** `mock230_container_adopt` allows a
+**Trap, from `torirs_server_container.h`:** `ToriRSServer_ContainerAdopt` allows a
 per-slot dirty mask only up to 32 slots. Shop invs are sized 40 in the cache.
 World containers must take the whole-container `dirty_ref` path, not the mask.
 
@@ -299,47 +299,47 @@ has to fan out to *every* player watching it, not just the one who bought. A
 per-player listener list on the container row, not a single `active_player`.
 
 > **Landed 2026-08-13, and this needed more than a listener list.** The
-> existing listener struct (`mock230.h`) tracked only a `component` id, which
+> existing listener struct (`torirs_server.h`) tracked only a `component` id, which
 > is not unique across players on a shared row — `shopmain:items` is the same
 > numeric id for every client, so two players opening the same shop collapsed
 > onto one listener. Fixed by adding a `player` field to each listener
 > (`NULL`/unused on a per-player row, meaningful on a world row) and changing
 > every match/bind/unbind to key on `(component, player)` when the row is
-> `MOCK230_CONTAINER_WORLD`. `mock230_container_unbind` gained an `srv`
+> `TORIRSSERVER_CONTAINER_WORLD`. `ToriRSServer_ContainerUnbind` gained an `srv`
 > parameter for the same reason: a component id alone cannot say whether the
 > row behind it is the caller's own or shared, so unbinding needs the world
-> table too. A new `mock230_container_flush_world(srv)` is the shared row's
-> sibling to the existing per-player `mock230_container_flush` — called once
+> table too. A new `ToriRSServer_ContainerFlushWorld(srv)` is the shared row's
+> sibling to the existing per-player `ToriRSServer_ContainerFlush` — called once
 > per tick from `phase_clients_out`, before the per-player pass, so a shop
 > transaction reaches every listener's outgoing batch before that player's own
-> tick-end closes it. `MOCK230_WORLD_CONTAINER_MAX` went 16→640 (shared rows
+> tick-end closes it. `TORIRSSERVER_WORLD_CONTAINER_MAX` went 16→640 (shared rows
 > are created on first use and never evicted, so this has to cover every
 > distinct shop any player visits in one server lifetime) and
-> `MOCK230_CONTAINER_LISTENERS_MAX` went 4→16 — both cheap: with
-  `MOCK230_PLAYER_MAX` at 8, the whole increase costs well under a MB. See
-  `mock230_container.c`/`.h` and `mock230.h`'s listener struct comment.
+> `TORIRSSERVER_CONTAINER_LISTENERS_MAX` went 4→16 — both cheap: with
+  `TORIRSSERVER_PLAYER_MAX` at 8, the whole increase costs well under a MB. See
+  `torirs_server_container.c`/`.h` and `torirs_server.h`'s listener struct comment.
 
 ### 3.2 The two missing opcodes
 
-*File:* `src/net/mock/mock230_ops_inv.c` (the `host commands (inv)` layer)
+*File:* `src/torirsserver/torirs_server_ops_inv.c` (the `host commands (inv)` layer)
 
 | opcode | signature | body |
 |---|---|---|
 | `SS_OP_INV_STOCKBASE` (4325) | `(inv, obj) -> int` | baseline count for that obj from the parsed `stockN`, or `-1` if not a baseline item |
 | `SS_OP_INV_ALLSTOCK` (4303) | `(inv) -> boolean` | the parsed `allstock=` flag |
 
-Both are pure reads off §3.1's parsed definition. `make -C src test-mock230-coverage`
-fails until `mock230_opcode_coverage.gen.h` is regenerated
-(`python3 net/mock/gen_opcode_coverage.py`).
+Both are pure reads off §3.1's parsed definition. `make -C src test-torirsserver-coverage`
+fails until `torirs_server_opcode_coverage.gen.h` is regenerated
+(`python3 torirsserver/gen_opcode_coverage.py`).
 
 `SS_OP_WEALTH_EVENT` (2137) is also uncovered and LostCity's shop calls it
 twice. It is an audit log, not a mechanic — stub or omit, and say which.
 
 ### 3.3 World-container persistence and boot seed
 
-*Files:* `src/net/mock/mock230_save.c`, `mock230_boot.c`
+*Files:* `src/torirsserver/torirs_server_save.c`, `torirs_server_boot.c`
 
-`mock230_save.c` is player-only. A shop's stock is world state that must
+`torirs_server_save.c` is player-only. A shop's stock is world state that must
 survive a restart, or every reboot hands players a fully-stocked Aubury's.
 
 Cheapest correct answer, and the one LostCity uses: **do not persist it.**
@@ -348,12 +348,12 @@ restock tick converge. That is authentic (2004 shops reset on world restart) and
 removes the whole durable-world-state slice from the critical path. If durable
 stock is wanted later it is a new file, not a change to this one.
 
-Whichever is chosen, **state it in the boot order comment** — `mock230_boot.c`'s
+Whichever is chosen, **state it in the boot order comment** — `torirs_server_boot.c`'s
 ordering is a function, not a convention.
 
 ### 3.4 The restock tick
 
-*File:* `src/net/mock/mock230_world.c`, in the per-tick cleanup phase
+*File:* `src/torirsserver/torirs_server_world.c`, in the per-tick cleanup phase
 
 LostCity's `World.ts:1157-1193`, ported literally:
 
@@ -553,11 +553,11 @@ review, and are parallelisable across people.
 * **Unit** — `calc_shop_value` against known wiki prices. Lumbridge General
   Store sells a pot for 1gp and buys it for 0gp at baseline stock; those are
   assertions, not observations.
-* **Opcode coverage** — `make -C src test-mock230-coverage` after regenerating
-  `mock230_opcode_coverage.gen.h`.
-* **Selftest** — a `shop` stanza in `mock230-selftest`: open, buy, check coins
+* **Opcode coverage** — `make -C src test-torirsserver-coverage` after regenerating
+  `torirs_server_opcode_coverage.gen.h`.
+* **Selftest** — a `shop` stanza in `torirsserver-selftest`: open, buy, check coins
   and stock, sell, check the price moved, tick past `restock`, check it
-  converged. Run with **no env set** ([[mock230-selftest-two-lanes]] — the
+  converged. Run with **no env set** ([[torirsserver-selftest-two-lanes]] — the
   `osrs239` flavour carries ~205 pre-existing failures and a stanza's placement
   perturbs sections 1,000 lines away, [[selftest-stanza-placement]]).
 * **In-game** — the client is the only place the CS2 gaps in §3.5 show up.
@@ -739,14 +739,14 @@ brand-new inv name in `pack/inv.alloc` with no cache slot behind it at all
 spawned owner `prif_armourstore`, matching `~openshop` call), let the
 allocator assign it id 2002, and rebuilt. It compiled clean, but selftest
 logged `shop inv 2002 has a definition but no cache size; not seeded`:
-`mock230_container_resolve` sizes a shared shop container from the cache's
+`ToriRSServer_ContainerResolve` sizes a shared shop container from the cache's
 own inv definition, and a content-only id has none. `rs2012_qbd_rewardinv`
 and `summoning_bob` get away with this because they're fixed-purpose
 containers with a size the reading code already assumes; a shop is a
 variable-size, client-rendered grid with no such assumption to fall back on.
 
-This is a real, fixable engine gap — teach `mock230_shop_seed`/
-`mock230_container_resolve` a content-declared size for shop invs specifically
+This is a real, fixable engine gap — teach `ToriRSServer_ShopSeed`/
+`ToriRSServer_ContainerResolve` a content-declared size for shop invs specifically
 (e.g. a `size=` line in the `.inv` file itself, already parsed and currently
 inert per `inv_config_key`'s own `size=` branch) — but it is engine work, not
 content wiring, and deliberately out of scope to improvise under this plan.
@@ -756,9 +756,9 @@ content behind. Filed here so the next attempt at this cluster starts from
 "the fix is a container-sizing feature" instead of re-discovering it.
 
 **Update, same day: built it.** `inv_config_key`'s `size=` branch now only
-errors when the inv already has a real cache size (`mock230_bank_inv_size`
-> 0) — otherwise it calls the new `mock230_shop_def_set_size`, and
-`mock230_container_resolve` falls back to `mock230_shop_content_size` when
+errors when the inv already has a real cache size (`ToriRSServer_BankInvSize`
+> 0) — otherwise it calls the new `ToriRSServer_ShopDefSetSize`, and
+`ToriRSServer_ContainerResolve` falls back to `ToriRSServer_ShopContentSize` when
 the cache lookup comes back empty. A real cache size still always wins; this
 only ever fires for a `pack/inv.alloc` id with nothing behind it. Re-ran the
 Aneirin's Armour test with `size=12` added: container created with exactly
@@ -903,7 +903,7 @@ simply hadn't gotten to yet.
   `[opnpc3,generalshopkeeper2] @generalshop_trade_stub;` — trigger and call on
   one line — which the original scan's exact-line match never recognised as
   an existing trigger, so it read as "nothing bound here" and let a generated
-  file declare the same `[opnpc3,...]` a second time. `make mock230-scripts`
+  file declare the same `[opnpc3,...]` a second time. `make torirsserver-scripts`
   caught it as a duplicate-script-name warning; fixed by matching the header
   as a prefix and, for the inline case, resolving one level of `@label;`
   indirection to check whether *that* label's body is the bare
@@ -999,7 +999,7 @@ simply hadn't gotten to yet.
   really don't spawn — but `.spawn` files name
   `contact_market_baker_multi`/`contact_market_craft_multi`, the multinpc
   *base* (same shape as the Lumbridge doomsayer,
-  [[mock230-lumbridge-content]]: a varbit picks the display variant at
+  [[torirsserver-lumbridge-content]]: a varbit picks the display variant at
   runtime, but only the base ever stands in the world). `wiki_shop_owners.py`
   now checks for a spawned `<gameval>_multi` sibling before giving up, and
   `owner-stem-match`'s suffix list strips `_multi` (looping, since it can
@@ -1103,19 +1103,19 @@ in-game), not another pass over the existing pipeline.
 ### 8.1 Engine — all landed, `--selftest` clean
 
 * `.inv` server config parsing (`scope=`, `restock=`, `allstock=`,
-  `stackall=`, `stockN=`) — `mock230_content.c`'s `load_inv_config`.
-* `mock230_shop.{c,h}` — the definition table, boot-time seed
-  (`mock230_shop_seed`, called from every boot path: `mock230_main.c`'s
-  `serve()` and `--selftest`, `mock230_embed.c`), and the restock tick
-  (`mock230_shop_restock_tick`, called once per tick from `phase_cleanup` in
-  `mock230_world.c`, in the same slot LostCity's `World.ts` puts it — right
+  `stackall=`, `stockN=`) — `torirs_server_content.c`'s `load_inv_config`.
+* `ToriRSServer_Shop.{c,h}` — the definition table, boot-time seed
+  (`ToriRSServer_ShopSeed`, called from every boot path: `torirs_server_main.c`'s
+  `serve()` and `--selftest`, `torirs_server_embed.c`), and the restock tick
+  (`ToriRSServer_ShopRestockTick`, called once per tick from `phase_cleanup` in
+  `torirs_server_world.c`, in the same slot LostCity's `World.ts` puts it — right
   after the npc reset).
-* `mock230_container_scope` classifies a shop's inv `WORLD` via
-  `mock230_shop_is_shared`; every other inv is unaffected.
-* `SS_OP_INV_STOCKBASE` / `SS_OP_INV_ALLSTOCK` — `mock230_ops_inv.c`,
+* `ToriRSServer_ContainerScope` classifies a shop's inv `WORLD` via
+  `ToriRSServer_ShopIsShared`; every other inv is unaffected.
+* `SS_OP_INV_STOCKBASE` / `SS_OP_INV_ALLSTOCK` — `torirs_server_ops_inv.c`,
   coverage table regenerated.
 * The world-container multi-listener fan-out described in §3.1's update:
-  `mock230_container_flush_world`, called once per tick from
+  `ToriRSServer_ContainerFlushWorld`, called once per tick from
   `phase_clients_out` before the per-player pass.
 * `server/scripts/shop/scripts/shop.rs2` — the shared engine procs, ported
   from LostCity's `shop/scripts/shop.rs2` per §3.5. `openshop_activenpc` is
@@ -1127,7 +1127,7 @@ in-game), not another pass over the existing pipeline.
 **Open from §3.4/§3.5, not yet done:**
 
 * The restock tick is written but not called anywhere per-tick. Wire
-  `mock230_shop_restock_tick(srv, tick)` into `mock230_world.c`'s cleanup
+  `ToriRSServer_ShopRestockTick(srv, tick)` into `torirs_server_world.c`'s cleanup
   phase, next to the npc `resetEntity` loop LostCity's own `World.ts` puts it
   beside (§3.4).
 * Shopside's real op indices and the Buy-X round trip are still unconfirmed
@@ -1141,14 +1141,14 @@ in-game), not another pass over the existing pipeline.
   source, not by opening a shop as a connected client.
 
 > **Verification, this pass:** the `maplink.rs2` breakage above was another
-> stream's, and cleared on its own — `make -C src mock230-scripts` now
+> stream's, and cleared on its own — `make -C src torirsserver-scripts` now
 > compiles clean and `--selftest` confirms 162 shop definitions parsed, 161
 > seeded, matching this section's count exactly. (Three unrelated,
 > already-committed door-count failures remain in the suite —
 > `doors.loc`/`doubledoors.loc`, from the same door-opening work referenced
 > in earlier status notes — not shop content and not this pass's to fix.)
 
-### 8.2 Content — 270 shop definitions live (mock230 selftest count; most
+### 8.2 Content — 270 shop definitions live (ToriRSServer selftest count; most
 cache-bound, dozens now content-declared via §8.5)
 
 Generated by `tools/gen_shop_scripts.py --write` from the reviewed rows of
@@ -1285,7 +1285,7 @@ answering the shop-side questions.
 ### 9.3 `inv_moveitem_uncert` did not un-note
 
 Which is why §9.2's uncert was there. The generic (non-bank) arm of
-`SS_OP_INV_MOVEITEM_CERT` / `_UNCERT` in `mock230_ops_inv.c` did the plain
+`SS_OP_INV_MOVEITEM_CERT` / `_UNCERT` in `torirs_server_ops_inv.c` did the plain
 move and left the form alone — a documented limit, on the grounds that nothing
 outside the bank used the cert forms. The shop does. It now converts through
 the same `noted_id` / `cert_id` link `oc_uncert` / `oc_cert` read, which is
@@ -1294,7 +1294,7 @@ move is unchanged.
 
 ### 9.4 What now covers it
 
-`mock230 selftest: selling to a shop` (§6's stanza, `mock230_world.c`), seven
+`ToriRSServer selftest: selling to a shop` (§6's stanza, `torirs_server_world.c`), seven
 cases driven as real `IF_BUTTON2` packets on `shopside:items` after a real
 `~openshop`:
 
@@ -1323,7 +1323,7 @@ reported again as *"selling to general stores still just deletes the item"*,
 after they landed. §9.4's stanza asserted the shop's UPDATE_INV went **out**;
 it did not assert what was in it, and what was in it was the bug.
 
-`full_capacity` (`mock230_container.c`) sends a container's *used prefix*
+`full_capacity` (`torirs_server_container.c`) sends a container's *used prefix*
 rather than its capacity once the container is too big to transmit per slot
 (>32 slots — the rule exists for the 1,410-slot bank, which re-sends whole on
 every change). A 40-slot general store with 15 lines stocked therefore
@@ -1340,7 +1340,7 @@ that already has a cell.
 
 A shop now transmits `row->slots`. Measured in the real client, not argued:
 
-    SDL_VIDEODRIVER=dummy MOCK230_SAVES=<scratch> TORIRS_INV_DEBUG=1 \
+    SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=<scratch> TORIRS_INV_DEBUG=1 \
     TORIRS_SIM_CMD="150,shop" \
     TORIRS_SIM_CLICK_AT="200,537,230,1;206,500,261" \
     TORIRS_MAX_FRAMES=300 TORIRS_EXIT_BMP=<scratch>/shop.bmp \

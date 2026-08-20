@@ -8,7 +8,7 @@
  * ── Half 1: the table (no VM) ────────────────────────────────────────
  *
  * It re-decodes the loc and struct config groups with the rscache decoder
- * *directly* and then asks `mock230_loc_param` / `mock230_struct_param` for
+ * *directly* and then asks `ToriRSServer_LocParam` / `ToriRSServer_StructParam` for
  * every single row it saw. Exhaustive rather than spot-checked, and the reason
  * is the failure mode this family actually has: a record's own params arrive in
  * the order the cache wrote them, which is not ascending by key, so a binary
@@ -40,9 +40,9 @@
  * are test names for whatever the cache turned out to hold.
  */
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_paramtable.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_paramtable.h"
 
 #include "ss_opcode.h"
 #include "ssc.h"
@@ -141,7 +141,7 @@ struct TableAudit
     int absent_key;
 };
 
-typedef const struct Mock230ParamRow* (*LookupFn)(int owner, int key);
+typedef const struct ToriRSServerParamRow* (*LookupFn)(int owner, int key);
 
 static void
 audit_record(
@@ -161,7 +161,7 @@ audit_record(
 
     for( int i = 0; i < params->count; i++ )
     {
-        const struct Mock230ParamRow* row;
+        const struct ToriRSServerParamRow* row;
 
         if( i > 0 && params->keys[i] <= prev )
             out_of_order = 1;
@@ -256,7 +256,7 @@ open_cache(
     *profile = RSCache_ProfileZero();
     profile->game = RSCACHE_GAME_OLDSCHOOL;
     profile->epoch = RSCACHE_EPOCH_DAT2;
-    profile->revision = MOCK230_CACHE_REVISION;
+    profile->revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( disk )
@@ -303,13 +303,13 @@ audit_struct_table(const char* cache_dir)
         memset(&record, 0, sizeof(record));
         record.id = archive->file_ids[i];
         RSCache_Dat2ConfigStructDecodeInplace(&record, files->files[i], files->file_sizes[i]);
-        audit_record(&audit, mock230_struct_param, archive->file_ids[i], &record.params);
+        audit_record(&audit, ToriRSServer_StructParam, archive->file_ids[i], &record.params);
         RSCache_Dat2ConfigStructFreeInplace(&record);
     }
 
-    CHECK_EQ(mock230_structinfo_count(), archive->file_count,
+    CHECK_EQ(ToriRSServer_StructInfoCount(), archive->file_count,
              "the loader saw every struct record");
-    CHECK_EQ(mock230_structinfo_param_count(), audit.rows,
+    CHECK_EQ(ToriRSServer_StructInfoParamCount(), audit.rows,
              "the loader retained exactly the rows the decoder produced");
 
     RSCache_FileListFree(files);
@@ -318,9 +318,9 @@ audit_struct_table(const char* cache_dir)
 
     report_audit(&audit);
     if( audit.first_owner >= 0 )
-        CHECK(mock230_struct_param(audit.first_owner, audit.absent_key) == NULL,
+        CHECK(ToriRSServer_StructParam(audit.first_owner, audit.absent_key) == NULL,
               "a param the record does not carry reports absent, not a neighbouring row");
-    CHECK(mock230_struct_param(-1, 0) == NULL, "a negative struct id is absent, not a crash");
+    CHECK(ToriRSServer_StructParam(-1, 0) == NULL, "a negative struct id is absent, not a crash");
 }
 
 static void
@@ -364,12 +364,12 @@ audit_loc_table(const char* cache_dir)
                                                     files->file_sizes[i]);
         if( !loc )
             continue;
-        audit_record(&audit, mock230_loc_param, archive->file_ids[i], &loc->params);
+        audit_record(&audit, ToriRSServer_LocParam, archive->file_ids[i], &loc->params);
         RSCache_Dat2ConfigLocFree(loc);
     }
 
-    CHECK_EQ(mock230_locinfo_count(), archive->file_count, "the loader saw every loc record");
-    CHECK_EQ(mock230_locinfo_param_count(), audit.rows,
+    CHECK_EQ(ToriRSServer_LocInfoCount(), archive->file_count, "the loader saw every loc record");
+    CHECK_EQ(ToriRSServer_LocInfoParamCount(), audit.rows,
              "the loader retained exactly the rows the decoder produced");
 
     RSCache_FileListFree(files);
@@ -378,7 +378,7 @@ audit_loc_table(const char* cache_dir)
 
     report_audit(&audit);
     if( audit.first_owner >= 0 )
-        CHECK(mock230_loc_param(audit.first_owner, audit.absent_key) == NULL,
+        CHECK(ToriRSServer_LocParam(audit.first_owner, audit.absent_key) == NULL,
               "a param the record does not carry reports absent, not a neighbouring row");
 }
 
@@ -463,7 +463,7 @@ find_struct_subjects(
         for( int p = 0; p < record.params.count; p++ )
         {
             int key = record.params.keys[p];
-            char declared = mock230_content_param_type(key);
+            char declared = ToriRSServer_ContentParamType(key);
 
             if( p > 0 && key <= last_key )
                 out_of_order = 1;
@@ -525,14 +525,14 @@ find_absent_default(struct Subjects* out)
     {
         for( int param = 0; param < 65536; param++ )
         {
-            char declared = mock230_content_param_type(param);
-            int declared_default = mock230_content_param_default(param);
+            char declared = ToriRSServer_ContentParamType(param);
+            int declared_default = ToriRSServer_ContentParamDefault(param);
 
             if( declared_default == 0 || declared == 's' )
                 continue;
             if( pass == 0 && (declared == 0 || declared == 'i') )
                 continue;
-            if( mock230_struct_param(out->struct_id, param) )
+            if( ToriRSServer_StructParam(out->struct_id, param) )
                 continue;
             out->param_default = param;
             out->param_default_value = declared_default;
@@ -582,7 +582,7 @@ find_loc_subject(
             continue;
         for( int p = 1; p < loc->params.count; p++ )
         {
-            char declared = mock230_content_param_type(loc->params.keys[p]);
+            char declared = ToriRSServer_ContentParamType(loc->params.keys[p]);
 
             if( loc->params.keys[p] > loc->params.keys[p - 1] )
                 continue;
@@ -619,7 +619,7 @@ struct Fixture
 /*
  * The host under test, and nothing else.
  *
- * `mock230_ops_param` never touches `struct Mock230Server`, which is what makes
+ * `ToriRSServer_OpsParam` never touches `struct ToriRSServer`, which is what makes
  * this possible at all: the domain file is a host callback in miniature and
  * binds with a NULL user — no world, no socket, no pack. A script here that
  * reached any other host command would fail to find one, which is the right
@@ -628,7 +628,7 @@ struct Fixture
 static int
 host_command(struct SSVM_State* state, int opcode, int dot)
 {
-    return mock230_ops_param(state, opcode, dot);
+    return ToriRSServer_OpsParam(state, opcode, dot);
 }
 
 static int
@@ -812,7 +812,7 @@ test_stack_routing(const char* cache_dir)
            "absent param %d declared '%c' default %d), loc %d param %d\n",
            subjects.struct_id, subjects.param_str, subjects.param_int,
            subjects.param_int_type, subjects.param_default,
-           mock230_content_param_type(subjects.param_default),
+           ToriRSServer_ContentParamType(subjects.param_default),
            subjects.param_default_value, subjects.loc_id, subjects.loc_param);
     CHECK(subjects.param_int_type != 'i' && subjects.param_int_type != 's',
           "the int subject is a non-`i` int-ish type, so `i`-only routing would fail");
@@ -878,7 +878,7 @@ main(void)
     const char* cache_dir;
     const char* content_dir;
 
-    cache_dir = resolve_dir(MOCK230_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
+    cache_dir = resolve_dir(TORIRSSERVER_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
     content_dir = resolve_dir("OSRS-Content/osrs239-content", content_scratch,
                               sizeof(content_scratch));
 
@@ -887,20 +887,20 @@ main(void)
     /* The declared types and defaults, which decide the stack. Without them
      * every param would fall back to its stored kind and the routing half
      * would be testing nothing. */
-    mock230_content_load(content_dir);
+    ToriRSServer_ContentLoad(content_dir);
 
-    if( !mock230_structinfo_load(cache_dir) )
+    if( !ToriRSServer_StructInfoLoad(cache_dir) )
         CHECK(0, "struct params loaded");
-    if( !mock230_locinfo_load(cache_dir) )
+    if( !ToriRSServer_LocInfoLoad(cache_dir) )
         CHECK(0, "loc params loaded");
 
     audit_struct_table(cache_dir);
     audit_loc_table(cache_dir);
     test_stack_routing(cache_dir);
 
-    mock230_structinfo_free();
-    mock230_locinfo_free();
-    mock230_content_free();
+    ToriRSServer_StructInfoFree();
+    ToriRSServer_LocInfoFree();
+    ToriRSServer_ContentFree();
 
     if( g_fail )
     {

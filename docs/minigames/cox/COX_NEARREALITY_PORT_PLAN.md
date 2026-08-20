@@ -74,7 +74,7 @@ These are not hypothetical — each one has already cost a pass in this tree.
 
 Behaviour parity, not transliteration. Zenyte is an OO server with
 `WorldTask`s, per-npc classes and a combat-script registry; this tree is
-RuneScript over the mock230 engine with `[ai_timer]`, `[ai_queue]`,
+RuneScript over the ToriRSServer engine with `[ai_timer]`, `[ai_queue]`,
 `[ai_opplayer2]` and instance registers. The deliverable per encounter is:
 
 - the same **tick schedule** (first attack tick, period, transition delays),
@@ -522,7 +522,7 @@ Two assertions worth adding globally, learned from the ToB:
 | R3 | Absolute coordinates surviving the port | Grep each new file for `~cox_coord` and template-absolute literals; the room-local helpers are `~cox_room_origin_of`, `~cox_room_local`, `~cox_here_local`. |
 | R4 | Zenyte's self-contradicting projectile timing | Cross-check arrival against the wiki hit-delay table or a measurement. |
 | R5 | Trace-varp collisions as more encounters tick | Private channel per encounter, allocated as part of each pass. |
-| R6 | `MOCK230_MAPINSTANCE_VARS` exhaustion | The ToB already hit this at 64 and it was raised to 128. Fifteen CoX rooms with private registers will approach it — budget register ranges per room *before* stage B, not during. |
+| R6 | `TORIRSSERVER_MAPINSTANCE_VARS` exhaustion | The ToB already hit this at 64 and it was raised to 128. Fifteen CoX rooms with private registers will approach it — budget register ranges per room *before* stage B, not during. |
 | R7 | Engine gaps surfacing mid-pass (as four did during the ToB) | Expect them. An engine fix is in scope for a pass; work around it only with a written reason. |
 | R8 | "None of this has been played" (§13.5) | Stage F's floor progression makes a clearable raid possible; schedule one full manual clear before declaring the port done. |
 
@@ -619,10 +619,10 @@ citation should not be read as live.
 ### 10.5 The harness was reporting false passes
 
 Mutating `^cox_points_per_damage` from 5 to 7 — the exact mutation whose escape
-is documented in `mock230_world.c` beside the `::coxrun` check — left
+is documented in `torirs_server_world.c` beside the `::coxrun` check — left
 `tools/cox_verify.sh` **green**. So did collapsing a spawn table.
 
-The cause was not in the checks. `mock230 --selftest` was segfaulting in the
+The cause was not in the checks. `ToriRSServer --selftest` was segfaulting in the
 collision section hundreds of lines earlier, because a fresh worktree has no
 `cache.osrs239` (an untracked artifact at the repo root). No scene loaded, so
 nothing CoX ever executed — and `cox_verify.sh`'s only test was that no CoX
@@ -630,7 +630,7 @@ failure line appeared in the log. None had.
 
 "Passed" and "never ran" have to be distinguishable:
 
-- the selftest now prints `mock230 selftest: Chambers of Xeric` before the
+- the selftest now prints `ToriRSServer selftest: Chambers of Xeric` before the
   block, the way every other section already announces itself;
 - `cox_verify.sh` requires that marker and refuses to report a result without
   it, printing the tail of the run instead;
@@ -668,8 +668,8 @@ Check 40 is the one that would have caught the bug this pass exists to fix.
    in §1's table. This pass moved the monsters; it did not port `processNPC`.
 3. Stage A's remaining items: `CombatPointCapCalculator` (per-room point caps),
    `RoomController`'s lifecycle seam, and `FloorEdgeRoom` / floor progression.
-4. The 77 non-CoX failures in `mock230 --selftest` on this branch. They are the
-   *absence* of another session's uncommitted `src/world` and `src/net/mock`
+4. The 77 non-CoX failures in `ToriRSServer --selftest` on this branch. They are the
+   *absence* of another session's uncommitted `src/world` and `src/torirsserver`
    work rather than a regression from this pass — the worktree branched from
    HEAD — but that has not been A/B'd against the shared checkout.
 
@@ -696,7 +696,7 @@ scaling, room-level state machines — on top of that geometry.
 | Tekton | **NEEDS ATTENTION** | #132–142 | not obtained this session (§11.10) |
 
 94 new `::coxrun` gates (48 → 142), every one but tekton's mutation-proved
-against a real `mock230 --selftest` run: broken, confirmed red at its own
+against a real `ToriRSServer --selftest` run: broken, confirmed red at its own
 check number, restored, reconfirmed green.
 
 ### 11.1 The finding that shaped the pass
@@ -751,7 +751,7 @@ out of scope room-by-room and is flagged here instead of anywhere partial.
 | S2 | `maxrange` 32 (`RaidNPC`'s own default) | NR `ScavengerBeast` overrides it to 4 | `cox.npc` |
 | S3 | No xp modifier | NR's 10% xp is `param=combat_xp_multiplier,100` — confirmed live that `combat.rs2` reads this param in thousandths (1000 = 100%), so 100 is correct, not a typo for 1000 | `cox.npc` |
 | S4 | `^cox_scav_small_count` / `^cox_scav_large_count`, a size split | NR's table has no size split at all | `cox.constant` |
-| S5 | `respawnrate` assumed sufficient | Dead weight on any npc this package `npc_add`s — `mock230_world.c`'s own selftest asserts a killed `npc_add` npc stays dead. A queued respawn is the real primitive | `cox_scavengers.rs2` |
+| S5 | `respawnrate` assumed sufficient | Dead weight on any npc this package `npc_add`s — `torirs_server_world.c`'s own selftest asserts a killed `npc_add` npc stays dead. A queued respawn is the real primitive | `cox_scavengers.rs2` |
 | S6 | Large-room shortcut blocking-object tiles unsurveyed | Surveyed live with `tools/cox_nr_locs.py` against NR's `LargeScavengerRoom.blockingObjectTiles` | `cox.constant` |
 
 **Built:** `~cox_scavenger_count` (NR's 8-bracket party table, shared by both
@@ -791,7 +791,7 @@ codes exist and scavengers were never in that harness's scope.
 | G4 | No flinch | Halves the attack countdown once per attackrate window, via a new per-npc var slot | `cox_guardians.rs2`, `cox.constant` |
 | G5 | No pushback | Movement, 15–30 damage, 40 points, flavour attack anims, reading Pass 1's previously-unused blocked-tile/push-tile data | `cox_guardians.rs2`, `cox.constant` |
 
-Correction G2 was found by reading the mock230 C engine directly: `huntall`/
+Correction G2 was found by reading the ToriRSServer C engine directly: `huntall`/
 `huntnext` repoint the same "active player" `queue*()` depends on, so the
 adjacency scan has to be followed by a re-hunt on the captured target tile
 before dispatch — an active-player VM-pointer hazard, not just a logic gap.
@@ -988,7 +988,7 @@ limitation shared with `cox_guardians.rs2`, out of scope to fix here.
 | VA5 | Corner draw could repeat within one special | Draws each corner without replacement via four boolean flags (no bitwise opcodes in this dialect), reset only on a fresh special | `cox_vasa.rs2` |
 | VA6 | Unconditional `[ai_opplayer2]` attack block | Unconditional-every-tick stomp + walk-gated (not attack-gated) spark hazard | `cox_vasa.rs2` |
 | VA7 | No ranged-immune/magic-multiplier on the crystal | Added via the shared `player_hit_npc_prepare` funnel, plus accuracy-side stab/slash/crush defence params | `rs2012_td_player_hit.rs2`, `cox.npc` |
-| VA8 | Dossier proposed an `hitpoints=0` poll for death cleanup | Wired instead to `[ai_queue3,raids_vasanistirio_*]`, this engine's real death trigger — confirmed in `mock230_world.c`, already used by this file's own crystal-kill handler and by `cox_tekton.rs2`/`cox_vanguards.rs2` — a deliberate, evidenced deviation | `cox_vasa.rs2` |
+| VA8 | Dossier proposed an `hitpoints=0` poll for death cleanup | Wired instead to `[ai_queue3,raids_vasanistirio_*]`, this engine's real death trigger — confirmed in `torirs_server_world.c`, already used by this file's own crystal-kill handler and by `cox_tekton.rs2`/`cox_vanguards.rs2` — a deliberate, evidenced deviation | `cox_vasa.rs2` |
 | VA9 | Walking-form timer armed at a 10-tick interval | Moved to 1-tick (regen rerouted through `~cox_regen_counted`) — the special's sub-tick table and the stomp/spark cadences need per-tick granularity a 10-tick timer cannot give | `cox_vasa.rs2` |
 
 **Built:** every `[ai_timer]`/`[ai_queue3]` body extracted into a named
@@ -997,8 +997,8 @@ copy of it; hitbox/gating checks split into pure predicates so no gate risks
 damaging the live selftest player.
 
 **Gates #108–118** (11), all mutation-proved against a genuinely running
-`mock230 --selftest` (not just a compile check). Getting there cost real
-time: `MOCK230_SCRIPTS`/`MOCK230_CONTENT` are not honored by the general
+`ToriRSServer --selftest` (not just a compile check). Getting there cost real
+time: `TORIRSSERVER_SCRIPTS`/`TORIRSSERVER_CONTENT` are not honored by the general
 selftest path (only one GWD-specific branch reads them) — mutations had to
 be recompiled into the live tree's actual `server/scripts/build`.
 

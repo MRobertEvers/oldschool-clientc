@@ -65,7 +65,7 @@ audit:
 |---|---|
 | #37 tagged **`LC`** (LostCity is the reference) | LostCity has **no tiara logic and no pure-essence logic anywhere** in `content/scripts/`. Both must come from the wiki. Retag `wiki+cache`. |
 | #37 "tiara enter path partially live" | The `[oploc1,_rc_ruins]` handler exists, but `airtemple_ruined_old` carries **no ops at all** (`all.loc:321449`) and the multiloc only flips to `airtemple_ruined_new` (`op1=Enter`, `all.loc:323363`) when varbit `rc_no_tally_required_air` is set. Nothing writes those varbits. The path is unreachable, not partial. |
-| "int `loc_param` blocked" (`runecraft.loc` header, `runecraft.rs2:9-14`) | **Unblocked as of 2026-08-15** — `mock230_content.c:2622-2635` resolves param value types from `fields/loc.ini`'s `ref`, and its header names `param=rune_type,7` as the exact motivating case. `rune_type` is *already allocated* at `pack/param.alloc:62` (id 2679). |
+| "int `loc_param` blocked" (`runecraft.loc` header, `runecraft.rs2:9-14`) | **Unblocked as of 2026-08-15** — `torirs_server_content.c:2622-2635` resolves param value types from `fields/loc.ini`'s `ref`, and its header names `param=rune_type,7` as the exact motivating case. `rune_type` is *already allocated* at `pack/param.alloc:62` (id 2679). |
 | Rune Mysteries / Enter the Abyss "gates" absent | Both quests exist: `quests/quest_runemysteries/` and `quests/quest_entertheabyss/` (252 lines, grants `rcu_pouch_small` + `^eta_rc_xp`). `quest_templeoftheeye/` exists too (grants `rcu_pouch_medium`). **No quest work is needed** — only the mechanics those quests hand out. |
 
 ---
@@ -453,17 +453,17 @@ invariant), the binding necklace's 16-charge crumble (needs 16 simulated
 crafts, higher value than cost here), and the drop-spill behaviour the pouch
 header names as unmodelled (no on-drop opcode exists to test against).
 
-**Executed this session:** `make mock230-scripts` after every slice (0
-errors, final count 19,007 scripts), and a full `mock230-dev` boot against a
-scratch `MOCK230_SAVES` with every config above loaded — no `CONTENT_ERROR`,
+**Executed this session:** `make torirsserver-scripts` after every slice (0
+errors, final count 19,007 scripts), and a full `torirsserver-dev` boot against a
+scratch `TORIRSSERVER_SAVES` with every config above loaded — no `CONTENT_ERROR`,
 confirming the `.dbtable`/`.dbrow`/`.loc`/`.obj`/`.param`/`.varp` files parse
 at runtime, not just at script-compile time.
 
 **Not executed this session, and the natural next step:** actually running
-`::runecraftrun` against a live client connection. `mock230_pack
+`::runecraftrun` against a live client connection. `ToriRSServer_Pack
 --check-only` — the other standard gate — has a pre-existing, unrelated link
-gap (`MOCK230_PACK_SRCS` in `src/makefile` is missing `mock230_scene.c`/
-`mock230_bank.c`/`mock230_shop.c`, so the standalone checker binary won't
+gap (`TORIRSSERVER_PACK_SRCS` in `src/makefile` is missing `torirs_server_scene.c`/
+`torirs_server_bank.c`/`torirs_server_shop.c`, so the standalone checker binary won't
 link) that blocks that specific command; it predates this plan and is out of
 scope for a content-only skill slice. Firing the debug command itself needs
 either a real client connection or a generic debugproc-invoking test harness,
@@ -471,4 +471,4 @@ which does not exist yet (`embed_test.c` runs one fixed scenario, not
 arbitrary commands) — building one is its own piece of work, not a to-do
 folded into this plan.
 
-Pack check after every slice: `mock230_pack` must stay at **0 errors**.
+Pack check after every slice: `ToriRSServer_Pack` must stay at **0 errors**.

@@ -89,7 +89,7 @@ static const struct ContentNamespace k_defaults[] = {
      * encoders exist (`RSCache_Dat2ConfigDbTableEncode`, held to byte-identity
      * against every record in the cache; `CP_TYPE_NO_ENCODER` is not set on either
      * type), and a cache encoder was never what a server table needed anyway —
-     * `mock230_db.c` parses the server's own `.dbtable`/`.dbrow` text and never goes
+     * `torirs_server_db.c` parses the server's own `.dbtable`/`.dbrow` text and never goes
      * near the cache, which is how `coord_pair_table` (259) and `combat_style_table`
      * (260) came to exist. `ss_allocate.py` had both in DEFAULT_SERVER_NAMESPACES the
      * whole time, so the allocation worked and the two authorities disagreed in
@@ -102,7 +102,7 @@ static const struct ContentNamespace k_defaults[] = {
      * of growth; dbrow 65536 likewise, and a nonzero base finally brings dbrow
      * under `validate_id_bases`. Width caps, verified before choosing: the
      * server VM unpacks a column ref as `(packed >> 12) & 0xffff`
-     * (mock230_ops_db.c), so a table id caps at 65,535; the client host allows
+     * (torirs_server_ops_db.c), so a table id caps at 65,535; the client host allows
      * 20 bits; the compiler packs `(table << 12) | (column << 4)` into int32 —
      * 2048 is far inside every one. A dbrow id is only ever a plain int value.
      */
@@ -149,16 +149,16 @@ static const struct ContentNamespace k_defaults[] = {
      * the header describes beside `param`'s 2634, and the one where the round
      * number was not merely cosmetic but out of bounds.
      *
-     * Two independent facts fix it at `MOCK230_VARP_CACHE_MAX`:
+     * Two independent facts fix it at `TORIRSSERVER_VARP_CACHE_MAX`:
      *
      *   - nineteen server varps already sit at 5705..5723 (`%com_*`, the combat
      *     stat block `[proc,player_combat_stat]` computes, plus `%damagestyle`,
      *     `%prayer_drain_*`, `%newplayer_seeded`). They were allocated off the
      *     high-water mark, which is what docs/CONTENT_ARCHITECTURE.md §8.5 records
      *     as the correct result. A floor of 8000 says those nineteen are not ours.
-     *   - `MOCK230_VARP_COUNT` is `MOCK230_VARP_CACHE_MAX + 512` = 6217, so a varp
-     *     allocated *at* 8000 is past the end of `Mock230Player.varps` and
-     *     `mock230_world_set_varp`'s bounds check drops the write and returns —
+     *   - `TORIRSSERVER_VARP_COUNT` is `TORIRSSERVER_VARP_CACHE_MAX + 512` = 6217, so a varp
+     *     allocated *at* 8000 is past the end of `ToriRSServerPlayer.varps` and
+     *     `ToriRSServer_WorldSetVarp`'s bounds check drops the write and returns —
      *     §8.3's named failure mode, silently, on the first server varp allocated
      *     after the floor started being honoured.
      *
@@ -178,7 +178,7 @@ static const struct ContentNamespace k_defaults[] = {
      * cannot show because it is an export of the varp group alone. Both directions
      * corrupt: `~player_combat_stat` writing a whole 32-bit stat destroys fifteen
      * varbits under `%com_slashattack`, and their owner writes the stat back. It
-     * surfaced as the whole-varp complaints out of `mock230_world.c`, which read
+     * surfaced as the whole-varp complaints out of `torirs_server_world.c`, which read
      * as content writing the wrong thing when content was writing the wrong *id*.
      * The twenty moved to 6280..6299; `validate_id_bases` now takes the varbit
      * basevars into account so a cache that reaches further says so at boot.
@@ -189,7 +189,7 @@ static const struct ContentNamespace k_defaults[] = {
     /*
      * Per-NPC variables. Like vars below, this is a wholly authored namespace:
      * the cache has no config group or gameval archive for it. The id is an
-     * index into Mock230Npc.script_vars, and pack/varn.alloc is its complete
+     * index into ToriRSServerNpc.script_vars, and pack/varn.alloc is its complete
      * name table.
      */
     { "varn",                  CONTENT_NAMES_AUTHORED, 1,  -1,      0,  -1 },

@@ -567,8 +567,8 @@ independently, and keep Another Slice policy in RuneScript/config data.
   route;
 - assert both railway doorway maplinks resolve and round-trip;
 - assert journal, dbrow end state, completion registry, and cheat adapter agree;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

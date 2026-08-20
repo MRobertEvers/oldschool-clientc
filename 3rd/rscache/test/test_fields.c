@@ -1,9 +1,9 @@
 /*
  * The field register as the *writer* reads it, held to the file it came from.
  *
- * `src/net/mock/test/mock230_servercodec_test.c` does this at the reading end: it
+ * `src/torirsserver/test/torirs_server_servercodec_test.c` does this at the reading end: it
  * parses `fields/npc.ini` with a small parser of its own and holds
- * `mock230_servercodec.c`'s C table to it, name by name. This is the same check at
+ * `torirs_server_servercodec.c`'s C table to it, name by name. This is the same check at
  * the writing end, and the pair is the only thing standing between the two.
  *
  * The failure it exists for has no error attached. If the writer thinks
@@ -232,7 +232,7 @@ struct Decoded
 };
 
 /**
- * `mock230_servercodec.c`'s decode loop, rewritten from its description.
+ * `torirs_server_servercodec.c`'s decode loop, rewritten from its description.
  *
  * Not linked from there: cachepack deliberately links nothing from `src/`, and a
  * test that imported the reader would also import whatever the reader gets wrong.

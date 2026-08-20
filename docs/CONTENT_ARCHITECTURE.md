@@ -4,7 +4,7 @@ Two lines of work landed in `OSRS-Content/osrs239-content/` from opposite ends:
 
 - **`cachepack`** (`3rd/rscache/tools/cachepack/`) turns a cache into an editable
   tree and back. It owns `pack/`, `configs/`, and the asset directories.
-- **The mock server** (`src/net/mock/`, `src/serverscript/`) reads a LostCity
+- **The mock server** (`src/torirsserver/`, `src/serverscript/`) reads a LostCity
   content tree. It owns `server/pack/` and `server/scripts/`.
 
 They now share one directory and one id namespace, and nothing states the
@@ -169,7 +169,7 @@ PACK_FOR_NAMESPACE = { "npcs": "npc", "items": "obj", "objects": "loc",
 and `the cache's own gameval table` currently requests eight of them — 39 `npcs`,
 36 `items`, 12 `objects`, 23 `sequences`, 21 `varbits`, 11 `varp`, 34
 `interfaces`, 116 `components`. So the documented command in
-`docs/mock230_content.md` §5:
+`docs/torirs_server_content.md` §5:
 
 ```sh
 the cache's own gameval table --names the cache's own gameval table \
@@ -196,7 +196,7 @@ after:  0 comment lines, 2634 total
 ```
 
 The names survived (preserve-existing works). The *evidence for the names* —
-which is the whole reason `docs/mock230_content.md` §4 can be trusted — did not.
+which is the whole reason `docs/torirs_server_content.md` §4 can be trusted — did not.
 `param.pack`'s header is the single most load-bearing comment in the tree: it is
 the record of which param-id claims were checked against a cache and how.
 
@@ -221,7 +221,7 @@ afterward.
 
 `cache.osrs239` has **2,634 param records covering ids 0–2633**. Every server id
 — 2000–2008 and 2100–2105 — was a param the cache already defines. `param 2100`,
-which `mock230_pack --cache-out` (the since-deleted baker) wrote `hitpoints`
+which `ToriRSServer_Pack --cache-out` (the since-deleted baker) wrote `hitpoints`
 into, exists.
 
 The practical blast radius is small (the derived cache is consumed by our own
@@ -236,7 +236,7 @@ and cannot make this mistake.
 |---|---|---|---|
 | `cachepack` | `<src>/pack/*.pack` | `cp_names_load`, one per registered type/asset | 20 types + assets; **cannot see `server/pack/`** |
 | `sscompile` | `--pack DIR` (repeatable) | `SSC_SymbolsLoadPackDir` + `kind_for_pack()` filename table | 21 filenames |
-| `mock230` | hardcoded `k_packs[]` | `mock230_content.c` | **14 files, 13 kinds** |
+| `ToriRSServer` | hardcoded `k_packs[]` | `torirs_server_content.c` | **14 files, 13 kinds** |
 
 `server/pack/category.pack` is loaded by the compiler and not by the runtime.
 That is currently harmless — a category id is baked into bytecode at compile
@@ -249,16 +249,16 @@ three edits in two languages plus, sometimes, `gameval_import.names`.
 For npc 3028 there is:
 
 1. the bytes in `cache.osrs239` — what the client reads, and what
-   `mock230_npcinfo.c` decodes at boot for combat params and wear positions;
+   `torirs_server_npcinfo.c` decodes at boot for combat params and wear positions;
 2. `configs/all.npc`'s `[goblin]` block — 8.6 MB of cachepack text that **no
    runtime reads**; its only consumer is `cachepack pack`;
 3. `server/scripts/areas/lumbridge/configs/lumbridge.npc`'s `[goblin]` overlay —
-   a different key set in a different grammar, read by `mock230_content.c`.
+   a different key set in a different grammar, read by `torirs_server_content.c`.
 
 Two independent paths wrote a derived cache — `cachepack pack` (from 2) and
-`mock230_pack --cache-out` (from 1 + 3) — **and they did not compose**. You could
+`ToriRSServer_Pack --cache-out` (from 1 + 3) — **and they did not compose**. You could
 not `cachepack pack` a tree whose npc overlays live in `server/`, and
-`mock230_pack --cache-out` re-implemented record encoding for the two field
+`ToriRSServer_Pack --cache-out` re-implemented record encoding for the two field
 families it knew about. This was the deepest of the five, and it is exactly what
 LostCity's two-encoder design exists to prevent. (Resolved: `--cache-out` is
 deleted and `cachepack pack` is the one baker — §3.5's fix, landed.)
@@ -355,7 +355,7 @@ Three consumers, one table:
 - `cachepack` reads it to know which packs it may rewrite. It already links
   `3rd/ini`. It must refuse to write any pack whose `names` is not `cache`.
 - `sscompile` reads it instead of the `kind_for_pack()` filename table.
-- `mock230` reads it instead of `k_packs[]`.
+- `ToriRSServer` reads it instead of `k_packs[]`.
 
 Adding a namespace becomes one `[namespace:*]` block. That is the "future proof
 for new server features" requirement, discharged.
@@ -386,7 +386,7 @@ The merged record then feeds two encoders, LostCity's `{client, server}`:
 
 Three things fall out:
 
-1. `mock230_pack --cache-out` **disappears** (done — deleted, the tool
+1. `ToriRSServer_Pack --cache-out` **disappears** (done — deleted, the tool
    validates only). `bake_npc_params()` and `bake_loc_params()` were ~100
    lines re-deriving what the register now states, and their `BakedParam`
    table became the `client =` column.
@@ -397,7 +397,7 @@ Three things fall out:
    introduced is a `cachepack` decoder change plus a register row with
    `scope=client`. Neither touches C control flow.
 
-`mock230_content.c`'s per-key `strcmp` ladders and its "accepted and ignored"
+`torirs_server_content.c`'s per-key `strcmp` ladders and its "accepted and ignored"
 behaviour both become table lookups against the register — and "ignored" becomes
 "declared `scope=client`, so the overlay is patching the cache", which is a
 different and much more interesting thing to report.
@@ -423,7 +423,7 @@ This is the one place the current tree guessed, and §3.3 is what the guess cost
 
 1,877 changed npcs is noise. The six that a `.rs2` or an overlay names is the
 work. Compute the **symbol closure of `server/`** — every name referenced by any
-script, overlay, `.enum`, or the engine's own `mock230_ids.h` table — and
+script, overlay, `.enum`, or the engine's own `torirs_server_ids.h` table — and
 intersect it with the diff:
 
 ```ini
@@ -448,8 +448,8 @@ guard1 = 3254 ; name=Guard   combatlevel=21 size=1 param[14]=4
 ```
 
 Every symbol `server/` references, pinned to its id plus a fingerprint of the
-cache fields the server depends on. `mock230_pack` regenerates and diffs it;
-a mismatch is a non-zero exit. `test-mock230` already pins resolved ids to the
+cache fields the server depends on. `ToriRSServer_Pack` regenerates and diffs it;
+a mismatch is a non-zero exit. `test-ToriRSServer` already pins resolved ids to the
 numbers they had as `#define`s — this generalises that from a dozen ids in C to
 the whole referenced surface in content, which is where it belongs and where a
 cache bump can actually see it.
@@ -469,17 +469,17 @@ cachepack unpack --cache cache.osrsNEW --rev osrsNEW \
 $EDITOR OSRS-Content/osrs239-content/configs/_unpack/osrsNEW/report.ini
 
 # 3. gate
-make -C src mock230-pack && src/build/mock230_pack --cache cache.osrsNEW \
+make -C src torirsserver-pack && src/build/ToriRSServer_Pack --cache cache.osrsNEW \
   --content OSRS-Content/osrs239-content       # pins + symbol closure + overlays
-make -C src mock230-scripts test-mock230
+make -C src torirsserver-scripts test-ToriRSServer
 
 # 4. emit — one packer, overlays included, no second bake step
 cachepack pack --src OSRS-Content/osrs239-content --base cache.osrsNEW \
   --out /tmp/cache.patched --assets
 ```
 
-Step 4 replacing `mock230_pack --cache-out` is the visible sign that §3.5 is
-fixed — and it has: `--cache-out` is deleted, `mock230_pack` validates only.
+Step 4 replacing `ToriRSServer_Pack --cache-out` is the visible sign that §3.5 is
+fixed — and it has: `--cache-out` is deleted, `ToriRSServer_Pack` validates only.
 
 ---
 
@@ -492,10 +492,10 @@ Staged so each step is independently testable and none is a flag day.
 | 1 | ~~`names/` layer~~ — **done for the runtime and the compiler**; see §6.1 below. `cachepack`'s `cp_names_load` still does not read layer 1, and the 34 interface lines + `param.pack` header have not moved yet. | all three loaders | §3.1 §3.2 — makes `pack/` disposable |
 | 2 | `content.ini` register; delete `k_packs[]` and `kind_for_pack()`. | same three | §3.4 |
 | 3 | Teach `gameval_import.py` to write `names/`, merge rather than truncate, and refuse to write `pack/`. | one script | the live landmine in §3.1 |
-| 4 | Server id allocator off layer-0 `max`; renumber the 2000-block params. | `names/param.pack`, `mock230_pack` | §3.3 |
-| 5 | Field register + `{client, server}` encoders; overlays become config layer 1. | `mock230_content.c`, `cp_pack.c` | §3.5 |
-| 6 | `report.ini` + `names/pins.ini` + the symbol closure in `mock230_pack`. | `cp_unpack.c`, `mock230_pack.c` | §5 |
-| 7 | Retire `mock230_pack --cache-out`; `cachepack pack` covers it. | done — ~500 lines deleted, validator kept | — |
+| 4 | Server id allocator off layer-0 `max`; renumber the 2000-block params. | `names/param.pack`, `ToriRSServer_Pack` | §3.3 |
+| 5 | Field register + `{client, server}` encoders; overlays become config layer 1. | `torirs_server_content.c`, `cp_pack.c` | §3.5 |
+| 6 | `report.ini` + `names/pins.ini` + the symbol closure in `ToriRSServer_Pack`. | `cp_unpack.c`, `torirs_server_pack.c` | §5 |
+| 7 | Retire `ToriRSServer_Pack --cache-out`; `cachepack pack` covers it. | done — ~500 lines deleted, validator kept | — |
 
 Steps 1–3 are mechanical and remove the two ways the tree can currently be
 corrupted by running a documented command. Steps 5 and 7 are the real
@@ -503,7 +503,7 @@ architectural change and depend on 1–4.
 
 `src/content/` is the natural home for the merged loader (steps 1, 2, 5) —
 today the same job is done twice, in `src/serverscript/ssc_symbols.c` and
-`src/net/mock/mock230_content.c`. `cachepack` stays independent of `src/`
+`src/torirsserver/torirs_server_content.c`. `cachepack` stays independent of `src/`
 because it is a vendored-library tool; `content.ini` is the contract between the
 two repos, and a small ini parser is already vendored at `3rd/ini`.
 
@@ -522,14 +522,14 @@ two repos, and a small ini parser is already vendored at `3rd/ini`.
   the cache" stays true by construction. The field register lives at the tree
   root, not under `server/`, precisely so this holds.
 - **Arithmetic stays in C.** The `+8` in the effective-level formula is the
-  formula, not a tunable. `docs/mock230_content.md` §2's three-way split —
+  formula, not a tunable. `docs/torirs_server_content.md` §2's three-way split —
   storage ceilings, protocol encodings, arithmetic — is unchanged.
 
 ---
 
 ## 6.1 Step 1, as landed — and the bug it found
 
-The `names/` layer is live in `mock230_content.c` (runtime) and, via
+The `names/` layer is live in `torirs_server_content.c` (runtime) and, via
 `--pack names`, in `sscompile`. `PackEntry` carries a `layer`, both layers
 resolve `name -> id` with authored first, layer 1 wins `id -> name`, and
 `validate_name_layers()` enforces the two rules from §4.1. The tree now has:
@@ -572,11 +572,11 @@ setting the content wrote compiled to a whole-varp write:
 So opening the bank reset the current tab, toggling insert mode discarded the
 pending quantity, and the quantity buttons did not change the quantity. All
 three shipped, and none of them is visible in a passing test: the bank
-selftests exercise `mock230_bank_handle_button` (the C fallback), while the
+selftests exercise `ToriRSServer_BankHandleButton` (the C fallback), while the
 script claims the trigger first at runtime.
 
 Removing the four aliases repoints every one at its varbit, which patches its own
-bit range. `test-mock230` now asserts the tree loads with zero content errors and
+bit range. `test-ToriRSServer` now asserts the tree loads with zero content errors and
 that those three names resolve as varbits and *not* as varps, so the aliases
 cannot come back quietly.
 
@@ -597,7 +597,7 @@ the cache's own gameval table now:
   everything else in the file — prose, hand-authored aliases — is copied through.
   Verified idempotent: two runs produce a byte-identical file.
 
-The documented command in `docs/mock230_content.md` §5 pointed at `pack/` and
+The documented command in `docs/torirs_server_content.md` §5 pointed at `pack/` and
 opened every output `"w"`, so running it truncated `configs/all.npc.compack` from 16,292
 lines to 39. That is now impossible rather than merely discouraged.
 
@@ -639,7 +639,7 @@ Both consumers in `src/` now use it:
 
 | was | now |
 |---|---|
-| `mock230_content.c` `k_namespaces[]`, 13 rows | register, plus a namespace→`Mock230PackKind` map |
+| `torirs_server_content.c` `k_namespaces[]`, 13 rows | register, plus a namespace→`ToriRSServerPackKind` map |
 | `ssc_symbols.c` `kind_for_pack()`, 21 filenames | register, plus a namespace→`SSC_SymbolKind` map |
 
 The residual per-consumer map is deliberate and small: the register says which
@@ -743,7 +743,7 @@ was that case. All eleven are gone; the file has no `// cache:` note left.
 The mechanism first, because it is the part that reads backwards. A pack line is
 `names[id]`, so an authored name does not *add* a spelling — it **replaces** the
 cache's. `843=varp_weapon_category` did not mean 843 answered to both names. It
-meant `randomhitsound` answered to nothing, and `mock230 --selftest` had a check
+meant `randomhitsound` answered to nothing, and `ToriRSServer --selftest` had a check
 asserting the cache name still resolved that had simply been failing.
 
 **Eight were relabelling, not repurposing.** 843, 867, 1052, 1053, 1105, 1666,
@@ -828,7 +828,7 @@ client-side files.* Four leaks, each now closed, each with a gate behind it:
    pristine + tree). The **one-cache rule** replaces it: the world reads the
    same directory JS5 serves, default pristine; a bake is only for
    client-visible edits, and then both point at it together
-   (`MOCK230_CACHE_DIR_DEFAULT`, `run-osrs239.sh`).
+   (`TORIRSSERVER_CACHE_DIR_DEFAULT`, `run-osrs239.sh`).
 
 Server db ids also moved off the high-water mark (dbtable 2048+, dbrow 65536+,
 `content_register.c`) — future caches are patched in manually, and a base at
@@ -844,9 +844,9 @@ The pure server loop is now:
 
 ```sh
 $EDITOR server/scripts/...           # scripts, db tables, params, varps
-make -C src mock230-scripts          # ss_allocate (writes pack/<ns>.alloc) + sscompile
-make -C src mock230-servpack         # the band; opens no cache
-src/build/mock230 <port>             # boots from the pristine cache + tree + band
+make -C src torirsserver-scripts          # ss_allocate (writes pack/<ns>.alloc) + sscompile
+make -C src torirsserver-servpack         # the band; opens no cache
+src/build/torirsserver <port>             # boots from the pristine cache + tree + band
 ```
 
 —and `git status` on the client-side files stays clean, which is the sentence
@@ -879,7 +879,7 @@ Each of these shipped, and each looked reasonable at the time. The first three
 are engine code that should have been content; (d) and (e) are the two ways a
 port goes wrong *after* the rule has moved.
 
-**(a) A string literal in C is a rule in the engine.** `mock230_combat.c` held
+**(a) A string literal in C is a rule in the engine.** `torirs_server_combat.c` held
 `"You feel yourself getting stronger."` and the seq name `human_sword_slash`.
 Neither is a mechanism — one is copy, one is a per-weapon data lookup — and both
 meant a server operator could not change a word without a compiler. They are now
@@ -927,17 +927,17 @@ itself worked perfectly. What was missing was the assertion that a death *ends*.
 When a port hands something back to the engine, name it in a test the same day.
 
 **(e) Naming the constant you are duplicating does not stop it being a
-duplicate.** `MOCK230_LOOT_TICKS = 200` carried the comment "LostCity's
+duplicate.** `TORIRSSERVER_LOOT_TICKS = 200` carried the comment "LostCity's
 `^lootdrop_duration`" while `drop_tables/configs/lootdrop.constant` stated
 `^lootdrop_duration = 200` three directories away. Content set the number for
 every script that dropped loot and the engine used its own copy for every drop it
 made itself, and the two agreed only because nobody had edited either. A comment
 citing the content value is evidence the value belongs in content — read it as a
-TODO, not as a justification. `mock230_ids()` resolves it now, beside the other
+TODO, not as a justification. `ToriRSServer_Ids()` resolves it now, beside the other
 `.constant` reads.
 
 **(f) A table of words is content even when it looks like a lookup.**
-`mock230_equipment.c` held all 23 skill names — `"Attack", "Defence", …` — under
+`torirs_server_equipment.c` held all 23 skill names — `"Attack", "Defence", …` — under
 a comment explaining that only the *name* was needed and the ids still came from
 `pack/stat.pack`. That reads as a technicality and is (a): a game-facing string in
 C, twenty-three of them, so no tree could rename or translate a skill without a
@@ -957,11 +957,11 @@ A server-allocated id is a real id in the client's number space, so:
   id 5705; transmitting one tells it about a variable it cannot have. Server
   varps are *server state* — which is precisely what the reference uses them for
   (`%com_stabattack` and the rest of the `%com_*` block are never sent).
-- **Sizing.** `MOCK230_VARP_COUNT` was 5000 while the cache's highest varp id is
+- **Sizing.** `TORIRSSERVER_VARP_COUNT` was 5000 while the cache's highest varp id is
   5704, so every varp from 5000 up was silently dropped:
-  `mock230_world_set_varp` bounds-checks and returns, so the write *looked* like
+  `ToriRSServer_WorldSetVarp` bounds-checks and returns, so the write *looked* like
   it worked and transmitted nothing. The bound is now
-  `MOCK230_VARP_CACHE_MAX (5705) + MOCK230_VARP_SERVER_HEADROOM (512)`.
+  `TORIRSSERVER_VARP_CACHE_MAX (5705) + TORIRSSERVER_VARP_SERVER_HEADROOM (512)`.
   Any table sized against a namespace the server can now allocate into needs the
   same headroom, and a silent bounds-check return is the failure mode to look for.
 
@@ -1004,7 +1004,7 @@ for five namespaces. What the union adds is that a namespace the tree promotes
 is swept without anyone remembering to edit the tool.
 
 Verified end to end. `varp` now appears in the sweep at `base_was=5705`, and a
-probe block allocated `5705=__alloc_probe` — exactly `MOCK230_VARP_CACHE_MAX`,
+probe block allocated `5705=__alloc_probe` — exactly `TORIRSSERVER_VARP_CACHE_MAX`,
 because the high-water rule already lands one past layer 0's maximum of 5704
 with no floor needed. Probe reverted; `--check` is clean.
 
@@ -1016,11 +1016,11 @@ This was the prerequisite for the `%com_*` port
 Ten call sites used to spell a script's name as a C string literal:
 
 ```
-mock230_combat.c      [proc,combat_levelup_message]  [proc,combat_defend_anim]
+torirs_server_combat.c      [proc,combat_levelup_message]  [proc,combat_defend_anim]
                       [proc,player_melee_swing]      [proc,npc_meleeattack]
                       [queue,player_death]
-mock230_equipment.c   [proc,equipment_refresh]       [proc,equipment_open]
-mock230_world.c       [proc,combat_weapon_type]
+torirs_server_equipment.c   [proc,equipment_refresh]       [proc,equipment_open]
+torirs_server_world.c       [proc,combat_weapon_type]
 ```
 
 They accumulated one at a time, each as the last line of a port that had just
@@ -1030,7 +1030,7 @@ for a settled convention.** The whole point of §8 is that the engine does not
 author content; a name is content's identifier, and the engine spelling one is
 the same category of mistake as the engine spelling an anim id.
 
-**The default is a trigger, not a name.** `mock230_scripts_run_trigger` already
+**The default is a trigger, not a name.** `ToriRSServer_ScriptsRunTrigger` already
 dispatches `[login,_]`, `[opnpc1..5,<npc>]`, `[ai_queue3,<npc>]` and the npc
 timers with no name in C at all: the engine names an *event* and content names
 itself, resolved through the provider's trigger table exactly as the reference
@@ -1040,17 +1040,17 @@ usually a missing trigger rather than a necessary literal.
 
 **Where the reference genuinely calls a named proc** (`[proc,npc_meleeattack]`
 is one — content calls it too), the name is still content's, so it belongs in
-one table resolved at boot, beside `mock230_ids`. That file already states the
+one table resolved at boot, beside `ToriRSServer_Ids`. That file already states the
 rule for ids: *"the index files state the ids, the table below names the ones the
-engine needs, and `mock230_ids_resolve` fills it in once. Nothing downstream
+engine needs, and `ToriRSServer_IdsResolve` fills it in once. Nothing downstream
 holds a literal."* Script hooks are the same problem and want the same answer —
-`struct Mock230SymbolRef` is the shape, and a missing hook then fails at boot
+`struct ToriRSServerSymbolRef` is the shape, and a missing hook then fails at boot
 with every other unresolved symbol.
 
 **Why boot-time and not at the call site: absence is silent.** Every one of these
 helpers treats an unknown name as "do nothing", by documented design —
-`mock230_scripts_queue_named`'s header says *"Absent script means do nothing,
-quietly"*, and `mock230_scripts_run_proc*` return 0 the same way. So renaming a
+`ToriRSServer_ScriptsQueueNamed`'s header says *"Absent script means do nothing,
+quietly"*, and `ToriRSServer_ScriptsRunProc*` return 0 the same way. So renaming a
 script does not break the build, does not fail a test that does not exist yet,
 and does not log anything outside `--verbose`: it deletes a feature. The worst
 case in the list above is `[queue,player_death]`, where a typo means a player who
@@ -1059,7 +1059,7 @@ the other direction. Resolving names once, at boot, against the pack turns every
 one of these from a silent no-op into the loud failure a missing interface id
 already gets.
 
-**Landed 2026-08-01, removed 2026-08-03.** The hook table (`struct Mock230Hooks`)
+**Landed 2026-08-01, removed 2026-08-03.** The hook table (`struct ToriRSServerHooks`)
 is gone. Every path that used to go through it now reaches content via a trigger:
 `[advancestat,<stat>]` for level-ups, `[friendlogin,_]` / `[friendlogout,_]` for
 presence notifications, `[ai_opplayer2,<npc>]` for npc swings,
@@ -1070,5 +1070,5 @@ no boot resolution. The `run_hook_sv` / `run_hook_int_sv` / `queue_hook` /
 `run_hook_on_npc` primitives remain as internal helpers used by `run_proc*` and
 `queue_named`, taking an already-resolved pointer from a by-name lookup.
 
-Still by name, and the next thing to move: `mock230_say`'s seventeen message
-procs (`mock230_say(srv, "drop_message", …)`). Same class, and the same fix.
+Still by name, and the next thing to move: `ToriRSServer_Say`'s seventeen message
+procs (`ToriRSServer_Say(srv, "drop_message", …)`). Same class, and the same fix.

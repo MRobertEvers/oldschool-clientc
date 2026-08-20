@@ -14,10 +14,10 @@ def run_phase(server: Path, scripts: Path, cache: Path, saves: Path, phase: str)
     env = os.environ.copy()
     env.update(
         {
-            "MOCK230_CACHE": str(cache.resolve()),
-            "MOCK230_SAVES": str(saves.resolve()),
-            "MOCK230_SCRIPTS": str(scripts.resolve()),
-            "MOCK230_SELFTEST_GWD_RESTART_PHASE": phase,
+            "TORIRSSERVER_CACHE": str(cache.resolve()),
+            "TORIRSSERVER_SAVES": str(saves.resolve()),
+            "TORIRSSERVER_SCRIPTS": str(scripts.resolve()),
+            "TORIRSSERVER_SELFTEST_GWD_RESTART_PHASE": phase,
         }
     )
     result = subprocess.run(
@@ -29,7 +29,7 @@ def run_phase(server: Path, scripts: Path, cache: Path, saves: Path, phase: str)
         stderr=subprocess.STDOUT,
         check=False,
     )
-    marker = f"mock230 God Wars restart {phase}: 0 failure(s)"
+    marker = f"ToriRSServer God Wars restart {phase}: 0 failure(s)"
     if result.returncode != 0 or marker not in result.stdout:
         raise SystemExit(
             f"God Wars restart phase {phase!r} failed\n{result.stdout}"
@@ -39,7 +39,7 @@ def run_phase(server: Path, scripts: Path, cache: Path, saves: Path, phase: str)
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--server", type=Path, default=Path("src/build_opt/mock230"))
+    parser.add_argument("--server", type=Path, default=Path("src/build_opt/torirsserver"))
     parser.add_argument("--scripts", type=Path, required=True)
     parser.add_argument("--cache", type=Path, default=Path("cache.osrs239"))
     args = parser.parse_args()

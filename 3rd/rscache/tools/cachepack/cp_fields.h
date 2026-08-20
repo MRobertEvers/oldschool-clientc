@@ -4,9 +4,9 @@
 /*
  * The tree's field register, `fields/<type>.ini` — the writer's half.
  *
- * `src/net/mock/mock230_servercodec.c` is the *reader*: it holds a C table of
+ * `src/torirsserver/torirs_server_servercodec.c` is the *reader*: it holds a C table of
  * `(opcode, wire, struct offset)` and turns a server-band stream back into a
- * `Mock230NpcDef`. This is the other end of that stream. Both are driven by the
+ * `ToriRSServerNpcDef`. This is the other end of that stream. Both are driven by the
  * same declarations —
  *
  *     [npc.hitpoints]   server = opcode:77:u2
@@ -15,7 +15,7 @@
  * opcode and read under another produces no error anywhere: both streams are
  * well-formed opcode streams, the value simply lands in the wrong field or in
  * none. So the register is the single source and each side is checked against it
- * (`cp_fields_check` here, `mock230_servercodec_test`'s cross-check there).
+ * (`cp_fields_check` here, `ToriRSServer_ServerCodecTest`'s cross-check there).
  *
  * ## Why a second reader rather than shared code
  *
@@ -65,7 +65,7 @@
  * `enum ServerWire`.
  *
  * `string` is parsed and then refused by `cp_fields_check`: the reader's
- * `Mock230_ServerNpcDecode` has no string case, so a tree declaring one would get
+ * `ToriRSServer_ServerNpcDecode` has no string case, so a tree declaring one would get
  * a stream that stops at that opcode and a record silently missing every field
  * after it. Refusing at the register is the only place that failure is legible.
  */
@@ -157,7 +157,7 @@ struct CP_Fields
      * and the default is the interesting one: a block that exists only in
      * `server/scripts` is usually a server table wearing a config type's grammar.
      * The 32 enums this tree authors are exactly that — `bank_tabs` and
-     * `worn_slots` are read by `mock230_content_enum`, and no client script has
+     * `worn_slots` are read by `ToriRSServer_ContentEnum`, and no client script has
      * ever heard of them — so writing them into the cache would add records with
      * no reader, in a grammar cachepack cannot fully resolve.
      *
@@ -231,7 +231,7 @@ cp_fields_check(const struct CP_Fields* fields);
  * against a default, and there must never be one against zero. `death_drop`
  * defaults to -1 and 0 is a real obj; `idk.type` 0 is a body part; sprite 0 is a
  * sprite. The reader already treats "absent" and "present and zero" as different
- * states (`mock230_servercodec.h`, and the seed-then-override rule), and the
+ * states (`torirs_server_servercodec.h`, and the seed-then-override rule), and the
  * writer's job is to preserve that distinction, not to re-derive it from values it
  * has no defaults for.
  *
@@ -379,7 +379,7 @@ cp_server_archive_open(
  * kind this revision defines. **128 is the top half of the space**, leaving
  * 40..127 — more than double the current maximum — for OldSchool to grow into
  * before it reaches ours. That is the same argument the 64..255 opcode band
- * makes in `mock230_servercodec.h`, and it is the strongest one available: the
+ * makes in `torirs_server_servercodec.h`, and it is the strongest one available: the
  * numbers below are Jagex's and may grow, the numbers above are ours alone, and
  * the gap between them is the margin.
  *

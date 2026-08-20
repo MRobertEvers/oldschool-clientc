@@ -4,9 +4,9 @@
  * The ServerScript opcodes this server implements, derived from the
  * `case SS_OP_*:` labels in the sources that dispatch them. Regenerate with:
  *
- *     python3 net/mock/gen_opcode_coverage.py
+ *     python3 torirsserver/gen_opcode_coverage.py
  *
- * `make -C src test-mock230-coverage` fails when this file is stale.
+ * `make -C src test-torirsserver-coverage` fails when this file is stale.
  *
  * Coverage by layer:
  *     63  VM core
@@ -22,13 +22,13 @@
  *    422  total, of 488 declared opcodes
  */
 
-#ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
-#define SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 422
-#define MOCK230_OPCODE_DECLARED_COUNT 488
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 422
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 488
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,10 +37,10 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11084
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11084
 
 /* Ascending, so a lookup can binary-search. */
-static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
+static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
     0, /* SS_OP_PUSH_CONSTANT_INT (VM core) */
     1, /* SS_OP_PUSH_VARP (host commands) */
     2, /* SS_OP_POP_VARP (host commands) */

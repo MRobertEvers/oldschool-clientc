@@ -98,7 +98,7 @@ src/build_win64_opt/rs2012_model_view --model out/head.ob3 --model out/body.ob3 
 
 # wire into the cache as a SEPARATE npc (template; edit ids and names):
 #   tools/rs2012_qbd_register_authored.py
-# then re-pack:  make -C src mock230-cache-rs2012
+# then re-pack:  make -C src torirsserver-cache-rs2012
 ```
 
 The register script pattern keeps the original npc untouched and adds the
@@ -147,10 +147,10 @@ cp docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 \
 # in ported/rs2012_qbd_td/pack/7_models.pack:
 #   110000=ported/rs2012_qbd_td/rs2012_model_70260_authored
 #   110001=ported/rs2012_qbd_td/rs2012_model_69766_authored
-make -C src mock230-cache-rs2012
+make -C src torirsserver-cache-rs2012
 # exits non-zero at its final verify step (pre-existing sprites/scripts
 # length-check failure, present before this work); the cache itself is
-# written and passes mock230-cache-check.
+# written and passes torirsserver-cache-check.
 ```
 
 **3. Proof the encounter uses the ported model.** Three links, each checked
@@ -176,22 +176,22 @@ their old paths, only the id mapping moved.
 attempt and what it found, because the next person will hit the same wall:
 
 ```sh
-MOCK230_STAFF_LEVEL=2 MOCK230_VERBOSE=1 TORIRS_MAX_FRAMES=600 \
+TORIRSSERVER_STAFF_LEVEL=2 TORIRSSERVER_VERBOSE=1 TORIRS_MAX_FRAMES=600 \
 TORIRS_SIM_CMD="150,rs2012qbdmanifest" \
 TORIRS_BMP_SERIES="build/qbd_encounter,150,10,45" \
   ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --offline
 ```
 
-- `MOCK230_STAFF_LEVEL=2` is required — without it the login never advertises
+- `TORIRSSERVER_STAFF_LEVEL=2` is required — without it the login never advertises
   staff and `::` commands cannot reach `handle_cheat()` at all
-  (`mock230_session.c:626`).
+  (`torirs_server_session.c:626`).
 - The command sends (`sim_cmd: frame 150 sent`), the server handler exists
-  (`mock230_world.c:handle_cheat`), the debugproc is in the committed
+  (`torirs_server_world.c:handle_cheat`), the debugproc is in the committed
   `script.dat` — and it still does not dispatch, because **`script.dat` is
   stale**: `summoning_spirit_wolf.rs2` is newer than the pack, and the server
-  refuses stale packs by design (`mock230_scripts.c:188` documents a full
+  refuses stale packs by design (`torirs_server_scripts.c:188` documents a full
   session lost to exactly this).
-- Rebuilding the pack (`make -C src mock230-scripts`) fails in the same
+- Rebuilding the pack (`make -C src torirsserver-scripts`) fails in the same
   summoning file — `unknown variable '%content_restrict_summoning_serverside'`,
   a varbit declared in the summoning lane's `configs/` which the compiler is
   not handed. That lane is mid-change (its own recent commits); fixing its
@@ -231,7 +231,7 @@ One more trap inside the fix: the first repack after the content swap shipped
 the OLD bytes anyway, because `build/rs2012-overlay/` still held a stale copy
 and the staging step does not overwrite an existing staged file. Same-path
 content changes need `rm -rf build/rs2012-overlay` before
-`make -C src mock230-cache-rs2012`. Verified after the clean repack:
+`make -C src torirsserver-cache-rs2012`. Verified after the clean repack:
 
 ```
 cache 110000 sha1 65456e2c66e1  = authored   (encounter model1)
@@ -486,7 +486,7 @@ src/build/rs2012_model_view --model out/model_A.ob3  --model out/model_B.ob3 \
 
 # 3. only then copy into the lane and re-pack
 cp out/*.ob3 OSRS-Content/osrs239-content/models/ported/<lane>/
-make -C src mock230-cache-rs2012            # the QBD lane's re-pack target
+make -C src torirsserver-cache-rs2012            # the QBD lane's re-pack target
 ```
 
 Step 2 is not optional. The solver optimises a first-order model of the sort;

@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_ZONE_H
-#define SRC_NET_MOCK_MOCK230_ZONE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_ZONE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_ZONE_H
 
 /*
  * The world, cut into 8x8 tile zones — the structure every world event is
@@ -13,7 +13,7 @@
  *
  * ── What this replaces, and why it had to ────────────────────────────
  *
- * Before this, a loc change was a *broadcast*: `mock230_world_broadcast_loc`
+ * Before this, a loc change was a *broadcast*: `ToriRSServer_WorldBroadcastLoc`
  * walked the player pool and sent the packet to everyone on that level whose
  * scene contained the tile. That is correct for everyone who is logged in when
  * the door opens and silently wrong for everyone else — a broadcast has no
@@ -31,12 +31,12 @@
  *
  * ── The ZoneMap owns loc mutations; the scene does not ───────────────
  *
- * `mock230_scene.c` rebuilds itself from the cache whenever the scene origin
- * moves (`mock230_scene_build` calls `mock230_scene_free` first), so it cannot
+ * `torirs_server_scene.c` rebuilds itself from the cache whenever the scene origin
+ * moves (`ToriRSServer_SceneBuild` calls `ToriRSServer_SceneFree` first), so it cannot
  * be the authority on anything that happened at runtime — a door opened before
  * a rebuild was, in fact, forgotten by the server as well as by the client,
  * despite a comment claiming the changed list survived. The durable record is
- * `struct Mock230ZoneLoc` here, and `mock230_world_locs_reapply` puts every one
+ * `struct ToriRSServerZoneLoc` here, and `ToriRSServer_WorldLocsReapply` puts every one
  * of them back onto the freshly built scene so collision and the pick lookup
  * agree with what the clients were told.
  *
@@ -62,30 +62,30 @@
 
 #include <stdint.h>
 
-/* For struct Mock230LocOps: a zone loc record and the LOC_ADD_CHANGE event it
+/* For struct ToriRSServerLocOps: a zone loc record and the LOC_ADD_CHANGE event it
  * queues both carry the placement's own menu, and the scene holds the same
  * type. One definition, in the file that owns the loc. */
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 
-struct Mock230Server;
-struct Mock230Player;
-struct Mock230PlayerZone;
-struct Mock230Npc;
+struct ToriRSServer;
+struct ToriRSServerPlayer;
+struct ToriRSServerPlayerZone;
+struct ToriRSServerNpc;
 
 /** What a zone's membership lists hold. One enum rather than the `is_npc`
  *  boolean `refile` took, because there are three kinds now and a boolean that
  *  has to mean "obj" when false is a boolean waiting to be misread. */
-enum Mock230ZoneKind
+enum ToriRSServerZoneKind
 {
-    MOCK230_ZONE_KIND_NPC = 0,
-    MOCK230_ZONE_KIND_OBJ,
-    MOCK230_ZONE_KIND_PLAYER,
+    TORIRSSERVER_ZONE_KIND_NPC = 0,
+    TORIRSSERVER_ZONE_KIND_OBJ,
+    TORIRSSERVER_ZONE_KIND_PLAYER,
 };
 
 enum
 {
     /** Tiles on a side. Not negotiable: it is the wire's `pos` field. */
-    MOCK230_ZONE_TILES = 8,
+    TORIRSSERVER_ZONE_TILES = 8,
 
     /**
      * The window of zones a client is kept up to date on, as a radius in zones
@@ -94,29 +94,29 @@ enum
      * (104 tiles) centred on the scene origin, so the most a player can hold is
      * 7*7.
      */
-    MOCK230_ZONE_VIEW_RADIUS = 3,
-    MOCK230_ZONE_BUILD_RADIUS = 6,
+    TORIRSSERVER_ZONE_VIEW_RADIUS = 3,
+    TORIRSSERVER_ZONE_BUILD_RADIUS = 6,
     /**
      * The four map planes. A client's scene holds all of them at once — that is
      * how a building has an upstairs — so the zone window is per (x, z, level)
      * and not per (x, z) at the player's own level.
      */
-    MOCK230_ZONE_LEVELS = 4,
-    MOCK230_ZONE_ACTIVE_MAX = (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
-                              (MOCK230_ZONE_VIEW_RADIUS * 2 + 1) *
-                              MOCK230_ZONE_LEVELS,
+    TORIRSSERVER_ZONE_LEVELS = 4,
+    TORIRSSERVER_ZONE_ACTIVE_MAX = (TORIRSSERVER_ZONE_VIEW_RADIUS * 2 + 1) *
+                              (TORIRSSERVER_ZONE_VIEW_RADIUS * 2 + 1) *
+                              TORIRSSERVER_ZONE_LEVELS,
 };
 
-/** The wire packets a zone event turns into. See mock230_encode.c. */
-enum Mock230ZoneEventKind
+/** The wire packets a zone event turns into. See torirs_server_encode.c. */
+enum ToriRSServerZoneEventKind
 {
-    MOCK230_ZONE_EV_LOC_ADD_CHANGE = 0,
-    MOCK230_ZONE_EV_LOC_DEL,
-    MOCK230_ZONE_EV_OBJ_ADD,
-    MOCK230_ZONE_EV_OBJ_DEL,
-    MOCK230_ZONE_EV_OBJ_COUNT,
-    MOCK230_ZONE_EV_LOC_ANIM,
-    MOCK230_ZONE_EV_LOC_MERGE,
+    TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE = 0,
+    TORIRSSERVER_ZONE_EV_LOC_DEL,
+    TORIRSSERVER_ZONE_EV_OBJ_ADD,
+    TORIRSSERVER_ZONE_EV_OBJ_DEL,
+    TORIRSSERVER_ZONE_EV_OBJ_COUNT,
+    TORIRSSERVER_ZONE_EV_LOC_ANIM,
+    TORIRSSERVER_ZONE_EV_LOC_MERGE,
     /**
      * A projectile in flight — `projanim_pl` / `projanim_npc`.
      *
@@ -126,13 +126,13 @@ enum Mock230ZoneEventKind
      * not to the zone the target is in, which is why a fight across a zone
      * boundary looks right to a bystander on either side.
      */
-    MOCK230_ZONE_EV_PROJANIM,
+    TORIRSSERVER_ZONE_EV_PROJANIM,
     /**
      * Free-standing spotanim at a tile — `spotanim_map`. Wire MAP_ANIM (124).
      * Height/delay ride in `src_height` / `start_delay` (same widths as the
      * packet); nothing else on this event is meaningful.
      */
-    MOCK230_ZONE_EV_MAPANIM,
+    TORIRSSERVER_ZONE_EV_MAPANIM,
 };
 
 /**
@@ -143,7 +143,7 @@ enum Mock230ZoneEventKind
  * header that precedes the sub-packet, which is why the two are only ever
  * produced together.
  */
-struct Mock230ZoneEvent
+struct ToriRSServerZoneEvent
 {
     int kind;
     /** Pid this event is for, or -1 for everyone (the shared buffer). */
@@ -155,7 +155,7 @@ struct Mock230ZoneEvent
     int count, old_count;
     /** LOC_ADD_CHANGE only: the placement's own menu, written as
      *  LOC_ADD_CHANGE_V2's opCount/ops/opFlags. Neutral for every other kind. */
-    struct Mock230LocOps ops;
+    struct ToriRSServerLocOps ops;
     /** LOC_MERGE: start/end cycles, player slot, AABB offsets from the loc tile. */
     int start_cycle, end_cycle;
     int player_pid;
@@ -217,7 +217,7 @@ struct Mock230ZoneEvent
  * record can be retired when a revert restores it; a `base_loc_id` of -1 means
  * the square has nothing here and the record describes a `loc_add`.
  */
-struct Mock230ZoneLoc
+struct ToriRSServerZoneLoc
 {
     int x, z, level;
     int shape;
@@ -226,13 +226,13 @@ struct Mock230ZoneLoc
     /** 1 when a `loc_add` put this loc here *over* the map square's own loc,
      *  which is still standing underneath. A rebuild has to reproduce that
      *  rather than replace the square's loc, or removing this one again leaves
-     *  the tile empty — see mock230_scene_add_loc. */
+     *  the tile empty — see ToriRSServer_SceneAddLoc. */
     int over_base;
     /** The placement's own menu, replayed to every client that arrives after
      *  the change. Without it here a door opened before you logged in would be
      *  drawn open and still offer "Open", because the zone state is the only
      *  memory a late client is built from. */
-    struct Mock230LocOps ops;
+    struct ToriRSServerLocOps ops;
 };
 
 /* ------------------------------------------------------------------ */
@@ -241,14 +241,14 @@ struct Mock230ZoneLoc
 
 /** Packed zone key, byte-identical to the reference's `ZoneMap.zoneIndex`. */
 int
-mock230_zone_index(
+ToriRSServer_ZoneIndex(
     int x,
     int z,
     int level);
 
-/** Drop every zone. `mock230_world_reset` and shutdown; not a per-tick call. */
+/** Drop every zone. `ToriRSServer_WorldReset` and shutdown; not a per-tick call. */
 void
-mock230_zone_free(struct Mock230Server* srv);
+ToriRSServer_ZoneFree(struct ToriRSServer* srv);
 
 /* ------------------------------------------------------------------ */
 /* Entity membership                                                   */
@@ -259,7 +259,7 @@ mock230_zone_free(struct Mock230Server* srv);
  *
  * The reference calls `zone.enter()` / `zone.leave()` at each move site. Here an
  * npc's tile is written from five places (spawn, step, teleport, the respawn in
- * mock230_combat.c, the selftest) and a ground obj's activity from four, so the
+ * torirs_server_combat.c, the selftest) and a ground obj's activity from four, so the
  * npc and the obj each carry the zone they were last filed under and one pass
  * per tick fixes up whatever moved. A hook that is forgotten leaves an npc
  * filed in a zone it left; a reconcile cannot be forgotten.
@@ -267,19 +267,19 @@ mock230_zone_free(struct Mock230Server* srv);
  * Both run in phase 8, before anything is encoded in phase 10.
  */
 void
-mock230_zone_sync_npcs(struct Mock230Server* srv);
+ToriRSServer_ZoneSyncNpcs(struct ToriRSServer* srv);
 void
-mock230_zone_sync_objs(struct Mock230Server* srv);
+ToriRSServer_ZoneSyncObjs(struct ToriRSServer* srv);
 
 /** Reconcile which zone every logged-in player is filed under. Phase 8, beside
  *  the npcs and objs, and for the same reason: membership is what makes
  *  "who does this client hold" answerable without a pool scan. */
 void
-mock230_zone_sync_players(struct Mock230Server* srv);
+ToriRSServer_ZoneSyncPlayers(struct ToriRSServer* srv);
 
 void
-mock230_zone_player_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZonePlayerRefile(
+    struct ToriRSServer* srv,
     int pid);
 
 /**
@@ -292,13 +292,13 @@ mock230_zone_player_refile(
  * marked inactive, which unfiles it.
  */
 void
-mock230_zone_npc_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneNpcRefile(
+    struct ToriRSServer* srv,
     int slot);
 
 void
-mock230_zone_obj_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjRefile(
+    struct ToriRSServer* srv,
     int slot);
 
 /**
@@ -313,7 +313,7 @@ mock230_zone_obj_refile(
  * drops them. Everything after that is pushed by the map — see `refile`.
  */
 void
-mock230_playerzonemap_move(struct Mock230Player* player);
+ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player);
 
 /**
  * Unsubscribe from every zone and empty the area.
@@ -323,13 +323,13 @@ mock230_playerzonemap_move(struct Mock230Player* player);
  * a client that no longer claims the zone.
  */
 void
-mock230_playerzonemap_clear(struct Mock230Player* player);
+ToriRSServer_PlayerzonemapClear(struct ToriRSServerPlayer* player);
 
 /**
  * The per-axis tile gap between the player's tile and an npc's FOOTPRINT: 0 on
  * an axis the player overlaps, otherwise the distance to the nearer edge.
  *
- * The same measure as `npc_player_distance` in mock230_world.c (the reference's
+ * The same measure as `npc_player_distance` in torirs_server_world.c (the reference's
  * `CoordGrid.distanceTo`), split per axis because the wire's view test is a box
  * rather than a Chebyshev radius. It is separate rather than shared because
  * that one is the AI's, static to its own translation unit, and answers with a
@@ -341,9 +341,9 @@ mock230_playerzonemap_clear(struct Mock230Player* player);
  * and seven late on the other two.
  */
 void
-mock230_npc_view_deltas(
-    const struct Mock230Npc* npc,
-    const struct Mock230Player* player,
+ToriRSServer_NpcViewDeltas(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player,
     int* out_dx,
     int* out_dz);
 
@@ -358,29 +358,29 @@ mock230_npc_view_deltas(
  * everything in it, up to 7 tiles past the range, and a bounded `out` then
  * loses entities that are genuinely beside the player.
  *
- * `_npcs` measures `radius` to the npc's footprint (`mock230_npc_view_deltas`),
+ * `_npcs` measures `radius` to the npc's footprint (`ToriRSServer_NpcViewDeltas`),
  * so a sized npc is a candidate while any tile of it is in range; `_players`
  * measures the tile, players being 1x1. Both stay exact per entity — widening
  * the radius instead would let a far fringe crowd a bounded `out`.
  */
 int
-mock230_playerzonemap_npcs(
-    struct Mock230Player* player,
+ToriRSServer_PlayerzonemapNpcs(
+    struct ToriRSServerPlayer* player,
     int radius,
     int* out,
     int max);
 
 int
-mock230_playerzonemap_players(
-    struct Mock230Player* player,
+ToriRSServer_PlayerzonemapPlayers(
+    struct ToriRSServerPlayer* player,
     int radius,
     int* out,
     int max);
 
 /** This client's entry for `index`, or NULL when it does not hold that zone. */
-struct Mock230PlayerZone*
-mock230_playerzonemap_find(
-    struct Mock230Player* player,
+struct ToriRSServerPlayerZone*
+ToriRSServer_PlayerzonemapFind(
+    struct ToriRSServerPlayer* player,
     int index);
 
 /* ------------------------------------------------------------------ */
@@ -398,11 +398,11 @@ mock230_playerzonemap_find(
  *
  * `ops` is the placement's own right-click menu. Required, not optional: every
  * placement has a menu, and the one a caller with nothing to override passes is
- * `mock230_loc_ops_default`, not NULL.
+ * `ToriRSServer_LocOpsDefault`, not NULL.
  */
 void
-mock230_zone_loc_changed(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocChanged(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -412,15 +412,15 @@ mock230_zone_loc_changed(
     int base_loc_id,
     int base_angle,
     int over_base,
-    const struct Mock230LocOps* ops);
+    const struct ToriRSServerLocOps* ops);
 
 /**
  * Queue LOC_ANIM for the loc at (x,z,level) with the given shape/angle and seq.
  * Does not mutate zone loc records — animation is ephemeral.
  */
 void
-mock230_zone_loc_anim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocAnim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -434,8 +434,8 @@ mock230_zone_loc_anim(
  * relative to the loc tile (east/south/west/north as LostCity mergeLoc args).
  */
 void
-mock230_zone_loc_merge(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocMerge(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -462,8 +462,8 @@ mock230_zone_loc_merge(
  * every cycle, so a moving target is followed rather than led.
  */
 void
-mock230_zone_projanim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneProjanim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -483,8 +483,8 @@ mock230_zone_projanim(
  * zone so everyone who can see the tile gets it (LostCity `World.animMap`).
  */
 void
-mock230_zone_mapanim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneMapanim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -493,9 +493,9 @@ mock230_zone_mapanim(
     int delay);
 
 /** The loc record at this key, or NULL. */
-struct Mock230ZoneLoc*
-mock230_zone_loc_find(
-    struct Mock230Server* srv,
+struct ToriRSServerZoneLoc*
+ToriRSServer_ZoneLocFind(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -506,9 +506,9 @@ mock230_zone_loc_find(
  *  addressable anywhere in the world, the way the reference's
  *  `World.getLoc` is. Static map locs outside the scene are not visible
  *  here — the ZoneMap is the diff, not the map. */
-struct Mock230ZoneLoc*
-mock230_zone_loc_find_id(
-    struct Mock230Server* srv,
+struct ToriRSServerZoneLoc*
+ToriRSServer_ZoneLocFindId(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -517,9 +517,9 @@ mock230_zone_loc_find_id(
 /** Walk every recorded loc change in the world. Used by the rebuild, which has
  *  to put all of them back onto a scene that was just re-read from the cache. */
 void
-mock230_zone_locs_foreach(
-    struct Mock230Server* srv,
-    void (*fn)(struct Mock230ZoneLoc* loc, void* user),
+ToriRSServer_ZoneLocsForeach(
+    struct ToriRSServer* srv,
+    void (*fn)(struct ToriRSServerZoneLoc* loc, void* user),
     void* user);
 
 /** Forget durable loc mutations and unsent loc events inside an absolute tile
@@ -527,8 +527,8 @@ mock230_zone_locs_foreach(
  *  destination to the allocator; otherwise the next tenant's rebuild reapplies
  *  the previous tenant's doors, walls, and collapsed scenery. */
 void
-mock230_zone_locs_clear_rect(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocsClearRect(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int width,
@@ -539,21 +539,21 @@ mock230_zone_locs_clear_rect(
 /* ------------------------------------------------------------------ */
 
 /*
- * Ground objs keep living in `Mock230Server.ground[]` — the pool is the
+ * Ground objs keep living in `ToriRSServer.ground[]` — the pool is the
  * allocator and its slots are stable — and the zone holds the slot numbers. So
  * these three take a slot and read the rest off it.
  */
 void
-mock230_zone_obj_added(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjAdded(
+    struct ToriRSServer* srv,
     int slot);
 void
-mock230_zone_obj_removed(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjRemoved(
+    struct ToriRSServer* srv,
     int slot);
 void
-mock230_zone_obj_counted(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjCounted(
+    struct ToriRSServer* srv,
     int slot,
     int old_count,
     int new_count);
@@ -572,18 +572,18 @@ mock230_zone_obj_counted(
  * makes a door opened an hour ago open for someone logging in now.
  */
 void
-mock230_zone_update_player(struct Mock230Player* player);
+ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player);
 
 /** Forget what this client holds, so the next update re-sends every zone in
  *  full. Login, and every REBUILD_NORMAL — the rebuild resets the client's
  *  scene to the cache's version, which un-opens every door it had been told
  *  about. */
 void
-mock230_zone_player_reset(struct Mock230Player* player);
+ToriRSServer_ZonePlayerReset(struct ToriRSServerPlayer* player);
 
 /** Phase 11: drop this tick's events and shared buffers. State stays. */
 void
-mock230_zone_reset(struct Mock230Server* srv);
+ToriRSServer_ZoneReset(struct ToriRSServer* srv);
 
 /**
  * Count current-tick events of `kind`; `id < 0` matches every config id.
@@ -592,32 +592,32 @@ mock230_zone_reset(struct Mock230Server* srv);
  * same queued records the wire flush consumes and never mutates zone state.
  */
 int
-mock230_zone_event_count(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventCount(
+    struct ToriRSServer* srv,
     int kind,
     int id);
 
 /** Last current-tick event id of `kind`, or -1 when none exists. */
 int
-mock230_zone_event_last_id(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventLastId(
+    struct ToriRSServer* srv,
     int kind);
 
 /** Copy the last current-tick event matching `kind` and optional `id` into
  *  `out`. Returns 1 when found, 0 otherwise. The queued event remains owned by
  *  the zone map and is not consumed. */
 int
-mock230_zone_event_last(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventLast(
+    struct ToriRSServer* srv,
     int kind,
     int id,
-    struct Mock230ZoneEvent* out);
+    struct ToriRSServerZoneEvent* out);
 
 /** Growth gauges for the perf harness: how many zones the map holds and the
  *  hash table capacity (never shrinks during a session). */
 void
-mock230_zone_map_stats(
-    struct Mock230Server const* srv,
+ToriRSServer_ZoneMapStats(
+    struct ToriRSServer const* srv,
     int* out_count,
     int* out_capacity);
 

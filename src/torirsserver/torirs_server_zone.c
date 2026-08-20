@@ -1,7 +1,7 @@
 /*
  * The ZoneMap: per-zone entity lists, a buffered event log, and the replay.
  *
- * Read mock230_zone.h first — it carries the design and the reference it was
+ * Read torirs_server_zone.h first — it carries the design and the reference it was
  * ported from. This file is the mechanism.
  *
  * Three things happen here, in tick order:
@@ -21,9 +21,9 @@
  * phase and the client-out phase cannot be silently dropped on the floor.
  */
 
-#include "mock230_zone.h"
+#include "torirs_server_zone.h"
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -34,36 +34,36 @@
 /* Structures                                                          */
 /* ------------------------------------------------------------------ */
 
-struct Mock230Zone
+struct ToriRSServerZone
 {
     int index;
     /** Zone units, not tiles. */
     int x, z, level;
 
     /** Locs that are not what the map square says. The durable half. */
-    struct Mock230ZoneLoc* locs;
+    struct ToriRSServerZoneLoc* locs;
     int loc_count, loc_capacity;
 
-    /** `Mock230Server.ground` slots standing in this zone. */
+    /** `ToriRSServer.ground` slots standing in this zone. */
     int* objs;
     int obj_count, obj_capacity;
 
-    /** `Mock230Server.npcs` slots standing in this zone. */
+    /** `ToriRSServer.npcs` slots standing in this zone. */
     int* npcs;
     int npc_count, npc_capacity;
 
-    /** `Mock230Server.players` pids standing in this zone.
+    /** `ToriRSServer.players` pids standing in this zone.
      *
      *  Players were the one kind of entity the ZoneMap did not know about, and
      *  the omission was invisible because PLAYER_INFO scanned the whole pool
-     *  instead — which is affordable at MOCK230_PLAYER_MAX 8 and answers the
+     *  instead — which is affordable at TORIRSSERVER_PLAYER_MAX 8 and answers the
      *  wrong question at any size: "who is within 15 tiles" rather than "who is
-     *  in a zone this client holds". See struct Mock230PlayerArea. */
+     *  in a zone this client holds". See struct ToriRSServerPlayerArea. */
     int* players;
     int player_count, player_capacity;
 
     /** This tick's events, cleared in phase 11. */
-    struct Mock230ZoneEvent* events;
+    struct ToriRSServerZoneEvent* events;
     int event_count, event_capacity;
     /** Already on the map's dirty list this tick. */
     int listed;
@@ -82,14 +82,14 @@ struct Mock230Zone
  * and the alternative is tombstones — so the probe never has to step over a
  * hole, which is the only reason this is eight lines rather than forty.
  */
-struct Mock230ZoneMap
+struct ToriRSServerZoneMap
 {
-    struct Mock230Zone** slots;
+    struct ToriRSServerZone** slots;
     int capacity;
     int count;
 
     /** Zones with events this tick. */
-    struct Mock230Zone** dirty;
+    struct ToriRSServerZone** dirty;
     int dirty_count, dirty_capacity;
 };
 
@@ -130,7 +130,7 @@ list_add(
 
 static int
 probe(
-    struct Mock230Zone* const* slots,
+    struct ToriRSServerZone* const* slots,
     int capacity,
     int index)
 {
@@ -147,10 +147,10 @@ probe(
 
 static int
 map_rehash(
-    struct Mock230ZoneMap* map,
+    struct ToriRSServerZoneMap* map,
     int capacity)
 {
-    struct Mock230Zone** slots = calloc((size_t)capacity, sizeof(*slots));
+    struct ToriRSServerZone** slots = calloc((size_t)capacity, sizeof(*slots));
 
     assert(slots);
     for( int i = 0; i < map->capacity; i++ )
@@ -165,9 +165,9 @@ map_rehash(
     return 1;
 }
 
-static struct Mock230ZoneMap*
+static struct ToriRSServerZoneMap*
 map_of(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int create)
 {
     if( !srv->zone_map && create )
@@ -184,21 +184,21 @@ map_of(
 }
 
 /** The zone containing this tile, created if nothing has happened there yet. */
-static struct Mock230Zone*
+static struct ToriRSServerZone*
 zone_at(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 1);
-    struct Mock230Zone* zone;
+    struct ToriRSServerZoneMap* map = map_of(srv, 1);
+    struct ToriRSServerZone* zone;
     int index;
     int i;
 
     if( !map )
         return NULL;
-    index = mock230_zone_index(x, z, level);
+    index = ToriRSServer_ZoneIndex(x, z, level);
     i = probe(map->slots, map->capacity, index);
     if( map->slots[i] )
         return map->slots[i];
@@ -222,26 +222,26 @@ zone_at(
 
 /** The zone containing this tile, or NULL when nothing has ever happened
  *  there — which is the common case and must not allocate. */
-static struct Mock230Zone*
+static struct ToriRSServerZone*
 zone_find(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
 
     if( !map )
         return NULL;
-    return map->slots[probe(map->slots, map->capacity, mock230_zone_index(x, z, level))];
+    return map->slots[probe(map->slots, map->capacity, ToriRSServer_ZoneIndex(x, z, level))];
 }
 
-static struct Mock230Zone*
+static struct ToriRSServerZone*
 zone_by_index(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int index)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
 
     if( !map )
         return NULL;
@@ -249,15 +249,15 @@ zone_by_index(
 }
 
 void
-mock230_zone_free(struct Mock230Server* srv)
+ToriRSServer_ZoneFree(struct ToriRSServer* srv)
 {
-    struct Mock230ZoneMap* map = srv->zone_map;
+    struct ToriRSServerZoneMap* map = srv->zone_map;
 
     if( !map )
         return;
     for( int i = 0; i < map->capacity; i++ )
     {
-        struct Mock230Zone* zone = map->slots[i];
+        struct ToriRSServerZone* zone = map->slots[i];
 
         if( !zone )
             continue;
@@ -289,11 +289,11 @@ zone_pos(
 
 static void
 queue_event(
-    struct Mock230Server* srv,
-    struct Mock230Zone* zone,
-    const struct Mock230ZoneEvent* event)
+    struct ToriRSServer* srv,
+    struct ToriRSServerZone* zone,
+    const struct ToriRSServerZoneEvent* event)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 1);
+    struct ToriRSServerZoneMap* map = map_of(srv, 1);
 
     if( !map )
         return;
@@ -305,19 +305,19 @@ queue_event(
         return;
     zone->events[zone->event_count++] = *event;
     if( srv->verbose &&
-        (event->kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE ||
-         event->kind == MOCK230_ZONE_EV_LOC_DEL ||
-         event->kind == MOCK230_ZONE_EV_LOC_ANIM) )
+        (event->kind == TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE ||
+         event->kind == TORIRSSERVER_ZONE_EV_LOC_DEL ||
+         event->kind == TORIRSSERVER_ZONE_EV_LOC_ANIM) )
     {
-        const char* kind = event->kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE
+        const char* kind = event->kind == TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE
                                ? "LOC_ADD_CHANGE"
-                           : event->kind == MOCK230_ZONE_EV_LOC_DEL ? "LOC_DEL"
+                           : event->kind == TORIRSSERVER_ZONE_EV_LOC_DEL ? "LOC_DEL"
                                                                     : "LOC_ANIM";
         int x = (zone->x << 3) + ((event->pos >> 4) & 7);
         int z = (zone->z << 3) + (event->pos & 7);
 
         fprintf(stderr,
-                "mock230: zone event tick=%d %s x=%d z=%d level=%d id=%d "
+                "torirsserver: zone event tick=%d %s x=%d z=%d level=%d id=%d "
                 "shape=%d angle=%d\n",
                 srv->tick, kind, x, z, zone->level, event->id, event->shape,
                 event->angle);
@@ -336,9 +336,9 @@ queue_event(
 }
 
 void
-mock230_zone_reset(struct Mock230Server* srv)
+ToriRSServer_ZoneReset(struct ToriRSServer* srv)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
 
     if( !map )
         return;
@@ -353,23 +353,23 @@ mock230_zone_reset(struct Mock230Server* srv)
 }
 
 int
-mock230_zone_event_count(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventCount(
+    struct ToriRSServer* srv,
     int kind,
     int id)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
     int count = 0;
 
     if( !map )
         return 0;
     for( int i = 0; i < map->dirty_count; i++ )
     {
-        const struct Mock230Zone* zone = map->dirty[i];
+        const struct ToriRSServerZone* zone = map->dirty[i];
 
         for( int e = 0; e < zone->event_count; e++ )
         {
-            const struct Mock230ZoneEvent* event = &zone->events[e];
+            const struct ToriRSServerZoneEvent* event = &zone->events[e];
 
             if( event->kind == kind && (id < 0 || event->id == id) )
                 count++;
@@ -379,18 +379,18 @@ mock230_zone_event_count(
 }
 
 int
-mock230_zone_event_last_id(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventLastId(
+    struct ToriRSServer* srv,
     int kind)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
     int id = -1;
 
     if( !map )
         return -1;
     for( int i = 0; i < map->dirty_count; i++ )
     {
-        const struct Mock230Zone* zone = map->dirty[i];
+        const struct ToriRSServerZone* zone = map->dirty[i];
 
         for( int e = 0; e < zone->event_count; e++ )
             if( zone->events[e].kind == kind )
@@ -400,13 +400,13 @@ mock230_zone_event_last_id(
 }
 
 int
-mock230_zone_event_last(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneEventLast(
+    struct ToriRSServer* srv,
     int kind,
     int id,
-    struct Mock230ZoneEvent* out)
+    struct ToriRSServerZoneEvent* out)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
     int found = 0;
 
     assert(out);
@@ -414,11 +414,11 @@ mock230_zone_event_last(
         return 0;
     for( int i = 0; i < map->dirty_count; i++ )
     {
-        const struct Mock230Zone* zone = map->dirty[i];
+        const struct ToriRSServerZone* zone = map->dirty[i];
 
         for( int e = 0; e < zone->event_count; e++ )
         {
-            const struct Mock230ZoneEvent* event = &zone->events[e];
+            const struct ToriRSServerZoneEvent* event = &zone->events[e];
 
             if( event->kind != kind || (id >= 0 && event->id != id) )
                 continue;
@@ -430,12 +430,12 @@ mock230_zone_event_last(
 }
 
 void
-mock230_zone_map_stats(
-    struct Mock230Server const* srv,
+ToriRSServer_ZoneMapStats(
+    struct ToriRSServer const* srv,
     int* out_count,
     int* out_capacity)
 {
-    struct Mock230ZoneMap* map;
+    struct ToriRSServerZoneMap* map;
 
     assert(out_count);
     assert(out_capacity);
@@ -452,16 +452,16 @@ mock230_zone_map_stats(
 /* Loc records                                                         */
 /* ------------------------------------------------------------------ */
 
-static struct Mock230ZoneLoc*
+static struct ToriRSServerZoneLoc*
 loc_in(
-    struct Mock230Zone* zone,
+    struct ToriRSServerZone* zone,
     int x,
     int z,
     int shape)
 {
     for( int i = 0; i < zone->loc_count; i++ )
     {
-        struct Mock230ZoneLoc* loc = &zone->locs[i];
+        struct ToriRSServerZoneLoc* loc = &zone->locs[i];
 
         if( loc->x == x && loc->z == z && loc->shape == shape )
             return loc;
@@ -469,34 +469,34 @@ loc_in(
     return NULL;
 }
 
-struct Mock230ZoneLoc*
-mock230_zone_loc_find(
-    struct Mock230Server* srv,
+struct ToriRSServerZoneLoc*
+ToriRSServer_ZoneLocFind(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
     int shape)
 {
-    struct Mock230Zone* zone = zone_find(srv, x, z, level);
+    struct ToriRSServerZone* zone = zone_find(srv, x, z, level);
 
     return zone ? loc_in(zone, x, z, shape) : NULL;
 }
 
-struct Mock230ZoneLoc*
-mock230_zone_loc_find_id(
-    struct Mock230Server* srv,
+struct ToriRSServerZoneLoc*
+ToriRSServer_ZoneLocFindId(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
     int loc_id)
 {
-    struct Mock230Zone* zone = zone_find(srv, x, z, level);
+    struct ToriRSServerZone* zone = zone_find(srv, x, z, level);
 
     if( !zone )
         return NULL;
     for( int i = 0; i < zone->loc_count; i++ )
     {
-        struct Mock230ZoneLoc* loc = &zone->locs[i];
+        struct ToriRSServerZoneLoc* loc = &zone->locs[i];
 
         /* `loc_id < 0` records a deletion — the tile *had* this loc and no
          * longer does, which is exactly what a find must not answer with. */
@@ -507,8 +507,8 @@ mock230_zone_loc_find_id(
 }
 
 void
-mock230_zone_loc_changed(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocChanged(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -518,11 +518,11 @@ mock230_zone_loc_changed(
     int base_loc_id,
     int base_angle,
     int over_base,
-    const struct Mock230LocOps* ops)
+    const struct ToriRSServerLocOps* ops)
 {
-    struct Mock230Zone* zone = zone_at(srv, x, z, level);
-    struct Mock230ZoneLoc* loc;
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZone* zone = zone_at(srv, x, z, level);
+    struct ToriRSServerZoneLoc* loc;
+    struct ToriRSServerZoneEvent event;
 
     assert(ops);
     if( !zone )
@@ -557,14 +557,14 @@ mock230_zone_loc_changed(
     event.pos = zone_pos(x, z);
     event.shape = shape;
     event.angle = angle;
-    mock230_loc_ops_default(&event.ops);
+    ToriRSServer_LocOpsDefault(&event.ops);
     if( loc_id < 0 )
     {
-        event.kind = MOCK230_ZONE_EV_LOC_DEL;
+        event.kind = TORIRSSERVER_ZONE_EV_LOC_DEL;
     }
     else
     {
-        event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
+        event.kind = TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE;
         event.id = loc_id;
         /* LOC_DEL has no room for a menu, so only the add carries it. */
         event.ops = *ops;
@@ -588,8 +588,8 @@ mock230_zone_loc_changed(
 }
 
 void
-mock230_zone_loc_anim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocAnim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -597,8 +597,8 @@ mock230_zone_loc_anim(
     int angle,
     int seq_id)
 {
-    struct Mock230Zone* zone;
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
 
     assert(srv);
     zone = zone_at(srv, x, z, level);
@@ -606,7 +606,7 @@ mock230_zone_loc_anim(
         return;
 
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_LOC_ANIM;
+    event.kind = TORIRSSERVER_ZONE_EV_LOC_ANIM;
     event.receiver_pid = -1;
     event.pos = zone_pos(x, z);
     event.shape = shape;
@@ -616,8 +616,8 @@ mock230_zone_loc_anim(
 }
 
 void
-mock230_zone_projanim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneProjanim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -632,8 +632,8 @@ mock230_zone_projanim(
     int peak,
     int arc)
 {
-    struct Mock230Zone* zone;
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
 
     assert(srv);
     zone = zone_at(srv, x, z, level);
@@ -652,14 +652,14 @@ mock230_zone_projanim(
     if( end_delay <= start_delay )
     {
         fprintf(stderr,
-                "mock230: projanim spotanim %d has end %d <= start %d — the last two "
+                "torirsserver: projanim spotanim %d has end %d <= start %d — the last two "
                 "arguments are absolute cycles, not a delay and a duration; this shot "
                 "would never draw\n",
                 spotanim, end_delay, start_delay);
     }
 
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_PROJANIM;
+    event.kind = TORIRSSERVER_ZONE_EV_PROJANIM;
     event.receiver_pid = -1;
     event.pos = zone_pos(x, z);
     event.id = spotanim;
@@ -685,8 +685,8 @@ mock230_zone_projanim(
 }
 
 void
-mock230_zone_mapanim(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneMapanim(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -694,8 +694,8 @@ mock230_zone_mapanim(
     int height,
     int delay)
 {
-    struct Mock230Zone* zone;
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
 
     assert(srv);
     zone = zone_at(srv, x, z, level);
@@ -703,7 +703,7 @@ mock230_zone_mapanim(
         return;
 
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_MAPANIM;
+    event.kind = TORIRSSERVER_ZONE_EV_MAPANIM;
     event.receiver_pid = -1;
     event.pos = zone_pos(x, z);
     event.id = spotanim;
@@ -723,8 +723,8 @@ mock230_zone_mapanim(
 }
 
 void
-mock230_zone_loc_merge(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocMerge(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int level,
@@ -739,8 +739,8 @@ mock230_zone_loc_merge(
     int west,
     int north)
 {
-    struct Mock230Zone* zone;
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
 
     assert(srv);
     zone = zone_at(srv, x, z, level);
@@ -748,7 +748,7 @@ mock230_zone_loc_merge(
         return;
 
     memset(&event, 0, sizeof(event));
-    event.kind = MOCK230_ZONE_EV_LOC_MERGE;
+    event.kind = TORIRSSERVER_ZONE_EV_LOC_MERGE;
     event.receiver_pid = -1;
     event.pos = zone_pos(x, z);
     event.shape = shape;
@@ -765,18 +765,18 @@ mock230_zone_loc_merge(
 }
 
 void
-mock230_zone_locs_foreach(
-    struct Mock230Server* srv,
-    void (*fn)(struct Mock230ZoneLoc* loc, void* user),
+ToriRSServer_ZoneLocsForeach(
+    struct ToriRSServer* srv,
+    void (*fn)(struct ToriRSServerZoneLoc* loc, void* user),
     void* user)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
 
     if( !map )
         return;
     for( int i = 0; i < map->capacity; i++ )
     {
-        struct Mock230Zone* zone = map->slots[i];
+        struct ToriRSServerZone* zone = map->slots[i];
 
         if( !zone )
             continue;
@@ -786,14 +786,14 @@ mock230_zone_locs_foreach(
 }
 
 void
-mock230_zone_locs_clear_rect(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneLocsClearRect(
+    struct ToriRSServer* srv,
     int x,
     int z,
     int width,
     int height)
 {
-    struct Mock230ZoneMap* map = map_of(srv, 0);
+    struct ToriRSServerZoneMap* map = map_of(srv, 0);
     int min_zone_x;
     int min_zone_z;
     int max_zone_x;
@@ -808,7 +808,7 @@ mock230_zone_locs_clear_rect(
 
     for( int i = 0; i < map->capacity; i++ )
     {
-        struct Mock230Zone* zone = map->slots[i];
+        struct ToriRSServerZone* zone = map->slots[i];
 
         if( !zone || zone->x < min_zone_x || zone->x > max_zone_x ||
             zone->z < min_zone_z || zone->z > max_zone_z )
@@ -822,8 +822,8 @@ mock230_zone_locs_clear_rect(
         {
             int kind = zone->events[j].kind;
 
-            if( kind == MOCK230_ZONE_EV_LOC_ADD_CHANGE || kind == MOCK230_ZONE_EV_LOC_DEL ||
-                kind == MOCK230_ZONE_EV_LOC_ANIM || kind == MOCK230_ZONE_EV_LOC_MERGE )
+            if( kind == TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE || kind == TORIRSSERVER_ZONE_EV_LOC_DEL ||
+                kind == TORIRSSERVER_ZONE_EV_LOC_ANIM || kind == TORIRSSERVER_ZONE_EV_LOC_MERGE )
             {
                 memmove(&zone->events[j], &zone->events[j + 1],
                         (size_t)(zone->event_count - j - 1) * sizeof(*zone->events));
@@ -885,17 +885,17 @@ list_del(
  */
 static void
 refile(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int* filed,
     int slot,
     int present,
     int x,
     int z,
     int level,
-    enum Mock230ZoneKind kind)
+    enum ToriRSServerZoneKind kind)
 {
-    int want = present ? mock230_zone_index(x, z, level) + 1 : 0;
-    struct Mock230Zone* zone;
+    int want = present ? ToriRSServer_ZoneIndex(x, z, level) + 1 : 0;
+    struct ToriRSServerZone* zone;
 
     if( *filed == want )
         return;
@@ -904,9 +904,9 @@ refile(
         zone = zone_by_index(srv, *filed - 1);
         if( zone )
         {
-            if( kind == MOCK230_ZONE_KIND_NPC )
+            if( kind == TORIRSSERVER_ZONE_KIND_NPC )
                 list_del(zone->npcs, &zone->npc_count, slot);
-            else if( kind == MOCK230_ZONE_KIND_OBJ )
+            else if( kind == TORIRSSERVER_ZONE_KIND_OBJ )
                 list_del(zone->objs, &zone->obj_count, slot);
             else
                 list_del(zone->players, &zone->player_count, slot);
@@ -921,34 +921,34 @@ refile(
         *filed = 0;
         return;
     }
-    if( kind == MOCK230_ZONE_KIND_NPC )
+    if( kind == TORIRSSERVER_ZONE_KIND_NPC )
         list_add(&zone->npcs, &zone->npc_count, &zone->npc_capacity, slot);
-    else if( kind == MOCK230_ZONE_KIND_OBJ )
+    else if( kind == TORIRSSERVER_ZONE_KIND_OBJ )
         list_add(&zone->objs, &zone->obj_count, &zone->obj_capacity, slot);
     else
         list_add(&zone->players, &zone->player_count, &zone->player_capacity, slot);
 }
 
 void
-mock230_zone_npc_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneNpcRefile(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
     refile(srv, &npc->zone_filed, slot, npc->active, npc->x, npc->z, npc->level,
-           MOCK230_ZONE_KIND_NPC);
+           TORIRSSERVER_ZONE_KIND_NPC);
 }
 
 void
-mock230_zone_obj_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjRefile(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230GroundObj* obj = &srv->ground[slot];
+    struct ToriRSServerGroundObj* obj = &srv->ground[slot];
 
     refile(srv, &obj->zone_index, slot, obj->active, obj->x, obj->z, obj->level,
-           MOCK230_ZONE_KIND_OBJ);
+           TORIRSSERVER_ZONE_KIND_OBJ);
 }
 
 /*
@@ -956,41 +956,41 @@ mock230_zone_obj_refile(
  *
  * `player->zone_filed`, NOT `player->zone_index`. The two look interchangeable
  * and are opposites: `zone_index` is the *window* latch, deliberately reset to
- * -1 by `mock230_zone_player_reset` on every scene rebuild so the active window
+ * -1 by `ToriRSServer_ZonePlayerReset` on every scene rebuild so the active window
  * is recomputed. Filing off a field that is cleared behind your back would take
  * the player out of the map's membership lists on every rebuild and never put
  * them back, so nobody would be able to see anybody after walking 88 tiles.
  */
 void
-mock230_zone_player_refile(
-    struct Mock230Server* srv,
+ToriRSServer_ZonePlayerRefile(
+    struct ToriRSServer* srv,
     int pid)
 {
-    struct Mock230Player* other = &srv->players[pid];
+    struct ToriRSServerPlayer* other = &srv->players[pid];
 
     refile(srv, &other->zone_filed, pid, other->active && other->world != NULL, other->x,
-           other->z, other->level, MOCK230_ZONE_KIND_PLAYER);
+           other->z, other->level, TORIRSSERVER_ZONE_KIND_PLAYER);
 }
 
 void
-mock230_zone_sync_players(struct Mock230Server* srv)
+ToriRSServer_ZoneSyncPlayers(struct ToriRSServer* srv)
 {
     for( int pid = 0; pid < srv->player_count; pid++ )
-        mock230_zone_player_refile(srv, pid);
+        ToriRSServer_ZonePlayerRefile(srv, pid);
 }
 
 void
-mock230_zone_sync_npcs(struct Mock230Server* srv)
+ToriRSServer_ZoneSyncNpcs(struct ToriRSServer* srv)
 {
     for( int slot = 0; slot < srv->npc_slot_max; slot++ )
-        mock230_zone_npc_refile(srv, slot);
+        ToriRSServer_ZoneNpcRefile(srv, slot);
 }
 
 void
-mock230_zone_sync_objs(struct Mock230Server* srv)
+ToriRSServer_ZoneSyncObjs(struct ToriRSServer* srv)
 {
-    for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
-        mock230_zone_obj_refile(srv, slot);
+    for( int slot = 0; slot < TORIRSSERVER_GROUND_MAX; slot++ )
+        ToriRSServer_ZoneObjRefile(srv, slot);
 }
 
 /* ------------------------------------------------------------------ */
@@ -999,15 +999,15 @@ mock230_zone_sync_objs(struct Mock230Server* srv)
 
 static void
 obj_event(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot,
     int kind,
     int old_count,
     int new_count)
 {
-    struct Mock230GroundObj* obj = &srv->ground[slot];
-    struct Mock230Zone* zone = zone_at(srv, obj->x, obj->z, obj->level);
-    struct Mock230ZoneEvent event;
+    struct ToriRSServerGroundObj* obj = &srv->ground[slot];
+    struct ToriRSServerZone* zone = zone_at(srv, obj->x, obj->z, obj->level);
+    struct ToriRSServerZoneEvent event;
 
     if( !zone )
         return;
@@ -1027,29 +1027,29 @@ obj_event(
 }
 
 void
-mock230_zone_obj_added(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjAdded(
+    struct ToriRSServer* srv,
     int slot)
 {
-    obj_event(srv, slot, MOCK230_ZONE_EV_OBJ_ADD, 0, srv->ground[slot].count);
+    obj_event(srv, slot, TORIRSSERVER_ZONE_EV_OBJ_ADD, 0, srv->ground[slot].count);
 }
 
 void
-mock230_zone_obj_removed(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjRemoved(
+    struct ToriRSServer* srv,
     int slot)
 {
-    obj_event(srv, slot, MOCK230_ZONE_EV_OBJ_DEL, 0, 0);
+    obj_event(srv, slot, TORIRSSERVER_ZONE_EV_OBJ_DEL, 0, 0);
 }
 
 void
-mock230_zone_obj_counted(
-    struct Mock230Server* srv,
+ToriRSServer_ZoneObjCounted(
+    struct ToriRSServer* srv,
     int slot,
     int old_count,
     int new_count)
 {
-    obj_event(srv, slot, MOCK230_ZONE_EV_OBJ_COUNT, old_count, new_count);
+    obj_event(srv, slot, TORIRSSERVER_ZONE_EV_OBJ_COUNT, old_count, new_count);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1085,7 +1085,7 @@ mock230_zone_obj_counted(
 /*
  * A client's zone map is a subscription, and it holds no entities.
  *
- * See `struct Mock230PlayerZoneMap` for why there are two maps at all. The
+ * See `struct ToriRSServerPlayerZoneMap` for why there are two maps at all. The
  * division of labour here:
  *
  *   the list  is maintained. It changes only when the player crosses a zone
@@ -1100,14 +1100,14 @@ mock230_zone_obj_counted(
  * map into each subscriber, was built and reverted. It is faster in principle
  * and fails silently in practice: a push that never arrives leaves a client
  * missing an npc standing in front of it, with nothing anywhere to say so. The
- * walk is a few hundred hash probes per tick at MOCK230_PLAYER_MAX clients and
+ * walk is a few hundred hash probes per tick at TORIRSSERVER_PLAYER_MAX clients and
  * cannot be stale, because it asks the authority every time.
  */
 
 /** This client's entry for `index`, or NULL if it does not hold that zone. */
-struct Mock230PlayerZone*
-mock230_playerzonemap_find(
-    struct Mock230Player* player,
+struct ToriRSServerPlayerZone*
+ToriRSServer_PlayerzonemapFind(
+    struct ToriRSServerPlayer* player,
     int index)
 {
     for( int i = 0; i < player->zonemap.count; i++ )
@@ -1122,7 +1122,7 @@ mock230_playerzonemap_find(
  *  build area? The one place the window's shape is written down. */
 static int
 window_holds(
-    const struct Mock230Server* srv,
+    const struct ToriRSServer* srv,
     int centre_x,
     int centre_z,
     int index)
@@ -1130,26 +1130,26 @@ window_holds(
     int zone_x = index & 0x7ff;
     int zone_z = (index >> 11) & 0x7ff;
 
-    if( zone_x < centre_x - MOCK230_ZONE_VIEW_RADIUS ||
-        zone_x > centre_x + MOCK230_ZONE_VIEW_RADIUS )
+    if( zone_x < centre_x - TORIRSSERVER_ZONE_VIEW_RADIUS ||
+        zone_x > centre_x + TORIRSSERVER_ZONE_VIEW_RADIUS )
         return 0;
-    if( zone_z < centre_z - MOCK230_ZONE_VIEW_RADIUS ||
-        zone_z > centre_z + MOCK230_ZONE_VIEW_RADIUS )
+    if( zone_z < centre_z - TORIRSSERVER_ZONE_VIEW_RADIUS ||
+        zone_z > centre_z + TORIRSSERVER_ZONE_VIEW_RADIUS )
         return 0;
     /* Clipped to the build area, which is what a tile box is not and why
      * NPC_INFO used to name npcs outside the region the client has a scene
      * for. */
-    if( zone_x < srv->zone_x - MOCK230_ZONE_BUILD_RADIUS ||
-        zone_x > srv->zone_x + MOCK230_ZONE_BUILD_RADIUS )
+    if( zone_x < srv->zone_x - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_x > srv->zone_x + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
-    if( zone_z < srv->zone_z - MOCK230_ZONE_BUILD_RADIUS ||
-        zone_z > srv->zone_z + MOCK230_ZONE_BUILD_RADIUS )
+    if( zone_z < srv->zone_z - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_z > srv->zone_z + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
     return 1;
 }
 
 void
-mock230_playerzonemap_clear(struct Mock230Player* player)
+ToriRSServer_PlayerzonemapClear(struct ToriRSServerPlayer* player)
 {
     player->zonemap.count = 0;
     player->zone_index = -1;
@@ -1167,20 +1167,20 @@ mock230_playerzonemap_clear(struct Mock230Player* player)
  * the flush already does for anything it does not hold.
  */
 void
-mock230_playerzonemap_move(struct Mock230Player* player)
+ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     int here;
     int centre_x;
     int centre_z;
-    int wanted[MOCK230_ZONE_ACTIVE_MAX];
+    int wanted[TORIRSSERVER_ZONE_ACTIVE_MAX];
     int wanted_count = 0;
-    struct Mock230PlayerZone kept[MOCK230_ZONE_ACTIVE_MAX];
+    struct ToriRSServerPlayerZone kept[TORIRSSERVER_ZONE_ACTIVE_MAX];
     int kept_count = 0;
 
     if( !srv )
         return;
-    here = mock230_zone_index(player->x, player->z, player->level);
+    here = ToriRSServer_ZoneIndex(player->x, player->z, player->level);
     if( player->zone_index == here && player->zonemap.count > 0 &&
         player->zonemap.built_zone_x == srv->zone_x &&
         player->zonemap.built_zone_z == srv->zone_z )
@@ -1188,19 +1188,19 @@ mock230_playerzonemap_move(struct Mock230Player* player)
 
     centre_x = player->x >> 3;
     centre_z = player->z >> 3;
-    for( int x = centre_x - MOCK230_ZONE_VIEW_RADIUS; x <= centre_x + MOCK230_ZONE_VIEW_RADIUS;
+    for( int x = centre_x - TORIRSSERVER_ZONE_VIEW_RADIUS; x <= centre_x + TORIRSSERVER_ZONE_VIEW_RADIUS;
          x++ )
     {
-        for( int z = centre_z - MOCK230_ZONE_VIEW_RADIUS;
-             z <= centre_z + MOCK230_ZONE_VIEW_RADIUS; z++ )
+        for( int z = centre_z - TORIRSSERVER_ZONE_VIEW_RADIUS;
+             z <= centre_z + TORIRSSERVER_ZONE_VIEW_RADIUS; z++ )
         {
-            for( int level = 0; level < MOCK230_ZONE_LEVELS; level++ )
+            for( int level = 0; level < TORIRSSERVER_ZONE_LEVELS; level++ )
             {
-                int index = mock230_zone_index(x << 3, z << 3, level);
+                int index = ToriRSServer_ZoneIndex(x << 3, z << 3, level);
 
                 if( !window_holds(srv, centre_x, centre_z, index) )
                     continue;
-                if( wanted_count < MOCK230_ZONE_ACTIVE_MAX )
+                if( wanted_count < TORIRSSERVER_ZONE_ACTIVE_MAX )
                     wanted[wanted_count++] = index;
             }
         }
@@ -1219,7 +1219,7 @@ mock230_playerzonemap_move(struct Mock230Player* player)
      */
     for( int i = 0; i < wanted_count; i++ )
     {
-        struct Mock230PlayerZone* held = mock230_playerzonemap_find(player, wanted[i]);
+        struct ToriRSServerPlayerZone* held = ToriRSServer_PlayerzonemapFind(player, wanted[i]);
 
         kept[kept_count].index = wanted[i];
         kept[kept_count].loaded = held ? held->loaded : 0;
@@ -1232,12 +1232,12 @@ mock230_playerzonemap_move(struct Mock230Player* player)
     player->zonemap.built_zone_z = srv->zone_z;
 }
 
-/* The gap to a npc's FOOTPRINT, per axis. See mock230_zone.h — the header
+/* The gap to a npc's FOOTPRINT, per axis. See torirs_server_zone.h — the header
  * carries why view range must not be measured off the origin corner. */
 void
-mock230_npc_view_deltas(
-    const struct Mock230Npc* npc,
-    const struct Mock230Player* player,
+ToriRSServer_NpcViewDeltas(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player,
     int* out_dx,
     int* out_dz)
 {
@@ -1273,13 +1273,13 @@ mock230_npc_view_deltas(
  */
 static int
 area_entities(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int radius,
     int want_players,
     int* out,
     int max)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     int count = 0;
     /*
      * The zone box below rejects whole zones on the ORIGIN tile, which is the
@@ -1288,7 +1288,7 @@ area_entities(
      * per-entity test never gets asked about the npc that needed it. Players
      * are 1x1 and pay nothing.
      */
-    int zone_pad = want_players ? 0 : MOCK230_NPC_SIZE_MAX - 1;
+    int zone_pad = want_players ? 0 : TORIRSSERVER_NPC_SIZE_MAX - 1;
 
     if( !srv )
         return 0;
@@ -1301,17 +1301,17 @@ area_entities(
          * The subscription spans all four — a loc change one storey up still
          * has to be addressable — and the entity streams span one. */
         int zone_level = (index >> 22) & 3;
-        struct Mock230Zone* zone;
+        struct ToriRSServerZone* zone;
 
         if( zone_level != player->level )
             continue;
         /* The zone box first, as a cheap reject for the 40-odd zones that
          * cannot contain anything in range. */
         if( zone_x > player->x + radius + zone_pad ||
-            zone_x + MOCK230_ZONE_TILES - 1 < player->x - radius - zone_pad )
+            zone_x + TORIRSSERVER_ZONE_TILES - 1 < player->x - radius - zone_pad )
             continue;
         if( zone_z > player->z + radius + zone_pad ||
-            zone_z + MOCK230_ZONE_TILES - 1 < player->z - radius - zone_pad )
+            zone_z + TORIRSSERVER_ZONE_TILES - 1 < player->z - radius - zone_pad )
             continue;
         zone = zone_by_index(srv, index);
         if( !zone )
@@ -1320,7 +1320,7 @@ area_entities(
         {
             for( int n = 0; n < zone->player_count && count < max; n++ )
             {
-                struct Mock230Player* other = &srv->players[zone->players[n]];
+                struct ToriRSServerPlayer* other = &srv->players[zone->players[n]];
 
                 if( other->x < player->x - radius || other->x > player->x + radius )
                     continue;
@@ -1333,13 +1333,13 @@ area_entities(
         {
             for( int n = 0; n < zone->npc_count && count < max; n++ )
             {
-                struct Mock230Npc* npc = &srv->npcs[zone->npcs[n]];
+                struct ToriRSServerNpc* npc = &srv->npcs[zone->npcs[n]];
                 int dx;
                 int dz;
 
                 /* To the footprint, not to the origin corner — see
-                 * mock230_npc_view_deltas. */
-                mock230_npc_view_deltas(npc, player, &dx, &dz);
+                 * ToriRSServer_NpcViewDeltas. */
+                ToriRSServer_NpcViewDeltas(npc, player, &dx, &dz);
                 if( dx > radius || dz > radius )
                     continue;
                 out[count++] = zone->npcs[n];
@@ -1350,8 +1350,8 @@ area_entities(
 }
 
 int
-mock230_playerzonemap_npcs(
-    struct Mock230Player* player,
+ToriRSServer_PlayerzonemapNpcs(
+    struct ToriRSServerPlayer* player,
     int radius,
     int* out,
     int max)
@@ -1360,8 +1360,8 @@ mock230_playerzonemap_npcs(
 }
 
 int
-mock230_playerzonemap_players(
-    struct Mock230Player* player,
+ToriRSServer_PlayerzonemapPlayers(
+    struct ToriRSServerPlayer* player,
     int radius,
     int* out,
     int max)
@@ -1381,20 +1381,20 @@ mock230_playerzonemap_players(
  */
 static void
 write_state(
-    struct Mock230Player* player,
-    struct Mock230Zone* zone)
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerZone* zone)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
 
     for( int i = 0; i < zone->obj_count; i++ )
     {
-        struct Mock230GroundObj* obj = &srv->ground[zone->objs[i]];
-        struct Mock230ZoneEvent event;
+        struct ToriRSServerGroundObj* obj = &srv->ground[zone->objs[i]];
+        struct ToriRSServerZoneEvent event;
 
-        if( !obj->active || !mock230_world_ground_visible_to(srv, zone->objs[i], player->pid) )
+        if( !obj->active || !ToriRSServer_WorldGroundVisibleTo(srv, zone->objs[i], player->pid) )
             continue;
         memset(&event, 0, sizeof(event));
-        event.kind = MOCK230_ZONE_EV_OBJ_ADD;
+        event.kind = TORIRSSERVER_ZONE_EV_OBJ_ADD;
         event.receiver_pid = obj->receiver_pid;
         event.pos = zone_pos(obj->x, obj->z);
         event.id = obj->obj_id;
@@ -1403,41 +1403,41 @@ write_state(
          * carried as an ordinal-prefixed PARTIAL_ENCLOSED record even during
          * the initial zone-state replay.  Sending the classic standalone form
          * resolves OBJ_ADD to -1 and silently loses persistent floor loot. */
-        if( mock230_zone_sub_standalone(srv->wire, event.kind) )
-            mock230_send_zone_sub(player, &event);
+        if( ToriRSServer_ZoneSubStandalone(srv->wire, event.kind) )
+            ToriRSServer_SendZoneSub(player, &event);
         else
         {
             uint8_t one[256];
-            int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one), &event);
+            int written = ToriRSServer_EncodeZoneSub(srv->wire, one, (int)sizeof(one), &event);
             if( written > 0 )
-                mock230_send_zone_enclosed(player, obj->x >> 3, obj->z >> 3,
+                ToriRSServer_SendZoneEnclosed(player, obj->x >> 3, obj->z >> 3,
                                             obj->level, one, written);
         }
     }
     for( int i = 0; i < zone->loc_count; i++ )
     {
-        struct Mock230ZoneLoc* loc = &zone->locs[i];
-        struct Mock230ZoneEvent event;
+        struct ToriRSServerZoneLoc* loc = &zone->locs[i];
+        struct ToriRSServerZoneEvent event;
 
         memset(&event, 0, sizeof(event));
         event.receiver_pid = -1;
         event.pos = zone_pos(loc->x, loc->z);
         event.shape = loc->shape;
         event.angle = loc->angle;
-        mock230_loc_ops_default(&event.ops);
+        ToriRSServer_LocOpsDefault(&event.ops);
         if( loc->loc_id < 0 )
         {
-            event.kind = MOCK230_ZONE_EV_LOC_DEL;
+            event.kind = TORIRSSERVER_ZONE_EV_LOC_DEL;
         }
         else
         {
-            event.kind = MOCK230_ZONE_EV_LOC_ADD_CHANGE;
+            event.kind = TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE;
             event.id = loc->loc_id;
             /* The whole reason the record carries a menu: this is the only path
              * a client that arrived after the change is built from. */
             event.ops = loc->ops;
         }
-        mock230_send_zone_sub(player, &event);
+        ToriRSServer_SendZoneSub(player, &event);
     }
 }
 
@@ -1445,7 +1445,7 @@ write_state(
  * Does this everyone-event name an npc, and so have to be encoded per client?
  *
  * A projectile that homes on an npc carries that npc's index, and an npc's index
- * is PRIVATE to each observer (Mock230PlayerSlotMap): the world slot the event
+ * is PRIVATE to each observer (ToriRSServerPlayerSlotMap): the world slot the event
  * holds means a different npc — or none — on every stream it reaches. So the
  * event is seen by everyone but cannot be *written* once for everyone, and it
  * has to leave the shared blob even though its receiver is -1.
@@ -1454,9 +1454,9 @@ write_state(
  * the shared blob: player ids are absolute, the same number on every stream.
  */
 static int
-zone_event_names_npc(const struct Mock230ZoneEvent* event)
+zone_event_names_npc(const struct ToriRSServerZoneEvent* event)
 {
-    return event->kind == MOCK230_ZONE_EV_PROJANIM && event->target > 0;
+    return event->kind == TORIRSSERVER_ZONE_EV_PROJANIM && event->target > 0;
 }
 
 /*
@@ -1471,14 +1471,14 @@ zone_event_names_npc(const struct Mock230ZoneEvent* event)
  */
 static int
 projanim_target_for_client(
-    const struct Mock230Player* player,
+    const struct ToriRSServerPlayer* player,
     int target)
 {
     int client_slot;
 
     if( target <= 0 )
         return target;
-    client_slot = mock230_slotmap_client(player, target - 1);
+    client_slot = ToriRSServer_SlotMapClient(player, target - 1);
     if( client_slot < 0 )
         return 0;
     return client_slot + 1;
@@ -1487,8 +1487,8 @@ projanim_target_for_client(
 /** Encode the zone's everyone-events once, for however many clients are in it. */
 static void
 build_shared(
-    struct Mock230Server* srv,
-    struct Mock230Zone* zone)
+    struct ToriRSServer* srv,
+    struct ToriRSServerZone* zone)
 {
     if( zone->shared_tick == srv->tick )
         return;
@@ -1511,7 +1511,7 @@ build_shared(
                             sizeof(*zone->shared));
         if( zone->shared_len + 32 > zone->shared_capacity )
             return;
-        written = mock230_encode_zone_sub(srv->wire, zone->shared + zone->shared_len,
+        written = ToriRSServer_EncodeZoneSub(srv->wire, zone->shared + zone->shared_len,
                                           zone->shared_capacity - zone->shared_len,
                                           &zone->events[i]);
         zone->shared_len += written;
@@ -1519,9 +1519,9 @@ build_shared(
 }
 
 void
-mock230_zone_update_player(struct Mock230Player* player)
+ToriRSServer_ZoneUpdatePlayer(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
 
     /*
      * The window first, in case anything moved the player since phase 8 — a
@@ -1536,16 +1536,16 @@ mock230_zone_update_player(struct Mock230Player* player)
      * scene — it simply stops being told about them, and is caught up in full
      * if it comes back.
      */
-    mock230_playerzonemap_move(player);
+    ToriRSServer_PlayerzonemapMove(player);
 
     for( int i = 0; i < player->zonemap.count; i++ )
     {
-        struct Mock230PlayerZone* entry = &player->zonemap.zones[i];
+        struct ToriRSServerPlayerZone* entry = &player->zonemap.zones[i];
         int index = entry->index;
-        struct Mock230Zone* zone = zone_by_index(srv, index);
+        struct ToriRSServerZone* zone = zone_by_index(srv, index);
         int zone_x = index & 0x7ff;
         int zone_z = (index >> 11) & 0x7ff;
-        /* Bits 22-23 of the key (mock230_zone_index). Recovering it is what
+        /* Bits 22-23 of the key (ToriRSServer_ZoneIndex). Recovering it is what
          * lets a zone describe its own plane instead of borrowing the
          * player's. */
         int zone_level = (index >> 22) & 3;
@@ -1596,7 +1596,7 @@ mock230_zone_update_player(struct Mock230Player* player)
              */
             if( zone || zone_level == player->level )
             {
-                mock230_send_zone_header(player, zone_x, zone_z, zone_level, 1);
+                ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 1);
                 if( zone )
                     write_state(player, zone);
             }
@@ -1609,7 +1609,7 @@ mock230_zone_update_player(struct Mock230Player* player)
 
         build_shared(srv, zone);
         if( zone->shared_len > 0 )
-            mock230_send_zone_enclosed(player, zone_x, zone_z, zone_level, zone->shared,
+            ToriRSServer_SendZoneEnclosed(player, zone_x, zone_z, zone_level, zone->shared,
                                        zone->shared_len);
 
         /*
@@ -1631,8 +1631,8 @@ mock230_zone_update_player(struct Mock230Player* player)
          */
         for( int e = 0; e < zone->event_count; e++ )
         {
-            const struct Mock230ZoneEvent* event = &zone->events[e];
-            struct Mock230ZoneEvent local;
+            const struct ToriRSServerZoneEvent* event = &zone->events[e];
+            struct ToriRSServerZoneEvent local;
 
             if( event->receiver_pid >= 0 )
             {
@@ -1652,28 +1652,28 @@ mock230_zone_update_player(struct Mock230Player* player)
                 continue; /* already in the shared blob */
             }
 
-            if( mock230_zone_sub_standalone(srv->wire, event->kind) )
+            if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
             {
-                mock230_send_zone_header(player, zone_x, zone_z, zone_level, 0);
-                mock230_send_zone_sub(player, event);
+                ToriRSServer_SendZoneHeader(player, zone_x, zone_z, zone_level, 0);
+                ToriRSServer_SendZoneSub(player, event);
                 continue;
             }
             {
                 uint8_t one[256];
-                int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one), event);
+                int written = ToriRSServer_EncodeZoneSub(srv->wire, one, (int)sizeof(one), event);
 
                 if( written > 0 )
-                    mock230_send_zone_enclosed(player, zone_x, zone_z, zone_level, one, written);
+                    ToriRSServer_SendZoneEnclosed(player, zone_x, zone_z, zone_level, one, written);
             }
         }
     }
 }
 
 void
-mock230_zone_player_reset(struct Mock230Player* player)
+ToriRSServer_ZonePlayerReset(struct ToriRSServerPlayer* player)
 {
-    /* Through mock230_playerzonemap_clear so the subscription, the loaded set and the
+    /* Through ToriRSServer_PlayerzonemapClear so the subscription, the loaded set and the
      * `zone_index` latch are dropped together — a reset that cleared the zones
      * and left the latch would rebuild nothing. */
-    mock230_playerzonemap_clear(player);
+    ToriRSServer_PlayerzonemapClear(player);
 }

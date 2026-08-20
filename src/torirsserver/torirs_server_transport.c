@@ -1,15 +1,15 @@
 /*
  * Transport implementations: a socket, and a pair of in-process byte queues.
  *
- * See mock230_transport.h for the contract. Everything here is deliberately
- * dull — the interesting consequence of the seam lives in mock230_session.c,
+ * See torirs_server_transport.h for the contract. Everything here is deliberately
+ * dull — the interesting consequence of the seam lives in torirs_server_session.c,
  * which had to stop blocking to use it.
  */
 
-#include "mock230_transport.h"
+#include "torirs_server_transport.h"
 #include <assert.h>
 
-#include "mock230_ws.h"
+#include "torirs_server_ws.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -19,19 +19,19 @@
 /* ------------------------------------------------------------------ */
 
 int
-mock230_pipe_available(const struct Mock230Pipe* pipe)
+ToriRSServer_PipeAvailable(const struct ToriRSServerPipe* pipe)
 {
     return pipe->tail - pipe->head;
 }
 
 void
-mock230_pipe_close(struct Mock230Pipe* pipe)
+ToriRSServer_PipeClose(struct ToriRSServerPipe* pipe)
 {
     pipe->closed = 1;
 }
 
 void
-mock230_pipe_free(struct Mock230Pipe* pipe)
+ToriRSServer_PipeFree(struct ToriRSServerPipe* pipe)
 {
     free(pipe->data);
     pipe->data = NULL;
@@ -41,8 +41,8 @@ mock230_pipe_free(struct Mock230Pipe* pipe)
 }
 
 int
-mock230_pipe_write(
-    struct Mock230Pipe* pipe,
+ToriRSServer_PipeWrite(
+    struct ToriRSServerPipe* pipe,
     const uint8_t* src,
     int len)
 {
@@ -83,8 +83,8 @@ mock230_pipe_write(
 }
 
 int
-mock230_pipe_read(
-    struct Mock230Pipe* pipe,
+ToriRSServer_PipeRead(
+    struct ToriRSServerPipe* pipe,
     uint8_t* dst,
     int max)
 {
@@ -117,31 +117,31 @@ mock230_pipe_read(
 static int
 socket_recv(void* ctx, uint8_t* dst, int max)
 {
-    return mock230_conn_recv((struct Mock230Conn*)ctx, dst, max);
+    return ToriRSServer_ConnRecv((struct ToriRSServerConn*)ctx, dst, max);
 }
 
 static int
 socket_send(void* ctx, const uint8_t* src, int len)
 {
-    return mock230_conn_send((struct Mock230Conn*)ctx, src, len);
+    return ToriRSServer_ConnSend((struct ToriRSServerConn*)ctx, src, len);
 }
 
 static int
 socket_pollfd(void* ctx)
 {
-    return ((struct Mock230Conn*)ctx)->fd;
+    return ((struct ToriRSServerConn*)ctx)->fd;
 }
 
 static void
 socket_close(void* ctx)
 {
-    ((struct Mock230Conn*)ctx)->closed = 1;
+    ((struct ToriRSServerConn*)ctx)->closed = 1;
 }
 
 void
-mock230_transport_socket(
-    struct Mock230Transport* transport,
-    struct Mock230Conn* conn)
+ToriRSServer_TransportSocket(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerConn* conn)
 {
     transport->ctx = conn;
     transport->recv = socket_recv;
@@ -157,13 +157,13 @@ mock230_transport_socket(
 static int
 memory_recv(void* ctx, uint8_t* dst, int max)
 {
-    return mock230_pipe_read(((struct Mock230MemoryEnds*)ctx)->to_server, dst, max);
+    return ToriRSServer_PipeRead(((struct ToriRSServerMemoryEnds*)ctx)->to_server, dst, max);
 }
 
 static int
 memory_send(void* ctx, const uint8_t* src, int len)
 {
-    return mock230_pipe_write(((struct Mock230MemoryEnds*)ctx)->to_client, src, len);
+    return ToriRSServer_PipeWrite(((struct ToriRSServerMemoryEnds*)ctx)->to_client, src, len);
 }
 
 static int
@@ -177,20 +177,20 @@ memory_pollfd(void* ctx)
 static void
 memory_close(void* ctx)
 {
-    struct Mock230MemoryEnds* ends = (struct Mock230MemoryEnds*)ctx;
+    struct ToriRSServerMemoryEnds* ends = (struct ToriRSServerMemoryEnds*)ctx;
 
     /* Close, do not free: the host still has to drain whatever the server said
      * on its way out — a logout message, or the tail of the last tick. */
-    mock230_pipe_close(ends->to_client);
-    mock230_pipe_close(ends->to_server);
+    ToriRSServer_PipeClose(ends->to_client);
+    ToriRSServer_PipeClose(ends->to_server);
 }
 
 void
-mock230_transport_memory(
-    struct Mock230Transport* transport,
-    struct Mock230MemoryEnds* ends,
-    struct Mock230Pipe* to_server,
-    struct Mock230Pipe* to_client)
+ToriRSServer_TransportMemory(
+    struct ToriRSServerTransport* transport,
+    struct ToriRSServerMemoryEnds* ends,
+    struct ToriRSServerPipe* to_server,
+    struct ToriRSServerPipe* to_client)
 {
     ends->to_server = to_server;
     ends->to_client = to_client;

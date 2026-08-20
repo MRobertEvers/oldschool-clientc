@@ -281,9 +281,9 @@ Wiki examine texts, one per crew model
 
 ### 4.3 Two traps around these NPCs
 
-**Multinpc does not resolve server-side.** mock230 has `mock230_loc_resolve_transform`
-for locs (`src/net/mock/mock230_scene.c:354`) but no npc equivalent — grep for `multinpc`
-under `src/net/mock/` finds only comments. Triggers therefore dispatch against the
+**Multinpc does not resolve server-side.** ToriRSServer has `ToriRSServer_LocResolveTransform`
+for locs (`src/torirsserver/torirs_server_scene.c:354`) but no npc equivalent — grep for `multinpc`
+under `src/torirsserver/` finds only comments. Triggers therefore dispatch against the
 **parent** name. Bind the seven parents, and belt-and-braces the leaves, exactly as
 `CT/server/scripts/quests/quest_ethicallyacquiredantiquities/scripts/ethicallyacquiredantiquities.rs2:68`
 already does:
@@ -343,7 +343,7 @@ visible pins:
 row = (last_slot - 1) / 2   →   db_getrow(row)   →   dbrow id   →   destination id
 ```
 
-**Do not use `if_addresumebutton` + `p_pausebutton` here.** `src/net/mock/mock230_world.c:7164`
+**Do not use `if_addresumebutton` + `p_pausebutton` here.** `src/torirsserver/torirs_server_world.c:7164`
 returns early for `sub == 0` on a registered resume button, so the first row would be
 silently swallowed — the trap `docs/CANOES.md:213` records. Use
 `if_setevents(<container>, 0, <max>, ^if_event_op1)` and read `last_slot` inside an
@@ -575,7 +575,7 @@ CT/server/scripts/transport_charter/
 ```
 
 `transport_charter/` sits alongside `canoes/` as a top-level dir. **Adding a directory
-requires no build edits** — `sscompile`, `cachepack` and `mock230` all walk recursively
+requires no build edits** — `sscompile`, `cachepack` and `ToriRSServer` all walk recursively
 and skip only a leading `.` (`docs/SUMMONING_PORT.md:240`). **No new id lane is needed**:
 every npc, interface, varbit and inv already exists in `pack/*.pack`.
 `tools/ss_allocate.py --tree` appends the dbtable/dbrow ids on every build.
@@ -605,7 +605,7 @@ Each phase ends with something observable in the running client. Nothing ships o
 revision, cross-checking every destination tile against `charter_ships.tsv`. Shop `.inv`
 and `.rs2` from `CT/wiki/shop_stock.csv` via `tools/gen_shop_scripts.py`; `[opnpc3,…]` on
 all seven parents.
-***Verify:*** `make -C src mock230-scripts` clean, script count moves; right-click **Trade**
+***Verify:*** `make -C src torirsserver-scripts` clean, script count moves; right-click **Trade**
 at Port Sarim opens a 40-slot shop with 30 lines at double general-store price.
 
 **Phase 2 — travel, on chat menus.** `[opnpc4,…]` → resolve the current port (mirror
@@ -616,7 +616,7 @@ exercised before the interface lands → `db_find(charter_fare:route, from*32+to
 the four refusals, the hard exclusion of Tempestus and Crandor, and writing
 `chartering_previous_destination` so `op5` lights up. `[opnpc5,…]` re-runs the last route
 through the same fare confirm.
-***Verify:*** a mock230 selftest section — charter Port Sarim → Catherby, assert 1,000
+***Verify:*** a ToriRSServer selftest section — charter Port Sarim → Catherby, assert 1,000
 coins gone and the player on `0_43_53_40_25`; charter Port Tyras without Regicide, assert
 refusal and coins untouched.
 
@@ -649,8 +649,8 @@ jetty footprint; charter out and back.
 
 ## 9. Verification
 
-- **`make -C src mock230-scripts`** clean, before/after script counts recorded.
-- **`make -C src test-mock230`** — a new section in `src/net/mock/mock230_world.c`,
+- **`make -C src torirsserver-scripts`** clean, before/after script counts recorded.
+- **`make -C src test-ToriRSServer`** — a new section in `src/torirsserver/torirs_server_world.c`,
   modelled on the canoe section at ~line 25784, driving real packets: `OPNPC4` → menu →
   `IF_BUTTON1` → fare confirm → assert coins and arrival tile. Cover a refused quest gate
   and an insufficient-coins case.
@@ -661,7 +661,7 @@ jetty footprint; charter out and back.
   read this doc alongside the `.dbrow` sources and a fixture, and assert that every fare
   cell, arrival tile and quest gate agrees across doc, dbrow, dbtable 206 and
   `charter_ships.tsv` (flagging, not silencing, the §6 tsv/wiki cost mismatches).
-- **By eye** via `run-live.sh` with `MOCK230_SAVES` set. A run that dies mid-voyage
+- **By eye** via `run-live.sh` with `TORIRSSERVER_SAVES` set. A run that dies mid-voyage
   otherwise saves the player inside the cutscene and the next run reads as a hang — the
   trap `docs/CANOES.md:370` records.
 - **Debugprocs** in `charter_cheat.rs2`: `::charter` (to the Port Sarim dock),
@@ -704,13 +704,13 @@ dice game mid-voyage as it is on the Karamja ferry.
 **Files.** `OSRS-Content/osrs239-content/server/scripts/transport_charter/`
 (README, 7 configs, 6 scripts), `tools/gen_charter_tables.py`,
 `tools/check_charter_contract.py`, a `check-charter-contract` target wired into
-`mock230-scripts`, and a `mock230_world.c` selftest section with four new
+`torirsserver-scripts`, and a `torirs_server_world.c` selftest section with four new
 helpers.
 
 **The picker needed no new opcode, and that was the surprise.** It was parked in
 §13 of the first draft of this document on the grounds that the server had no
 `db_findall`/`db_getrow`. It does — under the RuneScript names `db_listall` and
-`db_findbyindex`, both implemented in `mock230_ops_db.c` and both already
+`db_findbyindex`, both implemented in `torirs_server_ops_db.c` and both already
 exposed to content. The original claim came from grepping the CS2 spellings.
 
 **One engine change did land, and it is contract-hardening rather than a bug
@@ -721,7 +721,7 @@ each `dbindex/dbindex_<table>.dbi` `[master]` block states — ascending row id.
 Those agreed only because the exporter happens to emit rows sorted, which is not
 a contract a positional API can rest on.
 
-`mock230_db_row_in_table_ordered` (`mock230_db.c`) now serves the `db_listall`
+`ToriRSServer_DbRowInTableOrdered` (`torirs_server_db.c`) now serves the `db_listall`
 cursor from a lazily-built sorted view, reached only from `query_row`'s
 `db_query_column < 0` branch so the `db_find` scan is untouched. Measured
 back-to-back on one tree: **50 suite failures with it and 50 without, identical
@@ -739,7 +739,7 @@ picker's dependence on that staying true.
 |---|---|
 | `sscompile` | clean. Proven to be compiling these files: renaming `charter_fare:cost` to a typo failed at `charter_travel.rs2:22` and nowhere else |
 | `check_charter_contract.py` | ok, and mutation-proven — see the table below |
-| `mock230 --selftest` | section **"a charter ship takes a fare and sails"**, 9 assertions, all passing |
+| `ToriRSServer --selftest` | section **"a charter ship takes a fare and sails"**, 9 assertions, all passing |
 | the rest of the suite | measured back-to-back on one tree: 57 failures without this work, 51 with it, and **nothing in the with-set that is not in the without-set** |
 
 The remaining failures are other features mid-flight (plunder, zulrah, chompybird,
@@ -761,7 +761,7 @@ Inferno, movement) and were failing before this branch touched anything.
 
 1. **`[opnpc4]` was unbound.** The first selftest run failed everything, and the
    direct trigger probe named it: `npc 1328 should have an [opnpc4]`. The cause
-   was the harness — `mock230 --selftest` ignores `MOCK230_SCRIPTS` and loads
+   was the harness — `ToriRSServer --selftest` ignores `TORIRSSERVER_SCRIPTS` and loads
    `server/scripts/build` unconditionally, so it was running a pack that
    predated the feature. **Check `strings script.dat | grep -c <feature>` before
    believing a selftest failure.**

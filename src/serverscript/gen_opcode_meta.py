@@ -207,7 +207,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # RUNCLIENTSCRIPT_SS is fixed at one int and two strings because the one
     # caller it was written for (chatbox_multi_init) takes exactly that. The
     # wire is not: RUNCLIENTSCRIPT carries a per-argument type string, and
-    # `mock230_send_run_clientscript_mixed` has taken one since it was written.
+    # `ToriRSServer_SendRunClientscriptMixed` has taken one since it was written.
     # Everything else in the rev-230 UI needs other shapes — the skill guide's
     # clientscript 1902 takes four ints — and there is no way to spell that
     # with the _SS form.
@@ -657,7 +657,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # waypoint and the npc phase drains exactly one tile from it.
     #
     # The engine already renders the two-tile step; only the switch was missing.
-    # `Mock230Npc.run_dir` is NPC_INFO's second direction and `playerfollow`
+    # `ToriRSServerNpc.run_dir` is NPC_INFO's second direction and `playerfollow`
     # has filled it since familiars landed, so this reuses that path rather
     # than inventing one. Speed is engine mechanism; which health band means
     # which speed stays content policy, in tob_bloat.rs2.
@@ -805,7 +805,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # an ordinary varp that only gates the scripts choosing to read it, so a
     # "stunned" player still walked and still attacked. A stun stops movement
     # and world interaction and deliberately leaves the inventory, equipment
-    # and prayer book alone — see `stun_ticks` in mock230.h.
+    # and prayer book alone — see `stun_ticks` in torirs_server.h.
     #
     # `ticks <= 0` clears; otherwise the longer stun wins, as `npc_freeze` does.
     "P_STUN": (11081, 1, 0, 0, 0),
@@ -899,7 +899,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # for a submenu's slot index instead.
     #
     # The wire already carries it (mock239_interface_inbound.c decodes
-    # `button.subop`) and mock230_world.c already stores it
+    # `button.subop`) and torirs_server_world.c already stores it
     # (`player->last_subop`), same as `last_slot`/`last_item` — this command
     # is only the missing read side. LostCity's reference predates rev-239's
     # Rub submenu convention entirely: ScriptOpcode.ts has no subop/subaction

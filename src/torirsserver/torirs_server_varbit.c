@@ -10,11 +10,11 @@
  * `weapon_category` to 357 and `combat_level` to 13027, imported from
  * OpenRune's gameval table like every other id.
  *
- * Same one-pass decode as mock230_objinfo: the group is 13,876 records at rev
+ * Same one-pass decode as ToriRSServer_ObjInfo: the group is 13,876 records at rev
  * 230 and decodes in a few milliseconds, so it is read once at startup rather
  * than lazily per id.
  */
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -52,12 +52,12 @@ static int g_max_basevar = -1;
 /** Size of the varplayer config group the active client actually loads. */
 static int g_client_varp_count;
 
-/** Non-zero while mock230_varbit_set is patching a base varp — a varbit write
- *  reaching mock230_world_set_varp is the correct path, not a violation. */
+/** Non-zero while ToriRSServer_VarbitSet is patching a base varp — a varbit write
+ *  reaching ToriRSServer_WorldSetVarp is the correct path, not a violation. */
 static int g_patching;
 
 int
-mock230_varbit_load(const char* cache_dir)
+ToriRSServer_VarbitLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -67,11 +67,11 @@ mock230_varbit_load(const char* cache_dir)
     int highest = -1;
     int loaded = 0;
 
-    mock230_varbit_free();
+    ToriRSServer_VarbitFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -83,7 +83,7 @@ mock230_varbit_load(const char* cache_dir)
     }
     if( !disk )
     {
-        fprintf(stderr, "mock230: no varbit table (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no varbit table (cache '%s' not found)\n", cache_dir);
         return 0;
     }
     RSCache_Dat2DiskSetProfile(disk, &profile);
@@ -126,7 +126,7 @@ mock230_varbit_load(const char* cache_dir)
         if( archive )
             RSCache_Dat2DiskArchiveFree(archive);
         RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "mock230: no varbit config group in '%s'\n", cache_dir);
+        fprintf(stderr, "torirsserver: no varbit config group in '%s'\n", cache_dir);
         return 0;
     }
 
@@ -180,7 +180,7 @@ mock230_varbit_load(const char* cache_dir)
     /* The reverse index. Sized off the varp table rather than the highest
      * basevar seen: a carrier query for a varp past the end must answer 0, not
      * read off the array. */
-    g_carrier_count = MOCK230_VARP_COUNT;
+    g_carrier_count = TORIRSSERVER_VARP_COUNT;
     g_carrier_bits = calloc((size_t)g_carrier_count, sizeof(*g_carrier_bits));
     /* The ceiling is measured over every basevar, including any past the end of
      * the reverse index — that case is exactly the one worth hearing about. */
@@ -202,7 +202,7 @@ mock230_varbit_load(const char* cache_dir)
             if( g_carrier_bits[base]++ == 0 )
                 carriers++;
         }
-        fprintf(stderr, "mock230: %d varp(s) carry varbits (highest basevar %d)\n", carriers,
+        fprintf(stderr, "torirsserver: %d varp(s) carry varbits (highest basevar %d)\n", carriers,
                 max_base);
         /*
          * The cache's varps and the tree's must not overlap, and this is the
@@ -211,7 +211,7 @@ mock230_varbit_load(const char* cache_dir)
          * `tools/ss_allocate.py` hands out server varp ids from one past the
          * largest the *content tree* knows about, which it reads from
          * `configs/all.varp` — an export, and only as current as whenever it
-         * was taken. MOCK230_VARP_CACHE_MAX is the engine's copy of the same
+         * was taken. TORIRSSERVER_VARP_CACHE_MAX is the engine's copy of the same
          * number. If the cache actually running carries varbits above that
          * line, then every one of them shares a slot with a server varp, and
          * the two corrupt each other in both directions: `~player_combat_stat`
@@ -225,13 +225,13 @@ mock230_varbit_load(const char* cache_dir)
          * the line, so say it once, here, rather than leaving each write to be
          * misdiagnosed as content writing the wrong thing.
          */
-        if( max_base >= MOCK230_VARP_CACHE_MAX )
+        if( max_base >= TORIRSSERVER_VARP_CACHE_MAX )
             fprintf(stderr,
-                    "mock230: this cache carries varbits up to varp %d, past the %d the "
+                    "torirsserver: this cache carries varbits up to varp %d, past the %d the "
                     "engine assumes — server varps %d..%d collide with cache varbits; "
                     "re-export configs/all.varp, re-run tools/ss_allocate.py and raise "
-                    "MOCK230_VARP_CACHE_MAX\n",
-                    max_base, MOCK230_VARP_CACHE_MAX - 1, MOCK230_VARP_CACHE_MAX, max_base);
+                    "TORIRSSERVER_VARP_CACHE_MAX\n",
+                    max_base, TORIRSSERVER_VARP_CACHE_MAX - 1, TORIRSSERVER_VARP_CACHE_MAX, max_base);
     }
     else
         g_carrier_count = 0;
@@ -239,20 +239,20 @@ mock230_varbit_load(const char* cache_dir)
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
-    fprintf(stderr, "mock230: varbit table loaded (%d records from %s)\n", loaded, cache_dir);
-    fprintf(stderr, "mock230: client varp capacity %d from %s\n",
+    fprintf(stderr, "torirsserver: varbit table loaded (%d records from %s)\n", loaded, cache_dir);
+    fprintf(stderr, "torirsserver: client varp capacity %d from %s\n",
             g_client_varp_count, cache_dir);
     return loaded;
 }
 
 int
-mock230_varp_client_count(void)
+ToriRSServer_VarpClientCount(void)
 {
     return g_client_varp_count;
 }
 
 void
-mock230_varbit_free(void)
+ToriRSServer_VarbitFree(void)
 {
     free(g_varbits);
     g_varbits = NULL;
@@ -266,13 +266,13 @@ mock230_varbit_free(void)
 }
 
 int
-mock230_varbit_max_basevar(void)
+ToriRSServer_VarbitMaxBasevar(void)
 {
     return g_max_basevar;
 }
 
 int
-mock230_varbit_carrier_bits(int varp)
+ToriRSServer_VarbitCarrierBits(int varp)
 {
     if( !g_carrier_bits || varp < 0 || varp >= g_carrier_count )
         return 0;
@@ -280,7 +280,7 @@ mock230_varbit_carrier_bits(int varp)
 }
 
 int
-mock230_varbit_patching(void)
+ToriRSServer_VarbitPatching(void)
 {
     return g_patching;
 }
@@ -296,15 +296,15 @@ varbit_range(int varbit_id)
 }
 
 int
-mock230_varbit_get(
-    const struct Mock230Player* player,
+ToriRSServer_VarbitGet(
+    const struct ToriRSServerPlayer* player,
     int varbit_id)
 {
     const struct VarbitRange* range = varbit_range(varbit_id);
     int width;
     uint32_t mask;
 
-    if( !range || range->basevar >= MOCK230_VARP_COUNT )
+    if( !range || range->basevar >= TORIRSSERVER_VARP_COUNT )
         return 0;
     width = range->endbit - range->startbit + 1;
     if( width <= 0 || width > 32 )
@@ -314,12 +314,12 @@ mock230_varbit_get(
 }
 
 int
-mock230_varbit_set(
-    struct Mock230Server* srv,
+ToriRSServer_VarbitSet(
+    struct ToriRSServer* srv,
     int varbit_id,
     int value)
 {
-    return mock230_varbit_set_on(srv, srv->active_player, varbit_id, value);
+    return ToriRSServer_VarbitSetOn(srv, srv->active_player, varbit_id, value);
 }
 
 /*
@@ -342,9 +342,9 @@ mock230_varbit_set(
  * was empty.
  */
 int
-mock230_varbit_set_on(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_VarbitSetOn(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int varbit_id,
     int value)
 {
@@ -353,7 +353,7 @@ mock230_varbit_set_on(
     uint32_t mask;
     uint32_t current;
 
-    if( !range || range->basevar >= MOCK230_VARP_COUNT )
+    if( !range || range->basevar >= TORIRSSERVER_VARP_COUNT )
         return -1;
     width = range->endbit - range->startbit + 1;
     if( width <= 0 || width > 32 )
@@ -373,7 +373,7 @@ mock230_varbit_set_on(
      * *correct* way to touch a shared container. Without it the one path that
      * must write a carrier would be the only thing the check ever saw. */
     g_patching++;
-    mock230_world_set_varp_on(srv, player, range->basevar, (int)current);
+    ToriRSServer_WorldSetVarpOn(srv, player, range->basevar, (int)current);
     g_patching--;
     return range->basevar;
 }

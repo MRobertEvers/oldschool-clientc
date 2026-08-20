@@ -100,7 +100,7 @@ PLACEMENT_LEVEL_OVERRIDES = {
 # model back by the same amount, so the drawn geometry does not shift a single
 # unit -- only the footprint the painter orders it by.  Both slabs are
 # `blockwalk=0 blockrange=0` and both collision writers gate on
-# `blocks_walk != 0` (world_collision.u.c, mock230_scene.c), so neither the walk
+# `blocks_walk != 0` (world_collision.u.c, torirs_server_scene.c), so neither the walk
 # map nor the collision map sees any of it.
 #
 # Keyed by the source placement identity, like the level overrides, so an import

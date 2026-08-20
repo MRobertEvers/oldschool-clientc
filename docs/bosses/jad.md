@@ -458,7 +458,7 @@ why each one is the way it is.
 
 ### 5.3 What was measured, and how
 
-The Inferno changes are pinned in `mock230_world_selftest`'s rev-239 Zuk
+The Inferno changes are pinned in `ToriRSServer_WorldSelftest`'s rev-239 Zuk
 section, extending the existing `::zukstill 4` fixture: after the shield dies
 and Jad turns on the player, 60 ticks are sampled and two things are asserted —
 that its mode is never an AP mode (item 6 above), and that the gap between
@@ -507,7 +507,7 @@ Everything above is about content stating the right numbers. It only means
 anything if the engine spends them correctly, and it did not.
 
 **Every npc in the tree swung on `attackrate + 1` ticks, not `attackrate`.**
-`mock230_combat_npc_tick` and its npc-versus-npc twin counted a countdown down
+`ToriRSServer_CombatNpcTick` and its npc-versus-npc twin counted a countdown down
 *before* testing it against zero:
 
 ```c
@@ -553,9 +553,9 @@ flinch (`+ attackrate / 2`, the reference's own halving) and `npc_attackdelay`
 would each need their own correction, and the one that got it wrong would be a
 second silent off-by-one. Zero keeps meaning "swing at the first opportunity" —
 tick 0 is always in the past — so every `= 0` site (`npc_attackplayer`,
-`npc_attacknpc`, `maybe_aggress`, `mock230_combat_stop_npc`, respawn) is
+`npc_attacknpc`, `maybe_aggress`, `ToriRSServer_CombatStopNpc`, respawn) is
 untouched, and a target switch mid-cooldown carries the deadline over for free,
-which is the behaviour `mock230_combat_hit_npc` had to argue for in prose
+which is the behaviour `ToriRSServer_CombatHitNpc` had to argue for in prose
 before.
 
 ### Verified
@@ -574,7 +574,7 @@ before.
   assert a bare `7` and passed while the swing it bought was eight ticks away.
 
 One harness fault surfaced with it and is fixed: `selftest_park_player` topped
-`hitpoints` up without `mock230_combat_sync_hitpoints`, leaving the hitpoints
+`hitpoints` up without `ToriRSServer_CombatSyncHitpoints`, leaving the hitpoints
 *stat* stale. Whether the later "the hitpoints stat should track the player's
 hitpoints" check passed depended on which side of that reset the previous
 section's last npc swing landed — latent for as long as it has existed, and

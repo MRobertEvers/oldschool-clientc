@@ -547,7 +547,7 @@ Required recovery matrix:
 | --- | --- | --- |
 | Static quest audit | Audit record only | No undisclosed shortcut, stale source claim, trigger collision, or blank manifest field |
 | Quest Helper extraction | Pass on 2026-08-17 | Continue passing against the pinned helper tree |
-| `mock230-scripts` / pack check | Not run for this docs-only audit | Clean build and `mock230_pack --check-only` after code changes |
+| `torirsserver-scripts` / pack check | Not run for this docs-only audit | Clean build and `ToriRSServer_Pack --check-only` after code changes |
 | Automated organic route | Absent | 0→430 through real triggers with canonical state/item invariants |
 | Relog/inventory/loss tests | Absent | Every recovery row above automated |
 | Combat concurrency tests | Absent | Two simultaneous players cannot suppress or credit each other |

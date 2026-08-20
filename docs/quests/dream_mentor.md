@@ -585,7 +585,7 @@ keep Dream Mentor policy in RuneScript/config.
 - Fail on duplicate Oneiromancer/Jack triggers, raw IDs, whole-carrier writes,
   shared-world dream spawns, unchecked quest-item transactions, a generic lamp,
   or any of seven spell handlers lacking a Dream Mentor guard.
-- Run `make -C src mock230-scripts` and the revision-239 pack check.
+- Run `make -C src torirsserver-scripts` and the revision-239 pack check.
 
 ### Transition and persistence tests
 

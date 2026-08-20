@@ -69,7 +69,7 @@ every iteration.
 4. **Fix what you found.** Minimal diffs; fix bugs, do not refactor. Every
    fix gets an assertion, and you must mutate the fix to show the assertion
    go red, then restore it. Record which mutation killed which assertion.
-5. **Prove no collateral.** `mock230 --selftest` (no env, `src/build_opt/`
+5. **Prove no collateral.** `ToriRSServer --selftest` (no env, `src/build_opt/`
    binary) A/B against a pre-change run on the same binary; normalized
    failure sets must be identical apart from your new checks. If the run-live
    lane pack exists, rebuild it too (`tools/tob_build_packs.sh`).

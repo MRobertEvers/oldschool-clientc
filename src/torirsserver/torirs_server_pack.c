@@ -1,8 +1,8 @@
 /*
- * mock230_pack — check the content tree against the cache. A validator, only:
+ * ToriRSServer_Pack — check the content tree against the cache. A validator, only:
  *
- *   make -C src mock230-pack
- *   src/build/mock230_pack --check-only
+ *   make -C src torirsserver-pack
+ *   src/build/ToriRSServer_Pack --check-only
  *
  * Why this exists: every id in the tree came from OpenRune's gameval table,
  * whose cache is revision 235.10, and the mock runs against 230. An id that
@@ -27,10 +27,10 @@
 #include "content/content_register.h"
 #include <assert.h>
 #include "cp_membership.h"
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_db.h"
-#include "mock230_ids.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_db.h"
+#include "torirs_server_ids.h"
 
 #include <rscache.h>
 
@@ -95,7 +95,7 @@ report_info(const char* fmt, ...)
 /*
  * Is this npc attackable?
  *
- * Duplicated from mock230_combat.c rather than linked: pulling that in would
+ * Duplicated from torirs_server_combat.c rather than linked: pulling that in would
  * drag the whole server — world, scripts, encoders, the socket — into a tool
  * that only reads files. Three lines against a stable cache field is the
  * cheaper coupling, and the selftest asserts the engine's copy separately.
@@ -103,7 +103,7 @@ report_info(const char* fmt, ...)
 static int
 npc_attackable(int npc_type)
 {
-    const struct Mock230NpcInfo* info = mock230_npcinfo(npc_type);
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc_type);
 
     for( int i = 0; i < 5; i++ )
     {
@@ -142,8 +142,8 @@ validate_spawns(void)
 {
     int npc_count = 0;
     int obj_count = 0;
-    const struct Mock230MapNpcSpawn* npcs = mock230_content_npc_spawns(&npc_count);
-    const struct Mock230MapObjSpawn* objs = mock230_content_obj_spawns(&obj_count);
+    const struct ToriRSServerMapNpcSpawn* npcs = ToriRSServer_ContentNpcSpawns(&npc_count);
+    const struct ToriRSServerMapObjSpawn* objs = ToriRSServer_ContentObjSpawns(&obj_count);
     int checked[4096];
     int checked_count = 0;
 
@@ -151,9 +151,9 @@ validate_spawns(void)
 
     for( int i = 0; i < npc_count; i++ )
     {
-        const struct Mock230NpcInfo* info = mock230_npcinfo(npcs[i].npc_id);
-        const struct Mock230NpcDef* def = mock230_content_npc(npcs[i].npc_id);
-        const char* symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npcs[i].npc_id);
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npcs[i].npc_id);
+        const struct ToriRSServerNpcDef* def = ToriRSServer_ContentNpc(npcs[i].npc_id);
+        const char* symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC, npcs[i].npc_id);
         int already = 0;
 
         if( !info->name )
@@ -242,7 +242,7 @@ validate_spawns(void)
                 if( strncmp(symbol, k_area_prefixes[k], length) != 0 )
                     continue;
                 base = symbol + length;
-                base_id = mock230_content_symbol(MOCK230_PACK_NPC, base);
+                base_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, base);
                 if( base_id < 0 )
                     break;
                 for( int j = 0; j < npc_count; j++ )
@@ -263,7 +263,7 @@ validate_spawns(void)
 
     for( int i = 0; i < obj_count; i++ )
     {
-        if( !mock230_objinfo(objs[i].obj_id)->name )
+        if( !ToriRSServer_ObjInfo(objs[i].obj_id)->name )
             report_error("obj %d spawned at %d,%d is not in the cache", objs[i].obj_id,
                          objs[i].x, objs[i].z);
     }
@@ -286,7 +286,7 @@ validate_spawns(void)
  *     for a worse one shows up as a number out of order rather than as silence.
  *
  * The numbers were transcribed from a Kronos dump once and are authored now;
- * docs/mock230_content.md §5 for why neither source is trusted alone.
+ * docs/torirs_server_content.md §5 for why neither source is trusted alone.
  */
 static void
 validate_requirements(void)
@@ -302,38 +302,38 @@ validate_requirements(void)
     } k_expect[] = {
         { "bronze_scimitar", -1, 0 },  /* no requirement at all */
         { "iron_scimitar", -1, 0 },
-        { "steel_scimitar", MOCK230_STAT_ATTACK, 5 },
-        { "black_scimitar", MOCK230_STAT_ATTACK, 10 },
-        { "mithril_scimitar", MOCK230_STAT_ATTACK, 20 },
-        { "adamant_scimitar", MOCK230_STAT_ATTACK, 30 },
-        { "rune_scimitar", MOCK230_STAT_ATTACK, 40 },
-        { "dragon_scimitar", MOCK230_STAT_ATTACK, 60 },
-        { "rune_platebody", MOCK230_STAT_DEFENCE, 40 },
-        { "abyssal_whip", MOCK230_STAT_ATTACK, 70 },
-        { "magic_shortbow", MOCK230_STAT_RANGED, 50 },
+        { "steel_scimitar", TORIRSSERVER_STAT_ATTACK, 5 },
+        { "black_scimitar", TORIRSSERVER_STAT_ATTACK, 10 },
+        { "mithril_scimitar", TORIRSSERVER_STAT_ATTACK, 20 },
+        { "adamant_scimitar", TORIRSSERVER_STAT_ATTACK, 30 },
+        { "rune_scimitar", TORIRSSERVER_STAT_ATTACK, 40 },
+        { "dragon_scimitar", TORIRSSERVER_STAT_ATTACK, 60 },
+        { "rune_platebody", TORIRSSERVER_STAT_DEFENCE, 40 },
+        { "abyssal_whip", TORIRSSERVER_STAT_ATTACK, 70 },
+        { "magic_shortbow", TORIRSSERVER_STAT_RANGED, 50 },
     };
     int total = 0;
     int from_cache = 0;
     int checked = 0;
 
-    mock230_obj_require_counts(&total, &from_cache);
+    ToriRSServer_ObjRequireCounts(&total, &from_cache);
     fprintf(stderr, "equipment requirements\n");
 
     for( int obj_id = 0; obj_id < 40000; obj_id++ )
     {
-        const struct Mock230ObjRequire* require = mock230_obj_require(obj_id);
-        const struct Mock230ObjInfo* info;
+        const struct ToriRSServerObjRequire* require = ToriRSServer_ObjRequire(obj_id);
+        const struct ToriRSServerObjInfo* info;
 
         if( !require )
             continue;
         checked++;
-        info = mock230_objinfo(obj_id);
+        info = ToriRSServer_ObjInfo(obj_id);
         if( info->wearpos < 0 )
             report_error("obj %d (%s) has an equip requirement but cannot be worn",
                          obj_id, info->name ? info->name : "?");
         for( int i = 0; i < require->count; i++ )
         {
-            if( require->req[i].stat < 0 || require->req[i].stat >= MOCK230_STAT_COUNT )
+            if( require->req[i].stat < 0 || require->req[i].stat >= TORIRSSERVER_STAT_COUNT )
                 report_error("obj %d (%s) requires skill %d, which is not a skill", obj_id,
                              info->name ? info->name : "?", require->req[i].stat);
             if( require->req[i].level < 1 || require->req[i].level > 99 )
@@ -344,8 +344,8 @@ validate_requirements(void)
 
     for( size_t i = 0; i < sizeof(k_expect) / sizeof(k_expect[0]); i++ )
     {
-        int obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, k_expect[i].symbol);
-        const struct Mock230ObjRequire* require;
+        int obj_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, k_expect[i].symbol);
+        const struct ToriRSServerObjRequire* require;
         int found = 0;
 
         if( obj_id < 0 )
@@ -353,7 +353,7 @@ validate_requirements(void)
             report_error("%s is not in pack/obj.pack", k_expect[i].symbol);
             continue;
         }
-        require = mock230_obj_require(obj_id);
+        require = ToriRSServer_ObjRequire(obj_id);
         if( k_expect[i].stat < 0 )
         {
             if( require )
@@ -441,14 +441,14 @@ validate_requirements(void)
  * not.
  *
  * Note what the second rule does NOT do: it does not require the id to be above
- * the base *because* the members are authored. `mock230_loc_category_members`
+ * the base *because* the members are authored. `ToriRSServer_LocCategoryMembers`
  * counts the overlay and the cache together, so an authored `.loc` block that
  * restates a cache id is counted once and lands in the first rule, correctly.
  */
 static void
 validate_categories(const char* content_dir)
 {
-    int total = mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, -1, NULL, NULL);
+    int total = ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_CATEGORY, -1, NULL, NULL);
     struct ContentRegister reg;
     const struct ContentNamespace* row;
     int server_base;
@@ -472,7 +472,7 @@ validate_categories(const char* content_dir)
         int locs;
         int domains;
 
-        if( !mock230_content_symbol_walk(MOCK230_PACK_CATEGORY, i, &id, &name) || !name )
+        if( !ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_CATEGORY, i, &id, &name) || !name )
             continue;
         /* Zero is the decoder's "unstated" on all three record types and
          * `content.ini` reserves it (`zero = reserved`): a trigger bound to it
@@ -484,9 +484,9 @@ validate_categories(const char* content_dir)
                          name, id);
             continue;
         }
-        objs = mock230_obj_category_members(id);
-        npcs = mock230_npc_category_members(id);
-        locs = mock230_loc_category_members(id);
+        objs = ToriRSServer_ObjCategoryMembers(id);
+        npcs = ToriRSServer_NpcCategoryMembers(id);
+        locs = ToriRSServer_LocCategoryMembers(id);
         if( objs == 0 && npcs == 0 && locs == 0 )
         {
             if( server_base > 0 && id >= server_base )
@@ -578,7 +578,7 @@ prune_doors(const char* content)
     in = fopen(path, "rb");
     if( !in )
     {
-        fprintf(stderr, "mock230_pack: no %s to prune\n", path);
+        fprintf(stderr, "ToriRSServer_Pack: no %s to prune\n", path);
         return 0;
     }
     out = fopen(temp, "wb");
@@ -595,14 +595,14 @@ prune_doors(const char* content)
             char symbol[256];
             char* end;
             int loc_id;
-            const struct Mock230LocDef* def;
+            const struct ToriRSServerLocDef* def;
 
             snprintf(symbol, sizeof(symbol), "%s", raw + 1);
             end = strchr(symbol, ']');
             if( end )
                 *end = '\0';
-            loc_id = mock230_content_symbol(MOCK230_PACK_LOC, symbol);
-            def = loc_id >= 0 ? mock230_content_loc(loc_id) : NULL;
+            loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, symbol);
+            def = loc_id >= 0 ? ToriRSServer_ContentLoc(loc_id) : NULL;
 
             /* A section is dropped when either half of its pair was rejected. */
             skipping = def && (door_rejected(def->loc_id) ||
@@ -625,7 +625,7 @@ prune_doors(const char* content)
     fclose(out);
     if( rename(temp, path) != 0 )
     {
-        fprintf(stderr, "mock230_pack: cannot replace %s\n", path);
+        fprintf(stderr, "ToriRSServer_Pack: cannot replace %s\n", path);
         return 0;
     }
     fprintf(stderr, "        pruned %d loc sections from doors.loc\n", dropped);
@@ -655,7 +655,7 @@ prune_doors(const char* content)
  * so they cannot collide with one". cache.osrs239's param group holds 2,634
  * records covering 0..2633 with no gaps, so all fifteen of them named a param the
  * cache already defines — `hitpoints` sat on 2100, which is a real record, and
- * `mock230_pack --cache-out` wrote over it.
+ * `ToriRSServer_Pack --cache-out` wrote over it.
  *
  * The check is not "are they above 2000", it is "are they above whatever this
  * cache actually goes up to", which is the only version that survives a bump. And
@@ -679,9 +679,9 @@ prune_doors(const char* content)
  *
  * That second case is not hypothetical and it is why it stopped being a silent
  * `report_info`. `varp` declared 8000 while nineteen server varps sat at
- * 5705..5723, and `MOCK230_VARP_COUNT` is 6217 — so the first varp allocated at
- * the declared floor would have been past the end of `Mock230Player.varps` and
- * `mock230_world_set_varp` would have dropped the write and returned, which is
+ * 5705..5723, and `TORIRSSERVER_VARP_COUNT` is 6217 — so the first varp allocated at
+ * the declared floor would have been past the end of `ToriRSServerPlayer.varps` and
+ * `ToriRSServer_WorldSetVarp` would have dropped the write and returned, which is
  * docs/CONTENT_ARCHITECTURE.md §8.3's named failure mode. It stayed invisible for
  * as long as `tools/ss_allocate.py` read only `content.ini` for its floors and
  * `content.ini` declares no `base =` key anywhere: every number in this table was
@@ -702,22 +702,22 @@ prune_doors(const char* content)
  * and not the other. */
 static const struct
 {
-    enum Mock230PackKind kind;
+    enum ToriRSServerPackKind kind;
     int config_kind;
 } k_config_groups[] = {
-    { MOCK230_PACK_NPC,      RSCACHE_DAT2_CONFIG_KIND_NPC       },
-    { MOCK230_PACK_OBJ,      RSCACHE_DAT2_CONFIG_KIND_OBJECT    },
-    { MOCK230_PACK_LOC,      RSCACHE_DAT2_CONFIG_KIND_LOCS      },
-    { MOCK230_PACK_SEQ,      RSCACHE_DAT2_CONFIG_KIND_SEQUENCE  },
-    { MOCK230_PACK_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM  },
-    { MOCK230_PACK_INV,      RSCACHE_DAT2_CONFIG_KIND_INV       },
-    { MOCK230_PACK_VARP,     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER },
-    { MOCK230_PACK_VARBIT,   RSCACHE_DAT2_CONFIG_KIND_VARBIT    },
-    { MOCK230_PACK_PARAM,    RSCACHE_DAT2_CONFIG_KIND_PARAMS    },
-    { MOCK230_PACK_STRUCT,   RSCACHE_DAT2_CONFIG_KIND_STRUCT    },
-    { MOCK230_PACK_ENUM,     RSCACHE_DAT2_CONFIG_KIND_ENUM      },
-    { MOCK230_PACK_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT  },
-    { MOCK230_PACK_DBTABLE,  RSCACHE_DAT2_CONFIG_KIND_DBTABLE   },
+    { TORIRSSERVER_PACK_NPC,      RSCACHE_DAT2_CONFIG_KIND_NPC       },
+    { TORIRSSERVER_PACK_OBJ,      RSCACHE_DAT2_CONFIG_KIND_OBJECT    },
+    { TORIRSSERVER_PACK_LOC,      RSCACHE_DAT2_CONFIG_KIND_LOCS      },
+    { TORIRSSERVER_PACK_SEQ,      RSCACHE_DAT2_CONFIG_KIND_SEQUENCE  },
+    { TORIRSSERVER_PACK_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM  },
+    { TORIRSSERVER_PACK_INV,      RSCACHE_DAT2_CONFIG_KIND_INV       },
+    { TORIRSSERVER_PACK_VARP,     RSCACHE_DAT2_CONFIG_KIND_VARPLAYER },
+    { TORIRSSERVER_PACK_VARBIT,   RSCACHE_DAT2_CONFIG_KIND_VARBIT    },
+    { TORIRSSERVER_PACK_PARAM,    RSCACHE_DAT2_CONFIG_KIND_PARAMS    },
+    { TORIRSSERVER_PACK_STRUCT,   RSCACHE_DAT2_CONFIG_KIND_STRUCT    },
+    { TORIRSSERVER_PACK_ENUM,     RSCACHE_DAT2_CONFIG_KIND_ENUM      },
+    { TORIRSSERVER_PACK_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT  },
+    { TORIRSSERVER_PACK_DBTABLE,  RSCACHE_DAT2_CONFIG_KIND_DBTABLE   },
 };
 
 static void
@@ -743,7 +743,7 @@ validate_id_bases(
 
     for( size_t g = 0; g < sizeof(k_config_groups) / sizeof(k_config_groups[0]); g++ )
     {
-        const char* ns = mock230_content_pack_name(k_config_groups[g].kind);
+        const char* ns = ToriRSServer_ContentPackName(k_config_groups[g].kind);
         const struct ContentNamespace* row = ContentRegister_Find(&reg, ns);
         struct RSCache_Dat2DiskArchive* archive;
         int cache_max = -1;
@@ -778,9 +778,9 @@ validate_id_bases(
          * twenty out and `%com_*` landed on packed combat varbits. The check
          * passed because it was asking the same incomplete question.
          */
-        if( k_config_groups[g].kind == MOCK230_PACK_VARP )
+        if( k_config_groups[g].kind == TORIRSSERVER_PACK_VARP )
         {
-            int basevar_max = mock230_varbit_max_basevar();
+            int basevar_max = ToriRSServer_VarbitMaxBasevar();
 
             if( basevar_max < 0 )
                 report_warning("varp: no varbit table loaded — its base is checked against "
@@ -821,7 +821,7 @@ validate_id_bases(
         int lowest = -1;
         for( int id = cache_max + 1; id < row->server_base; id++ )
         {
-            if( !mock230_content_symbol_name(k_config_groups[g].kind, id) )
+            if( !ToriRSServer_ContentSymbolName(k_config_groups[g].kind, id) )
                 continue;
             if( lowest < 0 )
                 lowest = id;
@@ -918,8 +918,8 @@ validate_membership_ids(
 
     for( size_t g = 0; g < sizeof(k_config_groups) / sizeof(k_config_groups[0]); g++ )
     {
-        enum Mock230PackKind kind = k_config_groups[g].kind;
-        const char* ns = mock230_content_pack_name(kind);
+        enum ToriRSServerPackKind kind = k_config_groups[g].kind;
+        const char* ns = ToriRSServer_ContentPackName(kind);
         const struct ContentNamespace* row = ContentRegister_Find(&reg, ns);
         struct CP_Membership side[CP_MEMBERSHIP_SIDES];
         struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -978,7 +978,7 @@ validate_membership_ids(
                 int in_cache;
 
                 names++;
-                if( !mock230_content_symbol_checked(kind, name, &id) || id < 0 )
+                if( !ToriRSServer_ContentSymbolChecked(kind, name, &id) || id < 0 )
                 {
                     report_error("pack/%s.%s names `%s`, and nothing in the %s namespace is "
                                  "spelled that way — a membership file holds names so that a "
@@ -1051,16 +1051,16 @@ validate_doors(
     /*
      * The two ids this validator is *about*, resolved through the pack.
      *
-     * They were `MOCK230_LOC_CATEGORY_DOOR_CLOSED` / `_OPENED`, a private enum
+     * They were `TORIRSSERVER_LOC_CATEGORY_DOOR_CLOSED` / `_OPENED`, a private enum
      * whose two values happened to be 1 and 2, until the loc category became a
      * real namespace. Naming them here is what `k_expect` above already does with
      * obj symbols and is what a validator is for — it is checking a claim the
      * content tree makes, so it has to be able to say which claim. Nothing in
-     * `src/net/mock/` outside this file and that table may spell one.
+     * `src/torirsserver/` outside this file and that table may spell one.
      */
-    int door_closed = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_closed");
-    int door_opened = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_opened");
-    int door_selfstage = mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_selfstage");
+    int door_closed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_closed");
+    int door_opened = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_opened");
+    int door_selfstage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "door_selfstage");
     int selfstage = 0;
     int selfstage_bad = 0;
 
@@ -1115,7 +1115,7 @@ validate_doors(
     fprintf(stderr, "door pairings\n");
     for( int loc_id = 0; loc_id <= highest; loc_id++ )
     {
-        const struct Mock230LocDef* def = mock230_content_loc(loc_id);
+        const struct ToriRSServerLocDef* def = ToriRSServer_ContentLoc(loc_id);
 
         if( !def )
             continue;
@@ -1219,7 +1219,7 @@ static void
 usage(void)
 {
     fprintf(stderr,
-            "usage: mock230_pack [--check-only] [--content DIR] [--cache DIR] [-v]\n"
+            "usage: ToriRSServer_Pack [--check-only] [--content DIR] [--cache DIR] [-v]\n"
             "\n"
             "  --check-only     validate and exit non-zero on any error. This is\n"
             "                   all the tool does, so the flag is accepted for the\n"
@@ -1250,7 +1250,7 @@ main(
             cache = argv[++i];
         else if( strcmp(argv[i], "--check-only") == 0 )
             ; /* validation is all there is; accepted so the documented
-               * `mock230_pack --check-only` invocation says what it means */
+               * `ToriRSServer_Pack --check-only` invocation says what it means */
         else if( strcmp(argv[i], "--prune-doors") == 0 )
             prune = 1;
         else if( strcmp(argv[i], "-v") == 0 )
@@ -1262,36 +1262,36 @@ main(
         }
     }
 
-    mock230_objinfo_load(cache);
-    mock230_npcinfo_load(cache);
-    mock230_seqinfo_load(cache);
-    mock230_healthbarinfo_load(cache);
+    ToriRSServer_ObjInfoLoad(cache);
+    ToriRSServer_NpcInfoLoad(cache);
+    ToriRSServer_SeqInfoLoad(cache);
+    ToriRSServer_HealthbarInfoLoad(cache);
     /* The loc config table, for `validate_categories`' loc arm. Without it every
      * loc-only category name in `pack/category.pack` would be reported as carried
      * by nothing — a validator answering from a table it did not load is worse
      * than one that does not check at all. */
-    mock230_locinfo_load(cache);
-    mock230_content_load(content);
+    ToriRSServer_LocInfoLoad(cache);
+    ToriRSServer_ContentLoad(content);
     /*
      * The `.dbtable`/`.dbrow` half of the tree, which this validator did not read.
      *
-     * `mock230_db_load` had exactly one caller — `mock230_boot.c` — so every table
+     * `ToriRSServer_DbLoad` had exactly one caller — `torirs_server_boot.c` — so every table
      * and every row in the content tree was checked only by starting the server.
      * That is the one namespace family whose ids are allocated rather than the
      * cache's (docs/CONTENT_ARCHITECTURE.md §3.3), so "the id is missing", "the
      * table has no such column" and "the value names nothing" were all boot-time
-     * discoveries in a tree `mock230_pack --check-only` called clean. Its errors
-     * go through `mock230_content_report_error`, so they reach the exit status
+     * discoveries in a tree `ToriRSServer_Pack --check-only` called clean. Its errors
+     * go through `ToriRSServer_ContentReportError`, so they reach the exit status
      * from here without any further plumbing.
      */
-    mock230_db_free();
-    mock230_db_load_cache_tables(cache);
-    mock230_db_load(content);
+    ToriRSServer_DbFree();
+    ToriRSServer_DbLoadCacheTables(cache);
+    ToriRSServer_DbLoad(content);
     /* The engine's own symbol table, which is a claim about the packs in
      * exactly the way a config line is: every name the C addresses has to be in
      * one. Resolving it here is what makes a renamed or dropped symbol a
      * validator failure rather than a dead interface at runtime. */
-    mock230_ids_resolve();
+    ToriRSServer_IdsResolve();
 
     /*
      * The server band, held to the text parse it is replacing.
@@ -1301,34 +1301,34 @@ main(
      * validator failure, exactly like a config line that stopped meaning
      * anything. An *absent* band is not — a fresh checkout has none until
      * `cachepack pack --server-only` runs, the way it has no script pack until
-     * `mock230-scripts` does.
+     * `torirsserver-scripts` does.
      */
     {
-        struct Mock230BandReport band;
+        struct ToriRSServerBandReport band;
 
-        switch( mock230_content_load_server_band(content, &band) )
+        switch( ToriRSServer_ContentLoadServerBand(content, &band) )
         {
-        case MOCK230_BAND_LOADED:
+        case TORIRSSERVER_BAND_LOADED:
             printf("server band: %d archive(s) verified against the text parse "
                    "(%d overlay authored defs, %d field value(s) text-only, %d over "
                    "records the runtime never loads)\n",
                    band.archives, band.overlaid, band.text_only, band.unseeded);
             break;
-        case MOCK230_BAND_MISSING:
-            printf("server band: no server/pack — run `make -C src mock230-servpack`; "
+        case TORIRSSERVER_BAND_MISSING:
+            printf("server band: no server/pack — run `make -C src torirsserver-servpack`; "
                    "skipped\n");
             break;
-        case MOCK230_BAND_STALE:
+        case TORIRSSERVER_BAND_STALE:
             fprintf(stderr,
-                    "mock230_pack: server band disagrees with the tree (%d unreadable, "
-                    "%d mismatched archive(s)) — re-run `make -C src mock230-servpack`\n",
+                    "ToriRSServer_Pack: server band disagrees with the tree (%d unreadable, "
+                    "%d mismatched archive(s)) — re-run `make -C src torirsserver-servpack`\n",
                     band.invalid, band.mismatched);
             g_errors++;
             break;
         }
     }
 
-    g_errors += mock230_content_error_count();
+    g_errors += ToriRSServer_ContentErrorCount();
 
     validate_spawns();
     validate_requirements();
@@ -1339,7 +1339,7 @@ main(
 
         profile.game = RSCACHE_GAME_OLDSCHOOL;
         profile.epoch = RSCACHE_EPOCH_DAT2;
-        profile.revision = MOCK230_CACHE_REVISION;
+        profile.revision = TORIRSSERVER_CACHE_REVISION;
         disk = RSCache_Dat2DiskNewFromDirectory(cache);
         if( disk )
         {
@@ -1357,6 +1357,6 @@ main(
         }
     }
 
-    fprintf(stderr, "mock230_pack: %d error(s), %d warning(s)\n", g_errors, g_warnings);
+    fprintf(stderr, "ToriRSServer_Pack: %d error(s), %d warning(s)\n", g_errors, g_warnings);
     return g_errors ? 1 : 0;
 }

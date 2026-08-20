@@ -5,7 +5,7 @@
  * and that is the whole record, so this file is the param table and nothing
  * else. `struct_param` is the only reader.
  *
- * Same recipe as mock230_npcinfo.c: profile, CONFIGS table, the KIND_STRUCT
+ * Same recipe as torirs_server_npcinfo.c: profile, CONFIGS table, the KIND_STRUCT
  * archive, the file list, decode each. The decoder itself
  * (`RSCache_Dat2ConfigStructDecodeInplace`) has been linked into this binary
  * since rscache landed and had no caller anywhere in src/ — PORTING_GUIDE §1's
@@ -27,8 +27,8 @@
  * times over for objinfo / npcinfo / seqinfo / varbit.
  */
 
-#include "mock230.h"
-#include "mock230_paramtable.h"
+#include "torirs_server.h"
+#include "torirs_server_paramtable.h"
 
 #include <rscache.h>
 
@@ -38,31 +38,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct Mock230ParamTable g_struct_params;
+static struct ToriRSServerParamTable g_struct_params;
 static int g_struct_records;
 
-const struct Mock230ParamRow*
-mock230_struct_param(
+const struct ToriRSServerParamRow*
+ToriRSServer_StructParam(
     int struct_id,
     int param_id)
 {
-    return mock230_paramtable_find(&g_struct_params, struct_id, param_id);
+    return ToriRSServer_ParamTableFind(&g_struct_params, struct_id, param_id);
 }
 
 int
-mock230_structinfo_count(void)
+ToriRSServer_StructInfoCount(void)
 {
     return g_struct_records;
 }
 
 int
-mock230_structinfo_param_count(void)
+ToriRSServer_StructInfoParamCount(void)
 {
     return g_struct_params.count;
 }
 
 int
-mock230_structinfo_load(const char* cache_dir)
+ToriRSServer_StructInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -70,11 +70,11 @@ mock230_structinfo_load(const char* cache_dir)
     struct RSCache_FileList* files;
     int table;
 
-    mock230_structinfo_free();
+    ToriRSServer_StructInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -87,7 +87,7 @@ mock230_structinfo_load(const char* cache_dir)
     }
     if( !disk )
     {
-        fprintf(stderr, "mock230: no struct params (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no struct params (cache '%s' not found)\n", cache_dir);
         return 0;
     }
 
@@ -97,7 +97,7 @@ mock230_structinfo_load(const char* cache_dir)
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "mock230: no struct config archive in '%s'\n", cache_dir);
+        fprintf(stderr, "torirsserver: no struct config archive in '%s'\n", cache_dir);
         return 0;
     }
     RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
@@ -119,14 +119,14 @@ mock230_structinfo_load(const char* cache_dir)
         memset(&record, 0, sizeof(record));
         record.id = archive->file_ids[i];
         RSCache_Dat2ConfigStructDecodeInplace(&record, files->files[i], files->file_sizes[i]);
-        mock230_paramtable_read(&g_struct_params, archive->file_ids[i], &record.params);
+        ToriRSServer_ParamTableRead(&g_struct_params, archive->file_ids[i], &record.params);
         RSCache_Dat2ConfigStructFreeInplace(&record);
     }
 
     /* Binary-searched, so it has to actually be ordered — and a record's own
      * params do not arrive ordered. 1,847 of the 2,833 struct records carrying
      * two or more params are out of key order in cache.osrs239. */
-    mock230_paramtable_sort(&g_struct_params);
+    ToriRSServer_ParamTableSort(&g_struct_params);
 
     /* Read the count before the free, not after: the archive owns it. */
     g_struct_records = archive->file_count;
@@ -135,15 +135,15 @@ mock230_structinfo_load(const char* cache_dir)
     RSCache_Dat2DiskArchiveFree(archive);
     RSCache_Dat2DiskFree(disk);
 
-    fprintf(stderr, "mock230: struct params loaded (%d records from %s, %d rows in %zu KB)\n",
+    fprintf(stderr, "torirsserver: struct params loaded (%d records from %s, %d rows in %zu KB)\n",
             g_struct_records, cache_dir, g_struct_params.count,
-            mock230_paramtable_bytes(&g_struct_params) / 1024);
+            ToriRSServer_ParamTableBytes(&g_struct_params) / 1024);
     return 1;
 }
 
 void
-mock230_structinfo_free(void)
+ToriRSServer_StructInfoFree(void)
 {
-    mock230_paramtable_free(&g_struct_params);
+    ToriRSServer_ParamTableFree(&g_struct_params);
     g_struct_records = 0;
 }

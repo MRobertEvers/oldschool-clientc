@@ -78,7 +78,7 @@ by the existence of code. As of the audit date, the repository now has:
   passed with zero failures, including the Gorak no-drop correction. Unrelated
   Theatre of Blood and Zulrah scripts were omitted from that isolated compile
   because concurrent content work left their temporary dependency overlays
-  incomplete. The current native `mock230` binary also rebuilds successfully;
+  incomplete. The current native `ToriRSServer` binary also rebuilds successfully;
   the isolated script pack intentionally retains the pre-existing shared
   combat procedures so unrelated in-flight training-dummy hooks cannot abort
   GWD prayer/stat fixtures.
@@ -142,7 +142,7 @@ by the existence of code. As of the audit date, the repository now has:
   coordinates, non-instance-aware Nex loot, and missing faction-war launch,
   travel, or impact graphics. Runtime NPC metadata accepts those projectile and
   poison parameters, and ranged max-hit includes cache ammunition strength.
-- [x] `MOCK230_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
+- [x] `TORIRSSERVER_SELFTEST_GWD_ONLY=1` is a focused real-VM runtime lane. Against
   an isolated current-content build it reconstructs the four classic map-square
   roster and proves all **69** unique NPCs retain authored combat, cadence, and
   attack/defend/death sequences. It separately proves the four bosses retain
@@ -158,7 +158,7 @@ by the existence of code. As of the audit date, the repository now has:
   metadata from staff-pummel to the `human_casting` sequence actually used by
   their god-spell dbrows.
 - [x] The generated ledger now also emits
-  `src/net/mock/mock230_gwd_manifest.gen.h`, making all **126** reviewed classic
+  `src/torirsserver/torirs_server_gwd_manifest.gen.h`, making all **126** reviewed classic
   attack paths a runtime oracle instead of a CSV-only review artifact. The
   compiled oracle retains style, maximum hit, prayer rule, and secondary effect
   as well as every NPC, sequence, projectile, launch graphic, impact graphic,

@@ -11,23 +11,23 @@
  * is that a LostCity config can be pasted in and a config written here can be
  * pasted back, so the two content trees stay one skill rather than two.
  *
- * Load order matters and is documented on mock230_content_load: bonuses are
- * seeded from the cache params that mock230_objinfo / mock230_npcinfo decoded,
+ * Load order matters and is documented on ToriRSServer_ContentLoad: bonuses are
+ * seeded from the cache params that ToriRSServer_ObjInfo / ToriRSServer_NpcInfo decoded,
  * and a config block overlays that.
  */
 
-#include "mock230_content.h"
+#include "torirs_server_content.h"
 #include <assert.h>
 
 #include "content/content_fields.h"
 #include "content/content_register.h"
-#include "mock230.h"
+#include "torirs_server.h"
 /* A `.loc` block's `opN=` is pushed straight to the scene as it is parsed —
- * see the note beside `struct Mock230LocDef`. */
-#include "mock230_scene.h"
-#include "mock230_servercodec.h"
-#include "mock230_servpack.h"
-#include "mock230_shop.h"
+ * see the note beside `struct ToriRSServerLocDef`. */
+#include "torirs_server_scene.h"
+#include "torirs_server_servercodec.h"
+#include "torirs_server_servpack.h"
+#include "torirs_server_shop.h"
 
 #include <rscache.h>
 
@@ -43,7 +43,7 @@
 /* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
  * path with stat() instead -- portable across the unix and win32 builds. */
 static int
-mock230_path_is_dir(const char* path)
+ToriRSServer_PathIsDir(const char* path)
 {
     struct stat st;
     return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
@@ -65,34 +65,34 @@ static int g_client_key_overlays;
 /*
  * Every rejection prints and counts. A content tree that half-loads is the
  * worst outcome available: the server runs, the fight is subtly wrong, and
- * nothing in the log says which line stopped meaning anything. `mock230_pack`
+ * nothing in the log says which line stopped meaning anything. `ToriRSServer_Pack`
  * turns a non-zero count into a non-zero exit status.
  */
 #define CONTENT_ERROR(...)                                                                         \
     do                                                                                             \
     {                                                                                              \
-        fprintf(stderr, "mock230: content: " __VA_ARGS__);                                         \
+        fprintf(stderr, "torirsserver: content: " __VA_ARGS__);                                         \
         g_errors++;                                                                                \
     } while( 0 )
 
 int
-mock230_content_error_count(void)
+ToriRSServer_ContentErrorCount(void)
 {
     return g_errors;
 }
 
 void
-mock230_content_report_error(
+ToriRSServer_ContentReportError(
     const char* fmt,
     ...)
 {
     va_list args;
 
     /* Same prefix and the same counter as CONTENT_ERROR, so a bad line in a
-     * `.dbtable` read by mock230_db.c is indistinguishable from a bad line in a
+     * `.dbtable` read by torirs_server_db.c is indistinguishable from a bad line in a
      * `.npc` read here — which is the point. A second reader with its own error
      * channel is a reader whose failures do not stop the server. */
-    fprintf(stderr, "mock230: content: ");
+    fprintf(stderr, "torirsserver: content: ");
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
@@ -105,7 +105,7 @@ mock230_content_report_error(
 
 /** Strip a `//` comment and surrounding whitespace, in place. */
 char*
-mock230_content_clean_line(char* line)
+ToriRSServer_ContentCleanLine(char* line)
 {
     char* comment = strstr(line, "//");
     size_t length;
@@ -122,7 +122,7 @@ mock230_content_clean_line(char* line)
 
 /** Split `key=value` in place. Returns the value, or NULL when there is no `=`. */
 char*
-mock230_content_split_key_value(char* line)
+ToriRSServer_ContentSplitKeyValue(char* line)
 {
     char* equals = strchr(line, '=');
 
@@ -142,7 +142,7 @@ mock230_content_split_key_value(char* line)
 
 /** `[name]` section header; returns the name in place, or NULL. */
 char*
-mock230_content_section_header(char* line)
+ToriRSServer_ContentSectionHeader(char* line)
 {
     size_t length = strlen(line);
 
@@ -206,7 +206,7 @@ struct Pack
     int capacity;
 };
 
-static struct Pack g_packs[MOCK230_PACK_COUNT];
+static struct Pack g_packs[TORIRSSERVER_PACK_COUNT];
 
 static int
 pack_entry_name_compare(
@@ -293,12 +293,12 @@ pack_load(
         return 0;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* name;
 
         if( !*line )
             continue;
-        name = mock230_content_split_key_value(line);
+        name = ToriRSServer_ContentSplitKeyValue(line);
         if( !name || !*name )
             continue;
         pack_add(pack, name, atoi(line));
@@ -320,14 +320,14 @@ pack_load(
  * `infinite` is child 0, and `(12 << 16) | 0` is 786432.
  *
  * Composed at load into the same flat table the other namespaces use, so a lookup
- * stays one pass and `mock230_ids.c` still asks for `"bankmain:items"`.
+ * stays one pass and `torirs_server_ids.c` still asks for `"bankmain:items"`.
  */
 static int
 load_component_symbols_from_root(
     const char* dir,
     int additions_only)
 {
-    const struct Pack* interfaces = &g_packs[MOCK230_PACK_INTERFACE];
+    const struct Pack* interfaces = &g_packs[TORIRSSERVER_PACK_INTERFACE];
     int loaded = 0;
 
     for( int i = 0; i < interfaces->count; i++ )
@@ -356,7 +356,7 @@ load_component_symbols_from_root(
                 continue;
             snprintf(full, sizeof(full), "%s:%s", iface_name, children.entries[c].name);
             uid = (iface_id << 16) | children.entries[c].id;
-            existing = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+            existing = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
             if( additions_only && existing )
             {
                 if( strcmp(existing, full) != 0 )
@@ -364,7 +364,7 @@ load_component_symbols_from_root(
                                   path, iface_id, children.entries[c].id, existing, full);
                 continue;
             }
-            pack_add(&g_packs[MOCK230_PACK_COMPONENT], full, uid);
+            pack_add(&g_packs[TORIRSSERVER_PACK_COMPONENT], full, uid);
             loaded++;
         }
         for( int c = 0; c < children.count; c++ )
@@ -407,7 +407,7 @@ load_ported_component_symbols(const char* dir)
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(lane, sizeof(lane), "%s/%s", ported, entry->d_name);
-        if( mock230_path_is_dir(lane) )
+        if( ToriRSServer_PathIsDir(lane) )
         {
             loaded += load_component_symbols_from_root(lane, 1);
             /* Existing-interface additions live here so the feature-off lane
@@ -423,8 +423,8 @@ load_ported_component_symbols(const char* dir)
 }
 
 int
-mock230_content_symbol(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbol(
+    enum ToriRSServerPackKind kind,
     const char* name)
 {
     const struct Pack* pack;
@@ -437,7 +437,7 @@ mock230_content_symbol(
      * `param=death_drop,null` mean "drops nothing". */
     if( strcmp(name, "null") == 0 )
         return -1;
-    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
         return -1;
 
     /* One file, one pass. There is no precedence question left: a name means one
@@ -470,8 +470,8 @@ mock230_content_symbol(
 }
 
 int
-mock230_content_symbol_checked(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolChecked(
+    enum ToriRSServerPackKind kind,
     const char* name,
     int* out_id)
 {
@@ -483,18 +483,18 @@ mock230_content_symbol_checked(
      * not in the caller so "how LostCity writes nothing" is stated once. */
     if( strcmp(name, "null") == 0 )
         return 1;
-    *out_id = mock230_content_symbol(kind, name);
+    *out_id = ToriRSServer_ContentSymbol(kind, name);
     return *out_id >= 0;
 }
 
 const char*
-mock230_content_symbol_name(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolName(
+    enum ToriRSServerPackKind kind,
     int symbol_id)
 {
     const struct Pack* pack;
 
-    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
         return NULL;
     pack = &g_packs[kind];
     if( pack->by_id )
@@ -524,15 +524,15 @@ mock230_content_symbol_name(
 }
 
 int
-mock230_content_symbol_walk(
-    enum Mock230PackKind kind,
+ToriRSServer_ContentSymbolWalk(
+    enum ToriRSServerPackKind kind,
     int index,
     int* out_id,
     const char** out_name)
 {
     const struct Pack* pack;
 
-    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
         return 0;
     pack = &g_packs[kind];
     if( index < 0 || index >= pack->count )
@@ -546,7 +546,7 @@ mock230_content_symbol_walk(
 
 /* Forward: the diagnostic namespace name, defined just below. */
 static const char*
-pack_kind_name(enum Mock230PackKind kind);
+pack_kind_name(enum ToriRSServerPackKind kind);
 
 /**
  * Refuse to start on a symbol table that answers a name two ways.
@@ -569,7 +569,7 @@ pack_kind_name(enum Mock230PackKind kind);
  *    namespace to the domain is one declaration.
  *
  * Returns the number of collisions; each is reported through the content error
- * count, so `mock230_pack` fails on them too.
+ * count, so `ToriRSServer_Pack` fails on them too.
  */
 /**
  * One symbol, tagged with the namespace it came from, for the collision sort.
@@ -638,16 +638,16 @@ static int
 validate_symbols(const struct ContentRegister* reg)
 {
     int collisions = 0;
-    int shared[MOCK230_PACK_COUNT];
+    int shared[TORIRSSERVER_PACK_COUNT];
     int shared_count = 0;
 
-    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
         int only[1] = { kind };
         int count = 0;
         struct SymbolRow* rows = collect_rows(only, 1, &count);
         const struct ContentNamespace* ns =
-            ContentRegister_Find(reg, pack_kind_name((enum Mock230PackKind)kind));
+            ContentRegister_Find(reg, pack_kind_name((enum ToriRSServerPackKind)kind));
 
         if( ns && ns->shared_var_domain )
             shared[shared_count++] = kind;
@@ -659,7 +659,7 @@ validate_symbols(const struct ContentRegister* reg)
             if( rows[i].id == rows[i - 1].id )
                 continue; /* the same line twice is redundant, not ambiguous */
             CONTENT_ERROR("pack/%s.pack: `%s` is both %d and %d — a name means one id\n",
-                          pack_kind_name((enum Mock230PackKind)kind), rows[i].name,
+                          pack_kind_name((enum ToriRSServerPackKind)kind), rows[i].name,
                           rows[i - 1].id, rows[i].id);
             collisions++;
         }
@@ -681,8 +681,8 @@ validate_symbols(const struct ContentRegister* reg)
                 continue; /* already reported by the per-namespace pass */
             CONTENT_ERROR("`%s` is both %s %d and %s %d — one RuneScript name domain "
                           "covers both\n",
-                          rows[i].name, pack_kind_name((enum Mock230PackKind)rows[i - 1].kind),
-                          rows[i - 1].id, pack_kind_name((enum Mock230PackKind)rows[i].kind),
+                          rows[i].name, pack_kind_name((enum ToriRSServerPackKind)rows[i - 1].kind),
+                          rows[i - 1].id, pack_kind_name((enum ToriRSServerPackKind)rows[i].kind),
                           rows[i].id);
             collisions++;
         }
@@ -697,47 +697,47 @@ validate_symbols(const struct ContentRegister* reg)
  *
  * One table rather than two. This used to name only the thirteen kinds a
  * diagnostic had ever mentioned, with the other eight left NULL, while a second
- * list inside `mock230_content_load` said which files to read — so a kind could be
+ * list inside `ToriRSServer_ContentLoad` said which files to read — so a kind could be
  * loadable and unnameable, or named and never loaded, and nothing compared them.
  * Every kind is spelled here and the loader walks this.
  */
 const char*
-mock230_content_pack_name(enum Mock230PackKind kind)
+ToriRSServer_ContentPackName(enum ToriRSServerPackKind kind)
 {
     return pack_kind_name(kind);
 }
 
 static const char*
-pack_kind_name(enum Mock230PackKind kind)
+pack_kind_name(enum ToriRSServerPackKind kind)
 {
-    static const char* k_names[MOCK230_PACK_COUNT] = {
-        [MOCK230_PACK_NPC] = "npc",
-        [MOCK230_PACK_OBJ] = "obj",
-        [MOCK230_PACK_LOC] = "loc",
-        [MOCK230_PACK_SEQ] = "seq",
-        [MOCK230_PACK_SPOTANIM] = "spotanim",
-        [MOCK230_PACK_INV] = "inv",
-        [MOCK230_PACK_VARP] = "varp",
-        [MOCK230_PACK_VARBIT] = "varbit",
-        [MOCK230_PACK_VARN] = "varn",
-        [MOCK230_PACK_VARS] = "vars",
+    static const char* k_names[TORIRSSERVER_PACK_COUNT] = {
+        [TORIRSSERVER_PACK_NPC] = "npc",
+        [TORIRSSERVER_PACK_OBJ] = "obj",
+        [TORIRSSERVER_PACK_LOC] = "loc",
+        [TORIRSSERVER_PACK_SEQ] = "seq",
+        [TORIRSSERVER_PACK_SPOTANIM] = "spotanim",
+        [TORIRSSERVER_PACK_INV] = "inv",
+        [TORIRSSERVER_PACK_VARP] = "varp",
+        [TORIRSSERVER_PACK_VARBIT] = "varbit",
+        [TORIRSSERVER_PACK_VARN] = "varn",
+        [TORIRSSERVER_PACK_VARS] = "vars",
         /* The archive index of cache index 3; see content_register.h `cache_index`. */
-        [MOCK230_PACK_INTERFACE] = "3_interfaces",
-        [MOCK230_PACK_COMPONENT] = "component",
-        [MOCK230_PACK_STAT] = "stat",
-        [MOCK230_PACK_PARAM] = "param",
-        [MOCK230_PACK_HITSPLAT] = "hitsplat",
-        [MOCK230_PACK_HEALTHBAR] = "healthbar",
+        [TORIRSSERVER_PACK_INTERFACE] = "3_interfaces",
+        [TORIRSSERVER_PACK_COMPONENT] = "component",
+        [TORIRSSERVER_PACK_STAT] = "stat",
+        [TORIRSSERVER_PACK_PARAM] = "param",
+        [TORIRSSERVER_PACK_HITSPLAT] = "hitsplat",
+        [TORIRSSERVER_PACK_HEALTHBAR] = "healthbar",
         /* Cache index 4's archive index, same shape as 3_interfaces above. */
-        [MOCK230_PACK_SYNTH] = "4_soundeffects",
-        [MOCK230_PACK_ENUM] = "enum",
-        [MOCK230_PACK_STRUCT] = "struct",
-        [MOCK230_PACK_DBTABLE] = "dbtable",
-        [MOCK230_PACK_DBROW] = "dbrow",
-        [MOCK230_PACK_CATEGORY] = "category",
+        [TORIRSSERVER_PACK_SYNTH] = "4_soundeffects",
+        [TORIRSSERVER_PACK_ENUM] = "enum",
+        [TORIRSSERVER_PACK_STRUCT] = "struct",
+        [TORIRSSERVER_PACK_DBTABLE] = "dbtable",
+        [TORIRSSERVER_PACK_DBROW] = "dbrow",
+        [TORIRSSERVER_PACK_CATEGORY] = "category",
     };
 
-    if( kind < 0 || kind >= MOCK230_PACK_COUNT )
+    if( kind < 0 || kind >= TORIRSSERVER_PACK_COUNT )
         return "?";
     return k_names[kind];
 }
@@ -774,13 +774,13 @@ load_ported_pack_symbols(const char* dir)
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(lane, sizeof(lane), "%s/%s", ported, entry->d_name);
-        if( !mock230_path_is_dir(lane) )
+        if( !ToriRSServer_PathIsDir(lane) )
             continue;
-        for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+        for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
         {
-            const char* name = pack_kind_name((enum Mock230PackKind)kind);
+            const char* name = pack_kind_name((enum ToriRSServerPackKind)kind);
 
-            if( kind == MOCK230_PACK_COMPONENT )
+            if( kind == TORIRSSERVER_PACK_COMPONENT )
                 continue; /* composed from lane interface compacks below */
             snprintf(path, sizeof(path), "%s/pack/%s.pack", lane, name);
             loaded += pack_load(&g_packs[kind], path);
@@ -802,20 +802,20 @@ load_ported_pack_symbols(const char* dir)
  * obj field the cache numbers and nothing names.
  */
 static int
-pack_kind_is_config(enum Mock230PackKind kind)
+pack_kind_is_config(enum ToriRSServerPackKind kind)
 {
     switch( kind )
     {
-    case MOCK230_PACK_INTERFACE:
-    case MOCK230_PACK_COMPONENT:
-    case MOCK230_PACK_STAT:
-    case MOCK230_PACK_CATEGORY:
-    case MOCK230_PACK_VARN:
-    case MOCK230_PACK_VARS:
+    case TORIRSSERVER_PACK_INTERFACE:
+    case TORIRSSERVER_PACK_COMPONENT:
+    case TORIRSSERVER_PACK_STAT:
+    case TORIRSSERVER_PACK_CATEGORY:
+    case TORIRSSERVER_PACK_VARN:
+    case TORIRSSERVER_PACK_VARS:
     /* Sound effects are cache index 4 and get an archive-level pack, the same
      * shape as interfaces above: there is no `configs/all.synth`, because a
      * sound effect is a whole archive rather than a file inside one. */
-    case MOCK230_PACK_SYNTH:
+    case TORIRSSERVER_PACK_SYNTH:
         return 0;
     default:
         return 1;
@@ -823,16 +823,16 @@ pack_kind_is_config(enum Mock230PackKind kind)
 }
 
 int
-mock230_content_resolve(
+ToriRSServer_ContentResolve(
     const char* what,
-    const struct Mock230SymbolRef* refs,
+    const struct ToriRSServerSymbolRef* refs,
     int count)
 {
     int failed = 0;
 
     for( int i = 0; i < count; i++ )
     {
-        *refs[i].out = mock230_content_symbol(refs[i].kind, refs[i].name);
+        *refs[i].out = ToriRSServer_ContentSymbol(refs[i].kind, refs[i].name);
         if( *refs[i].out >= 0 )
             continue;
         CONTENT_ERROR("%s: no `%s` in %s.pack\n", what, refs[i].name,
@@ -857,7 +857,7 @@ static int g_constant_count;
 static int g_constant_capacity;
 
 const char*
-mock230_content_constant(const char* name)
+ToriRSServer_ContentConstant(const char* name)
 {
     assert(name);
     if( *name == '^' )
@@ -871,11 +871,11 @@ mock230_content_constant(const char* name)
 }
 
 int
-mock230_content_constant_int(
+ToriRSServer_ContentConstantInt(
     const char* name,
     int fallback)
 {
-    const char* text = mock230_content_constant(name);
+    const char* text = ToriRSServer_ContentConstant(name);
     char* end;
     long value;
 
@@ -906,33 +906,33 @@ mock230_content_constant_int(
  * size of the content tree — a few dozen — not the size of the cache.
  */
 
-static struct Mock230NpcDef* g_npc_defs;
+static struct ToriRSServerNpcDef* g_npc_defs;
 static int g_npc_def_count;
 static int g_npc_def_capacity;
 
-static struct Mock230EnumDef* g_enum_defs;
+static struct ToriRSServerEnumDef* g_enum_defs;
 static int g_enum_def_count;
 static int g_enum_def_capacity;
 
-static struct Mock230VarpDef* g_varp_defs;
+static struct ToriRSServerVarpDef* g_varp_defs;
 static int g_varp_def_count;
 static int g_varp_def_capacity;
 
-static struct Mock230LocDef* g_loc_defs;
+static struct ToriRSServerLocDef* g_loc_defs;
 static int g_loc_def_count;
 static int g_loc_def_capacity;
 
-static struct Mock230MapNpcSpawn* g_npc_spawns;
+static struct ToriRSServerMapNpcSpawn* g_npc_spawns;
 static int g_npc_spawn_count;
 static int g_npc_spawn_capacity;
 
-static struct Mock230MapObjSpawn* g_obj_spawns;
+static struct ToriRSServerMapObjSpawn* g_obj_spawns;
 static int g_obj_spawn_count;
 static int g_obj_spawn_capacity;
 
 /** Engine defaults. OpenRune's NpcCombatDef.DEFAULT, with LostCity's animation
  *  names — the two agree on all of it. */
-static struct Mock230NpcDef g_npc_default;
+static struct ToriRSServerNpcDef g_npc_default;
 
 static void*
 grow(
@@ -950,8 +950,8 @@ grow(
     return grown ? grown : array;
 }
 
-const struct Mock230NpcDef*
-mock230_content_npc(int npc_id)
+const struct ToriRSServerNpcDef*
+ToriRSServer_ContentNpc(int npc_id)
 {
     for( int i = 0; i < g_npc_def_count; i++ )
     {
@@ -961,7 +961,7 @@ mock230_content_npc(int npc_id)
     return NULL;
 }
 
-static struct Mock230NpcDef*
+static struct ToriRSServerNpcDef*
 npc_def_find_mutable(int npc_id)
 {
     for( int i = 0; i < g_npc_def_count; i++ )
@@ -972,15 +972,15 @@ npc_def_find_mutable(int npc_id)
     return NULL;
 }
 
-const struct Mock230NpcDef*
-mock230_content_npc_default(void)
+const struct ToriRSServerNpcDef*
+ToriRSServer_ContentNpcDefault(void)
 {
     return &g_npc_default;
 }
 
 int
-mock230_content_npc_param(
-    const struct Mock230NpcDef* def,
+ToriRSServer_ContentNpcParam(
+    const struct ToriRSServerNpcDef* def,
     int param_id,
     int32_t* out)
 {
@@ -996,8 +996,8 @@ mock230_content_npc_param(
     return 0;
 }
 
-const struct Mock230EnumDef*
-mock230_content_enum(const char* symbol)
+const struct ToriRSServerEnumDef*
+ToriRSServer_ContentEnum(const char* symbol)
 {
     for( int i = 0; i < g_enum_def_count; i++ )
     {
@@ -1007,8 +1007,8 @@ mock230_content_enum(const char* symbol)
     return NULL;
 }
 
-const struct Mock230EnumDef*
-mock230_content_enum_by_id(int enum_id)
+const struct ToriRSServerEnumDef*
+ToriRSServer_ContentEnumById(int enum_id)
 {
     const char* symbol;
 
@@ -1023,14 +1023,14 @@ mock230_content_enum_by_id(int enum_id)
      * alternative, resolving it while parsing and caching it on the def, is a
      * second answer that silently disagrees when a pack is regenerated.
      */
-    symbol = mock230_content_symbol_name(MOCK230_PACK_ENUM, enum_id);
+    symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_ENUM, enum_id);
     if( !symbol )
         return NULL;
-    return mock230_content_enum(symbol);
+    return ToriRSServer_ContentEnum(symbol);
 }
 
-const struct Mock230VarpDef*
-mock230_content_varp(int varp_id)
+const struct ToriRSServerVarpDef*
+ToriRSServer_ContentVarp(int varp_id)
 {
     for( int i = 0; i < g_varp_def_count; i++ )
     {
@@ -1040,8 +1040,8 @@ mock230_content_varp(int varp_id)
     return NULL;
 }
 
-const struct Mock230LocDef*
-mock230_content_loc(int loc_id)
+const struct ToriRSServerLocDef*
+ToriRSServer_ContentLoc(int loc_id)
 {
     for( int i = 0; i < g_loc_def_count; i++ )
     {
@@ -1051,23 +1051,23 @@ mock230_content_loc(int loc_id)
     return NULL;
 }
 
-const struct Mock230LocDef*
-mock230_content_loc_at(int index)
+const struct ToriRSServerLocDef*
+ToriRSServer_ContentLocAt(int index)
 {
     if( index < 0 || index >= g_loc_def_count )
         return NULL;
     return &g_loc_defs[index];
 }
 
-const struct Mock230MapNpcSpawn*
-mock230_content_npc_spawns(int* count)
+const struct ToriRSServerMapNpcSpawn*
+ToriRSServer_ContentNpcSpawns(int* count)
 {
     *count = g_npc_spawn_count;
     return g_npc_spawns;
 }
 
-const struct Mock230MapObjSpawn*
-mock230_content_obj_spawns(int* count)
+const struct ToriRSServerMapObjSpawn*
+ToriRSServer_ContentObjSpawns(int* count)
 {
     *count = g_obj_spawn_count;
     return g_obj_spawns;
@@ -1079,8 +1079,8 @@ mock230_content_obj_spawns(int* count)
 
 /* LostCity's combat.param / npc_combat.param names. The index into this table
  * is the cache param id for the twelve bonuses, which is why the order is not
- * negotiable — see Mock230CombatParam. */
-static const char* const k_bonus_param_names[MOCK230_PARAM_BONUS_COUNT] = {
+ * negotiable — see ToriRSServerCombatParam. */
+static const char* const k_bonus_param_names[TORIRSSERVER_PARAM_BONUS_COUNT] = {
     "stabattack",   "slashattack",   "crushattack",    "magicattack",
     "rangeattack",  "stabdefence",   "slashdefence",   "crushdefence",
     "magicdefence", "rangedefence",  "strengthbonus",  "prayerbonus",
@@ -1088,16 +1088,16 @@ static const char* const k_bonus_param_names[MOCK230_PARAM_BONUS_COUNT] = {
 
 static void
 npc_def_seed_from_cache(
-    struct Mock230NpcDef* def,
+    struct ToriRSServerNpcDef* def,
     int npc_id)
 {
-    const struct Mock230NpcInfo* info = mock230_npcinfo(npc_id);
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc_id);
 
     *def = g_npc_default;
     def->npc_id = npc_id;
     if( info->has_params )
     {
-        for( int i = 0; i < MOCK230_PARAM_BONUS_COUNT; i++ )
+        for( int i = 0; i < TORIRSSERVER_PARAM_BONUS_COUNT; i++ )
             def->bonus[i] = info->bonus[i];
         def->attackrate = info->attackrate;
     }
@@ -1112,14 +1112,14 @@ npc_def_seed_from_cache(
 static int
 param_symbol(
     int* out,
-    enum Mock230PackKind kind,
+    enum ToriRSServerPackKind kind,
     const char* param_name,
     const char* value,
     const char* where)
 {
     int id;
 
-    if( !mock230_content_symbol_checked(kind, value, &id) )
+    if( !ToriRSServer_ContentSymbolChecked(kind, value, &id) )
     {
         CONTENT_ERROR("%s: param `%s` names `%s`, which is not in %s — write `null` for "
                       "\"nothing\"\n",
@@ -1155,7 +1155,7 @@ param_synth(
         return 1;
     }
     return param_symbol(
-        out, MOCK230_PACK_SYNTH, param_name, value, where);
+        out, TORIRSSERVER_PACK_SYNTH, param_name, value, where);
 }
 
 /*
@@ -1165,8 +1165,8 @@ param_synth(
  * That is fine for the engine and useless to a script: `npc_param` is handed a
  * param *id* and has no way back to a field name. Until this list existed the
  * only opcode-visible authored param was `death_drop`, and it was visible
- * because `mock230_scripts.c` compared the popped id against
- * `mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop")` — one game-facing
+ * because `torirs_server_scripts.c` compared the popped id against
+ * `ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "death_drop")` — one game-facing
  * name in C, answering one param, pushing 0 for the rest.
  *
  * These rows are rank 1 in the sense CONTENT_ARCHITECTURE.md §3.1 uses: an
@@ -1181,12 +1181,12 @@ param_synth(
  */
 static void
 record_authored_param(
-    struct Mock230NpcDef* def,
+    struct ToriRSServerNpcDef* def,
     const char* name,
     int32_t resolved,
     const char* where)
 {
-    int param_id = mock230_content_symbol(MOCK230_PACK_PARAM, name);
+    int param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, name);
 
     if( param_id < 0 )
         return;
@@ -1198,10 +1198,10 @@ record_authored_param(
             return;
         }
     }
-    if( def->param_count >= MOCK230_NPCDEF_PARAM_MAX )
+    if( def->param_count >= TORIRSSERVER_NPCDEF_PARAM_MAX )
     {
         CONTENT_ERROR("%s: more than %d authored params on one npc\n", where,
-                      MOCK230_NPCDEF_PARAM_MAX);
+                      TORIRSSERVER_NPCDEF_PARAM_MAX);
         return;
     }
     def->params[def->param_count].key = param_id;
@@ -1214,7 +1214,7 @@ record_authored_param(
  *  its default. */
 static int
 apply_param(
-    struct Mock230NpcDef* def,
+    struct ToriRSServerNpcDef* def,
     char* text,
     const char* where)
 {
@@ -1237,7 +1237,7 @@ apply_param(
      * elemental weakness) and read with a bare `atoi` everywhere else, and
      * `atoi("^slash_style")` is **0**. So `param=damagetype,^slash_style` and
      * `param=attackrate,^dks_attackrate` both silently became zero: the config
-     * read correctly, the compiler had no opinion, `mock230_pack` was happy
+     * read correctly, the compiler had no opinion, `ToriRSServer_Pack` was happy
      * because it checks the text, and the npc simply fought with damage type 0
      * and no attack rate.
      *
@@ -1246,7 +1246,7 @@ apply_param(
      * only observable through `npc_param` on a live npc, which needs a scene,
      * which the C-driven selftest does not have. That is why the probe existed.
      *
-     * `mock230_content_constant_int` answers the fallback for a name it does
+     * `ToriRSServer_ContentConstantInt` answers the fallback for a name it does
      * not know, so an unresolvable `^name` is caught by the same error path a
      * misspelled constant already takes rather than reading as 0.
      */
@@ -1255,11 +1255,11 @@ apply_param(
         static char expanded[32];
 
         snprintf(expanded, sizeof(expanded), "%d",
-                 (int)mock230_content_constant_int(value, 0));
+                 (int)ToriRSServer_ContentConstantInt(value, 0));
         value = expanded;
     }
 
-    for( int i = 0; i < MOCK230_PARAM_BONUS_COUNT; i++ )
+    for( int i = 0; i < TORIRSSERVER_PARAM_BONUS_COUNT; i++ )
     {
         if( strcmp(text, k_bonus_param_names[i]) == 0 )
         {
@@ -1289,7 +1289,7 @@ apply_param(
     {
         /* Crumble Undead gate — combat.param int; overlays use 0/1 or ^true/^false. */
         if( value[0] == '^' )
-            resolved = mock230_content_constant_int(value, 0);
+            resolved = ToriRSServer_ContentConstantInt(value, 0);
         else
             resolved = atoi(value);
     }
@@ -1310,7 +1310,7 @@ apply_param(
     else if( strcmp(text, "elemental_weakness") == 0 )
     {
         if( value[0] == '^' )
-            resolved = mock230_content_constant_int(value, 0);
+            resolved = ToriRSServer_ContentConstantInt(value, 0);
         else
             resolved = atoi(value);
     }
@@ -1321,11 +1321,11 @@ apply_param(
      * The four symbolic params, and the one place the two halves of this merge
      * had to be combined rather than chosen between.
      *
-     * The gate: every one of these used to take `mock230_content_symbol`'s -1
+     * The gate: every one of these used to take `ToriRSServer_ContentSymbol`'s -1
      * for an answer, so a misspelled seq or obj name loaded silently and the npc
      * simply had no anim and dropped nothing — `param=death_drop,bones_TYPO` at
      * 0 errors. `null` still means "nothing" (see
-     * `mock230_content_symbol_checked`); a name is now required to exist.
+     * `ToriRSServer_ContentSymbolChecked`); a name is now required to exist.
      *
      * And the id: the branch cannot `return` on success the way the gate first
      * wrote it, because `record_authored_param` below is what files the value
@@ -1335,32 +1335,32 @@ apply_param(
      */
     else if( strcmp(text, "attack_anim") == 0 || strcmp(text, "slashattack_anim") == 0 )
     {
-        if( !param_symbol(&def->attack_anim, MOCK230_PACK_SEQ, text, value, where) )
+        if( !param_symbol(&def->attack_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
             return 0;
         resolved = def->attack_anim;
     }
     else if( strcmp(text, "defend_anim") == 0 )
     {
-        if( !param_symbol(&def->defend_anim, MOCK230_PACK_SEQ, text, value, where) )
+        if( !param_symbol(&def->defend_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
             return 0;
         resolved = def->defend_anim;
     }
     else if( strcmp(text, "death_anim") == 0 )
     {
-        if( !param_symbol(&def->death_anim, MOCK230_PACK_SEQ, text, value, where) )
+        if( !param_symbol(&def->death_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
             return 0;
         resolved = def->death_anim;
     }
     else if( strcmp(text, "death_drop") == 0 )
     {
-        if( !param_symbol(&def->death_drop, MOCK230_PACK_OBJ, text, value, where) )
+        if( !param_symbol(&def->death_drop, TORIRSSERVER_PACK_OBJ, text, value, where) )
             return 0;
         resolved = def->death_drop;
     }
     else if( strcmp(text, "proj_launch") == 0 || strcmp(text, "proj_travel") == 0 ||
              strcmp(text, "proj_impact") == 0 )
     {
-        if( !param_symbol(&resolved, MOCK230_PACK_SPOTANIM, text, value, where) )
+        if( !param_symbol(&resolved, TORIRSSERVER_PACK_SPOTANIM, text, value, where) )
             return 0;
     }
     /*
@@ -1372,7 +1372,7 @@ apply_param(
     {
         int enum_id;
 
-        if( !param_symbol(&enum_id, MOCK230_PACK_ENUM, text, value, where) )
+        if( !param_symbol(&enum_id, TORIRSSERVER_PACK_ENUM, text, value, where) )
             return 0;
         resolved = enum_id;
     }
@@ -1447,7 +1447,7 @@ parse_coord_literal(
  */
 static int
 apply_patrol(
-    struct Mock230NpcDef* def,
+    struct ToriRSServerNpcDef* def,
     int index,
     char* text,
     const char* where)
@@ -1457,9 +1457,9 @@ apply_patrol(
     int x;
     int z;
 
-    if( index < 1 || index > MOCK230_NPC_PATROL_MAX )
+    if( index < 1 || index > TORIRSSERVER_NPC_PATROL_MAX )
     {
-        CONTENT_ERROR("%s: patrol%d is outside 1..%d\n", where, index, MOCK230_NPC_PATROL_MAX);
+        CONTENT_ERROR("%s: patrol%d is outside 1..%d\n", where, index, TORIRSSERVER_NPC_PATROL_MAX);
         return 0;
     }
     if( comma )
@@ -1482,7 +1482,7 @@ apply_patrol(
 
 static void
 npc_config_key(
-    struct Mock230NpcDef* def,
+    struct ToriRSServerNpcDef* def,
     const char* key,
     char* value,
     const char* where)
@@ -1513,7 +1513,7 @@ npc_config_key(
     else if( strcmp(key, "turnspeed") == 0 )
         def->turnspeed = atoi(value);
     /* Compass name -> the client's turn-angle index (see the field's comment
-     * in mock230_content.h). Numeric literals accepted for a band round-trip,
+     * in torirs_server_content.h). Numeric literals accepted for a band round-trip,
      * same convention as blockwalk above. */
     else if( strcmp(key, "facing") == 0 )
     {
@@ -1556,7 +1556,7 @@ npc_config_key(
     else if( strcmp(key, "healthbar") == 0 )
     {
         int id = -1;
-        if( !mock230_content_symbol_checked(MOCK230_PACK_HEALTHBAR, value, &id) )
+        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_HEALTHBAR, value, &id) )
             CONTENT_ERROR("%s: `healthbar=%s` names no healthbar\n", where, value);
         else
             def->healthbar = id;
@@ -1618,8 +1618,8 @@ npc_config_key(
         def->nomove = def->moverestrict == 5;
     }
     else if( strcmp(key, "huntmode") == 0 )
-        def->huntmode = strcmp(value, "aggressive") == 0 ? MOCK230_HUNT_AGGRESSIVE
-                                                         : MOCK230_HUNT_NONE;
+        def->huntmode = strcmp(value, "aggressive") == 0 ? TORIRSSERVER_HUNT_AGGRESSIVE
+                                                         : TORIRSSERVER_HUNT_NONE;
     else if( strcmp(key, "param") == 0 )
         (void)apply_param(def, value, where);
     else if( strcmp(key, "defaultmode") == 0 )
@@ -1633,17 +1633,17 @@ npc_config_key(
          */
         if( strcmp(value, "patrol") == 0 )
         {
-            def->defaultmode = MOCK230_NPCMODE_PATROL;
+            def->defaultmode = TORIRSSERVER_NPCMODE_PATROL;
             def->defaultmode_stated = 1;
         }
         else if( strcmp(value, "none") == 0 || strcmp(value, "null") == 0 )
         {
-            def->defaultmode = MOCK230_NPCMODE_NONE;
+            def->defaultmode = TORIRSSERVER_NPCMODE_NONE;
             def->defaultmode_stated = 1;
         }
         else if( strcmp(value, "wander") == 0 )
         {
-            def->defaultmode = MOCK230_NPCMODE_WANDER;
+            def->defaultmode = TORIRSSERVER_NPCMODE_WANDER;
             def->defaultmode_stated = 1;
         }
         else
@@ -1737,7 +1737,7 @@ load_npc_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[1024];
-    struct Mock230NpcDef* def = NULL;
+    struct ToriRSServerNpcDef* def = NULL;
     int line_number = 0;
     int skipping = 0;
     char where[600];
@@ -1746,7 +1746,7 @@ load_npc_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -1754,7 +1754,7 @@ load_npc_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             int npc_id;
@@ -1790,7 +1790,7 @@ load_npc_config(const char* path)
                 continue;
             }
 
-            npc_id = mock230_content_symbol(MOCK230_PACK_NPC, header);
+            npc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, header);
 
             def = NULL;
             if( npc_id < 0 )
@@ -1803,7 +1803,7 @@ load_npc_config(const char* path)
              * cache-derived combat stats, cache-rig animations, and an area's
              * authored mechanics/sounds. Directory order puts area overlays
              * first. Appending another def for every repeated header meant
-             * mock230_content_npc() returned that first, mostly-default copy
+             * ToriRSServer_ContentNpc() returned that first, mostly-default copy
              * forever and silently ignored the generated stats and anims.
              *
              * Seed once, then apply every later block to the same record. This
@@ -1817,7 +1817,7 @@ load_npc_config(const char* path)
                                   sizeof(*g_npc_defs));
                 def = &g_npc_defs[g_npc_def_count++];
                 npc_def_seed_from_cache(def, npc_id);
-                def->symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_id);
+                def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC, npc_id);
             }
             continue;
         }
@@ -1825,7 +1825,7 @@ load_npc_config(const char* path)
         if( skipping )
             continue;
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
@@ -1861,8 +1861,8 @@ load_npc_config(const char* path)
  *
  * `levelrequire` stays special: a param maps one id to one scalar, and this is
  * a repeating pair (fields/obj.ini). Everything else goes through
- * `mock230_objinfo_param_overlay` the way `.loc` uses
- * `mock230_locinfo_param_overlay`.
+ * `ToriRSServer_ObjInfoParamOverlay` the way `.loc` uses
+ * `ToriRSServer_LocInfoParamOverlay`.
  */
 /*
  * And the namespace each param's values are spelled in.
@@ -1874,9 +1874,9 @@ load_npc_config(const char* path)
  * namespaces. A `struct` value therefore could not be spelled at all:
  * `param=funeral_pyre_struct,pyre_teak_logs` was 32 unresolved values across
  * Mort'ton's pyres, and each one is a pyre that burns at the wrong level for the
- * wrong xp. `MOCK230_PACK_COUNT` means "no namespace" — an int literal.
+ * wrong xp. `TORIRSSERVER_PACK_COUNT` means "no namespace" — an int literal.
  */
-static enum Mock230PackKind* g_param_kinds;
+static enum ToriRSServerPackKind* g_param_kinds;
 static int g_param_kind_count;
 
 static int
@@ -1886,7 +1886,7 @@ obj_resolve_param_value(
     int* out,
     const char* where)
 {
-    char declared = mock230_content_param_type(param_id);
+    char declared = ToriRSServer_ContentParamType(param_id);
 
     if( strcmp(value, "null") == 0 )
     {
@@ -1909,25 +1909,25 @@ obj_resolve_param_value(
      * else. Guessing is only for the ones that did not — a cache `all.param`
      * row says `i`, and nothing more. */
     if( g_param_kinds && param_id >= 0 && param_id < g_param_kind_count &&
-        g_param_kinds[param_id] != MOCK230_PACK_COUNT )
+        g_param_kinds[param_id] != TORIRSSERVER_PACK_COUNT )
     {
-        if( mock230_content_symbol_checked(g_param_kinds[param_id], value, out) )
+        if( ToriRSServer_ContentSymbolChecked(g_param_kinds[param_id], value, out) )
             return 1;
         CONTENT_ERROR("%s: `%s` is not in pack/%s.pack\n", where, value,
-                      mock230_content_pack_name(g_param_kinds[param_id]));
+                      ToriRSServer_ContentPackName(g_param_kinds[param_id]));
         return 0;
     }
     /* Symbolic: try seq first (anims / baseanim), then obj / spotanim, then
      * synth. Synth is last because its names are `synth_<id>` and carry no
      * information — a lookup there can only succeed on a name shaped for it, so
      * it can never shadow one of the others. */
-    if( mock230_content_symbol_checked(MOCK230_PACK_SEQ, value, out) )
+    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SEQ, value, out) )
         return 1;
-    if( mock230_content_symbol_checked(MOCK230_PACK_OBJ, value, out) )
+    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, value, out) )
         return 1;
-    if( mock230_content_symbol_checked(MOCK230_PACK_SPOTANIM, value, out) )
+    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SPOTANIM, value, out) )
         return 1;
-    if( mock230_content_symbol_checked(MOCK230_PACK_SYNTH, value, out) )
+    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SYNTH, value, out) )
         return 1;
     CONTENT_ERROR("%s: cannot resolve param value `%s`\n", where, value);
     return 0;
@@ -1965,7 +1965,7 @@ obj_config_key(
      */
     if( strcmp(key, "category") == 0 )
     {
-        int category = mock230_content_symbol(MOCK230_PACK_CATEGORY, value);
+        int category = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, value);
 
         if( category < 0 )
             CONTENT_ERROR("%s: `%s` is not in pack/category.pack — a category is named "
@@ -1975,7 +1975,7 @@ obj_config_key(
             CONTENT_ERROR("%s: `%s` resolves to category 0, which is the decoder's "
                           "\"unstated\" and must never be a name\n",
                           where, value);
-        else if( !mock230_objinfo_category_overlay(obj_id, category) )
+        else if( !ToriRSServer_ObjInfoCategoryOverlay(obj_id, category) )
             CONTENT_ERROR("%s: obj %d is outside the decoded obj table\n", where, obj_id);
         return;
     }
@@ -1999,7 +1999,7 @@ obj_config_key(
                           where);
             return;
         }
-        if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, param_name, &param_id) )
+        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, param_name, &param_id) )
         {
             CONTENT_ERROR("%s: obj param `%s` is not in configs/all.param.compack\n", where,
                           param_name);
@@ -2007,7 +2007,7 @@ obj_config_key(
         }
         if( !obj_resolve_param_value(param_id, value_name, &resolved, where) )
             return;
-        mock230_objinfo_param_overlay(obj_id, param_id, resolved);
+        ToriRSServer_ObjInfoParamOverlay(obj_id, param_id, resolved);
         return;
     }
 
@@ -2025,7 +2025,7 @@ obj_config_key(
                       param_name);
         return;
     }
-    stat = mock230_content_symbol(MOCK230_PACK_STAT, skill_name);
+    stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, skill_name);
     if( stat < 0 )
     {
         CONTENT_ERROR("%s: `%s` is not in pack/stat.pack\n", where, skill_name);
@@ -2036,10 +2036,10 @@ obj_config_key(
         CONTENT_ERROR("%s: level %d is outside 1..99\n", where, level);
         return;
     }
-    if( *count >= MOCK230_OBJ_REQUIRE_MAX )
+    if( *count >= TORIRSSERVER_OBJ_REQUIRE_MAX )
     {
         CONTENT_ERROR("%s: more than %d requirements on one obj\n", where,
-                      MOCK230_OBJ_REQUIRE_MAX);
+                      TORIRSSERVER_OBJ_REQUIRE_MAX);
         return;
     }
     stats[*count] = stat;
@@ -2054,8 +2054,8 @@ load_obj_config(const char* path)
     char raw[1024];
     char where[600];
     int obj_id = -1;
-    int stats[MOCK230_OBJ_REQUIRE_MAX];
-    int levels[MOCK230_OBJ_REQUIRE_MAX];
+    int stats[TORIRSSERVER_OBJ_REQUIRE_MAX];
+    int levels[TORIRSSERVER_OBJ_REQUIRE_MAX];
     int count = 0;
     int line_number = 0;
 
@@ -2063,7 +2063,7 @@ load_obj_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -2071,23 +2071,23 @@ load_obj_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             /* Flush the block that just ended before starting the next one. The
              * requirements are a set, so they are applied once per block rather
              * than accumulated into the table a line at a time. */
             if( obj_id >= 0 && count )
-                mock230_obj_require_set(obj_id, stats, levels, count);
+                ToriRSServer_ObjRequireSet(obj_id, stats, levels, count);
             count = 0;
-            obj_id = mock230_content_symbol(MOCK230_PACK_OBJ, header);
+            obj_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, header);
             if( obj_id < 0 )
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.obj.compack\n", path, line_number,
                               header);
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
@@ -2102,7 +2102,7 @@ load_obj_config(const char* path)
         obj_config_key(obj_id, line, value, stats, levels, &count, where);
     }
     if( obj_id >= 0 && count )
-        mock230_obj_require_set(obj_id, stats, levels, count);
+        ToriRSServer_ObjRequireSet(obj_id, stats, levels, count);
     fclose(file);
 }
 
@@ -2113,7 +2113,7 @@ load_obj_config(const char* path)
 /*
  * `fields/inv.ini` reserves this grammar and refuses to let it live there:
  * a shop's slot count is the cache's own fact (config group 5, read through
- * `mock230_bank_inv_size`), but scope/restock/stock policy have no cache
+ * `ToriRSServer_BankInvSize`), but scope/restock/stock policy have no cache
  * representation at all and are authored here instead.
  *
  * LostCity's own `.inv` grammar, unchanged:
@@ -2130,12 +2130,12 @@ load_obj_config(const char* path)
  * accepts a client-stated field: LostCity's own `.inv` files carry it and a
  * silent drop is worse than a line explaining why it did not apply. `scope`
  * only ever means `shared` here — every other inv this parser never mentions
- * defaults to per-player, which is `mock230_container_scope`'s job to answer,
+ * defaults to per-player, which is `ToriRSServer_ContainerScope`'s job to answer,
  * not this file's to restate for the other ~550 non-shop inv names.
  */
 static void
 inv_config_key(
-    struct Mock230ShopDef* def,
+    struct ToriRSServerShopDef* def,
     const char* key,
     const char* value,
     const char* where)
@@ -2161,10 +2161,10 @@ inv_config_key(
     }
     if( strcmp(key, "stackall") == 0 )
     {
-        /* This IS the stack policy `mock230_container_add` says it is missing —
+        /* This IS the stack policy `ToriRSServer_ContainerAdd` says it is missing —
          * LostCity's `InvType.stackType`, authored here because the cache's inv
          * config carries only size. It used to be parsed and dropped, which put
-         * the seed and the add path in disagreement: `mock230_shop_seed` writes
+         * the seed and the add path in disagreement: `ToriRSServer_ShopSeed` writes
          * `stock1=pot_empty,5,10` as one slot of five unstackable pots, and
          * selling a pot back then opened a *second* pot cell. */
         def->stackall = (strcmp(value, "yes") == 0);
@@ -2177,10 +2177,10 @@ inv_config_key(
          * as an error for that case. A `pack/inv.alloc` id has no such fact:
          * this is content declaring the one thing the allocator can't, for a
          * shop whose cache snapshot never packed its inv (docs/SHOPS_PLAN.md
-         * §8.5). mock230_container_resolve falls back to it only when
-         * mock230_bank_inv_size comes back empty, so a real cache size still
+         * §8.5). ToriRSServer_ContainerResolve falls back to it only when
+         * ToriRSServer_BankInvSize comes back empty, so a real cache size still
          * always wins. */
-        if( mock230_bank_inv_size((int)def->inv_id) > 0 )
+        if( ToriRSServer_BankInvSize((int)def->inv_id) > 0 )
         {
             CONTENT_ERROR(
                 "%s: inv size is a cache fact (config group 5); `size=%s` is inert here — see "
@@ -2188,7 +2188,7 @@ inv_config_key(
                 where, value);
             return;
         }
-        mock230_shop_def_set_size(def, atoi(value));
+        ToriRSServer_ShopDefSetSize(def, atoi(value));
         return;
     }
     if( strncmp(key, "stock", 5) == 0 && key[5] >= '0' && key[5] <= '9' )
@@ -2204,14 +2204,14 @@ inv_config_key(
                           key, value);
             return;
         }
-        if( !mock230_content_symbol_checked(MOCK230_PACK_OBJ, obj_name, &obj_id) )
+        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, obj_name, &obj_id) )
         {
             CONTENT_ERROR("%s: `%s` is not in configs/all.obj.compack\n", where, obj_name);
             return;
         }
-        if( !mock230_shop_def_add_stock(def, obj_id, baseline, rate) )
+        if( !ToriRSServer_ShopDefAddStock(def, obj_id, baseline, rate) )
             CONTENT_ERROR("%s: more than %d stock lines on inv %d\n", where,
-                          MOCK230_SHOP_STOCK_MAX, (int)def->inv_id);
+                          TORIRSSERVER_SHOP_STOCK_MAX, (int)def->inv_id);
         return;
     }
     CONTENT_ERROR("%s: unknown inv key `%s`\n", where, key);
@@ -2223,14 +2223,14 @@ load_inv_config(const char* path)
     FILE* file = fopen(path, "rb");
     char raw[1024];
     char where[600];
-    struct Mock230ShopDef* def = NULL;
+    struct ToriRSServerShopDef* def = NULL;
     int line_number = 0;
 
     if( !file )
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
         int inv_id;
@@ -2239,21 +2239,21 @@ load_inv_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
-            if( !mock230_content_symbol_checked(MOCK230_PACK_INV, header, &inv_id) )
+            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_INV, header, &inv_id) )
             {
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.inv.compack or pack/inv.alloc\n",
                               path, line_number, header);
                 def = NULL;
                 continue;
             }
-            def = mock230_shop_def_begin(inv_id);
+            def = ToriRSServer_ShopDefBegin(inv_id);
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
@@ -2293,7 +2293,7 @@ load_constant_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* value;
 
         line_number++;
@@ -2305,13 +2305,13 @@ load_constant_config(const char* path)
                           line_number);
             continue;
         }
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
         {
             CONTENT_ERROR("%s:%d: `%s` has no `=`\n", path, line_number, line);
             continue;
         }
-        if( mock230_content_constant(line + 1) )
+        if( ToriRSServer_ContentConstant(line + 1) )
         {
             CONTENT_ERROR("%s:%d: `%s` is declared twice\n", path, line_number, line);
             continue;
@@ -2330,27 +2330,27 @@ load_constant_config(const char* path)
 /* ------------------------------------------------------------------ */
 
 /** Map a `.enum` type name onto the pack it resolves against. */
-static enum Mock230PackKind
+static enum ToriRSServerPackKind
 pack_kind_for_type(const char* name)
 {
     static const struct
     {
         const char* name;
-        enum Mock230PackKind kind;
+        enum ToriRSServerPackKind kind;
     } k_map[] = {
-        { "npc", MOCK230_PACK_NPC },         { "namedobj", MOCK230_PACK_OBJ },
-        { "obj", MOCK230_PACK_OBJ },         { "loc", MOCK230_PACK_LOC },
-        { "seq", MOCK230_PACK_SEQ },         { "spotanim", MOCK230_PACK_SPOTANIM },
-        { "4_soundeffects", MOCK230_PACK_SYNTH },
-        { "inv", MOCK230_PACK_INV },         { "varp", MOCK230_PACK_VARP },
-        { "varbit", MOCK230_PACK_VARBIT },
-        { "interface", MOCK230_PACK_INTERFACE },
-        { "component", MOCK230_PACK_COMPONENT },
-        { "stat", MOCK230_PACK_STAT },       { "param", MOCK230_PACK_PARAM },
-        { "hitsplat", MOCK230_PACK_HITSPLAT },
-        { "enum", MOCK230_PACK_ENUM },       { "struct", MOCK230_PACK_STRUCT },
-        { "dbtable", MOCK230_PACK_DBTABLE }, { "dbrow", MOCK230_PACK_DBROW },
-        { "category", MOCK230_PACK_CATEGORY },
+        { "npc", TORIRSSERVER_PACK_NPC },         { "namedobj", TORIRSSERVER_PACK_OBJ },
+        { "obj", TORIRSSERVER_PACK_OBJ },         { "loc", TORIRSSERVER_PACK_LOC },
+        { "seq", TORIRSSERVER_PACK_SEQ },         { "spotanim", TORIRSSERVER_PACK_SPOTANIM },
+        { "4_soundeffects", TORIRSSERVER_PACK_SYNTH },
+        { "inv", TORIRSSERVER_PACK_INV },         { "varp", TORIRSSERVER_PACK_VARP },
+        { "varbit", TORIRSSERVER_PACK_VARBIT },
+        { "interface", TORIRSSERVER_PACK_INTERFACE },
+        { "component", TORIRSSERVER_PACK_COMPONENT },
+        { "stat", TORIRSSERVER_PACK_STAT },       { "param", TORIRSSERVER_PACK_PARAM },
+        { "hitsplat", TORIRSSERVER_PACK_HITSPLAT },
+        { "enum", TORIRSSERVER_PACK_ENUM },       { "struct", TORIRSSERVER_PACK_STRUCT },
+        { "dbtable", TORIRSSERVER_PACK_DBTABLE }, { "dbrow", TORIRSSERVER_PACK_DBROW },
+        { "category", TORIRSSERVER_PACK_CATEGORY },
     };
 
     for( size_t i = 0; i < sizeof(k_map) / sizeof(k_map[0]); i++ )
@@ -2359,8 +2359,8 @@ pack_kind_for_type(const char* name)
             return k_map[i].kind;
     }
     /* `int` and anything else unlisted: the operand is a literal, not a
-     * symbol. MOCK230_PACK_COUNT is the sentinel for that. */
-    return MOCK230_PACK_COUNT;
+     * symbol. TORIRSSERVER_PACK_COUNT is the sentinel for that. */
+    return TORIRSSERVER_PACK_COUNT;
 }
 
 /*
@@ -2403,7 +2403,7 @@ enum_text(const char* text)
 {
     if( *text != '^' )
         return text;
-    return mock230_content_constant(text);
+    return ToriRSServer_ContentConstant(text);
 }
 
 /** Resolve one side of a `val=` line: a symbol when the declared type names a
@@ -2411,7 +2411,7 @@ enum_text(const char* text)
  *  reference writes `val=^prayer_thickskin,3`. */
 static int
 enum_operand(
-    enum Mock230PackKind kind,
+    enum ToriRSServerPackKind kind,
     int is_coord,
     const char* text,
     int* out_ok)
@@ -2419,7 +2419,7 @@ enum_operand(
     *out_ok = 1;
     if( *text == '^' )
     {
-        const char* expanded = mock230_content_constant(text);
+        const char* expanded = ToriRSServer_ContentConstant(text);
 
         if( !expanded )
         {
@@ -2446,12 +2446,12 @@ enum_operand(
             *out_ok = 0;
             return -1;
         }
-        return (int)mock230_coord_pack(level, x, z);
+        return (int)ToriRSServer_CoordPack(level, x, z);
     }
-    if( kind == MOCK230_PACK_COUNT )
+    if( kind == TORIRSSERVER_PACK_COUNT )
         return atoi(text);
     {
-        int id = mock230_content_symbol(kind, text);
+        int id = ToriRSServer_ContentSymbol(kind, text);
 
         if( id < 0 )
             *out_ok = 0;
@@ -2464,7 +2464,7 @@ load_enum_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[1024];
-    struct Mock230EnumDef* def = NULL;
+    struct ToriRSServerEnumDef* def = NULL;
     int line_number = 0;
     /* Locals, not fields on the def: `inputtype`/`outputtype` are declared
      * above the `val=` rows they describe and are read only while this one
@@ -2477,7 +2477,7 @@ load_enum_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -2485,7 +2485,7 @@ load_enum_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
@@ -2493,8 +2493,8 @@ load_enum_config(const char* path)
             def = &g_enum_defs[g_enum_def_count++];
             memset(def, 0, sizeof(*def));
             def->symbol = strdup(header);
-            def->input_kind = MOCK230_PACK_COUNT;
-            def->output_kind = MOCK230_PACK_COUNT;
+            def->input_kind = TORIRSSERVER_PACK_COUNT;
+            def->output_kind = TORIRSSERVER_PACK_COUNT;
             /* The reference's own defaults, so a key with no entry yields what
              * its content expects rather than a zero that means "found". */
             def->default_int = 0;
@@ -2504,7 +2504,7 @@ load_enum_config(const char* path)
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -2607,7 +2607,7 @@ load_enum_config(const char* path)
             if( def->count >= def->capacity )
             {
                 int next = def->capacity ? def->capacity * 2 : 32;
-                struct Mock230EnumValue* grown =
+                struct ToriRSServerEnumValue* grown =
                     realloc(def->values, (size_t)next * sizeof(*grown));
 
                 if( !grown )
@@ -2654,7 +2654,7 @@ load_rank0_enums(const char* content_dir)
     char path[1024];
     FILE* file;
     char raw[8192];
-    struct Mock230EnumDef* def = NULL;
+    struct ToriRSServerEnumDef* def = NULL;
     int line_number = 0;
     int loaded = 0;
 
@@ -2663,14 +2663,14 @@ load_rank0_enums(const char* content_dir)
     if( !file )
     {
         fprintf(stderr,
-                "mock230: no configs/all.enum — enum()/enum_getoutputcount cannot "
+                "torirsserver: no configs/all.enum — enum()/enum_getoutputcount cannot "
                 "answer for cache tables\n");
         return 0;
     }
 
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -2678,12 +2678,12 @@ load_rank0_enums(const char* content_dir)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             /* Authored overlays loaded first win: skip a cache dump that
              * restates a name already present. */
-            if( mock230_content_enum(header) )
+            if( ToriRSServer_ContentEnum(header) )
             {
                 def = NULL;
                 continue;
@@ -2693,15 +2693,15 @@ load_rank0_enums(const char* content_dir)
             def = &g_enum_defs[g_enum_def_count++];
             memset(def, 0, sizeof(*def));
             def->symbol = strdup(header);
-            def->input_kind = MOCK230_PACK_COUNT;
-            def->output_kind = MOCK230_PACK_COUNT;
+            def->input_kind = TORIRSSERVER_PACK_COUNT;
+            def->output_kind = TORIRSSERVER_PACK_COUNT;
             def->default_int = 0;
             def->default_text = "null";
             loaded++;
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !def )
             continue;
 
@@ -2758,7 +2758,7 @@ load_rank0_enums(const char* content_dir)
             if( def->count >= def->capacity )
             {
                 int next = def->capacity ? def->capacity * 2 : 32;
-                struct Mock230EnumValue* grown =
+                struct ToriRSServerEnumValue* grown =
                     realloc(def->values, (size_t)next * sizeof(*grown));
 
                 if( !grown )
@@ -2792,14 +2792,14 @@ load_varp_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[1024];
-    struct Mock230VarpDef* def = NULL;
+    struct ToriRSServerVarpDef* def = NULL;
     int line_number = 0;
 
     if( !file )
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -2807,10 +2807,10 @@ load_varp_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
-            int varp_id = mock230_content_symbol(MOCK230_PACK_VARP, header);
+            int varp_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, header);
 
             def = NULL;
             if( varp_id < 0 )
@@ -2824,12 +2824,12 @@ load_varp_config(const char* path)
             def = &g_varp_defs[g_varp_def_count++];
             memset(def, 0, sizeof(*def));
             def->varp_id = varp_id;
-            def->symbol = mock230_content_symbol_name(MOCK230_PACK_VARP, varp_id);
+            def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_VARP, varp_id);
             def->clientcode = -1;
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -2873,7 +2873,7 @@ load_varp_config(const char* path)
              * nothing, which is exactly why it is a separate word from
              * `wholewrite`. What this arm buys is that the key is *accepted* —
              * it was rejected as unknown, and one rejected line is one content
-             * error, which is a red `mock230 --selftest` for a file that is
+             * error, which is a red `ToriRSServer --selftest` for a file that is
              * correct.
              */
             if( strcmp(value, "allow") != 0 )
@@ -2901,7 +2901,7 @@ load_varp_config(const char* path)
  * read first refers forward.
  *
  * Resolution publishes to **two** places and that is the point (2026-08-02):
- * `Mock230LocDef.next_loc_stage`, which the engine's own door swap reads, and
+ * `ToriRSServerLocDef.next_loc_stage`, which the engine's own door swap reads, and
  * the loc param table, which is where `loc_param(next_loc_stage)` — the
  * reference's line in `doors/scripts/doors.rs2` — looks. Only the first existed
  * before, so a `.loc` block could state a param that no script could read; the
@@ -2918,13 +2918,13 @@ load_varp_config(const char* path)
  *   no ref        a decimal literal, and nothing else. cp_fields.h's own
  *                 default, and the right one: a number needs no pack to agree.
  *   ref = <ns>    a name resolved through that namespace's pack, by the same
- *                 spelling `mock230_content_pack_name` gives it — `loc`, `obj`,
+ *                 spelling `ToriRSServer_ContentPackName` gives it — `loc`, `obj`,
  *                 `seq`, `npc`, `category`, `stat`, … A decimal literal is still
  *                 accepted, because `configs/all.loc` is a machine export and
  *                 writes numbers where an authored block writes names.
  *
  * `next_loc_stage` keeps one extra effect no other param has: resolving it also
- * fills `Mock230LocDef.next_loc_stage`, the field the engine's own door swap
+ * fills `ToriRSServerLocDef.next_loc_stage`, the field the engine's own door swap
  * reads. That is bound to the register row's *name*, not to "the first param
  * that came along" — which is what it used to be, so a second param on the same
  * loc silently redirected every door in the block.
@@ -2935,17 +2935,17 @@ struct PendingStage
     int def_index;
     /** The param the overlay line named, resolved through pack/param.pack. */
     int param_id;
-    /** The namespace the value is spelled in, or MOCK230_PACK_COUNT for
+    /** The namespace the value is spelled in, or TORIRSSERVER_PACK_COUNT for
      *  "decimal literal only" — `fields/loc.ini`'s `ref`, resolved once here so
      *  the deferred pass does not re-read the register. */
-    enum Mock230PackKind ref;
-    /** 1 when this row also owns `Mock230LocDef.next_loc_stage`. */
+    enum ToriRSServerPackKind ref;
+    /** 1 when this row also owns `ToriRSServerLocDef.next_loc_stage`. */
     int is_next_stage;
     char* symbol;
 };
 
 /**
- * `ref = <namespace>` → the pack kind, or MOCK230_PACK_COUNT when unnamed.
+ * `ref = <namespace>` → the pack kind, or TORIRSSERVER_PACK_COUNT when unnamed.
  *
  * Reads `pack_kind_name`'s own table backwards rather than restating it: a
  * spelling that appears in only one of the two directions is how `synth` would
@@ -2953,17 +2953,17 @@ struct PendingStage
  * (its pack name is `4_soundeffects`, and `fields/npc.ini` says out loud that
  * there is no `ref = synth`).
  */
-static enum Mock230PackKind
+static enum ToriRSServerPackKind
 pack_kind_from_ref(const char* ref)
 {
     if( !ref || !*ref )
-        return MOCK230_PACK_COUNT;
-    for( int k = 0; k < MOCK230_PACK_COUNT; k++ )
+        return TORIRSSERVER_PACK_COUNT;
+    for( int k = 0; k < TORIRSSERVER_PACK_COUNT; k++ )
     {
-        if( strcmp(pack_kind_name((enum Mock230PackKind)k), ref) == 0 )
-            return (enum Mock230PackKind)k;
+        if( strcmp(pack_kind_name((enum ToriRSServerPackKind)k), ref) == 0 )
+            return (enum ToriRSServerPackKind)k;
     }
-    return MOCK230_PACK_COUNT;
+    return TORIRSSERVER_PACK_COUNT;
 }
 
 /** 1 when every character is a digit (after an optional `-`), i.e. the value is
@@ -2994,7 +2994,7 @@ load_loc_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[1024];
-    struct Mock230LocDef* def = NULL;
+    struct ToriRSServerLocDef* def = NULL;
     int def_index = -1;
     int line_number = 0;
 
@@ -3002,7 +3002,7 @@ load_loc_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
@@ -3010,10 +3010,10 @@ load_loc_config(const char* path)
         if( !*line )
             continue;
 
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
-            int loc_id = mock230_content_symbol(MOCK230_PACK_LOC, header);
+            int loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, header);
 
             def = NULL;
             if( loc_id < 0 )
@@ -3028,13 +3028,13 @@ load_loc_config(const char* path)
             def = &g_loc_defs[def_index];
             memset(def, 0, sizeof(*def));
             def->loc_id = loc_id;
-            def->symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, loc_id);
+            def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, loc_id);
             def->category = -1;
             def->next_loc_stage = -1;
             continue;
         }
 
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value || !def )
         {
             CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
@@ -3052,9 +3052,9 @@ load_loc_config(const char* path)
              * different from `category` on an npc or an obj while being spelled
              * the same and living in the same field register. Resolving it here
              * is what makes `[oploc1,_door_closed]` a category subject the trigger
-             * lookup can answer — see `Mock230LocDef.category`.
+             * lookup can answer — see `ToriRSServerLocDef.category`.
              */
-            int id = mock230_content_symbol(MOCK230_PACK_CATEGORY, value);
+            int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, value);
 
             if( id < 0 )
                 CONTENT_ERROR("%s:%d: `%s` is not in pack/category.pack — a category is "
@@ -3096,7 +3096,7 @@ load_loc_config(const char* path)
                  * `next_loc_stage` is is the pack file's business, and a script
                  * asking for it by name has to reach the same row this line
                  * writes. */
-                param_id = mock230_content_symbol(MOCK230_PACK_PARAM, field->param_name);
+                param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, field->param_name);
                 if( param_id < 0 )
                 {
                     CONTENT_ERROR("%s:%d: fields/loc.ini maps `%s` to param `%s`, which "
@@ -3126,7 +3126,7 @@ load_loc_config(const char* path)
              * turns on, and the reason each one in this tree resumes on op 1
              * instead.
              *
-             * `mock230_scene_loc_op` used to answer from the decoded client record
+             * `ToriRSServer_SceneLocOp` used to answer from the decoded client record
              * alone, so a loc's server-side op set was exactly its client-side one.
              * `p_oploc(3)` on a tree therefore hit the reference's own silent
              * return (`if (!locType.op || !locType.op[type]) return;`) and the
@@ -3136,11 +3136,11 @@ load_loc_config(const char* path)
              * `hidden` is not a special case here, it is the ordinary one: an op
              * this file states and the client's cache record does not is invisible
              * in the menu by construction, because the menu is built from the
-             * cache. `mock230_world.c`'s OPLOC handler already refused the literal
+             * cache. `torirs_server_world.c`'s OPLOC handler already refused the literal
              * string — "Hidden / missing ops are a lagging client — drop" — so the
              * packet path was waiting for this to exist.
              */
-            mock230_scene_loc_op_overlay(def->loc_id, line[2] - '0', value);
+            ToriRSServer_SceneLocOpOverlay(def->loc_id, line[2] - '0', value);
         }
         else
         {
@@ -3168,7 +3168,7 @@ resolve_loc_stages(void)
     {
         int index = g_pending[i].def_index;
         const char* symbol = g_pending[i].symbol;
-        enum Mock230PackKind ref = g_pending[i].ref;
+        enum ToriRSServerPackKind ref = g_pending[i].ref;
         int target;
 
         /*
@@ -3179,7 +3179,7 @@ resolve_loc_stages(void)
          */
         if( is_decimal_literal(symbol) )
             target = atoi(symbol);
-        else if( ref == MOCK230_PACK_COUNT )
+        else if( ref == TORIRSSERVER_PACK_COUNT )
         {
             CONTENT_ERROR("loc param `%s` takes a number — declare `ref = <namespace>` "
                           "in fields/loc.ini to spell it as a name\n",
@@ -3189,7 +3189,7 @@ resolve_loc_stages(void)
         }
         else
         {
-            target = mock230_content_symbol(ref, symbol);
+            target = ToriRSServer_ContentSymbol(ref, symbol);
             if( target < 0 )
             {
                 CONTENT_ERROR("loc param value `%s` is not in pack/%s.pack\n", symbol,
@@ -3204,7 +3204,7 @@ resolve_loc_stages(void)
             /* Into the param table, so `loc_param(<name>)` answers what this line
              * says — and, for the door pairing alone, into the field the engine's
              * own door swap reads. See this section's header. */
-            mock230_locinfo_param_overlay(g_loc_defs[index].loc_id, g_pending[i].param_id,
+            ToriRSServer_LocInfoParamOverlay(g_loc_defs[index].loc_id, g_pending[i].param_id,
                                           target);
             if( g_pending[i].is_next_stage )
                 g_loc_defs[index].next_loc_stage = target;
@@ -3299,7 +3299,7 @@ load_jm2(
     }
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         int level, local_x, local_z, id, count;
 
         line_number++;
@@ -3327,7 +3327,7 @@ load_jm2(
          * would load with **zero spawns and no message**: an empty world that
          * looks like a scene bug rather than a content one. So an old-format
          * section is an error naming the file and the fix, which fails
-         * `mock230_pack` instead of booting an empty Lumbridge.
+         * `ToriRSServer_Pack` instead of booting an empty Lumbridge.
          */
         if( section == JM2_NPC || section == JM2_OBJ )
         {
@@ -3382,7 +3382,7 @@ load_spawn_config(const char* path)
         return;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char name[128];
         int x;
         int z;
@@ -3459,8 +3459,8 @@ load_spawn_config(const char* path)
         }
         else
         {
-            id = mock230_content_symbol(
-                section == JM2_NPC ? MOCK230_PACK_NPC : MOCK230_PACK_OBJ, name);
+            id = ToriRSServer_ContentSymbol(
+                section == JM2_NPC ? TORIRSSERVER_PACK_NPC : TORIRSSERVER_PACK_OBJ, name);
             if( id < 0 )
             {
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.%s.compack\n", path, line_number,
@@ -3530,7 +3530,7 @@ static int g_param_type_count;
 static int* g_param_defaults;
 
 int
-mock230_content_param_default(int param_id)
+ToriRSServer_ContentParamDefault(int param_id)
 {
     if( param_id < 0 || param_id >= g_param_type_count || !g_param_defaults )
         return 0;
@@ -3538,7 +3538,7 @@ mock230_content_param_default(int param_id)
 }
 
 char
-mock230_content_param_type(int param_id)
+ToriRSServer_ContentParamType(int param_id)
 {
     if( param_id < 0 || param_id >= g_param_type_count )
         return 0;
@@ -3567,7 +3567,7 @@ load_param_types(const char* content_dir)
          * trade, so it says what it lost.
          */
         fprintf(stderr,
-                "mock230: no configs/all.param — oc_param cannot type its result\n");
+                "torirsserver: no configs/all.param — oc_param cannot type its result\n");
         return 0;
     }
 
@@ -3575,7 +3575,7 @@ load_param_types(const char* content_dir)
      * pack is already loaded at this point — it is layer 0 of the `param`
      * namespace and comes off `configs/all.param.compack`. */
     {
-        const struct Pack* pack = &g_packs[MOCK230_PACK_PARAM];
+        const struct Pack* pack = &g_packs[TORIRSSERVER_PACK_PARAM];
 
         for( int i = 0; i < pack->count; i++ )
             if( pack->entries[i].id > highest )
@@ -3591,25 +3591,25 @@ load_param_types(const char* content_dir)
     assert(g_param_types);
     g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
     assert(g_param_defaults);
-    g_param_kinds = (enum Mock230PackKind*)malloc((size_t)g_param_type_count *
+    g_param_kinds = (enum ToriRSServerPackKind*)malloc((size_t)g_param_type_count *
                                                  sizeof(*g_param_kinds));
     assert(g_param_kinds);
     g_param_kind_count = g_param_type_count;
     for( int i = 0; i < g_param_kind_count; i++ )
-        g_param_kinds[i] = MOCK230_PACK_COUNT;
+        g_param_kinds[i] = TORIRSSERVER_PACK_COUNT;
     for( int i = 0; i < g_param_type_count; i++ )
         g_param_defaults[i] = 0;
 
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
 
         line_number++;
         if( !*line )
             continue;
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
             /*
@@ -3622,14 +3622,14 @@ load_param_types(const char* content_dir)
              * are both machine exports of the same archive, so a name in one and
              * not the other means the two have drifted.
              */
-            if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, header, &current) )
+            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, header, &current) )
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
                               line_number, header);
             continue;
         }
         if( current < 0 || current >= g_param_type_count )
             continue;
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
             continue;
         if( strcmp(line, "type") == 0 )
@@ -3673,7 +3673,7 @@ load_server_param_defaults_file(const char* path)
         return 0;
     while( fgets(raw, sizeof(raw), file) )
     {
-        char* line = mock230_content_clean_line(raw);
+        char* line = ToriRSServer_ContentCleanLine(raw);
         char* header;
         char* value;
         int resolved;
@@ -3681,10 +3681,10 @@ load_server_param_defaults_file(const char* path)
         line_number++;
         if( !*line )
             continue;
-        header = mock230_content_section_header(line);
+        header = ToriRSServer_ContentSectionHeader(line);
         if( header )
         {
-            if( !mock230_content_symbol_checked(MOCK230_PACK_PARAM, header, &current) )
+            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, header, &current) )
             {
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
                               line_number, header);
@@ -3694,7 +3694,7 @@ load_server_param_defaults_file(const char* path)
         }
         if( current < 0 || current >= g_param_type_count )
             continue;
-        value = mock230_content_split_key_value(line);
+        value = ToriRSServer_ContentSplitKeyValue(line);
         if( !value )
             continue;
         if( strcmp(line, "type") == 0 )
@@ -3724,10 +3724,10 @@ load_server_param_defaults_file(const char* path)
                 g_param_defaults[current] = atoi(value);
             else if( strchr(value, ' ') != NULL || value[0] == '^' )
                 continue; /* prose / constant — not a seq/obj id */
-            else if( mock230_content_symbol_checked(MOCK230_PACK_SEQ, value, &resolved) ||
-                     mock230_content_symbol_checked(MOCK230_PACK_OBJ, value, &resolved) ||
-                     mock230_content_symbol_checked(MOCK230_PACK_SPOTANIM, value, &resolved) ||
-                     mock230_content_symbol_checked(MOCK230_PACK_NPC, value, &resolved) )
+            else if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SEQ, value, &resolved) ||
+                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, value, &resolved) ||
+                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SPOTANIM, value, &resolved) ||
+                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_NPC, value, &resolved) )
                 g_param_defaults[current] = resolved;
             /* else leave 0 — unknown symbolic defaults are not pack failures */
         }
@@ -3743,7 +3743,7 @@ load_server_param_file(const char* path)
     int n = load_server_param_defaults_file(path);
 
     if( n > 0 )
-        fprintf(stderr, "mock230: %d server param type(s) from %s\n", n, path);
+        fprintf(stderr, "torirsserver: %d server param type(s) from %s\n", n, path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -3776,7 +3776,7 @@ dirent_name_compare(
  * scandir/alphasort extensions, so walk the directory by hand and sort the
  * results ourselves -- portable across the unix and win32 builds. */
 static int
-mock230_scandir(
+ToriRSServer_Scandir(
     const char* dir,
     struct dirent*** out_entries)
 {
@@ -3832,7 +3832,7 @@ mock230_scandir(
 /**
  * Recursively load every matching config in deterministic path order.
  *
- * Sorted via `mock230_scandir`, not `readdir` walked as it comes: `readdir` makes no
+ * Sorted via `ToriRSServer_Scandir`, not `readdir` walked as it comes: `readdir` makes no
  * ordering promise at all, it hands back entries in whatever order the
  * filesystem's directory storage happens to hold them. Sorting makes overlay
  * order reproducible; NPCs additionally split generated baselines from authored
@@ -3846,7 +3846,7 @@ walk_configs(
 {
     struct dirent** entries;
     char path[1024];
-    int count = mock230_scandir(dir, &entries);
+    int count = ToriRSServer_Scandir(dir, &entries);
 
     if( count < 0 )
         return;
@@ -3855,7 +3855,7 @@ walk_configs(
         if( entries[i]->d_name[0] != '.' )
         {
             snprintf(path, sizeof(path), "%s/%s", dir, entries[i]->d_name);
-            if( mock230_path_is_dir(path) )
+            if( ToriRSServer_PathIsDir(path) )
                 walk_configs(path, suffix, load);
             else if( has_suffix(entries[i]->d_name, suffix) )
                 load(path);
@@ -3883,8 +3883,8 @@ static int g_multiway_count;
 static int g_multiway_capacity;
 
 /*
- * Same packing as `mock230_zone_index` / the reference's `ZoneMap.zoneIndex`.
- * Kept local so `mock230_pack` need not link the zone module.
+ * Same packing as `ToriRSServer_ZoneIndex` / the reference's `ZoneMap.zoneIndex`.
+ * Kept local so `ToriRSServer_Pack` need not link the zone module.
  */
 static int
 content_zone_index(
@@ -3944,7 +3944,7 @@ load_multiway(const char* path)
 }
 
 int
-mock230_content_multiway(
+ToriRSServer_ContentMultiway(
     int x,
     int z,
     int level)
@@ -4046,7 +4046,7 @@ init_defaults(void)
      * pair. The consequence was invisible for as long as the roster was the 63
      * hand-authored Lumbridge npcs, because their `.npc` blocks state it: an
      * npc nothing describes got `wanderrange = 0`, which
-     * `mock230_world_npc_default_mode` reads as MODE_NONE and the roam block
+     * `ToriRSServer_WorldNpcDefaultMode` reads as MODE_NONE and the roam block
      * skips outright. On a world roster of 23,139 npcs, of which 22 files state
      * a wanderrange, that is "most npcs never move".
      */
@@ -4056,7 +4056,7 @@ init_defaults(void)
     /* Everything fights back unless it says otherwise. */
     g_npc_default.retaliate = 1;
     /* Unstated, so the encoder uses the standard bar — see the field's note. */
-    g_npc_default.healthbar = MOCK230_NPC_HEALTHBAR_UNSET;
+    g_npc_default.healthbar = TORIRSSERVER_NPC_HEALTHBAR_UNSET;
     /* Everything that can be hit shows the number unless it says otherwise. */
     g_npc_default.hitsplat = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
@@ -4066,30 +4066,30 @@ init_defaults(void)
     g_npc_default.nomove = 0;
     g_npc_default.turnspeed = -1; /* unstated: defer to the cache record */
     g_npc_default.facing = -1;    /* unstated: spawn facing south */
-    g_npc_default.damagetype = MOCK230_DAMAGE_CRUSH;
+    g_npc_default.damagetype = TORIRSSERVER_DAMAGE_CRUSH;
     g_npc_default.attack_anim = -1;
     g_npc_default.defend_anim = -1;
     g_npc_default.death_anim = -1;
     g_npc_default.death_drop = -1;
     /* Silent unless something states otherwise. Sound effect 0 is a real clip,
-     * so this cannot be 0 — see the field comment in mock230_content.h. */
+     * so this cannot be 0 — see the field comment in torirs_server_content.h. */
     g_npc_default.attack_sound = -1;
     g_npc_default.defend_sound = -1;
     g_npc_default.death_sound = -1;
-    g_npc_default.defaultmode = MOCK230_NPCMODE_NONE;
+    g_npc_default.defaultmode = TORIRSSERVER_NPCMODE_NONE;
     /* Unstated, so an npc with no block keeps the radius-derived default. */
     g_npc_default.defaultmode_stated = 0;
 }
 
 int
-mock230_content_load(const char* dir)
+ToriRSServer_ContentLoad(const char* dir)
 {
     struct ContentRegister reg;
     char path[1024];
     DIR* probe;
     int symbols = 0;
 
-    mock230_content_free();
+    ToriRSServer_ContentFree();
 
     probe = opendir(dir);
     if( !probe )
@@ -4103,7 +4103,7 @@ mock230_content_load(const char* dir)
         probe = opendir(parent);
         if( !probe )
         {
-            fprintf(stderr, "mock230: no content tree at %s — engine defaults only\n", dir);
+            fprintf(stderr, "torirsserver: no content tree at %s — engine defaults only\n", dir);
             init_defaults();
             return 0;
         }
@@ -4128,7 +4128,7 @@ mock230_content_load(const char* dir)
     if( ContentRegister_Validate(&reg) != 0 )
         CONTENT_ERROR("content.ini contradicts the gameval evidence; see above\n");
 
-    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
         /*
          * Two levels of index, two places.
@@ -4141,11 +4141,11 @@ mock230_content_load(const char* dir)
          * Both are `id=name` and used to share a name and a directory, which is why
          * the distinction had to be known rather than read.
          */
-        const char* name = pack_kind_name((enum Mock230PackKind)kind);
+        const char* name = pack_kind_name((enum ToriRSServerPackKind)kind);
 
-        if( kind == MOCK230_PACK_COMPONENT )
+        if( kind == TORIRSSERVER_PACK_COMPONENT )
             continue; /* composed below, from the interfaces and their compacks */
-        if( pack_kind_is_config((enum Mock230PackKind)kind) )
+        if( pack_kind_is_config((enum ToriRSServerPackKind)kind) )
             snprintf(path, sizeof(path), "%s/configs/all.%s.compack", dir, name);
         else
             snprintf(path, sizeof(path), "%s/pack/%s.pack", dir, name);
@@ -4168,7 +4168,7 @@ mock230_content_load(const char* dir)
     /* Packs are immutable from here through boot and runtime. Keep their
      * insertion-order arrays for walking and diagnostics, and build sorted
      * pointer views for the far more frequent name/id lookups. */
-    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
         pack_build_indexes(&g_packs[kind]);
 
     /* A symbol table that answers a name two ways is refused here rather than
@@ -4178,7 +4178,7 @@ mock230_content_load(const char* dir)
     /*
      * A varp the per-player array cannot hold, refused at boot.
      *
-     * `Mock230Player.varps` is a flat array and its size is a constant, so the
+     * `ToriRSServerPlayer.varps` is a flat array and its size is a constant, so the
      * tree can outgrow it — and it has: the `%com_*` combat block reached
      * 6223 against an array of 6216, and the seven ids over the end were not
      * dropped quietly, they aborted `[proc,player_combat_stat]` on every npc
@@ -4191,60 +4191,60 @@ mock230_content_load(const char* dir)
      */
     {
         int highest = -1;
-        int count = mock230_content_symbol_walk(MOCK230_PACK_VARP, -1, NULL, NULL);
+        int count = ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARP, -1, NULL, NULL);
 
         for( int i = 0; i < count; i++ )
         {
             int id = -1;
 
-            mock230_content_symbol_walk(MOCK230_PACK_VARP, i, &id, NULL);
+            ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARP, i, &id, NULL);
             if( id > highest )
                 highest = id;
         }
-        if( highest >= MOCK230_VARP_COUNT )
+        if( highest >= TORIRSSERVER_VARP_COUNT )
             CONTENT_ERROR(
-                "the tree declares varp %d and Mock230Player.varps holds %d — raise "
-                "MOCK230_VARP_SERVER_HEADROOM by at least %d (mock230.h)\n",
+                "the tree declares varp %d and ToriRSServerPlayer.varps holds %d — raise "
+                "TORIRSSERVER_VARP_SERVER_HEADROOM by at least %d (torirs_server.h)\n",
                 highest,
-                MOCK230_VARP_COUNT,
-                highest - MOCK230_VARP_COUNT + 1);
+                TORIRSSERVER_VARP_COUNT,
+                highest - TORIRSSERVER_VARP_COUNT + 1);
     }
 
     /* Per-NPC and world variables are authored allocation ledgers too. Refuse
      * the tree at boot if either one outgrows the array its bytecode indexes. */
     {
         int highest = -1;
-        int count = mock230_content_symbol_walk(MOCK230_PACK_VARN, -1, NULL, NULL);
+        int count = ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARN, -1, NULL, NULL);
 
         for( int i = 0; i < count; i++ )
         {
             int id = -1;
 
-            mock230_content_symbol_walk(MOCK230_PACK_VARN, i, &id, NULL);
+            ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARN, i, &id, NULL);
             if( id > highest )
                 highest = id;
         }
-        if( highest >= MOCK230_NPC_VAR_MAX )
+        if( highest >= TORIRSSERVER_NPC_VAR_MAX )
             CONTENT_ERROR(
-                "the tree declares varn %d and Mock230Npc.script_vars holds %d\n",
-                highest, MOCK230_NPC_VAR_MAX);
+                "the tree declares varn %d and ToriRSServerNpc.script_vars holds %d\n",
+                highest, TORIRSSERVER_NPC_VAR_MAX);
     }
     {
         int highest = -1;
-        int count = mock230_content_symbol_walk(MOCK230_PACK_VARS, -1, NULL, NULL);
+        int count = ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARS, -1, NULL, NULL);
 
         for( int i = 0; i < count; i++ )
         {
             int id = -1;
 
-            mock230_content_symbol_walk(MOCK230_PACK_VARS, i, &id, NULL);
+            ToriRSServer_ContentSymbolWalk(TORIRSSERVER_PACK_VARS, i, &id, NULL);
             if( id > highest )
                 highest = id;
         }
-        if( highest >= MOCK230_VARS_COUNT )
+        if( highest >= TORIRSSERVER_VARS_COUNT )
             CONTENT_ERROR(
-                "the tree declares vars %d and Mock230Server.vars holds %d\n",
-                highest, MOCK230_VARS_COUNT);
+                "the tree declares vars %d and ToriRSServer.vars holds %d\n",
+                highest, TORIRSSERVER_VARS_COUNT);
     }
 
     /* After the packs (a default names its animations by symbol) and before the
@@ -4257,7 +4257,7 @@ mock230_content_load(const char* dir)
         int param_types = load_param_types(dir);
 
         if( param_types )
-            fprintf(stderr, "mock230: %d param types from configs/all.param\n", param_types);
+            fprintf(stderr, "torirsserver: %d param types from configs/all.param\n", param_types);
     }
 
     snprintf(path, sizeof(path), "%s/server/scripts", dir);
@@ -4269,14 +4269,14 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".constant", load_constant_config);
     walk_configs(path, ".enum", load_enum_config);
     /* Rank-0 enums after the server walk so an authored `.enum` of the same
-     * name keeps winning (mock230_content_enum returns the first match).
-     * Structs need no text loader: mock230_structinfo_load already feeds
+     * name keeps winning (ToriRSServer_ContentEnum returns the first match).
+     * Structs need no text loader: ToriRSServer_StructInfoLoad already feeds
      * SS_OP_STRUCT_PARAM from the binary cache. */
     {
         int enums = load_rank0_enums(dir);
 
         if( enums )
-            fprintf(stderr, "mock230: %d enums from configs/all.enum\n", enums);
+            fprintf(stderr, "torirsserver: %d enums from configs/all.enum\n", enums);
     }
     walk_configs(path, ".varp", load_varp_config);
     /* `[default]` first, then the roster — see load_npc_default_config. */
@@ -4288,11 +4288,11 @@ mock230_content_load(const char* dir)
     /* After .obj: a stockN= line names an obj and resolves it against
      * configs/all.obj.compack, which load_obj_config's own walk does not
      * populate but pack loading (before any of these walks) already has. */
-    mock230_shop_reset();
+    ToriRSServer_ShopReset();
     walk_configs(path, ".inv", load_inv_config);
-    if( mock230_shop_def_count() )
-        fprintf(stderr, "mock230: %d shop definitions from server/scripts/**/*.inv\n",
-                mock230_shop_def_count());
+    if( ToriRSServer_ShopDefCount() )
+        fprintf(stderr, "torirsserver: %d shop definitions from server/scripts/**/*.inv\n",
+                ToriRSServer_ShopDefCount());
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
     walk_configs(path, ".spawn", load_spawn_config);
@@ -4307,9 +4307,9 @@ mock230_content_load(const char* dir)
         int requires_total = 0;
         int requires_from_cache = 0;
 
-        mock230_obj_require_counts(&requires_total, &requires_from_cache);
+        ToriRSServer_ObjRequireCounts(&requires_total, &requires_from_cache);
         fprintf(stderr,
-                "mock230: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
+                "torirsserver: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
                 "%d varp defs, %d equip reqs (%d from the cache), %d npc spawns, "
                 "%d obj spawns%s)\n",
                 symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
@@ -4317,7 +4317,7 @@ mock230_content_load(const char* dir)
                 g_errors ? ", WITH ERRORS" : "");
         if( g_client_key_overlays )
             fprintf(stderr,
-                    "mock230: %d config line(s) restate a field the client's own record "
+                    "torirsserver: %d config line(s) restate a field the client's own record "
                     "carries — the cache already says it, so the overlay is inert\n",
                     g_client_key_overlays);
     }
@@ -4344,11 +4344,11 @@ mock230_content_load(const char* dir)
  *
  * Only after every archive of every type passes is the band decoded over the
  * live records, at which point the band — not the text — is what the engine
- * runs on. `mock230_boot_load` logs which of the two happened.
+ * runs on. `ToriRSServer_BootLoad` logs which of the two happened.
  */
 
 /** Per-type glue the generic codec cannot carry: how to seed a record and how
- *  to reach the text pass's defs. One row per `Mock230_ServerTypes()` entry —
+ *  to reach the text pass's defs. One row per `ToriRSServer_ServerTypes()` entry —
  *  a registered type with no row here is reported at load, not skipped. */
 struct BandGlue
 {
@@ -4356,10 +4356,10 @@ struct BandGlue
     /** idx number inside server/pack — the type's own config kind, the same
      *  two coordinates the client cache uses. */
     int group;
-    enum Mock230PackKind pack_kind;
+    enum ToriRSServerPackKind pack_kind;
     void (*seed)(void* record, int id);
     /** 1 when `seed` actually sees the cache record for `id`. The npc seed
-     *  reads through `mock230_npcinfo`, which hides nameless records behind a
+     *  reads through `ToriRSServer_NpcInfo`, which hides nameless records behind a
      *  placeholder — a band over one of those has nothing here to compare
      *  against, and no def ever seeds from it either. */
     int (*seed_sees_cache)(int id);
@@ -4372,7 +4372,7 @@ band_seed_npc(
     void* record,
     int id)
 {
-    npc_def_seed_from_cache((struct Mock230NpcDef*)record, id);
+    npc_def_seed_from_cache((struct ToriRSServerNpcDef*)record, id);
 }
 
 /** What load_loc_config starts a block from, exactly. */
@@ -4381,11 +4381,11 @@ band_seed_loc(
     void* record,
     int id)
 {
-    struct Mock230LocDef* def = (struct Mock230LocDef*)record;
+    struct ToriRSServerLocDef* def = (struct ToriRSServerLocDef*)record;
 
     memset(def, 0, sizeof(*def));
     def->loc_id = id;
-    def->symbol = mock230_content_symbol_name(MOCK230_PACK_LOC, id);
+    def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, id);
     def->next_loc_stage = -1;
 }
 
@@ -4428,9 +4428,9 @@ band_loc_seed_sees_cache(int id)
 }
 
 static const struct BandGlue k_band_glue[] = {
-    { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, MOCK230_PACK_NPC, band_seed_npc,
-      mock230_npcinfo_known, band_npc_def_count, band_npc_def_at },
-    { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, MOCK230_PACK_LOC, band_seed_loc,
+    { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, TORIRSSERVER_PACK_NPC, band_seed_npc,
+      ToriRSServer_NpcInfoKnown, band_npc_def_count, band_npc_def_at },
+    { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, TORIRSSERVER_PACK_LOC, band_seed_loc,
       band_loc_seed_sees_cache, band_loc_def_count, band_loc_def_at },
 };
 
@@ -4440,8 +4440,8 @@ static const struct BandGlue k_band_glue[] = {
  *  use so a new, larger type fails here rather than overruns. */
 union BandRecord
 {
-    struct Mock230NpcDef npc;
-    struct Mock230LocDef loc;
+    struct ToriRSServerNpcDef npc;
+    struct ToriRSServerLocDef loc;
 };
 
 enum
@@ -4449,7 +4449,7 @@ enum
     BAND_FIELD_MAX = 64,
 };
 
-/** The same offset read `mock230_servercodec.c`'s field_get does, restated
+/** The same offset read `torirs_server_servercodec.c`'s field_get does, restated
  *  because that one is rightly private: memcpy, not a cast, for the alignment
  *  reason documented there. */
 static int
@@ -4478,7 +4478,7 @@ band_compare(
     const void* text,
     const void* seed,
     int id,
-    enum Mock230PackKind pack_kind,
+    enum ToriRSServerPackKind pack_kind,
     int* text_only)
 {
     int mismatched = 0;
@@ -4501,9 +4501,9 @@ band_compare(
          * records match, so pay for the diagnostic spelling only when this
          * record will actually print a diagnostic. */
         if( !symbol )
-            symbol = mock230_content_symbol_name(pack_kind, id);
+            symbol = ToriRSServer_ContentSymbolName(pack_kind, id);
         fprintf(stderr,
-                "mock230: server band: %s [%s] %d: `%s` is %d in the band but %d from the text "
+                "torirsserver: server band: %s [%s] %d: `%s` is %d in the band but %d from the text "
                 "overlays\n",
                 type->name, symbol ? symbol : "?", id, field->name, band_value, text_value);
         mismatched++;
@@ -4513,36 +4513,36 @@ band_compare(
 
 static void
 band_verify_type(
-    struct Mock230ServPack* pack,
+    struct ToriRSServerServPack* pack,
     const struct BandGlue* glue,
     const struct ServerType* type,
-    struct Mock230BandReport* report,
+    struct ToriRSServerBandReport* report,
     int* text_only)
 {
-    uint8_t band[MOCK230_SERVPACK_BAND_MAX];
+    uint8_t band[TORIRSSERVER_SERVPACK_BAND_MAX];
     union BandRecord seed;
     union BandRecord merged;
-    int entries = Mock230_ServPackEntryCount(pack, glue->group);
+    int entries = ToriRSServer_ServPackEntryCount(pack, glue->group);
 
     /* Every archive the pack holds, whether or not the text authored a block
      * for the record: a band over a record with no block must decode to
      * exactly its seed, which is how a stale export shows up. */
     for( int id = 0; id < entries; id++ )
     {
-        int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+        int size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
         const void* text;
         int consumed;
 
-        if( size == MOCK230_SERVPACK_ABSENT )
+        if( size == TORIRSSERVER_SERVPACK_ABSENT )
             continue;
-        if( size == MOCK230_SERVPACK_INVALID )
+        if( size == TORIRSSERVER_SERVPACK_INVALID )
         {
             if( report->invalid++ < 8 )
             {
-                const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
+                const char* symbol = ToriRSServer_ContentSymbolName(glue->pack_kind, id);
 
                 fprintf(stderr,
-                        "mock230: server band: %s [%s] %d refuses to open — bad magic, "
+                        "torirsserver: server band: %s [%s] %d refuses to open — bad magic, "
                         "version, kind or CRC\n",
                         type->name, symbol ? symbol : "?", id);
             }
@@ -4551,7 +4551,7 @@ band_verify_type(
 
         glue->seed(&seed, id);
         memcpy(&merged, &seed, type->record_size);
-        consumed = Mock230_ServerDecode(type, &merged, band, size);
+        consumed = ToriRSServer_ServerDecode(type, &merged, band, size);
         if( consumed != size )
         {
             /* The codec's short-read signal: an opcode this build does not
@@ -4559,10 +4559,10 @@ band_verify_type(
              * newer build — either way not this build's to decode. */
             if( report->invalid++ < 8 )
             {
-                const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
+                const char* symbol = ToriRSServer_ContentSymbolName(glue->pack_kind, id);
 
                 fprintf(stderr,
-                        "mock230: server band: %s [%s] %d stops at byte %d of %d — an opcode "
+                        "torirsserver: server band: %s [%s] %d stops at byte %d of %d — an opcode "
                         "this build does not know\n",
                         type->name, symbol ? symbol : "?", id, consumed, size);
             }
@@ -4607,8 +4607,8 @@ band_verify_type(
         void* def = glue->def_at(i, &id);
         int size;
 
-        size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
-        if( size != MOCK230_SERVPACK_ABSENT )
+        size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+        if( size != TORIRSSERVER_SERVPACK_ABSENT )
             continue;
         glue->seed(&seed, id);
         report->mismatched +=
@@ -4620,26 +4620,26 @@ band_verify_type(
  *  verified, so this is the preference switch and never a change of value. */
 static void
 band_apply_type(
-    struct Mock230ServPack* pack,
+    struct ToriRSServerServPack* pack,
     const struct BandGlue* glue,
     const struct ServerType* type)
 {
-    uint8_t band[MOCK230_SERVPACK_BAND_MAX];
+    uint8_t band[TORIRSSERVER_SERVPACK_BAND_MAX];
 
     for( int i = 0; i < glue->def_count(); i++ )
     {
         int id;
         void* def = glue->def_at(i, &id);
-        int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
+        int size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
 
         if( size > 0 )
         {
-            Mock230_ServerDecode(type, def, band, size);
+            ToriRSServer_ServerDecode(type, def, band, size);
             /* Packs that emit moverestrict=nomove without the collapsed nomove
              * opcode still pin the mover. */
             if( strcmp(type->name, "npc") == 0 )
             {
-                struct Mock230NpcDef* npc = (struct Mock230NpcDef*)def;
+                struct ToriRSServerNpcDef* npc = (struct ToriRSServerNpcDef*)def;
 
                 if( npc->moverestrict == 5 )
                     npc->nomove = 1;
@@ -4648,18 +4648,18 @@ band_apply_type(
     }
 }
 
-enum Mock230BandStatus
-mock230_content_load_server_band(
+enum ToriRSServerBandStatus
+ToriRSServer_ContentLoadServerBand(
     const char* dir,
-    struct Mock230BandReport* report)
+    struct ToriRSServerBandReport* report)
 {
-    struct Mock230ServPack pack;
+    struct ToriRSServerServPack pack;
     int type_count = 0;
-    const struct ServerType* types = Mock230_ServerTypes(&type_count);
+    const struct ServerType* types = ToriRSServer_ServerTypes(&type_count);
 
     memset(report, 0, sizeof(*report));
-    if( Mock230_ServPackOpen(&pack, dir) != 0 )
-        return MOCK230_BAND_MISSING;
+    if( ToriRSServer_ServPackOpen(&pack, dir) != 0 )
+        return TORIRSSERVER_BAND_MISSING;
 
     for( int t = 0; t < type_count; t++ )
     {
@@ -4690,7 +4690,7 @@ mock230_content_load_server_band(
                 continue;
             report->text_only += text_only[i];
             fprintf(stderr,
-                    "mock230: server band: %s.%s stays text-loaded on %d record(s) — the band "
+                    "torirsserver: server band: %s.%s stays text-loaded on %d record(s) — the band "
                     "has no wire for it\n",
                     type->name, type->fields[i].name, text_only[i]);
         }
@@ -4698,8 +4698,8 @@ mock230_content_load_server_band(
 
     if( report->invalid || report->mismatched )
     {
-        Mock230_ServPackClose(&pack);
-        return MOCK230_BAND_STALE;
+        ToriRSServer_ServPackClose(&pack);
+        return TORIRSSERVER_BAND_STALE;
     }
 
     for( int t = 0; t < type_count; t++ )
@@ -4710,14 +4710,14 @@ mock230_content_load_server_band(
                 band_apply_type(&pack, &k_band_glue[g], &types[t]);
         }
     }
-    Mock230_ServPackClose(&pack);
-    return MOCK230_BAND_LOADED;
+    ToriRSServer_ServPackClose(&pack);
+    return TORIRSSERVER_BAND_LOADED;
 }
 
 void
-mock230_content_free(void)
+ToriRSServer_ContentFree(void)
 {
-    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+    for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
         for( int i = 0; i < g_packs[kind].count; i++ )
             free(g_packs[kind].entries[i].name);
@@ -4733,7 +4733,7 @@ mock230_content_free(void)
     free(g_npc_defs);
     g_npc_defs = NULL;
     g_npc_def_count = g_npc_def_capacity = 0;
-    mock230_scene_loc_op_overlay_reset();
+    ToriRSServer_SceneLocOpOverlayReset();
     free(g_loc_defs);
     g_loc_defs = NULL;
     g_loc_def_count = g_loc_def_capacity = 0;

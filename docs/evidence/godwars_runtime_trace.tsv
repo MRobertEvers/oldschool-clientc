@@ -1,7 +1,7 @@
-mock230-selftest-evidence-v1
+torirsserver-selftest-evidence-v1
 wire	osrs239
 index	status	message
-000001	PASS	the focused God Wars lane loads MOCK230_SCRIPTS=OSRS-Content/osrs239-content/server/scripts/build
+000001	PASS	the focused God Wars lane loads TORIRSSERVER_SCRIPTS=OSRS-Content/osrs239-content/server/scripts/build
 000002	PASS	Saradomin rope stat/requirement resolves (16/70)
 000003	PASS	Saradomin rope rejects below, accepts exact, and boosted-above returns 0 (got 0/1/0)
 000004	PASS	surface boulder stat/requirement resolves (2/60)

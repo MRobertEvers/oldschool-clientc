@@ -9,7 +9,7 @@
  * ids live here.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include "serverscript/ssvm.h"
 
@@ -40,11 +40,11 @@ open_cache(void)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
-    const char* cache_dir = mock230_world_cache_dir();
+    const char* cache_dir = ToriRSServer_WorldCacheDir();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
@@ -237,7 +237,7 @@ styles_at(
 }
 
 int
-mock230_split_init(
+ToriRSServer_SplitInit(
     struct SSVM_State* state,
     const char* text,
     int max_width,
@@ -305,7 +305,7 @@ mock230_split_init(
 }
 
 const char*
-mock230_split_get(struct SSVM_State* state, int page, int line)
+ToriRSServer_SplitGet(struct SSVM_State* state, int page, int line)
 {
     int index;
 
@@ -318,7 +318,7 @@ mock230_split_get(struct SSVM_State* state, int page, int line)
 }
 
 int
-mock230_split_pagecount(struct SSVM_State* state)
+ToriRSServer_SplitPagecount(struct SSVM_State* state)
 {
     if( state->split_line_count <= 0 )
         return 0;
@@ -327,7 +327,7 @@ mock230_split_pagecount(struct SSVM_State* state)
 }
 
 int
-mock230_split_linecount(struct SSVM_State* state, int page)
+ToriRSServer_SplitLinecount(struct SSVM_State* state, int page)
 {
     int remaining;
 

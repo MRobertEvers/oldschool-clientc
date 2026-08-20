@@ -356,7 +356,7 @@ room. The engine ops exist and are proven by the Gauntlet:
 
 A trek room is far smaller than the Gauntlet's 14×14 zones — one room is
 ~2×2 zones. Allocate per room and free on exit; do **not** allocate the whole
-band. `MOCK230_MAPINSTANCE_ZONES` is currently 16 (raised for the Gauntlet) —
+band. `TORIRSSERVER_MAPINSTANCE_ZONES` is currently 16 (raised for the Gauntlet) —
 verify headroom before assuming a whole-square instance is possible.
 
 ---
@@ -366,8 +366,8 @@ verify headroom before assuming a whole-square instance is possible.
 | Surface | State | Note |
 |---|---|---|
 | `map_instance_*` | **exists** | Proven by Gauntlet |
-| `npc_setfollower` / `npc_findfollower` | **exists** | `mock230_scripts.c:5126` — implies ownership; **one follower slot per player** |
-| `npc_setmode(playerfollow)` etc. | **exists** | `mock230_scripts.c:4922`; targeted modes bind the target player |
+| `npc_setfollower` / `npc_findfollower` | **exists** | `torirs_server_scripts.c:5126` — implies ownership; **one follower slot per player** |
+| `npc_setmode(playerfollow)` etc. | **exists** | `torirs_server_scripts.c:4922`; targeted modes bind the target player |
 | npc-vs-npc combat | **exists** | `combat_target_npc` + `[ai_opnpc2]`; see `docs/…npc-vs-npc-combat` notes |
 | npc walk / anim / stat / changetype | **exists** | `npc_walk` (2545), `npc_changetype`, `npc_basestat` |
 | Multi-NPC per-player shells | **exists** | The twelve follower shells are already audited |
@@ -602,7 +602,7 @@ Names must be globally unique — the compiler rejects duplicates, and
 Content lives in
 `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_templetrek/`.
 The whole tree compiles with it in place, and `::trekrun` asserts its
-deterministic contracts from inside `mock230 --selftest`.
+deterministic contracts from inside `ToriRSServer --selftest`.
 
 ```
 configs/templetrek.constant    ids, coords, tuning, the measured room table
@@ -623,7 +623,7 @@ scripts/events/ttrek_dispatch.rs2  begin / tick / despawn fan-out
 
 Shared files touched: `player/login.rs2`, `player/logout.rs2`,
 `player/death.rs2` (one hook each), `quests/quest_sinsofthefather/scripts/
-sinsofthefather.rs2` (trigger split, §12.4), and `src/net/mock/mock230_world.c`
+sinsofthefather.rs2` (trigger split, §12.4), and `src/torirsserver/torirs_server_world.c`
 (the `::trekrun` selftest stanza).
 
 ### 12.1 Blocker (a) — inv routing: **dissolved, then re-answered**
@@ -635,7 +635,7 @@ binds *any* inv to *any* component at runtime (`shop.rs2`,
 
 The first build therefore used a **server-allocated** inv — and `::trekrun`
 caught that as a defect. `inv_size` reads the cache type table
-(`mock230_bank_inv_size`, `mock230_scripts.c:9564`) deliberately, so a
+(`ToriRSServer_BankInvSize`, `torirs_server_scripts.c:9564`) deliberately, so a
 server-allocated inv answers **0** and the pack silently had no size at all.
 
 Final answer: use the cache's `ttrek_follower_inv` **undeclared**, exactly as

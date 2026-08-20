@@ -11,7 +11,7 @@ the painter alone; since every final sweep is 0 px, one frame per view is kept
 ## How they were made
 
 ```
-SDL_VIDEODRIVER=dummy MOCK230_ALLOW_STALE_SCRIPTS=1 MOCK230_SAVES=<scratch> \
+SDL_VIDEODRIVER=dummy TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRSSERVER_SAVES=<scratch> \
 TORIRS_SIM_CMD="200,tob <room>;280,tobgo" TORIRS_MAX_FRAMES=430 \
 TORIRS_PAINTER_ALT=1 TORIRS_BMP_SERIES=<dir>,420,1,1 \
 TORIRS_WEDGE_CAM=<x,y,z,pitch,yaw> \

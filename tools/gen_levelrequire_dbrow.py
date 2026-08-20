@@ -7,7 +7,7 @@ and it has been data since the Kronos import (docs/LOSTCITY_PORT_TRIAGE.md
 one scalar and this is a repeating pair, `fields/obj.ini`'s `[obj.levelrequire]`
 says so in the file, and there is no `oc_levelrequire` in the reference's
 `engine.rs2` to invent. So the gate stayed in C
-(`mock230_equipment_may_wear`) and `[opheld2,_]` could not be bound without
+(`ToriRSServer_EquipmentMayWear`) and `[opheld2,_]` could not be bound without
 silently dropping it.
 
 A dbtable is the third option that comment does not consider, and it is the
@@ -33,7 +33,7 @@ objs that require it:
 That is **125 rows** rather than 857, because the requirements repeat hard: 111
 objs want Defence 40 and 67 want Defence 70. And the read is one `db_find` with
 no arithmetic, because `db_find` on a LIST column means *contains*
-(`mock230_ops_db.c`, `SS_OP_DB_FIND`) — so "which requirements does this obj
+(`torirs_server_ops_db.c`, `SS_OP_DB_FIND`) — so "which requirements does this obj
 have" is literally "which rows contain it", and `db_findnext` walks them:
 
     db_find(levelrequire_table:obj, $obj);
@@ -70,8 +70,8 @@ is the generated *index* of them, the way `configs/all.obj.compack` is a
 generated index, and it says so in its own header.
 
 `--check` exits non-zero when the emitted text would differ, for a build gate.
-But the check that matters is not textual: `mock230 --selftest` walks every
-`Mock230ObjRequire` the `.obj` loader built and asserts the dbtable agrees, pair
+But the check that matters is not textual: `ToriRSServer --selftest` walks every
+`ToriRSServerObjRequire` the `.obj` loader built and asserts the dbtable agrees, pair
 for pair, in both directions — because that is the one place both forms are
 loaded at once, and a drift that a regeneration would fix silently is exactly
 what a diff of generated output cannot catch.

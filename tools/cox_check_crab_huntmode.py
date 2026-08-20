@@ -11,8 +11,8 @@ swing land ALONGSIDE the script's own damage call, doubling every hit; an
 engine-native form left huntmode=none never aggros at all.
 
 There is no script-side getter for `huntmode` -- `npc_sethuntmode` sets it,
-nothing reads it back (mock230_scripts.c has no NPC_GETHUNTMODE opcode; see
-`SS_OP_NPC_SETHUNTMODE`'s own comment). That is the same shape
+nothing reads it back (the mock server's script-opcode table has no
+NPC_GETHUNTMODE; see `SS_OP_NPC_SETHUNTMODE`'s own comment). That is the same shape
 tools/cox_check_timers.py documents for `timer_interval`: no script opcode
 can read the field back, so the pairing has to be checked statically, against
 the source text, or not at all.
@@ -92,7 +92,7 @@ def check(paths) -> int:
             if not re.search(r"^huntmode=aggressive\s*$", body, re.M):
                 print(f"BAD HUNTMODE: [{name}] must state huntmode=aggressive "
                       f"(engine-native damage, correction: was defaulting to "
-                      f"MOCK230_HUNT_NONE, crabs never aggroed)")
+                      f"the engine's none/never-aggro default, crabs never aggroed)")
                 failures += 1
             if not re.search(r"^retaliate=yes\s*$", body, re.M):
                 print(f"BAD RETALIATE: [{name}] must state retaliate=yes "

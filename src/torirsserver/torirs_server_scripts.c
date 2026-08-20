@@ -1,10 +1,10 @@
 /*
  * Script container binding and the host command seam.
  *
- * This is the only file that knows both `struct Mock230Server` and the VM. The
+ * This is the only file that knows both `struct ToriRSServer` and the VM. The
  * VM stays engine-agnostic — it holds active entities as void* and never
  * dereferences them — so everything that touches game state funnels through
- * mock230_script_command below.
+ * ToriRSServer_ScriptCommand below.
  *
  * The dispatch contract, which this header used to state the other way round:
  * **a trigger with no script does nothing.** Resolution is the reference's
@@ -13,7 +13,7 @@
  * design has.
  *
  * What survives of the C that used to answer a missed trigger is enumerated in
- * `enum Mock230Fallback` and gated on `mock230_scripts_fallback`, which refuses
+ * `enum ToriRSServerFallback` and gated on `ToriRSServer_ScriptsFallback`, which refuses
  * the two cases `if( !run_trigger(...) )` could not tell apart: a script that
  * *aborted* (a bug in content, not a gap in it) and a server with no script pack
  * at all (in which nothing is a gap, because everything is). The old promise —
@@ -25,15 +25,15 @@
 #include <dirent.h>
 #include <assert.h>
 
-#include "mock230.h"
+#include "torirs_server.h"
 
-#include "mock230_container.h"
-#include "mock230_content.h"
-#include "mock230_friends.h"
-#include "mock230_ids.h"
-#include "mock230_scene.h"
-#include "mock230_session.h"
-#include "mock230_shop.h"
+#include "torirs_server_container.h"
+#include "torirs_server_content.h"
+#include "torirs_server_friends.h"
+#include "torirs_server_ids.h"
+#include "torirs_server_scene.h"
+#include "torirs_server_session.h"
+#include "torirs_server_shop.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -43,12 +43,12 @@
 
 /* Derived from the `case SS_OP_*:` labels in this file and in the VM core.
  * See gen_opcode_coverage.py for why it is generated. */
-#include "mock230_opcode_coverage.gen.h"
+#include "torirs_server_opcode_coverage.gen.h"
 
 /* index-11 archive id -> duration in ms, decoded offline from the cache
- * because mock230 has no live cache access at script-command time. See
+ * because ToriRSServer has no live cache access at script-command time. See
  * gen_jingle_lengths.py. */
-#include "mock230_jingle_lengths.gen.h"
+#include "torirs_server_jingle_lengths.gen.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -67,19 +67,19 @@
 #endif
 
 /*
- * mock230_send_synth_sound is defined in mock230_encode.c (WEAPON_FX.md §6).
- * It is declared here rather than in mock230.h because mock230.h is out of
+ * ToriRSServer_SendSynthSound is defined in torirs_server_encode.c (WEAPON_FX.md §6).
+ * It is declared here rather than in torirs_server.h because torirs_server.h is out of
  * this lane's file ownership for the weapon-FX port
- * (WEAPON_FX_PORT_QUEUE.md §1: lane C owns packetin.h, mock230_encode.c,
- * mock230_scripts.c, embed_test.c — not mock230.h, which another lane has
- * uncommitted changes in). Move this prototype into mock230.h next to its
- * siblings (mock230_send_cam_shake, mock230_send_run_weight) the next time
+ * (WEAPON_FX_PORT_QUEUE.md §1: lane C owns packetin.h, torirs_server_encode.c,
+ * torirs_server_scripts.c, embed_test.c — not torirs_server.h, which another lane has
+ * uncommitted changes in). Move this prototype into torirs_server.h next to its
+ * siblings (ToriRSServer_SendCamShake, ToriRSServer_SendRunWeight) the next time
  * that file is touched for an unrelated reason.
  */
-struct Mock230Player;
+struct ToriRSServerPlayer;
 void
-mock230_send_synth_sound(
-    struct Mock230Player* player,
+ToriRSServer_SendSynthSound(
+    struct ToriRSServerPlayer* player,
     int id,
     int loops,
     int delay);
@@ -290,8 +290,8 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
 }
 
 int
-mock230_scripts_load(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsLoad(
+    struct ToriRSServer* srv,
     const char* dir)
 {
     struct SSVM_Error err;
@@ -309,7 +309,7 @@ mock230_scripts_load(
     if( srv->scripts_ok )
         return 1;
 
-    mock230_scripts_free(srv);
+    ToriRSServer_ScriptsFree(srv);
 
     srv->scripts = (struct SSVM_Provider*)calloc(1, sizeof(struct SSVM_Provider));
     srv->script_env = (struct SSVM_Env*)calloc(1, sizeof(struct SSVM_Env));
@@ -324,34 +324,34 @@ mock230_scripts_load(
          *
          * This used to be a one-line warning about a supported mode: no pack,
          * every trigger falls through to C, the mock still plays. That mode is
-         * gone — `mock230_scripts_fallback` refuses every engine fallback when
+         * gone — `ToriRSServer_ScriptsFallback` refuses every engine fallback when
          * `scripts_ok` is 0 — so a server that reaches here does almost nothing
          * at all. Which is the point: the alternative was a second game running
          * silently beside the one the content tree describes, discoverable only
          * by finding a behaviour where the two disagreed.
          */
         fprintf(stderr,
-                "mock230: ============================================================\n"
-                "mock230: NO SCRIPT PACK at %s\n"
-                "mock230:   %s\n"
-                "mock230: The game's behaviour is content, not C. Without the pack the\n"
-                "mock230: engine's fallbacks stay OFF and almost nothing will work —\n"
-                "mock230: no interactions, no buttons, no dialogue, no drops.\n"
-                "mock230: Build it:  make -C src mock230-scripts\n"
-                "mock230: ============================================================\n",
+                "torirsserver: ============================================================\n"
+                "torirsserver: NO SCRIPT PACK at %s\n"
+                "torirsserver:   %s\n"
+                "torirsserver: The game's behaviour is content, not C. Without the pack the\n"
+                "torirsserver: engine's fallbacks stay OFF and almost nothing will work —\n"
+                "torirsserver: no interactions, no buttons, no dialogue, no drops.\n"
+                "torirsserver: Build it:  make -C src torirsserver-scripts\n"
+                "torirsserver: ============================================================\n",
                 dir, err.message);
-        mock230_scripts_free(srv);
+        ToriRSServer_ScriptsFree(srv);
         return 0;
     }
 
     SSVM_EnvInit(srv->script_env, srv->scripts);
-    SSVM_EnvBindHost(srv->script_env, srv, mock230_script_command);
+    SSVM_EnvBindHost(srv->script_env, srv, ToriRSServer_ScriptCommand);
     /* Fixed seed so a session replays identically, which every deterministic
      * test downstream depends on. */
     SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
 
     srv->scripts_ok = 1;
-    fprintf(stderr, "mock230: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
+    fprintf(stderr, "torirsserver: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
 
     /*
      * ── RESERVED QUEUE SLOTS ─────────────────────────────────────────────
@@ -409,7 +409,7 @@ mock230_scripts_load(
                  * marker, a death bat. Ninety-five of these exist and every one
                  * of them is fine; the two that were not (`maiden_elemental`,
                  * Verzik's phase-2 reds) are exactly the two the team fights.
-                 * `mock230_combat_attackable` is the client's own minimenu
+                 * `ToriRSServer_CombatAttackable` is the client's own minimenu
                  * test, so this cannot disagree with what is clickable.
                  */
                 comma = sc->name ? strchr(sc->name, ',') : NULL;
@@ -421,11 +421,11 @@ mock230_scripts_load(
                     if( close )
                         *close = '\0';
                 }
-                npc_type = mock230_content_symbol(MOCK230_PACK_NPC, type_name);
-                if( npc_type < 0 || !mock230_combat_attackable(npc_type) )
+                npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, type_name);
+                if( npc_type < 0 || !ToriRSServer_CombatAttackable(npc_type) )
                     break;
                 fprintf(stderr,
-                        "mock230: RESERVED QUEUE SLOT: %s calls npc_del, and %s is "
+                        "torirsserver: RESERVED QUEUE SLOT: %s calls npc_del, and %s is "
                         "ATTACKABLE. Queue 1 is the retaliation rung "
                         "(`[ai_queue1,_]`), armed when a player HITS this npc — so "
                         "this deletes it on the first hitsplat, before its death "
@@ -439,13 +439,13 @@ mock230_scripts_load(
         if( bad )
         {
             fprintf(stderr,
-                    "mock230: ============================================================\n"
-                    "mock230: %d script(s) bind npc_del to the retaliation queue.\n"
-                    "mock230: Every npc they name vanishes when attacked instead of\n"
-                    "mock230: dying. Refusing to run — this is not survivable content.\n"
-                    "mock230: ============================================================\n",
+                    "torirsserver: ============================================================\n"
+                    "torirsserver: %d script(s) bind npc_del to the retaliation queue.\n"
+                    "torirsserver: Every npc they name vanishes when attacked instead of\n"
+                    "torirsserver: dying. Refusing to run — this is not survivable content.\n"
+                    "torirsserver: ============================================================\n",
                     bad);
-            mock230_scripts_free(srv);
+            ToriRSServer_ScriptsFree(srv);
             return 0;
         }
     }
@@ -456,19 +456,19 @@ mock230_scripts_load(
         if( scripts_newer_than_pack(dir, newer, sizeof(newer), &delta) )
         {
             fprintf(stderr,
-                    "mock230: ============================================================\n"
-                    "mock230: STALE SCRIPT PACK — the tree is newer than script.dat\n"
-                    "mock230:   %s\n"
-                    "mock230:   is %ld second(s) newer than the compiled pack.\n"
-                    "mock230:   pack: %s\n"
-                    "mock230: This server would be running content that does NOT match\n"
-                    "mock230: the tree. A script you just edited is not the one that\n"
-                    "mock230: would run.\n"
-                    "mock230: Rebuild it:  ./tools/tob_build_packs.sh\n"
-                    "mock230:          or: make -C src mock230-scripts\n"
-                    "mock230: Deliberately testing an old pack against new C?\n"
-                    "mock230:   MOCK230_ALLOW_STALE_SCRIPTS=1\n"
-                    "mock230: ============================================================\n",
+                    "torirsserver: ============================================================\n"
+                    "torirsserver: STALE SCRIPT PACK — the tree is newer than script.dat\n"
+                    "torirsserver:   %s\n"
+                    "torirsserver:   is %ld second(s) newer than the compiled pack.\n"
+                    "torirsserver:   pack: %s\n"
+                    "torirsserver: This server would be running content that does NOT match\n"
+                    "torirsserver: the tree. A script you just edited is not the one that\n"
+                    "torirsserver: would run.\n"
+                    "torirsserver: Rebuild it:  ./tools/tob_build_packs.sh\n"
+                    "torirsserver:          or: make -C src torirsserver-scripts\n"
+                    "torirsserver: Deliberately testing an old pack against new C?\n"
+                    "torirsserver:   TORIRSSERVER_ALLOW_STALE_SCRIPTS=1\n"
+                    "torirsserver: ============================================================\n",
                     newer, delta, dir);
             /*
              * A REFUSAL, not a warning.
@@ -487,34 +487,34 @@ mock230_scripts_load(
              * stops at the first hit.
              *
              * Every consumer is covered by putting it here rather than in the
-             * launchers: `mock230`, `mock230 --selftest`, the embedded server
+             * launchers: `ToriRSServer`, `ToriRSServer --selftest`, the embedded server
              * inside the client, and anything else that ever loads a pack.
              */
-            if( !getenv("MOCK230_ALLOW_STALE_SCRIPTS") )
+            if( !getenv("TORIRSSERVER_ALLOW_STALE_SCRIPTS") )
             {
                 fprintf(stderr,
-                        "mock230: refusing to run on a stale script pack.\n");
+                        "torirsserver: refusing to run on a stale script pack.\n");
                 exit(1);
             }
             fprintf(stderr,
-                    "mock230: MOCK230_ALLOW_STALE_SCRIPTS=1 — continuing anyway.\n");
+                    "torirsserver: TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 — continuing anyway.\n");
         }
     }
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
-    mock230_scripts_report_gaps(srv);
+    ToriRSServer_ScriptsReportGaps(srv);
     /* And the second list of the same kind: which behaviours are still answered
      * from C when content binds nothing. It shrinks; that is the schedule. */
-    mock230_scripts_report_fallbacks(srv);
+    ToriRSServer_ScriptsReportFallbacks(srv);
     /* And the third: the fallbacks above are C standing in for content that
      * has not arrived. This is the opposite — content that arrived and took a
-     * verb the engine still answers. See mock230_scripts_report_shadowed_ops. */
-    mock230_scripts_report_shadowed_ops(srv);
+     * verb the engine still answers. See ToriRSServer_ScriptsReportShadowedOps. */
+    ToriRSServer_ScriptsReportShadowedOps(srv);
     /* And the fourth, which is about the pack rather than about the engine: a
      * `settimer`/`queue` argument whose "script id" is not a script id. That one
      * cannot wait for a session to notice it — the timer has to fire first, and
      * a quest-completion queue does not fire until somebody finishes the quest. */
-    mock230_scripts_report_script_id_args(srv);
+    ToriRSServer_ScriptsReportScriptIdArgs(srv);
     return srv->scripts->loaded;
 }
 
@@ -527,12 +527,12 @@ static int
 opcode_implemented(int opcode)
 {
     int lo = 0;
-    int hi = MOCK230_OPCODE_COVERAGE_COUNT - 1;
+    int hi = TORIRSSERVER_OPCODE_COVERAGE_COUNT - 1;
 
     while( lo <= hi )
     {
         int mid = lo + ((hi - lo) / 2);
-        int value = (int)MOCK230_OPCODE_COVERAGE[mid];
+        int value = (int)TORIRSSERVER_OPCODE_COVERAGE[mid];
 
         if( value == opcode )
             return 1;
@@ -582,7 +582,7 @@ static const struct
     },
 };
 
-#define MOCK230_OPCODE_GAP_ALLOWED_COUNT                                                           \
+#define TORIRSSERVER_OPCODE_GAP_ALLOWED_COUNT                                                           \
     ((int)(sizeof(k_opcode_gap_allowed) / sizeof(k_opcode_gap_allowed[0])))
 
 /** Is this opcode a *stated* gap? Matched by name, because the numbers move
@@ -594,7 +594,7 @@ opcode_gap_allowed(int opcode)
 
     if( !name )
         return 0;
-    for( int i = 0; i < MOCK230_OPCODE_GAP_ALLOWED_COUNT; i++ )
+    for( int i = 0; i < TORIRSSERVER_OPCODE_GAP_ALLOWED_COUNT; i++ )
     {
         if( strcmp(k_opcode_gap_allowed[i].name, name) == 0 )
             return 1;
@@ -619,15 +619,15 @@ opcode_gap_allowed(int opcode)
  * Returns the number of distinct missing opcodes.
  */
 int
-mock230_scripts_report_gaps(struct Mock230Server* srv)
+ToriRSServer_ScriptsReportGaps(struct ToriRSServer* srv)
 {
     /* One bit per opcode, so each is reported once however many scripts want
      * it. opcode values run to 10003 (they are sparse, not dense), so this is
      * sized by the generated value limit rather than by the opcode count. */
-    static uint8_t seen[MOCK230_OPCODE_VALUE_LIMIT];
+    static uint8_t seen[TORIRSSERVER_OPCODE_VALUE_LIMIT];
     /* Static, not automatic: 10,004 pointers is 80 KB, which is most of a
      * default thread stack. */
-    static const char* first_user[MOCK230_OPCODE_VALUE_LIMIT];
+    static const char* first_user[TORIRSSERVER_OPCODE_VALUE_LIMIT];
     int missing = 0;
 
     if( !srv->scripts_ok || !srv->scripts )
@@ -648,7 +648,7 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
         {
             int opcode = (int)script->opcodes[op];
 
-            if( opcode < 0 || opcode >= MOCK230_OPCODE_VALUE_LIMIT )
+            if( opcode < 0 || opcode >= TORIRSSERVER_OPCODE_VALUE_LIMIT )
                 continue;
             if( seen[opcode] || opcode_implemented(opcode) )
                 continue;
@@ -667,9 +667,9 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
      * verb dispatch had stopped honouring. Counted into the return value so it
      * fails the same gate: the fix is to delete the row, which is one line.
      */
-    for( int i = 0; i < MOCK230_OPCODE_GAP_ALLOWED_COUNT; i++ )
+    for( int i = 0; i < TORIRSSERVER_OPCODE_GAP_ALLOWED_COUNT; i++ )
     {
-        for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+        for( int opcode = 0; opcode < TORIRSSERVER_OPCODE_VALUE_LIMIT; opcode++ )
         {
             const char* name = SSVM_OpcodeName(opcode);
 
@@ -678,27 +678,27 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
             if( !opcode_implemented(opcode) )
                 continue;
             fprintf(stderr,
-                    "mock230: %s is implemented but still listed as a stated gap — "
+                    "torirsserver: %s is implemented but still listed as a stated gap — "
                     "delete its row in k_opcode_gap_allowed\n",
                     name);
             missing++;
         }
     }
 
-    for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+    for( int opcode = 0; opcode < TORIRSSERVER_OPCODE_VALUE_LIMIT; opcode++ )
     {
         if( !seen[opcode] || !opcode_gap_allowed(opcode) )
             continue;
-        fprintf(stderr, "mock230: stated gap %-20s (first wanted by %s)\n",
+        fprintf(stderr, "torirsserver: stated gap %-20s (first wanted by %s)\n",
                 SSVM_OpcodeName(opcode), first_user[opcode]);
     }
 
     if( missing == 0 )
         return 0;
 
-    fprintf(stderr, "mock230: %d opcode(s) this content uses are not implemented:\n",
+    fprintf(stderr, "torirsserver: %d opcode(s) this content uses are not implemented:\n",
             missing);
-    for( int opcode = 0; opcode < MOCK230_OPCODE_VALUE_LIMIT; opcode++ )
+    for( int opcode = 0; opcode < TORIRSSERVER_OPCODE_VALUE_LIMIT; opcode++ )
     {
         if( !seen[opcode] || opcode_gap_allowed(opcode) )
             continue;
@@ -719,13 +719,13 @@ mock230_scripts_report_gaps(struct Mock230Server* srv)
  */
 static void
 discard_parked_state(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     struct SSVM_State* state)
 {
     if( !state )
         return;
 
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
         if( srv->players[i].active_script == state )
         {
@@ -733,12 +733,12 @@ discard_parked_state(
             srv->players[i].resume_button_count = 0;
         }
     }
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
     {
         if( srv->npcs[i].active_script == state )
             srv->npcs[i].active_script = NULL;
     }
-    for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; i++ )
     {
         if( srv->world_queue[i].state == state )
         {
@@ -752,7 +752,7 @@ discard_parked_state(
 }
 
 void
-mock230_scripts_free(struct Mock230Server* srv)
+ToriRSServer_ScriptsFree(struct ToriRSServer* srv)
 {
     /*
      * The parked script points into the env that is about to be freed.
@@ -770,14 +770,14 @@ mock230_scripts_free(struct Mock230Server* srv)
      * merely changed the allocator layout enough to turn that latent UAF into
      * an invalid host-command call during a later world tick.
      */
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
         discard_parked_state(srv, srv->players[i].active_script);
         srv->players[i].resume_button_count = 0;
     }
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         discard_parked_state(srv, srv->npcs[i].active_script);
-    for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; i++ )
         discard_parked_state(srv, srv->world_queue[i].state);
 
     if( srv->script_env )
@@ -849,7 +849,7 @@ script_kind_allowed(const struct SSVM_Script* script, const char* expect)
     if( script_kind_matches(script, expect) )
         return 1;
     fprintf(stderr,
-            "mock230: refusing to start %s by id %d — the slot holds a %s script; "
+            "torirsserver: refusing to start %s by id %d — the slot holds a %s script; "
             "the id in it is not a script id\n",
             script->name, script->id, expect);
     return 0;
@@ -880,14 +880,14 @@ script_kind_allowed(const struct SSVM_Script* script, const char* expect)
  * world-queued script resumes in phase 1, before anybody's turn.
  */
 static void
-unpark(struct Mock230Server* srv, struct SSVM_State* state)
+unpark(struct ToriRSServer* srv, struct SSVM_State* state)
 {
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
         if( srv->players[i].active_script == state )
             srv->players[i].active_script = NULL;
     }
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
     {
         if( srv->npcs[i].active_script == state )
             srv->npcs[i].active_script = NULL;
@@ -896,15 +896,15 @@ unpark(struct Mock230Server* srv, struct SSVM_State* state)
 
 /* Release a state and clear whichever slot was holding it. */
 static void
-release_parked(struct Mock230Server* srv, struct SSVM_State* state)
+release_parked(struct ToriRSServer* srv, struct SSVM_State* state)
 {
     unpark(srv, state);
     SSVM_StateRelease(state);
 }
 
 void
-mock230_scripts_release_state(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsReleaseState(
+    struct ToriRSServer* srv,
     struct SSVM_State* state)
 {
     if( state )
@@ -924,9 +924,9 @@ mock230_scripts_release_state(
  * `p_delay`ed.
  */
 static int
-player_can_access(struct Mock230Server* srv)
+player_can_access(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
 
     if( srv->tick < player->delayed_until )
         return 0;
@@ -982,7 +982,7 @@ report_abort(struct SSVM_State* state)
         if( g_abort_sites_full )
             return;
         g_abort_sites_full = 1;
-        fprintf(stderr, "mock230: %d scripts have aborted at distinct sites; the rest "
+        fprintf(stderr, "torirsserver: %d scripts have aborted at distinct sites; the rest "
                         "are silent\n",
                 ABORT_SITE_MAX);
         return;
@@ -992,7 +992,7 @@ report_abort(struct SSVM_State* state)
     g_abort_site_count++;
 
     snprintf(report, sizeof(report),
-             "mock230: %smock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
+             "torirsserver: %storirsserver: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
              SSVM_Backtrace(state), (int)state->host_tag, (unsigned)state->pointers,
              (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
     fputs(report, stderr);
@@ -1005,7 +1005,7 @@ report_abort(struct SSVM_State* state)
  * caller treats 0 as "nothing happened" and falls back to its C behaviour.
  */
 static int
-run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
+run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
 {
     int was_parked = srv->active_player->active_script == state;
     enum SSVM_Exec status = SSVM_Execute(state);
@@ -1025,14 +1025,14 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
      */
     if( was_parked && (status == SSVM_FINISHED || status == SSVM_ABORTED) )
     {
-        struct Mock230Player* owner = srv->active_player;
+        struct ToriRSServerPlayer* owner = srv->active_player;
 
         if( status == SSVM_ABORTED )
             report_abort(state);
         release_parked(srv, state);
         owner->resume_button_count = 0;
         if( owner->mainmodal_group <= 0 )
-            mock230_world_close_modal_ex(srv, 0);
+            ToriRSServer_WorldCloseModalEx(srv, 0);
         return status == SSVM_FINISHED;
     }
 
@@ -1057,7 +1057,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         if( srv->active_player->active_script && srv->active_player->active_script != state )
         {
             fprintf(stderr,
-                    "mock230: dropping %s, which suspended while %s waits\n",
+                    "torirsserver: dropping %s, which suspended while %s waits\n",
                     state->script ? state->script->name : "?",
                     srv->active_player->active_script->script
                         ? srv->active_player->active_script->script->name
@@ -1074,15 +1074,15 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
     {
         int slot = (int)state->host_tag - 1;
 
-        if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         {
-            fprintf(stderr, "mock230: npc_delay with no active npc\n");
+            fprintf(stderr, "torirsserver: npc_delay with no active npc\n");
             SSVM_StateRelease(state);
             return 0;
         }
         if( srv->npcs[slot].active_script && srv->npcs[slot].active_script != state )
         {
-            fprintf(stderr, "mock230: npc %d already has a parked script\n", slot);
+            fprintf(stderr, "torirsserver: npc %d already has a parked script\n", slot);
             SSVM_StateRelease(state);
             return 0;
         }
@@ -1102,7 +1102,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         /* The world queue owns it from here, so whoever was holding a seat for
          * it must let go — see `unpark`. This is the firemaking fix. */
         unpark(srv, state);
-        for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; i++ )
         {
             if( srv->world_queue[i].active )
                 continue;
@@ -1111,7 +1111,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
             srv->world_queue[i].delay = delay + 1;
             return 1;
         }
-        fprintf(stderr, "mock230: world queue full, dropping a script\n");
+        fprintf(stderr, "torirsserver: world queue full, dropping a script\n");
         SSVM_StateRelease(state);
         return 0;
     }
@@ -1132,7 +1132,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
  */
 static int
 run_script_id(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int script_id,
     const int32_t* args,
     int argc,
@@ -1156,13 +1156,13 @@ run_script_id(
      * read uninitialised. */
     if( script->string_arg_count > 0 )
     {
-        fprintf(stderr, "mock230: %s declares string arguments the engine cannot supply\n",
+        fprintf(stderr, "torirsserver: %s declares string arguments the engine cannot supply\n",
                 script->name);
         return 0;
     }
     if( script->int_arg_count > argc )
     {
-        fprintf(stderr, "mock230: %s declares %d int argument(s), the caller stated %d\n",
+        fprintf(stderr, "torirsserver: %s declares %d int argument(s), the caller stated %d\n",
                 script->name, (int)script->int_arg_count, argc);
         return 0;
     }
@@ -1176,7 +1176,7 @@ run_script_id(
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     if( protect )
         SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    if( npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].active )
     {
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
         state->host_tag = npc_slot + 1;
@@ -1201,12 +1201,12 @@ run_script_id(
  */
 static void
 rebind_active_npc(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     struct SSVM_State* state)
 {
     int slot = (int)state->host_tag - 1;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     if( !srv->npcs[slot].active )
         return;
@@ -1214,7 +1214,7 @@ rebind_active_npc(
 }
 
 void
-mock230_scripts_resume_player(struct Mock230Server* srv)
+ToriRSServer_ScriptsResumePlayer(struct ToriRSServer* srv)
 {
     struct SSVM_State* state = srv->active_player->active_script;
 
@@ -1232,14 +1232,14 @@ mock230_scripts_resume_player(struct Mock230Server* srv)
 }
 
 void
-mock230_scripts_resume_npc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsResumeNpc(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc;
+    struct ToriRSServerNpc* npc;
     int resume_loot_drop;
 
-    if( !srv->scripts_ok || slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( !srv->scripts_ok || slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active_script || srv->tick < npc->delayed_until )
@@ -1248,7 +1248,7 @@ mock230_scripts_resume_npc(
     /* npc_delay can split [ai_queue3] before its obj_add. Kill attribution is
      * intentionally scoped to executing that death state: leaving the global
      * flag armed for the delay would misattribute unrelated ground spawns. */
-    resume_loot_drop = npc->death_stage == MOCK230_DEATH_REAP &&
+    resume_loot_drop = npc->death_stage == TORIRSSERVER_DEATH_REAP &&
                        npc->loot_credit_event_id > 0;
     if( resume_loot_drop )
     {
@@ -1274,12 +1274,12 @@ mock230_scripts_resume_npc(
 }
 
 void
-mock230_scripts_resume_world(struct Mock230Server* srv)
+ToriRSServer_ScriptsResumeWorld(struct ToriRSServer* srv)
 {
     if( !srv->scripts_ok )
         return;
 
-    for( int i = 0; i < MOCK230_WORLD_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; i++ )
     {
         struct SSVM_State* state;
 
@@ -1300,19 +1300,19 @@ mock230_scripts_resume_world(struct Mock230Server* srv)
 /** One pass of the queue, over the entries of one kind-set. */
 static void
 drain_queue(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int weak)
 {
-    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
     {
-        struct Mock230Queued* entry = &srv->active_player->queue[i];
+        struct ToriRSServerQueued* entry = &srv->active_player->queue[i];
         int script_id;
-        int32_t args[MOCK230_QUEUE_ARG_MAX];
+        int32_t args[TORIRSSERVER_QUEUE_ARG_MAX];
         int argc;
 
         if( !entry->active )
             continue;
-        if( (entry->kind == MOCK230_QUEUE_WEAK) != (weak != 0) )
+        if( (entry->kind == TORIRSSERVER_QUEUE_WEAK) != (weak != 0) )
             continue;
 
         /*
@@ -1355,17 +1355,17 @@ drain_queue(
 }
 
 void
-mock230_scripts_clear_weak_queue(struct Mock230Player* player)
+ToriRSServer_ScriptsClearWeakQueue(struct ToriRSServerPlayer* player)
 {
-    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
     {
-        if( player->queue[i].active && player->queue[i].kind == MOCK230_QUEUE_WEAK )
+        if( player->queue[i].active && player->queue[i].kind == TORIRSSERVER_QUEUE_WEAK )
             player->queue[i].active = 0;
     }
 }
 
 void
-mock230_scripts_process_queues(struct Mock230Server* srv)
+ToriRSServer_ScriptsProcessQueues(struct ToriRSServer* srv)
 {
     if( !srv->scripts_ok )
         return;
@@ -1376,12 +1376,12 @@ mock230_scripts_process_queues(struct Mock230Server* srv)
      * due. That is the kind's entire difference (`Player.processQueues`), and it
      * is why the scan runs even when the strong entry is not yet due.
      */
-    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
     {
         if( srv->active_player->queue[i].active &&
-            srv->active_player->queue[i].kind == MOCK230_QUEUE_STRONG )
+            srv->active_player->queue[i].kind == TORIRSSERVER_QUEUE_STRONG )
         {
-            mock230_world_close_modal(srv);
+            ToriRSServer_WorldCloseModal(srv);
             break;
         }
     }
@@ -1394,7 +1394,7 @@ mock230_scripts_process_queues(struct Mock230Server* srv)
 }
 
 void
-mock230_scripts_process_timers(struct Mock230Server* srv)
+ToriRSServer_ScriptsProcessTimers(struct ToriRSServer* srv)
 {
     /*
      * Two passes, NORMAL then SOFT, as `World.processPlayers` calls it.
@@ -1404,7 +1404,7 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
      * a NORMAL one needs `canAccess()` and runs *with* it. A test that only asked
      * "did a timer fire" would stay green for either half being wrong.
      */
-    static const int k_order[2] = { MOCK230_TIMER_NORMAL, MOCK230_TIMER_SOFT };
+    static const int k_order[2] = { TORIRSSERVER_TIMER_NORMAL, TORIRSSERVER_TIMER_SOFT };
 
     if( !srv->scripts_ok )
         return;
@@ -1413,9 +1413,9 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
     {
         int type = k_order[pass];
 
-        for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
         {
-            struct Mock230Timer* timer = &srv->active_player->timers[i];
+            struct ToriRSServerTimer* timer = &srv->active_player->timers[i];
 
             /*
              * No lower bound on the interval, and that is the reference's shape,
@@ -1437,19 +1437,19 @@ mock230_scripts_process_timers(struct Mock230Server* srv)
              * last fired at, which is also what `gettimer` returns. */
             if( srv->tick < timer->clock + timer->interval )
                 continue;
-            if( type == MOCK230_TIMER_NORMAL && !player_can_access(srv) )
+            if( type == TORIRSSERVER_TIMER_NORMAL && !player_can_access(srv) )
                 continue;
             timer->clock = srv->tick;
-            run_script_id(srv, timer->script_id, NULL, 0, -1, type == MOCK230_TIMER_NORMAL,
+            run_script_id(srv, timer->script_id, NULL, 0, -1, type == TORIRSSERVER_TIMER_NORMAL,
                           "timer,softtimer");
         }
     }
 }
 
 void
-mock230_scripts_process_walktrigger(struct Mock230Server* srv)
+ToriRSServer_ScriptsProcessWalktrigger(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
     int script_id;
 
     assert(srv);
@@ -1473,11 +1473,11 @@ mock230_scripts_process_walktrigger(struct Mock230Server* srv)
 }
 
 int
-mock230_scripts_resume_button(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsResumeButton(
+    struct ToriRSServer* srv,
     int component_uid)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     struct SSVM_State* state = player->active_script;
 
     if( !srv->scripts_ok || !state )
@@ -1501,9 +1501,9 @@ mock230_scripts_resume_button(
 }
 
 int
-mock230_scripts_close_dialogue(struct Mock230Server* srv)
+ToriRSServer_ScriptsCloseDialogue(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
     struct SSVM_State* state;
 
     assert(srv);
@@ -1528,8 +1528,8 @@ mock230_scripts_close_dialogue(struct Mock230Server* srv)
 }
 
 int
-mock230_scripts_run_script(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunScript(
+    struct ToriRSServer* srv,
     int script_id)
 {
     if( !srv->scripts_ok )
@@ -1549,12 +1549,12 @@ mock230_scripts_run_script(
  * Immediate, not queued: a caller mid-swing needs the effect this tick, and a
  * queue entry would land on the next one.
  *
- * Missing script means do nothing and say so under MOCK230_VERBOSE — the same
+ * Missing script means do nothing and say so under TORIRSSERVER_VERBOSE — the same
  * fallback rule the rest of this file follows.
  */
 int
-mock230_scripts_run_hook_sv(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunHookSv(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     const int32_t* args,
     int argc,
@@ -1575,7 +1575,7 @@ mock230_scripts_run_hook_sv(
         state->last_int = srv->active_player->last_int;
     if( !state )
     {
-        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
+        fprintf(stderr, "torirsserver: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
@@ -1591,8 +1591,8 @@ mock230_scripts_run_hook_sv(
  * call sites, and the engine goes through triggers.
  */
 int
-mock230_scripts_run_proc_sv(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcSv(
+    struct ToriRSServer* srv,
     const char* name,
     const int32_t* args,
     int argc,
@@ -1607,10 +1607,10 @@ mock230_scripts_run_proc_sv(
     if( !script )
     {
         if( srv->verbose )
-            printf("mock230: no %s — engine fallback\n", name);
+            printf("torirsserver: no %s — engine fallback\n", name);
         return 0;
     }
-    return mock230_scripts_run_hook_sv(srv, script, args, argc, strv, strc);
+    return ToriRSServer_ScriptsRunHookSv(srv, script, args, argc, strv, strc);
 }
 
 /*
@@ -1624,25 +1624,25 @@ mock230_scripts_run_proc_sv(
  * case that surfaced it.
  */
 int
-mock230_scripts_run_proc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProc(
+    struct ToriRSServer* srv,
     const char* name,
     const int32_t* args,
     int argc)
 {
-    return mock230_scripts_run_proc_sv(srv, name, args, argc, NULL, 0);
+    return ToriRSServer_ScriptsRunProcSv(srv, name, args, argc, NULL, 0);
 }
 
 
 /** The engine's form of the same call: a resolved hook, no name. */
 int
-mock230_scripts_run_hook(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunHook(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     const int32_t* args,
     int argc)
 {
-    return mock230_scripts_run_hook_sv(srv, script, args, argc, NULL, 0);
+    return ToriRSServer_ScriptsRunHookSv(srv, script, args, argc, NULL, 0);
 }
 
 /*
@@ -1663,8 +1663,8 @@ mock230_scripts_run_hook(
  * Returns 1 and writes *out when the proc answered; 0 otherwise.
  */
 int
-mock230_scripts_run_hook_int_sv(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunHookIntSv(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     const int32_t* args,
     int argc,
@@ -1685,7 +1685,7 @@ mock230_scripts_run_hook_int_sv(
         state->last_int = srv->active_player->last_int;
     if( !state )
     {
-        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
+        fprintf(stderr, "torirsserver: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
@@ -1693,7 +1693,7 @@ mock230_scripts_run_hook_int_sv(
 
     status = SSVM_Execute(state);
     if( status == SSVM_ABORTED )
-        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+        fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )
     {
         SSVM_StateRelease(state);
@@ -1747,8 +1747,8 @@ mock230_scripts_run_hook_int_sv(
  * to answer `false` immediately when the player holds no clue.
  */
 int
-mock230_scripts_run_claim(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunClaim(
+    struct ToriRSServer* srv,
     const char* name,
     int npc_slot,
     int loc_slot,
@@ -1772,21 +1772,21 @@ mock230_scripts_run_claim(
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, NULL, 0);
     if( !state )
     {
-        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
+        fprintf(stderr, "torirsserver: %s rejected %d argument(s)\n", script->name, argc);
         return 0;
     }
     if( srv->active_player )
         state->last_int = srv->active_player->last_int;
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    if( npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].active )
     {
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
         state->host_tag = npc_slot + 1;
     }
     if( loc_slot >= 0 )
     {
-        struct Mock230SceneLoc* loc = mock230_scene_loc(loc_slot);
+        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(loc_slot);
 
         /* Slot PLUS ONE, and the liveness check, both copied from
          * `run_trigger_script` rather than reinvented: `SSVM_ENT_LOC` stores a
@@ -1798,7 +1798,7 @@ mock230_scripts_run_claim(
 
     status = SSVM_Execute(state);
     if( status == SSVM_ABORTED )
-        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+        fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     /*
      * A claim proc that parks (a dialogue, a delay) has NOT answered, and is
      * treated as no claim. Answering "claimed" for a parked script would eat
@@ -1817,10 +1817,10 @@ mock230_scripts_run_claim(
     return 1;
 }
 
-/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+/** By name, for tests. See ToriRSServer_ScriptsRunProcSv on why the split. */
 int
-mock230_scripts_run_proc_int_sv(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcIntSv(
+    struct ToriRSServer* srv,
     const char* name,
     const int32_t* args,
     int argc,
@@ -1836,35 +1836,35 @@ mock230_scripts_run_proc_int_sv(
     if( !script )
     {
         if( srv->verbose )
-            printf("mock230: no %s — engine fallback\n", name);
+            printf("torirsserver: no %s — engine fallback\n", name);
         return 0;
     }
-    return mock230_scripts_run_hook_int_sv(srv, script, args, argc, strv, strc, out);
+    return ToriRSServer_ScriptsRunHookIntSv(srv, script, args, argc, strv, strc, out);
 }
 
-/** The int-only form. See mock230_scripts_run_proc for why the string half
+/** The int-only form. See ToriRSServer_ScriptsRunProc for why the string half
  *  exists at all. */
 int
-mock230_scripts_run_proc_int(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcInt(
+    struct ToriRSServer* srv,
     const char* name,
     const int32_t* args,
     int argc,
     int32_t* out)
 {
-    return mock230_scripts_run_proc_int_sv(srv, name, args, argc, NULL, 0, out);
+    return ToriRSServer_ScriptsRunProcIntSv(srv, name, args, argc, NULL, 0, out);
 }
 
 /** The engine's form: a resolved hook that answers with one int. */
 int
-mock230_scripts_run_hook_int(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunHookInt(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     const int32_t* args,
     int argc,
     int32_t* out)
 {
-    return mock230_scripts_run_hook_int_sv(srv, script, args, argc, NULL, 0, out);
+    return ToriRSServer_ScriptsRunHookIntSv(srv, script, args, argc, NULL, 0, out);
 }
 
 /*
@@ -1879,20 +1879,20 @@ mock230_scripts_run_hook_int(
  * absent, and by internal callers whose pointer may legitimately be empty.
  */
 int
-mock230_scripts_queue_hook(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsQueueHook(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int delay,
     int32_t arg)
 {
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
 
     if( !srv->scripts_ok )
         return 0;
     assert(script);
 
     player = srv->active_player;
-    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
     {
         if( player->queue[i].active )
             continue;
@@ -1903,7 +1903,7 @@ mock230_scripts_queue_hook(
         player->queue[i].delay = delay + 1;
         player->queue[i].args[0] = arg;
         player->queue[i].argc = 1;
-        player->queue[i].kind = MOCK230_QUEUE_NORMAL;
+        player->queue[i].kind = TORIRSSERVER_QUEUE_NORMAL;
         player->queue[i].logout_action = 0;
         return 1;
     }
@@ -1917,15 +1917,15 @@ mock230_scripts_queue_hook(
      * this limit is this engine's and nothing content can see coming — and a
      * dropped `[queue,player_death]` looks exactly like a death that never ends.
      */
-    fprintf(stderr, "mock230: %s dropped — the player's queue is full (%d)\n", script->name,
-            MOCK230_QUEUE_MAX);
+    fprintf(stderr, "torirsserver: %s dropped — the player's queue is full (%d)\n", script->name,
+            TORIRSSERVER_QUEUE_MAX);
     return 0;
 }
 
-/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+/** By name, for tests. See ToriRSServer_ScriptsRunProcSv on why the split. */
 int
-mock230_scripts_queue_named(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsQueueNamed(
+    struct ToriRSServer* srv,
     const char* name,
     int delay,
     int32_t arg)
@@ -1938,10 +1938,10 @@ mock230_scripts_queue_named(
     if( !script )
     {
         if( srv->verbose )
-            printf("mock230: no %s — nothing queued\n", name);
+            printf("torirsserver: no %s — nothing queued\n", name);
         return 0;
     }
-    return mock230_scripts_queue_hook(srv, script, delay, arg);
+    return ToriRSServer_ScriptsQueueHook(srv, script, delay, arg);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1964,7 +1964,7 @@ mock230_scripts_queue_named(
 static int
 trigger_subject_kind(
     int trigger,
-    enum Mock230PackKind* out_kind)
+    enum ToriRSServerPackKind* out_kind)
 {
     if( (trigger >= SS_TRIGGER_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
         trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
@@ -1974,32 +1974,32 @@ trigger_subject_kind(
     {
         /* The ai_* families are subjects *of an npc*, whichever entity the
          * trigger is about — `[ai_opplayer1,goblin]` names the goblin. */
-        *out_kind = MOCK230_PACK_NPC;
+        *out_kind = TORIRSSERVER_PACK_NPC;
         return 1;
     }
     if( (trigger >= SS_TRIGGER_APOBJ1 && trigger <= SS_TRIGGER_AI_OPOBJ5) ||
         (trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELDT) )
     {
-        *out_kind = MOCK230_PACK_OBJ;
+        *out_kind = TORIRSSERVER_PACK_OBJ;
         return 1;
     }
     if( (trigger >= SS_TRIGGER_APLOC1 && trigger <= SS_TRIGGER_AI_OPLOC5) ||
         trigger == SS_TRIGGER_LOCSTEP )
     {
-        *out_kind = MOCK230_PACK_LOC;
+        *out_kind = TORIRSSERVER_PACK_LOC;
         return 1;
     }
     if( trigger == SS_TRIGGER_IF_BUTTON ||
         (trigger >= SS_TRIGGER_INV_BUTTON1 && trigger <= SS_TRIGGER_INV_BUTTOND) )
     {
-        *out_kind = MOCK230_PACK_COMPONENT;
+        *out_kind = TORIRSSERVER_PACK_COMPONENT;
         return 1;
     }
     /* IF_CLOSE / IF_OPEN subjects are bare interface ids (see close_modal's
      * `[if_close,bankmain]` comment) — not packed component uids. */
     if( trigger == SS_TRIGGER_IF_CLOSE || trigger == SS_TRIGGER_IF_OPEN )
     {
-        *out_kind = MOCK230_PACK_INTERFACE;
+        *out_kind = TORIRSSERVER_PACK_INTERFACE;
         return 1;
     }
     return 0;
@@ -2068,11 +2068,11 @@ trigger_label(
     char* buffer,
     size_t capacity)
 {
-    enum Mock230PackKind kind = MOCK230_PACK_COUNT;
+    enum ToriRSServerPackKind kind = TORIRSSERVER_PACK_COUNT;
     const char* subject = NULL;
 
     if( type >= 0 && trigger_subject_kind(trigger, &kind) )
-        subject = mock230_content_symbol_name(kind, type);
+        subject = ToriRSServer_ContentSymbolName(kind, type);
 
     if( subject )
         snprintf(buffer, capacity, "[%s,%s]", SSVM_TriggerName(trigger), subject);
@@ -2093,20 +2093,20 @@ trigger_label(
  */
 /*
  * Trigger-dispatch cost, read by the embedded server's tick breakdown
- * (mock230_world.c).
+ * (torirs_server_world.c).
  *
  * Counted at the OUTERMOST dispatch only: a script is free to fire another
  * trigger, and adding the nested run in again would report more script time
  * than the tick took. A parked script's later resumption is not counted here at
- * all -- it re-enters through mock230_scripts_resume_*, which the breakdown
+ * all -- it re-enters through ToriRSServer_ScriptsResume_*, which the breakdown
  * already attributes to phase 5's `scripts` slot.
  */
-uint64_t g_mock230_script_us;
-int g_mock230_script_runs;
+uint64_t g_ToriRSServer_ScriptUs;
+int g_ToriRSServer_ScriptRuns;
 /* The tick's worst single dispatch, by name -- a total is enough to say "a
  * script did this" and never enough to say which one. */
-uint64_t g_mock230_script_slow_us;
-char g_mock230_script_slow_name[96];
+uint64_t g_ToriRSServer_ScriptSlowUs;
+char g_ToriRSServer_ScriptSlowName[96];
 static int g_script_depth;
 
 static uint64_t
@@ -2121,7 +2121,7 @@ script_now_us(void)
 
 static int
 run_trigger_script_inner(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
     int loc_slot,
@@ -2129,7 +2129,7 @@ run_trigger_script_inner(
 
 static int
 run_trigger_script(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
     int loc_slot,
@@ -2146,12 +2146,12 @@ run_trigger_script(
     {
         uint64_t us = script_now_us() - t0;
 
-        g_mock230_script_us += us;
-        g_mock230_script_runs++;
-        if( us > g_mock230_script_slow_us )
+        g_ToriRSServer_ScriptUs += us;
+        g_ToriRSServer_ScriptRuns++;
+        if( us > g_ToriRSServer_ScriptSlowUs )
         {
-            g_mock230_script_slow_us = us;
-            snprintf(g_mock230_script_slow_name, sizeof(g_mock230_script_slow_name), "%s",
+            g_ToriRSServer_ScriptSlowUs = us;
+            snprintf(g_ToriRSServer_ScriptSlowName, sizeof(g_ToriRSServer_ScriptSlowName), "%s",
                      script && script->name ? script->name : "?");
         }
     }
@@ -2160,7 +2160,7 @@ run_trigger_script(
 
 static int
 run_trigger_script_inner(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
     int loc_slot,
@@ -2171,7 +2171,7 @@ run_trigger_script_inner(
     {
         /* A queued npc script states its own `last_int`; everything else
          * inherits the player's, which is what every player-context reader has
-         * always seen. See mock230_scripts_run_trigger_lastint. */
+         * always seen. See ToriRSServer_ScriptsRunTriggerLastint. */
         if( srv->pending_last_int_valid )
             state->last_int = srv->pending_last_int;
         else if( srv->active_player )
@@ -2180,9 +2180,9 @@ run_trigger_script_inner(
 
     if( !state )
     {
-        fprintf(stderr, "mock230: %s expects arguments a trigger cannot supply\n",
+        fprintf(stderr, "torirsserver: %s expects arguments a trigger cannot supply\n",
                 script->name);
-        return MOCK230_TRIGGER_FAILED;
+        return TORIRSSERVER_TRIGGER_FAILED;
     }
 
     /* Every trigger the server fires is on behalf of whoever's turn it is, and
@@ -2196,11 +2196,11 @@ run_trigger_script_inner(
      * live player occupies active_player2 instead. The interaction layer
      * already checked its login generation immediately before dispatch; the
      * secondary pointer is deliberately optional for ordinary triggers. */
-    if( player_slot >= 0 && player_slot < MOCK230_PLAYER_MAX &&
+    if( player_slot >= 0 && player_slot < TORIRSSERVER_PLAYER_MAX &&
         srv->players[player_slot].active && &srv->players[player_slot] != srv->active_player )
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_SECONDARY, &srv->players[player_slot]);
 
-    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    if( npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].active )
     {
         /* The pointer satisfies the VM's require-an-active-npc check; the slot
          * in host_tag is what actually resolves it. Stored +1 so zero means
@@ -2212,7 +2212,7 @@ run_trigger_script_inner(
     /* The active ground obj, for `[opobj<n>]` — `Player.getOpTrigger` sets
      * `state.activeObj` on the obj arm the same way it sets `activeNpc` on the
      * npc one. One-shot: consumed here so a script that itself fires a trigger
-     * does not inherit it. The value is `mock230_world_obj_handle`'s — a slot
+     * does not inherit it. The value is `ToriRSServer_WorldObjHandle`'s — a slot
      * *and* the slot's generation, never a pointer, because the ground array is
      * a free list and a suspended script must resume onto its own obj or none. */
     if( srv->pending_active_obj )
@@ -2229,7 +2229,7 @@ run_trigger_script_inner(
         int npc2 = srv->pending_active_npc2 - 1;
 
         srv->pending_active_npc2 = 0;
-        if( npc2 >= 0 && npc2 < MOCK230_NPC_MAX && srv->npcs[npc2].active )
+        if( npc2 >= 0 && npc2 < TORIRSSERVER_NPC_MAX && srv->npcs[npc2].active )
             SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, &srv->npcs[npc2]);
     }
 
@@ -2245,14 +2245,14 @@ run_trigger_script_inner(
      * family, was what the `oploc` fallback row was actually waiting on.
      *
      * By *slot*, not by pointer, and encoded `slot + 1` — the convention
-     * `mock230_ops_loc.c` and `LOC_FIND` already share, for the reason stated
+     * `torirs_server_ops_loc.c` and `LOC_FIND` already share, for the reason stated
      * there: a script can suspend between the dispatch and the read, and a scene
      * rebuild reallocates the array underneath it. The pointer's only job is to
      * satisfy the VM's require-an-active-loc check.
      */
     if( loc_slot >= 0 )
     {
-        struct Mock230SceneLoc* loc = mock230_scene_loc(loc_slot);
+        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(loc_slot);
 
         if( loc && loc->active )
         {
@@ -2264,13 +2264,13 @@ run_trigger_script_inner(
     /* run_or_park answers 1 for ran-or-parked and 0 for every way a bound script
      * can fail to run — aborted, no parking slot, world queue full. All of those
      * are FAILED here: a script existed and the behaviour did not happen. */
-    return run_or_park(srv, state) ? MOCK230_TRIGGER_RAN : MOCK230_TRIGGER_FAILED;
+    return run_or_park(srv, state) ? TORIRSSERVER_TRIGGER_RAN : TORIRSSERVER_TRIGGER_FAILED;
 }
 
 /*
  * Run one rung, and say whether the dispatch should keep walking.
  *
- * Returns the rung's `MOCK230_TRIGGER_*`, with `*declined` set when the script
+ * Returns the rung's `TORIRSSERVER_TRIGGER_*`, with `*declined` set when the script
  * finished by calling `trigger_decline`. The flag is cleared immediately before
  * the run and read immediately after, so a script that fires another trigger
  * internally cannot leak a decline outward.
@@ -2284,7 +2284,7 @@ run_trigger_script_inner(
  */
 static int
 run_rung(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot,
     int loc_slot,
@@ -2298,12 +2298,12 @@ run_rung(
     result = run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
     srv->trigger_dispatch_depth--;
 
-    *declined = srv->trigger_declined && result == MOCK230_TRIGGER_RAN;
+    *declined = srv->trigger_declined && result == TORIRSSERVER_TRIGGER_RAN;
     srv->trigger_declined = 0;
 
     if( *declined && srv->active_player && srv->active_player->active_script )
     {
-        fprintf(stderr, "mock230: %s declined after parking; treating it as handled\n",
+        fprintf(stderr, "torirsserver: %s declined after parking; treating it as handled\n",
                 script->name ? script->name : "?");
         *declined = 0;
     }
@@ -2326,7 +2326,7 @@ run_rung(
  */
 static int
 run_trigger_impl(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2345,7 +2345,7 @@ run_trigger_impl(
     int any_declined = 0;
 
     if( !srv->scripts_ok )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     srv->dispatch_declined = 0;
 
@@ -2381,8 +2381,8 @@ run_trigger_impl(
     {
         const struct SSVM_Script* script = SSVM_ProviderGetByTriggerSpecific(
             srv->scripts, trigger, rungs[i].type, rungs[i].category);
-        struct Mock230Player* saved_player;
-        struct Mock230Player* context_player;
+        struct ToriRSServerPlayer* saved_player;
+        struct ToriRSServerPlayer* context_player;
         int declined = 0;
         int result;
 
@@ -2391,7 +2391,7 @@ run_trigger_impl(
 
         if( trigger_requires_active_npc(trigger) )
         {
-            int live = npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+            int live = npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX &&
                        srv->npcs[npc_slot].active;
 
             if( !live )
@@ -2400,42 +2400,42 @@ run_trigger_impl(
 
                 fprintf(
                     stderr,
-                    "mock230: %s refused — no live npc (slot=%d script=%s)\n",
+                    "torirsserver: %s refused — no live npc (slot=%d script=%s)\n",
                     trigger_label(trigger, type, label, sizeof(label)),
                     npc_slot,
                     script->name ? script->name : "?");
-                return MOCK230_TRIGGER_FAILED;
+                return TORIRSSERVER_TRIGGER_FAILED;
             }
         }
 
         context_player = srv->active_player;
-        if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+        if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX &&
             srv->npcs[npc_slot].owner_gen != 0 )
         {
             /* A dead generation produces no player context. Falling back here
              * would hand the familiar's timer/queue script to a replacement login
              * or to whichever player happened to run the preceding phase. */
-            context_player = mock230_world_npc_owner(srv, &srv->npcs[npc_slot]);
+            context_player = ToriRSServer_WorldNpcOwner(srv, &srv->npcs[npc_slot]);
             if( !context_player )
-                return MOCK230_TRIGGER_FAILED;
+                return TORIRSSERVER_TRIGGER_FAILED;
         }
         saved_player = srv->active_player;
-        mock230_world_set_active(srv, context_player);
+        ToriRSServer_WorldSetActive(srv, context_player);
         result = run_rung(srv, script, npc_slot, loc_slot, player_slot, &declined);
-        mock230_world_set_active(srv, saved_player);
+        ToriRSServer_WorldSetActive(srv, saved_player);
 
         if( srv->verbose && rung_count > 1 )
         {
             char label[192];
 
-            fprintf(stderr, "mock230:   %s rung %d/%d -> %s %s\n",
+            fprintf(stderr, "torirsserver:   %s rung %d/%d -> %s %s\n",
                     trigger_label(trigger, type, label, sizeof(label)), i + 1, rung_count,
                     script->name ? script->name : "?",
-                    result != MOCK230_TRIGGER_RAN ? "FAILED"
+                    result != TORIRSSERVER_TRIGGER_RAN ? "FAILED"
                                                   : declined ? "declined" : "handled it");
         }
 
-        if( result != MOCK230_TRIGGER_RAN || !declined )
+        if( result != TORIRSSERVER_TRIGGER_RAN || !declined )
             return result;
         any_declined = 1;
     }
@@ -2444,12 +2444,12 @@ run_trigger_impl(
      * Nothing bound, or everything that bound declined. The caller is told the
      * same thing either way — from the player's side both are "nothing
      * interesting happens" — and `dispatch_declined` is what keeps them apart for
-     * `mock230_scripts_fallback`, whose answer must be no.
+     * `ToriRSServer_ScriptsFallback`, whose answer must be no.
      */
     if( any_declined )
     {
         srv->dispatch_declined = 1;
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
     }
 
     if( report && srv->verbose && trigger_is_player_initiated(trigger) )
@@ -2460,15 +2460,15 @@ run_trigger_impl(
          * condition: a debug build says so, a production one is silent. Nothing
          * else distinguishes a trigger that deliberately does nothing from a
          * packet that never arrived. */
-        fprintf(stderr, "mock230: no trigger for %s\n",
+        fprintf(stderr, "torirsserver: no trigger for %s\n",
                 trigger_label(trigger, type, label, sizeof(label)));
     }
-    return MOCK230_TRIGGER_NONE;
+    return TORIRSSERVER_TRIGGER_NONE;
 }
 
 int
-mock230_scripts_run_trigger(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTrigger(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2489,8 +2489,8 @@ mock230_scripts_run_trigger(
  * no player whose `last_int` could stand in.
  */
 int
-mock230_scripts_run_trigger_lastint(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerLastint(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2518,8 +2518,8 @@ mock230_scripts_run_trigger_lastint(
  * both of them, and `.npc_*` is how it names the second.
  */
 int
-mock230_scripts_run_trigger_npc2(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerNpc2(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2541,8 +2541,8 @@ mock230_scripts_run_trigger_npc2(
  * notifications that hand the display name to content (`[friendlogin,_]`).
  */
 int
-mock230_scripts_run_trigger_sv(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerSv(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2554,34 +2554,34 @@ mock230_scripts_run_trigger_sv(
     struct SSVM_State* state;
 
     if( !srv->scripts_ok )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     script = SSVM_ProviderGetByTrigger(srv->scripts, trigger, type, category);
     if( !script )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, strv, strc);
     if( state && srv->active_player )
         state->last_int = srv->active_player->last_int;
     if( !state )
     {
-        fprintf(stderr, "mock230: %s rejected string argument(s)\n",
+        fprintf(stderr, "torirsserver: %s rejected string argument(s)\n",
                 script->name ? script->name : "?");
-        return MOCK230_TRIGGER_FAILED;
+        return TORIRSSERVER_TRIGGER_FAILED;
     }
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    if( npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].active )
     {
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
         state->host_tag = npc_slot + 1;
     }
-    return run_or_park(srv, state) ? MOCK230_TRIGGER_RAN : MOCK230_TRIGGER_FAILED;
+    return run_or_park(srv, state) ? TORIRSSERVER_TRIGGER_RAN : TORIRSSERVER_TRIGGER_FAILED;
 }
 
 int
-mock230_scripts_run_trigger_on_loc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerOnLoc(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2602,7 +2602,7 @@ mock230_scripts_run_trigger_on_loc(
  * table that `test-ss-provider` exists to pin.
  */
 void
-mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id)
+ToriRSServer_ScriptsRunScriptId(struct ToriRSServer* srv, int script_id)
 {
     const struct SSVM_Script* script;
 
@@ -2617,8 +2617,8 @@ mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id)
 }
 
 int
-mock230_scripts_run_trigger_specific(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerSpecific(
+    struct ToriRSServer* srv,
     int trigger,
     int type,
     int category,
@@ -2633,7 +2633,7 @@ mock230_scripts_run_trigger_specific(
  *
  * Keyed by the SPELL rather than by what it was aimed at — one script per
  * spell, matching no npc — so the subject is a component uid, and that is what
- * makes this its own dispatcher rather than a plain `mock230_scripts_run_trigger`
+ * makes this its own dispatcher rather than a plain `ToriRSServer_ScriptsRunTrigger`
  * call. A spell lives in interface 218, so its uid is 14,286,848 and up: past
  * `ssc_compile.c`'s `1 << 21` ceiling, which means EVERY spell trigger in the
  * tree compiled name-addressed and none of them is reachable by key. Dispatching
@@ -2645,8 +2645,8 @@ mock230_scripts_run_trigger_specific(
  * authorship, and a spellbook interface below 32 would fit.
  */
 int
-mock230_scripts_run_spell_trigger(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunSpellTrigger(
+    struct ToriRSServer* srv,
     int trigger,
     int spell_component,
     int npc_slot,
@@ -2659,24 +2659,24 @@ mock230_scripts_run_spell_trigger(
     int result;
 
     if( !srv->scripts_ok || spell_component <= 0 )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     /* Specific and unreported, as run_if_button_trigger's key rung is: an
      * `[apnpct,_]` wildcard would swallow every cast in the game, and a miss
      * here is the *expected* case (see above), not something to report. */
     result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, loc_slot, player_slot, 0,
                               0);
-    if( result != MOCK230_TRIGGER_NONE )
+    if( result != TORIRSSERVER_TRIGGER_NONE )
         return result;
 
-    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, spell_component);
+    component = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, spell_component);
     if( !component )
     {
         if( srv->verbose )
-            fprintf(stderr, "mock230: no [%s] subject name for component %d|%d\n",
+            fprintf(stderr, "torirsserver: no [%s] subject name for component %d|%d\n",
                     SSVM_TriggerName(trigger), (spell_component >> 16) & 0xffff,
                     spell_component & 0xffff);
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
     }
 
     snprintf(name, sizeof(name), "[%s,%s]", SSVM_TriggerName(trigger), component);
@@ -2684,8 +2684,8 @@ mock230_scripts_run_spell_trigger(
     if( !script )
     {
         if( srv->verbose )
-            fprintf(stderr, "mock230: no trigger for %s\n", name);
-        return MOCK230_TRIGGER_NONE;
+            fprintf(stderr, "torirsserver: no trigger for %s\n", name);
+        return TORIRSSERVER_TRIGGER_NONE;
     }
     return run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
 }
@@ -2703,7 +2703,7 @@ mock230_scripts_run_spell_trigger(
  */
 static int
 run_if_button_trigger(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int trigger,
     int uid,
     const char* component)
@@ -2716,22 +2716,22 @@ run_if_button_trigger(
      * with no script of its own does not fall through to some `[if_button,_]`
      * that would then swallow every click in the game. */
     result = run_trigger_impl(srv, trigger, uid, -1, -1, -1, -1, 0, 0);
-    if( result != MOCK230_TRIGGER_NONE )
+    if( result != TORIRSSERVER_TRIGGER_NONE )
         return result;
 
     if( !component )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     snprintf(name, sizeof(name), "[%s,%s]", SSVM_TriggerName(trigger), component);
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
     return run_trigger_script(srv, script, -1, -1, -1);
 }
 
 int
-mock230_scripts_run_if_button(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunIfButton(
+    struct ToriRSServer* srv,
     int uid,
     int op_num)
 {
@@ -2739,9 +2739,9 @@ mock230_scripts_run_if_button(
     int result;
 
     if( !srv->scripts_ok )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
-    component = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+    component = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
 
     /*
      * The numbered trigger first, then the unnumbered one.
@@ -2755,31 +2755,31 @@ mock230_scripts_run_if_button(
      * the tree written before this did, and why the unnumbered form is a
      * fallthrough rather than a replacement.
      *
-     * This does not widen the *engine's* fallback list (`enum Mock230Fallback`,
+     * This does not widen the *engine's* fallback list (`enum ToriRSServerFallback`,
      * osrs230_mockserver.md §3.18): both rungs are content, and the C rung
      * below is the same single one it always was.
      */
     if( op_num >= 1 && op_num <= 10 )
     {
         result = run_if_button_trigger(srv, SS_TRIGGER_IF_BUTTON1 + (op_num - 1), uid, component);
-        if( result != MOCK230_TRIGGER_NONE )
+        if( result != TORIRSSERVER_TRIGGER_NONE )
             return result;
     }
 
     result = run_if_button_trigger(srv, SS_TRIGGER_IF_BUTTON, uid, component);
-    if( result != MOCK230_TRIGGER_NONE )
+    if( result != TORIRSSERVER_TRIGGER_NONE )
         return result;
 
     if( srv->verbose )
     {
         if( component )
-            fprintf(stderr, "mock230: no trigger for [if_button%d,%s] or [if_button,%s]\n",
+            fprintf(stderr, "torirsserver: no trigger for [if_button%d,%s] or [if_button,%s]\n",
                     op_num, component, component);
         else
-            fprintf(stderr, "mock230: no trigger for [if_button,%d:%d] (no component name)\n",
+            fprintf(stderr, "torirsserver: no trigger for [if_button,%d:%d] (no component name)\n",
                     uid >> 16, uid & 0xffff);
     }
-    return MOCK230_TRIGGER_NONE;
+    return TORIRSSERVER_TRIGGER_NONE;
 }
 
 /*
@@ -2791,7 +2791,7 @@ mock230_scripts_run_if_button(
  */
 static const struct SSVM_Script*
 zone_trigger_script(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int trigger,
     int level,
     int x,
@@ -2862,8 +2862,8 @@ zone_trigger_script(
 }
 
 int
-mock230_scripts_run_trigger_at(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunTriggerAt(
+    struct ToriRSServer* srv,
     int trigger,
     int level,
     int x,
@@ -2872,26 +2872,26 @@ mock230_scripts_run_trigger_at(
     const struct SSVM_Script* script = zone_trigger_script(srv, trigger, level, x, z);
 
     if( !script )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
     return run_trigger_script(srv, script, -1, -1, -1);
 }
 
 int
-mock230_scripts_queue_trigger_at(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsQueueTriggerAt(
+    struct ToriRSServer* srv,
     int trigger,
     int level,
     int x,
     int z)
 {
     const struct SSVM_Script* script = zone_trigger_script(srv, trigger, level, x, z);
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
 
     if( !script )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     player = srv->active_player;
-    for( int i = 0; i < MOCK230_ENGINE_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_ENGINE_QUEUE_MAX; i++ )
     {
         if( player->engine_queue[i].active )
             continue;
@@ -2906,30 +2906,30 @@ mock230_scripts_queue_trigger_at(
         player->engine_queue[i].delay = 0;
         player->engine_queue[i].args[0] = 0;
         player->engine_queue[i].argc = 0;
-        player->engine_queue[i].kind = MOCK230_QUEUE_ENGINE;
+        player->engine_queue[i].kind = TORIRSSERVER_QUEUE_ENGINE;
         player->engine_queue[i].logout_action = 0;
-        return MOCK230_TRIGGER_RAN;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     /* Same argument as `queue_hook`'s: the reference's list has no cap, so an
      * overflow is this engine's own and content cannot see it coming. */
-    fprintf(stderr, "mock230: %s dropped — the engine queue is full (%d)\n", script->name,
-            MOCK230_ENGINE_QUEUE_MAX);
-    return MOCK230_TRIGGER_NONE;
+    fprintf(stderr, "torirsserver: %s dropped — the engine queue is full (%d)\n", script->name,
+            TORIRSSERVER_ENGINE_QUEUE_MAX);
+    return TORIRSSERVER_TRIGGER_NONE;
 }
 
 void
-mock230_scripts_process_engine_queue(struct Mock230Server* srv)
+ToriRSServer_ScriptsProcessEngineQueue(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player;
+    struct ToriRSServerPlayer* player;
 
     if( !srv->scripts_ok )
         return;
 
     player = srv->active_player;
-    for( int i = 0; i < MOCK230_ENGINE_QUEUE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_ENGINE_QUEUE_MAX; i++ )
     {
-        struct Mock230Queued* entry = &player->engine_queue[i];
+        struct ToriRSServerQueued* entry = &player->engine_queue[i];
         int script_id;
         int due;
 
@@ -2990,7 +2990,7 @@ struct OpHeldUPair
  */
 static void
 opheldu_orient(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     const struct OpHeldUPair* pair,
     int bound_to_use_obj)
 {
@@ -3026,14 +3026,14 @@ static const char* const k_opheldu_rung_name[4] = {
 };
 
 int
-mock230_scripts_run_opheldu(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunOpheldu(
+    struct ToriRSServer* srv,
     int obj_type,
     int obj_category,
     int use_obj_type,
     int use_obj_category)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     struct OpHeldUPair pair;
     int any_declined = 0;
 
@@ -3062,7 +3062,7 @@ mock230_scripts_run_opheldu(
     };
 
     if( !srv->scripts_ok )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     srv->dispatch_declined = 0;
 
@@ -3090,7 +3090,7 @@ mock230_scripts_run_opheldu(
         if( !script )
         {
             if( srv->verbose )
-                fprintf(stderr, "mock230:   opheldu rung %d (%s) — nothing bound\n", i + 1,
+                fprintf(stderr, "torirsserver:   opheldu rung %d (%s) — nothing bound\n", i + 1,
                         k_opheldu_rung_name[i]);
             continue;
         }
@@ -3098,11 +3098,11 @@ mock230_scripts_run_opheldu(
         opheldu_orient(player, &pair, rungs[i].bound_to_use_obj);
         result = run_rung(srv, script, -1, -1, -1, &declined);
         if( srv->verbose )
-            fprintf(stderr, "mock230:   opheldu rung %d (%s) -> %s %s\n", i + 1,
+            fprintf(stderr, "torirsserver:   opheldu rung %d (%s) -> %s %s\n", i + 1,
                     k_opheldu_rung_name[i], script->name ? script->name : "?",
-                    result != MOCK230_TRIGGER_RAN ? "FAILED"
+                    result != TORIRSSERVER_TRIGGER_RAN ? "FAILED"
                                                   : declined ? "declined" : "handled it");
-        if( result != MOCK230_TRIGGER_RAN || !declined )
+        if( result != TORIRSSERVER_TRIGGER_RAN || !declined )
             return result;
         any_declined = 1;
     }
@@ -3118,7 +3118,7 @@ mock230_scripts_run_opheldu(
     if( any_declined )
     {
         srv->dispatch_declined = 1;
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
     }
 
     if( srv->verbose )
@@ -3127,10 +3127,10 @@ mock230_scripts_run_opheldu(
 
         /* The *clicked* item names the miss, which is what the reference prints
          * (`No trigger for [opheldu,${objType.debugname}]`). */
-        fprintf(stderr, "mock230: no trigger for %s\n",
+        fprintf(stderr, "torirsserver: no trigger for %s\n",
                 trigger_label(SS_TRIGGER_OPHELDU, obj_type, label, sizeof(label)));
     }
-    return MOCK230_TRIGGER_NONE;
+    return TORIRSSERVER_TRIGGER_NONE;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3152,7 +3152,7 @@ mock230_scripts_run_opheldu(
  * `value` is the opcode's number from `ss_opcode.h`, or **-1 for an opcode
  * nothing has even declared yet** — which is a real state here: `LAST_VERB` is
  * a reader two rows are blocked on and there is no `SS_OP_LAST_VERB` at all.
- * `MOCK230_BLOCKER_*` below turns the declaration itself into the switch, so
+ * `TORIRSSERVER_BLOCKER_*` below turns the declaration itself into the switch, so
  * declaring the opcode is enough to put it under the check. Every other row
  * uses `BLOCKING_OP(sym)`, which stringifies the same token it evaluates: the
  * printed name and the checked value cannot be edited apart.
@@ -3172,15 +3172,15 @@ struct FallbackBlockingOp
 };
 
 /* Nothing declares a `last_verb` reader. The engine latches the verb
- * (`mock230_world.c`, `player->last_verb = op_num`) and content cannot read it,
+ * (`torirs_server_world.c`, `player->last_verb = op_num`) and content cannot read it,
  * which is the shared blocker under `inv_button` and `if_button`. Written as an
  * #ifdef rather than a -1 literal so that declaring the opcode automatically
  * hands it to the staleness check — and under a private name so that a stray
  * `case SS_OP_LAST_VERB:` can never pick up a placeholder. */
 #ifdef SS_OP_LAST_VERB
-#define MOCK230_BLOCKER_LAST_VERB SS_OP_LAST_VERB
+#define TORIRSSERVER_BLOCKER_LAST_VERB SS_OP_LAST_VERB
 #else
-#define MOCK230_BLOCKER_LAST_VERB (-1)
+#define TORIRSSERVER_BLOCKER_LAST_VERB (-1)
 #endif
 
 /* Stringify the symbol rather than repeating it, so the printed name and the
@@ -3196,7 +3196,7 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
  * all three landed 2026-08-02 and the list emptied in the same commit, because
  * `fallback_stale_blockers` is fatal in the selftest and a row cannot outlive
  * its cited opcodes quietly. The row itself outlived them by a day — see
- * `enum Mock230Fallback` in mock230.h for what the last blocker actually was —
+ * `enum ToriRSServerFallback` in torirs_server.h for what the last blocker actually was —
  * and went the same day the content that answers it landed. */
 
 /*
@@ -3204,7 +3204,7 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
  * worth keeping as the worked example of the order §2.5 asks for.
  *
  * Stage one widened the surface: it cited OBJ_COORD, OBJ_COUNT, OBJ_DEL,
- * OBJ_FIND, OBJ_TAKEITEM and OBJ_TYPE; five landed in mock230_ops_obj.c and
+ * OBJ_FIND, OBJ_TAKEITEM and OBJ_TYPE; five landed in torirs_server_ops_obj.c and
  * OBJ_FIND came *off the list* rather than being implemented, because
  * `[opobj3,_]` does not call it — the dispatch supplies the active obj. The row
  * then stood with an empty `blocked_ops` and a text saying so.
@@ -3218,12 +3218,12 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
  */
 
 /*
- * `k_blocked_opheld` is gone with MOCK230_FALLBACK_OPHELD, 2026-08-02, and the
+ * `k_blocked_opheld` is gone with TORIRSSERVER_FALLBACK_OPHELD, 2026-08-02, and the
  * account of what it cited is worth keeping because only five of its seven
  * opcodes were ever true.
  *
  * Landed the stage before the row went: OC_WEARPOS / OC_WEARPOS2 / OC_WEARPOS3
- * (mock230_ops_obj.c) and INV_MOVEFROMSLOT / INV_DROPSLOT (mock230_ops_inv.c).
+ * (torirs_server_ops_obj.c) and INV_MOVEFROMSLOT / INV_DROPSLOT (torirs_server_ops_inv.c).
  * `inv_moveitem` moved into that file at the same time and grew the generic
  * container-to-container arm every equip and unequip path needs — it had been
  * three bank arms and a printf, and `gen_opcode_coverage.py` reported the
@@ -3234,12 +3234,12 @@ static const struct FallbackBlockingOp k_blocked_opnpc[] = {
  * the reference is to *select* the container the encoder reads — so accepting
  * the argument and raising the mask would be plausible, wrong and quiet
  * (§3.13d); and P_CLEARPENDINGACTION (2070), misfiled, because
- * `mock230_world_clear_pending_action` was never called from `handle_opheld` at
+ * `ToriRSServer_WorldClearPendingAction` was never called from `handle_opheld` at
  * all. Both are still true and neither is implemented.
  *
  * And what actually blocked the row was none of those. It was that **the level
  * requirement had no script-readable form**: dispatch is content-first, so
- * binding `[opheld2,_]` stopped `mock230_equipment_may_wear` running and took
+ * binding `[opheld2,_]` stopped `ToriRSServer_EquipmentMayWear` running and took
  * the gate with it. That is a data-relocation job, and the stage that did it
  * found the thing every prose account of the data had wrong — the requirement
  * is a MERGE, `.obj` overlay plus the cache's own skillrequire/levelrequire
@@ -3280,33 +3280,33 @@ static const struct
     const char* blocked_on;
     /** The opcodes `blocked_on` names, NULL-terminated. Never NULL itself. */
     const struct FallbackBlockingOp* blocked_ops;
-} k_engine_fallbacks[MOCK230_FALLBACK_COUNT] = {
-    [MOCK230_FALLBACK_OPNPC] =
+} k_engine_fallbacks[TORIRSSERVER_FALLBACK_COUNT] = {
+    [TORIRSSERVER_FALLBACK_OPNPC] =
         { "opnpc",
           "NOT an opcode — this is the one row with an empty blocked_ops, and the only "
-          "one whose blocker is a volume of C. mock230_combat.c is 1,061 lines "
+          "one whose blocker is a volume of C. torirs_server_combat.c is 1,061 lines "
           "(`wc -l`) and stays engine; the row itself is interaction_engine_npc, "
-          "mock230_world.c:2333-2364, whose greeting half is ALREADY content "
+          "torirs_server_world.c:2333-2364, whose greeting half is ALREADY content "
           "([proc,npc_default_chat], player/messages.rs2:137) — so what is left in C is "
           "a strcmp against the cache's own Attack verb and the FACE_ENTITY latch "
           "before the proc, and nothing else. [opnpc2,_] now owns Attack for op 2 "
           "and p_opnpc re-dispatches through the interaction path for all ops. "
           "Blocked on the remaining combat_engage callers moving to content",
           k_blocked_opnpc },
-    [MOCK230_FALLBACK_INV_BUTTON] =
+    [TORIRSSERVER_FALLBACK_INV_BUTTON] =
         { "inv_button",
           "Bank item ops no longer arrive as INV_BUTTON — the client emits "
           "IF_BUTTON1..10 for IF_SETEVENTS-armed component rows, and content binds "
           "[if_button1..8,bankmain:items] / [if_button2..8,bankside:items] "
           "(interface_bank/scripts/bank.rs2, bank_deposit.rs2). This row remains for "
           "any other unbound INV_BUTTON surface (worn tab, shops). The C bank "
-          "quantity ladder is deleted; mock230_bank_handle_button is a no-op stub",
+          "quantity ladder is deleted; ToriRSServer_BankHandleButton is a no-op stub",
           k_blocked_inv_button },
-    [MOCK230_FALLBACK_IF_BUTTON] =
+    [TORIRSSERVER_FALLBACK_IF_BUTTON] =
         { "if_button",
           "Bank settings and item ops are content on the armed components "
           "(bankmain:{swap_insert,note,quantity*,depositinv,depositworn,items}). "
-          "mock230_bank_handle_button is a no-op stub. This row remains for other "
+          "ToriRSServer_BankHandleButton is a no-op stub. This row remains for other "
           "unbound IF_BUTTON clicks outside the bank. No last_verb opcode — numbered "
           "[if_buttonN] encodes the op index (skill_guide pattern)",
           k_blocked_if_button },
@@ -3333,7 +3333,7 @@ fallback_stale_blockers(void)
 {
     int stale = 0;
 
-    for( int i = 0; i < MOCK230_FALLBACK_COUNT; i++ )
+    for( int i = 0; i < TORIRSSERVER_FALLBACK_COUNT; i++ )
     {
         const struct FallbackBlockingOp* op = k_engine_fallbacks[i].blocked_ops;
 
@@ -3344,10 +3344,10 @@ fallback_stale_blockers(void)
             if( op->value < 0 || !opcode_implemented(op->value) )
                 continue;
             fprintf(stderr,
-                    "mock230: STALE BLOCKER — the `%s` engine fallback says it is waiting "
+                    "torirsserver: STALE BLOCKER — the `%s` engine fallback says it is waiting "
                     "on %s (%d), and %s is implemented now. Either the row can go or its "
                     "reason has to be rewritten to what is still true "
-                    "(k_engine_fallbacks[], mock230_scripts.c).\n",
+                    "(k_engine_fallbacks[], torirs_server_scripts.c).\n",
                     k_engine_fallbacks[i].name, op->name, op->value, op->name);
             stale++;
         }
@@ -3356,31 +3356,31 @@ fallback_stale_blockers(void)
 }
 
 int
-mock230_scripts_stale_blockers(void)
+ToriRSServer_ScriptsStaleBlockers(void)
 {
     return fallback_stale_blockers();
 }
 
 int
-mock230_scripts_report_fallbacks(struct Mock230Server* srv)
+ToriRSServer_ScriptsReportFallbacks(struct ToriRSServer* srv)
 {
-    /* One line by default and the roll under MOCK230_VERBOSE: the count is what
+    /* One line by default and the roll under TORIRSSERVER_VERBOSE: the count is what
      * anyone reading a boot log needs (it should be going down), the reasons are
      * what somebody working on one needs. Both matter; only one of them belongs
      * in a log that also prints twenty times during the selftest. */
-    fprintf(stderr, "mock230: %d engine fallback(s) still answer triggers content does not bind\n",
-            MOCK230_FALLBACK_COUNT);
+    fprintf(stderr, "torirsserver: %d engine fallback(s) still answer triggers content does not bind\n",
+            TORIRSSERVER_FALLBACK_COUNT);
     /* Not behind `verbose`: this one is an error report, and the reader who
      * needs it is the person who just implemented the opcode — who has no
-     * reason to be running with MOCK230_VERBOSE and every reason to be told. */
+     * reason to be running with TORIRSSERVER_VERBOSE and every reason to be told. */
     fallback_stale_blockers();
     if( srv->verbose )
     {
-        for( int i = 0; i < MOCK230_FALLBACK_COUNT; i++ )
+        for( int i = 0; i < TORIRSSERVER_FALLBACK_COUNT; i++ )
             fprintf(stderr, "  %-12s blocked on: %s\n", k_engine_fallbacks[i].name,
                     k_engine_fallbacks[i].blocked_on);
     }
-    return MOCK230_FALLBACK_COUNT;
+    return TORIRSSERVER_FALLBACK_COUNT;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3402,11 +3402,11 @@ discharging_opcode(int trigger)
         return SS_OP_P_OPNPC;
     /* `[oploc<n>] -> SS_OP_P_OPLOC` was here and is unreachable now rather than
      * merely unused: with `interaction_engine_loc` deleted the engine claims no
-     * loc verb, so `mock230_world_engine_claimed_verb` never returns one for a
+     * loc verb, so `ToriRSServer_WorldEngineClaimedVerb` never returns one for a
      * loc and the report never asks what would discharge it. Leaving it would be
      * advice to write `[oploc1,_] p_oploc(1)`, which is an infinite recursion —
      * `p_oploc` re-issues the op and the op is this trigger. `P_OPLOC` itself
-     * stays implemented (mock230_ops_player.c); it is what a script that means
+     * stays implemented (torirs_server_ops_player.c); it is what a script that means
      * to *resume* an op calls, which is all 43 of the reference's callers. */
     if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 )
         return SS_OP_P_OPHELD;
@@ -3442,7 +3442,7 @@ script_calls(
  * `[oploc1]` triggers, and `levelrequire/` alone binds 304 `[opheld2]`, which
  * is the verb the engine equips on.
  *
- * At **load**, not at call time, for the reason `mock230_scripts_report_gaps`
+ * At **load**, not at call time, for the reason `ToriRSServer_ScriptsReportGaps`
  * gives: a script behind a quest step may never be triggered by anyone, and a
  * swallowed verb that nobody clicks this session is still a swallowed verb.
  *
@@ -3460,7 +3460,7 @@ script_calls(
  * can make. The second legitimate way to discharge the obligation is to do the
  * engine's job yourself, and nothing static tells that apart from doing
  * something else. So this prints a list and never fails a load. It is the same
- * posture as `mock230_pack`'s foreign-area spawn-prefix warning (triage §10.2):
+ * posture as `ToriRSServer_Pack`'s foreign-area spawn-prefix warning (triage §10.2):
  * a prompt to go and look, not a verdict.
  *
  * **The list is empty as of 2026-08-02, and getting it there was an eviction
@@ -3476,7 +3476,7 @@ script_calls(
  * Returns the number of scripts that shadow a verb without re-issuing it.
  */
 int
-mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
+ToriRSServer_ScriptsReportShadowedOps(struct ToriRSServer* srv)
 {
     int shadowed = 0;
 
@@ -3501,7 +3501,7 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
             continue;
 
         trigger = SSVM_LookupKeyTrigger(script->lookup_key);
-        verb = mock230_world_engine_claimed_verb(trigger, script->lookup_key >> 10);
+        verb = ToriRSServer_WorldEngineClaimedVerb(trigger, script->lookup_key >> 10);
         if( !verb )
             continue;
 
@@ -3532,7 +3532,7 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
 
         if( shadowed == 0 )
             fprintf(stderr,
-                    "mock230: content binds a trigger over a verb the engine answers itself:\n");
+                    "torirsserver: content binds a trigger over a verb the engine answers itself:\n");
         fprintf(stderr, "  %-34s takes \"%s\" without re-issuing it (%s)\n",
                 script->name ? script->name : "?", verb,
                 discharge >= 0 ? SSVM_OpcodeName(discharge) : "?");
@@ -3541,7 +3541,7 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
 
     if( shadowed )
         fprintf(stderr,
-                "mock230: %d script(s) shadow an engine verb — check each does the engine's "
+                "torirsserver: %d script(s) shadow an engine verb — check each does the engine's "
                 "job or means not to; this is a review list, not an error\n",
                 shadowed);
     return shadowed;
@@ -3577,7 +3577,7 @@ mock230_scripts_report_shadowed_ops(struct Mock230Server* srv)
  * Returns the number of mismatches.
  */
 int
-mock230_scripts_report_script_id_args(struct Mock230Server* srv)
+ToriRSServer_ScriptsReportScriptIdArgs(struct ToriRSServer* srv)
 {
     static const struct
     {
@@ -3667,7 +3667,7 @@ mock230_scripts_report_script_id_args(struct Mock230Server* srv)
             if( !target )
             {
                 fprintf(stderr,
-                        "mock230: %s passes %d to %s — no script has that id\n",
+                        "torirsserver: %s passes %d to %s — no script has that id\n",
                         script->name ? script->name : "?", script->int_operands[at],
                         SSVM_OpcodeName((int)script->opcodes[op]));
                 bad++;
@@ -3676,7 +3676,7 @@ mock230_scripts_report_script_id_args(struct Mock230Server* srv)
             if( script_kind_matches(target, want) )
                 continue;
             fprintf(stderr,
-                    "mock230: %s passes %s to %s — that argument names a %s script\n",
+                    "torirsserver: %s passes %s to %s — that argument names a %s script\n",
                     script->name ? script->name : "?",
                     target->name ? target->name : "?",
                     SSVM_OpcodeName((int)script->opcodes[op]), want);
@@ -3686,37 +3686,37 @@ mock230_scripts_report_script_id_args(struct Mock230Server* srv)
 
     if( bad )
         fprintf(stderr,
-                "mock230: %d script-id argument(s) point at the wrong kind of script — a "
+                "torirsserver: %d script-id argument(s) point at the wrong kind of script — a "
                 "name that resolved to a content id, not a script (docs/serverscript.md, "
                 "\"a queue/timer argument names a script\")\n",
                 bad);
     if( srv->verbose )
-        fprintf(stderr, "mock230: %d script-id argument(s) checked, %d not constant\n",
+        fprintf(stderr, "torirsserver: %d script-id argument(s) checked, %d not constant\n",
                 checked, skipped);
     return bad;
 }
 
 int
-mock230_scripts_fallback(
-    struct Mock230Server* srv,
-    enum Mock230Fallback which,
+ToriRSServer_ScriptsFallback(
+    struct ToriRSServer* srv,
+    enum ToriRSServerFallback which,
     int result)
 {
     const char* name;
 
-    if( which < 0 || which >= MOCK230_FALLBACK_COUNT )
+    if( which < 0 || which >= TORIRSSERVER_FALLBACK_COUNT )
         return 0;
     name = k_engine_fallbacks[which].name;
 
-    if( result != MOCK230_TRIGGER_NONE )
+    if( result != TORIRSSERVER_TRIGGER_NONE )
     {
         /* RAN needs no word — content did its job. FAILED does: the click is
          * about to do nothing at all, and the reason is a script that aborted
          * several lines above this in the log. Saying so is what stops that
          * being read as an engine bug. */
-        if( result == MOCK230_TRIGGER_FAILED )
+        if( result == TORIRSSERVER_TRIGGER_FAILED )
             fprintf(stderr,
-                    "mock230: a bound script failed; the `%s` engine fallback is NOT "
+                    "torirsserver: a bound script failed; the `%s` engine fallback is NOT "
                     "running in its place\n",
                     name);
         return 0;
@@ -3725,7 +3725,7 @@ mock230_scripts_fallback(
     if( !srv->scripts_ok )
     {
         if( srv->verbose )
-            fprintf(stderr, "mock230: no script pack — `%s` does nothing\n", name);
+            fprintf(stderr, "torirsserver: no script pack — `%s` does nothing\n", name);
         return 0;
     }
 
@@ -3742,7 +3742,7 @@ mock230_scripts_fallback(
     {
         srv->dispatch_declined = 0;
         if( srv->verbose )
-            fprintf(stderr, "mock230: content declined; the `%s` engine fallback is NOT "
+            fprintf(stderr, "torirsserver: content declined; the `%s` engine fallback is NOT "
                             "running in its place\n",
                     name);
         return 0;
@@ -3754,8 +3754,8 @@ mock230_scripts_fallback(
      * prints them once. Repeating one of them per click buries the packet log
      * it is supposed to sit beside. */
     if( srv->verbose )
-        fprintf(stderr, "mock230: engine fallback `%s` ran (why it is still C: the boot "
-                        "roll, MOCK230_VERBOSE)\n",
+        fprintf(stderr, "torirsserver: engine fallback `%s` ran (why it is still C: the boot "
+                        "roll, TORIRSSERVER_VERBOSE)\n",
                 name);
     return 1;
 }
@@ -3789,7 +3789,7 @@ mock230_scripts_fallback(
 static int
 debugproc_arg_type(
     uint8_t type,
-    enum Mock230PackKind* out_kind)
+    enum ToriRSServerPackKind* out_kind)
 {
     /* ScriptVarType.getTypeChar, the same codes ssc_symbols.c compiles with. */
     switch( type )
@@ -3801,38 +3801,38 @@ debugproc_arg_type(
         return 1;
     case 111: /* obj */
     case 79:  /* namedobj */
-        *out_kind = MOCK230_PACK_OBJ;
+        *out_kind = TORIRSSERVER_PACK_OBJ;
         return 2;
     case 110: /* npc */
-        *out_kind = MOCK230_PACK_NPC;
+        *out_kind = TORIRSSERVER_PACK_NPC;
         return 2;
     case 108: /* loc */
-        *out_kind = MOCK230_PACK_LOC;
+        *out_kind = TORIRSSERVER_PACK_LOC;
         return 2;
     case 73: /* component */
-        *out_kind = MOCK230_PACK_COMPONENT;
+        *out_kind = TORIRSSERVER_PACK_COMPONENT;
         return 2;
     case 97: /* interface */
-        *out_kind = MOCK230_PACK_INTERFACE;
+        *out_kind = TORIRSSERVER_PACK_INTERFACE;
         return 2;
     case 118: /* inv */
-        *out_kind = MOCK230_PACK_INV;
+        *out_kind = TORIRSSERVER_PACK_INV;
         return 2;
     case 65: /* seq */
-        *out_kind = MOCK230_PACK_SEQ;
+        *out_kind = TORIRSSERVER_PACK_SEQ;
         return 2;
     case 116: /* spotanim */
-        *out_kind = MOCK230_PACK_SPOTANIM;
+        *out_kind = TORIRSSERVER_PACK_SPOTANIM;
         return 2;
     case 83: /* stat */
-        *out_kind = MOCK230_PACK_STAT;
+        *out_kind = TORIRSSERVER_PACK_STAT;
         return 2;
     case 208: /* dbrow */
         /* Not one the reference resolves — its cheats predate the db tables.
          * It is here because a row name is the only printable handle a db row
          * has: `::complete quest_cooksassistant` against a table whose ids are
          * the cache's, which no cheat could be expected to type. */
-        *out_kind = MOCK230_PACK_DBROW;
+        *out_kind = TORIRSSERVER_PACK_DBROW;
         return 2;
     case 99: /* coord */
         return 3;
@@ -3842,8 +3842,8 @@ debugproc_arg_type(
 }
 
 int
-mock230_scripts_run_debugproc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunDebugproc(
+    struct ToriRSServer* srv,
     const char* line)
 {
     const struct SSVM_Script* script;
@@ -3864,16 +3864,16 @@ mock230_scripts_run_debugproc(
         command[length++] = *cursor++;
     command[length] = '\0';
     if( length == 0 )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     snprintf(name, sizeof(name), "[debugproc,%s]", command);
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
-        return MOCK230_TRIGGER_NONE;
+        return TORIRSSERVER_TRIGGER_NONE;
 
     for( int i = 0; i < script->param_type_count && i < SS_MAX_PARAM_TYPES; i++ )
     {
-        enum Mock230PackKind kind = MOCK230_PACK_COUNT;
+        enum ToriRSServerPackKind kind = TORIRSSERVER_PACK_COUNT;
         int form = debugproc_arg_type(script->param_types[i], &kind);
         char* word = words[i];
         int taken = 0;
@@ -3887,7 +3887,7 @@ mock230_scripts_run_debugproc(
         if( form == 1 )
             strv[strc++] = word;
         else if( form == 2 )
-            argv[argc++] = taken ? mock230_content_symbol(kind, word) : -1;
+            argv[argc++] = taken ? ToriRSServer_ContentSymbol(kind, word) : -1;
         else if( form == 3 )
         {
             /* `level_mx_mz_lx_lz`, the coord literal's own spelling — the
@@ -3897,7 +3897,7 @@ mock230_scripts_run_debugproc(
              * hardcoding one in the script. */
             int lvl = 0, mx = 0, mz = 0, lx = 0, lz = 0;
             if( taken && sscanf(word, "%d_%d_%d_%d_%d", &lvl, &mx, &mz, &lx, &lz) == 5 )
-                argv[argc++] = mock230_coord_pack(lvl, mx * 64 + lx, mz * 64 + lz);
+                argv[argc++] = ToriRSServer_CoordPack(lvl, mx * 64 + lx, mz * 64 + lz);
             else
                 argv[argc++] = -1;
         }
@@ -3906,10 +3906,10 @@ mock230_scripts_run_debugproc(
     }
 
     if( srv->verbose )
-        fprintf(stderr, "mock230: %s with %d int and %d string args\n", name, argc, strc);
-    return mock230_scripts_run_hook_sv(srv, script, argv, argc, strv, strc)
-               ? MOCK230_TRIGGER_RAN
-               : MOCK230_TRIGGER_FAILED;
+        fprintf(stderr, "torirsserver: %s with %d int and %d string args\n", name, argc, strc);
+    return ToriRSServer_ScriptsRunHookSv(srv, script, argv, argc, strv, strc)
+               ? TORIRSSERVER_TRIGGER_RAN
+               : TORIRSSERVER_TRIGGER_FAILED;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3924,12 +3924,12 @@ mock230_scripts_run_debugproc(
  * and by the time it resumes somebody else may have taken the loc. The callers
  * abort on NULL rather than acting on whatever is in the slot now.
  */
-static struct Mock230SceneLoc*
+static struct ToriRSServerSceneLoc*
 script_active_loc(struct SSVM_State* state)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
-    return mock230_script_loc_resolve(srv, SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+    return ToriRSServer_ScriptLocResolve(srv, SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
 }
 
 /*
@@ -3940,7 +3940,7 @@ script_active_loc(struct SSVM_State* state)
  * puro-puro's crop circle rotates through eight farms and at most one is ever
  * near a player. Out there the ZoneMap record *is* the loc, so the handle has
  * to carry the record's key, `(x, z, level, shape)`. It cannot carry the
- * record's index: `mock230_zone_loc_changed` retires records by swap-remove,
+ * record's index: `ToriRSServer_ZoneLocChanged` retires records by swap-remove,
  * so an index held across a suspend could come back naming a different loc,
  * where a re-looked-up key either finds the same record or finds none — the
  * same staleness contract the scene-slot convention already keeps.
@@ -3965,7 +3965,7 @@ static struct ScriptZoneLocKey g_script_zone_loc_keys[SCRIPT_ZONE_LOC_HANDLE_MAX
 static int g_script_zone_loc_next;
 
 void*
-mock230_script_zone_loc_handle(
+ToriRSServer_ScriptZoneLocHandle(
     int x,
     int z,
     int level,
@@ -3991,16 +3991,16 @@ mock230_script_zone_loc_handle(
     return (void*)(intptr_t) - (idx + 1);
 }
 
-struct Mock230SceneLoc*
-mock230_script_loc_resolve(
-    struct Mock230Server* srv,
+struct ToriRSServerSceneLoc*
+ToriRSServer_ScriptLocResolve(
+    struct ToriRSServer* srv,
     void* handle_ptr)
 {
     intptr_t handle = (intptr_t)handle_ptr;
 
     if( handle > 0 )
     {
-        struct Mock230SceneLoc* loc = mock230_scene_loc((int)handle - 1);
+        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc((int)handle - 1);
 
         if( !loc || !loc->active )
             return NULL;
@@ -4013,9 +4013,9 @@ mock230_script_loc_resolve(
          * before doing anything that could resolve again. Mutations do not go
          * through this pointer anyway — `loc_del`/`loc_change`/`loc_anim` all
          * re-key on the coordinates. */
-        static struct Mock230SceneLoc view;
+        static struct ToriRSServerSceneLoc view;
         struct ScriptZoneLocKey* key;
-        struct Mock230ZoneLoc* rec;
+        struct ToriRSServerZoneLoc* rec;
         int idx = (int)(-handle) - 1;
         int width;
         int length;
@@ -4025,7 +4025,7 @@ mock230_script_loc_resolve(
         key = &g_script_zone_loc_keys[idx];
         if( !key->used || !srv )
             return NULL;
-        rec = mock230_zone_loc_find(srv, key->x, key->z, key->level, key->shape);
+        rec = ToriRSServer_ZoneLocFind(srv, key->x, key->z, key->level, key->shape);
         if( !rec || rec->loc_id < 0 )
             return NULL;
         memset(&view, 0, sizeof(view));
@@ -4035,7 +4035,7 @@ mock230_script_loc_resolve(
         view.x = key->x;
         view.z = key->z;
         view.level = key->level;
-        mock230_loc_footprint(view.loc_id, &width, &length);
+        ToriRSServer_LocFootprint(view.loc_id, &width, &length);
         if( (view.angle & 1) != 0 )
         {
             view.size_x = length;
@@ -4082,11 +4082,11 @@ mock230_script_loc_resolve(
 static int
 active_npc_slot(struct SSVM_State* state)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
     if( state->dot )
     {
-        const struct Mock230Npc* npc = SSVM_ActiveSlot(state, SSVM_ENT_NPC, SSVM_SECONDARY);
+        const struct ToriRSServerNpc* npc = SSVM_ActiveSlot(state, SSVM_ENT_NPC, SSVM_SECONDARY);
 
         if( !npc )
             return -1;
@@ -4095,13 +4095,13 @@ active_npc_slot(struct SSVM_State* state)
     return (int)state->host_tag - 1;
 }
 
-static struct Mock230Npc*
+static struct ToriRSServerNpc*
 active_npc(struct SSVM_State* state)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
     int slot = active_npc_slot(state);
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return NULL;
     if( !srv->npcs[slot].active )
         return NULL;
@@ -4114,12 +4114,12 @@ active_npc(struct SSVM_State* state)
  * is no generation word in the script value.  The active bit is therefore the
  * lifetime check every consumer must repeat after a suspended script resumes.
  */
-static struct Mock230Player*
-player_by_uid(struct Mock230Server* srv, int32_t uid)
+static struct ToriRSServerPlayer*
+player_by_uid(struct ToriRSServer* srv, int32_t uid)
 {
     int pid = (int)uid - 1;
 
-    if( pid < 0 || pid >= MOCK230_PLAYER_MAX )
+    if( pid < 0 || pid >= TORIRSSERVER_PLAYER_MAX )
         return NULL;
     if( !srv->players[pid].active || srv->players[pid].pid != pid )
         return NULL;
@@ -4127,18 +4127,18 @@ player_by_uid(struct Mock230Server* srv, int32_t uid)
 }
 
 /** The online player on this world whose canonical base-37 name matches. */
-static struct Mock230Player*
+static struct ToriRSServerPlayer*
 player_by_display_name(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     const char* display_name)
 {
     int64_t wanted = (int64_t)strtobase37(display_name ? display_name : "");
 
     if( wanted == 0 )
         return NULL;
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
-        struct Mock230Player* candidate = &srv->players[i];
+        struct ToriRSServerPlayer* candidate = &srv->players[i];
 
         if( candidate->active && candidate->name37 == wanted )
             return candidate;
@@ -4158,11 +4158,11 @@ player_by_display_name(
  */
 static int
 godmode_blocks_stat_write(
-    struct Mock230Player const* player,
+    struct ToriRSServerPlayer const* player,
     int stat,
     int target)
 {
-    return player->godmode && stat == MOCK230_STAT_HITPOINTS &&
+    return player->godmode && stat == TORIRSSERVER_STAT_HITPOINTS &&
            target < player->stat_boosted[stat];
 }
 
@@ -4178,22 +4178,22 @@ godmode_blocks_stat_write(
  */
 static int
 npc_base_stat(
-    const struct Mock230Npc* npc,
+    const struct ToriRSServerNpc* npc,
     int stat)
 {
     assert(npc && npc->def);
 
     switch( stat )
     {
-    case MOCK230_STAT_ATTACK:
+    case TORIRSSERVER_STAT_ATTACK:
         return npc->def->attack;
-    case MOCK230_STAT_STRENGTH:
+    case TORIRSSERVER_STAT_STRENGTH:
         return npc->def->strength;
-    case MOCK230_STAT_DEFENCE:
+    case TORIRSSERVER_STAT_DEFENCE:
         return npc->def->defence;
-    case MOCK230_STAT_RANGED:
+    case TORIRSSERVER_STAT_RANGED:
         return npc->def->ranged;
-    case MOCK230_STAT_MAGIC:
+    case TORIRSSERVER_STAT_MAGIC:
         return npc->def->magic;
     default:
         return 0;
@@ -4207,15 +4207,15 @@ npc_base_stat(
  * pick up.
  */
 static void
-mock230_loot_tracker_add_ground_obj(
-    struct Mock230Server* srv,
-    struct Mock230Player* private_owner,
+ToriRSServer_LootTrackerAddGroundObj(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* private_owner,
     int obj,
     int count)
 {
     enum
     {
-        MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT = 7192
+        TORIRSSERVER_SCRIPT_LOOTTRACKER_ADD_LOOT = 7192
     };
     int args[4];
 
@@ -4227,15 +4227,15 @@ mock230_loot_tracker_add_ground_obj(
     args[1] = srv->loot_credit_event_id;
     args[2] = obj;
     args[3] = count;
-    for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
-        struct Mock230Player* player = &srv->players[i];
+        struct ToriRSServerPlayer* player = &srv->players[i];
         if( !srv->loot_credit_players[i] || !player->active )
             continue;
         if( private_owner && player != private_owner )
             continue;
-        mock230_send_run_clientscript(
-            player, MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
+        ToriRSServer_SendRunClientscript(
+            player, TORIRSSERVER_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
     }
 }
 
@@ -4259,17 +4259,17 @@ mock230_loot_tracker_add_ground_obj(
  */
 static void
 npc_changetype_rehydrate(
-    struct Mock230Npc* npc,
+    struct ToriRSServerNpc* npc,
     int type)
 {
-    const struct Mock230NpcDef* def;
+    const struct ToriRSServerNpcDef* def;
     int damage;
     int base_hitpoints;
 
     assert(npc);
-    def = mock230_content_npc(type);
+    def = ToriRSServer_ContentNpc(type);
     if( !def )
-        def = mock230_content_npc_default();
+        def = ToriRSServer_ContentNpcDefault();
 
     damage = npc->base_hitpoints - npc->hitpoints;
     base_hitpoints = def->hitpoints > 0 ? def->hitpoints : 1;
@@ -4314,13 +4314,13 @@ npc_changetype_rehydrate(
      * taken and leave the old one reserved forever.
      */
     {
-        const struct Mock230NpcInfo* info = mock230_npcinfo_record(type);
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(type);
         int size = (info && info->size > 0) ? info->size : 1;
         if( size != npc->size )
         {
-            mock230_world_npc_occupancy(npc, 0);
+            ToriRSServer_WorldNpcOccupancy(npc, 0);
             npc->size = size;
-            mock230_world_npc_occupancy(npc, 1);
+            ToriRSServer_WorldNpcOccupancy(npc, 1);
         }
 
         /*
@@ -4330,8 +4330,8 @@ npc_changetype_rehydrate(
          * still holding the SPAWN type's value is a server that disagrees with
          * the only copy that draws anything.
          *
-         * `turnspeed = 0` is not a rate, it is a veto: `mock230_npc_face_player`,
-         * `mock230_npc_face_npc` and `npc_facesquare` all return early on it, so
+         * `turnspeed = 0` is not a rate, it is a veto: `ToriRSServer_NpcFacePlayer`,
+         * `ToriRSServer_NpcFaceNpc` and `npc_facesquare` all return early on it, so
          * an npc carrying a stale 0 cannot be turned by ANY facing source -
          * silently, because every one of those sites is a no-op rather than an
          * error.
@@ -4345,7 +4345,7 @@ npc_changetype_rehydrate(
          * whole of phase two and three pointing wherever her throne had pointed.
          * From outside that is "Verzik P2 is stuck facing south".
          *
-         * Resolved exactly as the spawn does it (mock230_world.c): a stated
+         * Resolved exactly as the spawn does it (torirs_server_world.c): a stated
          * server overlay wins, an unstated one defers to the cache record.
          */
         npc->turnspeed = def->turnspeed >= 0 ? def->turnspeed
@@ -4356,7 +4356,7 @@ npc_changetype_rehydrate(
 /*
  * The container the *active* player means by `inv_id`.
  *
- * The registry (mock230_container.h) is what actually resolves this, and it
+ * The registry (torirs_server_container.h) is what actually resolves this, and it
  * takes the player as an argument rather than reading `srv->active_player` —
  * because a `scope=shared` container has no player to read. What is left here
  * is the ServerScript adaptor: a `.`-less container op acts on the primary
@@ -4365,28 +4365,28 @@ npc_changetype_rehydrate(
  * lets a targeted special inspect or mutate its validated recipient's
  * containers without replacing the owner used by its common resource commit.
  */
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 container_row(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id)
 {
-    return mock230_container_resolve(srv, player, inv_id);
+    return ToriRSServer_ContainerResolve(srv, player, inv_id);
 }
 
 /** The inventory currently listening on `component`, before stoptransmit drops
  *  that association. Revision 239's stop packet names the inventory rather
  *  than the component, so the host must retain this piece of server state long
  *  enough to transcribe the command faithfully. */
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 container_listener_row(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int32_t component)
 {
     assert(player);
-    for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_CONTAINER_MAX; i++ )
     {
-        struct Mock230Container* row = &player->containers[i];
+        struct ToriRSServerContainer* row = &player->containers[i];
 
         if( !row->used )
             continue;
@@ -4397,14 +4397,14 @@ container_listener_row(
     return NULL;
 }
 
-static struct Mock230Item*
+static struct ToriRSServerItem*
 container_for(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
     int* out_slots)
 {
-    struct Mock230Container* row = container_row(srv, player, inv_id);
+    struct ToriRSServerContainer* row = container_row(srv, player, inv_id);
 
     *out_slots = row ? row->slots : 0;
     return row ? row->items : NULL;
@@ -4416,28 +4416,28 @@ container_for(
  *  UPDATE_INV_PARTIAL's mask can only address 32 of them. */
 static void
 container_dirty(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
     int slot)
 {
-    mock230_container_mark(container_row(srv, player, inv_id), slot);
+    ToriRSServer_ContainerMark(container_row(srv, player, inv_id), slot);
 }
 
-/* `push_typed_param` moved to mock230_ops_param.c as
- * `mock230_push_typed_param` (declared in mock230.h). It was `static` here
+/* `push_typed_param` moved to torirs_server_ops_param.c as
+ * `ToriRSServer_PushTypedParam` (declared in torirs_server.h). It was `static` here
  * and so unreachable from a per-domain ops file, and the family's whole
  * difficulty is that there must be exactly one of it — see its comment. */
 
 int
-mock230_script_command(
+ToriRSServer_ScriptCommand(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player =
-        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct ToriRSServerPlayer* player =
+        (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
 
     /* Most commands are authored against the owner primary. A dotted player
      * command deliberately addresses active_player2, which is how a targeted
@@ -4447,22 +4447,22 @@ mock230_script_command(
         player = srv->active_player;
 
     /* Per-domain handlers first. Each returns 1 when it owns the opcode; see the
-     * note on mock230_ops_db in mock230.h for why the split grows this way. */
-    if( mock230_ops_db(state, opcode, dot) )
+     * note on ToriRSServer_OpsDb in torirs_server.h for why the split grows this way. */
+    if( ToriRSServer_OpsDb(state, opcode, dot) )
         return 1;
-    if( mock230_ops_param(state, opcode, dot) )
+    if( ToriRSServer_OpsParam(state, opcode, dot) )
         return 1;
-    if( mock230_ops_loc(state, opcode, dot) )
+    if( ToriRSServer_OpsLoc(state, opcode, dot) )
         return 1;
-    if( mock230_ops_npc(state, opcode, dot) )
+    if( ToriRSServer_OpsNpc(state, opcode, dot) )
         return 1;
-    if( mock230_ops_obj(state, opcode, dot) )
+    if( ToriRSServer_OpsObj(state, opcode, dot) )
         return 1;
-    if( mock230_ops_inv(state, opcode, dot) )
+    if( ToriRSServer_OpsInv(state, opcode, dot) )
         return 1;
-    if( mock230_ops_player(state, opcode, dot) )
+    if( ToriRSServer_OpsPlayer(state, opcode, dot) )
         return 1;
-    if( mock230_ops_poh(state, opcode, dot) )
+    if( ToriRSServer_OpsPoh(state, opcode, dot) )
         return 1;
 
     switch( opcode )
@@ -4475,7 +4475,7 @@ mock230_script_command(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        mock230_send_message(player, text);
+        ToriRSServer_SendMessage(player, text);
         return 1;
     }
 
@@ -4513,7 +4513,7 @@ mock230_script_command(
             SSVM_Abort(state, "set_player_op: slot %d is not 1..5", values[0]);
             return 1;
         }
-        mock230_send_set_player_op(srv->active_player, values[0], values[1], text);
+        ToriRSServer_SendSetPlayerOp(srv->active_player, values[0], values[1], text);
         return 1;
     }
 
@@ -4523,7 +4523,7 @@ mock230_script_command(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        fprintf(stderr, "mock230: script error: %s\n", text);
+        fprintf(stderr, "torirsserver: script error: %s\n", text);
         return 1;
     }
 
@@ -4532,7 +4532,7 @@ mock230_script_command(
     case SS_OP_NPC_SAY:
     {
         const char* text;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
@@ -4550,13 +4550,13 @@ mock230_script_command(
          * themselves.
          */
         snprintf(npc->say, sizeof(npc->say), "%s", text);
-        npc->masks |= MOCK230_NMASK_SAY;
+        npc->masks |= TORIRSSERVER_NMASK_SAY;
         return 1;
     }
 
     case SS_OP_NPC_COORD:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -4570,7 +4570,7 @@ mock230_script_command(
     case SS_OP_NPC_FACING_COORD:
     {
         int32_t target;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         static const int dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
         static const int dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
         int tx;
@@ -4594,9 +4594,9 @@ mock230_script_command(
 
     case SS_OP_NPC_NAME:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
-        SSVM_PushStr(state, npc ? mock230_npcinfo(npc->type)->name : "");
+        SSVM_PushStr(state, npc ? ToriRSServer_NpcInfo(npc->type)->name : "");
         return 1;
     }
 
@@ -4618,7 +4618,7 @@ mock230_script_command(
 
     case SS_OP_NPC_TYPE:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         SSVM_PushInt(state, npc ? npc->type : -1);
         return 1;
@@ -4668,13 +4668,13 @@ mock230_script_command(
         /* Same-tile destination cancels the route (freeze/stun root). */
         if( x == player->x && z == player->z )
         {
-            mock230_world_steps_clear(player);
+            ToriRSServer_WorldStepsClear(player);
             player->dest_x = -1;
             player->dest_z = -1;
             player->clear_map_flag = 1;
         }
         else
-            mock230_world_walk_to(srv, x, z);
+            ToriRSServer_WorldWalkTo(srv, x, z);
         return 1;
     }
 
@@ -4756,8 +4756,8 @@ mock230_script_command(
                 int dz = player->z - was_z;
                 int first_x = dx < 0 ? -1 : (dx > 0 ? 1 : 0);
                 int first_z = dz < 0 ? -1 : (dz > 0 ? 1 : 0);
-                int first = mock230_step_direction(first_x, first_z);
-                int second = mock230_step_direction(dx - first_x, dz - first_z);
+                int first = ToriRSServer_StepDirection(first_x, first_z);
+                int second = ToriRSServer_StepDirection(dx - first_x, dz - first_z);
 
                 if( first >= 0 )
                 {
@@ -4777,7 +4777,7 @@ mock230_script_command(
              * moving the ladders to content.
              */
             if( player->level != was_level )
-                mock230_world_player_level_changed(player);
+                ToriRSServer_WorldPlayerLevelChanged(player);
         }
         return 1;
     }
@@ -4829,8 +4829,8 @@ mock230_script_command(
 
             for( int attempt = 0; attempt < 64; attempt++ )
             {
-                int dx = mock230_random(srv, -max_range, max_range);
-                int dz = mock230_random(srv, -max_range, max_range);
+                int dx = ToriRSServer_Random(srv, -max_range, max_range);
+                int dz = ToriRSServer_Random(srv, -max_range, max_range);
                 int x = origin_x + dx;
                 int z = origin_z + dz;
                 int adx = dx < 0 ? -dx : dx;
@@ -4838,18 +4838,18 @@ mock230_script_command(
 
                 if( (adx > adz ? adx : adz) < min_range )
                     continue;
-                if( !mock230_scene_contains(x, z) )
+                if( !ToriRSServer_SceneContains(x, z) )
                     continue;
-                if( mock230_scene_walk_blocked(level, x, z) )
+                if( ToriRSServer_SceneWalkBlocked(level, x, z) )
                     continue;
                 /* Reachability last — same order as ServerOps.ts (cheap filters
                  * first). Candidate → origin. */
                 if( mode == 0 /* LINEOFWALK */ &&
-                    !mock230_scene_line_of_walk(level, x, z, origin_x, origin_z, 1, 1, 1,
+                    !ToriRSServer_SceneLineOfWalk(level, x, z, origin_x, origin_z, 1, 1, 1,
                                                 1, 0) )
                     continue;
                 if( mode == 1 /* LINEOFSIGHT */ &&
-                    !mock230_scene_line_of_sight(level, x, z, origin_x, origin_z, 1, 1, 1,
+                    !ToriRSServer_SceneLineOfSight(level, x, z, origin_x, origin_z, 1, 1, 1,
                                                  1, 0) )
                     continue;
                 found = coord_pack(level, x, z);
@@ -4871,7 +4871,7 @@ mock230_script_command(
      */
     case SS_OP_NPC_GETMODE:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -4960,7 +4960,7 @@ mock230_script_command(
     case SS_OP_INV_ADD:
     {
         int32_t values[3];
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
 
         for( int i = 2; i >= 0; i-- )
         {
@@ -4974,7 +4974,7 @@ mock230_script_command(
             return 1;
         }
         /*
-         * `mock230_container_add` is the whole body now — it merges stacks and
+         * `ToriRSServer_ContainerAdd` is the whole body now — it merges stacks and
          * spreads unstackables, which this arm did neither of, and it marks the
          * slots it writes through the registry (the inline version this
          * replaced read "backpack, else worn", so a write to the bank marked a
@@ -4987,8 +4987,8 @@ mock230_script_command(
          * `interaction_engine_obj` gives ("inv_no_space_message"). Noted rather
          * than fixed — the floor-drop belongs with the `opheld` row's work.
          */
-        if( mock230_container_add(row, values[1], values[2], 0) < values[2] )
-            mock230_say(srv, "inv_full_message", NULL);
+        if( ToriRSServer_ContainerAdd(row, values[1], values[2], 0) < values[2] )
+            ToriRSServer_Say(srv, "inv_full_message", NULL);
         return 1;
     }
 
@@ -4996,7 +4996,7 @@ mock230_script_command(
     {
         int32_t values[3];
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
         int remaining;
 
         for( int i = 2; i >= 0; i-- )
@@ -5024,10 +5024,10 @@ mock230_script_command(
             {
                 remaining -= items[i].count;
                 /* Not a raw clear: a shop's baseline slot empties to a count of
-                 * 0 and stays (mock230_container_clear_slot). It marks the slot
+                 * 0 and stays (ToriRSServer_ContainerClearSlot). It marks the slot
                  * itself, so the dirty call below is redundant there and
                  * harmless — the registry's mark is idempotent. */
-                mock230_container_clear_slot(container_row(srv, player, values[0]), i);
+                ToriRSServer_ContainerClearSlot(container_row(srv, player, values[0]), i);
             }
             /*
              * Through the registry. What was here read "backpack, else worn",
@@ -5055,7 +5055,7 @@ mock230_script_command(
     {
         int32_t values[2];
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
 
         for( int i = 1; i >= 0; i-- )
         {
@@ -5071,8 +5071,8 @@ mock230_script_command(
         if( values[1] < 0 || values[1] >= slots )
             return 1;
         /* A shop's baseline slot empties to a count of 0 and stays; see
-         * mock230_container_clear_slot. */
-        mock230_container_clear_slot(container_row(srv, player, values[0]), (int)values[1]);
+         * ToriRSServer_ContainerClearSlot. */
+        ToriRSServer_ContainerClearSlot(container_row(srv, player, values[0]), (int)values[1]);
         /* Through the registry, for the reason inv_del's comment gives. */
         container_dirty(srv, player, values[0], (int)values[1]);
         return 1;
@@ -5082,7 +5082,7 @@ mock230_script_command(
     {
         int32_t values[2];
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
         int total = 0;
 
         for( int i = 1; i >= 0; i-- )
@@ -5109,7 +5109,7 @@ mock230_script_command(
     {
         int32_t values[2];
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
         int total = 0;
 
         for( int i = 1; i >= 0; i-- )
@@ -5138,7 +5138,7 @@ mock230_script_command(
         {
             if( items[i].obj_id < 0 )
                 continue;
-            if( mock230_objinfo(items[i].obj_id)->category == values[1] )
+            if( ToriRSServer_ObjInfo(items[i].obj_id)->category == values[1] )
                 total += items[i].count;
         }
         SSVM_PushInt(state, total);
@@ -5149,7 +5149,7 @@ mock230_script_command(
     {
         int32_t inv_id;
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
         int free_slots = 0;
 
         if( !SSVM_PopInt(state, &inv_id) )
@@ -5175,7 +5175,7 @@ mock230_script_command(
     {
         int varp = state->script->int_operands[state->pc] & 0xffff;
 
-        if( varp < 0 || varp >= MOCK230_VARP_COUNT )
+        if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         {
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
@@ -5191,7 +5191,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &value) )
             return 1;
-        if( varp < 0 || varp >= MOCK230_VARP_COUNT )
+        if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         {
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
@@ -5208,17 +5208,17 @@ mock230_script_command(
          * that is already 0 has to *tell* the client 0, because the client has
          * never been told anything.
          *
-         * `mock230_world_mark_varp` is idempotent within a tick, so a script
+         * `ToriRSServer_WorldMarkVarp` is idempotent within a tick, so a script
          * writing the same varp repeatedly still produces one packet.
          */
         player->varps[varp] = value;
-        mock230_world_mark_varp(player, varp);
+        ToriRSServer_WorldMarkVarp(player, varp);
         /* And whatever engine state hangs off this varp. Writing the array and
          * marking it for transmission is only *reporting* the change; a varp
          * like `option_run` is where a piece of engine state actually lives,
          * and skipping this is how the run orb came to light up while the
          * player kept walking. */
-        mock230_world_varp_written(srv, varp, value);
+        ToriRSServer_WorldVarpWritten(srv, varp, value);
         return 1;
     }
 
@@ -5227,7 +5227,7 @@ mock230_script_command(
      * while remaining isolated from every other NPC instance. */
     case SS_OP_PUSH_VARN:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int varn = state->script->int_operands[state->pc] & 0xffff;
 
         if( !npc )
@@ -5235,7 +5235,7 @@ mock230_script_command(
             SSVM_Abort(state, "push_varn with no active npc");
             return 1;
         }
-        if( varn < 0 || varn >= MOCK230_NPC_VAR_MAX )
+        if( varn < 0 || varn >= TORIRSSERVER_NPC_VAR_MAX )
         {
             SSVM_Abort(state, "varn %d is outside the mock's range", varn);
             return 1;
@@ -5246,7 +5246,7 @@ mock230_script_command(
 
     case SS_OP_POP_VARN:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int varn = state->script->int_operands[state->pc] & 0xffff;
         int32_t value;
 
@@ -5257,7 +5257,7 @@ mock230_script_command(
             SSVM_Abort(state, "pop_varn with no active npc");
             return 1;
         }
-        if( varn < 0 || varn >= MOCK230_NPC_VAR_MAX )
+        if( varn < 0 || varn >= TORIRSSERVER_NPC_VAR_MAX )
         {
             SSVM_Abort(state, "varn %d is outside the mock's range", varn);
             return 1;
@@ -5286,7 +5286,7 @@ mock230_script_command(
     {
         int vars = state->script->int_operands[state->pc] & 0xffff;
 
-        if( vars < 0 || vars >= MOCK230_VARS_COUNT )
+        if( vars < 0 || vars >= TORIRSSERVER_VARS_COUNT )
         {
             SSVM_Abort(state, "vars %d is outside the mock's range", vars);
             return 1;
@@ -5302,7 +5302,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &value) )
             return 1;
-        if( vars < 0 || vars >= MOCK230_VARS_COUNT )
+        if( vars < 0 || vars >= TORIRSSERVER_VARS_COUNT )
         {
             SSVM_Abort(state, "vars %d is outside the mock's range", vars);
             return 1;
@@ -5319,7 +5319,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushStr(state, mock230_objinfo(obj_id)->name);
+        SSVM_PushStr(state, ToriRSServer_ObjInfo(obj_id)->name);
         return 1;
     }
 
@@ -5329,7 +5329,7 @@ mock230_script_command(
      * Op 10 is Examine on nearly every panel the client draws — the backpack,
      * the worn tab, the bank, the Tool Leprechaun's twelve cells — and it had
      * no server-side answer at all, because the obj record's `examine` string
-     * was decoded by the cache and dropped by mock230_objinfo. Reading it is
+     * was decoded by the cache and dropped by ToriRSServer_ObjInfo. Reading it is
      * mechanism, not policy: the sentence is the cache's, content decides
      * whether and when to print it.
      *
@@ -5344,7 +5344,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        desc = mock230_objinfo(obj_id)->desc;
+        desc = ToriRSServer_ObjInfo(obj_id)->desc;
         SSVM_PushStr(state, desc ? desc : "");
         return 1;
     }
@@ -5353,11 +5353,11 @@ mock230_script_command(
      * Config queries.
      *
      * Every one of these is a read off a table the boot loaders already decoded
-     * — `Mock230ObjInfo`, `Mock230NpcInfo`, the content packs — which is the
+     * — `ToriRSServerObjInfo`, `ToriRSServerNpcInfo`, the content packs — which is the
      * reason this batch is safe to add in bulk. `nc_desc` is still absent —
      * a dat2 npc record has no description at all (it is server-driven at this
      * revision). `oc_cost` / `oc_members` / `oc_tradeable` / `oc_desc` land in
-     * mock230_ops_obj.c / the cases above once their fields are kept at load.
+     * torirs_server_ops_obj.c / the cases above once their fields are kept at load.
      *
      * An opcode that cannot be answered from real data is better left to the
      * VM's loud stub than implemented with a plausible guess: the stub says so,
@@ -5365,8 +5365,8 @@ mock230_script_command(
      *
      * `oc_param` used to be in that list — `runtime_typed`, "and no decoder here
      * keeps a general per-record param table to answer that from". Both halves
-     * of that now exist (`mock230_obj_param`, `mock230_content_param_type`), so
-     * it is implemented below, and `nc_param` with it over `mock230_npc_param`.
+     * of that now exist (`ToriRSServer_ObjParam`, `ToriRSServer_ContentParamType`), so
+     * it is implemented below, and `nc_param` with it over `ToriRSServer_NpcParam`.
      * `lc_param` / `struct_param` are the same shape over the loc and struct
      * tables, and are left out of this change rather than done badly at speed:
      * neither table is decoded at runtime at all, where the npc one already was
@@ -5376,7 +5376,7 @@ mock230_script_command(
     case SS_OP_NPC_SETMODE:
     {
         int32_t mode;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &mode) )
             return 1;
@@ -5394,7 +5394,7 @@ mock230_script_command(
          * `none` and `null` both mean stop, and 162 of the tree's 253 calls are
          * one of the two.
          */
-        if( npc->owner_gen != 0 && mock230_familiar_debug() )
+        if( npc->owner_gen != 0 && ToriRSServer_FamiliarDebug() )
         {
             fprintf(
                 stderr,
@@ -5414,8 +5414,8 @@ mock230_script_command(
          * `[ai_queue1] npc_setmode(none)` precisely so that being attacked does
          * not stop its sweep, and it froze on the first hit anyway.
          */
-        if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL ||
-            mode == MOCK230_NPCMODE_WANDER || mode == MOCK230_NPCMODE_PATROL )
+        if( mode == TORIRSSERVER_NPCMODE_NONE || mode == TORIRSSERVER_NPCMODE_NULL ||
+            mode == TORIRSSERVER_NPCMODE_WANDER || mode == TORIRSSERVER_NPCMODE_PATROL )
         {
             npc->combat_target = -1;
         }
@@ -5432,7 +5432,7 @@ mock230_script_command(
          */
         npc->combat_target_npc = -1;
         npc->combat_target_npc_gen = 0;
-        if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL )
+        if( mode == TORIRSSERVER_NPCMODE_NONE || mode == TORIRSSERVER_NPCMODE_NULL )
             npc->step_dir = -1;
         /*
          * A targeted mode also NAMES ITS TARGET. `NpcOps.NPC_SETMODE` ends with
@@ -5448,16 +5448,16 @@ mock230_script_command(
          * wrong person, decided its partner had walked off, and went back to
          * wandering away mid-sentence.
          */
-        if( mode >= MOCK230_NPCMODE_PLAYERESCAPE )
+        if( mode >= TORIRSSERVER_NPCMODE_PLAYERESCAPE )
         {
             if( player && player->active )
-                mock230_npc_set_mode_target(npc, player);
+                ToriRSServer_NpcSetModeTarget(npc, player);
             else
-                mock230_npc_reset_defaults(npc);
+                ToriRSServer_NpcResetDefaults(npc);
         }
         else
         {
-            mock230_npc_set_mode_target(npc, NULL);
+            ToriRSServer_NpcSetModeTarget(npc, NULL);
         }
         /*
          * `null` is not a synonym for `none` — the comment above says the two
@@ -5471,8 +5471,8 @@ mock230_script_command(
          * wandered again — the one outcome the reference's spelling of "revert"
          * is chosen to avoid.
          */
-        if( mode == MOCK230_NPCMODE_NULL )
-            mock230_npc_reset_defaults(npc);
+        if( mode == TORIRSSERVER_NPCMODE_NULL )
+            ToriRSServer_NpcResetDefaults(npc);
         return 1;
     }
 
@@ -5481,7 +5481,7 @@ mock230_script_command(
         int32_t queue;
         int32_t arg;
         int32_t delay;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         /* `npc_queue(2, $damage, $delay)` — queue number, argument, delay. */
         if( !SSVM_PopInt(state, &delay) )
@@ -5500,7 +5500,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_queue %d is outside [ai_queue1..20]", queue);
             return 1;
         }
-        for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
         {
             if( npc->queue[i].active )
                 continue;
@@ -5528,7 +5528,7 @@ mock230_script_command(
     case SS_OP_NPC_SETTIMER:
     {
         int32_t interval;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &interval) )
             return 1;
@@ -5553,14 +5553,14 @@ mock230_script_command(
      * makes it safe across logout and reuse. */
     case SS_OP_NPC_SETOWNER:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc || !player )
         {
             SSVM_Abort(state, "npc_setowner requires an active npc and player");
             return 1;
         }
-        mock230_world_npc_set_owner(npc, player);
+        ToriRSServer_WorldNpcSetOwner(npc, player);
         return 1;
     }
 
@@ -5579,7 +5579,7 @@ mock230_script_command(
      */
     case SS_OP_NPC_SETFOLLOWER:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int slot;
 
         if( !npc || !player )
@@ -5588,22 +5588,22 @@ mock230_script_command(
             return 1;
         }
         slot = (int)(npc - srv->npcs);
-        mock230_world_npc_set_owner(npc, player);
-        mock230_world_npc_set_follower(player, npc, slot);
+        ToriRSServer_WorldNpcSetOwner(npc, player);
+        ToriRSServer_WorldNpcSetFollower(player, npc, slot);
         return 1;
     }
 
     case SS_OP_NPC_OWNER:
     {
-        struct Mock230Npc* npc = active_npc(state);
-        struct Mock230Player* owner;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerPlayer* owner;
 
         if( !npc )
         {
             SSVM_Abort(state, "npc_owner with no active npc");
             return 1;
         }
-        owner = mock230_world_npc_owner(srv, npc);
+        owner = ToriRSServer_WorldNpcOwner(srv, npc);
         SSVM_PushInt(state, owner ? owner->pid : -1);
         return 1;
     }
@@ -5622,8 +5622,8 @@ mock230_script_command(
     case SS_OP_NPC_FINDFOLLOWER:
     {
         int slot = -1;
-        struct Mock230Npc* npc =
-            player ? mock230_world_npc_follower(srv, player, &slot) : NULL;
+        struct ToriRSServerNpc* npc =
+            player ? ToriRSServer_WorldNpcFollower(srv, player, &slot) : NULL;
 
         if( !npc )
         {
@@ -5639,8 +5639,8 @@ mock230_script_command(
 
     case SS_OP_NPC_FINDOWNED2:
     {
-        struct Mock230Npc* npc =
-            player ? mock230_world_npc_follower(srv, player, NULL) : NULL;
+        struct ToriRSServerNpc* npc =
+            player ? ToriRSServer_WorldNpcFollower(srv, player, NULL) : NULL;
 
         if( !npc )
         {
@@ -5655,9 +5655,9 @@ mock230_script_command(
     case SS_OP_NPC_FINDCOMBAT:
     {
         int slot = player ? player->combat_target : -1;
-        struct Mock230Npc* npc;
+        struct ToriRSServerNpc* npc;
 
-        if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         {
             SSVM_PushInt(state, 0);
             return 1;
@@ -5678,13 +5678,13 @@ mock230_script_command(
     /*
      * Per-instance NPC integers. The slot is engine-bounded and content names
      * it with a constant; values otherwise use the ServerScript int unchanged.
-     * The storage lives on Mock230Npc, so two NPCs of one type are isolated and
+     * The storage lives on ToriRSServerNpc, so two NPCs of one type are isolated and
      * npc_changetype naturally preserves it.
      */
     case SS_OP_NPC_VAR_GET:
     {
         int32_t slot;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &slot) )
             return 1;
@@ -5693,10 +5693,10 @@ mock230_script_command(
             SSVM_Abort(state, "npc_var_get with no active npc");
             return 1;
         }
-        if( slot < 0 || slot >= MOCK230_NPC_VAR_MAX )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_VAR_MAX )
         {
             SSVM_Abort(state, "npc_var_get slot %d outside 0..%d", (int)slot,
-                       MOCK230_NPC_VAR_MAX - 1);
+                       TORIRSSERVER_NPC_VAR_MAX - 1);
             return 1;
         }
         SSVM_PushInt(state, npc->script_vars[slot]);
@@ -5708,7 +5708,7 @@ mock230_script_command(
      * fight with another npc, `npc_attackplayer()` with the active player, and
      * `npc_hastarget()` asks whether it is already in one of either kind.
      *
-     * The target is what `mock230_combat_npc_tick` reads to decide that combat
+     * The target is what `ToriRSServer_CombatNpcTick` reads to decide that combat
      * owns this npc: it faces, closes to its `attackrange`, and swings on the
      * record's `attackrate` through `[ai_opnpc2]` or `[ai_opplayer2]`. Setting
      * it is what "and now fight this, normally" means, and until these existed
@@ -5719,7 +5719,7 @@ mock230_script_command(
      *
      * `attack_clock = 0` rather than a flinch delay, matching `maybe_aggress`:
      * a fight the npc *starts* swings on the tick it is in range. The halved
-     * clock in `mock230_combat_hit_npc` belongs to retaliation, which is a
+     * clock in `ToriRSServer_CombatHitNpc` belongs to retaliation, which is a
      * different event.
      *
      * A uid rather than a slot for the target: slots are recycled, and the
@@ -5728,7 +5728,7 @@ mock230_script_command(
     case SS_OP_NPC_ATTACKNPC:
     {
         int32_t uid;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int target;
         uint16_t generation;
 
@@ -5741,7 +5741,7 @@ mock230_script_command(
         }
         target = (int)((uint32_t)uid & 0xffffu);
         generation = (uint16_t)((uint32_t)uid >> 16);
-        if( uid < 0 || target < 0 || target >= MOCK230_NPC_MAX ||
+        if( uid < 0 || target < 0 || target >= TORIRSSERVER_NPC_MAX ||
             !srv->npcs[target].active || srv->npcs[target].death_tick >= 0 ||
             generation == 0 || srv->npcs[target].generation != generation ||
             &srv->npcs[target] == npc )
@@ -5757,13 +5757,13 @@ mock230_script_command(
             npc->attack_clock = 0;
         }
         npc->combat_target = -1;
-        mock230_npc_face_npc(npc, target);
+        ToriRSServer_NpcFaceNpc(npc, target);
         return 1;
     }
 
     case SS_OP_NPC_ATTACKPLAYER:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc || !player )
         {
@@ -5777,7 +5777,7 @@ mock230_script_command(
         }
         npc->combat_target_npc = -1;
         npc->combat_target_npc_gen = 0;
-        mock230_npc_face_player(npc, npc->combat_target);
+        ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
         return 1;
     }
 
@@ -5799,12 +5799,12 @@ mock230_script_command(
      * on cooldown". Only the first should stop damage landing.
      *
      * Written straight to `attack_clock`, the deadline
-     * `mock230_combat_npc_tick` reads before firing the swing trigger and the
+     * `ToriRSServer_CombatNpcTick` reads before firing the swing trigger and the
      * same one it arms from `attackrate` — so a handler that states its own
      * cadence overrides the record's for that swing and nothing else changes.
      *
      * `srv->tick + $ticks`, because the field is a deadline and not a count of
-     * ticks remaining (see its declaration in mock230.h). This is the same
+     * ticks remaining (see its declaration in torirs_server.h). This is the same
      * arithmetic the reference writes for the same claim,
      * `%npc_action_delay = add(map_clock, <n>)`, and it is what makes
      * `npc_attackdelay(4)` mean four ticks rather than five.
@@ -5812,7 +5812,7 @@ mock230_script_command(
     case SS_OP_NPC_ATTACKDELAY:
     {
         int32_t ticks;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &ticks) )
             return 1;
@@ -5827,7 +5827,7 @@ mock230_script_command(
 
     case SS_OP_NPC_HASTARGET:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -5863,7 +5863,7 @@ mock230_script_command(
      */
     case SS_OP_NPC_COMBATPLAYER:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc || !player )
         {
@@ -5881,7 +5881,7 @@ mock230_script_command(
      * Engine state and not a content constant because it is an operator's
      * choice between two coherent rules — the pre-EoC one this port reproduces
      * and the later thrall one — and a content constant can only be changed by
-     * rebuilding both script packs. See `familiar_singles_assist` in mock230.h
+     * rebuilding both script packs. See `familiar_singles_assist` in torirs_server.h
      * for the research behind both positions.
      *
      * The engine itself never reads it. Single-way is not enforced here at all:
@@ -5898,7 +5898,7 @@ mock230_script_command(
     {
         int32_t slot;
         int32_t value;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &slot) )
             return 1;
@@ -5907,10 +5907,10 @@ mock230_script_command(
             SSVM_Abort(state, "npc_var_set with no active npc");
             return 1;
         }
-        if( slot < 0 || slot >= MOCK230_NPC_VAR_MAX )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_VAR_MAX )
         {
             SSVM_Abort(state, "npc_var_set slot %d outside 0..%d", (int)slot,
-                       MOCK230_NPC_VAR_MAX - 1);
+                       TORIRSSERVER_NPC_VAR_MAX - 1);
             return 1;
         }
         npc->script_vars[slot] = value;
@@ -5933,7 +5933,7 @@ mock230_script_command(
     case SS_OP_NPC_SETMOVESPEED:
     {
         int32_t speed;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &speed) )
             return 1;
@@ -5952,7 +5952,7 @@ mock230_script_command(
     case SS_OP_P_FINDUID:
     {
         int32_t uid;
-        struct Mock230Player* found;
+        struct ToriRSServerPlayer* found;
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
@@ -5985,15 +5985,15 @@ mock230_script_command(
     case SS_OP_P_FINDMUTUALFRIEND:
     {
         const char* display_name = NULL;
-        struct Mock230Player* requester = player;
-        struct Mock230Player* found;
+        struct ToriRSServerPlayer* requester = player;
+        struct ToriRSServerPlayer* found;
 
         if( !SSVM_PopStr(state, &display_name) )
             return 1;
         found = player_by_display_name(srv, display_name);
         if( !requester || !found || requester == found ||
-            !mock230_friends_is_friend(requester->name37, found->name37) ||
-            !mock230_friends_is_friend(found->name37, requester->name37) )
+            !ToriRSServer_FriendsIsFriend(requester->name37, found->name37) ||
+            !ToriRSServer_FriendsIsFriend(found->name37, requester->name37) )
         {
             SSVM_PushInt(state, 0);
             return 1;
@@ -6008,14 +6008,14 @@ mock230_script_command(
     case SS_OP_P_FINDVISIBLEPLAYER:
     {
         const char* display_name = NULL;
-        struct Mock230Player* requester = player;
-        struct Mock230Player* found;
+        struct ToriRSServerPlayer* requester = player;
+        struct ToriRSServerPlayer* found;
 
         if( !SSVM_PopStr(state, &display_name) )
             return 1;
         found = player_by_display_name(srv, display_name);
         if( !requester || !found || requester == found ||
-            !mock230_friends_visible_to(requester->name37, found->name37) )
+            !ToriRSServer_FriendsVisibleTo(requester->name37, found->name37) )
         {
             SSVM_PushInt(state, 0);
             return 1;
@@ -6030,14 +6030,14 @@ mock230_script_command(
     case SS_OP_P_ISFRIEND:
     {
         int32_t other_uid;
-        struct Mock230Player* other;
+        struct ToriRSServerPlayer* other;
 
         if( !SSVM_PopInt(state, &other_uid) )
             return 1;
         other = player_by_uid(srv, other_uid);
         SSVM_PushInt(state,
                      player && other &&
-                         mock230_friends_is_friend(player->name37, other->name37));
+                         ToriRSServer_FriendsIsFriend(player->name37, other->name37));
         return 1;
     }
 
@@ -6054,7 +6054,7 @@ mock230_script_command(
          * The reference writes these to a per-player adventure log the client
          * can read back. There is no such log here, and inventing a file format
          * for one is a lot of machinery for a feature nothing displays — so it
-         * goes to stderr under MOCK230_VERBOSE, which is where every other
+         * goes to stderr under TORIRSSERVER_VERBOSE, which is where every other
          * "what did content just do" line goes.
          *
          * Implemented rather than left to the loud stub because it is in front
@@ -6064,7 +6064,7 @@ mock230_script_command(
          * the quest.
          */
         if( srv->verbose )
-            fprintf(stderr, "mock230: session_log(%d) %s\n", level, text ? text : "");
+            fprintf(stderr, "torirsserver: session_log(%d) %s\n", level, text ? text : "");
         return 1;
     }
 
@@ -6117,14 +6117,14 @@ mock230_script_command(
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
         srv->iterator.kind = SSVM_ENT_NPC;
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int dx;
             int dz;
 
             if( !npc->active ||
-                !mock230_world_npc_visible_to(srv, npc, srv->active_player) ||
+                !ToriRSServer_WorldNpcVisibleTo(srv, npc, srv->active_player) ||
                 npc->level != coord_level(coord) )
                 continue;
             if( opcode == SS_OP_NPC_FINDALL && npc->type != npc_type )
@@ -6137,7 +6137,7 @@ mock230_script_command(
                 dz = -dz;
             if( (dx > dz ? dx : dz) > distance )
                 continue;
-            if( !mock230_scene_checkvis(checkvis, npc->level, coord_x(coord),
+            if( !ToriRSServer_SceneCheckvis(checkvis, npc->level, coord_x(coord),
                                        coord_z(coord), npc->x, npc->z) )
                 continue;
             if( srv->iterator.count <
@@ -6161,7 +6161,7 @@ mock230_script_command(
             /* Re-checked, because the list was built before the loop body ran
              * and the body may have killed one of them. */
             if( !srv->npcs[slot].active ||
-                !mock230_world_npc_visible_to(
+                !ToriRSServer_WorldNpcVisibleTo(
                     srv, &srv->npcs[slot], srv->active_player) )
                 continue;
             SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
@@ -6191,7 +6191,7 @@ mock230_script_command(
         srv->iterator.kind = SSVM_ENT_LOC;
         for( int slot = 0;; slot++ )
         {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
             if( !loc )
                 break;
@@ -6217,7 +6217,7 @@ mock230_script_command(
         while( srv->iterator.cursor < srv->iterator.count )
         {
             int slot = srv->iterator.slots[srv->iterator.cursor++];
-            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
             /* A `loc_del` in the loop body frees the slot; skip it rather than
              * handing the body a loc that is no longer there. */
@@ -6261,9 +6261,9 @@ mock230_script_command(
         srv->iterator.count = 0;
         srv->iterator.cursor = 0;
         srv->iterator.kind = SSVM_ENT_PLAYER;
-        for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
         {
-            struct Mock230Player* other = &srv->players[i];
+            struct ToriRSServerPlayer* other = &srv->players[i];
 
             if( i >= srv->player_count || !other->active ||
                 other->level != coord_level(coord) )
@@ -6276,7 +6276,7 @@ mock230_script_command(
                 dz = -dz;
             if( (dx > dz ? dx : dz) > distance )
                 continue;
-            if( !mock230_scene_checkvis(checkvis, other->level, other->x, other->z,
+            if( !ToriRSServer_SceneCheckvis(checkvis, other->level, other->x, other->z,
                                        coord_x(coord), coord_z(coord)) )
                 continue;
             srv->iterator.slots[srv->iterator.count++] = i;
@@ -6294,7 +6294,7 @@ mock230_script_command(
         while( srv->iterator.cursor < srv->iterator.count )
         {
             int index = srv->iterator.slots[srv->iterator.cursor++];
-            struct Mock230Player* other = &srv->players[index];
+            struct ToriRSServerPlayer* other = &srv->players[index];
 
             if( index >= srv->player_count || !other->active )
                 continue;
@@ -6343,15 +6343,15 @@ mock230_script_command(
          * Content uses it to avoid addressing an npc through a wall.
          */
 
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int dx;
             int dz;
             int range;
 
             if( !npc->active || npc->type != npc_type ||
-                !mock230_world_npc_visible_to(srv, npc, srv->active_player) )
+                !ToriRSServer_WorldNpcVisibleTo(srv, npc, srv->active_player) )
                 continue;
             if( npc->level != coord_level(coord) )
                 continue;
@@ -6371,7 +6371,7 @@ mock230_script_command(
             {
                 continue;
             }
-            if( !mock230_scene_checkvis(checkvis, npc->level, coord_x(coord),
+            if( !ToriRSServer_SceneCheckvis(checkvis, npc->level, coord_x(coord),
                                        coord_z(coord), npc->x, npc->z) )
                 continue;
             /* Nearest wins. The reference does the same, and it is what makes
@@ -6403,7 +6403,7 @@ mock230_script_command(
     {
         int slot = active_npc_slot(state);
 
-        if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         {
             SSVM_Abort(state, "npc_uid with no active npc");
             return 1;
@@ -6422,8 +6422,8 @@ mock230_script_command(
         int slot = (int)((uint32_t)uid & 0xffffu);
         uint16_t generation = (uint16_t)((uint32_t)uid >> 16);
 
-        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
-            !mock230_world_npc_visible_to(srv, &srv->npcs[slot], srv->active_player) ||
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active ||
+            !ToriRSServer_WorldNpcVisibleTo(srv, &srv->npcs[slot], srv->active_player) ||
             generation == 0 || srv->npcs[slot].generation != generation )
         {
             SSVM_PushInt(state, 0);
@@ -6450,14 +6450,14 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = mock230_world_npc_spawn(srv, npc_type, coord_x(coord), coord_z(coord),
+        slot = ToriRSServer_WorldNpcSpawn(srv, npc_type, coord_x(coord), coord_z(coord),
                                        coord_level(coord));
         if( slot < 0 )
         {
             /* Soft-fail: aborting mid-enter (e.g. Telekinetic maze setup) leaves
              * the player in a half-built instance with a parked script. Content
              * can retry; the loud stderr line from npc_spawn already says why. */
-            fprintf(stderr, "mock230: npc_add %d at %d,%d found no free slot\n",
+            fprintf(stderr, "torirsserver: npc_add %d at %d,%d found no free slot\n",
                     npc_type, coord_x(coord), coord_z(coord));
             return 1;
         }
@@ -6477,7 +6477,7 @@ mock230_script_command(
 
     case SS_OP_NPC_DEL:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -6485,16 +6485,16 @@ mock230_script_command(
             return 1;
         }
         /* The ordinary NPC_INFO remove path, exactly as a death does — see
-         * docs/mock230_npc_slot_reap.md for why this is a queued free rather
+         * docs/torirs_server_npc_slot_reap.md for why this is a queued free rather
          * than a direct `active = 0`. */
-        mock230_world_npc_free(srv, active_npc_slot(state));
+        ToriRSServer_WorldNpcFree(srv, active_npc_slot(state));
         return 1;
     }
 
     case SS_OP_NPC_TELE:
     {
         int32_t coord;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
@@ -6507,7 +6507,7 @@ mock230_script_command(
          * without moving its collision stamp or telling the clients, so the
          * imp left a blocked tile behind it and every observer kept drawing it
          * at the tile it teleported out of. */
-        mock230_world_npc_teleport(npc, coord_x(coord), coord_z(coord), coord_level(coord));
+        ToriRSServer_WorldNpcTeleport(npc, coord_x(coord), coord_z(coord), coord_level(coord));
         return 1;
     }
 
@@ -6522,7 +6522,7 @@ mock230_script_command(
     case SS_OP_NPC_WALK:
     {
         int32_t coord;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
@@ -6531,7 +6531,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_walk with no active npc");
             return 1;
         }
-        mock230_world_npc_queue_waypoint(npc, coord_x(coord), coord_z(coord));
+        ToriRSServer_WorldNpcQueueWaypoint(npc, coord_x(coord), coord_z(coord));
         return 1;
     }
 
@@ -6556,13 +6556,13 @@ mock230_script_command(
      * pull is there for every size>1 npc in the game: JalTok-Jad's melee test
      * (`npc_range(coord) <= 1`) never fires from his north or east side either.
      *
-     * `npc_player_distance` in mock230_world.c is this same measure for the
+     * `npc_player_distance` in torirs_server_world.c is this same measure for the
      * mode machine, which got it right; the script op simply never followed.
      */
     case SS_OP_NPC_RANGE:
     {
         int32_t coord;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int size;
         int x;
         int z;
@@ -6605,7 +6605,7 @@ mock230_script_command(
     case SS_OP_NPC_BASESTAT:
     {
         int32_t stat;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &stat) )
             return 1;
@@ -6625,7 +6625,7 @@ mock230_script_command(
          * how far — so base is the authored level and current is that minus the
          * drain, which is the same base/current split the player has.
          */
-        if( stat == MOCK230_STAT_HITPOINTS )
+        if( stat == TORIRSSERVER_STAT_HITPOINTS )
         {
             SSVM_PushInt(state, opcode == SS_OP_NPC_STAT ? npc->hitpoints
                                                          : npc->base_hitpoints);
@@ -6658,7 +6658,7 @@ mock230_script_command(
      * the target exactly as strong as before.
      *
      * Recorded as a drain below the authored level rather than by writing a
-     * level, for the reason `Mock230Npc.stat_drain` gives. Hitpoints route to
+     * level, for the reason `ToriRSServerNpc.stat_drain` gives. Hitpoints route to
      * `npc->hitpoints` instead — the reference writes `levels[stat]` for every
      * stat including that one, so `npc_statsub(hitpoints, …)` is damage with no
      * hitsplat, and content that wants the splat calls `npc_damage`.
@@ -6671,7 +6671,7 @@ mock230_script_command(
     case SS_OP_NPC_STATSUB:
     {
         int32_t values[3];
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int step;
         int i;
 
@@ -6685,13 +6685,13 @@ mock230_script_command(
             SSVM_Abort(state, "npc_statsub with no active npc");
             return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "npc_statsub %d is not a skill", values[0]);
             return 1;
         }
 
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
         {
             step = values[1] + (npc->base_hitpoints * values[2]) / 100;
             npc->hitpoints -= step;
@@ -6743,7 +6743,7 @@ mock230_script_command(
     case SS_OP_NPC_STATADD:
     {
         int32_t values[3];
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int step;
         int i;
 
@@ -6758,17 +6758,17 @@ mock230_script_command(
             SSVM_Abort(state, "npc_statadd with no active npc");
             return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "npc_statadd %d is not a skill", values[0]);
             return 1;
         }
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
         {
             step = values[1] + (npc->base_hitpoints * values[2]) / 100;
             npc->hitpoints += step;
-            if( npc->hitpoints > MOCK230_NPC_STAT_MAX )
-                npc->hitpoints = MOCK230_NPC_STAT_MAX;
+            if( npc->hitpoints > TORIRSSERVER_NPC_STAT_MAX )
+                npc->hitpoints = TORIRSSERVER_NPC_STAT_MAX;
             if( npc->hitpoints < 0 )
                 npc->hitpoints = 0;
             return 1;
@@ -6777,8 +6777,8 @@ mock230_script_command(
         npc->stat_drain[values[0]] -= step;
         /* Clamp the *level* at 255, which over a drain is a floor: level is
          * `base - drain`, so drain may not fall below `base - 255`. */
-        if( npc_base_stat(npc, values[0]) - npc->stat_drain[values[0]] > MOCK230_NPC_STAT_MAX )
-            npc->stat_drain[values[0]] = npc_base_stat(npc, values[0]) - MOCK230_NPC_STAT_MAX;
+        if( npc_base_stat(npc, values[0]) - npc->stat_drain[values[0]] > TORIRSSERVER_NPC_STAT_MAX )
+            npc->stat_drain[values[0]] = npc_base_stat(npc, values[0]) - TORIRSSERVER_NPC_STAT_MAX;
         return 1;
     }
 
@@ -6788,8 +6788,8 @@ mock230_script_command(
      *
      * The reference stores a `HuntType` **id**, because it has `.hunt` config
      * files describing who a npc notices, how far, and through what. This tree
-     * has no hunt configs: `Mock230NpcDef.huntmode` is a two-value enum, and
-     * aggression is `huntrange` plus nearest-player (`mock230_combat.c`
+     * has no hunt configs: `ToriRSServerNpcDef.huntmode` is a two-value enum, and
+     * aggression is `huntrange` plus nearest-player (`torirs_server_combat.c`
      * `maybe_aggress`). So the port collapses to the one bit that survives —
      * `null` stops it hunting, any hunt id starts it — and the *profile* named by
      * that id is dropped.
@@ -6803,7 +6803,7 @@ mock230_script_command(
     case SS_OP_NPC_SETHUNTMODE:
     {
         int32_t hunt;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &hunt) )
             return 1;
@@ -6812,14 +6812,14 @@ mock230_script_command(
             SSVM_Abort(state, "npc_sethuntmode with no active npc");
             return 1;
         }
-        npc->huntmode = hunt < 0 ? MOCK230_HUNT_NONE : MOCK230_HUNT_AGGRESSIVE;
+        npc->huntmode = hunt < 0 ? TORIRSSERVER_HUNT_NONE : TORIRSSERVER_HUNT_AGGRESSIVE;
         return 1;
     }
 
     case SS_OP_NPC_STATHEAL:
     {
         int32_t values[3];
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
         int base;
         int current;
         int healed;
@@ -6837,7 +6837,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_statheal with no active npc");
             return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "npc_statheal %d is not a skill", values[0]);
             return 1;
@@ -6850,7 +6850,7 @@ mock230_script_command(
          * required by encounter resets such as God Wars, which restore all
          * five combat levels after the room empties.
          */
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
         {
             base = npc->base_hitpoints;
             current = npc->hitpoints;
@@ -6868,7 +6868,7 @@ mock230_script_command(
             healed = base;
         if( healed < 0 )
             healed = 0;
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
             npc->hitpoints = healed;
         else
             npc->stat_drain[values[0]] = base - healed;
@@ -6896,7 +6896,7 @@ mock230_script_command(
      * `World.getLoc(x, z, level, locType.id)` → `Zone.getLoc`, corner tile and
      * type both exact.
      *
-     * Two lookups this must NOT be: `mock230_scene_find_loc`, whose footprint
+     * Two lookups this must NOT be: `ToriRSServer_SceneFindLoc`, whose footprint
      * match and any-loc fallback are the *click* resolver — through it,
      * `loc_find(coord, X)` answered true for any loc on the tile, and
      * puro-puro's clear pass `loc_del`ed whatever the map had standing there —
@@ -6919,7 +6919,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = mock230_scene_find_loc_id(coord_x(coord), coord_z(coord), coord_level(coord),
+        slot = ToriRSServer_SceneFindLocId(coord_x(coord), coord_z(coord), coord_level(coord),
                                          loc_id);
         if( slot >= 0 )
         {
@@ -6928,15 +6928,15 @@ mock230_script_command(
             SSVM_PushInt(state, 1);
             return 1;
         }
-        if( !mock230_scene_contains(coord_x(coord), coord_z(coord)) )
+        if( !ToriRSServer_SceneContains(coord_x(coord), coord_z(coord)) )
         {
-            struct Mock230ZoneLoc* rec = mock230_zone_loc_find_id(
+            struct ToriRSServerZoneLoc* rec = ToriRSServer_ZoneLocFindId(
                 srv, coord_x(coord), coord_z(coord), coord_level(coord), loc_id);
 
             if( rec )
             {
                 SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
-                               mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                               ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                               coord_level(coord), rec->shape));
                 SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
                 SSVM_PushInt(state, 1);
@@ -6952,7 +6952,7 @@ mock230_script_command(
     case SS_OP_LOC_ANGLE:
     case SS_OP_LOC_SHAPE:
     {
-        struct Mock230SceneLoc* loc = script_active_loc(state);
+        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
 
         if( !loc )
         {
@@ -6974,7 +6974,7 @@ mock230_script_command(
     {
         int32_t loc_id;
         int32_t duration;
-        struct Mock230SceneLoc* loc = script_active_loc(state);
+        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
         int was_id;
         int shape;
         int angle;
@@ -6998,20 +6998,20 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_world_loc_set(srv, x, z, level, shape, loc_id, angle,
-                                   MOCK230_LOC_SET_CHANGE) )
+        if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, loc_id, angle,
+                                   TORIRSSERVER_LOC_SET_CHANGE) )
         {
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
         }
-        mock230_world_loc_revert_queue(srv, duration, was_id, shape, angle, x, z, level);
+        ToriRSServer_WorldLocRevertQueue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
 
     case SS_OP_LOC_ANIM:
     {
         int32_t seq_id;
-        struct Mock230SceneLoc* loc = script_active_loc(state);
+        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
 
         if( !SSVM_PopInt(state, &seq_id) )
             return 1;
@@ -7020,7 +7020,7 @@ mock230_script_command(
             SSVM_Abort(state, "loc_anim with no active loc");
             return 1;
         }
-        mock230_zone_loc_anim(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
+        ToriRSServer_ZoneLocAnim(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
                               (int)seq_id);
         return 1;
     }
@@ -7028,7 +7028,7 @@ mock230_script_command(
     case SS_OP_LOC_DEL:
     {
         int32_t duration;
-        struct Mock230SceneLoc* loc = script_active_loc(state);
+        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
         int was_id;
         int shape;
         int angle;
@@ -7050,13 +7050,13 @@ mock230_script_command(
         z = loc->z;
         level = loc->level;
 
-        if( !mock230_world_loc_set(srv, x, z, level, shape, -1, angle,
-                                   MOCK230_LOC_SET_CHANGE) )
+        if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, -1, angle,
+                                   TORIRSSERVER_LOC_SET_CHANGE) )
         {
             SSVM_Abort(state, "loc_del on a loc that is already gone");
             return 1;
         }
-        mock230_world_loc_revert_queue(srv, duration, was_id, shape, angle, x, z, level);
+        ToriRSServer_WorldLocRevertQueue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
     }
 
@@ -7096,17 +7096,17 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        if( !mock230_world_loc_set(srv, coord_x(coord), coord_z(coord), coord_level(coord),
-                                   shape, loc_id, angle, MOCK230_LOC_SET_ADD) )
+        if( !ToriRSServer_WorldLocSet(srv, coord_x(coord), coord_z(coord), coord_level(coord),
+                                   shape, loc_id, angle, TORIRSSERVER_LOC_SET_ADD) )
         {
             SSVM_Abort(state, "loc_add %d at %d,%d failed — unknown loc or outside the scene",
                        loc_id, coord_x(coord), coord_z(coord));
             return 1;
         }
-        slot = mock230_scene_find_loc_exact(coord_x(coord), coord_z(coord),
+        slot = ToriRSServer_SceneFindLocExact(coord_x(coord), coord_z(coord),
                                             coord_level(coord), shape);
         /* -1 says "remove it again" rather than "put something back". */
-        mock230_world_loc_revert_queue(srv, duration, -1, shape, angle, coord_x(coord),
+        ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         /* The reference leaves the added loc active, so the next `loc_change`
          * or `loc_del` in the same script addresses it without a `loc_find`.
@@ -7116,7 +7116,7 @@ mock230_script_command(
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
         else
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
-                           mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                           ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
@@ -7144,7 +7144,7 @@ mock230_script_command(
         int32_t duration;
         int32_t op_slot;
         const char* op_text = NULL;
-        struct Mock230LocOps ops;
+        struct ToriRSServerLocOps ops;
         int slot;
 
         if( !SSVM_PopStr(state, &op_text) )
@@ -7177,10 +7177,10 @@ mock230_script_command(
             SSVM_Abort(state, "loc_add_op: empty op text for loc %d — use loc_add", loc_id);
             return 1;
         }
-        if( strlen(op_text) >= MOCK230_LOC_OP_TEXT_MAX )
+        if( strlen(op_text) >= TORIRSSERVER_LOC_OP_TEXT_MAX )
         {
             SSVM_Abort(state, "loc_add_op: op text '%s' is longer than %d", op_text,
-                       MOCK230_LOC_OP_TEXT_MAX - 1);
+                       TORIRSSERVER_LOC_OP_TEXT_MAX - 1);
             return 1;
         }
 
@@ -7188,24 +7188,24 @@ mock230_script_command(
         ops.flags = 1 << (op_slot - 1);
         snprintf(ops.name[op_slot - 1], sizeof(ops.name[op_slot - 1]), "%s", op_text);
 
-        if( !mock230_world_loc_set_ops(srv, coord_x(coord), coord_z(coord),
+        if( !ToriRSServer_WorldLocSetOps(srv, coord_x(coord), coord_z(coord),
                                        coord_level(coord), shape, loc_id, angle,
-                                       MOCK230_LOC_SET_ADD, &ops) )
+                                       TORIRSSERVER_LOC_SET_ADD, &ops) )
         {
             SSVM_Abort(state,
                        "loc_add_op %d at %d,%d failed — unknown loc or outside the scene",
                        loc_id, coord_x(coord), coord_z(coord));
             return 1;
         }
-        slot = mock230_scene_find_loc_exact(coord_x(coord), coord_z(coord),
+        slot = ToriRSServer_SceneFindLocExact(coord_x(coord), coord_z(coord),
                                             coord_level(coord), shape);
-        mock230_world_loc_revert_queue(srv, duration, -1, shape, angle, coord_x(coord),
+        ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         if( slot >= 0 )
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
         else
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
-                           mock230_script_zone_loc_handle(coord_x(coord), coord_z(coord),
+                           ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
@@ -7215,15 +7215,15 @@ mock230_script_command(
     {
         int32_t obj_id;
         int32_t param_id;
-        const struct Mock230ObjParam* row;
+        const struct ToriRSServerObjParam* row;
 
         if( !SSVM_PopInt(state, &param_id) )
             return 1;
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
 
-        row = mock230_obj_param(obj_id, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_ObjParam(obj_id, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "obj", obj_id);
         return 1;
     }
@@ -7232,15 +7232,15 @@ mock230_script_command(
     {
         int32_t npc_id;
         int32_t param_id;
-        const struct Mock230NpcParam* row;
+        const struct ToriRSServerNpcParam* row;
 
         if( !SSVM_PopInt(state, &param_id) )
             return 1;
         if( !SSVM_PopInt(state, &npc_id) )
             return 1;
 
-        row = mock230_npc_param(npc_id, param_id);
-        mock230_push_typed_param(state, param_id, row ? row->sval : NULL,
+        row = ToriRSServer_NpcParam(npc_id, param_id);
+        ToriRSServer_PushTypedParam(state, param_id, row ? row->sval : NULL,
                                  row ? row->ival : 0, row != NULL, "npc", npc_id);
         return 1;
     }
@@ -7255,7 +7255,7 @@ mock230_script_command(
         /* The *content* name (`bronze_scimitar`), not the display name
          * ("Bronze scimitar"). That is what makes it a debug name: it is the
          * symbol a script would have written. */
-        symbol = mock230_content_symbol_name(MOCK230_PACK_OBJ, obj_id);
+        symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_OBJ, obj_id);
         SSVM_PushStr(state, symbol ? symbol : "null");
         return 1;
     }
@@ -7267,7 +7267,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
-        symbol = mock230_content_symbol_name(MOCK230_PACK_INV, inv_id);
+        symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INV, inv_id);
         SSVM_PushStr(state, symbol ? symbol : "null");
         return 1;
     }
@@ -7278,7 +7278,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &npc_type) )
             return 1;
-        SSVM_PushStr(state, mock230_npcinfo(npc_type)->name);
+        SSVM_PushStr(state, ToriRSServer_NpcInfo(npc_type)->name);
         return 1;
     }
 
@@ -7289,7 +7289,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &npc_type) )
             return 1;
-        symbol = mock230_content_symbol_name(MOCK230_PACK_NPC, npc_type);
+        symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC, npc_type);
         SSVM_PushStr(state, symbol ? symbol : "null");
         return 1;
     }
@@ -7298,11 +7298,11 @@ mock230_script_command(
     {
         int32_t npc_type;
         int32_t op_num;
-        const struct Mock230NpcInfo* info;
+        const struct ToriRSServerNpcInfo* info;
 
         if( !SSVM_PopInt(state, &op_num) || !SSVM_PopInt(state, &npc_type) )
             return 1;
-        info = mock230_npcinfo(npc_type);
+        info = ToriRSServer_NpcInfo(npc_type);
         /* 1-based, as every other op index on the wire and in content is. An
          * absent op is the empty string rather than an abort: asking whether an
          * npc offers op 4 is a normal thing for content to do. */
@@ -7319,7 +7319,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &npc_type) )
             return 1;
-        SSVM_PushInt(state, mock230_npcinfo(npc_type)->size);
+        SSVM_PushInt(state, ToriRSServer_NpcInfo(npc_type)->size);
         return 1;
     }
 
@@ -7331,7 +7331,7 @@ mock230_script_command(
             return 1;
         /* The level the client prints beside the name, which is the record's
          * own `combat_level` — not anything derived from the npc's stats. */
-        SSVM_PushInt(state, mock230_npcinfo(npc_type)->combat_level);
+        SSVM_PushInt(state, ToriRSServer_NpcInfo(npc_type)->combat_level);
         return 1;
     }
 
@@ -7341,7 +7341,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushInt(state, mock230_objinfo(obj_id)->stackable);
+        SSVM_PushInt(state, ToriRSServer_ObjInfo(obj_id)->stackable);
         return 1;
     }
 
@@ -7354,7 +7354,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        SSVM_PushInt(state, mock230_objinfo(obj_id)->category);
+        SSVM_PushInt(state, ToriRSServer_ObjInfo(obj_id)->category);
         return 1;
     }
 
@@ -7376,7 +7376,7 @@ mock230_script_command(
          *
          * `anim(null, …)` is the exception, and it is not the gate's business:
          * -1 CANCELS, and it reaches the client as 65535 ("stop what you are
-         * playing"). `mock230_anim_play_player` refuses a negative id on
+         * playing"). `ToriRSServer_AnimPlayPlayer` refuses a negative id on
          * purpose — from C, -1 only ever means "the content named nothing" —
          * but from a script it is the one way to end an animation, and the
          * reference's own `death.rs2` ends with it. Without this, a death
@@ -7387,10 +7387,10 @@ mock230_script_command(
         {
             player->anim_id = -1;
             player->anim_delay = (int)values[1];
-            player->masks |= MOCK230_PMASK_SEQUENCE;
+            player->masks |= TORIRSSERVER_PMASK_SEQUENCE;
             return 1;
         }
-        mock230_anim_play_player(player, values[0], values[1]);
+        ToriRSServer_AnimPlayPlayer(player, values[0], values[1]);
         return 1;
     }
 
@@ -7404,9 +7404,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: readyanim seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: readyanim seq=%d\n", seq);
         player->readyanim = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_TURNANIM:
@@ -7416,9 +7416,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: turnanim seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: turnanim seq=%d\n", seq);
         player->turnanim = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_WALKANIM:
@@ -7428,9 +7428,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: walkanim seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: walkanim seq=%d\n", seq);
         player->walkanim = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_WALKANIM_B:
@@ -7440,9 +7440,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: walkanim_b seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: walkanim_b seq=%d\n", seq);
         player->walkanim_b = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_WALKANIM_L:
@@ -7452,9 +7452,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: walkanim_l seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: walkanim_l seq=%d\n", seq);
         player->walkanim_l = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_WALKANIM_R:
@@ -7464,9 +7464,9 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: walkanim_r seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: walkanim_r seq=%d\n", seq);
         player->walkanim_r = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
     case SS_OP_RUNANIM:
@@ -7476,17 +7476,17 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &seq) )
             return 1;
         if( player->world->verbose )
-            fprintf(stderr, "mock230: runanim seq=%d\n", seq);
+            fprintf(stderr, "torirsserver: runanim seq=%d\n", seq);
         /* LostCity allows -1 (null) to clear runanim. */
         player->runanim = seq;
-        player->masks |= MOCK230_PMASK_APPEARANCE;
+        player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         return 1;
     }
 
     case SS_OP_NPC_ANIM:
     {
         int32_t values[2];
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         for( int i = 1; i >= 0; i-- )
         {
@@ -7506,7 +7506,7 @@ mock230_script_command(
                 (int)(npc - srv->npcs),
                 values[0],
                 values[1]);
-        mock230_anim_play_npc(npc, values[0], values[1]);
+        ToriRSServer_AnimPlayNpc(npc, values[0], values[1]);
         return 1;
     }
 
@@ -7523,7 +7523,7 @@ mock230_script_command(
         /* Height and delay share one int on the wire: height in the high half,
          * delay in the low. */
         player->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
-        player->masks |= MOCK230_PMASK_SPOTANIM;
+        player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
         return 1;
     }
 
@@ -7541,8 +7541,8 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_zone_mapanim(srv, mock230_coord_x(values[1]), mock230_coord_z(values[1]),
-                             mock230_coord_level(values[1]), (int)values[0], (int)values[2],
+        ToriRSServer_ZoneMapanim(srv, ToriRSServer_CoordX(values[1]), ToriRSServer_CoordZ(values[1]),
+                             ToriRSServer_CoordLevel(values[1]), (int)values[0], (int)values[2],
                              (int)values[3]);
         return 1;
     }
@@ -7550,7 +7550,7 @@ mock230_script_command(
     case SS_OP_SPOTANIM_NPC:
     {
         int32_t values[3];
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         for( int i = 2; i >= 0; i-- )
         {
@@ -7564,7 +7564,7 @@ mock230_script_command(
         }
         npc->spotanim_id = values[0];
         npc->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
-        npc->masks |= MOCK230_NMASK_SPOTANIM;
+        npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
         return 1;
     }
 
@@ -7576,16 +7576,16 @@ mock230_script_command(
             return 1;
         /* Absolute half-tiles (LostCity faceSquare → fine(x,1)); the client
          * treats faceSquareX/Z as (tile<<1)+1 and 0,0 is the "none" sentinel. */
-        player->face_x = mock230_coord_fine(coord_x(coord), 1);
-        player->face_z = mock230_coord_fine(coord_z(coord), 1);
-        player->masks |= MOCK230_PMASK_FACE_COORD;
+        player->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
+        player->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
+        player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
         return 1;
     }
 
     case SS_OP_NPC_FACESQUARE:
     {
         int32_t coord;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
@@ -7597,12 +7597,12 @@ mock230_script_command(
         /* Same rule as the FACE_ENTITY seam: a record with turnspeed 0 never
          * turns, whatever the facing source. Gated here as well because this
          * op writes face_x/face_z directly and does not go through
-         * `mock230_npc_face_player`. */
+         * `ToriRSServer_NpcFacePlayer`. */
         if( npc->turnspeed == 0 )
             return 1;
-        npc->face_x = mock230_coord_fine(coord_x(coord), 1);
-        npc->face_z = mock230_coord_fine(coord_z(coord), 1);
-        npc->masks |= MOCK230_NMASK_FACE_COORD;
+        npc->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
+        npc->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
+        npc->masks |= TORIRSSERVER_NMASK_FACE_COORD;
         /*
          * A coord facing SUPERSEDES the entity latch, and the server's own copy
          * has to say so or the two ends desync permanently.
@@ -7611,7 +7611,7 @@ mock230_script_command(
          * arrives (`World_BeginModernFacing`, reached from the FACE_COORD op in
          * task_exec_entity_info.c), and a V5 Face block cannot carry a loc and
          * an entity at once — `v5_face_from_classic` lets the coord win. But
-         * `mock230_npc_face_npc` only sets the mask when the latch VALUE
+         * `ToriRSServer_NpcFaceNpc` only sets the mask when the latch VALUE
          * changes, so a server that still believes it is facing slot N never
          * re-sends it: the client faces nobody, forever, while the server sees
          * a perfectly good latch.
@@ -7620,7 +7620,7 @@ mock230_script_command(
          * special move calls `npc_facesquare`, and one call killed the
          * FACE_ENTITY that `npc_attacknpc` had established for the whole fight
          * (measured: 331 cycles tracking the target before the call, 0 after).
-         * Dropping our copy here lets the next `mock230_npc_face_npc` — which
+         * Dropping our copy here lets the next `ToriRSServer_NpcFaceNpc` — which
          * combat and the mode machine both run every tick — see a change and
          * re-latch, so the facing self-heals on the following tick.
          */
@@ -7635,7 +7635,7 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &text) )
             return 1;
         snprintf(player->say, sizeof(player->say), "%s", text);
-        player->masks |= MOCK230_PMASK_SAY;
+        player->masks |= TORIRSSERVER_PMASK_SAY;
         return 1;
     }
 
@@ -7644,7 +7644,7 @@ mock230_script_command(
     {
         int32_t type;
         int32_t duration;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         /* engine.rs2 declares (npc type, int duration). Timed reversion is not
          * modelled yet, but the argument still has to leave the stack and the
@@ -7658,7 +7658,7 @@ mock230_script_command(
         }
         npc_changetype_rehydrate(npc, type);
         npc->change_type = type;
-        npc->masks |= MOCK230_NMASK_CHANGE_TYPE;
+        npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
         (void)duration;
         return 1;
     }
@@ -7674,7 +7674,7 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_settext(srv->active_player, uid, text);
+        ToriRSServer_SendIfSettext(srv->active_player, uid, text);
         return 1;
     }
 
@@ -7687,7 +7687,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setnpchead(srv->active_player, values[0], values[1]);
+        ToriRSServer_SendIfSetnpchead(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -7697,7 +7697,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        mock230_send_if_setplayerhead(srv->active_player, uid);
+        ToriRSServer_SendIfSetplayerhead(srv->active_player, uid);
         return 1;
     }
 
@@ -7710,7 +7710,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setanim(srv->active_player, values[0], values[1]);
+        ToriRSServer_SendIfSetanim(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -7741,7 +7741,7 @@ mock230_script_command(
         colour = (((values[1] >> 16) & 0xff) >> 3) << 10;
         colour |= (((values[1] >> 8) & 0xff) >> 3) << 5;
         colour |= ((values[1] & 0xff) >> 3);
-        mock230_send_if_setcolour(srv->active_player, values[0], colour);
+        ToriRSServer_SendIfSetcolour(srv->active_player, values[0], colour);
         return 1;
     }
 
@@ -7754,7 +7754,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_sethide(srv->active_player, values[0], values[1]);
+        ToriRSServer_SendIfSethide(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -7767,7 +7767,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setmodel(srv->active_player, values[0], values[1]);
+        ToriRSServer_SendIfSetmodel(srv->active_player, values[0], values[1]);
         return 1;
     }
 
@@ -7780,7 +7780,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setobject(
+        ToriRSServer_SendIfSetobject(
             srv->active_player, values[0], values[1], values[2]);
         return 1;
     }
@@ -7794,7 +7794,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setposition(
+        ToriRSServer_SendIfSetposition(
             srv->active_player, values[0], values[1], values[2]);
         return 1;
     }
@@ -7808,14 +7808,14 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_if_setscroll(srv->active_player, values[0], values[1]);
+        ToriRSServer_SendIfSetscroll(srv->active_player, values[0], values[1]);
         return 1;
     }
 
     case SS_OP_IF_OPENCHAT:
     {
         int32_t group;
-        int slot = mock230_ids()->com_chatbox_modal;
+        int slot = ToriRSServer_Ids()->com_chatbox_modal;
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
@@ -7824,10 +7824,10 @@ mock230_script_command(
          * the *client's* job, not the server's: mounting a sub-interface into
          * it fires the gameframe's on_sub_change hook, and script908 both
          * unhides the modal and hides `chatbox:chatdisplay` behind it. See
-         * Mock230Ids.com_chatbox_modal.
+         * ToriRSServerIds.com_chatbox_modal.
          */
-        mock230_send_if_opensub(
-            srv->active_player, MOCK230_COM_GROUP(slot), MOCK230_COM_CHILD(slot), group, 0);
+        ToriRSServer_SendIfOpensub(
+            srv->active_player, TORIRSSERVER_COM_GROUP(slot), TORIRSSERVER_COM_CHILD(slot), group, 0);
         return 1;
     }
 
@@ -7855,7 +7855,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &events) || !SSVM_PopInt(state, &to) ||
             !SSVM_PopInt(state, &from) || !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_setevents(srv->active_player, (int)com, (int)from, (int)to, (int)events);
+        ToriRSServer_SendIfSetevents(srv->active_player, (int)com, (int)from, (int)to, (int)events);
         return 1;
     }
 
@@ -7877,8 +7877,8 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &type) || !SSVM_PopInt(state, &group) ||
             !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_opensub(
-            srv->active_player, MOCK230_COM_GROUP(com), MOCK230_COM_CHILD(com), (int)group, (int)type);
+        ToriRSServer_SendIfOpensub(
+            srv->active_player, TORIRSSERVER_COM_GROUP(com), TORIRSSERVER_COM_CHILD(com), (int)group, (int)type);
         return 1;
     }
 
@@ -7899,7 +7899,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &com) )
             return 1;
-        mock230_send_if_closesub(srv->active_player, (int)com);
+        ToriRSServer_SendIfClosesub(srv->active_player, (int)com);
         return 1;
     }
 
@@ -7909,7 +7909,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        mock230_gameframe_opentop(srv->active_player, (int)group);
+        ToriRSServer_GameframeOpentop(srv->active_player, (int)group);
         return 1;
     }
 
@@ -7921,7 +7921,7 @@ mock230_script_command(
         /* Declaration order is source, dest; stack pops reverse. */
         if( !SSVM_PopInt(state, &dest) || !SSVM_PopInt(state, &source) )
             return 1;
-        mock230_send_if_movesub(srv->active_player, (int)source, (int)dest);
+        ToriRSServer_SendIfMovesub(srv->active_player, (int)source, (int)dest);
         return 1;
     }
 
@@ -7929,7 +7929,7 @@ mock230_script_command(
         /* Unmounting is the whole message: the same on_sub_change hook that
          * hid `chatbox:chatdisplay` on the way in brings it back when the
          * modal has no sub again (script908's else branch). */
-        mock230_send_if_closesub(srv->active_player, mock230_ids()->com_chatbox_modal);
+        ToriRSServer_SendIfClosesub(srv->active_player, ToriRSServer_Ids()->com_chatbox_modal);
         player->resume_button_count = 0;
         return 1;
 
@@ -7964,7 +7964,7 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
             !SSVM_PopInt(state, &script_id) )
             return 1;
-        mock230_send_run_clientscript_mixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
+        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
         return 1;
     }
 
@@ -7983,9 +7983,9 @@ mock230_script_command(
      */
     case SS_OP_RUNCLIENTSCRIPTVARARG:
     {
-        char types[MOCK230_RUNCLIENTSCRIPT_ARG_MAX + 1];
-        int intv[MOCK230_RUNCLIENTSCRIPT_ARG_MAX];
-        const char* strv[MOCK230_RUNCLIENTSCRIPT_ARG_MAX];
+        char types[TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX + 1];
+        int intv[TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX];
+        const char* strv[TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX];
         const char* type_string;
         int32_t script_id;
         int argc;
@@ -7994,13 +7994,13 @@ mock230_script_command(
         if( !SSVM_PopStr(state, &type_string) )
             return 1;
         argc = (int)strlen(type_string);
-        if( argc > MOCK230_RUNCLIENTSCRIPT_ARG_MAX )
+        if( argc > TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX )
         {
             /* Louder than a truncation: a short packet would run the
              * clientscript with the wrong arguments and look like a content
              * bug in the panel it drew. */
             SSVM_Abort(state, "runclientscript* takes at most %d arguments, given %d",
-                       MOCK230_RUNCLIENTSCRIPT_ARG_MAX, argc);
+                       TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX, argc);
             return 1;
         }
         memcpy(types, type_string, (size_t)argc);
@@ -8026,7 +8026,7 @@ mock230_script_command(
         }
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        mock230_send_run_clientscript_mixed(srv->active_player, (int)script_id, types, intv,
+        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, types, intv,
                                             strv, argc);
         return 1;
     }
@@ -8036,7 +8036,7 @@ mock230_script_command(
      * a proc can split, call helper procs, and read the same pages, while two
      * players' suspended scripts cannot overwrite one another.  Glyph widths
      * come from the fontmetrics archive content passed by name through the
-     * font pack (mock230_split.c).
+     * font pack (torirs_server_split.c).
      */
     case SS_OP_SPLIT_INIT:
     {
@@ -8048,7 +8048,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &font_id) || !SSVM_PopInt(state, &lines_per_page) ||
             !SSVM_PopInt(state, &max_width) || !SSVM_PopStr(state, &text) )
             return 1;
-        mock230_split_init(
+        ToriRSServer_SplitInit(
             state, text, (int)max_width, (int)lines_per_page, (int)font_id);
         return 1;
     }
@@ -8060,12 +8060,12 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &line) || !SSVM_PopInt(state, &page) )
             return 1;
-        SSVM_PushStr(state, mock230_split_get(state, (int)page, (int)line));
+        SSVM_PushStr(state, ToriRSServer_SplitGet(state, (int)page, (int)line));
         return 1;
     }
 
     case SS_OP_SPLIT_PAGECOUNT:
-        SSVM_PushInt(state, mock230_split_pagecount(state));
+        SSVM_PushInt(state, ToriRSServer_SplitPagecount(state));
         return 1;
 
     case SS_OP_SPLIT_LINECOUNT:
@@ -8074,7 +8074,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &page) )
             return 1;
-        SSVM_PushInt(state, mock230_split_linecount(state, (int)page));
+        SSVM_PushInt(state, ToriRSServer_SplitLinecount(state, (int)page));
         return 1;
     }
 
@@ -8102,7 +8102,7 @@ mock230_script_command(
          * of these in a row, so the ceiling is now reachable by ordinary
          * content rather than only by a runaway loop.
          */
-        assert(player->resume_button_count < MOCK230_RESUME_BUTTON_MAX);
+        assert(player->resume_button_count < TORIRSSERVER_RESUME_BUTTON_MAX);
         player->resume_buttons[player->resume_button_count++] = uid;
         /*
          * Registering the button server-side is only half of it: at rev 230
@@ -8123,13 +8123,13 @@ mock230_script_command(
          * last option.
          */
         player->last_slot = -1;
-        mock230_send_if_setevents(srv->active_player, uid, 0, MOCK230_RESUME_SUB_MAX, MOCK230_EVENT_CLICK);
+        ToriRSServer_SendIfSetevents(srv->active_player, uid, 0, TORIRSSERVER_RESUME_SUB_MAX, TORIRSSERVER_EVENT_CLICK);
         return 1;
     }
 
     case SS_OP_P_PAUSEBUTTON:
         /* Waits for client input, not for the clock — so nothing in the tick
-         * resumes it. mock230_scripts_resume_button does, on a matching click.
+         * resumes it. ToriRSServer_ScriptsResumeButton does, on a matching click.
          * Same last_slot clear as if_addresumebutton: the click that unparks
          * must be what sets the row, not whatever was latched earlier. */
         player->last_slot = -1;
@@ -8155,7 +8155,7 @@ mock230_script_command(
      * `loggingOut` has no term here and does not need one: the reference has a
      * window between "asked to log out" and "gone", and this server does not —
      * `p_logout` kills the session and `logout_action` is stored but never read
-     * (mock230.h). So there is no tick on which a script could observe it.
+     * (torirs_server.h). So there is no tick on which a script could observe it.
      *
      * What content uses it for is refusing to start something on top of a
      * dialogue: `if (busy() = true) return;` at the top of a trigger, which is
@@ -8185,13 +8185,13 @@ mock230_script_command(
      * one running for a bank door has waypoints and none.
      *
      * `interaction.kind` is `hasInteraction()`: the field is cleared to
-     * MOCK230_INTERACT_NONE by `interaction_clear`, which is what
+     * TORIRSSERVER_INTERACT_NONE by `interaction_clear`, which is what
      * `clearInteraction` is here. `waypoint_index >= 0` is `hasWaypoints()`:
-     * -1 is the idle sentinel (see the queue's comment in mock230.h).
+     * -1 is the idle sentinel (see the queue's comment in torirs_server.h).
      */
     case SS_OP_BUSY2:
         SSVM_PushInt(state,
-                     player->interaction.kind != MOCK230_INTERACT_NONE ||
+                     player->interaction.kind != TORIRSSERVER_INTERACT_NONE ||
                              player->waypoint_index >= 0
                          ? 1
                          : 0);
@@ -8204,7 +8204,7 @@ mock230_script_command(
      * enforce the lock; scripts own when it ends.
      */
     case SS_OP_PLAYER_LOCK:
-        mock230_world_player_lock(srv);
+        ToriRSServer_WorldPlayerLock(srv);
         return 1;
 
     case SS_OP_PLAYER_UNLOCK:
@@ -8213,7 +8213,7 @@ mock230_script_command(
          * precisely where an activity must clear a stale time-stop lock after
          * an unrelated teleport. The timer dispatcher has already selected
          * srv->active_player, which is the only object this command touches. */
-        mock230_world_player_unlock(srv);
+        ToriRSServer_WorldPlayerUnlock(srv);
         return 1;
 
     /* ---- combat ---------------------------------------------------- */
@@ -8222,9 +8222,9 @@ mock230_script_command(
     {
         int32_t op_num;
         int slot = (int)state->host_tag - 1;
-        struct Mock230Npc* npc;
-        const struct Mock230NpcInfo* info;
-        struct Mock230Player* player = srv->active_player;
+        struct ToriRSServerNpc* npc;
+        const struct ToriRSServerNpcInfo* info;
+        struct ToriRSServerPlayer* player = srv->active_player;
 
         if( !SSVM_PopInt(state, &op_num) )
             return 1;
@@ -8233,13 +8233,13 @@ mock230_script_command(
             SSVM_Abort(state, "p_opnpc: op %d is not 1..5", (int)op_num);
             return 1;
         }
-        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active )
         {
             SSVM_Abort(state, "p_opnpc with no active npc");
             return 1;
         }
         npc = &srv->npcs[slot];
-        info = mock230_npcinfo(npc->type);
+        info = ToriRSServer_NpcInfo(npc->type);
         /*
          * LostCity PlayerOps.P_OPNPC: stopAction (clear interaction + walk) then
          * setInteraction — not clearPendingAction's combat_stop. Clearing
@@ -8249,9 +8249,9 @@ mock230_script_command(
         if( !info->ops[op_num - 1] )
             return 1;
         /*
-         * The 20-minute anti-AFK rule (MOCK230_AFK_COMBAT_TICKS).
+         * The 20-minute anti-AFK rule (TORIRSSERVER_AFK_COMBAT_TICKS).
          *
-         * Here as well as in `mock230_combat_engage` because the two are not
+         * Here as well as in `ToriRSServer_CombatEngage` because the two are not
          * one path: a click arrives as OPNPC and engages, while every *script*
          * re-issue — the retaliation queue, the melee label, the ranged loop —
          * arrives here and latches `combat_target` itself. Gating only engage
@@ -8261,20 +8261,20 @@ mock230_script_command(
          * talking, and `p_opnpc(1)` on a shopkeeper is not combat.
          */
         if( strcmp(info->ops[op_num - 1], "Attack") == 0 &&
-            mock230_combat_player_afk(player) )
+            ToriRSServer_CombatPlayerAfk(player) )
         {
-            mock230_combat_stop_player(srv);
+            ToriRSServer_CombatStopPlayer(srv);
             return 1;
         }
-        mock230_world_interaction_clear(srv);
-        mock230_world_steps_clear(player);
-        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, (int)op_num, slot,
+        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldStepsClear(player);
+        ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, (int)op_num, slot,
                                       npc->type, npc->x, npc->z, npc->level,
                                       info->size, info->size);
         {
             struct CollisionApproach approach;
-            mock230_scene_npc_approach(info->size, &approach);
-            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+            ToriRSServer_SceneNpcApproach(info->size, &approach);
+            ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
         /* Attack keeps the engine face/approach latch; other ops do not. */
         if( strcmp(info->ops[op_num - 1], "Attack") == 0 )
@@ -8291,7 +8291,7 @@ mock230_script_command(
      * player was doing, latch the npc, walk to it. What differs is only which
      * trigger the arrival resolves to — `[apnpct,magic:<spell>]` keyed by the
      * spell rather than `[opnpc<n>]` keyed by the npc — which is why the spell
-     * goes on the interaction (see `Mock230Interaction.spell`) instead of being
+     * goes on the interaction (see `ToriRSServerInteraction.spell`) instead of being
      * turned into an op number here.
      *
      * No `info->ops` check, unlike `p_opnpc`. A spell is not one of the npc's
@@ -8307,12 +8307,12 @@ mock230_script_command(
     {
         int32_t spell;
         int slot = (int)state->host_tag - 1;
-        struct Mock230Npc* npc;
-        const struct Mock230NpcInfo* info;
+        struct ToriRSServerNpc* npc;
+        const struct ToriRSServerNpcInfo* info;
 
         if( !SSVM_PopInt(state, &spell) )
             return 1;
-        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+        if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active )
         {
             SSVM_Abort(state, "p_opnpct with no active npc");
             return 1;
@@ -8323,16 +8323,16 @@ mock230_script_command(
             return 1;
         }
         npc = &srv->npcs[slot];
-        info = mock230_npcinfo(npc->type);
-        mock230_world_interaction_clear(srv);
-        mock230_world_steps_clear(player);
-        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, slot, npc->type, npc->x,
+        info = ToriRSServer_NpcInfo(npc->type);
+        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldStepsClear(player);
+        ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 1, slot, npc->type, npc->x,
                                       npc->z, npc->level, info->size, info->size);
         player->interaction.spell = (int)spell;
         {
             struct CollisionApproach approach;
-            mock230_scene_npc_approach(info->size, &approach);
-            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+            ToriRSServer_SceneNpcApproach(info->size, &approach);
+            ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
         return 1;
     }
@@ -8386,8 +8386,8 @@ mock230_script_command(
             /* A coordinate target does not home on an entity. As in the
              * reference, the destination level is ignored: the projectile is
              * filed and rendered on the source coordinate's plane. */
-            dst_x = mock230_coord_x(values[1]);
-            dst_z = mock230_coord_z(values[1]);
+            dst_x = ToriRSServer_CoordX(values[1]);
+            dst_z = ToriRSServer_CoordZ(values[1]);
             target = 0;
         }
         else if( opcode == SS_OP_PROJANIM_NPC )
@@ -8395,7 +8395,7 @@ mock230_script_command(
             int slot = (int)((uint32_t)values[1] & 0xffffu);
             uint16_t generation = (uint16_t)((uint32_t)values[1] >> 16);
 
-            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+            if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active ||
                 generation == 0 || srv->npcs[slot].generation != generation )
             {
                 SSVM_Abort(state, "projanim_npc: npc uid %d is not a live npc",
@@ -8408,7 +8408,7 @@ mock230_script_command(
         }
         else
         {
-            struct Mock230Player* target_player = player_by_uid(srv, values[1]);
+            struct ToriRSServerPlayer* target_player = player_by_uid(srv, values[1]);
 
             if( !target_player )
             {
@@ -8421,17 +8421,17 @@ mock230_script_command(
             target = -target_player->pid - 1;
         }
 
-        /* MOCK230_PROJ_DEBUG=1: one line per send. A projectile that never
+        /* TORIRSSERVER_PROJ_DEBUG=1: one line per send. A projectile that never
          * leaves and a projectile the client drops look identical from the
          * outside, and this is the line that separates them — it is how the
          * commented-out `projanim_pl` in `skill_combat/scripts/projectile.rs2`
          * was found (0 sends across a whole TzKal-Zuk fight). */
-        if( getenv("MOCK230_PROJ_DEBUG") )
+        if( getenv("TORIRSSERVER_PROJ_DEBUG") )
             fprintf(stderr, "projanim: src=%d,%d dst=%d,%d target=%d spot=%d delay=%d dur=%d\n",
-                    mock230_coord_x(values[0]), mock230_coord_z(values[0]), dst_x, dst_z,
+                    ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]), dst_x, dst_z,
                     target, (int)values[2], (int)values[5], (int)values[6]);
-        mock230_zone_projanim(srv, mock230_coord_x(values[0]), mock230_coord_z(values[0]),
-                              mock230_coord_level(values[0]), dst_x, dst_z, target,
+        ToriRSServer_ZoneProjanim(srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
+                              ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target,
                               (int)values[2], (int)values[3], (int)values[4], (int)values[5],
                               (int)values[6], (int)values[7], (int)values[8]);
         return 1;
@@ -8452,14 +8452,14 @@ mock230_script_command(
             SSVM_Abort(state, "npc_damage with no active npc");
             return 1;
         }
-        mock230_combat_hit_npc(srv, slot, values[0], values[1]);
+        ToriRSServer_CombatHitNpc(srv, slot, values[0], values[1]);
         return 1;
     }
 
     /*
      * npc_hitmark(hitsplat, amount) — the active npc's cosmetic splat.
      *
-     * Deliberately NOT routed through `mock230_combat_hit_npc`: that one
+     * Deliberately NOT routed through `ToriRSServer_CombatHitNpc`: that one
      * subtracts hitpoints and starts a fight. This is for a splat whose health
      * effect the caller applies itself, and for the overhead health bar the
      * hitmark mask is the only carrier of.
@@ -8479,7 +8479,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_hitmark with no active npc");
             return 1;
         }
-        mock230_combat_hitmark_npc(srv, slot, values[0], values[1]);
+        ToriRSServer_CombatHitmarkNpc(srv, slot, values[0], values[1]);
         return 1;
     }
 
@@ -8495,15 +8495,15 @@ mock230_script_command(
             SSVM_Abort(state, "npc_poison with no active npc");
             return 1;
         }
-        mock230_combat_poison_npc(srv, slot, srv->active_player, (int)severity);
+        ToriRSServer_CombatPoisonNpc(srv, slot, srv->active_player, (int)severity);
         return 1;
     }
 
     case SS_OP_DAMAGE:
     {
         int32_t values[3];
-        struct Mock230Player* target_player;
-        struct Mock230Player* saved_player;
+        struct ToriRSServerPlayer* target_player;
+        struct ToriRSServerPlayer* saved_player;
 
         for( int i = 2; i >= 0; i-- )
         {
@@ -8518,9 +8518,9 @@ mock230_script_command(
             return 1;
         }
         saved_player = srv->active_player;
-        mock230_world_set_active(srv, target_player);
-        mock230_combat_hit_player(srv, values[1], values[2]);
-        mock230_world_set_active(srv, saved_player);
+        ToriRSServer_WorldSetActive(srv, target_player);
+        ToriRSServer_CombatHitPlayer(srv, values[1], values[2]);
+        ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
 
@@ -8543,8 +8543,8 @@ mock230_script_command(
     case SS_OP_P_OVERHIT:
     {
         int32_t values[4];
-        struct Mock230Player* target_player;
-        struct Mock230Player* saved_player;
+        struct ToriRSServerPlayer* target_player;
+        struct ToriRSServerPlayer* saved_player;
 
         for( int i = 3; i >= 0; i-- )
         {
@@ -8559,7 +8559,7 @@ mock230_script_command(
             return 1;
         }
         saved_player = srv->active_player;
-        mock230_world_set_active(srv, target_player);
+        ToriRSServer_WorldSetActive(srv, target_player);
         if( values[3] )
         {
             /*
@@ -8569,21 +8569,21 @@ mock230_script_command(
              * one place hitpoints reach zero and the only one that starts the
              * death sequence.
              */
-            mock230_combat_hit_player(srv, values[2], target_player->hitpoints);
+            ToriRSServer_CombatHitPlayer(srv, values[2], target_player->hitpoints);
         }
         else
         {
-            mock230_combat_hit_player(srv, values[2], values[1]);
+            ToriRSServer_CombatHitPlayer(srv, values[2], values[1]);
         }
-        mock230_world_set_active(srv, saved_player);
+        ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
 
     case SS_OP_HITMARK:
     {
         int32_t values[3];
-        struct Mock230Player* target_player;
-        struct Mock230Player* saved_player;
+        struct ToriRSServerPlayer* target_player;
+        struct ToriRSServerPlayer* saved_player;
 
         for( int i = 2; i >= 0; i-- )
         {
@@ -8598,9 +8598,9 @@ mock230_script_command(
             return 1;
         }
         saved_player = srv->active_player;
-        mock230_world_set_active(srv, target_player);
-        mock230_combat_hitmark_player(srv, values[1], values[2]);
-        mock230_world_set_active(srv, saved_player);
+        ToriRSServer_WorldSetActive(srv, target_player);
+        ToriRSServer_CombatHitmarkPlayer(srv, values[1], values[2]);
+        ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
 
@@ -8622,8 +8622,8 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &amount) )
             return 1;
         player->run_energy += amount;
-        if( player->run_energy > MOCK230_RUN_ENERGY_MAX )
-            player->run_energy = MOCK230_RUN_ENERGY_MAX;
+        if( player->run_energy > TORIRSSERVER_RUN_ENERGY_MAX )
+            player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
         if( player->run_energy < 0 )
             player->run_energy = 0;
         /* Force the next run_energy_flush to re-send — content that restores a
@@ -8663,16 +8663,16 @@ mock230_script_command(
         local_x = coord_x(values[0]);
         local_z = coord_z(values[0]);
         if( opcode == SS_OP_CAM_MOVETO )
-            mock230_send_cam_moveto(player, local_x, local_z, (int)values[1],
+            ToriRSServer_SendCamMoveto(player, local_x, local_z, (int)values[1],
                                     (int)values[2], (int)values[3]);
         else
-            mock230_send_cam_lookat(player, local_x, local_z, (int)values[1],
+            ToriRSServer_SendCamLookat(player, local_x, local_z, (int)values[1],
                                     (int)values[2], (int)values[3]);
         return 1;
     }
 
     case SS_OP_CAM_RESET:
-        mock230_send_cam_reset(player);
+        ToriRSServer_SendCamReset(player);
         return 1;
 
     case SS_OP_CAM_SHAKE:
@@ -8684,7 +8684,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_send_cam_shake(player, (int)values[0], (int)values[1],
+        ToriRSServer_SendCamShake(player, (int)values[0], (int)values[1],
                                (int)values[2], (int)values[3]);
         return 1;
     }
@@ -8704,7 +8704,7 @@ mock230_script_command(
          * a .npc block, defaulting to the melee 1. It answered a C constant
          * before, so a ranged npc's script asked how far it could shoot and was
          * told "one tile" no matter what its config said. */
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -8712,7 +8712,7 @@ mock230_script_command(
             return 1;
         }
         SSVM_PushInt(state, npc->def ? npc->def->attackrange
-                                     : mock230_content_npc_default()->attackrange);
+                                     : ToriRSServer_ContentNpcDefault()->attackrange);
         return 1;
     }
 
@@ -8775,7 +8775,7 @@ mock230_script_command(
      * does NOT stop the inventory, the equipment or the prayer book: eating
      * and flicking a prayer through a stun is how the mechanic is survived in
      * OldSchool, and a stun that blocked those would be strictly harsher than
-     * the thing being modelled. See `stun_ticks` in mock230.h for how that
+     * the thing being modelled. See `stun_ticks` in torirs_server.h for how that
      * splits from `delayed_until` and `action_locked`.
      *
      * The longer stun wins, matching `npc_freeze` — a second swing landing on
@@ -8801,7 +8801,7 @@ mock230_script_command(
          * planned carry the player out of the swing that stunned them.
          */
         if( player->stun_ticks > 0 )
-            mock230_world_stun_interrupt(player);
+            ToriRSServer_WorldStunInterrupt(player);
         return 1;
     }
 
@@ -8838,7 +8838,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
         SSVM_PushInt(state,
-                     mock230_scene_can_travel(coord_level(coord), coord_x(coord),
+                     ToriRSServer_SceneCanTravel(coord_level(coord), coord_x(coord),
                                               coord_z(coord), (int)dx, (int)dz, 1, 0)
                          ? 1
                          : 0);
@@ -8858,7 +8858,7 @@ mock230_script_command(
     case SS_OP_NPC_FREEZE:
     {
         int32_t ticks;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &ticks) )
             return 1;
@@ -8880,7 +8880,7 @@ mock230_script_command(
 
     case SS_OP_NPC_FROZEN:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -8923,7 +8923,7 @@ mock230_script_command(
     case SS_OP_NPC_DELAY:
     {
         int32_t ticks;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &ticks) )
             return 1;
@@ -8948,7 +8948,7 @@ mock230_script_command(
      *     execution = ScriptState.NPC_SUSPENDED;
      *
      * "Let the step I am mid-way through finish before I act." `last_movement`
-     * is the moving tick **plus one** (see its comment on `Mock230Npc`), so
+     * is the moving tick **plus one** (see its comment on `ToriRSServerNpc`), so
      * `< tick - 1` means "has not moved for two ticks" and the script runs on
      * without waiting at all — an npc standing still must not be delayed, or
      * `[ai_queue3]` death sequences would stall a tick every time.
@@ -8959,7 +8959,7 @@ mock230_script_command(
      */
     case SS_OP_NPC_ARRIVEDELAY:
     {
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !npc )
         {
@@ -9001,17 +9001,17 @@ mock230_script_command(
     {
         int32_t values[4] = { 0, 0, 0, 0 };
         int argc = opcode == SS_OP_LONGQUEUE ? 4 : 3;
-        int kind = opcode == SS_OP_STRONGQUEUE ? MOCK230_QUEUE_STRONG
-                   : opcode == SS_OP_WEAKQUEUE ? MOCK230_QUEUE_WEAK
-                   : opcode == SS_OP_LONGQUEUE ? MOCK230_QUEUE_LONG
-                                               : MOCK230_QUEUE_NORMAL;
+        int kind = opcode == SS_OP_STRONGQUEUE ? TORIRSSERVER_QUEUE_STRONG
+                   : opcode == SS_OP_WEAKQUEUE ? TORIRSSERVER_QUEUE_WEAK
+                   : opcode == SS_OP_LONGQUEUE ? TORIRSSERVER_QUEUE_LONG
+                                               : TORIRSSERVER_QUEUE_NORMAL;
 
         for( int i = argc - 1; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
         {
             if( player->queue[i].active )
                 continue;
@@ -9053,24 +9053,24 @@ mock230_script_command(
     case SS_OP_WEAKQUEUEVARARG:
     case SS_OP_LONGQUEUEVARARG:
     {
-        int32_t vals[MOCK230_QUEUE_ARG_MAX];
+        int32_t vals[TORIRSSERVER_QUEUE_ARG_MAX];
         int32_t script_id = 0;
         int32_t delay = 0;
         int32_t logout_action = 0;
         const char* types = NULL;
         int n = 0;
-        int kind = opcode == SS_OP_STRONGQUEUEVARARG ? MOCK230_QUEUE_STRONG
-                   : opcode == SS_OP_WEAKQUEUEVARARG ? MOCK230_QUEUE_WEAK
-                   : opcode == SS_OP_LONGQUEUEVARARG ? MOCK230_QUEUE_LONG
-                                                     : MOCK230_QUEUE_NORMAL;
+        int kind = opcode == SS_OP_STRONGQUEUEVARARG ? TORIRSSERVER_QUEUE_STRONG
+                   : opcode == SS_OP_WEAKQUEUEVARARG ? TORIRSSERVER_QUEUE_WEAK
+                   : opcode == SS_OP_LONGQUEUEVARARG ? TORIRSSERVER_QUEUE_LONG
+                                                     : TORIRSSERVER_QUEUE_NORMAL;
 
         if( !SSVM_PopStr(state, &types) )
             return 1;
         n = types ? (int)strlen(types) : 0;
-        if( n > MOCK230_QUEUE_ARG_MAX )
+        if( n > TORIRSSERVER_QUEUE_ARG_MAX )
         {
             SSVM_Abort(state, "queue* states %d argument(s); the queue carries %d", n,
-                       MOCK230_QUEUE_ARG_MAX);
+                       TORIRSSERVER_QUEUE_ARG_MAX);
             return 1;
         }
         for( int i = n - 1; i >= 0; i-- )
@@ -9091,7 +9091,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
 
-        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
         {
             if( player->queue[i].active )
                 continue;
@@ -9119,7 +9119,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
         {
             if( player->queue[i].active && player->queue[i].script_id == script_id )
                 player->queue[i].active = 0;
@@ -9136,7 +9136,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
         {
             if( player->queue[i].active && player->queue[i].script_id == script_id )
                 count++;
@@ -9159,9 +9159,9 @@ mock230_script_command(
          * rather than stacking a second copy. So look for it first, and only
          * take a free slot if it is not already running. */
         {
-            struct Mock230Timer* slot = NULL;
+            struct ToriRSServerTimer* slot = NULL;
 
-            for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+            for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
             {
                 if( player->timers[i].active && player->timers[i].script_id == values[0] )
                 {
@@ -9169,7 +9169,7 @@ mock230_script_command(
                     break;
                 }
             }
-            for( int i = 0; !slot && i < MOCK230_TIMER_MAX; i++ )
+            for( int i = 0; !slot && i < TORIRSSERVER_TIMER_MAX; i++ )
             {
                 if( !player->timers[i].active )
                     slot = &player->timers[i];
@@ -9188,7 +9188,7 @@ mock230_script_command(
                 char full[512];
                 int at = 0;
 
-                for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+                for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
                 {
                     const struct SSVM_Script* held =
                         SSVM_ProviderGet(srv->scripts, player->timers[i].script_id);
@@ -9200,7 +9200,7 @@ mock230_script_command(
                     if( at >= (int)sizeof(full) )
                         break;
                 }
-                fprintf(stderr, "mock230: timer table full: %s\n", full);
+                fprintf(stderr, "torirsserver: timer table full: %s\n", full);
                 SSVM_Abort(state, "no free timer slot");
                 return 1;
             }
@@ -9212,7 +9212,7 @@ mock230_script_command(
              * — and `gettimer` returns this number, so a countdown here would
              * make that opcode unimplementable rather than merely different. */
             slot->clock = srv->tick;
-            slot->type = opcode == SS_OP_SOFTTIMER ? MOCK230_TIMER_SOFT : MOCK230_TIMER_NORMAL;
+            slot->type = opcode == SS_OP_SOFTTIMER ? TORIRSSERVER_TIMER_SOFT : TORIRSSERVER_TIMER_NORMAL;
         }
         return 1;
     }
@@ -9234,7 +9234,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
         {
             if( player->timers[i].active && player->timers[i].script_id == script_id )
                 player->timers[i].active = 0;
@@ -9250,7 +9250,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
         {
             if( player->timers[i].active && player->timers[i].script_id == script_id )
                 answer = player->timers[i].clock;
@@ -9313,7 +9313,7 @@ mock230_script_command(
      * and, at this era, the whole of Fletching (every one of its `[label,…]`
      * entry points opens on this check). `srv->members_world` defaults to 1
      * (members) at construction — content ported from the reference expects
-     * a members world — with `MOCK230_MEMBERS_WORLD=0` available to force a
+     * a members world — with `TORIRSSERVER_MEMBERS_WORLD=0` available to force a
      * free world for testing.
      */
     case SS_OP_MAP_MEMBERS:
@@ -9325,7 +9325,7 @@ mock230_script_command(
     /*
      * The six core map-instance commands plus their owner/shared-flag metadata.
      * What each one is for is argued in gen_opcode_meta.py beside its declaration
-     * and in mock230_mapinstance.h; this is only the host side.
+     * and in torirs_server_mapinstance.h; this is only the host side.
      *
      * They are thin on purpose. Every one of them is "pop the arguments, call the
      * registry, push what it said" — the registry owns the pool, the rotation
@@ -9343,9 +9343,9 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &zone_h) || !SSVM_PopInt(state, &zone_w) )
             return 1;
-        handle = mock230_mapinstance_alloc(mock230_world_cache_dir(), zone_w, zone_h);
+        handle = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), zone_w, zone_h);
         if( handle && srv->active_player )
-            mock230_mapinstance_set_owner(handle, srv->active_player->pid + 1);
+            ToriRSServer_MapInstanceSetOwner(handle, srv->active_player->pid + 1);
         SSVM_PushInt(state, handle);
         return 1;
     }
@@ -9356,7 +9356,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &handle) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_owner(handle));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceOwner(handle));
         return 1;
     }
 
@@ -9369,7 +9369,7 @@ mock230_script_command(
             !SSVM_PopInt(state, &owner_uid) )
             return 1;
         SSVM_PushInt(
-            state, mock230_mapinstance_find_owner(owner_uid, required_flags));
+            state, ToriRSServer_MapInstanceFindOwner(owner_uid, required_flags));
         return 1;
     }
 
@@ -9389,7 +9389,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &required_flags) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_find_flagged(required_flags));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceFindFlagged(required_flags));
         return 1;
     }
 
@@ -9402,10 +9402,10 @@ mock230_script_command(
             return 1;
         for( int i = 0; i < srv->player_count; i++ )
         {
-            const struct Mock230Player* occupant = &srv->players[i];
+            const struct ToriRSServerPlayer* occupant = &srv->players[i];
 
             if( occupant->active &&
-                mock230_mapinstance_find(occupant->x, occupant->z) == handle )
+                ToriRSServer_MapInstanceFind(occupant->x, occupant->z) == handle )
                 count++;
         }
         SSVM_PushInt(state, count);
@@ -9419,7 +9419,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &mask) || !SSVM_PopInt(state, &handle) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_flag_get(handle, mask));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceFlagGet(handle, mask));
         return 1;
     }
 
@@ -9432,7 +9432,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &enabled) || !SSVM_PopInt(state, &mask) ||
             !SSVM_PopInt(state, &handle) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_flag_set(handle, mask, enabled));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceFlagSet(handle, mask, enabled));
         return 1;
     }
 
@@ -9443,7 +9443,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &handle) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_var_get(handle, slot));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceVarGet(handle, slot));
         return 1;
     }
 
@@ -9456,7 +9456,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &slot) ||
             !SSVM_PopInt(state, &handle) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_var_set(handle, slot, value));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceVarSet(handle, slot, value));
         return 1;
     }
 
@@ -9477,7 +9477,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_mapinstance_setchunk(values[0], values[1], values[2], values[3],
+        ToriRSServer_MapInstanceSetchunk(values[0], values[1], values[2], values[3],
                                      coord_x(values[4]), coord_z(values[4]),
                                      coord_level(values[4]), values[5]);
         return 1;
@@ -9489,8 +9489,8 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &handle) )
             return 1;
-        if( mock230_mapinstance_build(handle) )
-            mock230_world_mapinstance_built(srv, handle);
+        if( ToriRSServer_MapInstanceBuild(handle) )
+            ToriRSServer_WorldMapInstanceBuilt(srv, handle);
         return 1;
     }
 
@@ -9512,7 +9512,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( !mock230_mapinstance_base(values[0], &base_x, &base_z) )
+        if( !ToriRSServer_MapInstanceBase(values[0], &base_x, &base_z) )
         {
             SSVM_PushInt(state, 0);
             return 1;
@@ -9541,18 +9541,18 @@ mock230_script_command(
          * already in the arena. One line at the moment of the release is what
          * turns that into something a run can be read for.
          */
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         {
             if( srv->npcs[i].active &&
-                mock230_mapinstance_find(srv->npcs[i].x, srv->npcs[i].z) == handle )
+                ToriRSServer_MapInstanceFind(srv->npcs[i].x, srv->npcs[i].z) == handle )
                 left++;
         }
-        if( left > 0 && getenv("MOCK230_VERBOSE") )
+        if( left > 0 && getenv("TORIRSSERVER_VERBOSE") )
             fprintf(stderr,
-                    "mock230: map instance %d freed with %d npc(s) still inside — "
+                    "torirsserver: map instance %d freed with %d npc(s) still inside — "
                     "the next session on this square inherits them\n",
                     (int)handle, left);
-        mock230_world_mapinstance_free(srv, handle);
+        ToriRSServer_WorldMapInstanceFree(srv, handle);
         return 1;
     }
 
@@ -9562,14 +9562,14 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        SSVM_PushInt(state, mock230_mapinstance_find(coord_x(coord), coord_z(coord)));
+        SSVM_PushInt(state, ToriRSServer_MapInstanceFind(coord_x(coord), coord_z(coord)));
         return 1;
     }
 
     case SS_OP_NPC_SETRESPAWN:
     {
         int32_t delay;
-        struct Mock230Npc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc(state);
 
         if( !SSVM_PopInt(state, &delay) )
             return 1;
@@ -9602,9 +9602,9 @@ mock230_script_command(
         origin_x = coord_x(values[0]);
         origin_z = coord_z(values[0]);
         origin_level = coord_level(values[0]);
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            const struct Mock230Npc* candidate = &srv->npcs[slot];
+            const struct ToriRSServerNpc* candidate = &srv->npcs[slot];
             int dx;
             int dz;
             int distance;
@@ -9642,7 +9642,7 @@ mock230_script_command(
     case SS_OP_INV_SETVAR:
     {
         int32_t values[4];
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
 
         for( int i = 3; i >= 0; i-- )
         {
@@ -9661,8 +9661,8 @@ mock230_script_command(
                        values[1], values[0], row->slots);
             return 1;
         }
-        mock230_item_set_var(&row->items[values[1]], (int)values[2], (int)values[3]);
-        mock230_container_mark(row, (int)values[1]);
+        ToriRSServer_ItemSetVar(&row->items[values[1]], (int)values[2], (int)values[3]);
+        ToriRSServer_ContainerMark(row, (int)values[1]);
         return 1;
     }
 
@@ -9671,7 +9671,7 @@ mock230_script_command(
         int32_t inv_id;
         int32_t slot;
         int32_t key_obj;
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
 
         if( !SSVM_PopInt(state, &key_obj) || !SSVM_PopInt(state, &slot) ||
             !SSVM_PopInt(state, &inv_id) )
@@ -9687,7 +9687,7 @@ mock230_script_command(
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_PushInt(state, mock230_item_get_var(&row->items[slot], (int)key_obj));
+        SSVM_PushInt(state, ToriRSServer_ItemGetVar(&row->items[slot], (int)key_obj));
         return 1;
     }
 
@@ -9755,8 +9755,8 @@ mock230_script_command(
         x2 = coord_x(to);
         z2 = coord_z(to);
         clear = opcode == SS_OP_LINEOFSIGHT
-                    ? mock230_scene_line_of_sight(level, x1, z1, x2, z2, 1, 1, 1, 1, 0)
-                    : mock230_scene_line_of_walk(level, x1, z1, x2, z2, 1, 1, 1, 1, 0);
+                    ? ToriRSServer_SceneLineOfSight(level, x1, z1, x2, z2, 1, 1, 1, 1, 0)
+                    : ToriRSServer_SceneLineOfWalk(level, x1, z1, x2, z2, 1, 1, 1, 1, 0);
         SSVM_PushInt(state, clear ? 1 : 0);
         return 1;
     }
@@ -9781,7 +9781,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        SSVM_PushInt(state, mock230_scene_walk_blocked(coord_level(coord),
+        SSVM_PushInt(state, ToriRSServer_SceneWalkBlocked(coord_level(coord),
                                                        coord_x(coord),
                                                        coord_z(coord)));
         return 1;
@@ -9796,7 +9796,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        SSVM_PushInt(state, mock230_scene_find_loc(coord_x(coord), coord_z(coord),
+        SSVM_PushInt(state, ToriRSServer_SceneFindLoc(coord_x(coord), coord_z(coord),
                                                     coord_level(coord), -1) >= 0);
         return 1;
     }
@@ -9820,7 +9820,7 @@ mock230_script_command(
             return 1;
         for( int i = 0; i < srv->player_count; i++ )
         {
-            const struct Mock230Player* other = &srv->players[i];
+            const struct ToriRSServerPlayer* other = &srv->players[i];
 
             if( other->level < coord_level(corner_sw) ||
                 other->level > coord_level(corner_ne) )
@@ -9863,14 +9863,14 @@ mock230_script_command(
     case SS_OP_ENUM:
     {
         int32_t values[4];
-        const struct Mock230EnumDef* def;
+        const struct ToriRSServerEnumDef* def;
 
         for( int i = 3; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        def = mock230_content_enum_by_id(values[2]);
+        def = ToriRSServer_ContentEnumById(values[2]);
         if( !def )
         {
             SSVM_Abort(state, "enum %d is not defined by any .enum config", values[2]);
@@ -9896,11 +9896,11 @@ mock230_script_command(
     case SS_OP_ENUM_GETOUTPUTCOUNT:
     {
         int32_t enum_id;
-        const struct Mock230EnumDef* def;
+        const struct ToriRSServerEnumDef* def;
 
         if( !SSVM_PopInt(state, &enum_id) )
             return 1;
-        def = mock230_content_enum_by_id(enum_id);
+        def = ToriRSServer_ContentEnumById(enum_id);
         if( !def )
         {
             SSVM_Abort(state, "enum_getoutputcount on undefined enum %d", enum_id);
@@ -9920,7 +9920,7 @@ mock230_script_command(
          * bound yields 0 rather than aborting: content computing a bound from
          * a table size should not take the server down when the table is
          * empty. */
-        SSVM_PushInt(state, bound > 0 ? mock230_random(srv, 0, bound - 1) : 0);
+        SSVM_PushInt(state, bound > 0 ? ToriRSServer_Random(srv, 0, bound - 1) : 0);
         return 1;
     }
 
@@ -9941,7 +9941,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        mock230_world_obj_add(srv, values[1], values[2], coord_x(values[0]),
+        ToriRSServer_WorldObjAdd(srv, values[1], values[2], coord_x(values[0]),
                               coord_z(values[0]), coord_level(values[0]),
                               values[3] > 0 ? values[3] : -1);
         /*
@@ -9949,7 +9949,7 @@ mock230_script_command(
          * (LOOTTRACKER_ADD_LOOT) with (npcId, eventId, itemId, qty). Only while
          * combat death credit is armed — not every ground spawn.
          */
-        mock230_loot_tracker_add_ground_obj(
+        ToriRSServer_LootTrackerAddGroundObj(
             srv, NULL, (int)values[1], (int)values[2]);
         return 1;
     }
@@ -9974,13 +9974,13 @@ mock230_script_command(
             SSVM_Abort(state, "obj_add_private: no active player");
             return 1;
         }
-        mock230_world_obj_add_private(srv, player, values[1], values[2], coord_x(values[0]),
+        ToriRSServer_WorldObjAddPrivate(srv, player, values[1], values[2], coord_x(values[0]),
                                       coord_z(values[0]), coord_level(values[0]),
                                       values[3] > 0 ? values[3] : -1, values[4]);
         /* Private drops used to stop here, bypassing the only notification the
          * client loot tracker consumes. That made misses depend on which drop
          * table opcode happened to roll the item. */
-        mock230_loot_tracker_add_ground_obj(
+        ToriRSServer_LootTrackerAddGroundObj(
             srv, player, (int)values[1], (int)values[2]);
         return 1;
     }
@@ -10005,7 +10005,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &stat) )
             return 1;
-        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat %d is not a skill", stat);
             return 1;
@@ -10025,7 +10025,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &stat) )
             return 1;
-        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_base %d is not a skill", stat);
             return 1;
@@ -10043,7 +10043,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &stat) )
             return 1;
-        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_xp %d is not a skill", stat);
             return 1;
@@ -10105,7 +10105,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "%s %d is not a skill", SSVM_OpcodeName(opcode), values[0]);
             return 1;
@@ -10129,9 +10129,9 @@ mock230_script_command(
         player->stat_boosted[values[0]] = target;
         /* Hitpoints are two views of one number — the stat the skills tab
          * prints and the health orb's `hitpoints`. */
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
             player->hitpoints = target;
-        mock230_combat_stat_mark(player, values[0]);
+        ToriRSServer_CombatStatMark(player, values[0]);
         return 1;
     }
 
@@ -10169,7 +10169,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_add %d is not a skill", values[0]);
             return 1;
@@ -10187,9 +10187,9 @@ mock230_script_command(
             return 1;
 
         player->stat_boosted[values[0]] = target;
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
             player->hitpoints = target;
-        mock230_combat_stat_mark(player, values[0]);
+        ToriRSServer_CombatStatMark(player, values[0]);
         return 1;
     }
 
@@ -10205,7 +10205,7 @@ mock230_script_command(
      *
      * The data is content's (`maps/multiway.csv`, ported from the reference's own
      * file) and the lookup is a binary search over a zone set —
-     * `mock230_content_multiway`. The Kronos queue recorded this as "opcode
+     * `ToriRSServer_ContentMultiway`. The Kronos queue recorded this as "opcode
      * exists, no multi map": the opcode was *declared* and never hosted, so a
      * script calling it reached the VM's stub and got 0. Which is the same answer
      * an empty zone set gives, and that is exactly why it was worth hosting
@@ -10218,9 +10218,9 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        SSVM_PushInt(state, mock230_content_multiway(mock230_coord_x(coord),
-                                                     mock230_coord_z(coord),
-                                                     mock230_coord_level(coord)));
+        SSVM_PushInt(state, ToriRSServer_ContentMultiway(ToriRSServer_CoordX(coord),
+                                                     ToriRSServer_CoordZ(coord),
+                                                     ToriRSServer_CoordLevel(coord)));
         return 1;
     }
 
@@ -10230,7 +10230,7 @@ mock230_script_command(
 
         /* Base levels, not boosted: the total-level number is what the skills
          * tab prints, and a potion does not change it. */
-        for( int stat = 0; stat < MOCK230_STAT_COUNT; stat++ )
+        for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
             total += player->stat_level[stat];
         SSVM_PushInt(state, total);
         return 1;
@@ -10245,7 +10245,7 @@ mock230_script_command(
      */
     case SS_OP_P_LOGOUT:
         if( srv->active_player && srv->active_player->session )
-            mock230_session_kill(srv->active_player->session);
+            ToriRSServer_SessionKill(srv->active_player->session);
         return 1;
 
     case SS_OP_STAT_HEAL:
@@ -10260,7 +10260,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_heal %d is not a skill", values[0]);
             return 1;
@@ -10278,9 +10278,9 @@ mock230_script_command(
         /* Hitpoints are two views of one number — the stat the skills tab
          * prints and the health orb's `hitpoints`. Writing only the stat would
          * heal a player whose orb never moved. */
-        if( values[0] == MOCK230_STAT_HITPOINTS )
+        if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
             player->hitpoints = healed;
-        mock230_combat_stat_mark(player, values[0]);
+        ToriRSServer_CombatStatMark(player, values[0]);
         return 1;
     }
 
@@ -10307,14 +10307,14 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        if( values[0] < 0 || values[0] >= MOCK230_STAT_COUNT )
+        if( values[0] < 0 || values[0] >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_random %d is not a skill", values[0]);
             return 1;
         }
         level = player->stat_boosted[values[0]];
         value = values[1] * (99 - level) / 98 + values[2] * (level - 1) / 98 + 1;
-        SSVM_PushInt(state, value > mock230_random(srv, 0, 255) ? 1 : 0);
+        SSVM_PushInt(state, value > ToriRSServer_Random(srv, 0, 255) ? 1 : 0);
         return 1;
     }
 
@@ -10327,17 +10327,17 @@ mock230_script_command(
             return 1;
         if( !SSVM_PopInt(state, &stat) )
             return 1;
-        if( stat < 0 || stat >= MOCK230_STAT_COUNT )
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
             SSVM_Abort(state, "stat_advance %d is not a skill", stat);
             return 1;
         }
         /* The reference's xp argument is already in tenths. */
-        mock230_combat_add_xp(srv, stat, experience);
+        ToriRSServer_CombatAddXp(srv, stat, experience);
         return 1;
     }
 
-    /* `npc_param` was here. It is `mock230_ops_npc.c`'s now — and had been
+    /* `npc_param` was here. It is `torirs_server_ops_npc.c`'s now — and had been
      * unreachable since that domain's hook went in above, because the per-domain
      * handlers are offered the opcode first. Deleted rather than marked dead: it
      * answered one param by spelling `death_drop` in C, which is the hard rule
@@ -10359,11 +10359,11 @@ mock230_script_command(
          * (LostCity_Server/content/scripts/engine.rs2:205) — values[0] sound,
          * values[1] loops, values[2] delay, the same order SYNTH_SOUND wants
          * on the wire (WEAPON_FX.md §6). The encoder now exists
-         * (mock230_send_synth_sound, mock230_encode.c) and the packet is
+         * (ToriRSServer_SendSynthSound, torirs_server_encode.c) and the packet is
          * routed (packetin.h:102 -> PKT_NAME_SYNTH_SOUND); this used to be a
-         * stub that only printed under MOCK230_VERBOSE. */
+         * stub that only printed under TORIRSSERVER_VERBOSE. */
         if( srv->verbose )
-            fprintf(stderr, "mock230: sound_synth(%d, %d, %d)\n", values[0], values[1],
+            fprintf(stderr, "torirsserver: sound_synth(%d, %d, %d)\n", values[0], values[1],
                     values[2]);
         /*
          * A negative id is "no sound", not sound -1. LostCity's engine rejects
@@ -10376,7 +10376,7 @@ mock230_script_command(
         if( values[0] < 0 )
             return 1;
         if( player != NULL )
-            mock230_send_synth_sound(player, values[0], values[1], values[2]);
+            ToriRSServer_SendSynthSound(player, values[0], values[1], values[2]);
         return 1;
     }
 
@@ -10387,7 +10387,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &id) )
             return 1;
         if( srv->verbose )
-            fprintf(stderr, "mock230: midi_song(%d)\n", id);
+            fprintf(stderr, "torirsserver: midi_song(%d)\n", id);
         if( player != NULL )
         {
             /* Keep scripted overrides in the same state slot as region music.
@@ -10408,14 +10408,14 @@ mock230_script_command(
              * cutscene asking for silence cannot see: it would look exactly
              * like the command not being called at all.
              *
-             * 0 delay, 30 speed: the same 600 ms ramp `mock230_music_enter_region`
+             * 0 delay, 30 speed: the same 600 ms ramp `ToriRSServer_MusicEnterRegion`
              * uses in both directions, so a stop and the region's own fade-in
              * are the same length rather than two different-feeling ramps.
              */
             if( id < 0 )
-                mock230_send_midi_song_stop(player, 0, 30);
+                ToriRSServer_SendMidiSongStop(player, 0, 30);
             else
-                mock230_send_midi_song(player, id);
+                ToriRSServer_SendMidiSong(player, id);
         }
         return 1;
     }
@@ -10426,12 +10426,12 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &id) )
             return 1;
-        if( id < 0 || id >= MOCK230_JINGLE_LENGTH_COUNT )
+        if( id < 0 || id >= TORIRSSERVER_JINGLE_LENGTH_COUNT )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_PushInt(state, k_mock230_jingle_length_ms[id]);
+        SSVM_PushInt(state, k_ToriRSServer_JingleLengthMs[id]);
         return 1;
     }
 
@@ -10448,14 +10448,14 @@ mock230_script_command(
          * `new MidiJingle(id, Midi.getLength(id))`), which is why this looks
          * up the length rather than taking a second argument. */
         if( srv->verbose )
-            fprintf(stderr, "mock230: midi_jingle(%d)\n", id);
+            fprintf(stderr, "torirsserver: midi_jingle(%d)\n", id);
         /* Negative is "no jingle", the same rule sound_synth and midi_song
          * both state a few cases above -- these ids default to -1 too. */
         if( id < 0 )
             return 1;
-        length_ms = (id < MOCK230_JINGLE_LENGTH_COUNT) ? k_mock230_jingle_length_ms[id] : 0;
+        length_ms = (id < TORIRSSERVER_JINGLE_LENGTH_COUNT) ? k_ToriRSServer_JingleLengthMs[id] : 0;
         if( player != NULL )
-            mock230_send_midi_jingle(player, id, length_ms);
+            ToriRSServer_SendMidiJingle(player, id, length_ms);
         return 1;
     }
 
@@ -10468,7 +10468,7 @@ mock230_script_command(
      * `midi_song` and `sound_synth` state.
      *
      * Calling it claims the bed for the map square the caller is standing on,
-     * which is how the claim survives `mock230_ambient_enter_region` running
+     * which is how the claim survives `ToriRSServer_AmbientEnterRegion` running
      * later in the same tick as the teleport that got the player here. The
      * claim is released by leaving that square, so a script that silences a
      * place does not also have to remember to restore the world's bed on every
@@ -10482,13 +10482,13 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &id) )
             return 1;
         if( srv->verbose )
-            fprintf(stderr, "mock230: ambientsound(%d)\n", id);
+            fprintf(stderr, "torirsserver: ambientsound(%d)\n", id);
         if( player != NULL )
         {
             int map_x;
             int map_z;
 
-            mock230_region_square_for(player, &map_x, &map_z);
+            ToriRSServer_RegionSquareFor(player, &map_x, &map_z);
             player->ambient_script_map_x = map_x;
             player->ambient_script_map_z = map_z;
 
@@ -10496,9 +10496,9 @@ mock230_script_command(
             {
                 player->ambient_scape = id < 0 ? -1 : id;
                 if( id < 0 )
-                    mock230_send_ambientsound_stop(player, 1);
+                    ToriRSServer_SendAmbientsoundStop(player, 1);
                 else
-                    mock230_send_ambientsound_start(player, id, 1);
+                    ToriRSServer_SendAmbientsoundStart(player, id, 1);
             }
         }
         return 1;
@@ -10529,9 +10529,9 @@ mock230_script_command(
          * (`InvType.get(inv).size`) — a container nobody has touched yet still
          * has a size. Routing it through `container_for` is what made this
          * return 0 for 1,023 of the cache's 1,026 invs while
-         * `mock230_bank_inv_size` sat beside it answering every one.
+         * `ToriRSServer_BankInvSize` sat beside it answering every one.
          */
-        size = mock230_bank_inv_size((int)inv_id);
+        size = ToriRSServer_BankInvSize((int)inv_id);
         /*
          * The cache is not the only place a type size can live, and answering
          * only the first source is what made this op lie.
@@ -10539,7 +10539,7 @@ mock230_script_command(
          * A `pack/inv.alloc` id has no config group 5 record at all, so the
          * lookup above answers 0 for it -- while the container the same inv
          * hands out is sized from the `size=` its `.inv` declared. That is the
-         * two-source chain `mock230_container_resolve` already walks, and
+         * two-source chain `ToriRSServer_ContainerResolve` already walks, and
          * walking only half of it put `inv_size` and `inv_freespace` in
          * disagreement about one container. Content cannot see that: it reads
          * as an inv with no slots, and every loop bounded by it silently does
@@ -10555,7 +10555,7 @@ mock230_script_command(
          * hand back never moved.
          */
         if( size <= 0 )
-            size = mock230_shop_content_size(inv_id);
+            size = ToriRSServer_ShopContentSize(inv_id);
         /*
          * Neither source knows this inv: content named an id that is in no
          * cache record and no `.inv`. There is no size to answer with, and
@@ -10578,7 +10578,7 @@ mock230_script_command(
      *
      * A count of zero is not this opcode's to interpret: writing an obj at zero
      * is how content creates a bank placeholder (`~bank_leave_placeholder`) and
-     * is meaningless anywhere else, and `mock230_container_set` is where that
+     * is meaningless anywhere else, and `ToriRSServer_ContainerSet` is where that
      * distinction lives — see `zero_count_is_meaningful` for the cell it used to
      * build in a backpack, which counted as full while holding nothing.
      *
@@ -10589,7 +10589,7 @@ mock230_script_command(
     case SS_OP_INV_SETSLOT:
     {
         int32_t values[4];
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
 
         for( int i = 3; i >= 0; i-- )
         {
@@ -10614,7 +10614,7 @@ mock230_script_command(
                        values[0], values[1]);
             return 1;
         }
-        mock230_container_set(row, (int)values[1], (int)values[2], (int)values[3]);
+        ToriRSServer_ContainerSet(row, (int)values[1], (int)values[2], (int)values[3]);
         return 1;
     }
 
@@ -10624,7 +10624,7 @@ mock230_script_command(
         int32_t inv_id;
         int32_t slot;
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
 
         if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &inv_id) )
             return 1;
@@ -10661,7 +10661,7 @@ mock230_script_command(
         int32_t count;
         int32_t limit;
         int slots = 0;
-        struct Mock230Item* items;
+        struct ToriRSServerItem* items;
         int space = 0;
 
         if( !SSVM_PopInt(state, &limit) || !SSVM_PopInt(state, &count) ||
@@ -10679,9 +10679,9 @@ mock230_script_command(
             /* The CONTAINER's stack policy, not the obj record's alone: a shop
              * stacks everything (`stackall=yes`), so asking for one free slot
              * per pot refused a sale into a nearly-full store that in fact had
-             * room in the pot cell it already held. `mock230_container_add` has
+             * room in the pot cell it already held. `ToriRSServer_ContainerAdd` has
              * always used the container's rule; this now agrees with it. */
-            if( mock230_container_stacks_obj(
+            if( ToriRSServer_ContainerStacksObj(
                     container_row(srv, player, inv_id), (int)obj_id) )
             {
                 int has_stack = 0;
@@ -10717,8 +10717,8 @@ mock230_script_command(
         int32_t to_slot;
         int from_slots = 0;
         int to_slots = 0;
-        struct Mock230Item* from_items;
-        struct Mock230Item* to_items;
+        struct ToriRSServerItem* from_items;
+        struct ToriRSServerItem* to_items;
 
         if( !SSVM_PopInt(state, &to_slot) || !SSVM_PopInt(state, &from_slot) ||
             !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
@@ -10733,7 +10733,7 @@ mock230_script_command(
         if( from_slot < 0 || from_slot >= from_slots || to_slot < 0 || to_slot >= to_slots )
             return 1;
         {
-            struct Mock230Item swap = from_items[from_slot];
+            struct ToriRSServerItem swap = from_items[from_slot];
 
             from_items[from_slot] = to_items[to_slot];
             to_items[to_slot] = swap;
@@ -10744,7 +10744,7 @@ mock230_script_command(
     }
 
     /* `inv_moveitem` and its `_cert` / `_uncert` siblings were here. They are
-     * mock230_ops_inv.c's now, with their three bank arms unchanged and a
+     * torirs_server_ops_inv.c's now, with their three bank arms unchanged and a
      * fourth, generic container-to-container arm appended after them — the arm
      * every reference equip and unequip path needs and which used to print
      * "is not modelled" and do nothing. That gap was invisible to
@@ -10754,7 +10754,7 @@ mock230_script_command(
     {
         int32_t inv_id;
         int slots = 0;
-        struct Mock230Item* items = NULL;
+        struct ToriRSServerItem* items = NULL;
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
@@ -10793,7 +10793,7 @@ mock230_script_command(
          * The bank is deliberately not bound through the registry.
          *
          * Its transmit is gated on the interface being open and re-sends tab
-         * bookkeeping with it (mock230_bank_flush / bank_push_settings), which
+         * bookkeeping with it (ToriRSServer_BankFlush / bank_push_settings), which
          * the generic binding does not model — binding it here would put two
          * senders on one container, which is exactly the failure mode the
          * registry exists to remove. Its *row* is in the registry all the same,
@@ -10801,9 +10801,9 @@ mock230_script_command(
          * Folding the transmit in means moving `bank.open` into the binding
          * table; that is a real simplification and it is not this stage's.
          */
-        if( inv_id == mock230_ids()->inv_bank )
+        if( inv_id == ToriRSServer_Ids()->inv_bank )
         {
-            struct Mock230Container* row = container_row(srv, player, inv_id);
+            struct ToriRSServerContainer* row = container_row(srv, player, inv_id);
             int used = 0;
 
             if( !row )
@@ -10814,12 +10814,12 @@ mock230_script_command(
                 if( row->items[i].obj_id >= 0 )
                     used = i + 1;
             srv->active_player->bank.open = 1;
-            mock230_container_clean(row);
-            mock230_send_inv_full(srv->active_player, (int)component, (int)inv_id, row->items,
+            ToriRSServer_ContainerClean(row);
+            ToriRSServer_SendInvFull(srv->active_player, (int)component, (int)inv_id, row->items,
                                   used);
             return 1;
         }
-        if( !mock230_container_bind(srv, srv->active_player, inv_id, component) )
+        if( !ToriRSServer_ContainerBind(srv, srv->active_player, inv_id, component) )
         {
             SSVM_Abort(state, "inv_transmit on unknown container %d", inv_id);
             return 1;
@@ -10832,7 +10832,7 @@ mock230_script_command(
         int32_t owner_uid;
         int32_t inv_id;
         int32_t component;
-        struct Mock230Player* owner;
+        struct ToriRSServerPlayer* owner;
 
         if( !SSVM_PopInt(state, &component) || !SSVM_PopInt(state, &inv_id) ||
             !SSVM_PopInt(state, &owner_uid) )
@@ -10844,7 +10844,7 @@ mock230_script_command(
             return 1;
         }
         SSVM_PushInt(state,
-                     mock230_container_bind_from(srv, owner, srv->active_player, inv_id,
+                     ToriRSServer_ContainerBindFrom(srv, owner, srv->active_player, inv_id,
                                                  component));
         return 1;
     }
@@ -10852,8 +10852,8 @@ mock230_script_command(
     case SS_OP_INV_STOPTRANSMIT:
     {
         int32_t component;
-        struct Mock230Container* row;
-        const struct Mock230Wire* wire;
+        struct ToriRSServerContainer* row;
+        const struct ToriRSServerWire* wire;
         int bank_scrollbar;
         int stop_inv = -1;
 
@@ -10867,8 +10867,8 @@ mock230_script_command(
          * Revision 230 addresses the component and therefore always receives
          * the stop for the listener that was removed. */
         row = container_listener_row(srv->active_player, component);
-        mock230_container_unbind(srv, srv->active_player, component);
-        wire = srv->wire ? srv->wire : mock230_wire_default();
+        ToriRSServer_ContainerUnbind(srv, srv->active_player, component);
+        wire = srv->wire ? srv->wire : ToriRSServer_WireDefault();
         if( row && (wire->revision < 239 || row->listener_count == 0) )
             stop_inv = row->inv_id;
 
@@ -10878,15 +10878,15 @@ mock230_script_command(
          * authoritative stoptransmit convention. bankside:items is the normal
          * backpack and must not clear that still-live global inventory. */
         bank_scrollbar =
-            mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:scrollbar");
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "bankmain:scrollbar");
         if( component == bank_scrollbar )
         {
             srv->active_player->bank.open = 0;
-            stop_inv = mock230_ids()->inv_bank;
+            stop_inv = ToriRSServer_Ids()->inv_bank;
         }
 
         if( stop_inv >= 0 )
-            mock230_send_inv_stop_transmit(
+            ToriRSServer_SendInvStopTransmit(
                 srv->active_player, (int)component, stop_inv);
         return 1;
     }
@@ -10897,7 +10897,7 @@ mock230_script_command(
      * oc_cert / oc_uncert: the note form of an obj and back.
      *
      * The cache states only one direction — a note record names the item it
-     * stands for — so the forward link is a reverse index mock230_objinfo
+     * stands for — so the forward link is a reverse index ToriRSServer_ObjInfo
      * builds. Both return the input unchanged when there is no other form,
      * which is what the reference does and what every caller tests for.
      */
@@ -10905,11 +10905,11 @@ mock230_script_command(
     case SS_OP_OC_UNCERT:
     {
         int32_t obj_id;
-        const struct Mock230ObjInfo* info;
+        const struct ToriRSServerObjInfo* info;
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        info = mock230_objinfo((int)obj_id);
+        info = ToriRSServer_ObjInfo((int)obj_id);
         if( opcode == SS_OP_OC_CERT )
             SSVM_PushInt(state, info->cert_id >= 0 ? info->cert_id : obj_id);
         else
@@ -10921,7 +10921,7 @@ mock230_script_command(
 
     /*
      * oc_placeholder / oc_unplaceholder: the bank-placeholder form of an obj
-     * and back. The note pair above in every respect (see Mock230ObjInfo) —
+     * and back. The note pair above in every respect (see ToriRSServerObjInfo) —
      * opcodes 148/149 instead of 97/98 — and deliberately the same shape, so
      * "does this slot hold a placeholder" reads identically here and in
      * `bankmain_drawitem`: `oc_unplaceholder($obj) ! $obj`.
@@ -10933,11 +10933,11 @@ mock230_script_command(
     case SS_OP_OC_UNPLACEHOLDER:
     {
         int32_t obj_id;
-        const struct Mock230ObjInfo* info;
+        const struct ToriRSServerObjInfo* info;
 
         if( !SSVM_PopInt(state, &obj_id) )
             return 1;
-        info = mock230_objinfo((int)obj_id);
+        info = ToriRSServer_ObjInfo((int)obj_id);
         if( opcode == SS_OP_OC_PLACEHOLDER )
             SSVM_PushInt(state, (info->placeholder_template < 0 && info->placeholder_id >= 0)
                                     ? info->placeholder_id
@@ -10953,7 +10953,7 @@ mock230_script_command(
 
     /*
      * A varbit is a bit range inside a varplayer, and which range is a cache
-     * fact — see mock230_bank.c. Writing one as a whole varp would destroy
+     * fact — see torirs_server_bank.c. Writing one as a whole varp would destroy
      * whatever else shares it, which for the bank is always something: the
      * withdraw-as-note flag and the current tab are both in varp 115.
      */
@@ -10973,7 +10973,7 @@ mock230_script_command(
     {
         int varbit_id = state->script->int_operands[state->pc] & 0xffff;
 
-        SSVM_PushInt(state, mock230_varbit_get(player, varbit_id));
+        SSVM_PushInt(state, ToriRSServer_VarbitGet(player, varbit_id));
         return 1;
     }
 
@@ -10989,8 +10989,8 @@ mock230_script_command(
         /* On the SCRIPT's active player, which `SS_OP_PUSH_VARBIT` above has
          * always read from. Writing through `srv->active_player` instead meant
          * a script that hunted a set and wrote a varbit to each read one player
-         * and wrote another - see `mock230_varbit_set_on`. */
-        if( mock230_varbit_set_on(srv, player, varbit_id, (int)value) < 0 )
+         * and wrote another - see `ToriRSServer_VarbitSetOn`. */
+        if( ToriRSServer_VarbitSetOn(srv, player, varbit_id, (int)value) < 0 )
             SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;
     }
@@ -11012,24 +11012,24 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &side_group) || !SSVM_PopInt(state, &main_group) )
             return 1;
-        if( main_group == mock230_ids()->iface_bankmain )
+        if( main_group == ToriRSServer_Ids()->iface_bankmain )
         {
             /* The bank knows how to open itself — settings, events and both
              * containers — and doing it here rather than leaving the script to
              * push fifteen varbits is what keeps the ported content readable. */
-            mock230_bank_open(srv);
+            ToriRSServer_BankOpen(srv);
             return 1;
         }
-        mock230_send_if_opensub(
+        ToriRSServer_SendIfOpensub(
             srv->active_player,
-            mock230_ids()->iface_gameframe,
-            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
+            ToriRSServer_Ids()->iface_gameframe,
+            TORIRSSERVER_COM_CHILD(ToriRSServer_Ids()->com_gameframe_mainmodal),
             (int)main_group,
             0);
-        mock230_send_if_opensub(
+        ToriRSServer_SendIfOpensub(
             srv->active_player,
-            mock230_ids()->iface_gameframe,
-            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_sidemodal),
+            ToriRSServer_Ids()->iface_gameframe,
+            TORIRSSERVER_COM_CHILD(ToriRSServer_Ids()->com_gameframe_sidemodal),
             (int)side_group,
             3);
         return 1;
@@ -11041,10 +11041,10 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        mock230_send_if_opensub(
+        ToriRSServer_SendIfOpensub(
             srv->active_player,
-            mock230_ids()->iface_gameframe,
-            MOCK230_COM_CHILD(mock230_ids()->com_gameframe_mainmodal),
+            ToriRSServer_Ids()->iface_gameframe,
+            TORIRSSERVER_COM_CHILD(ToriRSServer_Ids()->com_gameframe_mainmodal),
             (int)group,
             0);
         return 1;
@@ -11057,11 +11057,11 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &group) )
             return 1;
-        floater = mock230_player_floater(srv->active_player);
-        mock230_send_if_opensub(
+        floater = ToriRSServer_PlayerFloater(srv->active_player);
+        ToriRSServer_SendIfOpensub(
             srv->active_player,
-            MOCK230_COM_GROUP(floater),
-            MOCK230_COM_CHILD(floater),
+            TORIRSSERVER_COM_GROUP(floater),
+            TORIRSSERVER_COM_CHILD(floater),
             (int)group,
             1);
         return 1;
@@ -11076,7 +11076,7 @@ mock230_script_command(
      */
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
-        mock230_send_if_opencountdialog(srv->active_player);
+        ToriRSServer_SendIfOpencountdialog(srv->active_player);
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
@@ -11111,7 +11111,7 @@ mock230_script_command(
             return 1;
         strings[0] = prompt ? prompt : "Enter a player name:";
         state->last_string = "";
-        mock230_send_run_clientscript_mixed(
+        ToriRSServer_SendRunClientscriptMixed(
             player, 109, "s", NULL, strings, 1);
         SSVM_Suspend(state, SSVM_NAMEDIALOG);
         return 1;
@@ -11172,7 +11172,7 @@ mock230_script_command(
         srv->trigger_declined = 1;
         state->execution = SSVM_FINISHED;
         if( srv->trigger_dispatch_depth == 0 )
-            mock230_say(srv, "nothing_interesting_message", NULL);
+            ToriRSServer_Say(srv, "nothing_interesting_message", NULL);
         return 1;
 
     case SS_OP_LAST_SUBOP:
@@ -11209,7 +11209,7 @@ mock230_script_command(
      * one.
      */
     case SS_OP_P_STOPACTION:
-        mock230_combat_stop_player(srv);
+        ToriRSServer_CombatStopPlayer(srv);
         return 1;
 
     case SS_OP_P_LOCMERGE:
@@ -11220,7 +11220,7 @@ mock230_script_command(
         int32_t end_cycle;
         int32_t se;
         int32_t nw;
-        struct Mock230SceneLoc* loc = script_active_loc(state);
+        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
         int east;
         int south;
         int west;
@@ -11243,7 +11243,7 @@ mock230_script_command(
         south = coord_z(se) - loc->z;
         west = coord_x(nw) - loc->x;
         north = coord_z(nw) - loc->z;
-        mock230_zone_loc_merge(
+        ToriRSServer_ZoneLocMerge(
             srv, loc->x, loc->z, loc->level, loc->shape, loc->angle, loc->loc_id,
             (int)start_cycle, (int)end_cycle, player->pid, east, south, west, north);
         return 1;
@@ -11294,7 +11294,7 @@ mock230_script_command(
 
         /* `unsetMapFlag()` = clearWaypoints + the UnsetMapFlag packet. Same
          * three lines the same-tile arm of `p_walk` above uses. */
-        mock230_world_steps_clear(player);
+        ToriRSServer_WorldStepsClear(player);
         player->dest_x = -1;
         player->dest_z = -1;
         player->clear_map_flag = 1;
@@ -11312,7 +11312,7 @@ mock230_script_command(
         player->place_dirty = 1;
         player->waypoint_index = -1;
 
-        player->masks |= MOCK230_PMASK_EXACT_MOVE;
+        player->masks |= TORIRSSERVER_PMASK_EXACT_MOVE;
         return 1;
     }
 
@@ -11342,7 +11342,7 @@ mock230_script_command(
         if( player->headicons != (int)value )
         {
             player->headicons = (int)value;
-            player->masks |= MOCK230_PMASK_APPEARANCE;
+            player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         }
         return 1;
     }
@@ -11356,7 +11356,7 @@ mock230_script_command(
         if( player->transmog_npc != (int)npc )
         {
             player->transmog_npc = (int)npc;
-            player->masks |= MOCK230_PMASK_APPEARANCE;
+            player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
         }
         return 1;
     }
@@ -11371,13 +11371,13 @@ mock230_script_command(
 /**
  * Release a p_countdialog wait with the number the client sent.
  *
- * Separate from mock230_scripts_resume_button because the two waits are
+ * Separate from ToriRSServer_ScriptsResumeButton because the two waits are
  * released by different packets and neither may release the other — a click
  * arriving while a count dialog is up must leave the script parked.
  */
 int
-mock230_scripts_resume_countdialog(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsResumeCountdialog(
+    struct ToriRSServer* srv,
     int32_t value)
 {
     struct SSVM_State* state = srv->active_player->active_script;
@@ -11394,8 +11394,8 @@ mock230_scripts_resume_countdialog(
 
 /** Release a p_namedialog wait with a bounded copy of the client's reply. */
 int
-mock230_scripts_resume_namedialog(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsResumeNamedialog(
+    struct ToriRSServer* srv,
     const uint8_t* text,
     int len)
 {
@@ -11429,8 +11429,8 @@ mock230_scripts_resume_namedialog(
  * arrangement that let the two disagree in the first place.
  */
 void
-mock230_say(
-    struct Mock230Server* srv,
+ToriRSServer_Say(
+    struct ToriRSServer* srv,
     const char* name,
     const char* arg)
 {
@@ -11438,9 +11438,9 @@ mock230_say(
 
     snprintf(qualified, sizeof(qualified), "[proc,%s]", name);
     if( arg )
-        mock230_scripts_run_proc_sv(srv, qualified, NULL, 0, &arg, 1);
+        ToriRSServer_ScriptsRunProcSv(srv, qualified, NULL, 0, &arg, 1);
     else
-        mock230_scripts_run_proc(srv, qualified, NULL, 0);
+        ToriRSServer_ScriptsRunProc(srv, qualified, NULL, 0);
 }
 
 /*
@@ -11453,11 +11453,11 @@ mock230_say(
  *
  * `host_tag` is the slot, stored +1 so zero means "no npc" without a second
  * flag; the entity pointer only satisfies the VM's require-an-active-npc check.
- * Both are needed — see mock230_scripts_run_trigger, which does the same pair.
+ * Both are needed — see ToriRSServer_ScriptsRunTrigger, which does the same pair.
  */
 int
-mock230_scripts_run_hook_on_npc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunHookOnNpc(
+    struct ToriRSServer* srv,
     const struct SSVM_Script* script,
     int npc_slot)
 {
@@ -11473,7 +11473,7 @@ mock230_scripts_run_hook_on_npc(
         return 0;
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    if( npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].active )
     {
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
         state->host_tag = npc_slot + 1;
@@ -11481,10 +11481,10 @@ mock230_scripts_run_hook_on_npc(
     return run_or_park(srv, state);
 }
 
-/** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
+/** By name, for tests. See ToriRSServer_ScriptsRunProcSv on why the split. */
 int
-mock230_scripts_run_proc_on_npc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcOnNpc(
+    struct ToriRSServer* srv,
     const char* name,
     int npc_slot)
 {
@@ -11496,15 +11496,15 @@ mock230_scripts_run_proc_on_npc(
     if( !script )
     {
         if( srv->verbose )
-            printf("mock230: no %s — engine fallback\n", name);
+            printf("torirsserver: no %s — engine fallback\n", name);
         return 0;
     }
-    return mock230_scripts_run_hook_on_npc(srv, script, npc_slot);
+    return ToriRSServer_ScriptsRunHookOnNpc(srv, script, npc_slot);
 }
 
 int
-mock230_scripts_run_proc_args_on_npc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcArgsOnNpc(
+    struct ToriRSServer* srv,
     const char* name,
     int npc_slot,
     const int32_t* args,
@@ -11523,7 +11523,7 @@ mock230_scripts_run_proc_args_on_npc(
         return 0;
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot < 0 || npc_slot >= MOCK230_NPC_MAX || !srv->npcs[npc_slot].active )
+    if( npc_slot < 0 || npc_slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[npc_slot].active )
     {
         SSVM_StateRelease(state);
         return 0;
@@ -11534,8 +11534,8 @@ mock230_scripts_run_proc_args_on_npc(
 }
 
 int
-mock230_scripts_run_proc_int_on_npc(
-    struct Mock230Server* srv,
+ToriRSServer_ScriptsRunProcIntOnNpc(
+    struct ToriRSServer* srv,
     const char* name,
     int npc_slot,
     const int32_t* args,
@@ -11556,7 +11556,7 @@ mock230_scripts_run_proc_int_on_npc(
         return 0;
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
-    if( npc_slot < 0 || npc_slot >= MOCK230_NPC_MAX || !srv->npcs[npc_slot].active )
+    if( npc_slot < 0 || npc_slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[npc_slot].active )
     {
         SSVM_StateRelease(state);
         return 0;
@@ -11565,7 +11565,7 @@ mock230_scripts_run_proc_int_on_npc(
     state->host_tag = npc_slot + 1;
     status = SSVM_Execute(state);
     if( status == SSVM_ABORTED )
-        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+        fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )
     {
         SSVM_StateRelease(state);

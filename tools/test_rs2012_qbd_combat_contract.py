@@ -53,13 +53,13 @@ def config_blocks(text: str) -> dict[str, dict[str, int]]:
 
 
 def npc_roll(level: int, bonus: int) -> int:
-    """Mirror mock230's content-owned ``(level + 9) * (bonus + 64)``."""
+    """Mirror ToriRSServer's content-owned ``(level + 9) * (bonus + 64)``."""
 
     return (level + 9) * (bonus + 64)
 
 
 def hit_chance_basis_points(attack: int, defence: int) -> int:
-    """Exact two-uniform-dice chance from mock230, rounded to 0.01%."""
+    """Exact two-uniform-dice chance from ToriRSServer, rounded to 0.01%."""
 
     if attack > defence:
         numerator = 2 * attack - defence
@@ -173,7 +173,7 @@ def check(root: Path) -> list[str]:
             f"{QBD_CONSTANTS}: {name} expected {expected}, got {qbd_constants.get(name)}",
         )
 
-    # Pool sizes: mock230's own HP scale throughout, not a separate 2012-LP
+    # Pool sizes: ToriRSServer's own HP scale throughout, not a separate 2012-LP
     # domain. `rs2012_qbd_lp_scale` must not exist at all.
     expected_pools = {
         "rs2012_qbd_phase_lp": 1875,
@@ -300,7 +300,7 @@ def check(root: Path) -> list[str]:
     claws = (root / DRAGON_CLAWS).read_text(encoding="utf-8")
     selftest = (root / QBD_SELFTEST).read_text(encoding="utf-8")
 
-    # QBD, souls and worms are all authored directly on mock230's own HP
+    # QBD, souls and worms are all authored directly on ToriRSServer's own HP
     # scale, the same as every other NPC in the tree — there is no separate
     # 2012-LP domain or ^rs2012_qbd_lp_scale conversion factor for any of
     # them. `rs2012_qbd_is_add_type` survives only because
@@ -439,7 +439,7 @@ def check(root: Path) -> list[str]:
         )
 
     # Souls and worms are created with npc_add inside a private encounter.  A
-    # normal dead NPC is assigned its definition's respawn clock by mock230,
+    # normal dead NPC is assigned its definition's respawn clock by ToriRSServer,
     # so both death triggers must explicitly retire these one-life additions.
     for add_name in ("rs2012_qbd_tortured_soul", "rs2012_qbd_giant_worm"):
         match = re.search(

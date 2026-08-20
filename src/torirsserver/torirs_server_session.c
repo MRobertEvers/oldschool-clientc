@@ -1,12 +1,12 @@
 /*
  * The login handshake and the inbound frame reader, as a state machine.
  *
- * See mock230_session.h for why it is one. The short version: every wait is
+ * See torirs_server_session.h for why it is one. The short version: every wait is
  * "have enough bytes arrived yet?", answered against a buffer, so nothing here
  * blocks and an in-process client can feed the server on the same thread.
  */
 
-#include "mock230_session.h"
+#include "torirs_server_session.h"
 
 #include "net/rev/osrs239/loginblock.h"
 
@@ -16,7 +16,7 @@
 
 #include <xteas.h>
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include "net/isaac.h"
 #include "net/rev/osrs230/packetout.h"
@@ -38,13 +38,13 @@ static const char* MOCK_RSA_D =
     "1f17a48e80fe0a33a0118c8c436f810f2585cf874828890d486c26ac1cd29a824d2fdac6032305";
 
 /* The modulus, stated once and shared by both halves. */
-const char* const MOCK230_RSA_PUBLIC_EXPONENT = "10001";
-const char* const MOCK230_RSA_PUBLIC_MODULUS =
+const char* const TORIRSSERVER_RSA_PUBLIC_EXPONENT = "10001";
+const char* const TORIRSSERVER_RSA_PUBLIC_MODULUS =
     "c30fcbc01e071ff224ea1a6508052d1140f87abaf8f40f7004efa59926708e5d99e2bc832fdca8276482dd0d6"
     "90f644156850f47886f8032b3e9aa52508d24e8c9b7c50b8d8b8716fb8c3993bb6ce15e2124883edb7aaa7241"
     "a8b530f806c61cd1345879413fc105980a4f5fcdb3f0d743b14b16228b4d1496c83d3755a78a19";
 
-#define MOCK_RSA_N MOCK230_RSA_PUBLIC_MODULUS
+#define MOCK_RSA_N TORIRSSERVER_RSA_PUBLIC_MODULUS
 
 #define SESSION_ID 0x0102030405060708ULL
 
@@ -53,14 +53,14 @@ const char* const MOCK230_RSA_PUBLIC_MODULUS =
 /* ------------------------------------------------------------------ */
 
 void
-mock230_session_init(
-    struct Mock230Session* session,
-    const struct Mock230Transport* transport,
+ToriRSServer_SessionInit(
+    struct ToriRSServerSession* session,
+    const struct ToriRSServerTransport* transport,
     int verbose)
 {
     memset(session, 0, sizeof(*session));
     session->transport = *transport;
-    session->state = MOCK230_SESSION_INIT;
+    session->state = TORIRSSERVER_SESSION_INIT;
     session->verbose = verbose;
     /* Not memset's 0, which is a real opcode — a zeroed session would decode
      * its first byte as the body of a packet nobody sent. */
@@ -68,7 +68,7 @@ mock230_session_init(
 }
 
 void
-mock230_session_free(struct Mock230Session* session)
+ToriRSServer_SessionFree(struct ToriRSServerSession* session)
 {
     isaac_free(session->cipher_out);
     isaac_free(session->cipher_in);
@@ -76,23 +76,23 @@ mock230_session_free(struct Mock230Session* session)
     session->cipher_in = NULL;
     if( session->transport.close )
         session->transport.close(session->transport.ctx);
-    session->state = MOCK230_SESSION_DEAD;
+    session->state = TORIRSSERVER_SESSION_DEAD;
 }
 
 void
-mock230_session_kill(struct Mock230Session* session)
+ToriRSServer_SessionKill(struct ToriRSServerSession* session)
 {
-    session->state = MOCK230_SESSION_DEAD;
+    session->state = TORIRSSERVER_SESSION_DEAD;
 }
 
 int
-mock230_session_alive(const struct Mock230Session* session)
+ToriRSServer_SessionAlive(const struct ToriRSServerSession* session)
 {
-    return session->state != MOCK230_SESSION_DEAD;
+    return session->state != TORIRSSERVER_SESSION_DEAD;
 }
 
 int
-mock230_session_pollfd(const struct Mock230Session* session)
+ToriRSServer_SessionPollfd(const struct ToriRSServerSession* session)
 {
     if( !session->transport.pollfd )
         return -1;
@@ -100,14 +100,14 @@ mock230_session_pollfd(const struct Mock230Session* session)
 }
 
 int
-mock230_session_send(
-    struct Mock230Session* session,
+ToriRSServer_SessionSend(
+    struct ToriRSServerSession* session,
     const uint8_t* data,
     int len)
 {
     int result;
 
-    if( session->state == MOCK230_SESSION_DEAD || !session->transport.send )
+    if( session->state == TORIRSSERVER_SESSION_DEAD || !session->transport.send )
         return -1;
     result = session->transport.send(session->transport.ctx, data, len);
     if( result >= 0 )
@@ -116,7 +116,7 @@ mock230_session_send(
 }
 
 int
-mock230_session_take_login(struct Mock230Session* session)
+ToriRSServer_SessionTakeLogin(struct ToriRSServerSession* session)
 {
     int raised = session->login_raised;
 
@@ -131,7 +131,7 @@ mock230_session_take_login(struct Mock230Session* session)
 /** Drop `count` consumed bytes off the front. */
 static void
 consume(
-    struct Mock230Session* session,
+    struct ToriRSServerSession* session,
     int count)
 {
     if( count <= 0 )
@@ -158,20 +158,20 @@ consume(
  * costs nothing — each pump consumes what it can and the next one continues.
  */
 static int
-fill(struct Mock230Session* session)
+fill(struct ToriRSServerSession* session)
 {
-    int space = MOCK230_SESSION_IN_MAX - session->in_len;
+    int space = TORIRSSERVER_SESSION_IN_MAX - session->in_len;
     int got;
 
     if( space <= 0 )
     {
         /*
          * A full buffer that the reader could not consume from means the peer
-         * sent a packet longer than MOCK230_SESSION_IN_MAX, which no revision
+         * sent a packet longer than TORIRSSERVER_SESSION_IN_MAX, which no revision
          * does. Dropping the session beats spinning on a read that can never
          * make progress.
          */
-        fprintf(stderr, "mock230: inbound buffer full (%d bytes), dropping session\n",
+        fprintf(stderr, "torirsserver: inbound buffer full (%d bytes), dropping session\n",
                 session->in_len);
         return 0;
     }
@@ -197,10 +197,10 @@ fill(struct Mock230Session* session)
  * is how a server ends up parsing one revision and answering in another.
  */
 static int
-login_is_239(const struct Mock230Server* srv)
+login_is_239(const struct ToriRSServer* srv)
 {
-    const struct Mock230Wire* wire = (srv && srv->wire) ? srv->wire
-                                                        : mock230_wire_default();
+    const struct ToriRSServerWire* wire = (srv && srv->wire) ? srv->wire
+                                                        : ToriRSServer_WireDefault();
     return wire->revision >= 239;
 }
 
@@ -216,7 +216,7 @@ login_is_239(const struct Mock230Server* srv)
  * two separate connections, so per-session would rebuild the master index on
  * every reconnect.
  *
- * MOCK230_JS5_CACHE overrides the directory. It defaults to the same cache the
+ * TORIRSSERVER_JS5_CACHE overrides the directory. It defaults to the same cache the
  * world boots from, because serving one revision's content while the world
  * reads another is a mismatch nothing downstream can detect.
  */
@@ -228,11 +228,11 @@ js5_cache(void)
 {
     if( !g_js5_tried )
     {
-        char const* dir = getenv("MOCK230_JS5_CACHE");
+        char const* dir = getenv("TORIRSSERVER_JS5_CACHE");
         if( !dir )
-            dir = getenv("MOCK230_CACHE");
+            dir = getenv("TORIRSSERVER_CACHE");
         if( !dir )
-            dir = MOCK230_CACHE_DIR_DEFAULT;
+            dir = TORIRSSERVER_CACHE_DIR_DEFAULT;
         g_js5_tried = 1;
         g_js5 = Js5ServerCacheOpen(dir);
     }
@@ -242,18 +242,18 @@ js5_cache(void)
 /**
  * The JS5 handshake: p1 15, p4 revision, p4 seed x4 -> p1 status.
  *
- * `MOCK230_JS5_REV` is the revision to accept, because the revision a client
+ * `TORIRSSERVER_JS5_REV` is the revision to accept, because the revision a client
  * announces and the revision whose content a cache holds are two different
  * facts that drift apart between the day a cache is archived and the day the
  * game updates. Answering 6 (out of date) is what a client reports as
  * `error_game_js5connect_outofdate`.
  */
 static int
-step_js5_init(struct Mock230Session* session)
+step_js5_init(struct ToriRSServerSession* session)
 {
     uint8_t status;
     int client_rev;
-    char const* want = getenv("MOCK230_JS5_REV");
+    char const* want = getenv("TORIRSSERVER_JS5_REV");
     int accept_rev = want ? atoi(want) : 239;
 
     if( session->in_len < 1 + 20 )
@@ -265,28 +265,28 @@ step_js5_init(struct Mock230Session* session)
 
     if( !js5_cache() )
     {
-        fprintf(stderr, "mock230: JS5 requested but no cache could be opened\n");
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: JS5 requested but no cache could be opened\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     if( client_rev != accept_rev )
     {
-        fprintf(stderr, "mock230: JS5 client revision %d, serving %d -> out of date\n",
+        fprintf(stderr, "torirsserver: JS5 client revision %d, serving %d -> out of date\n",
                 client_rev, accept_rev);
         status = 6;
-        mock230_session_send(session, &status, 1);
-        session->state = MOCK230_SESSION_DEAD;
+        ToriRSServer_SessionSend(session, &status, 1);
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
 
     status = 0;
-    if( mock230_session_send(session, &status, 1) < 0 )
+    if( ToriRSServer_SessionSend(session, &status, 1) < 0 )
     {
-        session->state = MOCK230_SESSION_DEAD;
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
-    fprintf(stderr, "mock230: JS5 session opened at revision %d\n", client_rev);
-    session->state = MOCK230_SESSION_JS5;
+    fprintf(stderr, "torirsserver: JS5 session opened at revision %d\n", client_rev);
+    session->state = TORIRSSERVER_SESSION_JS5;
     return 1;
 }
 
@@ -298,7 +298,7 @@ step_js5_init(struct Mock230Session* session)
  * urgent, which differ only in queue priority and not in the answer.
  */
 static int
-step_js5_serve(struct Mock230Session* session)
+step_js5_serve(struct ToriRSServerSession* session)
 {
     struct Js5ServerCache* js5 = js5_cache();
     int served = 0;
@@ -318,18 +318,18 @@ step_js5_serve(struct Mock230Session* session)
             continue;
         if( opcode != 0 && opcode != 1 )
         {
-            fprintf(stderr, "mock230: unknown JS5 request opcode %d\n", opcode);
-            session->state = MOCK230_SESSION_DEAD;
+            fprintf(stderr, "torirsserver: unknown JS5 request opcode %d\n", opcode);
+            session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
 
         enum Js5ServerCacheResult result =
             Js5ServerCacheBuildResponse(js5, archive, group, &out, &out_size);
         if( result == JS5_SERVER_CACHE_OK &&
-            mock230_session_send(session, out, (int)out_size) < 0 )
+            ToriRSServer_SessionSend(session, out, (int)out_size) < 0 )
         {
             free(out);
-            session->state = MOCK230_SESSION_DEAD;
+            session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
         /*
@@ -342,24 +342,24 @@ step_js5_serve(struct Mock230Session* session)
          * client is failing to load the map or failing to ask for it.
          */
         {
-            /* Its own switch (MOCK230_TRACE_JS5=1) rather than --verbose: the
+            /* Its own switch (TORIRSSERVER_TRACE_JS5=1) rather than --verbose: the
              * client issues six figures of prefetch requests, so this is the
              * one trace that has to be separable from everything else. */
             static int trace = -1;
 
             if( trace < 0 )
             {
-                char const* v = getenv("MOCK230_TRACE_JS5");
+                char const* v = getenv("TORIRSSERVER_TRACE_JS5");
                 trace = (v && *v && *v != '0') ? 1 : 0;
             }
             if( trace || session->verbose )
             {
                 if( result == JS5_SERVER_CACHE_OK )
-                    fprintf(stderr, "mock230: JS5 %s %d/%d -> %zu bytes\n",
+                    fprintf(stderr, "torirsserver: JS5 %s %d/%d -> %zu bytes\n",
                             opcode == 1 ? "urgent" : "prefetch", archive, group,
                             out_size);
                 else
-                    fprintf(stderr, "mock230: JS5 has no %d/%d\n", archive, group);
+                    fprintf(stderr, "torirsserver: JS5 has no %d/%d\n", archive, group);
             }
         }
         free(out);
@@ -373,7 +373,7 @@ step_js5_serve(struct Mock230Session* session)
  * Returns 1 when it advanced, 0 when it needs more bytes.
  */
 static int
-step_init(struct Mock230Session* session)
+step_init(struct ToriRSServerSession* session)
 {
     uint8_t out[16];
     struct RSAreaBuf buf;
@@ -392,8 +392,8 @@ step_init(struct Mock230Session* session)
 
     if( session->in[0] != 14 )
     {
-        fprintf(stderr, "mock230: expected opcode 14 or 15, got %d\n", session->in[0]);
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: expected opcode 14 or 15, got %d\n", session->in[0]);
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     consume(session, 1);
@@ -401,12 +401,12 @@ step_init(struct Mock230Session* session)
     rsab_wrap(&buf, out, sizeof(out));
     rsab_p1(&buf, 0);
     rsab_p8(&buf, (int64_t)SESSION_ID);
-    if( mock230_session_send(session, out, (int)rsab_len(&buf)) < 0 )
+    if( ToriRSServer_SessionSend(session, out, (int)rsab_len(&buf)) < 0 )
     {
-        session->state = MOCK230_SESSION_DEAD;
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
-    session->state = MOCK230_SESSION_LOGIN;
+    session->state = TORIRSSERVER_SESSION_LOGIN;
     return 1;
 }
 
@@ -419,8 +419,8 @@ step_init(struct Mock230Session* session)
  */
 static int
 step_login(
-    struct Mock230Session* session,
-    struct Mock230Server* srv)
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv)
 {
     struct RSAreaBuf in;
     struct rsa rsa;
@@ -448,8 +448,8 @@ step_login(
     if( session->in[0] != OSRS239_LOGIN_GAMELOGIN &&
         session->in[0] != OSRS239_LOGIN_GAMERECONNECT )
     {
-        fprintf(stderr, "mock230: expected opcode 16 or 18, got %d\n", session->in[0]);
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: expected opcode 16 or 18, got %d\n", session->in[0]);
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     session->reconnect = session->in[0] == OSRS239_LOGIN_GAMERECONNECT;
@@ -462,15 +462,15 @@ step_login(
          * defer a response that never comes, and leave the client waiting on a
          * connection that looks alive.
          */
-        fprintf(stderr, "mock230: GAMERECONNECT is a revision-239 opcode; this world is not\n");
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: GAMERECONNECT is a revision-239 opcode; this world is not\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     payload_len = (session->in[1] << 8) | session->in[2];
-    if( payload_len < 13 || payload_len > MOCK230_SESSION_IN_MAX - 3 )
+    if( payload_len < 13 || payload_len > TORIRSSERVER_SESSION_IN_MAX - 3 )
     {
-        fprintf(stderr, "mock230: bad login block length (%d)\n", payload_len);
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: bad login block length (%d)\n", payload_len);
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     if( session->in_len < 3 + payload_len )
@@ -506,22 +506,22 @@ step_login(
     body_len = payload_len - (int)in.pos - rsa_size;
     if( !rsab_ok(&in) )
     {
-        session->state = MOCK230_SESSION_DEAD;
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
 
     if( rsa_init(&rsa, MOCK_RSA_D, MOCK_RSA_N) != 0 )
     {
-        fprintf(stderr, "mock230: rsa_init failed\n");
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: rsa_init failed\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
     plain_len = rsa_crypt(&rsa, session->in + 3 + in.pos, (size_t)rsa_size, plain,
                           sizeof(plain));
     if( plain_len <= 0 )
     {
-        fprintf(stderr, "mock230: rsa decrypt failed\n");
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: rsa decrypt failed\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
 
@@ -539,10 +539,10 @@ step_login(
         if( check != 1 )
         {
             fprintf(stderr,
-                    "mock230: RSA check byte is %d, expected 1 — the client's "
+                    "torirsserver: RSA check byte is %d, expected 1 — the client's "
                     "modulus does not match this server's key\n",
                     check);
-            session->state = MOCK230_SESSION_DEAD;
+            session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
     }
@@ -576,8 +576,8 @@ step_login(
         (void)rsab_g4(&in);
         if( otp < 0 || otp > 3 )
         {
-            fprintf(stderr, "mock230: unknown OTP kind %d in login block\n", otp);
-            session->state = MOCK230_SESSION_DEAD;
+            fprintf(stderr, "torirsserver: unknown OTP kind %d in login block\n", otp);
+            session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
     }
@@ -634,16 +634,16 @@ step_login(
 
     /*
      * The session keeps the name; it does NOT write it onto the player here.
-     * mock230_world_init memsets the whole player struct and runs after this,
+     * ToriRSServer_WorldInit memsets the whole player struct and runs after this,
      * so a name written now is a name silently erased — which is exactly what
      * used to happen, and why `displayname` in a script reported nothing. The
-     * caller copies it across with mock230_world_set_display_name once the
+     * caller copies it across with ToriRSServer_WorldSetDisplayName once the
      * world is up.
      */
     (void)srv;
     snprintf(session->display_name, sizeof(session->display_name), "%s",
              user[0] ? user : "Player");
-    fprintf(stderr, "mock230: %s user='%s' session=%s\n",
+    fprintf(stderr, "torirsserver: %s user='%s' session=%s\n",
             session->reconnect ? "reconnect" : "login", user,
             claimed == SESSION_ID ? "ok" : "MISMATCH");
 
@@ -655,7 +655,7 @@ step_login(
      * RECONNECT_OK carries the player-info init block, and that block states
      * where the player is — which is not known until the world is up and the
      * save has been read. So the world's login path sends it (see
-     * mock230_world_login), and the only thing that happens here is arming the
+     * ToriRSServer_WorldLogin), and the only thing that happens here is arming the
      * ciphers, exactly as a fresh login does. Nothing is sent in between, so
      * the client still sees the response ahead of the first game packet.
      */
@@ -685,10 +685,10 @@ step_login(
          */
         uint8_t body[64];
         struct RSAreaBuf out;
-        int index = mock230_wire_player_index(
+        int index = ToriRSServer_WirePlayerIndex(
             session->player ? session->player->pid : 0);
         int staff_mod_level = 0;
-        char const* configured_staff = getenv("MOCK230_STAFF_LEVEL");
+        char const* configured_staff = getenv("TORIRSSERVER_STAFF_LEVEL");
 
         /*
          * Keep normal sessions at the golden value 0, but let an isolated
@@ -725,18 +725,18 @@ step_login(
         rsab_p8(&out, 0); /* accountHash */
         rsab_p8(&out, 0); /* userId */
         rsab_p8(&out, 0); /* userHash */
-        if( mock230_session_send(session, body, (int)rsab_len(&out)) < 0 )
+        if( ToriRSServer_SessionSend(session, body, (int)rsab_len(&out)) < 0 )
         {
-            session->state = MOCK230_SESSION_DEAD;
+            session->state = TORIRSSERVER_SESSION_DEAD;
             return 1;
         }
         if( staff_mod_level > 0 )
-            fprintf(stderr, "mock230: rev239 control privilege staffModLevel=%d\n",
+            fprintf(stderr, "torirsserver: rev239 control privilege staffModLevel=%d\n",
                     staff_mod_level);
     }
-    else if( mock230_session_send(session, &ok, 1) < 0 )
+    else if( ToriRSServer_SessionSend(session, &ok, 1) < 0 )
     {
-        session->state = MOCK230_SESSION_DEAD;
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
 
@@ -748,12 +748,12 @@ step_login(
     session->cipher_in = isaac_new((int32_t*)seed, 4);
     if( !session->cipher_out || !session->cipher_in )
     {
-        fprintf(stderr, "mock230: isaac_new failed\n");
-        session->state = MOCK230_SESSION_DEAD;
+        fprintf(stderr, "torirsserver: isaac_new failed\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
 
-    session->state = MOCK230_SESSION_ONLINE;
+    session->state = TORIRSSERVER_SESSION_ONLINE;
     session->login_raised = 1;
     return 1;
 }
@@ -766,7 +766,7 @@ step_login(
  * TORIRS_SERVER_BREAKDOWN=<ms>: name the inbound packet whose handler ran
  * longer than that.
  *
- * The pump's own breakdown (mock230_embed.c) splits "draining client input"
+ * The pump's own breakdown (torirs_server_embed.c) splits "draining client input"
  * from "running the world tick", and the tick splits itself by phase — but the
  * input half was one number with nothing under it. That hid a real stall: a
  * click is a packet, and the trigger script it fires runs *here*, in the decode
@@ -814,14 +814,14 @@ pkt_bd_now_us(void)
  */
 static int
 step_online(
-    struct Mock230Session* session,
-    struct Mock230Server* srv)
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv)
 {
     int progressed = 0;
     /* Which revision's client-prot table frames what arrives. See
-     * `packetout_size` in mock230_wire.h for why this is not the 230 one. */
-    const struct Mock230Wire* wire =
-        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+     * `packetout_size` in torirs_server_wire.h for why this is not the 230 one. */
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
 
     for( ;; )
     {
@@ -867,8 +867,8 @@ step_online(
         response_generation = session->output_generation;
 
         /*
-         * MOCK230_TRACE_IN=1 -- the client->server half, the mirror of
-         * MOCK230_TRACE_OUT. Prints the revision's own name for the opcode and
+         * TORIRSSERVER_TRACE_IN=1 -- the client->server half, the mirror of
+         * TORIRSSERVER_TRACE_OUT. Prints the revision's own name for the opcode and
          * whether anything routed it, because the two failures look identical
          * from the game's side: a click that produces nothing because the
          * opcode is unmapped, and one that produces nothing because the body
@@ -879,7 +879,7 @@ step_online(
 
             if( trace < 0 )
             {
-                char const* v = getenv("MOCK230_TRACE_IN");
+                char const* v = getenv("TORIRSSERVER_TRACE_IN");
                 trace = (v && *v && *v != '0') ? 1 : 0;
             }
             if( trace )
@@ -888,7 +888,7 @@ step_online(
                                        ? wire->packetout_prot_name(session->pending_opcode)
                                        : NULL;
 
-                fprintf(stderr, "mock230: <- op %3d %-24s %d byte(s)%s\n",
+                fprintf(stderr, "torirsserver: <- op %3d %-24s %d byte(s)%s\n",
                         session->pending_opcode, prot ? prot : "?", payload_len,
                         name == PKTOUT_NAME_NONE ? "  [no canonical name]" : "");
             }
@@ -898,13 +898,13 @@ step_online(
          * The body may not be the one the handlers read. `translate_in`
          * rewrites it and can RENAME it -- at 239 one opcode covers what 230
          * splits into twenty -- so the name is re-read from its return value
-         * rather than kept from the table. See mock230_wire.h.
+         * rather than kept from the table. See torirs_server_wire.h.
          */
         bd_t0 = bd_on ? pkt_bd_now_us() : 0;
 
         if( wire->translate_in )
         {
-            uint8_t xlat[MOCK230_SESSION_IN_MAX];
+            uint8_t xlat[TORIRSSERVER_SESSION_IN_MAX];
             int xlat_len = 0;
             int translated = wire->translate_in(session->pending_opcode, name,
                                                 session->in + len_bytes, payload_len, xlat,
@@ -913,19 +913,19 @@ step_online(
             if( translated == PKTOUT_NAME_NONE )
             {
                 if( session->verbose )
-                    fprintf(stderr, "mock230: <- op %d (%d bytes) not translated, dropped\n",
+                    fprintf(stderr, "torirsserver: <- op %d (%d bytes) not translated, dropped\n",
                             session->pending_opcode, payload_len);
             }
             else
             {
                 (void)srv;
-                mock230_world_handle(session->player, translated, xlat, xlat_len);
+                ToriRSServer_WorldHandle(session->player, translated, xlat, xlat_len);
             }
         }
         else if( name == PKTOUT_NAME_NONE )
         {
             if( session->verbose )
-                fprintf(stderr, "mock230: <- unknown op %d (%d bytes)\n",
+                fprintf(stderr, "torirsserver: <- unknown op %d (%d bytes)\n",
                         session->pending_opcode, payload_len);
         }
         else
@@ -934,7 +934,7 @@ step_online(
              * player": with two sessions the second one's clicks used to move
              * the first one's character. */
             (void)srv;
-            mock230_world_handle(session->player, name, session->in + len_bytes, payload_len);
+            ToriRSServer_WorldHandle(session->player, name, session->in + len_bytes, payload_len);
         }
 
         /* Client input is pumped between scheduled world ticks. If handling
@@ -942,10 +942,10 @@ step_online(
          * transaction now. Otherwise a visual IF_* or RUNCLIENTSCRIPT response
          * makes the client retain its old frame until the unrelated next
          * 600ms tick. Quiet packets (NO_TIMEOUT, input telemetry) add nothing. */
-        if( session->player && session->state == MOCK230_SESSION_ONLINE &&
+        if( session->player && session->state == TORIRSSERVER_SESSION_ONLINE &&
             session->output_generation != response_generation &&
             session->last_output_packet_name != PKT_NAME_SERVER_TICK_END )
-            mock230_send_tick_end(session->player);
+            ToriRSServer_SendTickEnd(session->player);
 
         if( bd_on )
         {
@@ -975,16 +975,16 @@ step_online(
 /* ------------------------------------------------------------------ */
 
 int
-mock230_session_pump(
-    struct Mock230Session* session,
-    struct Mock230Server* srv)
+ToriRSServer_SessionPump(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv)
 {
-    if( session->state == MOCK230_SESSION_DEAD )
+    if( session->state == TORIRSSERVER_SESSION_DEAD )
         return 0;
 
     if( !fill(session) )
     {
-        session->state = MOCK230_SESSION_DEAD;
+        session->state = TORIRSSERVER_SESSION_DEAD;
         return 0;
     }
 
@@ -1000,19 +1000,19 @@ mock230_session_pump(
 
         switch( session->state )
         {
-        case MOCK230_SESSION_INIT:
+        case TORIRSSERVER_SESSION_INIT:
             advanced = step_init(session);
             break;
-        case MOCK230_SESSION_LOGIN:
+        case TORIRSSERVER_SESSION_LOGIN:
             advanced = step_login(session, srv);
             break;
-        case MOCK230_SESSION_JS5:
+        case TORIRSSERVER_SESSION_JS5:
             advanced = step_js5_serve(session);
             break;
-        case MOCK230_SESSION_ONLINE:
+        case TORIRSSERVER_SESSION_ONLINE:
             advanced = step_online(session, srv);
             break;
-        case MOCK230_SESSION_DEAD:
+        case TORIRSSERVER_SESSION_DEAD:
             return 0;
         }
 
@@ -1024,5 +1024,5 @@ mock230_session_pump(
             break;
     }
 
-    return session->state != MOCK230_SESSION_DEAD;
+    return session->state != TORIRSSERVER_SESSION_DEAD;
 }

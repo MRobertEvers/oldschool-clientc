@@ -70,7 +70,7 @@ Verification at this checkpoint:
 - isolated clean-overlay RuneScript compile: **20,541 scripts**;
 - spawn/config loader: clean after adding the required `==== NPC ====` headers
   to Letvek and Hunter Guild spawn files;
-- `mock230 --selftest` invokes `::hunterrun`, which checks trap registry
+- `ToriRSServer --selftest` invokes `::hunterrun`, which checks trap registry
   contracts, modern creature rows, exact published trap/impling/butterfly
   success-curve points, crystal loot cardinality/ranges, all five exact
   Lucky-impling table cardinalities/weight sums, current butterfly rules,
@@ -173,9 +173,9 @@ This is the first implementation slice.
 
 ### 1.1 Host representation
 
-Extend dynamic loc state in `src/net/mock/mock230_zone.h`,
-`mock230_world.c`, and the RuneScript command bridge in
-`mock230_scripts.c`. Each runtime trap loc needs:
+Extend dynamic loc state in `src/torirsserver/torirs_server_zone.h`,
+`torirs_server_world.c`, and the RuneScript command bridge in
+`torirs_server_scripts.c`. Each runtime trap loc needs:
 
 ```text
 runtime_uid
@@ -938,9 +938,9 @@ Add `skill_hunter/scripts/hunter_selftest.rs2` and `::hunterrun`.
 ### 11.5 Verification commands
 
 ```sh
-make -C src mock230-scripts
-make -C src mock230
-./src/build_opt/mock230 --selftest
+make -C src torirsserver-scripts
+make -C src ToriRSServer
+./src/build_opt/torirsserver --selftest
 ```
 
 Then run `::hunterrun` and a live-client smoke matrix covering at least one

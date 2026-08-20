@@ -481,8 +481,8 @@ later instance, recovery, and multiplayer evidence unreliable.
 - no DTTD login proc calls global `npc_add`, `npc_del`, or adopts a world NPC
   as a player follower;
 - all native one-bit fields are assigned only 0/1;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route and invariant tests
 

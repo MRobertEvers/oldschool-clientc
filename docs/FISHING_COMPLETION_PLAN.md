@@ -17,9 +17,9 @@ flagged where it couples.
 ## Implementation status (2026-08-15)
 
 **Done: S1 (table refactor), S2–S11, S13, S14 (cape + outfit only), S16, S17.**
-Verified: clean `make -C src mock230-scripts` + `make -C src mock230`, and
+Verified: clean `make -C src torirsserver-scripts` + `make -C src ToriRSServer`, and
 `::fishingrun` (new selftest, `skill_fishing/scripts/fishing_selftest.rs2`)
-passes cleanly across repeated `./src/build_opt/mock230 --selftest` runs, with
+passes cleanly across repeated `./src/build_opt/torirsserver --selftest` runs, with
 the full suite's failure count unchanged from its pre-fishing baseline (6,
 all unrelated — a `prayer_curses` varp collision, `NPC_FINDOWNED`, `::maxstats`,
 run energy, and a castle-door pair).
@@ -36,7 +36,7 @@ Two real bugs this pass found and fixed, not just new content:
   combination, not the Big-Net/Harpoon one — fixed in `monkfish.rs2`, which
   now name-binds all seven real spots (swan_fishingspot's 5 + these 6).
 - **S10's own new param**: `configs/fishing.npc`'s hand-authored overlay
-  parser (`apply_param` in `mock230_content.c`) is an exhaustive whitelist,
+  parser (`apply_param` in `torirs_server_content.c`) is an exhaustive whitelist,
   separate from the script compiler's symbol table — `fishing_movement_enum`
   compiled fine but was silently rejected at content-load time (71 "unknown
   param" errors) until a resolver branch was added for it, mirroring the
@@ -549,9 +549,9 @@ before the table refactor.
 
 ## 6. Verification
 
-- `make -C src mock230-scripts` after every config rename — the compack and the
+- `make -C src torirsserver-scripts` after every config rename — the compack and the
   scripts must be rebuilt together.
-- Headless: use a scratch `MOCK230_SAVES` — runs are not independent.
+- Headless: use a scratch `TORIRSSERVER_SAVES` — runs are not independent.
 - Per slice: catch one of each new fish at the gate level and one below it;
   confirm the level message, the bait consumption, the XP, and that a full
   inventory stops the loop rather than eating bait.

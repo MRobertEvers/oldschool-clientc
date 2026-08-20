@@ -3,7 +3,7 @@
  *
  * ── Why this is not read through the scene ───────────────────────────
  *
- * mock230_scene.c's `load_loc_configs` already decodes every loc record and
+ * torirs_server_scene.c's `load_loc_configs` already decodes every loc record and
  * holds the whole `struct RSCache_Dat2ConfigLoc` for each — an accessor over
  * `g_loc_configs` would cost zero new bytes. It is still wrong: that table is
  * owned by the *scene*, and the scene is rebuilt every time the player crosses
@@ -59,10 +59,10 @@
  * where a `0 <= id <= max` range test would assume a density nothing checks.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
-#include "mock230_content.h"
-#include "mock230_paramtable.h"
+#include "torirs_server_content.h"
+#include "torirs_server_paramtable.h"
 
 #include <rscache.h>
 
@@ -72,7 +72,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct Mock230ParamTable g_loc_params;
+static struct ToriRSServerParamTable g_loc_params;
 static int g_loc_records;
 
 /** (id -> offset into g_name_blob), ascending by id. */
@@ -214,7 +214,7 @@ add_size(
      */
     if( size_x < 0 || size_x > 255 || size_z < 0 || size_z > 255 )
     {
-        fprintf(stderr, "mock230: loc %d has an out-of-byte footprint %dx%d\n", loc_id,
+        fprintf(stderr, "torirsserver: loc %d has an out-of-byte footprint %dx%d\n", loc_id,
                 size_x, size_z);
         return;
     }
@@ -265,16 +265,16 @@ mark_known(int loc_id)
     g_known[loc_id >> 3] |= (uint8_t)(1u << (loc_id & 7));
 }
 
-const struct Mock230ParamRow*
-mock230_loc_param(
+const struct ToriRSServerParamRow*
+ToriRSServer_LocParam(
     int loc_id,
     int param_id)
 {
-    return mock230_paramtable_find(&g_loc_params, loc_id, param_id);
+    return ToriRSServer_ParamTableFind(&g_loc_params, loc_id, param_id);
 }
 
 int
-mock230_loc_known(int loc_id)
+ToriRSServer_LocKnown(int loc_id)
 {
     if( loc_id < 0 || loc_id >= g_known_bits || !g_known )
         return 0;
@@ -282,7 +282,7 @@ mock230_loc_known(int loc_id)
 }
 
 const char*
-mock230_loc_name(int loc_id)
+ToriRSServer_LocName(int loc_id)
 {
     int low = 0;
     int high = g_name_count - 1;
@@ -304,7 +304,7 @@ mock230_loc_name(int loc_id)
 }
 
 void
-mock230_loc_footprint(
+ToriRSServer_LocFootprint(
     int loc_id,
     int* out_width,
     int* out_length)
@@ -363,9 +363,9 @@ cache_category(int loc_id)
 }
 
 int
-mock230_loc_category(int loc_id)
+ToriRSServer_LocCategory(int loc_id)
 {
-    const struct Mock230LocDef* def;
+    const struct ToriRSServerLocDef* def;
 
     if( loc_id < 0 )
         return -1;
@@ -382,17 +382,17 @@ mock230_loc_category(int loc_id)
      * the 8,407 records that do state one — including the 58 bank booths under 684
      * and the 11 bank chests under 237, which is the other half of the same row.
      */
-    def = mock230_content_loc(loc_id);
+    def = ToriRSServer_ContentLoc(loc_id);
     if( def && def->category > 0 )
         return def->category;
 
     /*
-     * Ungated on the name, for the reason `mock230_npc_category` states: 32,161 of
+     * Ungated on the name, for the reason `ToriRSServer_NpcCategory` states: 32,161 of
      * this cache's 62,194 loc records carry no name, and a name gate would hide
      * exactly the records a category exists to reach as a group.
      *
      * `> 0`, so 0 — the decoder's "unstated" — comes back as -1. `pack/category.pack`
-     * reserves 0 and `mock230_pack` refuses to name it, so a category of 0 reaching
+     * reserves 0 and `ToriRSServer_Pack` refuses to name it, so a category of 0 reaching
      * `SSVM_ProviderGetByTrigger` could only ever match a script bound to a name
      * that must not exist.
      */
@@ -404,7 +404,7 @@ mock230_loc_category(int loc_id)
 }
 
 int
-mock230_loc_category_members(int category)
+ToriRSServer_LocCategoryMembers(int category)
 {
     int members = 0;
 
@@ -419,7 +419,7 @@ mock230_loc_category_members(int category)
      */
     for( int i = 0; i < g_category_count; i++ )
     {
-        const struct Mock230LocDef* def = mock230_content_loc(g_categories[i].id);
+        const struct ToriRSServerLocDef* def = ToriRSServer_ContentLoc(g_categories[i].id);
 
         if( def && def->category > 0 )
             continue; /* counted by the overlay pass below, under its own id */
@@ -428,7 +428,7 @@ mock230_loc_category_members(int category)
     }
     for( int i = 0;; i++ )
     {
-        const struct Mock230LocDef* def = mock230_content_loc_at(i);
+        const struct ToriRSServerLocDef* def = ToriRSServer_ContentLocAt(i);
 
         if( !def )
             break;
@@ -439,53 +439,53 @@ mock230_loc_category_members(int category)
 }
 
 int
-mock230_locinfo_category_count(void)
+ToriRSServer_LocInfoCategoryCount(void)
 {
     return g_category_count;
 }
 
 int
-mock230_locinfo_count(void)
+ToriRSServer_LocInfoCount(void)
 {
     return g_loc_records;
 }
 
 int
-mock230_locinfo_param_count(void)
+ToriRSServer_LocInfoParamCount(void)
 {
     return g_loc_params.count;
 }
 
 void
-mock230_locinfo_param_overlay(
+ToriRSServer_LocInfoParamOverlay(
     int loc_id,
     int param_id,
     int value)
 {
     if( loc_id < 0 || param_id < 0 )
         return;
-    mock230_paramtable_set_int(&g_loc_params, loc_id, param_id, value);
+    ToriRSServer_ParamTableSetInt(&g_loc_params, loc_id, param_id, value);
     /* Re-sorted per row, and cheap in the way that matters: the table is already
      * sorted, so this is qsort's best case. The alternative — a separate "the
      * overlay is finished" call — is one more thing to forget, and forgetting it
      * makes every `loc_param` in the tree report "not set". */
-    mock230_paramtable_sort(&g_loc_params);
+    ToriRSServer_ParamTableSort(&g_loc_params);
 }
 
 int
-mock230_locinfo_name_count(void)
+ToriRSServer_LocInfoNameCount(void)
 {
     return g_name_count;
 }
 
 int
-mock230_locinfo_size_count(void)
+ToriRSServer_LocInfoSizeCount(void)
 {
     return g_size_count;
 }
 
 int
-mock230_locinfo_load(const char* cache_dir)
+ToriRSServer_LocInfoLoad(const char* cache_dir)
 {
     struct RSCache profile = RSCache_ProfileZero();
     struct RSCache_Dat2Disk* disk;
@@ -493,11 +493,11 @@ mock230_locinfo_load(const char* cache_dir)
     struct RSCache_FileList* files;
     int table;
 
-    mock230_locinfo_free();
+    ToriRSServer_LocInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -510,7 +510,7 @@ mock230_locinfo_load(const char* cache_dir)
     }
     if( !disk )
     {
-        fprintf(stderr, "mock230: no loc params (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no loc params (cache '%s' not found)\n", cache_dir);
         return 0;
     }
 
@@ -520,11 +520,11 @@ mock230_locinfo_load(const char* cache_dir)
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "mock230: no loc config archive in '%s'\n", cache_dir);
+        fprintf(stderr, "torirsserver: no loc config archive in '%s'\n", cache_dir);
         return 0;
     }
     RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    /* The loc decoder branches on the group revision — mock230_scene.c sets it
+    /* The loc decoder branches on the group revision — torirs_server_scene.c sets it
      * the same way before decoding the same archive. */
     RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_LOC, archive->revision);
 
@@ -546,7 +546,7 @@ mock230_locinfo_load(const char* cache_dir)
                                                     files->file_sizes[i]);
         if( !loc )
             continue;
-        mock230_paramtable_read(&g_loc_params, archive->file_ids[i], &loc->params);
+        ToriRSServer_ParamTableRead(&g_loc_params, archive->file_ids[i], &loc->params);
         mark_known(archive->file_ids[i]);
         if( loc->name )
             add_name(archive->file_ids[i], loc->name);
@@ -567,7 +567,7 @@ mock230_locinfo_load(const char* cache_dir)
      * this cache, and a binary search that relied on that would work until it
      * did not.
      */
-    mock230_paramtable_sort(&g_loc_params);
+    ToriRSServer_ParamTableSort(&g_loc_params);
     if( g_names && g_name_count > 1 )
         qsort(g_names, (size_t)g_name_count, sizeof(*g_names), compare_name_row);
     if( g_sizes && g_size_count > 1 )
@@ -583,10 +583,10 @@ mock230_locinfo_load(const char* cache_dir)
     RSCache_Dat2DiskFree(disk);
 
     fprintf(stderr,
-            "mock230: loc configs loaded (%d records from %s; %d param rows in %zu bytes, "
+            "torirsserver: loc configs loaded (%d records from %s; %d param rows in %zu bytes, "
             "%d names in %zu bytes, %d footprints in %zu bytes, %d categories in %zu bytes)\n",
             g_loc_records, cache_dir, g_loc_params.count,
-            mock230_paramtable_bytes(&g_loc_params), g_name_count,
+            ToriRSServer_ParamTableBytes(&g_loc_params), g_name_count,
             g_name_blob_len + (size_t)g_name_count * sizeof(struct LocNameRow),
             g_size_count, (size_t)g_size_count * sizeof(struct LocSizeRow),
             g_category_count, (size_t)g_category_count * sizeof(struct LocCategoryRow));
@@ -594,9 +594,9 @@ mock230_locinfo_load(const char* cache_dir)
 }
 
 void
-mock230_locinfo_free(void)
+ToriRSServer_LocInfoFree(void)
 {
-    mock230_paramtable_free(&g_loc_params);
+    ToriRSServer_ParamTableFree(&g_loc_params);
     g_loc_records = 0;
 
     free(g_name_blob);

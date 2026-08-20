@@ -11,7 +11,7 @@
  *
  *   1. The server's login handshake does not block. On one thread a blocking
  *      read is a deadlock, so if this test ever hangs, the state machine in
- *      mock230_session.c has regressed to waiting for bytes.
+ *      torirs_server_session.c has regressed to waiting for bytes.
  *   2. The bytes are the real protocol. Each client encrypts a real login block
  *      with the server's real modulus and both ends arm real ISAAC ciphers;
  *      nothing is short-circuited for being in-process. A packet that would
@@ -29,16 +29,16 @@
  *      is the client's own reader, so a stream it accepts is one the game
  *      accepts.
  *
- * Run: make -C src test-mock230-embed
+ * Run: make -C src test-torirsserver-embed
  */
 
-#include "net/mock/mock230.h"
-#include "net/mock/mock230_content.h"
-#include "net/mock/mock230_embed.h"
-#include "net/mock/mock230_friends.h"
-#include "net/mock/mock230_save.h"
-#include "net/mock/mock230_scene.h"
-#include "net/mock/mock230_session.h"
+#include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_content.h"
+#include "torirsserver/torirs_server_embed.h"
+#include "torirsserver/torirs_server_friends.h"
+#include "torirsserver/torirs_server_save.h"
+#include "torirsserver/torirs_server_scene.h"
+#include "torirsserver/torirs_server_session.h"
 
 #include "engine/world_builder/collision_map.h"
 
@@ -56,7 +56,7 @@
 #include "net/rev/pktnames.h"
 
 /* For the SS_OP_SOUND_SYNTH direct-dispatch check below (WEAPON_FX_PORT_QUEUE.md
- * slice 7's bar). Same include path (-I src/serverscript) mock230_scripts.c
+ * slice 7's bar). Same include path (-I src/serverscript) torirs_server_scripts.c
  * itself uses. */
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -126,7 +126,7 @@ struct Peer
     /*
      * Social. Recorded per peer, out of each client's own decoded stream,
      * rather than off the server's capture buffer — and that is not a
-     * preference. `mock230_encode.c`'s capture records (opcode, len, data) with
+     * preference. `torirs_server_encode.c`'s capture records (opcode, len, data) with
      * **no addressee**, so "the PM reached bob and not alice" is a question it
      * structurally cannot answer. Two decoded streams can.
      */
@@ -676,11 +676,11 @@ static void
 pump(
     struct Peer* peers,
     int peer_count,
-    struct Mock230Embed* embed,
+    struct ToriRSServerEmbed* embed,
     int run_tick,
     int chunk)
 {
-    struct Mock230Server* world;
+    struct ToriRSServer* world;
     int origin_x;
     int origin_z;
     struct ToriRS_CmdHeader header;
@@ -701,21 +701,21 @@ pump(
 
                 if( len > chunk )
                     len = chunk;
-                mock230_embed_write(embed, peers[p].client_id, payload + off, len);
+                ToriRSServer_EmbedWrite(embed, peers[p].client_id, payload + off, len);
                 /* Pump between chunks so the server genuinely sees a torn stream
                  * rather than a whole packet reassembled by the pipe. */
-                mock230_embed_pump(embed, 0);
+                ToriRSServer_EmbedPump(embed, 0);
             }
         }
     }
 
-    mock230_embed_pump(embed, run_tick);
+    ToriRSServer_EmbedPump(embed, run_tick);
 
     /* The scene's south-west corner, which is what the zone packets' bases are
      * relative to. Read after the tick, because the tick is what can move it. */
-    world = mock230_embed_world(embed);
-    origin_x = world ? mock230_scene_origin(world->zone_x) : 0;
-    origin_z = world ? mock230_scene_origin(world->zone_z) : 0;
+    world = ToriRSServer_EmbedWorld(embed);
+    origin_x = world ? ToriRSServer_SceneOrigin(world->zone_x) : 0;
+    origin_z = world ? ToriRSServer_SceneOrigin(world->zone_z) : 0;
 
     /* server -> clients */
     for( int p = 0; p < peer_count; p++ )
@@ -723,7 +723,7 @@ pump(
         struct Peer* peer = &peers[p];
         struct RevPacket packet;
 
-        while( (got = mock230_embed_read(embed, peer->client_id, inbound,
+        while( (got = ToriRSServer_EmbedRead(embed, peer->client_id, inbound,
                                          (int)sizeof(inbound))) > 0 )
             ToriRS_Network_HandleCmd(&peer->net, TORIRS_CMD_NET_RECV, inbound, got);
 
@@ -774,8 +774,8 @@ peer_login(
      * own value or the check below would pass before the packet existed. */
     peer->saw_friendlist_loaded = -1;
 
-    ToriRS_Network_Init(&peer->net, GameProtoRev_OSRS230(), MOCK230_RSA_PUBLIC_EXPONENT,
-                        MOCK230_RSA_PUBLIC_MODULUS);
+    ToriRS_Network_Init(&peer->net, GameProtoRev_OSRS230(), TORIRSSERVER_RSA_PUBLIC_EXPONENT,
+                        TORIRSSERVER_RSA_PUBLIC_MODULUS);
     ToriRS_Network_SetSeedFn(&peer->net, seed_fn, NULL);
     /* The host:port is inert here — there is nothing to dial — but the client's
      * login machine wants one, and passing a real-looking value keeps this path
@@ -953,40 +953,40 @@ main(void)
     /* Three: alice and bob, who are here when the door opens, and carol, who is
      * not. Carol is the whole point of the zone map. */
     struct Peer peers[3];
-    struct Mock230Embed* embed;
-    struct Mock230Server* world;
-    struct Mock230Player* alice;
-    struct Mock230Player* bob;
+    struct ToriRSServerEmbed* embed;
+    struct ToriRSServer* world;
+    struct ToriRSServerPlayer* alice;
+    struct ToriRSServerPlayer* bob;
     int second_client;
     int reached_game = 0;
 
     /*
      * Its own save directory, wiped on entry.
      *
-     * Persistence is wired now — `mock230_world_login` loads and
-     * `mock230_world_remove_player` writes — and this test logs bob out and
+     * Persistence is wired now — `ToriRSServer_WorldLogin` loads and
+     * `ToriRSServer_WorldRemovePlayer` writes — and this test logs bob out and
      * back in again. Without this it would be reading a save the *previous*
      * run left behind and asserting against state no line of it sets. A test
      * that passes because of a file left over from last time is worth four
      * lines to make impossible.
      */
-    setenv("MOCK230_SAVES", "build/embed_test_saves", 1);
+    setenv("TORIRSSERVER_SAVES", "build/embed_test_saves", 1);
     remove("build/embed_test_saves/alice.ini");
     remove("build/embed_test_saves/bob.ini");
     remove("build/embed_test_saves/carol.ini");
 
-    embed = mock230_embed_start(NULL);
+    embed = ToriRSServer_EmbedStart(NULL);
     if( !embed )
     {
         fprintf(stderr, "embed: could not start the server\n");
         return 1;
     }
 
-    second_client = mock230_embed_connect(embed);
+    second_client = ToriRSServer_EmbedConnect(embed);
     check(second_client == 1, "the embed opened a second client");
     if( second_client < 0 )
     {
-        mock230_embed_stop(embed);
+        ToriRSServer_EmbedStop(embed);
         return 1;
     }
 
@@ -1009,17 +1009,17 @@ main(void)
     }
 
     check(reached_game, "both clients reached GAME over their buffer pairs");
-    check(mock230_embed_online(embed, 0) && mock230_embed_online(embed, second_client),
+    check(ToriRSServer_EmbedOnline(embed, 0) && ToriRSServer_EmbedOnline(embed, second_client),
           "the server completed both handshakes");
 
-    world = mock230_embed_world(embed);
-    alice = mock230_embed_player(embed, 0);
-    bob = mock230_embed_player(embed, second_client);
+    world = ToriRSServer_EmbedWorld(embed);
+    alice = ToriRSServer_EmbedPlayer(embed, 0);
+    bob = ToriRSServer_EmbedPlayer(embed, second_client);
     check(world != NULL, "server exposes its world");
     if( !world || !alice || !bob )
     {
         printf("embed: FAILURES (no world, or a login took no pool slot)\n");
-        mock230_embed_stop(embed);
+        ToriRSServer_EmbedStop(embed);
         return 1;
     }
 
@@ -1045,11 +1045,11 @@ main(void)
      * ownership (WEAPON_FX_PORT_QUEUE.md §1), so this dispatches
      * SS_OP_SOUND_SYNTH the same way a compiled `sound_synth(...)` call would —
      * three ints pushed in the reference's declared order, popped by
-     * `mock230_script_command`'s own case (mock230_scripts.c) — rather than
+     * `ToriRSServer_ScriptCommand`'s own case (torirs_server_scripts.c) — rather than
      * adding a script this lane cannot own.
      *
-     * What this proves: the opcode body now calls `mock230_send_synth_sound`
-     * (it used to only print under MOCK230_VERBOSE and send nothing), the
+     * What this proves: the opcode body now calls `ToriRSServer_SendSynthSound`
+     * (it used to only print under TORIRSSERVER_VERBOSE and send nothing), the
      * packet is framed on wire opcode 102 as `PKT_NAME_SYNTH_SOUND`
      * (packetin.h, slice 6), and — the load-bearing part — it is decoded back
      * by `ToriRS_Network`'s *own* reader (`gameproto_parse.c`, the same
@@ -1059,7 +1059,7 @@ main(void)
      * What this does *not* prove, and is not asked to: that a given id renders
      * non-silent PCM. That is `rs_audio_test.c`'s "audible is the point" check,
      * against a real cache — unmodified per the queue's instruction, and out of
-     * reach here because `test-mock230-embed`'s link line (src/Makefile) does
+     * reach here because `test-torirsserver-embed`'s link line (src/Makefile) does
      * not pull in RS_Audio/dat2_buildcache/platform_audio_null, and the
      * Makefile is not a file lane C owns either. The two tests together are the
      * whole chain: this one proves the wire carries the id the opcode was
@@ -1084,8 +1084,8 @@ main(void)
         check(SSVM_PushInt(&state, synth_id), "pushed the sound id");
         check(SSVM_PushInt(&state, synth_loops), "pushed loops");
         check(SSVM_PushInt(&state, synth_delay), "pushed delay");
-        check(mock230_script_command(&state, SS_OP_SOUND_SYNTH, 0),
-              "SS_OP_SOUND_SYNTH dispatched (mock230_scripts.c's own case, not a "
+        check(ToriRSServer_ScriptCommand(&state, SS_OP_SOUND_SYNTH, 0),
+              "SS_OP_SOUND_SYNTH dispatched (torirs_server_scripts.c's own case, not a "
               "stand-in)");
 
         peers[0].saw_synth_count = 0;
@@ -1114,12 +1114,12 @@ main(void)
      *
      * Dispatched the same way the SYNTH_SOUND check above is, for the same
      * reason: the caller pushes one int (the jingle id; the length is looked up
-     * server-side from `mock230_jingle_lengths.gen.h`, mirroring LostCity's own
+     * server-side from `torirs_server_jingle_lengths.gen.h`, mirroring LostCity's own
      * `Player.playJingle` -> `new MidiJingle(id, Midi.getLength(id))`), and
-     * `mock230_script_command`'s own SS_OP_MIDI_JINGLE case does the rest —
+     * `ToriRSServer_ScriptCommand`'s own SS_OP_MIDI_JINGLE case does the rest —
      * nothing here stands in for the opcode body.
      *
-     * What this proves: the id reaches `mock230_send_midi_jingle`, is framed on
+     * What this proves: the id reaches `ToriRSServer_SendMidiJingle`, is framed on
      * the wire as `PKT_NAME_MIDI_JINGLE`, and is decoded back by the client's
      * *own* reader -- which for rev 239 is now `rsprot_bridge.c`'s
      * `bridge_midi_jingle`, not the 4-byte LostCity-era arm in
@@ -1130,20 +1130,20 @@ main(void)
     {
         /*
          * osrs230's packet table genuinely has no MIDI_JINGLE writer -- the
-         * same "the revision has no writer" path `mock230_send_midi_song_stop`
-         * takes, and by the same design `mock230_send_midi_jingle` copies it
+         * same "the revision has no writer" path `ToriRSServer_SendMidiSongStop`
+         * takes, and by the same design `ToriRSServer_SendMidiJingle` copies it
          * from: returning rather than flushing a short body that would
-         * desynchronise the stream. `mock230_embed_start(NULL)` defaults to
+         * desynchronise the stream. `ToriRSServer_EmbedStart(NULL)` defaults to
          * osrs230 (see its own comment), so this check only means something
-         * under `MOCK230_REV=osrs239`, which is the revision the bug this test
+         * under `TORIRSSERVER_REV=osrs239`, which is the revision the bug this test
          * exists for is actually about.
          */
-        const char* rev_env = getenv("MOCK230_REV");
+        const char* rev_env = getenv("TORIRSSERVER_REV");
 
         if( !rev_env || strcmp(rev_env, "osrs239") != 0 )
         {
             printf("embed: SKIP  MIDI_JINGLE wire check — osrs230 has no MIDI_JINGLE "
-                   "writer; rerun with MOCK230_REV=osrs239\n");
+                   "writer; rerun with TORIRSSERVER_REV=osrs239\n");
         }
         else
         {
@@ -1155,8 +1155,8 @@ main(void)
             world->active_player = alice;
 
             check(SSVM_PushInt(&state, jingle_id), "pushed the jingle id");
-            check(mock230_script_command(&state, SS_OP_MIDI_JINGLE, 0),
-                  "SS_OP_MIDI_JINGLE dispatched (mock230_scripts.c's own case, not a "
+            check(ToriRSServer_ScriptCommand(&state, SS_OP_MIDI_JINGLE, 0),
+                  "SS_OP_MIDI_JINGLE dispatched (torirs_server_scripts.c's own case, not a "
                   "stand-in)");
 
             peers[0].saw_jingle_count = 0;
@@ -1165,7 +1165,7 @@ main(void)
 
             check(peers[0].saw_jingle_count > 0,
                   "MIDI_JINGLE reached alice's stream (the packet is no longer "
-                  "refused by mock230_wire.c's transcribed-packet gate)");
+                  "refused by torirs_server_wire.c's transcribed-packet gate)");
             check(peers[0].saw_jingle_id == jingle_id,
                   "id round-tripped through the client's own rsprot_bridge.c "
                   "reader unchanged");
@@ -1224,15 +1224,15 @@ main(void)
         state.env = world->script_env;
         world->active_player = alice;
 
-        check(SSVM_PushInt(&state, mock230_coord_pack(alice->level, from_x, from_z)),
+        check(SSVM_PushInt(&state, ToriRSServer_CoordPack(alice->level, from_x, from_z)),
               "pushed the exactmove start coord");
-        check(SSVM_PushInt(&state, mock230_coord_pack(alice->level, to_x, to_z)),
+        check(SSVM_PushInt(&state, ToriRSServer_CoordPack(alice->level, to_x, to_z)),
               "pushed the exactmove end coord");
         check(SSVM_PushInt(&state, start_cycle), "pushed the start cycle");
         check(SSVM_PushInt(&state, end_cycle), "pushed the end cycle");
         check(SSVM_PushInt(&state, direction), "pushed the facing direction");
-        check(mock230_script_command(&state, SS_OP_P_EXACTMOVE, 0),
-              "SS_OP_P_EXACTMOVE dispatched (mock230_scripts.c's own case)");
+        check(ToriRSServer_ScriptCommand(&state, SS_OP_P_EXACTMOVE, 0),
+              "SS_OP_P_EXACTMOVE dispatched (torirs_server_scripts.c's own case)");
 
         check(alice->x == to_x && alice->z == to_z,
               "p_exactmove put alice on the END tile immediately");
@@ -1287,7 +1287,7 @@ main(void)
     {
         int npc_slot = -1;
 
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         {
             if( world->npcs[i].active && world->npcs[i].death_tick < 0 )
             {
@@ -1299,7 +1299,7 @@ main(void)
 
         if( npc_slot >= 0 )
         {
-            struct Mock230Npc* npc = &world->npcs[npc_slot];
+            struct ToriRSServerNpc* npc = &world->npcs[npc_slot];
             int saved_movement = npc->last_movement;
             int saved_until = npc->delayed_until;
             struct SSVM_State state;
@@ -1310,7 +1310,7 @@ main(void)
             npc->delayed_until = 0;
 
             npc->last_movement = world->tick - 2;
-            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+            check(ToriRSServer_ScriptCommand(&state, SS_OP_NPC_ARRIVEDELAY, 0),
                   "SS_OP_NPC_ARRIVEDELAY dispatched (a standing npc)");
             check(state.execution != SSVM_NPC_SUSPENDED && npc->delayed_until == 0,
                   "an npc that stopped two ticks ago is not delayed at all");
@@ -1319,7 +1319,7 @@ main(void)
             state.env = world->script_env;
             state.host_tag = (int32_t)(npc_slot + 1);
             npc->last_movement = world->tick - 1;
-            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+            check(ToriRSServer_ScriptCommand(&state, SS_OP_NPC_ARRIVEDELAY, 0),
                   "SS_OP_NPC_ARRIVEDELAY dispatched (moved two ticks ago)");
             check(state.execution == SSVM_NPC_SUSPENDED &&
                       npc->delayed_until == world->tick + 1,
@@ -1330,7 +1330,7 @@ main(void)
             state.host_tag = (int32_t)(npc_slot + 1);
             npc->last_movement = world->tick + 1;
             npc->delayed_until = 0;
-            check(mock230_script_command(&state, SS_OP_NPC_ARRIVEDELAY, 0),
+            check(ToriRSServer_ScriptCommand(&state, SS_OP_NPC_ARRIVEDELAY, 0),
                   "SS_OP_NPC_ARRIVEDELAY dispatched (moved this tick)");
             check(state.execution == SSVM_NPC_SUSPENDED &&
                       npc->delayed_until == world->tick + 2,
@@ -1344,7 +1344,7 @@ main(void)
     /*
      * The opening fixture, over a real login rather than a direct call.
      *
-     * `mock230_world_init` used to deal the kit, stock the bank and set the
+     * `ToriRSServer_WorldInit` used to deal the kit, stock the bank and set the
      * stats; all three are content now, in `[proc,newplayer_setup]`, which
      * `[login,_]` calls in phase 7. That makes this the end-to-end check the
      * move needs: a client that handshakes, logs in and ticks should end up
@@ -1354,24 +1354,24 @@ main(void)
      */
     for( int p = 0; p < 2; p++ )
     {
-        struct Mock230Player* player = p == 0 ? alice : bob;
+        struct ToriRSServerPlayer* player = p == 0 ? alice : bob;
         int kit = 0;
 
-        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id >= 0 )
                 kit++;
         check(kit == 14, p == 0 ? "[login] dealt alice the 14-item opening kit"
                                 : "and dealt bob the same kit");
-        check(mock230_bank_count_player(player, 995) == 250000,
+        check(ToriRSServer_BankCountPlayer(player, 995) == 250000,
               p == 0 ? "[login] stocked alice's bank with 250000 coins"
                      : "and bob's, in his own container");
-        check(player->stat_level[MOCK230_STAT_HITPOINTS] == 10,
+        check(player->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10,
               p == 0 ? "[login] put alice's hitpoints at level 10" : "and bob's");
-        check(player->hitpoints == 10 && player->stat_boosted[MOCK230_STAT_HITPOINTS] == 10 &&
+        check(player->hitpoints == 10 && player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] == 10 &&
                   player->max_hitpoints == 10,
               p == 0 ? "[login] left alice's current HP full at 10 (not zero)"
                      : "and bob's current HP full at 10");
-        check(player->stat_level[MOCK230_STAT_ATTACK] == 1,
+        check(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 1,
               "and left every other skill on the engine's level-1 floor");
     }
 
@@ -1381,19 +1381,19 @@ main(void)
      * full-looking orb (UPDATE_STAT reads boosted, death reads hitpoints).
      */
     {
-        const char* path = mock230_save_path("alice");
+        const char* path = ToriRSServer_SavePath("alice");
         int boosted_before;
 
-        check(mock230_save_player(alice, path), "[login] wrote alice's save");
-        boosted_before = alice->stat_boosted[MOCK230_STAT_HITPOINTS];
+        check(ToriRSServer_SavePlayer(alice, path), "[login] wrote alice's save");
+        boosted_before = alice->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
         alice->hitpoints = 0;
-        check(mock230_load_player(alice, path), "[login] read alice's save back");
-        check(alice->stat_boosted[MOCK230_STAT_HITPOINTS] == boosted_before,
+        check(ToriRSServer_LoadPlayer(alice, path), "[login] read alice's save back");
+        check(alice->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] == boosted_before,
               "[login] save kept boosted HP");
-        /* The same hydrate mock230_world_login runs after load. */
-        alice->hitpoints = alice->stat_boosted[MOCK230_STAT_HITPOINTS];
-        mock230_combat_sync_hitpoints(alice);
-        check(alice->hitpoints == 10 && alice->stat_boosted[MOCK230_STAT_HITPOINTS] == 10,
+        /* The same hydrate ToriRSServer_WorldLogin runs after load. */
+        alice->hitpoints = alice->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+        ToriRSServer_CombatSyncHitpoints(alice);
+        check(alice->hitpoints == 10 && alice->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] == 10,
               "[login] hydrate restored current HP from the save's boosted value");
     }
 
@@ -1449,21 +1449,21 @@ main(void)
      * ── Client and server route off one collision map ────────────────
      *
      * The client's pathfinder and the server's both call
-     * collision_map_route_tiles. mock230_scene_route_op is only a scene-base
+     * collision_map_route_tiles. ToriRSServer_SceneRouteOp is only a scene-base
      * translation around that flood: a direct call on the same CollisionMap
      * must agree tile-for-tile, and the server's waypoint queue must land on
      * the same arrival. The castle door is far enough from the home tile that
      * the old four-neighbour guess used to diverge.
      */
     {
-        int door = mock230_scene_find_loc(3226, 3223, 0, -1);
-        struct CollisionMap* cm = mock230_scene_collision(0);
-        int base_x = mock230_scene_base_x();
-        int base_z = mock230_scene_base_z();
-        int scene_x[MOCK230_STEP_MAX];
-        int scene_z[MOCK230_STEP_MAX];
-        int direct_x[MOCK230_STEP_MAX];
-        int direct_z[MOCK230_STEP_MAX];
+        int door = ToriRSServer_SceneFindLoc(3226, 3223, 0, -1);
+        struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+        int base_x = ToriRSServer_SceneBaseX();
+        int base_z = ToriRSServer_SceneBaseZ();
+        int scene_x[TORIRSSERVER_STEP_MAX];
+        int scene_z[TORIRSSERVER_STEP_MAX];
+        int direct_x[TORIRSSERVER_STEP_MAX];
+        int direct_z[TORIRSSERVER_STEP_MAX];
         int scene_n = -1;
         int direct_n = -1;
         int arrive_sx = -1;
@@ -1480,15 +1480,15 @@ main(void)
               "embed has a castle door and a level-0 collision map");
         if( door >= 0 && cm != NULL && base_x >= 0 )
         {
-            struct Mock230SceneLoc* loc = mock230_scene_loc(door);
+            struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(door);
 
-            mock230_scene_loc_approach(door, &approach);
-            mock230_scene_op_nearest_opts(&nearest);
-            scene_n = mock230_scene_route_op(0, 3222, 3218, loc->x, loc->z, &approach, scene_x,
-                                             scene_z, MOCK230_STEP_MAX, &arrive_sx, &arrive_sz);
+            ToriRSServer_SceneLocApproach(door, &approach);
+            ToriRSServer_SceneOpNearestOpts(&nearest);
+            scene_n = ToriRSServer_SceneRouteOp(0, 3222, 3218, loc->x, loc->z, &approach, scene_x,
+                                             scene_z, TORIRSSERVER_STEP_MAX, &arrive_sx, &arrive_sz);
             direct_n = collision_map_route_tiles(
                 cm, 3222 - base_x, 3218 - base_z, loc->x - base_x, loc->z - base_z, &approach,
-                &nearest, direct_x, direct_z, MOCK230_STEP_MAX, &used_nearest, &arrive_dx,
+                &nearest, direct_x, direct_z, TORIRSSERVER_STEP_MAX, &used_nearest, &arrive_dx,
                 &arrive_dz);
             if( direct_n >= 0 )
             {
@@ -1515,9 +1515,9 @@ main(void)
                 check(tiles_match,
                       "scene_route_op and collision_map_route_tiles agree tile-for-tile");
 
-                mock230_world_set_active(world, alice);
-                mock230_world_teleport(world, 0, 3222, 3218);
-                mock230_world_walk_to_approach(world, loc->x, loc->z, &approach);
+                ToriRSServer_WorldSetActive(world, alice);
+                ToriRSServer_WorldTeleport(world, 0, 3222, 3218);
+                ToriRSServer_WorldWalkToApproach(world, loc->x, loc->z, &approach);
                 check(alice->waypoint_index >= 0, "walk_to_approach queued waypoints");
                 if( alice->waypoint_index >= 0 )
                 {
@@ -1540,9 +1540,9 @@ main(void)
              * or the character walks through every thin wall on the map.
              */
             {
-                int door_closed = mock230_scene_find_loc(3226, 3223, 0, 1535);
-                struct Mock230SceneLoc* dloc =
-                    door_closed >= 0 ? mock230_scene_loc(door_closed) : NULL;
+                int door_closed = ToriRSServer_SceneFindLoc(3226, 3223, 0, 1535);
+                struct ToriRSServerSceneLoc* dloc =
+                    door_closed >= 0 ? ToriRSServer_SceneLoc(door_closed) : NULL;
                 int sx;
                 int sz;
                 int wall_here;
@@ -1563,10 +1563,10 @@ main(void)
                     {
                         wall_here = COLL_FLAG_WALL_WEST;
                         wall_nbr = COLL_FLAG_WALL_EAST;
-                        dir_a = mock230_step_direction(-1, 0); /* W from door */
-                        dir_b = mock230_step_direction(1, 0);  /* E from nbr */
-                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
-                        step_b = mock230_scene_can_step(0, dloc->x - 1, dloc->z, dir_b);
+                        dir_a = ToriRSServer_StepDirection(-1, 0); /* W from door */
+                        dir_b = ToriRSServer_StepDirection(1, 0);  /* E from nbr */
+                        step_a = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z, dir_a);
+                        step_b = ToriRSServer_SceneCanStep(0, dloc->x - 1, dloc->z, dir_b);
                         check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
                                   (collision_map_tile(cm, sx - 1, sz) & wall_nbr) != 0,
                               "door wall bits sit on both sides of the W edge");
@@ -1575,10 +1575,10 @@ main(void)
                     {
                         wall_here = COLL_FLAG_WALL_NORTH;
                         wall_nbr = COLL_FLAG_WALL_SOUTH;
-                        dir_a = mock230_step_direction(0, 1);
-                        dir_b = mock230_step_direction(0, -1);
-                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
-                        step_b = mock230_scene_can_step(0, dloc->x, dloc->z + 1, dir_b);
+                        dir_a = ToriRSServer_StepDirection(0, 1);
+                        dir_b = ToriRSServer_StepDirection(0, -1);
+                        step_a = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z, dir_a);
+                        step_b = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z + 1, dir_b);
                         check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
                                   (collision_map_tile(cm, sx, sz + 1) & wall_nbr) != 0,
                               "door wall bits sit on both sides of the N edge");
@@ -1587,10 +1587,10 @@ main(void)
                     {
                         wall_here = COLL_FLAG_WALL_EAST;
                         wall_nbr = COLL_FLAG_WALL_WEST;
-                        dir_a = mock230_step_direction(1, 0);
-                        dir_b = mock230_step_direction(-1, 0);
-                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
-                        step_b = mock230_scene_can_step(0, dloc->x + 1, dloc->z, dir_b);
+                        dir_a = ToriRSServer_StepDirection(1, 0);
+                        dir_b = ToriRSServer_StepDirection(-1, 0);
+                        step_a = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z, dir_a);
+                        step_b = ToriRSServer_SceneCanStep(0, dloc->x + 1, dloc->z, dir_b);
                         check((collision_map_tile(cm, sx, sz) & wall_here) != 0 &&
                                   (collision_map_tile(cm, sx + 1, sz) & wall_nbr) != 0,
                               "door wall bits sit on both sides of the E edge");
@@ -1599,10 +1599,10 @@ main(void)
                     {
                         wall_here = COLL_FLAG_WALL_SOUTH;
                         wall_nbr = COLL_FLAG_WALL_WEST; /* unused; south nbr */
-                        dir_a = mock230_step_direction(0, -1);
-                        dir_b = mock230_step_direction(0, 1);
-                        step_a = mock230_scene_can_step(0, dloc->x, dloc->z, dir_a);
-                        step_b = mock230_scene_can_step(0, dloc->x, dloc->z - 1, dir_b);
+                        dir_a = ToriRSServer_StepDirection(0, -1);
+                        dir_b = ToriRSServer_StepDirection(0, 1);
+                        step_a = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z, dir_a);
+                        step_b = ToriRSServer_SceneCanStep(0, dloc->x, dloc->z - 1, dir_b);
                         check((collision_map_tile(cm, sx, sz) & COLL_FLAG_WALL_SOUTH) != 0 &&
                                   (collision_map_tile(cm, sx, sz - 1) & COLL_FLAG_WALL_NORTH) != 0,
                               "door wall bits sit on both sides of the S edge");
@@ -1627,7 +1627,7 @@ main(void)
 
                 for( int slot = 0;; slot++ )
                 {
-                    struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+                    struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
                     int dir_out;
                     int dir_back;
                     int ox;
@@ -1652,11 +1652,11 @@ main(void)
                     oz = ((loc->angle & 3) == 1) ? 1 : ((loc->angle & 3) == 3) ? -1 : 0;
                     if( ox == 0 && oz == 0 )
                         continue;
-                    dir_out = mock230_step_direction(ox, oz);
-                    dir_back = mock230_step_direction(-ox, -oz);
+                    dir_out = ToriRSServer_StepDirection(ox, oz);
+                    dir_back = ToriRSServer_StepDirection(-ox, -oz);
                     fence_edges++;
-                    if( !mock230_scene_can_step(0, loc->x, loc->z, dir_out) &&
-                        !mock230_scene_can_step(0, loc->x + ox, loc->z + oz, dir_back) )
+                    if( !ToriRSServer_SceneCanStep(0, loc->x, loc->z, dir_out) &&
+                        !ToriRSServer_SceneCanStep(0, loc->x + ox, loc->z + oz, dir_back) )
                         fence_blocked++;
                 }
                 check(fence_edges > 0,
@@ -1684,8 +1684,8 @@ main(void)
         /* A host saying whose turn it is, which is what the seam is for: this
          * stands in for the `::tele` cheat or a world-map click arriving on
          * alice's session. */
-        mock230_world_set_active(world, alice);
-        mock230_world_teleport(world, alice->level, alice->x + 6, alice->z + 6);
+        ToriRSServer_WorldSetActive(world, alice);
+        ToriRSServer_WorldTeleport(world, alice->level, alice->x + 6, alice->z + 6);
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
@@ -1727,13 +1727,13 @@ main(void)
          * The attackable npc nearest alice.
          *
          * Attackable is asked of the npc's own cache record through
-         * `mock230_combat_attackable` rather than by naming a config id here,
+         * `ToriRSServer_CombatAttackable` rather than by naming a config id here,
          * and *nearest* is not cosmetic: the scene is one 104x104 build area,
          * so walking the roster in slot order picks an npc across the map,
          * teleports both players out of the built scene and rebuilds it
          * underneath them. Nearest keeps the whole check inside one scene.
          */
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         {
             int dx, dz, d;
 
@@ -1741,7 +1741,7 @@ main(void)
                 continue;
             if( world->npcs[i].level != alice->level )
                 continue;
-            if( !mock230_combat_attackable(world->npcs[i].type) )
+            if( !ToriRSServer_CombatAttackable(world->npcs[i].type) )
                 continue;
             dx = world->npcs[i].x - alice->x;
             dz = world->npcs[i].z - alice->z;
@@ -1756,15 +1756,15 @@ main(void)
 
         if( npc_slot >= 0 )
         {
-            struct Mock230Npc* npc = &world->npcs[npc_slot];
+            struct ToriRSServerNpc* npc = &world->npcs[npc_slot];
 
             /* Both in view of it: alice beside it, bob three tiles off. Bob
              * does nothing at all — his only job is to be a second observer,
              * which is the whole experiment. */
-            mock230_world_set_active(world, alice);
-            mock230_world_teleport(world, npc->level, npc->x + 1, npc->z);
-            mock230_world_set_active(world, bob);
-            mock230_world_teleport(world, npc->level, npc->x - 3, npc->z);
+            ToriRSServer_WorldSetActive(world, alice);
+            ToriRSServer_WorldTeleport(world, npc->level, npc->x + 1, npc->z);
+            ToriRSServer_WorldSetActive(world, bob);
+            ToriRSServer_WorldTeleport(world, npc->level, npc->x - 3, npc->z);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
 
@@ -1779,8 +1779,8 @@ main(void)
              * side; every claim below is read out of the two clients' decoded
              * streams.
              */
-            mock230_world_set_active(world, alice);
-            mock230_combat_hit_npc(world, npc_slot, 0, 0);
+            ToriRSServer_WorldSetActive(world, alice);
+            ToriRSServer_CombatHitNpc(world, npc_slot, 0, 0);
             for( int round = 0; round < 4; round++ )
             {
                 pump(peers, 2, embed, 1, 64);
@@ -1820,10 +1820,10 @@ main(void)
                 int saved_target = npc->combat_target;
                 int saved_hitmark_count = npc->hitmark_count;
                 unsigned int saved_masks = npc->masks;
-                int dummy_type = mock230_content_symbol(
-                    MOCK230_PACK_NPC, "poh_combat_dummy_npc");
+                int dummy_type = ToriRSServer_ContentSymbol(
+                    TORIRSSERVER_PACK_NPC, "poh_combat_dummy_npc");
 
-                check(dummy_type >= 0 && mock230_npc_category(dummy_type) == 981,
+                check(dummy_type >= 0 && ToriRSServer_NpcCategory(dummy_type) == 981,
                       "the cache identifies the POH combat dummy by category 981");
                 if( dummy_type >= 0 )
                 {
@@ -1833,7 +1833,7 @@ main(void)
                     npc->combat_target = -1;
                     npc->hitmark_count = 0;
                     npc->masks = 0;
-                    mock230_combat_hit_npc(world, npc_slot, 28, 37);
+                    ToriRSServer_CombatHitNpc(world, npc_slot, 28, 37);
                     check(npc->hitpoints == 500,
                           "a POH dummy hit leaves its hitpoints untouched");
                     check(npc->hitmark_count == 1 && npc->hitmarks[0].damage == 37,
@@ -1882,8 +1882,8 @@ main(void)
 
                 peers[0].saw_synth_count = 0;
                 peers[1].saw_synth_count = 0;
-                mock230_world_set_active(world, alice);
-                mock230_combat_hit_npc(world, npc_slot, 0, 1);
+                ToriRSServer_WorldSetActive(world, alice);
+                ToriRSServer_CombatHitNpc(world, npc_slot, 0, 1);
                 for( int round = 0; round < 4; round++ )
                     pump(peers, 2, embed, 1, 64);
 
@@ -1911,7 +1911,7 @@ main(void)
                  */
                 peers[0].saw_synth_count = 0;
                 peers[1].saw_synth_count = 0;
-                mock230_combat_hit_npc(world, npc_slot, 0, npc->hitpoints);
+                ToriRSServer_CombatHitNpc(world, npc_slot, 0, npc->hitpoints);
                 check(npc->death_credit_players[alice->pid] != 0,
                       "the killing player keeps loot credit even without a live "
                       "combat-target latch");
@@ -1933,7 +1933,7 @@ main(void)
                 world->npcs[npc_slot].death_tick = -1;
                 world->npcs[npc_slot].block_sound = -1;
                 peers[0].saw_synth_count = 0;
-                mock230_combat_hit_npc(world, npc_slot, 0, 1);
+                ToriRSServer_CombatHitNpc(world, npc_slot, 0, 1);
                 for( int round = 0; round < 4; round++ )
                     pump(peers, 2, embed, 1, 64);
                 check(peers[0].saw_synth_count == 0,
@@ -1944,13 +1944,13 @@ main(void)
             /* Put the world back: end the fight and return everybody to where
              * the previous section left them, so the door checks below are not
              * reading a position this one chose. */
-            mock230_combat_stop_npc(world, npc_slot);
-            mock230_world_set_active(world, alice);
-            mock230_combat_stop_player(world);
-            mock230_world_teleport(world, alice_level, alice_x, alice_z);
-            mock230_world_set_active(world, bob);
-            mock230_combat_stop_player(world);
-            mock230_world_teleport(world, bob_level, bob_x, bob_z);
+            ToriRSServer_CombatStopNpc(world, npc_slot);
+            ToriRSServer_WorldSetActive(world, alice);
+            ToriRSServer_CombatStopPlayer(world);
+            ToriRSServer_WorldTeleport(world, alice_level, alice_x, alice_z);
+            ToriRSServer_WorldSetActive(world, bob);
+            ToriRSServer_CombatStopPlayer(world);
+            ToriRSServer_WorldTeleport(world, bob_level, bob_x, bob_z);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
         }
@@ -2006,8 +2006,8 @@ main(void)
          * `handle_oploc` walks first and acts on arrival, so a click sent from
          * across Lumbridge would resolve some ticks later and make the rest of
          * this section depend on how many rounds were pumped. */
-        mock230_world_set_active(world, alice);
-        mock230_world_teleport(world, 0, door_x - 1, door_z);
+        ToriRSServer_WorldSetActive(world, alice);
+        ToriRSServer_WorldTeleport(world, 0, door_x - 1, door_z);
         for( int round = 0; round < 4; round++ )
             pump(peers, 2, embed, 1, 64);
 
@@ -2023,7 +2023,7 @@ main(void)
               "and so was bob, who was standing somewhere else entirely");
 
         /* ── The late arrival ── */
-        third = mock230_embed_connect(embed);
+        third = ToriRSServer_EmbedConnect(embed);
         check(third >= 0, "the embed opened a third client");
         if( third >= 0 )
         {
@@ -2032,7 +2032,7 @@ main(void)
             for( int round = 0; round < 40; round++ )
                 pump(peers, 3, embed, round % 2 == 0, 7);
 
-            check(mock230_embed_online(embed, third), "carol handshaked into the same world");
+            check(ToriRSServer_EmbedOnline(embed, third), "carol handshaked into the same world");
             check(peers[2].saw_loc_count > carol_saw_before,
                   "carol's client was told about a loc it never saw change");
             check(peers[2].saw_loc_id == door_open,
@@ -2057,16 +2057,16 @@ main(void)
      * `[opheldu,knife]` and 10 for `[oplocu,cooksquestrange]`.
      */
     {
-        int progress = mock230_content_symbol(MOCK230_PACK_VARP, "mock_quest_progress");
-        int knife = mock230_content_symbol(MOCK230_PACK_OBJ, "knife");
-        int bucket = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_water");
-        int range = mock230_content_symbol(MOCK230_PACK_LOC, "cooksquestrange");
+        int progress = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_quest_progress");
+        int knife = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "knife");
+        int bucket = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_water");
+        int range = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "cooksquestrange");
 
         check(progress >= 0 && knife > 0 && bucket > 0 && range > 0,
               "the use-on fixture's names all resolve");
         if( progress >= 0 && knife > 0 && bucket > 0 && range > 0 )
         {
-            mock230_world_set_active(world, alice);
+            ToriRSServer_WorldSetActive(world, alice);
             alice->inv[0].obj_id = knife;
             alice->inv[0].count = 1;
             alice->inv[1].obj_id = bucket;
@@ -2085,7 +2085,7 @@ main(void)
              * and a walk in front of it. Approach is west of the range
              * (forceapproach); park a few tiles west so the walk is short. */
             alice->varps[progress] = 0;
-            mock230_world_teleport(world, 0, 3208, 3215);
+            ToriRSServer_WorldTeleport(world, 0, 3208, 3215);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
             peer_oplocu(&peers[0], 3212, 3215, range, bucket, 1, 0);
@@ -2112,7 +2112,7 @@ main(void)
      *    *delivery* needs a live player slot. That is why the logout step at the
      *    end asserts on what alice receives, not on what bob does.
      *
-     * `mock230_friends_reset()` is deliberately NOT called first: the door
+     * `ToriRSServer_FriendsReset()` is deliberately NOT called first: the door
      * section above left no social state, and a reset here would also throw
      * away the presence the two logins registered.
      */
@@ -2152,8 +2152,8 @@ main(void)
          * The component id is resolved through the pack, never written here.
          */
         {
-            int swap_to_ignore = mock230_content_symbol(MOCK230_PACK_COMPONENT, "friends:ignore");
-            int swap_to_friends = mock230_content_symbol(MOCK230_PACK_COMPONENT, "ignore:friends");
+            int swap_to_ignore = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "friends:ignore");
+            int swap_to_friends = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "ignore:friends");
 
             check(!peers[0].saw_setevents_overflow,
                   "the arming recorder kept up with the login burst");
@@ -2174,10 +2174,10 @@ main(void)
         }
 
         {
-            const char* declared = mock230_content_constant("friend_max");
+            const char* declared = ToriRSServer_ContentConstant("friend_max");
 
             if( declared )
-                check(mock230_friends_cap_friends() == atoi(declared),
+                check(ToriRSServer_FriendsCapFriends() == atoi(declared),
                       "^friend_max is what the service caps at");
             else
                 printf("embed: SKIP  ^friend_max — not in this content tree\n");
@@ -2190,7 +2190,7 @@ main(void)
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
-        check(mock230_friends_is_friend(alice37, bob37),
+        check(ToriRSServer_FriendsIsFriend(alice37, bob37),
               "FRIENDLIST_ADD reached the service (it had no rev-230 opcode before)");
         check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37,
               "and alice's client was told about bob");
@@ -2239,19 +2239,19 @@ main(void)
         /* ── "Private chat: off" hides alice from her own friends ── */
         peers[1].saw_friend_count = 0;
         peers[0].saw_filter_count = 0;
-        peer_chat_setmode(&peers[0], 0, MOCK230_CHAT_PRIVATE_OFF, 0);
+        peer_chat_setmode(&peers[0], 0, TORIRSSERVER_CHAT_PRIVATE_OFF, 0);
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
         check(peers[0].saw_filter_count > 0 &&
-                  peers[0].saw_filter_private == MOCK230_CHAT_PRIVATE_OFF,
+                  peers[0].saw_filter_private == TORIRSSERVER_CHAT_PRIVATE_OFF,
               "CHAT_SETMODE is echoed back as CHAT_FILTER_SETTINGS");
         check(peers[1].saw_friend_count > 0 && peers[1].saw_friend_name37 == alice37 &&
                   peers[1].saw_friend_world == 0,
               "and alice going private-chat-off reads as offline in bob's panel");
 
         peers[1].saw_friend_count = 0;
-        peer_chat_setmode(&peers[0], 0, MOCK230_CHAT_PRIVATE_ON, 0);
+        peer_chat_setmode(&peers[0], 0, TORIRSSERVER_CHAT_PRIVATE_ON, 0);
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
         check(peers[1].saw_friend_world != 0, "and turning it back on restores her");
@@ -2262,7 +2262,7 @@ main(void)
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
 
-        check(mock230_friends_is_ignored(bob37, alice37), "IGNORELIST_ADD reached the service");
+        check(ToriRSServer_FriendsIsIgnored(bob37, alice37), "IGNORELIST_ADD reached the service");
         check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
                   peers[0].saw_friend_world == 0,
               "and bob ignoring alice makes him read offline in her panel");
@@ -2289,13 +2289,13 @@ main(void)
         peer_social_name37(&peers[1], PKTOUT_NAME_FRIENDLIST_DEL, "alice");
         for( int round = 0; round < 6; round++ )
             pump(peers, 2, embed, 1, 64);
-        check(!mock230_friends_is_friend(bob37, alice37), "FRIENDLIST_DEL reached the service");
+        check(!ToriRSServer_FriendsIsFriend(bob37, alice37), "FRIENDLIST_DEL reached the service");
 
         /* ── the logout ──
          *
-         * Through `mock230_embed_disconnect`, which is the socket server's own
+         * Through `ToriRSServer_EmbedDisconnect`, which is the socket server's own
          * close sequence (release the pool slot, free the session, free the byte
-         * queues) rather than a bare `mock230_world_remove_player` — the bare
+         * queues) rather than a bare `ToriRSServer_WorldRemovePlayer` — the bare
          * form left the embed holding a session whose player was gone, which
          * only survived because nothing pumped bob afterwards.
          *
@@ -2303,7 +2303,7 @@ main(void)
          * this only alice is pumped: bob has no client id left. */
         peers[0].saw_friend_count = 0;
         peer_reset_game(&peers[0]);
-        check(mock230_embed_disconnect(embed, second_client), "bob's client closed");
+        check(ToriRSServer_EmbedDisconnect(embed, second_client), "bob's client closed");
         bob = NULL;
         for( int round = 0; round < 4; round++ )
             pump(peers, 1, embed, 1, 64);
@@ -2311,7 +2311,7 @@ main(void)
         check(peers[0].saw_friend_count > 0 && peers[0].saw_friend_name37 == bob37 &&
                   peers[0].saw_friend_world == 0,
               "bob logging out reaches alice as world 0");
-        check(mock230_friends_is_friend(alice37, bob37),
+        check(ToriRSServer_FriendsIsFriend(alice37, bob37),
               "and the list itself outlives the session, so he is still listed");
 
         /*
@@ -2327,7 +2327,7 @@ main(void)
          * Skipped, loudly, when scripts are absent: this lane specified the
          * content diff (docs/FRIENDS_PRIVATE_CHAT_CONTENT.md) but does not own
          * the content tree, so a tree without it must not fail here. Run with
-         * MOCK230_CONTENT pointed at a tree that has it and the check is real.
+         * TORIRSSERVER_CONTENT pointed at a tree that has it and the check is real.
          */
         if( world->scripts_ok )
             check(peer_saw_game(&peers[0], "bob has logged out."),
@@ -2347,10 +2347,10 @@ main(void)
         /* Bob lists himself. Nothing in the service refuses that, and without it
          * the "bob was not told about his own login" check below has no
          * follower to exclude and so could not go red. */
-        check(mock230_friends_add(bob37, bob37) == MOCK230_SOCIAL_OK,
+        check(ToriRSServer_FriendsAdd(bob37, bob37) == TORIRSSERVER_SOCIAL_OK,
               "a player may list themselves");
         {
-            int rejoin = mock230_embed_connect(embed);
+            int rejoin = ToriRSServer_EmbedConnect(embed);
 
             check(rejoin >= 0, "the embed reopened a client for bob");
             if( rejoin >= 0 )
@@ -2383,7 +2383,7 @@ main(void)
 
     ToriRS_Network_Free(&peers[0].net);
     ToriRS_Network_Free(&peers[1].net);
-    mock230_embed_stop(embed);
+    ToriRSServer_EmbedStop(embed);
 
     printf("embed: %s\n", g_failures ? "FAILURES" : "all checks passed");
     return g_failures ? 1 : 0;

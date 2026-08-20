@@ -6,7 +6,7 @@
  * `test_runclientscript_vararg`; this file starts where that one stops, at the
  * bytes, and ends where `App_RunClientScript` picks the struct up.
  *
- * Layout, from `mock230_send_run_clientscript_mixed` (`net/mock/mock230_encode.c`):
+ * Layout, from `ToriRSServer_SendRunClientscriptMixed` (`torirsserver/torirs_server_encode.c`):
  *
  *     p1 * argc      one type character per argument, in DECLARATION order
  *     p1             '\n'
@@ -21,10 +21,10 @@
  * it completely — which is why every case below is asymmetric and at least one
  * is mixed.
  *
- * The writer here mirrors the encoder rather than linking it: `mock230_encode.c`
- * writes through a file-static arena and a `struct Mock230Player`, so linking it
+ * The writer here mirrors the encoder rather than linking it: `torirs_server_encode.c`
+ * writes through a file-static arena and a `struct ToriRSServerPlayer`, so linking it
  * pulls in the whole server. The encoder's own output is asserted, byte by byte,
- * by mock230's `--selftest` (the skill guide's four-int payload); what is NOT
+ * by ToriRSServer's `--selftest` (the skill guide's four-int payload); what is NOT
  * asserted anywhere else, and is asserted here, is that `osrs230_parse` reads
  * that layout back — including what it does when the payload does not fit.
  */

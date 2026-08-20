@@ -345,7 +345,7 @@ cp_merge_add(
              * the merge, `merged_value` returned the FIRST, and the server band
              * was written with the ashes while the runtime — which assigns
              * `def->death_drop` per line, so last file wins — held -1. Three
-             * npcs disagreed that way and `mock230_pack`'s band equivalence
+             * npcs disagreed that way and `ToriRSServer_Pack`'s band equivalence
              * check reported them as mismatched archives with no way to
              * converge: re-running the packer reproduced them exactly.
              */
@@ -394,7 +394,7 @@ cp_merge_add(
                  * Two authored files contradicting each other about one param.
                  *
                  * Reported, then resolved LAST-WINS — because that is what the
-                 * server does. `mock230_content.c` assigns `def->death_drop`
+                 * server does. `torirs_server_content.c` assigns `def->death_drop`
                  * (and every other param it reads) per line as it walks
                  * `server/scripts`, so the file the walk reaches last is the one
                  * the running game obeys. This merge is the *validator's* view

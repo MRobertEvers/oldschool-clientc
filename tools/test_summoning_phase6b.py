@@ -30,8 +30,8 @@ def run(saves: Path, clicks: str, frames: int, cheat: str = "") -> str:
     for key in ("TORIRS_NET_CHEAT", "TORIRS_SIM_CLICK_AT", "TORIRS_MAX_FRAMES"):
         env.pop(key, None)
     env.update({
-        "MOCK230_SAVES": str(saves), "MOCK230_SCRIPTS": str(SCRIPTS),
-        "MOCK230_CACHE": str(CACHE), "SDL_VIDEODRIVER": "dummy",
+        "TORIRSSERVER_SAVES": str(saves), "TORIRSSERVER_SCRIPTS": str(SCRIPTS),
+        "TORIRSSERVER_CACHE": str(CACHE), "SDL_VIDEODRIVER": "dummy",
         "TORIRS_SIM_CLICK_AT": clicks, "TORIRS_MAX_FRAMES": str(frames),
         "TORIRS_NET_DEBUG": "1", "TORIRS_CLICK_DEBUG": "1",
         "TORIRS_MINIMENU_DEBUG": "1",

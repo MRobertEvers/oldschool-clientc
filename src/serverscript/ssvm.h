@@ -379,7 +379,7 @@ SSVM_Random(
 
 /*
  * Profiling counters, read by the embedded server's tick breakdown
- * (mock230_world.c). `g_ssvm_ops` is always live; the per-opcode pair only fills
+ * (torirs_server_world.c). `g_ssvm_ops` is always live; the per-opcode pair only fills
  * in under TORIRS_SSVM_OPS=1. Both are reset by the reader, not by the VM --
  * the VM has no notion of a tick.
  *

@@ -14,7 +14,7 @@
 #   3. sscompile           - and its result is CHECKED; a failed compile leaves
 #                            the old script.dat in place and the harness then
 #                            happily reports on yesterday's raid
-#   4. mock230 --selftest  - with MOCK230_COX_SIM=1
+#   4. ToriRSServer --selftest  - with TORIRSSERVER_COX_SIM=1
 #
 # Usage:
 #   tools/cox_sim.sh                 # 64 ticks per encounter
@@ -43,7 +43,7 @@ done
 mkdir -p build/cox_sim
 
 [ -x src/build_opt/sscompile ] || make -C src sscompile >/dev/null
-make -C src mock230 >/dev/null 2>&1 || make -C src mock230
+make -C src ToriRSServer >/dev/null 2>&1 || make -C src ToriRSServer
 
 echo "--- allocate ids ---"
 python3 tools/ss_allocate.py --tree $C >/dev/null
@@ -111,12 +111,12 @@ fi
 echo "--- tick harness (${TICKS} ticks/encounter, god mode) ---"
 run_harness() {
     if [ -n "$ISO" ]; then
-        MOCK230_CONTENT="$ISO" MOCK230_SCRIPTS="$ISO/server/scripts/build" \
-        MOCK230_COX_SIM=1 MOCK230_COX_SIM_TICKS="$TICKS" MOCK230_COX_SIM_TRACE="$TRACE" \
-            ./src/build_opt/mock230 --selftest 2>&1 || true
+        TORIRSSERVER_CONTENT="$ISO" TORIRSSERVER_SCRIPTS="$ISO/server/scripts/build" \
+        TORIRSSERVER_COX_SIM=1 TORIRSSERVER_COX_SIM_TICKS="$TICKS" TORIRSSERVER_COX_SIM_TRACE="$TRACE" \
+            ./src/build_opt/torirsserver --selftest 2>&1 || true
     else
-        MOCK230_COX_SIM=1 MOCK230_COX_SIM_TICKS="$TICKS" MOCK230_COX_SIM_TRACE="$TRACE" \
-            ./src/build_opt/mock230 --selftest 2>&1 || true
+        TORIRSSERVER_COX_SIM=1 TORIRSSERVER_COX_SIM_TICKS="$TICKS" TORIRSSERVER_COX_SIM_TRACE="$TRACE" \
+            ./src/build_opt/torirsserver --selftest 2>&1 || true
     fi
 }
 

@@ -22,7 +22,7 @@
  * bonuses in its param table — ids 0..11 are the twelve bonuses and 14 is the
  * attack rate — so a bronze scimitar really does contribute +7 slash and +6
  * strength, and a guard really does have +25 slash defence, with no
- * hand-written table anywhere. See mock230_objinfo.c for how those are read and
+ * hand-written table anywhere. See torirs_server_objinfo.c for how those are read and
  * why the ids are trustworthy.
  *
  * The test for whether something belongs here: does it name a tick or a
@@ -30,10 +30,10 @@
  * second is content.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
-#include "mock230_content.h"
-#include "mock230_scene.h"
+#include "torirs_server_content.h"
+#include "torirs_server_scene.h"
 
 #include "ss_trigger.h"
 
@@ -66,18 +66,18 @@ tile_distance(int ax, int az, int bx, int bz)
 /*
  * The npc's record, and never a number instead of one.
  *
- * `mock230_world_npc_spawn` always fills `def` in — a spawn nothing describes
- * gets `mock230_content_npc_default()` rather than NULL — so the
+ * `ToriRSServer_WorldNpcSpawn` always fills `def` in — a spawn nothing describes
+ * gets `ToriRSServer_ContentNpcDefault()` rather than NULL — so the
  * `npc->def ? … : <constant>` this replaces was a branch that could not be
  * taken, and each of those constants was a rate stated in C beside a content
  * file already stating it. Going through here means a tick count has exactly one
  * source: the record, whose own last resort is the `[default]` block in
  * `general/configs/npc_default.npc`.
  */
-static const struct Mock230NpcDef*
-npc_def(const struct Mock230Npc* npc)
+static const struct ToriRSServerNpcDef*
+npc_def(const struct ToriRSServerNpc* npc)
 {
-    return npc->def ? npc->def : mock230_content_npc_default();
+    return npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
 }
 
 /*
@@ -99,12 +99,12 @@ npc_def(const struct Mock230Npc* npc)
  * player, followed them around and never landed a blow.
  *
  * The reference's `CoordGrid.distanceTo` is this, and `npc_player_distance` in
- * mock230_world.c is the same arithmetic for the mode machine's range tests.
+ * torirs_server_world.c is the same arithmetic for the mode machine's range tests.
  */
 static void
 npc_player_gap(
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc,
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc,
     int* out_dx,
     int* out_dz)
 {
@@ -150,8 +150,8 @@ npc_player_gap(
  */
 static int
 in_attack_range_with(
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc,
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc,
     int range)
 {
     int dx;
@@ -171,19 +171,19 @@ in_attack_range_with(
 /** Player weapon reach from the cache's `weapon_attackrange` param, capped at
  *  10 the way LostCity's `~player_attackrange` is. Unarmed / missing = 1. */
 static int
-player_weapon_attackrange(const struct Mock230Player* player)
+player_weapon_attackrange(const struct ToriRSServerPlayer* player)
 {
-    int weapon = player->worn[MOCK230_WEAR_WEAPON].obj_id;
+    int weapon = player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
     int param_id;
-    const struct Mock230ObjParam* p;
+    const struct ToriRSServerObjParam* p;
     int range = 1;
 
     if( weapon < 0 )
         return 1;
-    param_id = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
+    param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "weapon_attackrange");
     if( param_id < 0 )
         return 1;
-    p = mock230_obj_param(weapon, param_id);
+    p = ToriRSServer_ObjParam(weapon, param_id);
     if( p && p->ival > 0 )
         range = p->ival;
     if( range > 10 )
@@ -193,16 +193,16 @@ player_weapon_attackrange(const struct Mock230Player* player)
 
 static int
 in_player_attack_range(
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc)
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc)
 {
     return in_attack_range_with(player, npc, player_weapon_attackrange(player));
 }
 
 static int
 in_npc_attack_range(
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc)
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc)
 {
     return in_attack_range_with(player, npc, npc_def(npc)->attackrange);
 }
@@ -219,8 +219,8 @@ in_npc_attack_range(
  */
 static void
 npc_npc_gap(
-    const struct Mock230Npc* a,
-    const struct Mock230Npc* b,
+    const struct ToriRSServerNpc* a,
+    const struct ToriRSServerNpc* b,
     int* out_dx,
     int* out_dz)
 {
@@ -245,8 +245,8 @@ npc_npc_gap(
 
 static int
 in_npc_attack_range_npc(
-    const struct Mock230Npc* attacker,
-    const struct Mock230Npc* target)
+    const struct ToriRSServerNpc* attacker,
+    const struct ToriRSServerNpc* target)
 {
     int range = npc_def(attacker)->attackrange;
     int dx;
@@ -268,19 +268,19 @@ in_npc_attack_range_npc(
  * animations of equal priority mean the later one wins, which is what makes a
  * repeated swing re-trigger rather than stick on its first frame.
  *
- * The header on mock230_anim_play_npc has the whole of why this exists.
+ * The header on ToriRSServer_AnimPlayNpc has the whole of why this exists.
  */
 static int
 anim_wins(int incumbent, int wanted)
 {
     if( incumbent < 0 )
         return 1;
-    return mock230_seq_priority(wanted) >= mock230_seq_priority(incumbent);
+    return ToriRSServer_SeqPriority(wanted) >= ToriRSServer_SeqPriority(incumbent);
 }
 
 int
-mock230_anim_play_npc(
-    struct Mock230Npc* npc,
+ToriRSServer_AnimPlayNpc(
+    struct ToriRSServerNpc* npc,
     int seq_id,
     int delay)
 {
@@ -306,7 +306,7 @@ mock230_anim_play_npc(
         return 0;
     npc->anim_id = seq_id;
     npc->anim_delay = delay;
-    npc->masks |= MOCK230_NMASK_ANIM;
+    npc->masks |= TORIRSSERVER_NMASK_ANIM;
     /* Whoever played the death seq, it has now been played this life — see the
      * field. A script that shows a death and the engine's own death step must
      * agree on that, or the client is sent it twice and shows it once. */
@@ -323,8 +323,8 @@ mock230_anim_play_npc(
 }
 
 int
-mock230_anim_play_player(
-    struct Mock230Player* player,
+ToriRSServer_AnimPlayPlayer(
+    struct ToriRSServerPlayer* player,
     int seq_id,
     int delay)
 {
@@ -334,14 +334,14 @@ mock230_anim_play_player(
         return 0;
     player->anim_id = seq_id;
     player->anim_delay = delay;
-    player->masks |= MOCK230_PMASK_SEQUENCE;
+    player->masks |= TORIRSSERVER_PMASK_SEQUENCE;
     return 1;
 }
 
 static void
-play_npc_seq(struct Mock230Npc* npc, int seq_id)
+play_npc_seq(struct ToriRSServerNpc* npc, int seq_id)
 {
-    mock230_anim_play_npc(npc, seq_id, 0);
+    ToriRSServer_AnimPlayNpc(npc, seq_id, 0);
 }
 
 /*
@@ -351,7 +351,7 @@ play_npc_seq(struct Mock230Npc* npc, int seq_id)
  * `// osrs` note, and it is the only figure any reference states for this, so
  * the same number answers for all three sounds rather than three invented ones.
  */
-#define MOCK230_NPC_SOUND_TILES 12
+#define TORIRSSERVER_NPC_SOUND_TILES 12
 
 /*
  * An npc's own sound, to everyone near enough to hear it.
@@ -369,8 +369,8 @@ play_npc_seq(struct Mock230Npc* npc, int seq_id)
  */
 static void
 npc_sound_nearby(
-    struct Mock230Server* srv,
-    struct Mock230Npc const* npc,
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc const* npc,
     int sound_id,
     int delay)
 {
@@ -378,12 +378,12 @@ npc_sound_nearby(
         return;
     for( int i = 0; i < srv->player_count; i++ )
     {
-        struct Mock230Player* player = &srv->players[i];
+        struct ToriRSServerPlayer* player = &srv->players[i];
 
         if( !player->active || player->level != npc->level )
             continue;
         if( tile_distance(player->x, player->z, npc->x, npc->z) >
-            MOCK230_NPC_SOUND_TILES )
+            TORIRSSERVER_NPC_SOUND_TILES )
             continue;
         /* One loop, not zero, and this is checkable rather than a preference:
          * `RS_Audio_QueueEffect` (src/game/rs_audio.c) *refuses* `loops == 0`,
@@ -392,7 +392,7 @@ npc_sound_nearby(
          * means the caller asked for nothing. LostCity's own
          * `~sound_within_distance` passes 0 and would be silent here; every
          * direct `sound_synth` call site in both trees passes 1. */
-        mock230_send_synth_sound(player, sound_id, 1, delay);
+        ToriRSServer_SendSynthSound(player, sound_id, 1, delay);
     }
 }
 
@@ -400,7 +400,7 @@ npc_sound_nearby(
 static int
 hitsplat_block(void)
 {
-    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block");
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_block");
 
     return id >= 0 ? id : 26;
 }
@@ -408,7 +408,7 @@ hitsplat_block(void)
 static int
 hitsplat_poison(void)
 {
-    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_poison");
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_poison");
 
     /* rev-230's poison hitsplat id. The fallback keeps a reduced content pack
      * observable rather than converting poison into an ordinary damage splat. */
@@ -429,7 +429,7 @@ hitsplat_poison(void)
  * `PathingEntity.setFaceEntity` is the only writer of `faceEntity` in the whole
  * engine: it is derived from the current target once per turn, at a fixed point
  * in `processPlayers`, and `clearInteraction` deliberately leaves the field
- * alone. `mock230_player_set_face_entity` is that function, and phase_player
+ * alone. `ToriRSServer_PlayerSetFaceEntity` is that function, and phase_player
  * calls it in that same slot — before the interaction, before the swing.
  *
  * Clearing the latch here as well made the derived value unreachable for one
@@ -444,30 +444,30 @@ hitsplat_poison(void)
  * unconditionally — locked, dying or idle — for exactly this reason.
  */
 void
-mock230_combat_stop_player_at(struct Mock230Player* player)
+ToriRSServer_CombatStopPlayerAt(struct ToriRSServerPlayer* player)
 {
     /* LostCity PathingEntity.clearInteraction clears target and targetOp as
      * one operation.  `combat_target` is the first half; the OPNPC/p_opnpc
      * interaction is the second.  Leaving it armed lets a death resume the
      * combat script on a later tick and acquire the same target again. */
     player->combat_target = -1;
-    mock230_world_interaction_clear_at(player);
+    ToriRSServer_WorldInteractionClearAt(player);
 }
 
 void
-mock230_combat_stop_player(struct Mock230Server* srv)
+ToriRSServer_CombatStopPlayer(struct ToriRSServer* srv)
 {
-    mock230_combat_stop_player_at(srv->active_player);
+    ToriRSServer_CombatStopPlayerAt(srv->active_player);
 }
 
 void
-mock230_combat_stop_npc(
-    struct Mock230Server* srv,
+ToriRSServer_CombatStopNpc(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc;
+    struct ToriRSServerNpc* npc;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     npc->combat_target = -1;
@@ -476,7 +476,7 @@ mock230_combat_stop_npc(
     if( npc->face_entity != -1 )
     {
         npc->face_entity = -1;
-        npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+        npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
     }
 }
 
@@ -485,11 +485,11 @@ mock230_combat_stop_npc(
 /* ------------------------------------------------------------------ */
 
 void
-mock230_combat_stat_mark(
-    struct Mock230Player* player,
+ToriRSServer_CombatStatMark(
+    struct ToriRSServerPlayer* player,
     int stat)
 {
-    if( stat >= 0 && stat < MOCK230_STAT_COUNT )
+    if( stat >= 0 && stat < TORIRSSERVER_STAT_COUNT )
         player->stat_dirty |= 1u << stat;
 }
 
@@ -501,15 +501,15 @@ mock230_combat_stat_mark(
  * drift.
  */
 void
-mock230_combat_sync_hitpoints(struct Mock230Player* player)
+ToriRSServer_CombatSyncHitpoints(struct ToriRSServerPlayer* player)
 {
-    player->max_hitpoints = player->stat_level[MOCK230_STAT_HITPOINTS];
+    player->max_hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
     if( player->max_hitpoints <= 0 )
         player->max_hitpoints = 1;
     if( player->hitpoints > player->max_hitpoints )
         player->hitpoints = player->max_hitpoints;
-    player->stat_boosted[MOCK230_STAT_HITPOINTS] = player->hitpoints;
-    mock230_combat_stat_mark(player, MOCK230_STAT_HITPOINTS);
+    player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = player->hitpoints;
+    ToriRSServer_CombatStatMark(player, TORIRSSERVER_STAT_HITPOINTS);
 }
 
 /*
@@ -528,7 +528,7 @@ mock230_combat_sync_hitpoints(struct Mock230Player* player)
  *
  * It survived that long because nothing ever asked the table a question it
  * could get wrong. The one caller that would have — a new character's hitpoints
- * — used to be two literals in `mock230_world_init` stating the level *and* the
+ * — used to be two literals in `ToriRSServer_WorldInit` stating the level *and* the
  * xp independently, so the table was never consulted and the two could not
  * disagree. Moving the seed into content, where only the xp is stated and the
  * level has to follow from it, is what turned the discrepancy into a failure.
@@ -559,7 +559,7 @@ ensure_xp_table(void)
 }
 
 int
-mock230_combat_level_for_xp(int experience)
+ToriRSServer_CombatLevelForXp(int experience)
 {
     ensure_xp_table();
     for( int i = 98; i >= 0; i-- )
@@ -571,7 +571,7 @@ mock230_combat_level_for_xp(int experience)
 }
 
 int
-mock230_combat_xp_for_level(int level)
+ToriRSServer_CombatXpForLevel(int level)
 {
     if( level <= 1 )
         return 0;
@@ -582,48 +582,48 @@ mock230_combat_xp_for_level(int level)
 }
 
 void
-mock230_combat_set_level(
-    struct Mock230Player* player,
+ToriRSServer_CombatSetLevel(
+    struct ToriRSServerPlayer* player,
     int stat,
     int level)
 {
     assert(player);
-    assert(stat >= 0 && stat < MOCK230_STAT_COUNT);
+    assert(stat >= 0 && stat < TORIRSSERVER_STAT_COUNT);
     if( level < 1 )
         level = 1;
     if( level > 99 )
         level = 99;
     player->stat_level[stat] = level;
     player->stat_boosted[stat] = level;
-    player->stat_xp_tenths[stat] = mock230_combat_xp_for_level(level) * 10;
-    if( stat == MOCK230_STAT_HITPOINTS )
+    player->stat_xp_tenths[stat] = ToriRSServer_CombatXpForLevel(level) * 10;
+    if( stat == TORIRSSERVER_STAT_HITPOINTS )
     {
         player->hitpoints = level;
-        mock230_combat_sync_hitpoints(player);
+        ToriRSServer_CombatSyncHitpoints(player);
     }
-    mock230_combat_stat_mark(player, stat);
+    ToriRSServer_CombatStatMark(player, stat);
 }
 
 int
-mock230_combat_clamp_xp(long long tenths)
+ToriRSServer_CombatClampXp(long long tenths)
 {
     if( tenths < 0 )
         return 0;
-    if( tenths > MOCK230_XP_MAX_TENTHS )
-        return MOCK230_XP_MAX_TENTHS;
+    if( tenths > TORIRSSERVER_XP_MAX_TENTHS )
+        return TORIRSSERVER_XP_MAX_TENTHS;
     return (int)tenths;
 }
 
 void
-mock230_combat_add_xp(
-    struct Mock230Server* srv,
+ToriRSServer_CombatAddXp(
+    struct ToriRSServer* srv,
     int stat,
     int tenths)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int before;
 
-    if( stat < 0 || stat >= MOCK230_STAT_COUNT || tenths == 0 )
+    if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT || tenths == 0 )
         return;
     before = player->stat_level[stat];
     /* Traced because an xp *rate* bug is otherwise unobservable: the on-screen
@@ -637,7 +637,7 @@ mock230_combat_add_xp(
          * amount can break. */
         long long magnitude = llabs((long long)tenths);
 
-        printf("mock230: xp stat=%d %c%lld.%lld (tenths=%d)\n",
+        printf("torirsserver: xp stat=%d %c%lld.%lld (tenths=%d)\n",
                stat,
                tenths < 0 ? '-' : '+',
                magnitude / 10,
@@ -645,12 +645,12 @@ mock230_combat_add_xp(
                tenths);
     }
     /* Summed in 64 bits and clamped, never accumulated in place: the total is
-     * an `int` and MOCK230_XP_MAX_TENTHS is most of its range, so `+=` at the
+     * an `int` and TORIRSSERVER_XP_MAX_TENTHS is most of its range, so `+=` at the
      * ceiling overflows rather than saturating. */
     player->stat_xp_tenths[stat] =
-        mock230_combat_clamp_xp((long long)player->stat_xp_tenths[stat] + tenths);
+        ToriRSServer_CombatClampXp((long long)player->stat_xp_tenths[stat] + tenths);
     player->stat_level[stat] =
-        mock230_combat_level_for_xp(player->stat_xp_tenths[stat] / 10);
+        ToriRSServer_CombatLevelForXp(player->stat_xp_tenths[stat] / 10);
     if( player->stat_level[stat] != before )
     {
         /* A hitpoints level-up raises the ceiling but does not heal, which is
@@ -658,14 +658,14 @@ mock230_combat_add_xp(
          * surprise someone mid-fight. A level *loss* does the same work in
          * reverse, and `sync_hitpoints` clamps current hitpoints to the new
          * ceiling itself. */
-        if( stat == MOCK230_STAT_HITPOINTS )
-            mock230_combat_sync_hitpoints(player);
+        if( stat == TORIRSSERVER_STAT_HITPOINTS )
+            ToriRSServer_CombatSyncHitpoints(player);
         /* Only upward: `advancestat` is the level-up trigger, and content hangs
          * the fanfare interface off it. Losing a level is not an advance. */
         if( player->stat_level[stat] > before )
-            mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
+            ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
     }
-    if( stat != MOCK230_STAT_HITPOINTS && stat != MOCK230_STAT_SUMMONING )
+    if( stat != TORIRSSERVER_STAT_HITPOINTS && stat != TORIRSSERVER_STAT_SUMMONING )
     {
         /* Boosted follows base upward so a level-up is usable at once, and back
          * down only when the base actually fell beneath it — a boost above a
@@ -690,14 +690,14 @@ mock230_combat_add_xp(
                  player->stat_boosted[stat] > player->stat_level[stat] )
             player->stat_boosted[stat] = player->stat_level[stat];
     }
-    else if( stat == MOCK230_STAT_SUMMONING &&
+    else if( stat == TORIRSSERVER_STAT_SUMMONING &&
              player->stat_boosted[stat] > player->stat_level[stat] )
     {
         /* The one direction that must still track: the pool cannot exceed the
          * ceiling, so a lost level takes the surplus points with it. */
         player->stat_boosted[stat] = player->stat_level[stat];
     }
-    mock230_combat_stat_mark(player, stat);
+    ToriRSServer_CombatStatMark(player, stat);
 }
 
 /* ------------------------------------------------------------------ */
@@ -746,7 +746,7 @@ mock230_combat_add_xp(
  *
  * Append rather than assign, which is the whole fix: two attackers landing on
  * the same tick are two hitsplats, and the scalar pair this replaces could only
- * remember the last of them. See `struct Mock230Hitmark`.
+ * remember the last of them. See `struct ToriRSServerHitmark`.
  *
  * Past the client's four slots the splat is dropped, and dropped *silently* on
  * purpose — `World_EntityAddHitmark` does exactly the same thing at the other
@@ -755,13 +755,13 @@ mock230_combat_add_xp(
  * the caller; only the number over the head is lost.
  */
 static void
-mock230_hitmark_add(
-    struct Mock230Hitmark* hitmarks,
+ToriRSServer_HitmarkAdd(
+    struct ToriRSServerHitmark* hitmarks,
     int* count,
     int damage,
     int type)
 {
-    if( *count >= MOCK230_HITMARK_MAX )
+    if( *count >= TORIRSSERVER_HITMARK_MAX )
         return;
     hitmarks[*count].damage = damage;
     hitmarks[*count].type = type;
@@ -769,16 +769,16 @@ mock230_hitmark_add(
 }
 
 void
-mock230_combat_hit_npc(
-    struct Mock230Server* srv,
+ToriRSServer_CombatHitNpc(
+    struct ToriRSServer* srv,
     int slot,
     int type,
     int amount)
 {
-    struct Mock230Npc* npc;
+    struct ToriRSServerNpc* npc;
     int immutable_target;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active || npc->death_tick >= 0 )
@@ -823,9 +823,9 @@ mock230_combat_hit_npc(
      * axes; ordinary melee/ranged attacks may show a blocked splat but must
      * never destroy, retaliate through, or award XP from the puzzle actor.
      * https://oldschool.runescape.wiki/w/Elemental_balance_space */
-    immutable_target = mock230_npc_category(npc->type) == 981 ||
-                       mock230_npc_category(npc->type) == 298 ||
-                       mock230_npc_category(npc->type) == 610;
+    immutable_target = ToriRSServer_NpcCategory(npc->type) == 981 ||
+                       ToriRSServer_NpcCategory(npc->type) == 298 ||
+                       ToriRSServer_NpcCategory(npc->type) == 610;
 
     if( amount > npc->hitpoints )
         amount = npc->hitpoints;
@@ -835,18 +835,18 @@ mock230_combat_hit_npc(
     /* One mask carries the splat and the bar. A zero-damage hit is a *block*
      * splat rather than nothing — the reference shows those, and without them a
      * miss is indistinguishable from the server having ignored the swing. */
-    mock230_hitmark_add(npc->hitmarks, &npc->hitmark_count, amount,
+    ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block());
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
-    npc->masks |= MOCK230_NMASK_DAMAGE;
+    npc->masks |= TORIRSSERVER_NMASK_DAMAGE;
     /* The classic (rev-230) mask has room for exactly two splats and the v5
      * block has room for four; this bit is what spends the classic second slot.
      * The v5 writer reads `hitmark_count` directly and ignores it. */
     if( npc->hitmark_count >= 2 )
-        npc->masks |= MOCK230_NMASK_DAMAGE2;
+        npc->masks |= TORIRSSERVER_NMASK_DAMAGE2;
 
     /* Retaliate. An npc that is hit fights back whatever its hunt mode says —
      * aggression decides who *starts* a fight, not who finishes one.
@@ -914,7 +914,7 @@ mock230_combat_hit_npc(
      * and turning it toward pid -1 would be the same visible wrong as the
      * latch it just declined.
      */
-    mock230_npc_face_player(npc, npc->combat_target);
+    ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
     /* Flinch. Overwritten below if this was the killing blow. */
     play_npc_seq(npc, npc->block_seq);
     npc_sound_nearby(srv, npc, npc->block_sound, 0);
@@ -937,20 +937,20 @@ mock230_combat_hit_npc(
          * `Npc.processQueue` decrements before it compares and the newly-added
          * request is not reached in the pass that added it, so `npc_queue(…, 0)`
          * means "next npc phase". `srv->tick + 1` is that, and
-         * `mock230_combat_npc_tick` picks it up from `death_stage`.
+         * `ToriRSServer_CombatNpcTick` picks it up from `death_stage`.
          *
          * The masks this no longer touches are the point: the flinch animation
          * and its noise, queued a few lines up, now reach the client on their
          * own tick instead of being overwritten by a death animation in the
          * same one.
          */
-        npc->death_stage = MOCK230_DEATH_QUEUED;
+        npc->death_stage = TORIRSSERVER_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
         /*
          * Drop whatever was already armed on the npc's own queue — a healer's
          * `npc_queue(4, heal, ...)` chief among them.
          *
-         * `mock230_combat_stop_npc` below only clears the *targets* pointed at
+         * `ToriRSServer_CombatStopNpc` below only clears the *targets* pointed at
          * this npc (its attacker's combat_target_npc); it does not reach into
          * `npc->queue[]`. Without this, a heal queued a tick or two before the
          * killing blow keeps counting down through QUEUED/ARRIVE/CORPSE — the
@@ -966,7 +966,7 @@ mock230_combat_hit_npc(
          * *after* this point and can arm its own fresh queue entries (Jad's
          * healer-despawn `npc_queue(5, ...)`, KQ's revive) same as before.
          */
-        for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
             npc->queue[i].active = 0;
         /*
          * Capture kill attribution before combat_stop clears combat_target.
@@ -985,9 +985,9 @@ mock230_combat_hit_npc(
          * retains everybody still fighting this npc. */
         if( srv->active_player && srv->active_player->active &&
             srv->active_player->pid >= 0 &&
-            srv->active_player->pid < MOCK230_PLAYER_MAX )
+            srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
             npc->death_credit_players[srv->active_player->pid] = 1;
-        mock230_combat_stop_npc(srv, slot);
+        ToriRSServer_CombatStopNpc(srv, slot);
         /*
          * And the *other* half of a target: the mode.
          *
@@ -1012,32 +1012,32 @@ mock230_combat_hit_npc(
          * because a mode left armed for the tick between the blow and the death
          * script is a tick of a corpse chasing somebody.
          */
-        mock230_npc_reset_defaults(npc);
-        for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
+        ToriRSServer_NpcResetDefaults(npc);
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
             {
                 npc->death_credit_players[i] = 1;
-                mock230_combat_stop_player_at(&srv->players[i]);
+                ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
             }
         }
         /* The drop table does *not* run here. `[proc,npc_default_death]` calls
          * `gosub(npc_death)` first and only reaches its `obj_add` once that has
          * returned — which is after `npc_del`. So the loot lands on the tick the
-         * corpse disappears, and `mock230_combat_npc_tick` is where that is. */
+         * corpse disappears, and `ToriRSServer_CombatNpcTick` is where that is. */
     }
 }
 
 void
-mock230_combat_poison_npc(
-    struct Mock230Server* srv,
+ToriRSServer_CombatPoisonNpc(
+    struct ToriRSServer* srv,
     int slot,
-    const struct Mock230Player* source,
+    const struct ToriRSServerPlayer* source,
     int severity)
 {
-    struct Mock230Npc* npc;
+    struct ToriRSServerNpc* npc;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX || severity <= 0 )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || severity <= 0 )
         return;
     assert(srv);
     npc = &srv->npcs[slot];
@@ -1055,14 +1055,14 @@ mock230_combat_poison_npc(
 }
 
 void
-mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
+ToriRSServer_CombatNpcPoisonTick(struct ToriRSServer* srv, int slot)
 {
-    struct Mock230Npc* npc;
-    struct Mock230Player* source = NULL;
-    struct Mock230Player* saved_active;
+    struct ToriRSServerNpc* npc;
+    struct ToriRSServerPlayer* source = NULL;
+    struct ToriRSServerPlayer* saved_active;
     int damage;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     assert(srv);
     npc = &srv->npcs[slot];
@@ -1081,9 +1081,9 @@ mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
     if( npc->poison_severity > 0 )
         npc->poison_clock = srv->tick + 30;
 
-    if( npc->poison_source_pid >= 0 && npc->poison_source_pid < MOCK230_PLAYER_MAX )
+    if( npc->poison_source_pid >= 0 && npc->poison_source_pid < TORIRSSERVER_PLAYER_MAX )
     {
-        struct Mock230Player* candidate = &srv->players[npc->poison_source_pid];
+        struct ToriRSServerPlayer* candidate = &srv->players[npc->poison_source_pid];
 
         if( candidate->active && candidate->login_generation == npc->poison_source_gen )
             source = candidate;
@@ -1093,41 +1093,41 @@ mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
      * A delayed poison hit must restore its captured source, and a stale one
      * must not fall through to whichever player the NPC phase ran after. */
     saved_active = srv->active_player;
-    mock230_world_set_active(srv, source);
-    mock230_combat_hit_npc(srv, slot, hitsplat_poison(), damage);
-    mock230_world_set_active(srv, saved_active);
+    ToriRSServer_WorldSetActive(srv, source);
+    ToriRSServer_CombatHitNpc(srv, slot, hitsplat_poison(), damage);
+    ToriRSServer_WorldSetActive(srv, saved_active);
 }
 
 void
-mock230_combat_hitmark_player(
-    struct Mock230Server* srv,
+ToriRSServer_CombatHitmarkPlayer(
+    struct ToriRSServer* srv,
     int type,
     int amount)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
 
     assert(player);
     if( amount < 0 )
         amount = 0;
-    mock230_hitmark_add(player->hitmarks, &player->hitmark_count, amount,
+    ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block());
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
-    player->masks |= MOCK230_PMASK_DAMAGE;
+    player->masks |= TORIRSSERVER_PMASK_DAMAGE;
     if( player->hitmark_count >= 2 )
-        player->masks |= MOCK230_PMASK_DAMAGE2;
+        player->masks |= TORIRSSERVER_PMASK_DAMAGE2;
 }
 
 void
-mock230_combat_hitmark_npc(
-    struct Mock230Server* srv,
+ToriRSServer_CombatHitmarkNpc(
+    struct ToriRSServer* srv,
     int slot,
     int type,
     int amount)
 {
-    struct Mock230Npc* npc;
+    struct ToriRSServerNpc* npc;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active || npc->death_tick >= 0 )
@@ -1136,7 +1136,7 @@ mock230_combat_hitmark_npc(
         amount = 0;
 
     /*
-     * Everything `mock230_combat_hit_npc` does to make the splat visible, and
+     * Everything `ToriRSServer_CombatHitNpc` does to make the splat visible, and
      * none of what it does to the fight: no hitpoints move, no `combat_target`
      * is set, no `npc_action_delay` is charged. The caller owns the health
      * change, if there is one at all.
@@ -1146,25 +1146,25 @@ mock230_combat_hitmark_npc(
      * can put the overhead health bar over an npc whose health is moving
      * without anybody hitting it.
      */
-    mock230_hitmark_add(npc->hitmarks, &npc->hitmark_count, amount, type);
+    ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type);
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
-    npc->masks |= MOCK230_NMASK_DAMAGE;
+    npc->masks |= TORIRSSERVER_NMASK_DAMAGE;
     /* The classic (rev-230) mask has room for exactly two splats; the v5 block
      * reads `hitmark_count` and ignores this bit. Same split as the damage
      * path -- see the note there. */
     if( npc->hitmark_count >= 2 )
-        npc->masks |= MOCK230_NMASK_DAMAGE2;
+        npc->masks |= TORIRSSERVER_NMASK_DAMAGE2;
 }
 
 void
-mock230_combat_hit_player(
-    struct Mock230Server* srv,
+ToriRSServer_CombatHitPlayer(
+    struct ToriRSServer* srv,
     int type,
     int amount)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
 
     /*
      * `::god` absorbs the hit here rather than at any call site, because this
@@ -1181,16 +1181,16 @@ mock230_combat_hit_player(
         amount = player->hitpoints;
     player->hitpoints -= amount;
 
-    mock230_hitmark_add(player->hitmarks, &player->hitmark_count, amount,
+    ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block());
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
-    player->masks |= MOCK230_PMASK_DAMAGE;
+    player->masks |= TORIRSSERVER_PMASK_DAMAGE;
     /* The classic second slot — see the npc twin of this line. */
     if( player->hitmark_count >= 2 )
-        player->masks |= MOCK230_PMASK_DAMAGE2;
-    mock230_combat_sync_hitpoints(player);
+        player->masks |= TORIRSSERVER_PMASK_DAMAGE2;
+    ToriRSServer_CombatSyncHitpoints(player);
 
     /*
      * The block animation is content's — [ai_opplayer2,_] plays
@@ -1213,23 +1213,23 @@ mock230_combat_hit_player(
          * The engine keeps two facts, and only because they are about the
          * simulation rather than about dying: combat stops, and `dying` gates
          * everything that would let a corpse act. The gate is cleared in
-         * `mock230_combat_player_tick`, on the tick the script's `stat_heal`
+         * `ToriRSServer_CombatPlayerTick`, on the tick the script's `stat_heal`
          * puts hitpoints back above zero — so even the length of the death is
          * the script's.
          */
         /* A lock belongs to the live encounter action, never to the corpse or
          * its respawn. The death queue itself must remain free to run. */
-        mock230_world_player_unlock(srv);
+        ToriRSServer_WorldPlayerUnlock(srv);
         player->dying = 1;
-        mock230_combat_stop_player(srv);
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        ToriRSServer_CombatStopPlayer(srv);
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         {
             if( srv->npcs[i].combat_target == player->pid )
-                mock230_combat_stop_npc(srv, i);
+                ToriRSServer_CombatStopNpc(srv, i);
         }
         /* Content queues [queue,player_death] from wrappers; raw hit paths fire
          * PLAYERDEATH so the sequence still starts. */
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_PLAYERDEATH, -1, -1, -1);
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_PLAYERDEATH, -1, -1, -1);
     }
 }
 
@@ -1241,9 +1241,9 @@ mock230_combat_hit_player(
  *  the client's minimenu makes, so the two ends cannot disagree about what is
  *  a valid target. */
 int
-mock230_combat_attackable(int npc_type)
+ToriRSServer_CombatAttackable(int npc_type)
 {
-    const struct Mock230NpcInfo* info = mock230_npcinfo(npc_type);
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc_type);
 
     for( int i = 0; i < 5; i++ )
     {
@@ -1271,35 +1271,35 @@ mock230_combat_attackable(int npc_type)
  * click resets `last_input_tick` before its own handler engages.
  */
 int
-mock230_combat_player_afk(const struct Mock230Player* player)
+ToriRSServer_CombatPlayerAfk(const struct ToriRSServerPlayer* player)
 {
     if( !player || !player->world ||
-        player->last_input_tick == MOCK230_INPUT_TICK_NEVER )
+        player->last_input_tick == TORIRSSERVER_INPUT_TICK_NEVER )
         return 0;
-    return player->world->tick - player->last_input_tick >= MOCK230_AFK_COMBAT_TICKS;
+    return player->world->tick - player->last_input_tick >= TORIRSSERVER_AFK_COMBAT_TICKS;
 }
 
 void
-mock230_combat_engage(
-    struct Mock230Server* srv,
+ToriRSServer_CombatEngage(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Player* player = srv->active_player;
-    struct Mock230Npc* npc;
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerNpc* npc;
 
-    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
     if( !npc->active || npc->death_tick >= 0 )
         return;
     if( player->dying )
         return;
-    if( mock230_combat_player_afk(player) )
+    if( ToriRSServer_CombatPlayerAfk(player) )
     {
         /* Drop whatever fight was running rather than only declining the new
          * one: leaving `combat_target` set would keep the approach walking the
          * player after a monster it has stopped swinging at. */
-        mock230_combat_stop_player(srv);
+        ToriRSServer_CombatStopPlayer(srv);
         return;
     }
 
@@ -1310,7 +1310,7 @@ mock230_combat_engage(
 
     {
         struct CollisionApproach approach;
-        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc->type);
         int size = info ? info->size : 1;
 
         /*
@@ -1318,27 +1318,27 @@ mock230_combat_engage(
          * interaction). The engine clock no longer fires OPNPC2 — p_opnpc(2)
          * re-arms this after each swing / action_delay wait.
          */
-        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, slot, npc->type,
+        ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 2, slot, npc->type,
                                       npc->x, npc->z, npc->level, size, size);
         /*
          * Only walk if the click did not already land in range.
          *
-         * `mock230_scene_npc_approach` builds a melee-adjacency shape (the
+         * `ToriRSServer_SceneNpcApproach` builds a melee-adjacency shape (the
          * npc's own footprint, not the attacker's reach), so issuing this
          * unconditionally sent every ranged/magic "Attack" click on a
          * satisfied target straight toward melee adjacency — a bow already
          * standing at range 9 of a range-10 target got yanked in on every
-         * click. `mock230_combat_player_approach` (the per-tick repath,
+         * click. `ToriRSServer_CombatPlayerApproach` (the per-tick repath,
          * below) already gates the same walk on `in_player_attack_range`;
          * this is that same gate, just on the click that starts the fight
          * rather than the tick that continues it.
          */
         if( in_player_attack_range(player, npc) )
-            mock230_world_steps_clear(player);
+            ToriRSServer_WorldStepsClear(player);
         else
         {
-            mock230_scene_npc_approach(size, &approach);
-            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+            ToriRSServer_SceneNpcApproach(size, &approach);
+            ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
     }
 }
@@ -1374,10 +1374,10 @@ mock230_combat_engage(
  * the player straight back out of range on the next tick.
  */
 void
-mock230_combat_player_approach(struct Mock230Server* srv)
+ToriRSServer_CombatPlayerApproach(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
-    struct Mock230Npc* npc;
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerNpc* npc;
 
     if( player->dying || player->combat_target < 0 )
         return;
@@ -1387,7 +1387,7 @@ mock230_combat_player_approach(struct Mock230Server* srv)
 
     if( in_player_attack_range(player, npc) )
     {
-        mock230_world_steps_clear(player);
+        ToriRSServer_WorldStepsClear(player);
         return;
     }
     /* Nothing else is walking the player while a combat target is set: every
@@ -1395,26 +1395,26 @@ mock230_combat_player_approach(struct Mock230Server* srv)
      * so this owns the step queue and can recompute it outright. */
     {
         struct CollisionApproach approach;
-        const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
-        mock230_scene_npc_approach(info ? info->size : 1, &approach);
-        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc->type);
+        ToriRSServer_SceneNpcApproach(info ? info->size : 1, &approach);
+        ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
     }
 }
 
 void
-mock230_combat_player_tick(struct Mock230Server* srv)
+ToriRSServer_CombatPlayerTick(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
-    struct Mock230Npc* npc;
+    struct ToriRSServerPlayer* player = srv->active_player;
+    struct ToriRSServerNpc* npc;
 
-    /* MOCK230_HP_TRACE=1: every hitpoints change, once per tick. Under `::god`
+    /* TORIRSSERVER_HP_TRACE=1: every hitpoints change, once per tick. Under `::god`
      * a change is by definition a gate that was missed, and hitpoints are
      * written from half a dozen places (the damage funnel, three stat opcodes,
      * the level setter, the save loader) — sampling the value beats adding a
      * print to each and still missing the one that mattered. */
     static int hp_trace = -1;
     if( hp_trace < 0 )
-        hp_trace = getenv("MOCK230_HP_TRACE") != NULL;
+        hp_trace = getenv("TORIRSSERVER_HP_TRACE") != NULL;
     if( hp_trace )
     {
         static int last_hp = -1;
@@ -1423,7 +1423,7 @@ mock230_combat_player_tick(struct Mock230Server* srv)
             fprintf(stderr,
                     "hp_trace: tick=%d hp=%d boosted=%d max=%d god=%d dying=%d\n",
                     srv->tick, player->hitpoints,
-                    player->stat_boosted[MOCK230_STAT_HITPOINTS],
+                    player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS],
                     player->max_hitpoints, player->godmode, player->dying);
             last_hp = player->hitpoints;
         }
@@ -1455,11 +1455,11 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     npc = &srv->npcs[player->combat_target];
     if( !npc->active || npc->death_tick >= 0 )
     {
-        mock230_combat_stop_player(srv);
+        ToriRSServer_CombatStopPlayer(srv);
         return;
     }
 
-    /* Facing is mock230_player_set_face_entity in phase_player (before
+    /* Facing is ToriRSServer_PlayerSetFaceEntity in phase_player (before
      * approach / interaction), matching LostCity setFaceEntity.
      *
      * Swings are content's via the OPNPC2 interaction (set by engage /
@@ -1477,16 +1477,16 @@ mock230_combat_player_tick(struct Mock230Server* srv)
  * magnitude, which is a worse first impression than no aggression at all.
  */
 int
-mock230_combat_level(const struct Mock230Player* player)
+ToriRSServer_CombatLevel(const struct ToriRSServerPlayer* player)
 {
     /* OldSchool's melee formula:
      * floor(0.25 * (defence + hitpoints + floor(prayer / 2)) + 0.325 * (attack
      * + strength)). Scaled by 1000 so it stays in integers. */
-    int base = player->stat_level[MOCK230_STAT_DEFENCE] +
-               player->stat_level[MOCK230_STAT_HITPOINTS] +
-               (player->stat_level[MOCK230_STAT_PRAYER] / 2);
-    int melee = player->stat_level[MOCK230_STAT_ATTACK] +
-                player->stat_level[MOCK230_STAT_STRENGTH];
+    int base = player->stat_level[TORIRSSERVER_STAT_DEFENCE] +
+               player->stat_level[TORIRSSERVER_STAT_HITPOINTS] +
+               (player->stat_level[TORIRSSERVER_STAT_PRAYER] / 2);
+    int melee = player->stat_level[TORIRSSERVER_STAT_ATTACK] +
+                player->stat_level[TORIRSSERVER_STAT_STRENGTH];
 
     return ((base * 250) + (melee * 325)) / 1000;
 }
@@ -1505,10 +1505,10 @@ mock230_combat_level(const struct Mock230Player* player)
  */
 static int
 tile_within_maxrange(
-    const struct Mock230Server* srv,
+    const struct ToriRSServer* srv,
     int x,
     int z,
-    const struct Mock230Npc* npc)
+    const struct ToriRSServerNpc* npc)
 {
     int range = npc_def(npc)->maxrange;
     int home_x = npc->spawn_x;
@@ -1530,7 +1530,7 @@ tile_within_maxrange(
      * familiar reverts to following. That is indistinguishable from "my
      * familiar ignores combat", which is what it was reported as.
      *
-     * `MOCK230_FAMILIAR_LEASH` is the owner-relative range, and it is content's
+     * `TORIRSSERVER_FAMILIAR_LEASH` is the owner-relative range, and it is content's
      * number as well: `~summoning_familiar_assist_allowed` refuses a target
      * more than ten tiles from the owner, so the two halves agree on when a
      * fight is over instead of one of them holding a target the other has
@@ -1539,14 +1539,14 @@ tile_within_maxrange(
      */
     if( npc->owner_gen != 0 && srv )
     {
-        const struct Mock230Player* owner =
-            mock230_world_npc_owner((struct Mock230Server*)srv, npc);
+        const struct ToriRSServerPlayer* owner =
+            ToriRSServer_WorldNpcOwner((struct ToriRSServer*)srv, npc);
 
         if( owner )
         {
             home_x = owner->x;
             home_z = owner->z;
-            range = MOCK230_FAMILIAR_LEASH;
+            range = TORIRSSERVER_FAMILIAR_LEASH;
         }
     }
 
@@ -1562,9 +1562,9 @@ tile_within_maxrange(
 
 static int
 target_within_maxrange(
-    const struct Mock230Server* srv,
-    const struct Mock230Player* player,
-    const struct Mock230Npc* npc)
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerNpc* npc)
 {
     return tile_within_maxrange(srv, player->x, player->z, npc);
 }
@@ -1579,17 +1579,17 @@ target_within_maxrange(
  * *profile* (`HuntType`, and the `.hunt` files that configure it); nearest is
  * the placeholder until those land, and is stated here rather than implied.
  */
-static struct Mock230Player*
+static struct ToriRSServerPlayer*
 nearest_victim(
-    struct Mock230Server* srv,
-    const struct Mock230Npc* npc)
+    struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc)
 {
-    struct Mock230Player* best = NULL;
+    struct ToriRSServerPlayer* best = NULL;
     int best_distance = 0;
 
     for( int i = 0; i < srv->player_count; i++ )
     {
-        struct Mock230Player* player = &srv->players[i];
+        struct ToriRSServerPlayer* player = &srv->players[i];
         int distance;
 
         if( !player->active || player->dying || player->level != npc->level )
@@ -1608,17 +1608,17 @@ nearest_victim(
 
 static void
 maybe_aggress(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
-    struct Mock230Player* player;
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    struct ToriRSServerPlayer* player;
     int npc_level;
 
     /* `npc->huntmode`, not `npc->def->huntmode`: the def seeds it at spawn and
      * `npc_sethuntmode` overrides it per npc. Reading the def here would make
      * that opcode a no-op for the one thing content uses it for. */
-    if( !npc->def || npc->huntmode != MOCK230_HUNT_AGGRESSIVE )
+    if( !npc->def || npc->huntmode != TORIRSSERVER_HUNT_AGGRESSIVE )
         return;
     if( npc->def->huntrange <= 0 || npc->combat_target >= 0 )
         return;
@@ -1639,8 +1639,8 @@ maybe_aggress(
     if( !target_within_maxrange(srv, player, npc) )
         return;
 
-    npc_level = mock230_npcinfo(npc->type)->combat_level;
-    if( npc_level > 0 && mock230_combat_level(player) > npc_level * 2 )
+    npc_level = ToriRSServer_NpcInfo(npc->type)->combat_level;
+    if( npc_level > 0 && ToriRSServer_CombatLevel(player) > npc_level * 2 )
         return;
 
     npc->combat_target = player->pid;
@@ -1666,8 +1666,8 @@ maybe_aggress(
  * blow whose damage lands on tick D:
  *
  *     D     hitpoints reach 0, flinch animation, `npc_queue(3, 0, 0)`
- *     D+1   MOCK230_DEATH_QUEUED  — stop, face nothing, arrivedelay
- *     D+1+a MOCK230_DEATH_ARRIVE  — death sound and death animation
+ *     D+1   TORIRSSERVER_DEATH_QUEUED  — stop, face nothing, arrivedelay
+ *     D+1+a TORIRSSERVER_DEATH_ARRIVE  — death sound and death animation
  *     D+1+a+death_delay           — the drop table, then npc_del
  *
  * with `a` 0 for something standing still, 1 if it moved on the previous tick
@@ -1685,10 +1685,10 @@ maybe_aggress(
  */
 static void
 npc_death_step(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
     /*
      * A parked script owns the npc, and a death is not allowed to run underneath
@@ -1708,7 +1708,7 @@ npc_death_step(
 
     switch( npc->death_stage )
     {
-    case MOCK230_DEATH_QUEUED:
+    case TORIRSSERVER_DEATH_QUEUED:
         /*
          * `npc_walk(npc_coord)` and `npc_setmode(none)`. The mode was put back
          * at the blow; the route was not, and a half-walked route is what the
@@ -1729,7 +1729,7 @@ npc_death_step(
          */
         if( npc->last_movement >= srv->tick - 1 )
         {
-            npc->death_stage = MOCK230_DEATH_ARRIVE;
+            npc->death_stage = TORIRSSERVER_DEATH_ARRIVE;
             npc->death_tick =
                 srv->tick + (npc->last_movement == srv->tick - 1 ? 1 : 2);
             return;
@@ -1738,11 +1738,11 @@ npc_death_step(
          * suspending and the next line runs in the same tick. */
         /* FALLTHROUGH */
 
-    case MOCK230_DEATH_ARRIVE:
+    case TORIRSSERVER_DEATH_ARRIVE:
         /*
          * Sound then animation, in the reference's order, and both a clear tick
          * after the flinch that preceded them — which is the whole point of the
-         * schedule. They used to be queued in `mock230_combat_hit_npc` beside
+         * schedule. They used to be queued in `ToriRSServer_CombatHitNpc` beside
          * the flinch, so the death animation overwrote the flinch in one mask
          * and the two noises arrived together.
          */
@@ -1766,11 +1766,11 @@ npc_death_step(
                     "srv: npc death_seq %d already sent this life — not re-sent "
                     "(a script played it first)\n",
                     npc->death_seq);
-        npc->death_stage = MOCK230_DEATH_CORPSE;
+        npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
         return;
 
-    case MOCK230_DEATH_CORPSE:
+    case TORIRSSERVER_DEATH_CORPSE:
         /*
          * The drop table, and then `npc_del`.
          *
@@ -1789,7 +1789,7 @@ npc_death_step(
          * because the script may suspend: `[ai_queue3]` runs exactly once, and
          * a stage boundary is what says so.
          */
-        npc->death_stage = MOCK230_DEATH_REAP;
+        npc->death_stage = TORIRSSERVER_DEATH_REAP;
         npc->death_tick = srv->tick;
         npc->loot_credit_npc_type = npc->type;
         npc->loot_credit_event_id = ++srv->loot_credit_seq;
@@ -1798,7 +1798,7 @@ npc_death_step(
         srv->loot_credit_event_id = npc->loot_credit_event_id;
         memcpy(srv->loot_credit_players, npc->death_credit_players,
                sizeof(srv->loot_credit_players));
-        mock230_world_npc_died(srv, slot);
+        ToriRSServer_WorldNpcDied(srv, slot);
         srv->loot_credit_armed = 0;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         /* A drop script may npc_delay before it reaches obj_add. Keep the
@@ -1821,7 +1821,7 @@ npc_death_step(
         }
         /* FALLTHROUGH */
 
-    case MOCK230_DEATH_REAP:
+    case TORIRSSERVER_DEATH_REAP:
     default:
         /*
          * An `[ai_queue3]` that puts hitpoints back is not a death.
@@ -1831,19 +1831,19 @@ npc_death_step(
          * in the reference is precisely how content says "this one does not die
          * here, it changes form". The engine owns the death now, so the same
          * sentence has to be readable from the hitpoints, and it is the rule the
-         * player side already uses (`mock230_combat_player_tick`: hitpoints back
+         * player side already uses (`ToriRSServer_CombatPlayerTick`: hitpoints back
          * above zero means the death is over).
          */
         if( npc->hitpoints > 0 )
         {
             npc->death_tick = -1;
-            npc->death_stage = MOCK230_DEATH_NONE;
+            npc->death_stage = TORIRSSERVER_DEATH_NONE;
             return;
         }
-        mock230_world_npc_occupancy(npc, 0);
-        mock230_world_npc_free(srv, slot);
+        ToriRSServer_WorldNpcOccupancy(npc, 0);
+        ToriRSServer_WorldNpcFree(srv, slot);
         npc->death_tick = -1;
-        npc->death_stage = MOCK230_DEATH_NONE;
+        npc->death_stage = TORIRSSERVER_DEATH_NONE;
         /*
          * Only a *world* npc comes back on its own — see `despawns_on_death`
          * for the two lifecycles and for what respawning both cost the Inferno.
@@ -1881,13 +1881,13 @@ npc_death_step(
  */
 static int
 npc_dispatch_combat_applayer_mode(
-    struct Mock230Server* srv,
-    struct Mock230Npc* npc,
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
     int slot)
 {
     int op;
 
-    if( npc->mode < MOCK230_NPCMODE_APPLAYER1 || npc->mode > MOCK230_NPCMODE_APPLAYER5 )
+    if( npc->mode < TORIRSSERVER_NPCMODE_APPLAYER1 || npc->mode > TORIRSSERVER_NPCMODE_APPLAYER5 )
         return 0;
 
     /* `npc_delay` makes an NPC invalid for the rest of its turn.  The script
@@ -1896,9 +1896,9 @@ npc_dispatch_combat_applayer_mode(
     if( srv->tick < npc->delayed_until || npc->active_script )
         return 1;
 
-    op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
-    npc->mode = MOCK230_NPCMODE_NONE;
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
+    op = npc->mode - TORIRSSERVER_NPCMODE_APPLAYER1;
+    npc->mode = TORIRSSERVER_NPCMODE_NONE;
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
     return 1;
 }
 
@@ -1922,15 +1922,15 @@ npc_dispatch_combat_applayer_mode(
  */
 static int
 npc_vs_npc_tick(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
     int target_slot = npc->combat_target_npc;
-    struct Mock230Npc* target;
+    struct ToriRSServerNpc* target;
     int in_reach;
 
-    if( target_slot < 0 || target_slot >= MOCK230_NPC_MAX )
+    if( target_slot < 0 || target_slot >= TORIRSSERVER_NPC_MAX )
     {
         npc->combat_target_npc = -1;
         return 0;
@@ -1946,17 +1946,17 @@ npc_vs_npc_tick(
         target->level != npc->level ||
         !tile_within_maxrange(srv, target->x, target->z, npc) )
     {
-        mock230_combat_stop_npc(srv, slot);
+        ToriRSServer_CombatStopNpc(srv, slot);
         return 0;
     }
 
     /* Face for the whole engagement, not only once in reach — the same rule and
      * the same reason as the player path. */
-    mock230_npc_face_npc(npc, target_slot);
+    ToriRSServer_NpcFaceNpc(npc, target_slot);
 
     in_reach = in_npc_attack_range_npc(npc, target);
     if( in_reach && npc_def(npc)->attackrange > 1 &&
-        !mock230_scene_approached(npc->level, target->x, target->z, npc->x, npc->z,
+        !ToriRSServer_SceneApproached(npc->level, target->x, target->z, npc->x, npc->z,
                                   target->size > 0 ? target->size : 1,
                                   target->size > 0 ? target->size : 1,
                                   npc->size > 0 ? npc->size : 1,
@@ -1972,27 +1972,27 @@ npc_vs_npc_tick(
             .mover_size = npc->size > 0 ? npc->size : 1,
         };
 
-        if( mock230_world_npc_walk_to_approach(npc, target->x, target->z, &approach) &&
+        if( ToriRSServer_WorldNpcWalkToApproach(npc, target->x, target->z, &approach) &&
             !npc_def(npc)->givechase )
-            mock230_combat_stop_npc(srv, slot);
+            ToriRSServer_CombatStopNpc(srv, slot);
         return 1;
     }
 
     if( srv->tick < npc->attack_clock )
         return 1;
     npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
-    mock230_scripts_run_trigger_npc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
+    ToriRSServer_ScriptsRunTriggerNpc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
                                      target_slot);
     return 1;
 }
 
 void
-mock230_combat_npc_tick(
-    struct Mock230Server* srv,
+ToriRSServer_CombatNpcTick(
+    struct ToriRSServer* srv,
     int slot)
 {
-    struct Mock230Npc* npc = &srv->npcs[slot];
-    struct Mock230Player* player;
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    struct ToriRSServerPlayer* player;
 
     /* Death first: a dead npc neither swings nor roams, and its corpse has to
      * outlive the killing blow long enough for the animation to play. */
@@ -2016,15 +2016,15 @@ mock230_combat_npc_tick(
     player = &srv->players[npc->combat_target];
     if( !player->active )
     {
-        mock230_combat_stop_npc(srv, slot);
+        ToriRSServer_CombatStopNpc(srv, slot);
         return;
     }
     /* This npc's turn is the *target's* turn: everything below writes to the
      * player it is fighting, and phase 4 runs outside any per-player loop. */
-    mock230_world_set_active(srv, player);
+    ToriRSServer_WorldSetActive(srv, player);
     if( player->dying )
     {
-        mock230_combat_stop_npc(srv, slot);
+        ToriRSServer_CombatStopNpc(srv, slot);
         return;
     }
 
@@ -2038,7 +2038,7 @@ mock230_combat_npc_tick(
      */
     if( !target_within_maxrange(srv, player, npc) )
     {
-        mock230_combat_stop_npc(srv, slot);
+        ToriRSServer_CombatStopNpc(srv, slot);
         return;
     }
 
@@ -2052,14 +2052,14 @@ mock230_combat_npc_tick(
      * it was standing when the fight started.
      *
      * Set once here, before any early return, and only when it changes — the
-     * change-gate is inside `mock230_npc_face_player`, which is where all five
+     * change-gate is inside `ToriRSServer_NpcFacePlayer`, which is where all five
      * facing sites get it now rather than only this one.
      *
      * `player` is `players[npc->combat_target]`, resolved above: the pid, not
      * "the local player". Every observer's NPC_INFO carries the same absolute
      * number, so both clients see the goblin facing the person it is fighting.
      */
-    mock230_npc_face_player(npc, npc->combat_target);
+    ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
 
     /* A ranged or magic attacker also needs *approached* line of sight before
      * its reach counts — the same cast `npc_run_mode`'s AP dispatch makes
@@ -2073,7 +2073,7 @@ mock230_combat_npc_tick(
     int in_reach = in_npc_attack_range(player, npc);
 
     if( in_reach && npc_def(npc)->attackrange > 1 &&
-        !mock230_scene_approached(
+        !ToriRSServer_SceneApproached(
             npc->level, player->x, player->z, npc->x, npc->z, 1, 1, npc_size, npc_size) )
         in_reach = 0;
 
@@ -2124,9 +2124,9 @@ mock230_combat_npc_tick(
         /* Moves *then* gives up, which is the reference's order
          * (`const moved = this.updateMovement(); if (moved && !givechase)`) and
          * visible: a `givechase=no` npc takes one step before turning away. */
-        if( mock230_world_npc_walk_to_approach(npc, player->x, player->z, &approach) &&
+        if( ToriRSServer_WorldNpcWalkToApproach(npc, player->x, player->z, &approach) &&
             !npc_def(npc)->givechase )
-            mock230_combat_stop_npc(srv, slot);
+            ToriRSServer_CombatStopNpc(srv, slot);
         return;
     }
 
@@ -2148,15 +2148,15 @@ mock230_combat_npc_tick(
      * npc_anim itself. Fire the trigger; content handles the animation, roll,
      * damage and retaliation queue.
      */
-    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
+    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_OPPLAYER2, npc->type, -1, slot);
 }
 
 void
-mock230_combat_respawn_tick(struct Mock230Server* srv)
+ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
 {
-    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
     {
-        struct Mock230Npc* npc = &srv->npcs[slot];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
         if( npc->active || !npc->def || npc->respawn_tick < 0 ||
             srv->tick < npc->respawn_tick )
@@ -2168,7 +2168,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->active = 1;
         /* Should already be 0 by now — the death that set respawn_tick ran
          * its own tick's phase_cleanup reap strictly before any later tick's
-         * phase_world could reach here (see docs/mock230_npc_slot_reap.md).
+         * phase_world could reach here (see docs/torirs_server_npc_slot_reap.md).
          * Explicit anyway: a slot stuck at pending_free=1 would be silently
          * invisible to npc_spawn's scan forever. */
         npc->pending_free = 0;
@@ -2194,7 +2194,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * Content that wants any of it back gets it back: `spawn_pending` below
          * re-runs `[ai_spawn]`, which is where those overrides are set.
          */
-        mock230_npc_reset_defaults(npc);
+        ToriRSServer_NpcResetDefaults(npc);
         npc->huntmode = npc_def(npc)->huntmode;
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
@@ -2207,7 +2207,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * a splat — so a queue entry that outlives the npc it was armed on is a
          * hit landing on somebody else.
          *
-         * The killing blow already empties the queue (`mock230_combat_hit_npc`,
+         * The killing blow already empties the queue (`ToriRSServer_CombatHitNpc`,
          * at DEATH_QUEUED). What it cannot empty is what arrives AFTER it, and
          * two attackers on one tick is all that takes: the second swing queues
          * onto an npc that is already dying, the npc phase never drains it (it
@@ -2221,10 +2221,10 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * which memsets first. Everything a new life must not inherit therefore
          * has to be named here, and everything below this line is the rest of
          * that list: state that describes one life rather than one pool slot.
-         * `test-mock230`'s NPC LIFECYCLE UNDER DAMAGE section is what catches
+         * `test-ToriRSServer`'s NPC LIFECYCLE UNDER DAMAGE section is what catches
          * the next one that goes missing.
          */
-        for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+        for( int q = 0; q < TORIRSSERVER_NPC_QUEUE_MAX; q++ )
             npc->queue[q].active = 0;
         /* The splat list and the pair the classic mask spends. Cleared every
          * tick in phase_cleanup anyway, so this is belt and braces — but a
@@ -2260,7 +2260,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->run_dir = -1;
         /* A respawn is a fresh npc to every observer, so it faces the way a
          * fresh npc does rather than wherever it was walking when it died. */
-        npc->face_dir = MOCK230_FACE_SOUTH;
+        npc->face_dir = TORIRSSERVER_FACE_SOUTH;
         npc->masks = 0;
         npc->last_step_x = npc->x - 1;
         npc->last_step_z = npc->z;
@@ -2268,7 +2268,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         npc->follow_z = npc->last_step_z;
         npc->waypoint_index = -1;
         npc->stuck_counter = 0;
-        mock230_world_npc_occupancy(npc, 1);
+        ToriRSServer_WorldNpcOccupancy(npc, 1);
         /* Nothing to clear: each player's own `npc_tracked` set dropped this
          * npc on the tick it went inactive, so the next NPC_INFO adds it as a
          * new entity — which is what a respawn is from the client's side. */
@@ -2278,9 +2278,9 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * npc that stops behaving is never the one you were watching. */
         npc->spawn_pending = 1;
         /* Staggered exactly as a fresh spawn is, through the one function that
-         * knows the roam cadence. It used to be `+ MOCK230_ATTACK_SPEED` — an
+         * knows the roam cadence. It used to be `+ TORIRSSERVER_ATTACK_SPEED` — an
          * attack rate borrowed to mean a walk delay, which is the kind of reuse
          * that survives because both numbers happen to be small. */
-        mock230_world_npc_roam_stagger(srv, npc);
+        ToriRSServer_WorldNpcRoamStagger(srv, npc);
     }
 }

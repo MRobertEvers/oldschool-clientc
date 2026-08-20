@@ -41,7 +41,7 @@
 ## 1. Status: what is already here
 
 Three files, 810 lines, already compiled into every build (the whole
-`server/scripts` tree is a `--src` root of `mock230-scripts`):
+`server/scripts` tree is a `--src` root of `torirsserver-scripts`):
 
 | File | Lines |
 |---|---|
@@ -576,7 +576,7 @@ src/serverscript/ssc_symbols.c:529   { "vars",  SSC_SYM_VARS }
 src/serverscript/ssc_compile.c:395   { SSC_SYM_VARS, SS_OP_PUSH_VARS, SS_OP_POP_VARS }
 ```
 
-but **nothing in `src/net/mock/` implements opcodes 11/12** — the only other
+but **nothing in `src/torirsserver/` implements opcodes 11/12** — the only other
 references are `ss_opcode.h` and `ss_verify_test.c`. There is no `.vars`
 config file anywhere in `OSRS-Content/`. So `%vars` compiles and would fault
 or no-op at runtime.
@@ -640,7 +640,7 @@ and accurate without them:
 
 ```
 make -C src sscompile PLATFORM_OBJ_BASE=<scratch>
-# then the full invocation from src/makefile's `mock230-scripts` target,
+# then the full invocation from src/makefile's `torirsserver-scripts` target,
 # with --out and the summoning-constants --out pointed at <scratch>
 ```
 
@@ -718,8 +718,8 @@ properly instead, because the engine change turned out to be small:
 
 | Layer | Change |
 |---|---|
-| `src/net/mock/mock230.h` | `MOCK230_VARS_COUNT` (256) and `Mock230Server.vars[]` |
-| `src/net/mock/mock230_scripts.c` | `SS_OP_PUSH_VARS` / `SS_OP_POP_VARS` handlers |
+| `src/torirsserver/torirs_server.h` | `TORIRSSERVER_VARS_COUNT` (256) and `ToriRSServer.vars[]` |
+| `src/torirsserver/torirs_server_scripts.c` | `SS_OP_PUSH_VARS` / `SS_OP_POP_VARS` handlers |
 | `src/content/content_register.c` | a `vars` row, `shared_var_domain = 1`, base 0 |
 | `tools/ss_allocate.py` | `vars` added to `SERVER_NAMESPACES` |
 | `OSRS-Content/.../pack/vars.alloc` | the ledger, created by the allocator |
@@ -784,7 +784,7 @@ reachable. Provisional, but constrained on five sides.
 | `.../configs/plunder.vars` | **new** — 10 world-shared vars |
 | `.../configs/plunder.npc` | **new** — mummy ×5 and scarab swarm combat blocks |
 | `.../scripts/plunder_selftest.rs2` | **new** — 9 assertion procs |
-| `src/net/mock/mock230_world.c` | selftest hookup for `vars` and for plunder |
+| `src/torirsserver/torirs_server_world.c` | selftest hookup for `vars` and for plunder |
 | `OSRS-Content/.../selftest.rs2` | `selftest_vars_write` / `_read` |
 
 ### 13.5 Defect list status
@@ -805,7 +805,7 @@ mummy is decided on the Open. Putting it on the Search — the obvious reading o
 
 ### 13.6 Verification
 
-`mock230 --selftest` now runs ten new assertions. All pass, and **all were
+`ToriRSServer --selftest` now runs ten new assertions. All pass, and **all were
 shown to fail** by mutating the implementation back to its previous values
 (the discipline in `verify-blocker-and-failing-test`):
 

@@ -1,4 +1,4 @@
-# mock230 npc slot reap — deferred index recycling
+# ToriRSServer npc slot reap — deferred index recycling
 
 Status: **implemented**, for both npcs and players. See "Status" at the
 bottom for npcs and "Players have the same issue" below for the player-side
@@ -6,10 +6,10 @@ extension.
 
 ## Background
 
-`npc_spawn()` (`src/net/mock/mock230_world.c:2424`) hands out `srv->npcs[]`
+`npc_spawn()` (`src/torirsserver/torirs_server_world.c:2424`) hands out `srv->npcs[]`
 slots by scanning for the first `!active` entry. Nothing stops it from
 reusing a slot **inside the same tick** it was freed — before
-`mock230_send_npc_info()` (`src/net/mock/mock230_encode.c`) has told any
+`ToriRSServer_SendNpcInfo()` (`src/torirsserver/torirs_server_encode.c`) has told any
 observing player the old occupant is gone. When that happens, a client who
 already had the old npc tracked receives an ordinary "still tracked, walked/
 unchanged" update built from the *new* npc's data — including that npc's own
@@ -18,7 +18,7 @@ client's stale entity. Reported symptom: "when NPCs spawn in or out, the
 client mis-assigns damage to the newly spawned npc."
 
 `npc_spawn()` already carries a comment naming this exact hazard class (it's
-why `mock230_zone_npc_refile` is called before a slot is reused — but that
+why `ToriRSServer_ZoneNpcRefile` is called before a slot is reused — but that
 only fixes the ZoneMap's copy of the problem, not NPC_INFO's).
 
 ### What the real client does about it
@@ -43,7 +43,7 @@ on a removal until the whole packet has been read.
 
 ## Current state (already in the tree)
 
-A band-aid landed in `mock230_encode.c`: `player->tracked_generation[]`
+A band-aid landed in `torirs_server_encode.c`: `player->tracked_generation[]`
 tags each `player->tracked[]` entry with `npc->generation` as of the tick it
 was written. The "already tracked" loop in both NPC_INFO encoders (v5 and
 classic) folds `npc->generation == player->tracked_generation[i]` into its
@@ -56,7 +56,7 @@ same-tick — it only stops NPC_INFO specifically from being fooled by it.
 Anything else that reads `srv->npcs[slot]` across the same window (combat
 targeting, `npc_find`, huntall, the ZoneMap) has to defend itself the same
 way, piecemeal. Some of that already exists too (`combat_target_npc_gen`,
-`mock230_zone_npc_refile`) — the codebase has been patching this hazard
+`ToriRSServer_ZoneNpcRefile`) — the codebase has been patching this hazard
 class site by site rather than closing it once.
 
 ## Proposed design: defer slot reuse, not just detect it
@@ -67,7 +67,7 @@ Mirror the real client's own discipline, on the server: a despawned npc's
 instant it dies, that part is already correct and does not change. What
 changes is the npc's **eligibility to be handed to `npc_spawn()`'s free-slot
 scan**: that's deferred until a dedicated reap step runs, once per tick,
-*after* `mock230_send_npc_info` has already gone out to every player.
+*after* `ToriRSServer_SendNpcInfo` has already gone out to every player.
 
 This is the "reader emits commands, a consumer applies them later" split
 already used for NPC_INFO decode itself (`pkt_npc_info_reader_read` →
@@ -87,17 +87,17 @@ flowchart LR
 
     subgraph proposed["Proposed: deferred reap"]
         direction TB
-        B1["despawn site calls\nmock230_world_npc_free(srv, slot)"] --> B2["active = 0 (immediate)\n+ pending_free = 1\n+ push {slot, generation}\nonto npc_free_queue"]
+        B1["despawn site calls\nToriRSServer_WorldNpcFree(srv, slot)"] --> B2["active = 0 (immediate)\n+ pending_free = 1\n+ push {slot, generation}\nonto npc_free_queue"]
         B2 --> B3["npc_spawn()'s scan skips\nactive || pending_free —\nslot NOT reusable yet"]
         B3 --> B4["phase_clients_out: every\nplayer's NPC_INFO goes out\n(slot correctly reported gone)"]
-        B4 --> B5["phase_cleanup: mock230_world_npc_reap()\ndrains the queue,\nclears pending_free"]
+        B4 --> B5["phase_cleanup: ToriRSServer_WorldNpcReap()\ndrains the queue,\nclears pending_free"]
         B5 --> B6["slot now reusable —\nearliest possible reuse is\nnext tick's phase_world,\nor any between-tick login/\nteleport/debug spawn"]
     end
 ```
 
 ### Tick placement
 
-`mock230_world_tick()` (`mock230_world.c:10317`) already runs these phases,
+`ToriRSServer_WorldTick()` (`torirs_server_world.c:10317`) already runs these phases,
 in order, once per tick:
 
 ```mermaid
@@ -111,8 +111,8 @@ flowchart TD
     P7["7 phase_logins\n[login] (npc_del can fire here too)"]
     P8["8 phase_zones\nZoneMap reconcile from active"]
     P9["9 phase_info\nmaybe_rebuild() → world_static_npcs_sync\n(retire + backfill roster npcs)"]
-    P10["10 phase_clients_out\nmock230_send_player_info\nmock230_send_npc_info ← every player, once"]
-    P11["11 phase_cleanup\nper-slot mask/hitmark reset\n★ mock230_world_npc_reap() goes here ★"]
+    P10["10 phase_clients_out\nToriRSServer_SendPlayerInfo\nToriRSServer_SendNpcInfo ← every player, once"]
+    P11["11 phase_cleanup\nper-slot mask/hitmark reset\n★ ToriRSServer_WorldNpcReap() goes here ★"]
 
     P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9 --> P10 --> P11
     P11 -.next tick.-> P1
@@ -127,24 +127,24 @@ over all players; there's no per-player reentry into phase 11).
 
 One path spawns from *inside* phase 10 itself:
 `world_static_npcs_sync` can run from `phase_clients_out`'s per-player
-instance-regeneration check (`mock230_world.c:10084`), which happens before
+instance-regeneration check (`torirs_server_world.c:10084`), which happens before
 *that* player's own NPC_INFO but potentially after earlier players' in the
 same loop. Since the reap only happens once, at the very end (phase 11),
 this is still safe — `npc_spawn()` can't see a not-yet-reaped slot as free
 from here either. The cost: `world_static_npcs_sync`'s current "retire this
 tick's outgoing roster npcs, then immediately backfill from the same freed
-slots in the same pass" optimization (`mock230_world.c:8511`, comment:
+slots in the same pass" optimization (`torirs_server_world.c:8511`, comment:
 *"Retire first, so the slots the outgoing npcs held are available to the
 incoming ones in the same pass"*) stops working as literally described: the
 freed slots won't be reapable until the *next* tick's `phase_cleanup`
 already ran (i.e. immediately, since reap is once per tick and this call
 usually happens well before phase 11) — worst case, one rebuild pass later.
-Given the roster pool (`MOCK230_NPC_MAX` = 4096) is far larger than any
+Given the roster pool (`TORIRSSERVER_NPC_MAX` = 4096) is far larger than any
 realized roster window, this is a one-pass lag, not a capacity problem — but
-the comment at `mock230_world.c:8511` will be stale and needs updating to
+the comment at `torirs_server_world.c:8511` will be stale and needs updating to
 describe the new behavior.
 
-`mock230_combat_respawn_tick()` (`mock230_combat.c`, ~line 1919) is *not* a
+`ToriRSServer_CombatRespawnTick()` (`torirs_server_combat.c`, ~line 1919) is *not* a
 slot-reuse path — it reactivates a specific npc's own slot in place
 (bumping `generation`), checked once per tick from `phase_world` (1). Since
 real content never respawns with 0 delay (only selftest scaffolding calls
@@ -156,16 +156,16 @@ construction.
 ## Data structures
 
 ```c
-/* mock230.h, near struct Mock230Npc */
-struct Mock230Npc
+/* torirs_server.h, near struct ToriRSServerNpc */
+struct ToriRSServerNpc
 {
     ...
-    /** Set the instant this npc is despawned (mock230_world_npc_free);
-     *  cleared by mock230_world_npc_reap() once every player's NPC_INFO
+    /** Set the instant this npc is despawned (ToriRSServer_WorldNpcFree);
+     *  cleared by ToriRSServer_WorldNpcReap() once every player's NPC_INFO
      *  for this tick has already reported it gone. npc_spawn()'s free-slot
      *  scan must treat this exactly like `active` — a slot cannot be
      *  handed to a new npc while a client might still resolve it as the
-     *  old one. See docs/mock230_npc_slot_reap.md. */
+     *  old one. See docs/torirs_server_npc_slot_reap.md. */
     uint8_t pending_free;
     ...
 };
@@ -173,38 +173,38 @@ struct Mock230Npc
 /* One queued "this slot's occupant is gone" command — the emitted half of
  * the reader/consumer split, mirroring PktNpcInfoOp and the real client's
  * own field956 removal queue. */
-struct Mock230NpcFreeCmd
+struct ToriRSServerNpcFreeCmd
 {
     int slot;
     uint16_t generation; /* npc->generation at the moment this was queued */
 };
 
-/* struct Mock230Server */
-struct Mock230NpcFreeCmd npc_free_queue[MOCK230_NPC_MAX]; /* worst case: every
+/* struct ToriRSServer */
+struct ToriRSServerNpcFreeCmd npc_free_queue[TORIRSSERVER_NPC_MAX]; /* worst case: every
                                                              * active npc dies
                                                              * in one tick */
 int npc_free_queue_count;
 ```
 
-Sizing the queue at `MOCK230_NPC_MAX` makes overflow structurally
+Sizing the queue at `TORIRSSERVER_NPC_MAX` makes overflow structurally
 impossible (at most one command per currently-active npc can ever be
 queued between reaps), so there's no silent-drop case to handle.
 
-## New functions (`mock230_world.c`)
+## New functions (`torirs_server_world.c`)
 
 ```c
 /* The despawn choke point. Every real despawn site calls this instead of
  * writing `npc->active = 0` directly. */
-void mock230_world_npc_free(struct Mock230Server* srv, int slot);
+void ToriRSServer_WorldNpcFree(struct ToriRSServer* srv, int slot);
 
 /* Called once per tick, from phase_cleanup, after every player's
  * NPC_INFO has already been sent this tick. Drains npc_free_queue,
  * clearing pending_free on each — this is the only place a slot becomes
  * eligible for npc_spawn()'s scan again. */
-void mock230_world_npc_reap(struct Mock230Server* srv);
+void ToriRSServer_WorldNpcReap(struct ToriRSServer* srv);
 ```
 
-`npc_spawn()`'s free-slot scan (`mock230_world.c:2457`) changes from:
+`npc_spawn()`'s free-slot scan (`torirs_server_world.c:2457`) changes from:
 
 ```c
 if( npc->active )
@@ -221,33 +221,33 @@ if( npc->active || npc->pending_free )
 ## Despawn call sites to convert
 
 All five real (non-selftest) despawn sites, found by tracing every
-`->active = 0` write on a `struct Mock230Npc*`:
+`->active = 0` write on a `struct ToriRSServerNpc*`:
 
 | # | Site | Trigger | Phase |
 |---|---|---|---|
-| 1 | `mock230_world.c:3427` (`advance_npcs`) | `npc_add`'s optional duration timer expires | 4 |
-| 2 | `mock230_combat.c:1596` (`npc_death_step`, `MOCK230_DEATH_REAP` stage) | Natural combat death, after the corpse's death-animation ticks out | 4 |
-| 3 | `mock230_scripts.c:5321` (`SS_OP_NPC_DEL`) | The generic content `npc_del` opcode — the only despawn path content has; `MAP_INSTANCE_FREE` deliberately does not delete npcs itself | 1, 3, 4, 5, or 7 |
-| 4 | `mock230_world.c:8082` (`mock230_world_remove_player`) | Last player in a map instance logs out; that instance's npcs are force-cleared | outside the tick (host teardown) |
-| 5 | `mock230_world.c:8515` (`world_static_npcs_sync`) | World-roster window resync as the scene origin re-centres | 9 (safe), 10 (the one in-tick spawn path, discussed above), or outside the tick (`mock230_world_login`, `mock230_world_teleport`) |
+| 1 | `torirs_server_world.c:3427` (`advance_npcs`) | `npc_add`'s optional duration timer expires | 4 |
+| 2 | `torirs_server_combat.c:1596` (`npc_death_step`, `TORIRSSERVER_DEATH_REAP` stage) | Natural combat death, after the corpse's death-animation ticks out | 4 |
+| 3 | `torirs_server_scripts.c:5321` (`SS_OP_NPC_DEL`) | The generic content `npc_del` opcode — the only despawn path content has; `MAP_INSTANCE_FREE` deliberately does not delete npcs itself | 1, 3, 4, 5, or 7 |
+| 4 | `torirs_server_world.c:8082` (`ToriRSServer_WorldRemovePlayer`) | Last player in a map instance logs out; that instance's npcs are force-cleared | outside the tick (host teardown) |
+| 5 | `torirs_server_world.c:8515` (`world_static_npcs_sync`) | World-roster window resync as the scene origin re-centres | 9 (safe), 10 (the one in-tick spawn path, discussed above), or outside the tick (`ToriRSServer_WorldLogin`, `ToriRSServer_WorldTeleport`) |
 
-Each becomes a one-line swap: `npc->active = 0;` → `mock230_world_npc_free(srv, slot);`.
+Each becomes a one-line swap: `npc->active = 0;` → `ToriRSServer_WorldNpcFree(srv, slot);`.
 
-(Every other `active = 0` hit in `mock230_world.c` is either an unrelated
+(Every other `active = 0` hit in `torirs_server_world.c` is either an unrelated
 struct — player/queue/timer/ground-obj entries that happen to share the
-field name — or lives inside `mock230_world_selftest()`, ≥ line 11452,
+field name — or lives inside `ToriRSServer_WorldSelftest()`, ≥ line 11452,
 where tests poke `srv->npcs[i].active` directly to fabricate fixture state
 rather than exercising a real despawn path. Those don't need to change.)
 
 ## What this makes redundant (on purpose, kept anyway)
 
 Once reuse is genuinely deferred, `player->tracked_generation[]`'s check in
-`mock230_send_npc_info` can no longer actually fire — a slot can't change
+`ToriRSServer_SendNpcInfo` can no longer actually fire — a slot can't change
 identity within a tick anymore, full stop. Recommend **keeping it anyway**
 as defense in depth: it's cheap, already tested, and matches the codebase's
 existing habit of layering independent generation guards
 (`combat_target_npc_gen` is the same idea applied to combat targeting).
-Same for `mock230_zone_npc_refile`'s call inside `npc_spawn` — still fires
+Same for `ToriRSServer_ZoneNpcRefile`'s call inside `npc_spawn` — still fires
 defensively, now essentially never needed, still worth keeping.
 
 ## Open items / things to verify while implementing
@@ -261,36 +261,36 @@ and `npc_spawn`'s hazard-class comment were both updated. Still open:
 
 ## Players have the same issue, same fix
 
-`mock230_world_add_player` (`mock230_world.c:8015`) is the player
+`ToriRSServer_WorldAddPlayer` (`torirs_server_world.c:8015`) is the player
 equivalent of `npc_spawn`: it scans `srv->players[]` for the first
-`!active` pid. `mock230_world_remove_player` clears `active` immediately,
+`!active` pid. `ToriRSServer_WorldRemovePlayer` clears `active` immediately,
 same as the pre-fix npc despawn sites did. Both are host-driven (connection
 accept/teardown), not tick-phase-driven, so a disconnect freeing a pid and
 a *different* new connection's login reusing it, both drained in the same
 between-tick pass of the host's connection loop, hit the identical hazard:
 any third player still tracking that pid would see the new login's data —
 appearance, position, hitsplats — spliced onto their already-tracked entry
-for it. `mock230_send_player_info`'s "already tracked" loop
-(`mock230_encode.c:3672`) reconciles purely by `player_in_view` (position +
+for it. `ToriRSServer_SendPlayerInfo`'s "already tracked" loop
+(`torirs_server_encode.c:3672`) reconciles purely by `player_in_view` (position +
 `active`), same shape as the pre-fix NPC_INFO loop; `login_generation`
-(`mock230.h`, the player equivalent of `npc->generation`) existed but was
-never referenced anywhere in `mock230_encode.c`.
+(`torirs_server.h`, the player equivalent of `npc->generation`) existed but was
+never referenced anywhere in `torirs_server_encode.c`.
 
-This is a smaller surface than the npc case: `mock230_world_remove_player`
+This is a smaller surface than the npc case: `ToriRSServer_WorldRemovePlayer`
 is, per its own doc comment, the *only* logout path either host has — one
 despawn site instead of five.
 
 **Implemented**, mirroring the npc mechanism exactly:
 
-- `Mock230Player.pending_free` (`mock230.h`), `struct Mock230PlayerFreeCmd`,
-  `Mock230Server.player_free_queue`/`player_free_queue_count`.
-- `mock230_world_player_free(srv, pid)` / `mock230_world_player_reap(srv)`
-  (`mock230_world.c`), same shape as the npc pair, called from the same
-  `phase_cleanup` spot as `mock230_world_npc_reap`.
-- `mock230_world_add_player`'s free-slot scan now checks `pending_free` too.
-- `mock230_world_remove_player`'s `active = 0` routes through
-  `mock230_world_player_free`.
-- `player->tracked_player_generation[]` added to `mock230_encode.c`,
+- `ToriRSServerPlayer.pending_free` (`torirs_server.h`), `struct ToriRSServerPlayerFreeCmd`,
+  `ToriRSServer.player_free_queue`/`player_free_queue_count`.
+- `ToriRSServer_WorldPlayerFree(srv, pid)` / `ToriRSServer_WorldPlayerReap(srv)`
+  (`torirs_server_world.c`), same shape as the npc pair, called from the same
+  `phase_cleanup` spot as `ToriRSServer_WorldNpcReap`.
+- `ToriRSServer_WorldAddPlayer`'s free-slot scan now checks `pending_free` too.
+- `ToriRSServer_WorldRemovePlayer`'s `active = 0` routes through
+  `ToriRSServer_WorldPlayerFree`.
+- `player->tracked_player_generation[]` added to `torirs_server_encode.c`,
   mirroring `tracked_generation[]` — the same defense-in-depth layering as
   the npc side, using the `login_generation` field that already existed for
   exactly this and was simply unused.
@@ -300,18 +300,18 @@ despawn site instead of five.
   counterpart to fix here, unlike NPC_INFO which had a full v5
   implementation of its own.
 
-Verified the same way: `mock230-dev` builds clean, `--selftest` shows the
+Verified the same way: `torirsserver-dev` builds clean, `--selftest` shows the
 same pre-existing 10 failures (line numbers shifted only from the added
 code), no new ones.
 
 ## Status
 
-**Implemented.** `pending_free`, `struct Mock230NpcFreeCmd`, the
-`npc_free_queue`/`npc_free_queue_count` pair, `mock230_world_npc_free`, and
-`mock230_world_npc_reap` all exist as described above; `npc_spawn`'s
-free-slot scan checks `pending_free`; `mock230_world_npc_reap` is called
+**Implemented.** `pending_free`, `struct ToriRSServerNpcFreeCmd`, the
+`npc_free_queue`/`npc_free_queue_count` pair, `ToriRSServer_WorldNpcFree`, and
+`ToriRSServer_WorldNpcReap` all exist as described above; `npc_spawn`'s
+free-slot scan checks `pending_free`; `ToriRSServer_WorldNpcReap` is called
 from `phase_cleanup`; all five real despawn sites route through
-`mock230_world_npc_free`. `mock230-dev` builds clean and `--selftest` shows
+`ToriRSServer_WorldNpcFree`. `torirsserver-dev` builds clean and `--selftest` shows
 the same pre-existing 10 failures as before this change (a stale/missing
 script-pack artifact unrelated to npc lifecycle), no new ones.
 
@@ -320,7 +320,7 @@ same-tick despawn+respawn-attempt directly (the existing full-suite
 regression run is the only current evidence of correctness beyond manual
 reasoning about the tick-phase ordering above).
 
-The `player->tracked_generation[]` band-aid in `mock230_encode.c` (see
+The `player->tracked_generation[]` band-aid in `torirs_server_encode.c` (see
 "Current state") was kept, per "What this makes redundant" above — it can
 no longer actually fire now that reuse is deferred, but costs nothing and
 matches the codebase's habit of layered generation guards.

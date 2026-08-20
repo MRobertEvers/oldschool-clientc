@@ -171,7 +171,7 @@ rsmod, LostCity and Kronos all dispatch on **placed shape** via
 Ash's "awkward for wall-shaped pieces" only makes sense under that dispatch.
 XRSPS's heuristic collapses every wall/door/ladder into a generic 1×1
 adjacent-with-overlap test — and that is exactly the bug
-`app_scenery_approach` / `mock230_scene_loc_approach` shipped until the
+`app_scenery_approach` / `ToriRSServer_SceneLocApproach` shipped until the
 pathing-parity rework.
 
 Further XRSPS-only divergences this tree must **not** keep:
@@ -383,7 +383,7 @@ return true`. The earlier claim that "rsmod has no such test" was describing
 XRSPS's `Pathfinder`, not rsmod. Exclusive-rectangle (NPCs/players, shape
 `-2`) is the only strategy that refuses the exact tile.
 
-Loc strategy selection (`app_scenery_approach` / `mock230_scene_loc_approach`)
+Loc strategy selection (`app_scenery_approach` / `ToriRSServer_SceneLocApproach`)
 is **shape-keyed** via `collision_exit_strategy(shape)` — wall 0–3/9, wall-decor
 4–8, rectangle 10/11/22 — matching rsmod / LostCity / Kronos. The XRSPS
 `deriveLocRouteProfile` heuristic (`blocks_walk` / has-action) was deleted.
@@ -434,7 +434,7 @@ why 175 records moved `same-len` → `differ` without anything regressing.
 
 ---
 
-## 7. Server half (mock230)
+## 7. Server half (ToriRSServer)
 
 §3 covered only `app.c`. The mock server used to discard the client's correct
 `MOVE_OPCLICK` route on every loc/npc/obj click and substitute a four-neighbour
@@ -445,11 +445,11 @@ and truncation at the wrong end of long paths. That stack is gone.
 
 | piece | shared primitive |
 |---|---|
-| tile flags | `collision_map.c` via `mock230_scene.c` (same builder rules as `world_collision.u.c`) |
+| tile flags | `collision_map.c` via `torirs_server_scene.c` (same builder rules as `world_collision.u.c`) |
 | flood + approach + nearest | `collision_map_route_tiles` / `collision_map_try_route_op` |
 | arrival / reach | `collision_map_reached` (rect-adjacent, cardinal, both tiles' wall bits) |
-| loc approach | `mock230_scene_loc_approach` mirrors `app_scenery_approach` (shape, angle, rotated footprint, `forceapproach`) |
-| era nearest box | `ToriRS_Features_ForCache` → `mock230_scene_op_nearest_opts` |
+| loc approach | `ToriRSServer_SceneLocApproach` mirrors `app_scenery_approach` (shape, angle, rotated footprint, `forceapproach`) |
+| era nearest box | `ToriRS_Features_ForCache` → `ToriRSServer_SceneOpNearestOpts` |
 
 `handle_move` takes the **last** packet waypoint as the destination and
 re-routes (LostCity `MoveClickHandler`), with `distanceToSW > 104` rejected.
@@ -461,7 +461,7 @@ Op handlers route to the **target** with its approach — they never call
 Players store at most 25 dest-first **corner** waypoints (`PathingEntity.waypoints`)
 — the last tile of each straight BFS run, matching LostCity `PathFinder` /
 `collision_route_backtrace` — and advance with a greedy `takeStep` that
-re-validates `mock230_scene_can_step_extra` (with NPC/BLOCK occupancy) and stalls
+re-validates `ToriRSServer_SceneCanStepExtra` (with NPC/BLOCK occupancy) and stalls
 instead of clearing the route. Interaction recovery re-floods when the corner
 queue is empty or a post-move step is blocked, and queues the **full** approach
 path (`queue_path_as_waypoints` / LostCity `pathToTarget`) — not a single
@@ -478,14 +478,14 @@ target is not operable; the engine queues a one-tile cardinal step-off
 (`randomWalk`). Locs/objs only OP when `allowOpScenery` is set (packet-handler
 immediate try, or post-move with `steps_taken == 0`).
 
-NPCs never flood: `mock230_world_npc_walk_to` queues one tile from
-`collision_map_naive_path` (via `mock230_scene_naive_path`) and advances with the
+NPCs never flood: `ToriRSServer_WorldNpcWalkTo` queues one tile from
+`collision_map_naive_path` (via `ToriRSServer_SceneNaivePath`) and advances with the
 same takeStep shape, gated by entity occupancy flags written at spawn/move.
 
 Unreachable interactions terminate with content's
 `[proc,cannot_reach_message]` (`player/messages.rs2`), not a latched op.
 
-AP-range triggers also require `mock230_scene_approached` LoS (player→npc;
+AP-range triggers also require `ToriRSServer_SceneApproached` LoS (player→npc;
 npc APPLAYER casts the reverse).
 
 ### 7.3 Still asymmetric
@@ -503,7 +503,7 @@ npc APPLAYER casts the reverse).
 | id | failure | fix |
 |---|---|---|
 | P1 | `walk_beside` → `steps_clear` threw away `MOVE_OPCLICK` | deleted; op handlers route with approach |
-| P2 | four-neighbour SW guess ignored footprint/shape/angle | `mock230_scene_*_approach` + `route_op` |
+| P2 | four-neighbour SW guess ignored footprint/shape/angle | `ToriRSServer_Scene_*_approach` + `route_op` |
 | P3 | exact BFS, no nearest fallback | era `CollisionNearestOpts` on `route_tiles` |
 | P4 | long paths truncated at the destination end | source-end emit in `collision_map_route_tiles` |
 | P5 | `route_straight` for out-of-scene endpoints; no per-step collision for players | refuse out-of-scene; `can_step` in `takeStep` |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Is a compiled server script pack still current against its sources?
 
-`mock230-scripts`/`mock230-scripts-summoning` have no output file matching
+`torirsserver-scripts`/`torirsserver-scripts-summoning` have no output file matching
 their own target name, so `make` reruns their recipe -- a ~15k-script
 sscompile pass -- on every single launch, `.PHONY` or not. That is safe but
 slow, so the launchers ask this predicate first and skip the make invocation
@@ -40,7 +40,7 @@ DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 # from when those were the only two packs anyone compiled; `build_curses` and
 # `build_summoning_curses` arrived later and were never added, so each of them
 # made every other pack look stale forever. Now that a pack's output directory
-# is a build parameter (MOCK230_SCRIPT_OUT) rather than one of a fixed few, a
+# is a build parameter (TORIRSSERVER_SCRIPT_OUT) rather than one of a fixed few, a
 # list of known names cannot be kept correct at all.
 def is_output_dir(name: str) -> bool:
     return name == "build" or name.startswith("build_")

@@ -3327,7 +3327,7 @@ function authorPlan(p) {
     <div class="muted">Afterwards: repoint the NPC record's
       <code>model&lt;N&gt;=</code> if it does not already use
       ${ids.length > 1 ? 'those ids' : 'that id'}, then re-pack the cache with
-      <code>make -C src mock230-cache-rs2012</code>.</div></div>`;
+      <code>make -C src torirsserver-cache-rs2012</code>.</div></div>`;
 }
 function wzReview(steps) {
   const p = wzPayload(), keys = Object.keys(p);

@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 # The C runtime is always this repository's; the content tree is whichever one
-# is being baked, which is not necessarily the submodule -- MOCK230_CONTENT_DIR
+# is being baked, which is not necessarily the submodule -- TORIRSSERVER_CONTENT_DIR
 # selects it. The `ported/rs2012_qbd_td` lane this bridge is about lives only in
 # a tree that carries it, and a hardcoded tree without one does not fail
 # helpfully: parse_pack falls back to the tree-wide pack/ and reports the whole
@@ -223,7 +223,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--content", type=Path, default=None,
                         help="OSRS-Content tree carrying ported/rs2012_qbd_td "
-                             "(default: $MOCK230_CONTENT_DIR, else the submodule)")
+                             "(default: $TORIRSSERVER_CONTENT_DIR, else the submodule)")
     parser.add_argument("--staged", type=Path,
                         help="also verify a tree produced by stage_rs2012_overlay.py")
     parser.add_argument("--cache", type=Path,
@@ -234,12 +234,12 @@ def main() -> None:
                         help="cache profile passed to audioprobe (default: osrs239)")
     args = parser.parse_args()
 
-    tree = args.content or os.environ.get("MOCK230_CONTENT_DIR") or DEFAULT_TREE
+    tree = args.content or os.environ.get("TORIRSSERVER_CONTENT_DIR") or DEFAULT_TREE
     tree = Path(tree).resolve()
     require(tree.is_dir(), f"no content tree at {tree}")
     require((tree / "ported/rs2012_qbd_td").is_dir(),
             f"{tree} has no ported/rs2012_qbd_td lane; point --content or "
-            "MOCK230_CONTENT_DIR at a tree that carries it")
+            "TORIRSSERVER_CONTENT_DIR at a tree that carries it")
 
     verify_tree(tree)
     verify_authority(tree)

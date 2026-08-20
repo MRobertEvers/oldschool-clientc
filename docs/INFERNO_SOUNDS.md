@@ -270,7 +270,7 @@ time an add chewed on the glyph — which is every tick of the Zuk phase.
 An npc makes three combat noises and this engine plays them from **two
 different sides**:
 
-- **flinch and death are engine-side.** `mock230_combat.c` reads `block_sound`
+- **flinch and death are engine-side.** `torirs_server_combat.c` reads `block_sound`
   and `death_sound` off the record and broadcasts them itself
   (`npc_sound_nearby`, Chebyshev radius 12), beside the animations it plays for
   the same two events. Setting the params is enough.
@@ -320,15 +320,15 @@ region id = (35 << 8) | 83 = 9043      ^inferno_template = 0_35_83_0_0
 
 **And an instanced player's square describes nothing.** `mapinstance_scan_pool`
 hands out squares from x >= 100, a band chosen precisely because the real map
-does not reach it. So `mock230_music_enter_region` was being asked about a
+does not reach it. So `ToriRSServer_MusicEnterRegion` was being asked about a
 square no music table has ever described — for the Inferno and for **every other
 instanced encounter in the game**. The failure mode is why it went unnoticed:
 not "wrong track", no track, and silence is indistinguishable from one of the
 ~65,000 squares that are silent on purpose.
 
-`mock230_music_square_for` (`mock230_world.c`) now resolves an instanced
+`ToriRSServer_MusicSquareFor` (`torirs_server_world.c`) now resolves an instanced
 player's music through the square the instance was *copied from*, via a new
-`mock230_mapinstance_source_tile`. The latch is unchanged — it still fires on the
+`ToriRSServer_MapInstanceSourceTile`. The latch is unchanged — it still fires on the
 destination square, so entering, leaving and being rebuilt into a different
 instance all re-ask, and walking between two destination squares of one instance
 re-asks and gets the same answer.
@@ -337,7 +337,7 @@ re-asks and gets the same answer.
 black, shakes the camera on three axes and drops the prison seal — over a
 four-minute loop that had not noticed. `midi_song(-1)` on the fade-out tick,
 `midi_song(^inferno_music_track)` on the tick `cam_reset` brings the camera
-home. The restore has to be named: `mock230_music_enter_region` only fires on a
+home. The restore has to be named: `ToriRSServer_MusicEnterRegion` only fires on a
 map-square crossing and the player has not moved since the teleport, so nothing
 would restart it until they left the Inferno.
 
@@ -351,7 +351,7 @@ Three engine pieces this needed, and the third is the one worth remembering:
    client's own parse already does, so the pair is confirmed from both ends.
 2. `SS_OP_MIDI_SONG` now routes a negative id to it — the same "a negative id is
    nothing, not entity -1" rule `SS_OP_SOUND_SYNTH` states a few cases above.
-3. **`mock230_wire.c`'s `transcribed` allow-list.** A packet with a resolvable
+3. **`torirs_server_wire.c`'s `transcribed` allow-list.** A packet with a resolvable
    opcode *and* a registered writer is still refused unless its name is in
    `k_transcribed_osrs239`, and the refusal is a one-line stderr note nobody is
    reading. Symptom: `midi_song(-1)` reached the opcode (verified with a probe:
@@ -359,7 +359,7 @@ Three engine pieces this needed, and the third is the one worth remembering:
    packet appeared in the capture. Adding the writer is three edits, not two,
    and the third one has no compiler to catch it.
 
-Covered by `mock230 --selftest`, "instanced music resolves the source square",
+Covered by `ToriRSServer --selftest`, "instanced music resolves the source square",
 which asserts the *address* rather than the track id: what broke was the
 address, and a track assertion would pass just as happily on a table row that
 happened to sit at the instance's square. It also asserts the resolver is a
@@ -373,7 +373,7 @@ template's — without that check the test could pass while proving nothing.
   source. Every layer returns nothing, so its record states nothing.
   `default=-1` in `npc_combat.param` is what silence is spelled as, and sound
   effect 0 is a real clip — so a guess here costs more than the gap.
-  `mock230 --selftest` asserts it stays silent, which is what stops a later
+  `ToriRSServer --selftest` asserts it stays silent, which is what stops a later
   "fill in the gaps" pass from quietly converting an open slot into a guess.
 - **The Ancestral Glyph's own death.** It shatters; nothing states with what.
 - **Zuk's death.** 409 `dragon_death` is layer `t`, reached from the wiki's
@@ -411,6 +411,6 @@ template's — without that check the test could pass while proving nothing.
 | `.../minigame_inferno/scripts/inferno_pillars.rs2` | the rocky-support collapse |
 | `docs/audio/music_regions.tsv` | region 9043 -> Inferno, with provenance |
 | `tools/gen_music_regions.py` | `load()` strips `#` lines so the data file can carry it |
-| `src/net/mock/mock230_music_regions.gen.h` | regenerated: 434 squares |
-| `src/net/mock/mock230_mapinstance.{c,h}` | `mock230_mapinstance_source_tile` |
-| `src/net/mock/mock230_world.c` | `mock230_music_square_for`; two selftests |
+| `src/torirsserver/torirs_server_music_regions.gen.h` | regenerated: 434 squares |
+| `src/torirsserver/ToriRSServer_MapInstance.{c,h}` | `ToriRSServer_MapInstanceSourceTile` |
+| `src/torirsserver/torirs_server_world.c` | `ToriRSServer_MusicSquareFor`; two selftests |

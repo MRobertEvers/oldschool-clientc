@@ -224,7 +224,7 @@ split_escaped(char* cursor, char** out_field)
  * old spellings are still read; see `parse_columns`.
  *
  * **`columndef` and not `column`, which is what it was first called.** The server's
- * own `.dbtable` grammar uses `column=<name>,<type>...`, and `mock230_db_load`
+ * own `.dbtable` grammar uses `column=<name>,<type>...`, and `ToriRSServer_DbLoad`
  * walks the *whole* content tree for `*.dbtable` — which matches
  * `configs/all.dbtable`. So `column=13:startcoord,coord` was read by the server's
  * parser as a column named `13:startcoord` with one unrecognised type, and the

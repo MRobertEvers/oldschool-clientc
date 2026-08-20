@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_INTERFACE_STATE_H
-#define SRC_NET_MOCK_MOCK230_INTERFACE_STATE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_INTERFACE_STATE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_INTERFACE_STATE_H
 
 /*
  * Authoritative server-side interface state for one player.
@@ -23,20 +23,20 @@ enum
     /* The current content pack has 180 IF_SETEVENTS call sites and fewer than
      * 50 simultaneous mounts.  These limits leave ample room for interval
      * splits while keeping the per-player table fixed and allocation-free. */
-    MOCK230_IF_MOUNT_MAX = 256,
-    MOCK230_IF_EVENT_RANGE_MAX = 1024,
-    MOCK230_IF_RESYNC_MAX_PAYLOAD =
-        4 + MOCK230_IF_MOUNT_MAX * 7 + MOCK230_IF_EVENT_RANGE_MAX * 16,
+    TORIRSSERVER_IF_MOUNT_MAX = 256,
+    TORIRSSERVER_IF_EVENT_RANGE_MAX = 1024,
+    TORIRSSERVER_IF_RESYNC_MAX_PAYLOAD =
+        4 + TORIRSSERVER_IF_MOUNT_MAX * 7 + TORIRSSERVER_IF_EVENT_RANGE_MAX * 16,
 };
 
-struct Mock230IfMount
+struct ToriRSServerIfMount
 {
     int32_t target_uid;
     int32_t interface_id;
     int32_t type;
 };
 
-struct Mock230IfEventRange
+struct ToriRSServerIfEventRange
 {
     int32_t component_uid;
     int32_t start;
@@ -45,32 +45,32 @@ struct Mock230IfEventRange
     uint32_t events2;
 };
 
-struct Mock230InterfaceState
+struct ToriRSServerInterfaceState
 {
     int32_t root_interface;
     int mount_count;
     int event_count;
-    struct Mock230IfMount mounts[MOCK230_IF_MOUNT_MAX];
-    struct Mock230IfEventRange events[MOCK230_IF_EVENT_RANGE_MAX];
+    struct ToriRSServerIfMount mounts[TORIRSSERVER_IF_MOUNT_MAX];
+    struct ToriRSServerIfEventRange events[TORIRSSERVER_IF_EVENT_RANGE_MAX];
 };
 
 /** Empty state has no root (`-1`, encoded as 65535 by IF_RESYNC_V2). */
 void
-mock230_ifstate_init(struct Mock230InterfaceState* state);
+ToriRSServer_IfStateInit(struct ToriRSServerInterfaceState* state);
 
 /** Opening a new top-level interface begins a fresh mount tree. Event ranges
  * persist so a subsequent IF_RESYNC_V2 re-arms the replacement gameframe;
  * closing a mounted group removes that group's ranges explicitly. */
 void
-mock230_ifstate_open_top(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateOpenTop(
+    struct ToriRSServerInterfaceState* state,
     int interface_id);
 
 /** Mount/replace one sub-interface. Returns 0 only when the table is full or
  * the arguments cannot be represented by the revision-239 packet. */
 int
-mock230_ifstate_open_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateOpenSub(
+    struct ToriRSServerInterfaceState* state,
     int target_uid,
     int interface_id,
     int type);
@@ -78,14 +78,14 @@ mock230_ifstate_open_sub(
 /** Close the sub mounted at target_uid and recursively retire child mounts and
  * event ranges belonging to every group removed with it. */
 int
-mock230_ifstate_close_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateCloseSub(
+    struct ToriRSServerInterfaceState* state,
     int target_uid);
 
 /** Apply IF_MOVESUB's destination replacement and source move. */
 int
-mock230_ifstate_move_sub(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateMoveSub(
+    struct ToriRSServerInterfaceState* state,
     int source_uid,
     int dest_uid);
 
@@ -93,8 +93,8 @@ mock230_ifstate_move_sub(
  * Older overlapping intervals are split exactly as the golden client's
  * `method2869` range updater does. */
 int
-mock230_ifstate_setevents_v2(
-    struct Mock230InterfaceState* state,
+ToriRSServer_IfStateSeteventsV2(
+    struct ToriRSServerInterfaceState* state,
     int component_uid,
     int start,
     int end,
@@ -104,7 +104,7 @@ mock230_ifstate_setevents_v2(
 /** Convert the classic 32-bit mask to V2. Bits 1..10 are ignored in events1
  * by revision 239 and become events2 bits 0..9. */
 void
-mock230_ifstate_split_classic_events(
+ToriRSServer_IfStateSplitClassicEvents(
     uint32_t classic,
     uint32_t* events1,
     uint32_t* events2);
@@ -113,7 +113,7 @@ mock230_ifstate_split_classic_events(
  * tests can compare their bytes against hard-coded golden fixtures without
  * decoding them through a mirror of the same implementation. */
 void
-mock230_ifstate_encode_setevents_v2(
+ToriRSServer_IfStateEncodeSeteventsV2(
     struct RSAreaBuf* buf,
     int component_uid,
     int start,
@@ -122,16 +122,16 @@ mock230_ifstate_encode_setevents_v2(
     uint32_t events2);
 
 void
-mock230_ifstate_encode_clearinv(
+ToriRSServer_IfStateEncodeClearinv(
     struct RSAreaBuf* buf,
     int component_uid);
 
 void
-mock230_ifstate_encode_resync_v2(
+ToriRSServer_IfStateEncodeResyncV2(
     struct RSAreaBuf* buf,
-    const struct Mock230InterfaceState* state);
+    const struct ToriRSServerInterfaceState* state);
 
 size_t
-mock230_ifstate_resync_payload_size(const struct Mock230InterfaceState* state);
+ToriRSServer_IfStateResyncPayloadSize(const struct ToriRSServerInterfaceState* state);
 
 #endif

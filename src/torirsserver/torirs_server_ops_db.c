@@ -2,7 +2,7 @@
  * The DB_* host commands — RuneScript's view of the server's db tables.
  *
  * First of the per-domain opcode files that docs/osrs230_mockserver.md §6.1
- * step 2 left undone. `mock230_script_command` in mock230_scripts.c offers each
+ * step 2 left undone. `ToriRSServer_ScriptCommand` in torirs_server_scripts.c offers each
  * domain the opcode in turn and each returns 1 when it handled it, which is the
  * same contract the VM already uses for the host callback as a whole — so the
  * split composes rather than needing a dispatch table of its own.
@@ -41,8 +41,8 @@
  * park. Both are defensible; this one costs less.
  */
 
-#include "mock230.h"
-#include "mock230_db.h"
+#include "torirs_server.h"
+#include "torirs_server_db.h"
 
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -65,20 +65,20 @@ unpack_column(
 
 /** The table and column a packed reference names, aborting the script when
  *  either is absent. Returns NULL having aborted. */
-static const struct Mock230DbColumn*
+static const struct ToriRSServerDbColumn*
 resolve_column(
     struct SSVM_State* state,
     int32_t packed,
-    const struct Mock230DbTable** out_table,
+    const struct ToriRSServerDbTable** out_table,
     int* out_index,
     int* out_tuple)
 {
     int table_id;
     int column_index;
-    const struct Mock230DbTable* table;
+    const struct ToriRSServerDbTable* table;
 
     unpack_column(packed, &table_id, &column_index, out_tuple);
-    table = mock230_db_table(table_id);
+    table = ToriRSServer_DbTable(table_id);
     if( !table )
     {
         SSVM_Abort(state, "db table %d is not defined by any .dbtable config", table_id);
@@ -104,14 +104,14 @@ resolve_column(
 /** Does this row's `column` hold `value` at any tuple position? */
 static int
 row_holds(
-    const struct Mock230DbRow* row,
-    const struct Mock230DbColumn* definition,
+    const struct ToriRSServerDbRow* row,
+    const struct ToriRSServerDbColumn* definition,
     int column,
     int tuple_position,
     int value)
 {
-    const struct Mock230DbRowColumn* store = &row->columns[column];
-    const struct Mock230DbValue* values = store->values;
+    const struct ToriRSServerDbRowColumn* store = &row->columns[column];
+    const struct ToriRSServerDbValue* values = store->values;
     int count = store->count;
 
     if( count == 0 )
@@ -139,28 +139,28 @@ row_holds(
  * what stops `db_findnext` needing to know which one selected it — the cursor is
  * an index into the *matches*, not into the table, in both cases.
  */
-static const struct Mock230DbRow*
+static const struct ToriRSServerDbRow*
 query_row(
-    const struct Mock230Player* player,
+    const struct ToriRSServerPlayer* player,
     int index)
 {
     int seen = 0;
-    const struct Mock230DbTable* table;
+    const struct ToriRSServerDbTable* table;
 
     if( index < 0 )
         return NULL;
     /* `db_listall` is the positional cursor, so it walks the order the cache
      * documents and the client uses. `db_find` below keeps the storage-order
-     * scan — see mock230_db_row_in_table_ordered for why the two differ. */
+     * scan — see ToriRSServer_DbRowInTableOrdered for why the two differ. */
     if( player->db_query_column < 0 )
-        return mock230_db_row_in_table_ordered(player->db_query_table, index);
-    table = mock230_db_table(player->db_query_table);
+        return ToriRSServer_DbRowInTableOrdered(player->db_query_table, index);
+    table = ToriRSServer_DbTable(player->db_query_table);
     if( !table || player->db_query_column >= table->column_count )
         return NULL;
 
     for( int i = 0;; i++ )
     {
-        const struct Mock230DbRow* row = mock230_db_row_in_table(player->db_query_table, i);
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(player->db_query_table, i);
 
         if( !row )
             return NULL;
@@ -175,13 +175,13 @@ query_row(
 }
 
 int
-mock230_ops_db(
+ToriRSServer_OpsDb(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct ToriRSServerPlayer* player = srv->active_player;
 
     (void)dot;
 
@@ -200,10 +200,10 @@ mock230_ops_db(
     case SS_OP_DB_GETFIELD:
     {
         int32_t values[3];
-        const struct Mock230DbTable* table = NULL;
-        const struct Mock230DbColumn* column;
-        const struct Mock230DbRow* row;
-        const struct Mock230DbRowColumn* store;
+        const struct ToriRSServerDbTable* table = NULL;
+        const struct ToriRSServerDbColumn* column;
+        const struct ToriRSServerDbRow* row;
+        const struct ToriRSServerDbRowColumn* store;
         int column_index = 0;
         int tuple_index = 0;
         int first;
@@ -217,7 +217,7 @@ mock230_ops_db(
         column = resolve_column(state, values[1], &table, &column_index, &tuple_index);
         if( !column )
             return 1;
-        row = mock230_db_row(values[0]);
+        row = ToriRSServer_DbRow(values[0]);
         if( !row )
         {
             SSVM_Abort(state, "db row %d is not defined by any .dbrow config", values[0]);
@@ -243,7 +243,7 @@ mock230_ops_db(
         for( int i = first; i < last; i++ )
         {
             int offset = (values[2] * column->type_count) + i;
-            const struct Mock230DbValue* source = store->values;
+            const struct ToriRSServerDbValue* source = store->values;
             int source_count = store->count;
 
             if( source_count == 0 )
@@ -285,9 +285,9 @@ mock230_ops_db(
     case SS_OP_DB_GETFIELDCOUNT:
     {
         int32_t values[2];
-        const struct Mock230DbTable* table = NULL;
-        const struct Mock230DbColumn* column;
-        const struct Mock230DbRow* row;
+        const struct ToriRSServerDbTable* table = NULL;
+        const struct ToriRSServerDbColumn* column;
+        const struct ToriRSServerDbRow* row;
         int column_index = 0;
         int tuple_index = 0;
 
@@ -299,7 +299,7 @@ mock230_ops_db(
         column = resolve_column(state, values[1], &table, &column_index, &tuple_index);
         if( !column )
             return 1;
-        row = mock230_db_row(values[0]);
+        row = ToriRSServer_DbRow(values[0]);
         if( !row )
         {
             SSVM_Abort(state, "db row %d is not defined by any .dbrow config", values[0]);
@@ -323,11 +323,11 @@ mock230_ops_db(
     case SS_OP_DB_GETROWTABLE:
     {
         int32_t row_id;
-        const struct Mock230DbRow* row;
+        const struct ToriRSServerDbRow* row;
 
         if( !SSVM_PopInt(state, &row_id) )
             return 1;
-        row = mock230_db_row(row_id);
+        row = ToriRSServer_DbRow(row_id);
         if( !row )
         {
             SSVM_Abort(state, "db row %d is not defined by any .dbrow config", row_id);
@@ -352,7 +352,7 @@ mock230_ops_db(
 
         if( !SSVM_PopInt(state, &table_id) )
             return 1;
-        if( !mock230_db_table(table_id) )
+        if( !ToriRSServer_DbTable(table_id) )
         {
             SSVM_Abort(state, "db_listall on table %d, which is not defined", table_id);
             return 1;
@@ -362,7 +362,7 @@ mock230_ops_db(
         player->db_query_column = -1;
         player->db_query_tuple = -1;
         if( opcode == SS_OP_DB_LISTALL_WITH_COUNT )
-            SSVM_PushInt(state, mock230_db_row_count(table_id));
+            SSVM_PushInt(state, ToriRSServer_DbRowCount(table_id));
         return 1;
     }
 
@@ -385,8 +385,8 @@ mock230_ops_db(
     {
         int32_t packed;
         int32_t value;
-        const struct Mock230DbTable* table = NULL;
-        const struct Mock230DbColumn* column;
+        const struct ToriRSServerDbTable* table = NULL;
+        const struct ToriRSServerDbColumn* column;
         int column_index = 0;
         int tuple_index = 0;
 
@@ -416,7 +416,7 @@ mock230_ops_db(
     /** The next row of the current query, or -1 when exhausted. */
     case SS_OP_DB_FINDNEXT:
     {
-        const struct Mock230DbRow* row;
+        const struct ToriRSServerDbRow* row;
 
         if( player->db_query_table < 0 )
         {
@@ -438,7 +438,7 @@ mock230_ops_db(
     case SS_OP_DB_FINDBYINDEX:
     {
         int32_t index;
-        const struct Mock230DbRow* row;
+        const struct ToriRSServerDbRow* row;
 
         if( !SSVM_PopInt(state, &index) )
             return 1;

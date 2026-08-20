@@ -22,9 +22,9 @@ The opcode exists and predates this work. Measured, not assumed:
 | meta | `gen_opcode_meta.py:196` `(11003, 1, 0, 0, 0)` + `STRUCTURAL_VARIADIC:255` | present |
 | generated | `ss_meta.gen.h:819` `{1,0,0,0,1,1,…}` — `variadic = 1` | present |
 | compiler | `ssc_compile.c:521-536` (the `*` token) and `:645-687` (the vararg list) | present |
-| VM host | `mock230_scripts.c` `case SS_OP_RUNCLIENTSCRIPTVARARG` | present |
-| encoder | `mock230_encode.c:401-426` `mock230_send_run_clientscript_mixed` | present |
-| coverage | `mock230_opcode_coverage.gen.h:287` | present |
+| VM host | `torirs_server_scripts.c` `case SS_OP_RUNCLIENTSCRIPTVARARG` | present |
+| encoder | `torirs_server_encode.c:401-426` `ToriRSServer_SendRunClientscriptMixed` | present |
+| coverage | `torirs_server_opcode_coverage.gen.h:287` | present |
 
 Regenerating `gen_opcode_meta.py` and `gen_opcode_coverage.py` produces no diff,
 which is the check that the above is not prose.
@@ -77,8 +77,8 @@ stack.
 ```
 runclientscript*(1119)($patch, $produce, $state, $flags, $noun)   content
   ->  declared args, vararg values, then the type string "iiiis"   ssc_compile.c
-  ->  pop the type string FIRST, walk it BACKWARDS                 mock230_scripts.c
-  ->  types forward, values REVERSED, script id last               mock230_encode.c
+  ->  pop the type string FIRST, walk it BACKWARDS                 torirs_server_scripts.c
+  ->  types forward, values REVERSED, script id last               torirs_server_encode.c
   ->  op 84, 2-byte size                                           the wire
   ->  types, then values reversed, str_mask bit i per string arg    osrs230_parse.c
   ->  compact strv, then bind: ints to int locals, strings to       app.c
@@ -111,7 +111,7 @@ the payload was long enough — so the packet was reported as **parsed**, and th
 clientscript ran with 20 garbage arguments.
 
 Unreachable from this repo's own server (the host aborts above
-`MOCK230_RUNCLIENTSCRIPT_ARG_MAX` = 16, the compiler above
+`TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX` = 16, the compiler above
 `SSC_MAX_VARARG_TYPES` = 16, both smaller), reachable from any other. It fails
 the packet now. A dropped `RUNCLIENTSCRIPT` is a panel that does not appear; a
 decoded one is a panel drawn from garbage, and the second is not diagnosable
@@ -156,7 +156,7 @@ Two targets, and both were proved by mutation rather than assumed.
 
 The **encoder** side is not duplicated in `test-runclientscript` — it writes the
 same layout with the same `rsareabuf` primitives, and states so. The encoder's
-own output is asserted byte by byte by `mock230 --selftest`, on the skill
+own output is asserted byte by byte by `ToriRSServer --selftest`, on the skill
 guide's four-int payload.
 
 ## 6. Two corrections to this repo's own docs
@@ -164,10 +164,10 @@ guide's four-int payload.
 Both were stated as measured fact and both were false. They are struck through
 in place; repeated here because either could still shape a plan.
 
-1. **"`mock230`'s `RUNCLIENTSCRIPT` sender takes ints only."**
+1. **"`ToriRSServer`'s `RUNCLIENTSCRIPT` sender takes ints only."**
    (`LOSTCITY_PORT_TRIAGE.md` §7.4, its symptom table, and
    `UI_ERA_PORTING_GUIDE.md` §4 item 2.) The *sender* never did —
-   `mock230_send_run_clientscript_mixed` has taken a type string since it was
+   `ToriRSServer_SendRunClientscriptMixed` has taken a type string since it was
    written. What was fixed at one int and two strings was the *opcode*,
    `runclientscript_ss`.
 
@@ -176,7 +176,7 @@ in place; repeated here because either could still shape a plan.
    `chatbox_multi_init` takes exactly the one-int-two-string shape. What bounds
    those call sites is three caps, none of them this opcode: `script_58` parses
    at most five options, the `|`-joined list rides one 512-byte string
-   (`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `MOCK230_RESUME_SUB_MAX` is 15.
+   (`PKT_RUNCLIENTSCRIPT_STR_LEN`), and `TORIRSSERVER_RESUME_SUB_MAX` is 15.
 
 ## 7. The consumer, and why it is that one
 
@@ -232,7 +232,7 @@ Four caps, measured (raised 2026-08-03 for `ge_pricechecker_prices`):
 | limit | value | where |
 |---|---|---|
 | compiler vararg list | **28** | `ssc.h` `SSC_MAX_VARARG_TYPES` |
-| mock host / encoder | **28** | `mock230.h` `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` |
+| mock host / encoder | **28** | `torirs_server.h` `TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX` |
 | **client wire parser** | **28** | `revpacket.h` `PKT_RUNCLIENTSCRIPT_ARG_MAX` |
 | hard ceiling | 32 | `str_mask` is `uint32_t`; ARG_MAX cannot exceed it without widening |
 

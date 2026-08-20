@@ -5,10 +5,10 @@ Two modes, one contract.
 
 **With `--lane`**: a marked-lane overlay.  The `ported/` lanes are excluded from
 the ordinary content walk on purpose, so the only thing that puts their records
-in front of a client is the lane's own bake (`mock230-cache-rs2012`,
-`mock230-cache-summoning`).
+in front of a client is the lane's own bake (`torirsserver-cache-rs2012`,
+`torirsserver-cache-summoning`).
 
-**Without `--lane`**: the ordinary content bake — `mock230-cache`, the target
+**Without `--lane`**: the ordinary content bake — `torirsserver-cache`, the target
 that walks the tree proper and writes `cache.osrs239.baked`.  This mode arrived
 late, and its absence was a hole exactly as wide as the one the lane mode was
 written to close: nothing watched the ordinary tree at all, so a launcher would
@@ -69,7 +69,7 @@ ASSET_ROOTS = (
     "scripts",
 )
 
-# What `cachepack pack --src` reads when `mock230-cache` walks the tree proper,
+# What `cachepack pack --src` reads when `torirsserver-cache` walks the tree proper,
 # named from cachepack itself rather than guessed: `configs/` and
 # `server/scripts/` are its two declared config roots (the ROOTS/RANKS pair in
 # cp_pack.c), `pack/` holds the name and id packs (cp_names.c), `fields/<type>.ini`
@@ -112,9 +112,9 @@ CONTENT_ROOTS = (
 # extension names a config type, and a `.rs2` is not one of them.
 #
 # The distinction is the whole reason this root can be watched at all. Pure
-# server work needs no bake (src/makefile, `mock230-cache`: "Pure server work —
+# server work needs no bake (src/makefile, `torirsserver-cache`: "Pure server work —
 # scripts, db tables, params, varps, npc/loc server fields — travels by
-# mock230-scripts + mock230-servpack alone"), and a walk that did not filter
+# torirsserver-scripts + torirsserver-servpack alone"), and a walk that did not filter
 # would call the client cache stale on every `.rs2` keystroke and spend two
 # minutes rebaking bytes that cannot have moved.
 #

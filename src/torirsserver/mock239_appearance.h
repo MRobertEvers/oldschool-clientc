@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK239_APPEARANCE_H
-#define SRC_NET_MOCK_MOCK239_APPEARANCE_H
+#ifndef SRC_TORIRSSERVER_MOCK239_APPEARANCE_H
+#define SRC_TORIRSSERVER_MOCK239_APPEARANCE_H
 
 /* Rev 239 writes one overhead-icon archive index in an appearance block;
  * generic server/content state uses the older bitmask vocabulary.

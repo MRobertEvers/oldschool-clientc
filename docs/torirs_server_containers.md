@@ -4,12 +4,12 @@
 > measured in this tree; re-measure rather than trusting the prose
 > (PORTING_GUIDE §7).
 
-Source: `src/net/mock/mock230_container.h` (the contract, and the reason for
-each field), `src/net/mock/mock230_container.c`, `struct Mock230Container` in
-`src/net/mock/mock230.h`.
+Source: `src/torirsserver/torirs_server_container.h` (the contract, and the reason for
+each field), `src/torirsserver/torirs_server_container.c`, `struct ToriRSServerContainer` in
+`src/torirsserver/torirs_server.h`.
 
-Permanent check: `mock230 --selftest`, case **"the container registry"**
-(`mock230_world.c`). It is written against *symbols*, never numbers — the inv
+Permanent check: `ToriRSServer --selftest`, case **"the container registry"**
+(`torirs_server_world.c`). It is written against *symbols*, never numbers — the inv
 id, the size and the transmit shape all come out of the pack and the cache, so
 a test that kept passing after the cache moved them is not possible.
 
@@ -17,7 +17,7 @@ a test that kept passing after the cache moved them is not possible.
 
 ## 1. What it replaces, and why three cases could not become four
 
-`container_for` was three `if( inv_id == mock230_ids()->… )` branches over
+`container_for` was three `if( inv_id == ToriRSServer_Ids()->… )` branches over
 three different storage shapes, all resolved off `srv->active_player`.
 `container_dirty` was a second, independent three-way branch. Thirteen call
 sites.
@@ -27,7 +27,7 @@ Three defects followed from that shape, all measured before the change:
 1. **1,023 of the cache's 1,026 invs did not exist.** `inv_size(anything else)`
    returned **0**, and every other container op was a silent no-op on a
    container the *client* is perfectly willing to draw — while
-   `mock230_bank_inv_size()`, sitting in the next file, could size all 1,026.
+   `ToriRSServer_BankInvSize()`, sitting in the next file, could size all 1,026.
 2. **Two callers hand-rolled the dirty half.** `SS_OP_INV_DEL` and
    `SS_OP_INV_DELSLOT` wrote `items[i]` directly and then ran
    `if( backpack ) inv_dirty else worn_dirty` — so `inv_del(bank, …)` marked a
@@ -39,7 +39,7 @@ Three defects followed from that shape, all measured before the change:
    number of extra cases fixes that: the resolver's *signature* was the
    blocker, not its length.
 
-A fourth defect fell out of the same shape one layer down: `mock230_save.c`
+A fourth defect fell out of the same shape one layer down: `torirs_server_save.c`
 had three hardcoded `write_items()` sections and a fixed `enum SaveSection`
 mirroring `container_for`'s three cases exactly, so a container the client
 could be shown vanished at logout.
@@ -67,12 +67,12 @@ a rule.
 
 ## 3. Shape
 
-One row per container, in a fixed table: `Mock230Player.containers[16]` and
-`Mock230Server.world_containers[16]`.
+One row per container, in a fixed table: `ToriRSServerPlayer.containers[16]` and
+`ToriRSServer.world_containers[16]`.
 
 | field | why it exists |
 |---|---|
-| `inv_id`, `slots`, `items` | `slots` is `mock230_bank_inv_size(inv_id)`; an inv the cache does not size is not a container |
+| `inv_id`, `slots`, `items` | `slots` is `ToriRSServer_BankInvSize(inv_id)`; an inv the cache does not size is not a container |
 | `owner_kind`, `owner` | PLAYER / WORLD. The resolve signature is `(srv, player, inv_id)` and `player` is *unused* for a world row — that is the point |
 | `owns_items` | the registry calloc'd it. 0 for an adopted array |
 | `per_slot` | **`slots <= 32`, decided at registration and nowhere else** |
@@ -80,27 +80,27 @@ One row per container, in a fixed table: `Mock230Player.containers[16]` and
 | `listeners[]`, `listener_count` | LostCity's `invListeners` — `inv_transmit` appends, `inv_stoptransmit` removes by component; one inv may paint several panels |
 
 **`per_slot` is a correctness branch, not an optimisation.**
-`mock230_send_inv_partial` addresses its slots out of a 32-bit mask
+`ToriRSServer_SendInvPartial` addresses its slots out of a 32-bit mask
 (`dirty & (1u << i)`). **304 of the cache's 1,026 invs are larger than 32
 slots.** The backpack (28) and worn set (14) land on the per-slot side by
 measurement, not by being named.
 
 **No self-referential pointer is stored.** A row that owns its dirty state is
 asked for the address of its own field at the point of use (`slot_mask_of` /
-`dirty_of`), so a `memset` — and `mock230_world_player_init` does one — cannot
+`dirty_of`), so a `memset` — and `ToriRSServer_WorldPlayerInit` does one — cannot
 leave a row pointing at a stale twin.
 
 **Adopted rows.** Three containers predate the registry and their flags are
 read from outside it: `player->inv_dirty` and `player->worn_dirty` feed the
-appearance path and two selftests, `bank.dirty` feeds `mock230_bank_flush`.
-Those are passed in (`mock230_container_adopt`) so there is **one** flag per
+appearance path and two selftests, `bank.dirty` feeds `ToriRSServer_BankFlush`.
+Those are passed in (`ToriRSServer_ContainerAdopt`) so there is **one** flag per
 container rather than two that can disagree. `appearance` is a row flag, so
-the worn container raises `MOCK230_PMASK_APPEARANCE` from inside the mutator —
+the worn container raises `TORIRSSERVER_PMASK_APPEARANCE` from inside the mutator —
 the two places that used to remember it by hand no longer can forget.
 
 ## 4. What resolves where — and the hole
 
-`mock230_container_scope(inv_id)` returns `MOCK230_CONTAINER_PLAYER` for
+`ToriRSServer_ContainerScope(inv_id)` returns `TORIRSSERVER_CONTAINER_PLAYER` for
 everything, and that is a **missing input, not a decision**:
 
 - LostCity reads `scope` from its **server-side** `data/pack/server/inv.dat`
@@ -118,15 +118,15 @@ is the concrete reason `shop` is still blocked rather than half-built.
 
 ## 5. Sizes come from the cache, not from C
 
-`mock230_bank.c`'s `load_inv_sizes()` decodes config group 5 for every file id
-at boot (`mock230_boot.c`, before any player exists) and
-`mock230_bank_inv_size(int)` answers any id. Measured: **1,026 invs, every one
+`torirs_server_bank.c`'s `load_inv_sizes()` decodes config group 5 for every file id
+at boot (`torirs_server_boot.c`, before any player exists) and
+`ToriRSServer_BankInvSize(int)` answers any id. Measured: **1,026 invs, every one
 carrying an explicit `size=`**; `bank` 1410, `collection_transmit` 500,
 `tradeoffer` 28, `inv` 28, `worn` 14.
 
-**`MOCK230_BANK_SLOTS = 1220` was a clamp wearing a fallback's comment.**
-`mock230_bank_init_player` read `if( size <= 0 || size > MOCK230_BANK_SLOTS )
-size = MOCK230_BANK_SLOTS;` — the second half is not a no-cache fallback, and
+**`TORIRSSERVER_BANK_SLOTS = 1220` was a clamp wearing a fallback's comment.**
+`ToriRSServer_BankInitPlayer` read `if( size <= 0 || size > TORIRSSERVER_BANK_SLOTS )
+size = TORIRSSERVER_BANK_SLOTS;` — the second half is not a no-cache fallback, and
 the cache says **1410**, so every bank this server ever allocated was **190
 slots short of the container the client walks**. The allocation is a `calloc`;
 there was never a ceiling for it to enforce. The `>` half is gone; the `<= 0`
@@ -147,8 +147,8 @@ login bind paints `wornitems`, and `~equipment_refresh` also
 overwrite the login binding; after stats closed, unequips still said "You
 remove X" but sent no `UPDATE_INV_*`, so the worn tab kept stale icons.
 
-`phase_client_out` runs **one loop** (`mock230_container_flush`) over the
-rows, replacing two hardcoded `mock230_send_inv_partial` calls that named the
+`phase_client_out` runs **one loop** (`ToriRSServer_ContainerFlush`) over the
+rows, replacing two hardcoded `ToriRSServer_SendInvPartial` calls that named the
 backpack and the worn set. For each dirty (or firstSeen) row it emits
 partial/full to **every** listener, then cleans once. Partial when `per_slot`,
 full otherwise, trimmed to the used prefix (UPDATE_INV_FULL clears everything
@@ -156,7 +156,7 @@ past the capacity it carries). Rows with no listeners still get cleaned, so a
 container written while its interface was closed does not re-transmit the
 moment something binds — the bind's own full update already covered it.
 Unbound rows that carry an external `dirty_ref` are left dirty: that flush
-owns the bit (`mock230_bank_flush` for the bank).
+owns the bit (`ToriRSServer_BankFlush` for the bank).
 
 **The bank is deliberately not bound through the registry.** Its transmit is
 gated on `bank.open` and carries tab bookkeeping the generic binding does not
@@ -168,11 +168,11 @@ stage's.
 
 ## 7. Persistence
 
-`mock230_save.c` writes `[inv]`, `[worn]` and `[bank]` by name (a person
+`torirs_server_save.c` writes `[inv]`, `[worn]` and `[bank]` by name (a person
 hand-editing a save is looking for those, and an old file still loads) and
 every other registry row as `[container.<inv_id>]`. The test that separates
 them is **`owns_items`**, not an id — no inv id in the loop. Load resolves the
-section through `mock230_container_resolve`, which creates the row: on a real
+section through `ToriRSServer_ContainerResolve`, which creates the row: on a real
 login it does not exist until the save recreates it.
 
 ## 8. The compiler defect this turned up
@@ -189,7 +189,7 @@ all. `(inv $x)` therefore recorded its param type as `int`.
 
 Nothing in a compiled script could notice: an inv rides the int stack either
 way. The only consumer that reads `param_types` back is
-`mock230_scripts_run_debugproc`, which resolves each word through the pack its
+`ToriRSServer_ScriptsRunDebugproc`, which resolves each word through the pack its
 type names — so with `inv` recorded as `int` it ran
 `strtol("collection_transmit")` and passed 0. `inv_size(0)` is 13, and the
 symptom was a plausible sentence about a 13-slot container.
@@ -222,7 +222,7 @@ lane has no reference for.
 
 ## 10. Bounds
 
-`MOCK230_CONTAINER_MAX = 16` per player, same for the world table. A storage
+`TORIRSSERVER_CONTAINER_MAX = 16` per player, same for the world table. A storage
 ceiling, not a container count — the reference's `Player.invs` is a Map.
 Overflowing it is reported on stderr and resolves to NULL; every ServerScript
 container op **aborts** on NULL rather than returning a plausible zero, which

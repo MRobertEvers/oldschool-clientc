@@ -2,8 +2,8 @@
  * The inv domain's *moves* — one container to another, and a container to the
  * floor.
  *
- * Sixth of the per-domain opcode files (mock230_ops_db.c is the first and its
- * header states the contract): `mock230_script_command` offers each domain the
+ * Sixth of the per-domain opcode files (torirs_server_ops_db.c is the first and its
+ * header states the contract): `ToriRSServer_ScriptCommand` offers each domain the
  * opcode in turn and each returns 1 when it handled it.
  *
  * Where LostCity puts it: engine, `engine/src/engine/script/handlers/InvOps.ts`
@@ -17,12 +17,12 @@
  * ------------------------------------------------------------------
  *
  * `inv_moveitem` and its `_cert` / `_uncert` siblings moved here from
- * mock230_scripts.c's switch **unchanged in their three bank arms**, and grew a
+ * torirs_server_scripts.c's switch **unchanged in their three bank arms**, and grew a
  * fourth: a generic container-to-container move. The three bank arms come
  * first, byte for byte, so that no bank behaviour can change by this file
  * existing; the generic arm is what they used to fall past into
  *
- *     mock230: inv_moveitem %d -> %d is not modelled
+ *     torirsserver: inv_moveitem %d -> %d is not modelled
  *
  * which is a printf and a silent no-op, and which every reference equip and
  * unequip path walks straight into (`inv_moveitem(inv, worn, …)`,
@@ -32,8 +32,8 @@
  *
  * The rest of the family — `inv_add`, `inv_del`, `inv_delslot`, `inv_getobj`,
  * `inv_itemspace`, `inv_movetoslot`, `inv_size`, `inv_total` … — stays in
- * mock230_scripts.c. They predate the split and moving them is a second change
- * wearing this one's clothes; `mock230_ops_obj.c` says the same about `oc_name`.
+ * torirs_server_scripts.c. They predate the split and moving them is a second change
+ * wearing this one's clothes; `torirs_server_ops_obj.c` says the same about `oc_name`.
  * New inv opcodes land here.
  *
  * ------------------------------------------------------------------
@@ -48,17 +48,17 @@
  * otherwise.
  *
  * The duration is the reference's literal `200` in two of the three. Here it is
- * `mock230_ids()->lootdrop_duration`, which is content's `^lootdrop_duration`
+ * `ToriRSServer_Ids()->lootdrop_duration`, which is content's `^lootdrop_duration`
  * and is 200 — the same number, resolved through the pack rather than restated
  * in C, which is PORTING_GUIDE §2.4 item 2. `inv_dropslot` takes its duration
  * as an argument in both trees and does not need it.
  */
 
-#include "mock230.h"
-#include "mock230_bank.h"
-#include "mock230_container.h"
-#include "mock230_ids.h"
-#include "mock230_shop.h"
+#include "torirs_server.h"
+#include "torirs_server_bank.h"
+#include "torirs_server_container.h"
+#include "torirs_server_ids.h"
+#include "torirs_server_shop.h"
 
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -76,39 +76,39 @@
  */
 static int
 spill_to_floor(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int obj_id,
     int count,
     int duration)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int last = -1;
 
     if( count <= 0 )
         return -1;
-    if( !mock230_objinfo(obj_id)->stackable && count > 1 )
+    if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
     {
         for( int i = 0; i < count; i++ )
-            last = mock230_world_obj_add(srv, obj_id, 1, player->x, player->z, player->level,
+            last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, player->x, player->z, player->level,
                                          duration);
         return last;
     }
-    return mock230_world_obj_add(srv, obj_id, count, player->x, player->z, player->level,
+    return ToriRSServer_WorldObjAdd(srv, obj_id, count, player->x, player->z, player->level,
                                  duration);
 }
 
 /** The container `inv_id` names, aborting the script having said so. */
-static struct Mock230Container*
+static struct ToriRSServerContainer*
 container(
     struct SSVM_State* state,
     int32_t inv_id,
     int opcode)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player =
-        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
-    struct Mock230Container* row =
-        srv ? mock230_container_resolve(srv, player ? player : srv->active_player, inv_id) : NULL;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    struct ToriRSServerPlayer* player =
+        (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+    struct ToriRSServerContainer* row =
+        srv ? ToriRSServer_ContainerResolve(srv, player ? player : srv->active_player, inv_id) : NULL;
 
     if( !row )
         SSVM_Abort(state, "%s on unknown container %d", SSVM_OpcodeName(opcode), (int)inv_id);
@@ -120,7 +120,7 @@ container(
  *  passes. */
 static int
 container_del(
-    struct Mock230Container* row,
+    struct ToriRSServerContainer* row,
     int obj_id,
     int count)
 {
@@ -132,7 +132,7 @@ container_del(
             continue;
         if( row->items[i].count > remaining )
         {
-            mock230_container_set(row, i, obj_id, row->items[i].count - remaining);
+            ToriRSServer_ContainerSet(row, i, obj_id, row->items[i].count - remaining);
             remaining = 0;
         }
         else
@@ -141,19 +141,19 @@ container_del(
             /* Not `set(row, i, -1, 0)`: a shop's baseline slot empties to a
              * count of 0 and stays. This is the path a buy takes
              * (`inv_moveitem_uncert(%shop, inv, $obj, 1)`). */
-            mock230_container_clear_slot(row, i);
+            ToriRSServer_ContainerClearSlot(row, i);
         }
     }
     return count - remaining;
 }
 
 int
-mock230_ops_inv(
+ToriRSServer_OpsInv(
     struct SSVM_State* state,
     int opcode,
     int dot)
 {
-    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
     (void)dot; /* SSVM_Active selects the dotted slot from state->dot. */
 
@@ -183,8 +183,8 @@ mock230_ops_inv(
         int32_t from_inv;
         int32_t to_inv;
         int32_t from_slot;
-        struct Mock230Container* from;
-        struct Mock230Container* to;
+        struct ToriRSServerContainer* from;
+        struct ToriRSServerContainer* to;
         int obj_id;
         int count;
         int moved;
@@ -210,16 +210,16 @@ mock230_ops_inv(
         }
         {
             /* A single unstackable unit carries its vars to wherever it
-             * lands — see mock230_item_vars_copy. Snapshot before the source
+             * lands — see ToriRSServer_ItemVarsCopy. Snapshot before the source
              * slot is cleared; container_set would otherwise wipe them. */
-            struct Mock230Item saved = from->items[from_slot];
+            struct ToriRSServerItem saved = from->items[from_slot];
             int landed_slot = -1;
 
-            mock230_container_set(from, (int)from_slot, -1, 0);
-            moved = mock230_container_add_out_slot(to, obj_id, count, 0, &landed_slot);
-            spill_to_floor(srv, obj_id, count - moved, mock230_ids()->lootdrop_duration);
+            ToriRSServer_ContainerSet(from, (int)from_slot, -1, 0);
+            moved = ToriRSServer_ContainerAddOutSlot(to, obj_id, count, 0, &landed_slot);
+            spill_to_floor(srv, obj_id, count - moved, ToriRSServer_Ids()->lootdrop_duration);
             if( landed_slot >= 0 )
-                mock230_item_vars_copy(&to->items[landed_slot], &saved);
+                ToriRSServer_ItemVarsCopy(&to->items[landed_slot], &saved);
         }
         return 1;
     }
@@ -250,7 +250,7 @@ mock230_ops_inv(
         int32_t coord;
         int32_t slot;
         int32_t duration;
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
         int obj_id;
         int count;
         int last = -1;
@@ -273,27 +273,27 @@ mock230_ops_inv(
             SSVM_Abort(state, "inv_dropslot: slot %d is empty", (int)slot);
             return 1;
         }
-        mock230_container_set(row, (int)slot, -1, 0);
-        if( !mock230_objinfo(obj_id)->stackable && count > 1 )
+        ToriRSServer_ContainerSet(row, (int)slot, -1, 0);
+        if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
         {
             for( int i = 0; i < count; i++ )
-                last = mock230_world_obj_add(srv, obj_id, 1, mock230_coord_x(coord),
-                                             mock230_coord_z(coord), mock230_coord_level(coord),
+                last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, ToriRSServer_CoordX(coord),
+                                             ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                              (int)duration);
         }
         else
         {
-            last = mock230_world_obj_add(srv, obj_id, count, mock230_coord_x(coord),
-                                         mock230_coord_z(coord), mock230_coord_level(coord),
+            last = ToriRSServer_WorldObjAdd(srv, obj_id, count, ToriRSServer_CoordX(coord),
+                                         ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                          (int)duration);
         }
         /* `state.activeObj = floorObj; state.pointerAdd(ActiveObj)` — the last
          * pile, because the reference's loop assigns on every iteration. The
-         * handle rather than the slot, for the reason mock230_ops_obj.c's
+         * handle rather than the slot, for the reason torirs_server_ops_obj.c's
          * header gives. */
         if( last >= 0 )
             SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
-                           (void*)mock230_world_obj_handle(srv, last));
+                           (void*)ToriRSServer_WorldObjHandle(srv, last));
         return 1;
     }
 
@@ -316,7 +316,7 @@ mock230_ops_inv(
      * Three differences from the reference, all the pre-existing gaps its
      * neighbours above already name: no `wealth_event`, no `invType.protect` /
      * scope check (only cache-native inv size is declared), and no receiver on the resulting pile
-     * (`mock230_world_obj_add` has no receiver, so the drop is public — the same
+     * (`ToriRSServer_WorldObjAdd` has no receiver, so the drop is public — the same
      * gap `obj_find` states).
      *
      * Unlike `inv_dropslot` this does *not* make the pile the active obj: the
@@ -325,7 +325,7 @@ mock230_ops_inv(
     case SS_OP_INV_DROPITEM_DELAYED:
     {
         int32_t values[6];
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
         int removed;
 
         for( int i = 5; i >= 0; i-- )
@@ -345,10 +345,10 @@ mock230_ops_inv(
         removed = container_del(row, (int)values[2], (int)values[3]);
         if( removed <= 0 )
             return 1;
-        mock230_world_obj_delayed_queue(srv, (int)values[5], (int)values[4], (int)values[2],
-                                        removed, mock230_coord_x(values[1]),
-                                        mock230_coord_z(values[1]),
-                                        mock230_coord_level(values[1]));
+        ToriRSServer_WorldObjDelayedQueue(srv, (int)values[5], (int)values[4], (int)values[2],
+                                        removed, ToriRSServer_CoordX(values[1]),
+                                        ToriRSServer_CoordZ(values[1]),
+                                        ToriRSServer_CoordLevel(values[1]));
         return 1;
     }
 
@@ -362,7 +362,7 @@ mock230_ops_inv(
         int32_t inv_id;
         int32_t coord;
         int32_t duration;
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
         int last = -1;
 
         if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &coord) ||
@@ -378,24 +378,24 @@ mock230_ops_inv(
 
             if( obj_id < 0 || count <= 0 )
                 continue;
-            mock230_container_set(row, slot, -1, 0);
-            if( !mock230_objinfo(obj_id)->stackable && count > 1 )
+            ToriRSServer_ContainerSet(row, slot, -1, 0);
+            if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
             {
                 for( int i = 0; i < count; i++ )
-                    last = mock230_world_obj_add(srv, obj_id, 1, mock230_coord_x(coord),
-                                                 mock230_coord_z(coord),
-                                                 mock230_coord_level(coord), (int)duration);
+                    last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, ToriRSServer_CoordX(coord),
+                                                 ToriRSServer_CoordZ(coord),
+                                                 ToriRSServer_CoordLevel(coord), (int)duration);
             }
             else
             {
-                last = mock230_world_obj_add(srv, obj_id, count, mock230_coord_x(coord),
-                                             mock230_coord_z(coord), mock230_coord_level(coord),
+                last = ToriRSServer_WorldObjAdd(srv, obj_id, count, ToriRSServer_CoordX(coord),
+                                             ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                              (int)duration);
             }
         }
         if( last >= 0 )
             SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
-                           (void*)mock230_world_obj_handle(srv, last));
+                           (void*)ToriRSServer_WorldObjHandle(srv, last));
         return 1;
     }
 
@@ -407,7 +407,7 @@ mock230_ops_inv(
      * moved here unchanged. The cert pair is what makes a bank hold one stack
      * of an item rather than two: depositing un-notes on the way in, and
      * withdrawing notes on the way out only if the caller asked for it. Both
-     * directions go through mock230_bank, which owns the space checks and their
+     * directions go through ToriRSServer_Bank, which owns the space checks and their
      * three messages.
      *
      * The generic arm is appended **after** them, so the bank cannot change
@@ -438,7 +438,7 @@ mock230_ops_inv(
         if( !SSVM_PopInt(state, &count) || !SSVM_PopInt(state, &obj_id) ||
             !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
             return 1;
-        if( from_inv == mock230_ids()->inv_bank )
+        if( from_inv == ToriRSServer_Ids()->inv_bank )
         {
             int slot = -1;
 
@@ -454,40 +454,40 @@ mock230_ops_inv(
                 int saved = srv->active_player->bank.note_mode;
 
                 srv->active_player->bank.note_mode = opcode == SS_OP_INV_MOVEITEM_CERT;
-                mock230_bank_withdraw(srv, slot, (int)count);
+                ToriRSServer_BankWithdraw(srv, slot, (int)count);
                 srv->active_player->bank.note_mode = saved;
             }
             return 1;
         }
-        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_backpack )
+        if( to_inv == ToriRSServer_Ids()->inv_bank && from_inv == ToriRSServer_Ids()->inv_backpack )
         {
-            for( int i = 0; i < MOCK230_INV_SLOTS && count > 0; i++ )
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS && count > 0; i++ )
             {
                 if( srv->active_player->inv[i].obj_id != obj_id )
                     continue;
-                count -= mock230_bank_deposit(srv, i, (int)count);
+                count -= ToriRSServer_BankDeposit(srv, i, (int)count);
             }
             return 1;
         }
-        if( to_inv == mock230_ids()->inv_bank && from_inv == mock230_ids()->inv_worn )
+        if( to_inv == ToriRSServer_Ids()->inv_bank && from_inv == ToriRSServer_Ids()->inv_worn )
         {
             /* Straight off the body and into the bank, which is what the
              * deposit-worn button is. Going via the backpack would need a free
              * slot the player may not have. */
-            for( int i = 0; i < MOCK230_WORN_SLOTS && count > 0; i++ )
+            for( int i = 0; i < TORIRSSERVER_WORN_SLOTS && count > 0; i++ )
             {
                 if( srv->active_player->worn[i].obj_id != obj_id )
                     continue;
-                count -= mock230_bank_deposit_worn(srv, i, (int)count);
+                count -= ToriRSServer_BankDepositWorn(srv, i, (int)count);
             }
             return 1;
         }
         {
-            struct Mock230Container* from = container(state, from_inv, opcode);
-            struct Mock230Container* to = container(state, to_inv, opcode);
+            struct ToriRSServerContainer* from = container(state, from_inv, opcode);
+            struct ToriRSServerContainer* to = container(state, to_inv, opcode);
             int taken;
             int moved;
-            struct Mock230Item saved;
+            struct ToriRSServerItem saved;
             int carry_vars = 0;
             int landed_slot = -1;
             int dest_obj = (int)obj_id;
@@ -505,13 +505,13 @@ mock230_ops_inv(
              * took nothing, and the whole sale was a click that did nothing.
              *
              * The link itself is the same one `oc_cert` / `oc_uncert` read
-             * (mock230_scripts.c): a note record names the item it stands for,
+             * (torirs_server_scripts.c): a note record names the item it stands for,
              * and `cert_id` is the reverse index. Both are identity for an obj
              * with no other form, so every non-noted move — every equip,
              * unequip and ordinary sale — is byte for byte what it was.
              */
             {
-                const struct Mock230ObjInfo* info = mock230_objinfo((int)obj_id);
+                const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo((int)obj_id);
 
                 if( opcode == SS_OP_INV_MOVEITEM_UNCERT && info->noted_template >= 0 &&
                     info->noted_id >= 0 )
@@ -521,11 +521,11 @@ mock230_ops_inv(
             }
             /* A move of exactly one unstackable unit — every equip/unequip
              * call is this shape — carries that slot's vars to wherever it
-             * lands (mock230_item_vars_copy). Snapshot before container_del
+             * lands (ToriRSServer_ItemVarsCopy). Snapshot before container_del
              * clears the source; container_del picks the same first matching
              * slot this loop does, so the snapshot and the deletion agree on
              * which slot. */
-            if( count == 1 && !mock230_objinfo((int)obj_id)->stackable )
+            if( count == 1 && !ToriRSServer_ObjInfo((int)obj_id)->stackable )
             {
                 for( int i = 0; i < from->slots; i++ )
                 {
@@ -540,10 +540,10 @@ mock230_ops_inv(
             taken = container_del(from, (int)obj_id, (int)count);
             if( taken <= 0 )
                 return 1;
-            moved = mock230_container_add_out_slot(to, dest_obj, taken, 0, &landed_slot);
-            spill_to_floor(srv, dest_obj, taken - moved, mock230_ids()->lootdrop_duration);
+            moved = ToriRSServer_ContainerAddOutSlot(to, dest_obj, taken, 0, &landed_slot);
+            spill_to_floor(srv, dest_obj, taken - moved, ToriRSServer_Ids()->lootdrop_duration);
             if( carry_vars && landed_slot >= 0 )
-                mock230_item_vars_copy(&to->items[landed_slot], &saved);
+                ToriRSServer_ItemVarsCopy(&to->items[landed_slot], &saved);
         }
         return 1;
     }
@@ -573,12 +573,12 @@ mock230_ops_inv(
      * The two gaps its neighbours above already name apply here too and are not
      * re-stated per case: no `invType.protect` / scope check (the Phase-6a inv
      * field intentionally has no server policy), and `$find` / `$replace` are not validated against
-     * `ObjTypeValid` because `mock230_objinfo` answers for every id.
+     * `ObjTypeValid` because `ToriRSServer_ObjInfo` answers for every id.
      */
     case SS_OP_INV_CHANGESLOT:
     {
         int32_t values[4];
-        struct Mock230Container* row;
+        struct ToriRSServerContainer* row;
 
         /* Call is inv_changeslot(inv, find, replace, replace_count) — pop into
          * values[0..3]. */
@@ -606,10 +606,10 @@ mock230_ops_inv(
             if( row->items[slot].obj_id != (int)values[1] )
                 continue;
             /* A zero replace count releases the cell rather than parking an obj
-             * at a count no free-slot scan will reuse; `mock230_container_set`
+             * at a count no free-slot scan will reuse; `ToriRSServer_ContainerSet`
              * owns that rule and the two containers it does not apply to
              * (`zero_count_is_meaningful`). */
-            mock230_container_set(row, slot, (int)values[2], (int)values[3]);
+            ToriRSServer_ContainerSet(row, slot, (int)values[2], (int)values[3]);
             return 1;
         }
         return 1;
@@ -624,7 +624,7 @@ mock230_ops_inv(
      * reads as "no adjustment" rather than as an error — the general stores'
      * `allstock=yes` slots are exactly that case.
      *
-     * A pure read off the definition table `mock230_shop.c` parsed at content
+     * A pure read off the definition table `torirs_server_shop.c` parsed at content
      * load; it does not touch the container, so an inv with no shop
      * definition at all (every non-shop container) simply answers -1.
      */
@@ -635,7 +635,7 @@ mock230_ops_inv(
 
         if( !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &inv_id) )
             return 1;
-        SSVM_PushInt(state, mock230_shop_stockbase(inv_id, obj_id));
+        SSVM_PushInt(state, ToriRSServer_ShopStockbase(inv_id, obj_id));
         return 1;
     }
 
@@ -648,7 +648,7 @@ mock230_ops_inv(
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
-        SSVM_PushInt(state, mock230_shop_allstock(inv_id));
+        SSVM_PushInt(state, ToriRSServer_ShopAllstock(inv_id));
         return 1;
     }
 

@@ -219,9 +219,9 @@ def run_probe(args: argparse.Namespace, provision: str) -> str:
             env.pop(key, None)
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "420",
                 "TORIRS_NET_DEBUG": "1",

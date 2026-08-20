@@ -51,8 +51,8 @@ LEDGER_DIR = os.path.join(CONTENT, "npc_stats")
 NPC_CONFIGS_DIR = os.path.join(CONTENT, "server", "scripts", "npc", "configs")
 # Named `combat_stats`, not `npc_stats`, so it sorts alphabetically ahead of
 # `npc_anims.generated.npc` in the same directory: `walk_configs`
-# (mock230_content.c) now visits `.npc` files in sorted order and
-# `mock230_content_npc()` resolves an id to the *first* matching `[gameval]`
+# (torirs_server_content.c) now visits `.npc` files in sorted order and
+# `ToriRSServer_ContentNpc()` resolves an id to the *first* matching `[gameval]`
 # block it finds, so of the two generated files this one has to load first —
 # it is the one `load_npc_anims_extra_lines` has already made a complete
 # superset of the other for every npc both cover.
@@ -289,7 +289,7 @@ def extract_fields(fields: dict[str, str], cache_combat_level: int, cache_size: 
 # generated one must not be compiled beside it.
 # ---------------------------------------------------------------------------
 
-# `mock230_content_section_header` (mock230_content.c) accepts anything
+# `ToriRSServer_ContentSectionHeader` (torirs_server_content.c) accepts anything
 # between `[` and `]` as a block name — no character class at all. A regex
 # narrower than that (this one used to be `[a-z0-9_]+`) silently fails to
 # recognize a real block like `[mmsnailround_red+black]` as existing, which is
@@ -366,7 +366,7 @@ def find_existing_blocks(content_dir: str, exclude_paths: set[str]) -> dict[str,
     """gameval -> the file that already declares a `[gameval]` block for it,
     anywhere in the tree.
 
-    Not narrowed to `hitpoints=`. `mock230_content_npc()` (mock230_content.c)
+    Not narrowed to `hitpoints=`. `ToriRSServer_ContentNpc()` (torirs_server_content.c)
     resolves an npc's def as the *first* `[gameval]` block found across every
     `.npc` file in the tree — two files naming the same npc do not merge, the
     second is simply never reached — so a block with no `hitpoints=` still has
@@ -605,12 +605,12 @@ def main() -> None:
     # An OVERLAY is not a replacement, and skipping an npc for one DELETES the
     # stats this file is the only source of.
     #
-    # `find_existing_blocks` was written when `mock230_content_npc()` resolved
+    # `find_existing_blocks` was written when `ToriRSServer_ContentNpc()` resolved
     # an npc to the FIRST `[gameval]` block in the tree, so any other block
     # meant this file's could never be reached and emitting it was pointless.
     # The loader no longer works that way: it reads `*.generated.npc` first and
     # authored `.npc` files second, seeds a def ONCE and applies every later
-    # block to the same record (mock230_content.c, load_npc_generated_config /
+    # block to the same record (torirs_server_content.c, load_npc_generated_config /
     # load_npc_authored_config). Authored files are overlays on top of this one
     # now, not competitors with it, so a block carrying only
     # `moverestrict=nomove` still wants the stats it is overlaying.
@@ -796,7 +796,7 @@ def main() -> None:
         "// docs/NPC_WIKI_STATS_PLAN.md and the per-npc ledger under npc_stats/.",
         "//",
         "// Named to sort before npc_anims.generated.npc (see CONFIG_OUT in",
-        "// gen_npc_stats.py) -- mock230_content_npc() resolves an npc id to the",
+        "// gen_npc_stats.py) -- ToriRSServer_ContentNpc() resolves an npc id to the",
         "// FIRST [gameval] block found across every .npc file, so of two files",
         "// naming the same npc, only the first-loaded one is ever read. Every",
         "// block below that npc_anims.generated.npc also covers restates that",

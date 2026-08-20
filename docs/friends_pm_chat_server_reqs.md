@@ -3,7 +3,7 @@
 > **DONE — this is the worked example for the series, and it is superseded by
 > [`FRIENDS_PRIVATE_CHAT.md`](FRIENDS_PRIVATE_CHAT.md) and
 > [`FRIENDS_PRIVATE_CHAT_CONTENT.md`](FRIENDS_PRIVATE_CHAT_CONTENT.md).**
-> `mock230_friends.{c,h}`, interfaces 429/432/163, packets 15/21/29/56, 18 CS2
+> `ToriRSServer_Friends.{c,h}`, interfaces 429/432/163, packets 15/21/29/56, 18 CS2
 > host ops, and content under `server/scripts/interface_friends/` with
 > `~friends_login` at `player/login.rs2:49`; `make -C src test-social` green as
 > of 2026-08-02. §5's "zero rows in `packetout.h` for any of the five names"
@@ -220,15 +220,15 @@ state, name codec) but dead weight for the CS2 target until (a)
 - **Push model**: any state change for player X triggers
   `broadcastWorldToFollowers` — every player who has X as a friend gets a
   fresh row via `sendPlayerWorldUpdate`. This is what makes "friend just
-  logged in" appear live without polling, and is the piece a mock230 port
+  logged in" appear live without polling, and is the piece a ToriRSServer port
   most needs to replicate *structurally* (a single-connection server today
   has no way to express "notify everyone who has X as a friend").
-- **Minimal mock230 equivalent, scoped from this**: not per-connection state
+- **Minimal ToriRSServer equivalent, scoped from this**: not per-connection state
   — but also **not** LostCity's process/worker-thread split, since neither
   pressure it solves (keeping DB I/O and cross-world visibility off a tick
-  loop, serving many world processes from one service) exists yet in mock230
+  loop, serving many world processes from one service) exists yet in ToriRSServer
   (single active connection per `docs/PORTING_GUIDE.md` §6.1, no live
-  persistence per §2.5's note that `mock230_save.c` has no callers). What's
+  persistence per §2.5's note that `torirs_server_save.c` has no callers). What's
   worth porting now is the **data model and the policy shape** — a
   name→(world, friends, ignores, chat-mode) table, an `is_visible_to`
   equivalent, and add/del mutators that decide who needs a repaint — as a

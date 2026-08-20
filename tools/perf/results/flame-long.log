@@ -2,31 +2,31 @@ torirs: dat2 cache=cache.osrs239 iface=161
 torirs_perf: enabled (ring=2048 window=1000 budget=20ms)
 audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
 audio: no device; running silent
-mock230: features era=osrs approach=rect op_nearest=10
-mock230: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
-mock230: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
-mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
-mock230: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
-mock230: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
-mock230: 2872 varp(s) carry varbits
-mock230: varbit table loaded (19008 records from cache.osrs239)
-mock230: 1117 param types from configs/all.param
-mock230: 5862 enums from configs/all.enum
-mock230: content loaded (213779 symbols, 476 constants, 44 npc defs, 2204 loc defs, 201 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
-mock230: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
-mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
-mock230: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
-mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (817 overlay authored defs, 24 field value(s) text-only, 113 archive(s) over records the runtime never loads)
-mock230: db tables loaded (257 tables, 15608 rows from cache.osrs239; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
-mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+torirsserver: features era=osrs approach=rect op_nearest=10
+torirsserver: obj metadata loaded (33747 records from cache.osrs239, 53853 params in 1262 KB)
+torirsserver: npc metadata loaded (16292 records from cache.osrs239, 29869 params in 700 KB)
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+torirsserver: loc configs loaded (62194 records from cache.osrs239; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+torirsserver: struct params loaded (3988 records from cache.osrs239, 20751 rows in 877 KB)
+torirsserver: 2872 varp(s) carry varbits
+torirsserver: varbit table loaded (19008 records from cache.osrs239)
+torirsserver: 1117 param types from configs/all.param
+torirsserver: 5862 enums from configs/all.enum
+torirsserver: content loaded (213779 symbols, 476 constants, 44 npc defs, 2204 loc defs, 201 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+torirsserver: server band: npc.wanderrange stays text-loaded on 2 record(s) — the band has no wire for it
+torirsserver: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntmode stays text-loaded on 10 record(s) — the band has no wire for it
+torirsserver: server band loaded: 2975 archive(s) verified identical to the text parse and applied (817 overlay authored defs, 24 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+torirsserver: db tables loaded (257 tables, 15608 rows from cache.osrs239; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+torirsserver: bank tables loaded (19008 varbits, bank=1410 slots)
 Dat2SpriteLoadByName: archive 'mapfunction' not found in sprites table
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-mock230: login user='testc' session=ok
-mock230: 1029 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
-mock230: 1 opcode(s) this content uses are not implemented:
+torirsserver: login user='testc' session=ok
+torirsserver: 1029 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 1 opcode(s) this content uses are not implemented:
   LINEOFWALK                   first wanted by [opheld1,mithril_seed]
-mock230: 3 engine fallback(s) still answer triggers content does not bind
-mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
 net: no decoder for wire opcode 108 (osrs230) — dropped
 textures: sprite-backed system (no materials table)
 Failed to load dat2 texture 65535

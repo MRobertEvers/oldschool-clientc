@@ -167,7 +167,7 @@ def find_opnpc3_blocks(gameval: str) -> list[tuple[str, int, int, bool]]:
     `generalshop.rs2` triggers are inline, `line.strip() != header` never
     matched them, so they read as "no existing trigger" and a freshly
     generated file declared the same `[opnpc3,...]` a second time — the
-    duplicate `make mock230-scripts` caught.
+    duplicate `make torirsserver-scripts` caught.
     """
     header = f"[opnpc3,{gameval}]"
     hits: list[tuple[str, int, int, bool]] = []

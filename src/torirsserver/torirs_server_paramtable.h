@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_PARAMTABLE_H
-#define SRC_NET_MOCK_MOCK230_PARAMTABLE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_PARAMTABLE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_PARAMTABLE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -11,7 +11,7 @@ struct RSCache_Params;
  * that carries a param map.
  *
  * There were two copies of this before — `struct ObjParam` in
- * mock230_objinfo.c and `struct NpcParam` in mock230_npcinfo.c, each with its
+ * torirs_server_objinfo.c and `struct NpcParam` in torirs_server_npcinfo.c, each with its
  * own `compare_*`, its own `add_param`, its own `read_params` and its own
  * `qsort`. loc and struct would have made four. That is four chances to
  * reintroduce the one bug in this family that does not announce itself:
@@ -25,15 +25,15 @@ struct RSCache_Params;
  *   Wrong everywhere, loud nowhere.
  *
  * So the sort is explicit, it happens once after the whole table is built, and
- * `mock230_paramtable_find` asserts nothing about construction order.
+ * `ToriRSServer_ParamTableFind` asserts nothing about construction order.
  *
  * `sval` is non-NULL exactly when the cache marked the entry a string, and that
  * is a different question from what `configs/all.param` *declares* the param to
- * be. Choose a stack by the declaration (`mock230_content_param_type`); read
+ * be. Choose a stack by the declaration (`ToriRSServer_ContentParamType`); read
  * the value by this. When the two disagree the record is wrong and saying so
- * beats guessing which half to believe — see `mock230_push_typed_param`.
+ * beats guessing which half to believe — see `ToriRSServer_PushTypedParam`.
  */
-struct Mock230ParamRow
+struct ToriRSServerParamRow
 {
     /** The obj / npc / loc / struct id this row hangs off. */
     int32_t owner;
@@ -44,9 +44,9 @@ struct Mock230ParamRow
     char* sval;
 };
 
-struct Mock230ParamTable
+struct ToriRSServerParamTable
 {
-    struct Mock230ParamRow* rows;
+    struct ToriRSServerParamRow* rows;
     int count;
     int capacity;
     /** Set by `_sort`, cleared by `_read`. `_find` refuses an unsorted table. */
@@ -65,8 +65,8 @@ struct Mock230ParamTable
  * soon as the decode loop moves on.
  */
 void
-mock230_paramtable_read(
-    struct Mock230ParamTable* table,
+ToriRSServer_ParamTableRead(
+    struct ToriRSServerParamTable* table,
     int owner,
     const struct RSCache_Params* params);
 
@@ -77,33 +77,33 @@ mock230_paramtable_read(
  * uses. A `.loc` block's `param=next_loc_stage,poordooropen` is a param on that
  * record in exactly the sense the cache's own param map is — and until
  * 2026-08-02 it was not: it landed in a private field of
- * `struct Mock230LocDef` that only C could read, so `loc_param(next_loc_stage)`
+ * `struct ToriRSServerLocDef` that only C could read, so `loc_param(next_loc_stage)`
  * — the reference's own line in `doors/scripts/doors.rs2` — answered the
  * declared default instead. An overlay param no script can read is not a param.
  */
 void
-mock230_paramtable_set_int(
-    struct Mock230ParamTable* table,
+ToriRSServer_ParamTableSetInt(
+    struct ToriRSServerParamTable* table,
     int owner,
     int key,
     int ival);
 
 /** Sort by (owner, key). Call once, after the last `_read` / `_set_int`. */
 void
-mock230_paramtable_sort(struct Mock230ParamTable* table);
+ToriRSServer_ParamTableSort(struct ToriRSServerParamTable* table);
 
 /** The row, or NULL when this owner does not carry this param. */
-const struct Mock230ParamRow*
-mock230_paramtable_find(
-    const struct Mock230ParamTable* table,
+const struct ToriRSServerParamRow*
+ToriRSServer_ParamTableFind(
+    const struct ToriRSServerParamTable* table,
     int owner,
     int key);
 
 void
-mock230_paramtable_free(struct Mock230ParamTable* table);
+ToriRSServer_ParamTableFree(struct ToriRSServerParamTable* table);
 
 /** Retained bytes, for the one-line load report each table prints. */
 size_t
-mock230_paramtable_bytes(const struct Mock230ParamTable* table);
+ToriRSServer_ParamTableBytes(const struct ToriRSServerParamTable* table);
 
 #endif

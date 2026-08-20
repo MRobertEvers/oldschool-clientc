@@ -586,7 +586,7 @@ Gate B requires static proof that each cache item option has the correct
 trigger class, no duplicate trigger exists, all symbolic names resolve, every
 queue has the intended player/NPC subject, and all temporary entities have
 explicit ownership/cleanup. `tools/questhelper_extract.py holygrail --check`,
-`make -C src mock230-scripts`, and `mock230_pack --check-only` must pass.
+`make -C src torirsserver-scripts`, and `ToriRSServer_Pack --check-only` must pass.
 
 Gate C requires automated full-route traces plus failure injection at crone
 spawn, napkin/tea delivery, whistle generation/pickup/travel, Titan death,

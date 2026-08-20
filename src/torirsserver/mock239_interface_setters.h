@@ -1,10 +1,10 @@
-#ifndef SRC_NET_MOCK_MOCK239_INTERFACE_SETTERS_H
-#define SRC_NET_MOCK_MOCK239_INTERFACE_SETTERS_H
+#ifndef SRC_TORIRSSERVER_MOCK239_INTERFACE_SETTERS_H
+#define SRC_TORIRSSERVER_MOCK239_INTERFACE_SETTERS_H
 
 /*
  * Fixed-body revision-239 interface setters whose exact bodies need focused
  * coverage.  Keeping these bodies in a small codec makes their byte order
- * independently testable; mock230_wire.c's revision vtable delegates to these
+ * independently testable; torirs_server_wire.c's revision vtable delegates to these
  * functions one-for-one.
  */
 

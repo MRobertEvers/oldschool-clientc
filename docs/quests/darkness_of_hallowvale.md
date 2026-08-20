@@ -329,7 +329,7 @@ identities. Preserve native state values and side fields.
 
 | Area | Required evidence |
 | --- | --- |
-| Static/build | One owner per entity; all symbols; `make -C src mock230-scripts`; `mock230_pack --check-only` |
+| Static/build | One owner per entity; all symbols; `make -C src torirsserver-scripts`; `ToriRSServer_Pack --check-only` |
 | Quest Helper | `python3 tools/questhelper_extract.py darknessofhallowvale --check` |
 | Start | Prerequisite and every stat below/exact/boosted; accept/refuse; no prequest repair |
 | Traversal | Both directions; wrong state/tile/plane; skill fails; relog at every interior |

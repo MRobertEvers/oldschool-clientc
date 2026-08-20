@@ -41,7 +41,7 @@ Each of these alone bricked the session; they were stacked:
    opcode was garbage forever. Fix: `LOGINPROTO_LOGIN_SUCCESS_TAIL` state in
    `src/net/loginproto.c`. Reply 15 = reconnect handoff (single byte, no
    tail); 18/19 are NOT success. Reply 5 = already-logged-in (see gotchas).
-   The mock server (`src/net/mock/mock_server.c`) now emits the 3-byte form.
+   The mock server (`src/torirsserver/mock_server.c`) now emits the 3-byte form.
    *Symptom signature for this class of bug*: `net: dropping unknown wire
    opcode N` runs with size=0 interleaved with occasional plausible packets.
 4. **NPC_INFO slot width** — rev 254 new-NPC block is `gbits(14)` slot,

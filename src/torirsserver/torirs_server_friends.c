@@ -1,8 +1,8 @@
-#include "mock230_friends.h"
+#include "torirs_server_friends.h"
 #include <assert.h>
 
-#include "mock230.h"
-#include "mock230_content.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
 #include "net/jbase37.h"
 
 #include <stddef.h>
@@ -11,7 +11,7 @@
 #include <string.h>
 
 /*
- * See mock230_friends.h for what this is, what the reference does, and why
+ * See torirs_server_friends.h for what this is, what the reference does, and why
  * there is no persistence. This file is the mechanism only: it holds state,
  * answers questions and applies the reference's rules. It writes no packet and
  * knows no opcode — every caller is expected to ask what changed and encode it
@@ -36,10 +36,10 @@
  */
 enum
 {
-    MOCK230_WORLD_ID = 1,
+    TORIRSSERVER_WORLD_ID = 1,
 };
 
-struct Mock230SocialEntry
+struct ToriRSServerSocialEntry
 {
     /** 0 means the slot is free. A valid base-37 name is never 0 —
      *  `base37tostr` calls 0 `invalid_name`. */
@@ -60,7 +60,7 @@ struct Mock230SocialEntry
     int ignore_count;
     int ignore_capacity;
 
-    /** 0 = offline. Non-zero = MOCK230_WORLD_ID. */
+    /** 0 = offline. Non-zero = TORIRSSERVER_WORLD_ID. */
     int world;
 
     int public_mode;
@@ -74,7 +74,7 @@ struct Mock230SocialEntry
     int staff_level;
 };
 
-static struct Mock230SocialEntry g_roster[MOCK230_SOCIAL_ROSTER_MAX];
+static struct ToriRSServerSocialEntry g_roster[TORIRSSERVER_SOCIAL_ROSTER_MAX];
 static int g_roster_count;
 
 /** Message ids start at 1 and never reach 0 again — see the header. */
@@ -112,7 +112,7 @@ name37_is_valid(int64_t name37)
 /* The roster                                                          */
 /* ------------------------------------------------------------------ */
 
-static struct Mock230SocialEntry*
+static struct ToriRSServerSocialEntry*
 entry_find(int64_t name37)
 {
     for( int i = 0; i < g_roster_count; i++ )
@@ -131,22 +131,22 @@ entry_find(int64_t name37)
  * so; recycling would silently forget a list somebody is still holding, which
  * is the worse failure.
  */
-static struct Mock230SocialEntry*
+static struct ToriRSServerSocialEntry*
 entry_get(int64_t name37)
 {
-    struct Mock230SocialEntry* entry = entry_find(name37);
+    struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     if( entry )
         return entry;
-    if( g_roster_count >= MOCK230_SOCIAL_ROSTER_MAX )
+    if( g_roster_count >= TORIRSSERVER_SOCIAL_ROSTER_MAX )
     {
         char name[32];
 
         base37tostr((uint64_t)name37, name, (int)sizeof(name));
         fprintf(stderr,
-                "mock230: the friend roster is full (%d names); `%s` cannot be "
+                "torirsserver: the friend roster is full (%d names); `%s` cannot be "
                 "tracked\n",
-                MOCK230_SOCIAL_ROSTER_MAX, name);
+                TORIRSSERVER_SOCIAL_ROSTER_MAX, name);
         return NULL;
     }
     entry = &g_roster[g_roster_count++];
@@ -157,7 +157,7 @@ entry_get(int64_t name37)
      * reason `isVisibleTo` hides an unknown player: `privateChatByPlayer[x] ??
      * ChatModePrivate.OFF` (FriendServerRepository.ts:344).
      */
-    entry->private_mode = MOCK230_CHAT_PRIVATE_OFF;
+    entry->private_mode = TORIRSSERVER_CHAT_PRIVATE_OFF;
     return entry;
 }
 
@@ -177,8 +177,8 @@ list_index_of(const int64_t* list, int count, int64_t name37)
 /*
  * One content constant, or the storage ceiling.
  *
- * `mock230_content_constant_int` is deliberately not used: it reports a missing
- * constant through the *content error count*, which `mock230_pack` fails on —
+ * `ToriRSServer_ContentConstantInt` is deliberately not used: it reports a missing
+ * constant through the *content error count*, which `ToriRSServer_Pack` fails on —
  * and these three constants do not exist in the content tree yet (this lane
  * cannot write it). Failing the tree's content gate on behalf of a file nobody
  * has written would break every other lane's build, so this reads the raw text
@@ -187,7 +187,7 @@ list_index_of(const int64_t* list, int count, int64_t name37)
 static int
 cap_resolve(const char* name, int ceiling, int* out_missing)
 {
-    const char* text = mock230_content_constant(name);
+    const char* text = ToriRSServer_ContentConstant(name);
     char* end;
     long value;
 
@@ -201,7 +201,7 @@ cap_resolve(const char* name, int ceiling, int* out_missing)
         end++;
     if( end == text || *end || value <= 0 )
     {
-        fprintf(stderr, "mock230: `^%s` is `%s`, which is not a positive number\n", name,
+        fprintf(stderr, "torirsserver: `^%s` is `%s`, which is not a positive number\n", name,
                 text);
         *out_missing += 1;
         return ceiling;
@@ -211,8 +211,8 @@ cap_resolve(const char* name, int ceiling, int* out_missing)
         /* Not clamped silently: content asked for more than the array holds,
          * and the array is the thing that has to grow. */
         fprintf(stderr,
-                "mock230: `^%s` is %ld but this server stores at most %d; "
-                "raise MOCK230_SOCIAL_* in mock230_friends.h\n",
+                "torirsserver: `^%s` is %ld but this server stores at most %d; "
+                "raise TORIRSSERVER_SOCIAL_* in torirs_server_friends.h\n",
                 name, value, ceiling);
         return ceiling;
     }
@@ -228,8 +228,8 @@ caps_resolve(void)
         return;
     g_caps_resolved = 1;
 
-    g_cap_friends = cap_resolve("friend_max", MOCK230_SOCIAL_FRIENDS_MAX, &missing);
-    g_cap_ignores = cap_resolve("ignore_max", MOCK230_SOCIAL_IGNORES_MAX, &missing);
+    g_cap_friends = cap_resolve("friend_max", TORIRSSERVER_SOCIAL_FRIENDS_MAX, &missing);
+    g_cap_ignores = cap_resolve("ignore_max", TORIRSSERVER_SOCIAL_IGNORES_MAX, &missing);
     /*
      * The reference caps the *decoded* private message at 100 characters
      * (MessagePrivateHandler.ts:13). The ceiling used when content is silent is
@@ -240,28 +240,28 @@ caps_resolve(void)
 
     if( missing )
         fprintf(stderr,
-                "mock230: %d friend/ignore cap(s) are not in any .constant — "
+                "torirsserver: %d friend/ignore cap(s) are not in any .constant — "
                 "the lists are limited only by this server's array sizes. "
                 "Content owns these: see docs/FRIENDS_PRIVATE_CHAT.md §2.3.\n",
                 missing);
 }
 
 int
-mock230_friends_cap_friends(void)
+ToriRSServer_FriendsCapFriends(void)
 {
     caps_resolve();
     return g_cap_friends;
 }
 
 int
-mock230_friends_cap_ignores(void)
+ToriRSServer_FriendsCapIgnores(void)
 {
     caps_resolve();
     return g_cap_ignores;
 }
 
 int
-mock230_friends_cap_pm_bytes(void)
+ToriRSServer_FriendsCapPmBytes(void)
 {
     caps_resolve();
     return g_cap_pm_bytes;
@@ -272,7 +272,7 @@ mock230_friends_cap_pm_bytes(void)
 /* ------------------------------------------------------------------ */
 
 void
-mock230_friends_reset(void)
+ToriRSServer_FriendsReset(void)
 {
     for( int i = 0; i < g_roster_count; i++ )
     {
@@ -294,14 +294,14 @@ mock230_friends_reset(void)
 static int
 clamp_private_mode(int mode)
 {
-    if( mode != MOCK230_CHAT_PRIVATE_ON && mode != MOCK230_CHAT_PRIVATE_FRIENDS &&
-        mode != MOCK230_CHAT_PRIVATE_OFF )
-        return MOCK230_CHAT_PRIVATE_ON;
+    if( mode != TORIRSSERVER_CHAT_PRIVATE_ON && mode != TORIRSSERVER_CHAT_PRIVATE_FRIENDS &&
+        mode != TORIRSSERVER_CHAT_PRIVATE_OFF )
+        return TORIRSSERVER_CHAT_PRIVATE_ON;
     return mode;
 }
 
 int
-mock230_friends_login(
+ToriRSServer_FriendsLogin(
     int64_t name37,
     int public_mode,
     int private_mode,
@@ -309,7 +309,7 @@ mock230_friends_login(
     int staff_level)
 {
     static int announced;
-    struct Mock230SocialEntry* entry;
+    struct ToriRSServerSocialEntry* entry;
 
     if( !name37_is_valid(name37) )
         return 0;
@@ -317,26 +317,26 @@ mock230_friends_login(
     if( !entry )
         return 0;
 
-    entry->world = MOCK230_WORLD_ID;
+    entry->world = TORIRSSERVER_WORLD_ID;
     entry->public_mode = public_mode;
     entry->private_mode = clamp_private_mode(private_mode);
     entry->trade_mode = trade_mode;
     entry->staff_level = staff_level;
 
-    if( !announced && getenv("MOCK230_VERBOSE") )
+    if( !announced && getenv("TORIRSSERVER_VERBOSE") )
     {
         announced = 1;
         fprintf(stderr,
-                "mock230: friend and ignore lists are in-memory only; a restart "
+                "torirsserver: friend and ignore lists are in-memory only; a restart "
                 "loses them (docs/FRIENDS_PRIVATE_CHAT.md §6)\n");
     }
     return 1;
 }
 
 void
-mock230_friends_logout(int64_t name37)
+ToriRSServer_FriendsLogout(int64_t name37)
 {
-    struct Mock230SocialEntry* entry = entry_find(name37);
+    struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     if( !entry )
         return;
@@ -347,21 +347,21 @@ mock230_friends_logout(int64_t name37)
 }
 
 int
-mock230_friends_world(int64_t name37)
+ToriRSServer_FriendsWorld(int64_t name37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     return entry ? entry->world : 0;
 }
 
 void
-mock230_friends_set_chat_modes(
+ToriRSServer_FriendsSetChatModes(
     int64_t name37,
     int public_mode,
     int private_mode,
     int trade_mode)
 {
-    struct Mock230SocialEntry* entry;
+    struct ToriRSServerSocialEntry* entry;
 
     if( !name37_is_valid(name37) )
         return;
@@ -374,18 +374,18 @@ mock230_friends_set_chat_modes(
 }
 
 void
-mock230_friends_chat_modes(
+ToriRSServer_FriendsChatModes(
     int64_t name37,
     int* out_public,
     int* out_private,
     int* out_trade)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     if( out_public )
         *out_public = entry ? entry->public_mode : 0;
     if( out_private )
-        *out_private = entry ? entry->private_mode : MOCK230_CHAT_PRIVATE_OFF;
+        *out_private = entry ? entry->private_mode : TORIRSSERVER_CHAT_PRIVATE_OFF;
     if( out_trade )
         *out_trade = entry ? entry->trade_mode : 0;
 }
@@ -409,29 +409,29 @@ mock230_friends_chat_modes(
  * and read by scanning, so a target with no row is simply a row with no
  * friends.
  */
-static struct Mock230SocialEntry*
+static struct ToriRSServerSocialEntry*
 mutation_owner(
     int64_t name37,
     int64_t target37,
-    enum Mock230SocialResult* out_result)
+    enum ToriRSServerSocialResult* out_result)
 {
-    struct Mock230SocialEntry* entry;
+    struct ToriRSServerSocialEntry* entry;
 
     if( !name37_is_valid(name37) || !name37_is_valid(target37) )
     {
-        *out_result = MOCK230_SOCIAL_INVALID_NAME;
+        *out_result = TORIRSSERVER_SOCIAL_INVALID_NAME;
         return NULL;
     }
     if( !entry_get(target37) || !(entry = entry_get(name37)) )
     {
-        *out_result = MOCK230_SOCIAL_NO_ROOM;
+        *out_result = TORIRSSERVER_SOCIAL_NO_ROOM;
         return NULL;
     }
-    *out_result = MOCK230_SOCIAL_OK;
+    *out_result = TORIRSSERVER_SOCIAL_OK;
     return entry;
 }
 
-static enum Mock230SocialResult
+static enum ToriRSServerSocialResult
 list_add(
     int64_t** list,
     int* count,
@@ -440,9 +440,9 @@ list_add(
     int64_t target37)
 {
     if( list_index_of(*list, *count, target37) >= 0 )
-        return MOCK230_SOCIAL_UNCHANGED;
+        return TORIRSSERVER_SOCIAL_UNCHANGED;
     if( *count >= cap )
-        return MOCK230_SOCIAL_FULL;
+        return TORIRSSERVER_SOCIAL_FULL;
     if( *count >= *capacity )
     {
         int wanted = *capacity ? *capacity * 2 : 8;
@@ -454,97 +454,97 @@ list_add(
          * anyway: clamping the growth to the cap means a cap that ever stopped
          * bounding the count would turn into a write past the end. */
         if( wanted <= *count )
-            return MOCK230_SOCIAL_FULL;
+            return TORIRSSERVER_SOCIAL_FULL;
         grown = (int64_t*)realloc(*list, (size_t)wanted * sizeof(**list));
         assert(grown);
         *list = grown;
         *capacity = wanted;
     }
     (*list)[(*count)++] = target37;
-    return MOCK230_SOCIAL_OK;
+    return TORIRSSERVER_SOCIAL_OK;
 }
 
-static enum Mock230SocialResult
+static enum ToriRSServerSocialResult
 list_del(int64_t* list, int* count, int64_t target37)
 {
     int index = list_index_of(list, *count, target37);
 
     if( index < 0 )
-        return MOCK230_SOCIAL_UNCHANGED;
+        return TORIRSSERVER_SOCIAL_UNCHANGED;
     /* Order is the list's meaning — the reference loads it `orderBy created`
      * and the client draws it in the order it arrives — so this closes the gap
      * rather than swapping the tail in. */
     memmove(&list[index], &list[index + 1],
             (size_t)(*count - index - 1) * sizeof(list[0]));
     (*count)--;
-    return MOCK230_SOCIAL_OK;
+    return TORIRSSERVER_SOCIAL_OK;
 }
 
 /** A delete needs no entry created for either side: nothing to remove from a
  *  list that does not exist. */
-static struct Mock230SocialEntry*
+static struct ToriRSServerSocialEntry*
 deletion_owner(
     int64_t name37,
     int64_t target37,
-    enum Mock230SocialResult* out_result)
+    enum ToriRSServerSocialResult* out_result)
 {
-    struct Mock230SocialEntry* entry;
+    struct ToriRSServerSocialEntry* entry;
 
     if( !name37_is_valid(name37) || !name37_is_valid(target37) )
     {
-        *out_result = MOCK230_SOCIAL_INVALID_NAME;
+        *out_result = TORIRSSERVER_SOCIAL_INVALID_NAME;
         return NULL;
     }
     entry = entry_find(name37);
     if( !entry )
     {
-        *out_result = MOCK230_SOCIAL_UNCHANGED;
+        *out_result = TORIRSSERVER_SOCIAL_UNCHANGED;
         return NULL;
     }
-    *out_result = MOCK230_SOCIAL_OK;
+    *out_result = TORIRSSERVER_SOCIAL_OK;
     return entry;
 }
 
-enum Mock230SocialResult
-mock230_friends_add(int64_t name37, int64_t target37)
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsAdd(int64_t name37, int64_t target37)
 {
-    enum Mock230SocialResult result;
-    struct Mock230SocialEntry* entry = mutation_owner(name37, target37, &result);
+    enum ToriRSServerSocialResult result;
+    struct ToriRSServerSocialEntry* entry = mutation_owner(name37, target37, &result);
 
     if( !entry )
         return result;
     return list_add(&entry->friends, &entry->friend_count, &entry->friend_capacity,
-                    mock230_friends_cap_friends(), target37);
+                    ToriRSServer_FriendsCapFriends(), target37);
 }
 
-enum Mock230SocialResult
-mock230_friends_del(int64_t name37, int64_t target37)
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsDel(int64_t name37, int64_t target37)
 {
-    enum Mock230SocialResult result;
-    struct Mock230SocialEntry* entry = deletion_owner(name37, target37, &result);
+    enum ToriRSServerSocialResult result;
+    struct ToriRSServerSocialEntry* entry = deletion_owner(name37, target37, &result);
 
     if( !entry )
         return result;
     return list_del(entry->friends, &entry->friend_count, target37);
 }
 
-enum Mock230SocialResult
-mock230_friends_ignore_add(int64_t name37, int64_t target37)
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsIgnoreAdd(int64_t name37, int64_t target37)
 {
-    enum Mock230SocialResult result;
-    struct Mock230SocialEntry* entry = mutation_owner(name37, target37, &result);
+    enum ToriRSServerSocialResult result;
+    struct ToriRSServerSocialEntry* entry = mutation_owner(name37, target37, &result);
 
     if( !entry )
         return result;
     return list_add(&entry->ignores, &entry->ignore_count, &entry->ignore_capacity,
-                    mock230_friends_cap_ignores(), target37);
+                    ToriRSServer_FriendsCapIgnores(), target37);
 }
 
-enum Mock230SocialResult
-mock230_friends_ignore_del(int64_t name37, int64_t target37)
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsIgnoreDel(int64_t name37, int64_t target37)
 {
-    enum Mock230SocialResult result;
-    struct Mock230SocialEntry* entry = deletion_owner(name37, target37, &result);
+    enum ToriRSServerSocialResult result;
+    struct ToriRSServerSocialEntry* entry = deletion_owner(name37, target37, &result);
 
     if( !entry )
         return result;
@@ -556,21 +556,21 @@ mock230_friends_ignore_del(int64_t name37, int64_t target37)
 /* ------------------------------------------------------------------ */
 
 int
-mock230_friends_count(int64_t name37)
+ToriRSServer_FriendsCount(int64_t name37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     return entry ? entry->friend_count : 0;
 }
 
 int
-mock230_friends_get(
+ToriRSServer_FriendsGet(
     int64_t name37,
     int index,
     int64_t* out_name37,
     int* out_world)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
     int64_t friend37;
 
     if( !entry || index < 0 || index >= entry->friend_count )
@@ -579,24 +579,24 @@ mock230_friends_get(
     if( out_name37 )
         *out_name37 = friend37;
     if( out_world )
-        *out_world = mock230_friends_visible_to(name37, friend37)
-                         ? mock230_friends_world(friend37)
+        *out_world = ToriRSServer_FriendsVisibleTo(name37, friend37)
+                         ? ToriRSServer_FriendsWorld(friend37)
                          : 0;
     return 1;
 }
 
 int
-mock230_friends_ignore_count(int64_t name37)
+ToriRSServer_FriendsIgnoreCount(int64_t name37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     return entry ? entry->ignore_count : 0;
 }
 
 int
-mock230_friends_ignore_get(int64_t name37, int index, int64_t* out_name37)
+ToriRSServer_FriendsIgnoreGet(int64_t name37, int index, int64_t* out_name37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     if( !entry || index < 0 || index >= entry->ignore_count )
         return 0;
@@ -606,26 +606,26 @@ mock230_friends_ignore_get(int64_t name37, int index, int64_t* out_name37)
 }
 
 int
-mock230_friends_is_friend(int64_t name37, int64_t other37)
+ToriRSServer_FriendsIsFriend(int64_t name37, int64_t other37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     return entry && list_index_of(entry->friends, entry->friend_count, other37) >= 0;
 }
 
 int
-mock230_friends_is_ignored(int64_t name37, int64_t other37)
+ToriRSServer_FriendsIsIgnored(int64_t name37, int64_t other37)
 {
-    const struct Mock230SocialEntry* entry = entry_find(name37);
+    const struct ToriRSServerSocialEntry* entry = entry_find(name37);
 
     return entry && list_index_of(entry->ignores, entry->ignore_count, other37) >= 0;
 }
 
 int
-mock230_friends_visible_to(int64_t viewer37, int64_t other37)
+ToriRSServer_FriendsVisibleTo(int64_t viewer37, int64_t other37)
 {
-    const struct Mock230SocialEntry* viewer = entry_find(viewer37);
-    const struct Mock230SocialEntry* other = entry_find(other37);
+    const struct ToriRSServerSocialEntry* viewer = entry_find(viewer37);
+    const struct ToriRSServerSocialEntry* other = entry_find(other37);
 
     /* FriendServerRepository.ts:332-355, in its own order — every line of it is
      * a rule and the order is the rule. */
@@ -640,23 +640,23 @@ mock230_friends_visible_to(int64_t viewer37, int64_t other37)
         return 0;
 
     /* A player the service has never heard of defaults to OFF. */
-    if( !other || other->private_mode == MOCK230_CHAT_PRIVATE_OFF )
+    if( !other || other->private_mode == TORIRSSERVER_CHAT_PRIVATE_OFF )
         return 0;
 
-    if( other->private_mode == MOCK230_CHAT_PRIVATE_FRIENDS )
+    if( other->private_mode == TORIRSSERVER_CHAT_PRIVATE_FRIENDS )
         return list_index_of(other->friends, other->friend_count, viewer37) >= 0;
 
     return 1;
 }
 
 int
-mock230_friends_followers(int64_t name37, int64_t* out, int max)
+ToriRSServer_FriendsFollowers(int64_t name37, int64_t* out, int max)
 {
     int found = 0;
 
     for( int i = 0; i < g_roster_count; i++ )
     {
-        const struct Mock230SocialEntry* entry = &g_roster[i];
+        const struct ToriRSServerSocialEntry* entry = &g_roster[i];
 
         if( list_index_of(entry->friends, entry->friend_count, name37) < 0 )
             continue;
@@ -672,9 +672,9 @@ mock230_friends_followers(int64_t name37, int64_t* out, int max)
 /* ------------------------------------------------------------------ */
 
 int32_t
-mock230_friends_next_pm_id(void)
+ToriRSServer_FriendsNextPmId(void)
 {
-    int32_t id = (MOCK230_WORLD_ID << 24) | (g_pm_counter & 0x00ffffff);
+    int32_t id = (TORIRSSERVER_WORLD_ID << 24) | (g_pm_counter & 0x00ffffff);
 
     g_pm_counter++;
     /* Wrapping back through 0 would hand out an id the client throws away, so
@@ -689,7 +689,7 @@ mock230_friends_next_pm_id(void)
 /* ------------------------------------------------------------------ */
 
 int
-mock230_friends_social_gate(struct Mock230Player* player)
+ToriRSServer_FriendsSocialGate(struct ToriRSServerPlayer* player)
 {
     assert(player);
     if( player->social_protect )

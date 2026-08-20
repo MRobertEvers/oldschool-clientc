@@ -416,8 +416,8 @@ Minimum repository checks after implementation:
 
 ```sh
 tools/questhelper_extract.py aporcineofinterest --check
-make -C src mock230-scripts
-mock230_pack --check-only
+make -C src torirsserver-scripts
+ToriRSServer_Pack --check-only
 ```
 
 The Quest Helper command is conditional on adding the missing helper source or

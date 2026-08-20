@@ -1,11 +1,11 @@
-#ifndef MOCK230_SERVPACK_H
-#define MOCK230_SERVPACK_H
+#ifndef TORIRSSERVER_SERVPACK_H
+#define TORIRSSERVER_SERVPACK_H
 
 /*
  * The reader of `<content>/server/pack` — the dat2 cachepack's `pack` writes.
  *
  * This is the container half of the pair whose codec half is
- * `mock230_servercodec.h`: that file turns a band of `<opcode> <payload>` bytes
+ * `torirs_server_servercodec.h`: that file turns a band of `<opcode> <payload>` bytes
  * into record fields, this one gets those bytes off the disk. The split matters
  * because the two fail differently — a band that decodes wrong is a register
  * drift, a band that will not *open* is a stale or truncated pack — and the
@@ -33,59 +33,59 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/** More than `Mock230_ServerEncodeBound` for every registered type, with room
+/** More than `ToriRSServer_ServerEncodeBound` for every registered type, with room
  *  for fields a newer register declares that this build does not know yet —
- *  those must reach `Mock230_ServerDecode` so the short read is *its* report. */
+ *  those must reach `ToriRSServer_ServerDecode` so the short read is *its* report. */
 enum
 {
-    MOCK230_SERVPACK_BAND_MAX = 512,
+    TORIRSSERVER_SERVPACK_BAND_MAX = 512,
 };
 
-/** `Mock230_ServPackReadBand` results at or below zero. */
+/** `ToriRSServer_ServPackReadBand` results at or below zero. */
 enum
 {
     /** No archive at this (group, id) — an ordinary sparse gap. */
-    MOCK230_SERVPACK_ABSENT = 0,
+    TORIRSSERVER_SERVPACK_ABSENT = 0,
     /** An archive is indexed but does not validate: bad magic, a version this
      *  build predates, the wrong payload kind, or a CRC mismatch. A stale or
      *  truncated pack, never a decode problem. */
-    MOCK230_SERVPACK_INVALID = -1,
+    TORIRSSERVER_SERVPACK_INVALID = -1,
 };
 
-struct Mock230ServPackIdx
+struct ToriRSServerServPackIdx
 {
     int group;
     FILE* file;
     int entries;
 };
 
-struct Mock230ServPack
+struct ToriRSServerServPack
 {
     char dir[560];
     FILE* dat2;
     /** idx files, opened lazily per group. Two config kinds and two name-table
      *  groups exist today; eight is headroom, not a format limit. */
-    struct Mock230ServPackIdx idx[8];
+    struct ToriRSServerServPackIdx idx[8];
     int idx_count;
 };
 
 /** Open `<content_dir>/server/pack`. Returns 0, or -1 when there is no pack —
  *  which is not an error: a fresh checkout has none until `cachepack pack`
- *  runs, exactly as it has no script pack until `mock230-scripts` does. */
+ *  runs, exactly as it has no script pack until `torirsserver-scripts` does. */
 int
-Mock230_ServPackOpen(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackOpen(
+    struct ToriRSServerServPack* pack,
     const char* content_dir);
 
 void
-Mock230_ServPackClose(struct Mock230ServPack* pack);
+ToriRSServer_ServPackClose(struct ToriRSServerServPack* pack);
 
 /** Entries in `group`'s idx file — an exclusive upper bound on archive ids, so
  *  a caller can scan the pack without a reference table. 0 when the group has
  *  no idx at all. */
 int
-Mock230_ServPackEntryCount(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackEntryCount(
+    struct ToriRSServerServPack* pack,
     int group);
 
 /**
@@ -94,14 +94,14 @@ Mock230_ServPackEntryCount(
  * Validation is the whole point of the call: the container framing, then the
  * `'S' 'P'` header — magic, version, the band payload kind, and the CRC over
  * the payload. What lands in `out` is only the band itself, ready for
- * `Mock230_ServerDecode`.
+ * `ToriRSServer_ServerDecode`.
  *
- * Returns the band's size in bytes, `MOCK230_SERVPACK_ABSENT`, or
- * `MOCK230_SERVPACK_INVALID`.
+ * Returns the band's size in bytes, `TORIRSSERVER_SERVPACK_ABSENT`, or
+ * `TORIRSSERVER_SERVPACK_INVALID`.
  */
 int
-Mock230_ServPackReadBand(
-    struct Mock230ServPack* pack,
+ToriRSServer_ServPackReadBand(
+    struct ToriRSServerServPack* pack,
     int group,
     int id,
     uint8_t* out,

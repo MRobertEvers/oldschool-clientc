@@ -54,8 +54,8 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 
 | Gap | Blocks | Disposition |
 |---|---|---|
-| `P_OPNPCT` declared 2081, may be unhosted | M6 autocast continue | done — hosted in `mock230_scripts.c` (M6 wires continue) |
-| `oc_members` / `oc_cost` runtime | M5 alchemy/staff F2P filter | done — hosted in `mock230_ops_obj.c` |
+| `P_OPNPCT` declared 2081, may be unhosted | M6 autocast continue | done — hosted in `torirs_server_scripts.c` (M6 wires continue) |
+| `oc_members` / `oc_cost` runtime | M5 alchemy/staff F2P filter | done — hosted in `torirs_server_ops_obj.c` |
 | `%npc_stunned` / `npc_statsub` / freeze walktrigger | Bind family effects | Soft-defer effect body; casts still spend runes/XP (status quo) |
 | Multi-player / PvP magic | teleblock PvP, ancient multi | blocked → skills #2 host |
 
@@ -63,7 +63,7 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 
 Read `docs/MAGIC_CONTENT_PORT_PLAN.md` + PORTING_GUIDE §4 / §4.7 / §7. Claim
 lowest pending M-slice. Grep LostCity then 2009scape. Never park siblings.
-Verify `mock230_pack --check-only` + `make -C src mock230-scripts`. Mark slice
+Verify `ToriRSServer_Pack --check-only` + `make -C src torirsserver-scripts`. Mark slice
 `done`, mirror SKILLS #30–36 when a row fully closes, append Log. Re-arm
 `AGENT_LOOP_WAKE_magic_port` ~120s. Stop when only `blocked` / `done` remain.
 
@@ -74,5 +74,5 @@ Verify `mock230_pack --check-only` + `make -C src mock230-scripts`. Mark slice
 - M2 done: wiki Magic potion +4; `player/scripts/consumption/magic_potion.rs2` dose ladder. Battlemage/divine deferred. Next = M3 Crumble.
 - M3 done: LC `crumble_undead.rs2` → `spells/crumble_undead.rs2` + combat dbrow; `undead` in `combat.param`; `apply_param` hosts `undead`; seed `undead.npc` overlays. Scripts green; pack 0 errors. Next = M4 god/iban.
 - M4 done: LC god/iban → `spells/god_iban.rs2` + combat dbrows; `%iban_staff_charges` authored; Arena unlock via `%saramage`/`%guthmage`/`%zamomage` + `mage_arena` zone; charge cape ×1.5; npc_statsub deferred. Next = M5 utility.
-- M5 done: `oc_cost`/`oc_members` already hosted (`mock230_ops_obj.c`). Bones to Peaches as `^bones_to_peaches` + `magic_spellbook:bones_peaches` (MTA unlock gate); Magic Dart (`^magic_dart=54`, Slayer 55 / slayer staff, maxhit floor(Magic/10)+10). Deferred: teleother/teleblock (PvP/#2), house/ape/kourend/fortis teles, enchant6/xbow. Scripts green; pack 0 errors. Sibling: stub `[softtimer,gauntlet_floor_tick]` (not parked). Next = M6 autocast.
+- M5 done: `oc_cost`/`oc_members` already hosted (`torirs_server_ops_obj.c`). Bones to Peaches as `^bones_to_peaches` + `magic_spellbook:bones_peaches` (MTA unlock gate); Magic Dart (`^magic_dart=54`, Slayer 55 / slayer staff, maxhit floor(Magic/10)+10). Deferred: teleother/teleblock (PvP/#2), house/ape/kourend/fortis teles, enchant6/xbow. Scripts green; pack 0 errors. Sibling: stub `[softtimer,gauntlet_floor_tick]` (not parked). Next = M6 autocast.
 - M6 done: LC autocast shape on modern IF — `auto_cast.rs2` (`combat_interface:autocast_*` → `autocast` IF 201 sidemodal); `%autocast_spell`/`%autocast_defmode`; OSRS index→LC table key map (1→^wind_strike=51, 2..16→1..15); `p_opnpct` continue + delay resume; combat start → `@player_magic_attack`; style slots reset autocast. Deferred: staff-set gating (`autocast_set`/worn enum), ancient/bladed grids, equip-change reset, headless Choose-spell click. Scripts green; pack 0 errors. Next = M7 Ancient.

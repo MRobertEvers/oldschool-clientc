@@ -30,7 +30,7 @@ including what is deliberately **not** done yet: message-struct/encoder/
 decoder codec bodies (the ~65k lines of Kotlin under RSProt's `osrs-239-desktop`
 and `osrs-239-model`) and the PLAYER_INFO/NPC_INFO v5 info streams, which
 `mock239_playerinfo.c` (§5c below) still owns. The library is standalone by
-design — it does not yet replace or feed `mock230_wire.c` /
+design — it does not yet replace or feed `torirs_server_wire.c` /
 `src/net/rev/osrs239/` / `3rd/rsareabuf`, which this doc continues to describe
 as they exist today.
 
@@ -174,19 +174,19 @@ ran the older one.
 
 ## 5a. The wire adapter — how the server chooses a revision
 
-`src/net/mock/mock230_wire.h` is the fourth vtable seam in the net stack and is
-deliberately shaped like the other three: `Mock230Transport` (where the bytes
+`src/torirsserver/torirs_server_wire.h` is the fourth vtable seam in the net stack and is
+deliberately shaped like the other three: `ToriRSServerTransport` (where the bytes
 go), `NetLoginVTable` (how the handshake runs), `GameProtoRevTable` (what the
 client reads). Struct of function pointers, one instance per implementation, a
 `_by_name` resolver, NULL slots meaning "classic".
 
 ```sh
-src/build/mock230 43594 --rev osrs239     # or MOCK230_REV=osrs239
+src/build/torirsserver 43594 --rev osrs239     # or TORIRSSERVER_REV=osrs239
 ```
 
 Default is `osrs230`, so everything that says nothing behaves exactly as before.
 
-**Why an enum could not stay.** `mock230_encode.c` held 50 wire opcodes as
+**Why an enum could not stay.** `torirs_server_encode.c` held 50 wire opcodes as
 literals. That hid three things the moment there were two revisions: opcodes
 move (IF_OPENTOP is 60 at 230, 96 at 239); opcodes *disappear* (there is no
 UPDATE_PID and no P_COUNTDIALOG at 239, and a literal cannot express absent);
@@ -205,7 +205,7 @@ Three details worth carrying forward:
 
 - **The refactor is checkable, not merely plausible.** The `OP_*` enum became
   aliases for canonical names, so all 140 call sites are untouched;
-  `mock230_send` resolves the name and records the **resolved wire opcode** in
+  `ToriRSServer_Send` resolves the name and records the **resolved wire opcode** in
   the packet capture. The selftest's assertions are written against wire
   numbers (120, 108, 90, 35, 94) and still mean what they meant. Measured: the
   same 13 pre-existing failures before and after, no new ones.
@@ -222,13 +222,13 @@ Three details worth carrying forward:
   varp at full speed with no error. Checking against RSProt found three of six
   wrong, UPDATE_STAT_V2 being reordered entirely.
 
-JS5 also moved into `mock230_session`'s handshake, where it belongs: one socket,
-opcode 14 game vs 15 JS5. `MOCK230_JS5_REV` sets the revision to accept and
-`MOCK230_JS5_CACHE` the directory. The standalone `mock-js5` binary stays as a
+JS5 also moved into `ToriRSServer_Session`'s handshake, where it belongs: one socket,
+opcode 14 game vs 15 JS5. `TORIRSSERVER_JS5_REV` sets the revision to accept and
+`TORIRSSERVER_JS5_CACHE` the directory. The standalone `mock-js5` binary stays as a
 test fixture.
 
 That integration immediately exposed a real bug it had been masking:
-**mock230 did not ignore SIGPIPE.** It barely mattered while every packet was a
+**ToriRSServer did not ignore SIGPIPE.** It barely mattered while every packet was a
 few hundred bytes, but a cache download is megabytes in a tight loop, and a
 client closing its update connection the moment it has what it wants — the
 normal way that connection ends — killed the process mid-write. Exit code 141,
@@ -241,22 +241,22 @@ statement of the layout (`src/net/rev/osrs239/loginblock.h`). This is what
 checks that they agree:
 
 ```sh
-src/build/mock230 43596 --rev osrs239 &
+src/build/torirsserver 43596 --rev osrs239 &
 src/torirs --manifest manifest_osrs239_net.ini --user testc --pass test
 ```
 
 ```
-mock230: login user='testc' session=ok
-mock230: -> IF_OPENTOP       op=96  payload=2
-mock230: -> IF_OPENSUB       op=7   payload=7
-mock230: -> IF_CLOSESUB      op=23  payload=4
-mock230: -> IF_SETEVENTS     op=108 payload=16
-mock230: -> VARP_SMALL       op=97  payload=3
-mock230: -> VARP_LARGE       op=12  payload=6
-mock230: -> UPDATE_RUNENERGY op=64  payload=2
-mock230: -> UPDATE_RUNWEIGHT op=31  payload=2
-mock230: -> UPDATE_STAT      op=46  payload=7
-mock230: -> REBUILD_NORMAL   op=49  payload=6
+torirsserver: login user='testc' session=ok
+torirsserver: -> IF_OPENTOP       op=96  payload=2
+torirsserver: -> IF_OPENSUB       op=7   payload=7
+torirsserver: -> IF_CLOSESUB      op=23  payload=4
+torirsserver: -> IF_SETEVENTS     op=108 payload=16
+torirsserver: -> VARP_SMALL       op=97  payload=3
+torirsserver: -> VARP_LARGE       op=12  payload=6
+torirsserver: -> UPDATE_RUNENERGY op=64  payload=2
+torirsserver: -> UPDATE_RUNWEIGHT op=31  payload=2
+torirsserver: -> UPDATE_STAT      op=46  payload=7
+torirsserver: -> REBUILD_NORMAL   op=49  payload=6
 ```
 
 Every opcode and every size there is revision 239's. `user='testc'` is the
@@ -276,7 +276,7 @@ Two bugs this run caught that nothing else would have:
   later as a garbage username or seeds that make every subsequent packet
   unreadable, both of which read as protocol bugs.
 
-`MOCK230_REV=osrs239 --selftest` runs the 239 writers now (it previously ran the
+`TORIRSSERVER_REV=osrs239 --selftest` runs the 239 writers now (it previously ran the
 230 ones whatever the variable said, which is how three of the first six writers
 were wrong with nothing to catch them). It reports **205 failures** against
 **13** at 230 — that gap is the distance to parity, and it is a number that
@@ -284,9 +284,9 @@ comes down as writers land rather than a pass/fail.
 
 ## 5c. PLAYER_INFO v5, and the three-way index
 
-`src/net/mock/mock239_playerinfo.c` writes the v5 player stream. It is a
+`src/torirsserver/mock239_playerinfo.c` writes the v5 player stream. It is a
 different **codec** from the classic bitstream, not a different field order,
-so `mock230_encode.c` forks to it before writing a bit rather than branching
+so `torirs_server_encode.c` forks to it before writing a bit rather than branching
 per field.
 
 Two things are sent and they are not the same thing. The **init block** rides
@@ -321,7 +321,7 @@ cosmetic:
 - the **login response** has to state it, because the client learns which slot
   is itself from there and nowhere else.
 
-`mock230_wire_player_index()` is the one definition so those fields cannot disagree.
+`ToriRSServer_WirePlayerIndex()` is the one definition so those fields cannot disagree.
 The bug that exposed it was arithmetic, not a symptom: REBUILD_NORMAL came out
 at 4616 bytes where 4614 was predicted, and the two-byte gap is exactly
 `(2047 - 2046) * 18 bits` rounded up.
@@ -394,7 +394,7 @@ an arbitrary pair rather than only the installed RuneLite.
 
 ### Where 1.12.33 stops
 
-It passes the revision gate — `mock230: JS5 session opened at revision 239` —
+It passes the revision gate — `torirsserver: JS5 session opened at revision 239` —
 and then crashes inside its own initialisation before issuing a single JS5
 request:
 
@@ -431,9 +431,9 @@ Not done, in the order that unblocks the most:
    than an omission, and the fields are documented for whenever one appears.
 3. **The 239 payload writer set covers 10 packets.** What is missing is listed
    in `k_transcribed_osrs239` and refused at send.
-4. **The selftest cannot reach the 239 writers.** `--rev` / `MOCK230_REV` is
-   read in `mock230_main`'s accept loop, and `mock230_world_selftest()` builds
-   its own server without one, so `MOCK230_REV=osrs239 --selftest` still
+4. **The selftest cannot reach the 239 writers.** `--rev` / `TORIRSSERVER_REV` is
+   read in `ToriRSServer_Main`'s accept loop, and `ToriRSServer_WorldSelftest()` builds
+   its own server without one, so `TORIRSSERVER_REV=osrs239 --selftest` still
    exercises the 230 path. The 239 writers are therefore verified by
    transcription against RSProt and by the length check, not by a test. Giving
    the selftest the selector is the cheapest next guard, and it is what would
@@ -450,7 +450,7 @@ make -C src mock-js5
 src/build/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
 python3 tools/torirs_javconfig.py --host 127.0.0.1 --port 8080 --revision 239 &
 
-python3 tools/runelite_patch.py --modulus <MOCK230_RSA_PUBLIC_MODULUS>
+python3 tools/runelite_patch.py --modulus <TORIRSSERVER_RSA_PUBLIC_MODULUS>
 python3 tools/runelite_patch.py --print-launch     # then run what it prints
 ```
 
@@ -463,8 +463,8 @@ After the manifests moved to `rev=osrs239`, `::zuk` (and the whole
 `manifest_osrs230_zuk.ini` boot) showed an empty screen in torirs. Two
 independent defects, both invisible from the chatbox, plus one launcher race:
 
-1. **The embedded server booted on the wrong wire.** `mock230_embed_start`
-   chose its wire from `MOCK230_REV` (default `osrs230`) — correct for
+1. **The embedded server booted on the wrong wire.** `ToriRSServer_EmbedStart`
+   chose its wire from `TORIRSSERVER_REV` (default `osrs230`) — correct for
    run-live.sh, wrong for the documented direct invocation
    `src/torirs --manifest manifest_osrs230_zuk.ini`. A 230 reader on the 239
    login block reads the RSA size two bytes out of position and dies as
@@ -472,7 +472,7 @@ independent defects, both invisible from the chatbox, plus one launcher race:
    client are two ends of one in-process queue pair and can never validly
    disagree, so the client's revision is now *passed through the transport*:
    `NetTransport_New(kind, port, rev_name)` →
-   `mock230_embed_start(rev_name)`. `MOCK230_REV` still applies to hosts
+   `ToriRSServer_EmbedStart(rev_name)`. `TORIRSSERVER_REV` still applies to hosts
    with no client revision of their own (embed_test passes NULL).
 
 2. **CamMoveToV2 / CamLookAtV2 carry ABSOLUTE world tiles.** The Zuk emerge
@@ -485,7 +485,7 @@ independent defects, both invisible from the chatbox, plus one launcher race:
    `world->_base_tile_x/z` — the world the shot plays in, which for the
    Inferno is the instanced base. The symptom is a viewport that alternates
    camera states per frame and captures as pure black; the mock's own
-   `mock230_send_cam_moveto` doc (mock230.h) states the same contract from
+   `ToriRSServer_SendCamMoveto` doc (torirs_server.h) states the same contract from
    the writer's side. RuneLite against the same bytes was the oracle that
    said the server was right and the C decode was wrong.
 
@@ -503,7 +503,7 @@ minimap), and a wire-230 twin of the manifest renders identically.
 `REBUILD_REGION` V2 itself (`osrs239_parse`) was already correct — the scene
 built to the same 70-loc window on both wires; only the camera lied.
 
-While here: `test-mock230-embed` had gone unbuildable again, this time
+While here: `test-torirsserver-embed` had gone unbuildable again, this time
 because `pkt_player_appearance.o` joined `NET_CORE_OBJS` while the target
 still compiled the .c inline — same duplicate-symbol trap the target's own
 comment documents for `bitbuffer.c`. The inline mention is gone.

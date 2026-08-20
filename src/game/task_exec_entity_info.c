@@ -83,7 +83,7 @@ entity_debug_log(char const* fmt, int a, int b)
  * or a spawn that never happened -- where nothing errors and the packet is
  * well-formed. What matters is not the op but the four numbers beside it:
  *
- *   slot     the server's PRIVATE per-observer npc name (Mock230PlayerSlotMap).
+ *   slot     the server's PRIVATE per-observer npc name (ToriRSServerPlayerSlotMap).
  *            The client keys its registry by this. If it changes for the same
  *            creature, the client sees a despawn and a fresh spawn.
  *   list_idx the position in the list both sides rebuild this packet, which is
@@ -93,7 +93,7 @@ entity_debug_log(char const* fmt, int a, int b)
  *            entity, i.e. every following op on it is silently discarded.
  *   element  the scene element; -1 means nothing is drawn for it.
  *
- * Pair it with MOCK230_NPC_TRACE=<npc_id> (mock230_encode.c) on the same run:
+ * Pair it with TORIRSSERVER_NPC_TRACE=<npc_id> (torirs_server_encode.c) on the same run:
  * the server prints the slot it allocated, and this prints the slot the client
  * resolved. They must agree, every tick, for the whole fight.
  */
@@ -776,7 +776,7 @@ player_apply_op(
             ex += player->pathing.route_x[0];
             ez += player->pathing.route_z[0];
         }
-        /* The client half of MOCK230_EXT_DEBUG's exact-move line. Without the
+        /* The client half of TORIRSSERVER_EXT_DEBUG's exact-move line. Without the
          * pair, "the obstacle did not glide" cannot be split into "the server
          * never set the mask" and "the client dropped the block". */
         if( getenv("TORIRS_NET_DEBUG") )
@@ -1210,8 +1210,8 @@ npc_target_op(
      * ENTERING VIEW: the server is telling us this slot is a NEW npc.
      *
      * The slot is the server's private per-observer name and it is REUSED --
-     * `mock230_slotmap_release` frees a name the moment an npc leaves view or
-     * teleports, and `mock230_slotmap_acquire` hands it straight back out
+     * `ToriRSServer_SlotMapRelease` frees a name the moment an npc leaves view or
+     * teleports, and `ToriRSServer_SlotMapAcquire` hands it straight back out
      * round-robin. This side only drops a name when it sees an explicit
      * CLEAR keyed by the npc's position in the PREVIOUS packet's list, so any
      * release the client never saw a matching CLEAR for leaves a stale

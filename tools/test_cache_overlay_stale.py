@@ -208,7 +208,7 @@ def main() -> int:
 
         # The two that must NOT bake, and the reason the config root can be
         # watched at all. A `.rs2` is not a cache input (pure server work
-        # travels by mock230-scripts + mock230-servpack), and script.dat is
+        # travels by torirsserver-scripts + torirsserver-servpack), and script.dat is
         # rewritten by every launch — either one, unfiltered, would rebake
         # 440 MB on every keystroke and never settle.
         for label, member in (

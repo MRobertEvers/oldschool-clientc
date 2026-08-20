@@ -71,8 +71,8 @@ SLAYER_LEVEL_GATE = (
     ROOT
     / "OSRS-Content/osrs239-content/server/scripts/skill_slayer/scripts/slayer_level_gate.rs2"
 ).read_text()
-CONTENT_ENGINE = (ROOT / "src/net/mock/mock230_content.c").read_text()
-SCRIPT_HOST = (ROOT / "src/net/mock/mock230_scripts.c").read_text()
+CONTENT_ENGINE = (ROOT / "src/torirsserver/torirs_server_content.c").read_text()
+SCRIPT_HOST = (ROOT / "src/torirsserver/torirs_server_scripts.c").read_text()
 MANIFEST = ROOT / "OSRS-Content/osrs239-content/wiki/godwars_combat_manifest.csv"
 
 
@@ -480,7 +480,7 @@ def main() -> None:
     require(SCRIPT_HOST, "case SS_OP_P_NAMEDIALOG:", "runtime name-dialogue opcode")
     require(SCRIPT_HOST, "case SS_OP_LAST_STRING:", "runtime last-string opcode")
     require(SCRIPT_HOST, "case SS_OP_P_FINDMUTUALFRIEND:", "runtime mutual-friend opcode")
-    assert SCRIPT_HOST.count("mock230_friends_is_friend(") >= 2, "mutual-friend lookup must be reciprocal"
+    assert SCRIPT_HOST.count("ToriRSServer_FriendsIsFriend(") >= 2, "mutual-friend lookup must be reciprocal"
     require(NEX, "[proc,nex_room_coord]", "instance-relative Nex coordinates")
     for coordinate in ("centre", "fumus", "umbra", "cruor", "glacies"):
         direct = re.compile(rf"(?<!nex_room_coord\()\^nex_{coordinate}\b")
@@ -648,7 +648,7 @@ def main() -> None:
             "Nex personal selector invocation")
     require(death, "~nex_award_personal_loot_roll($death,",
             "Nex personal award invocation")
-    require(SCRIPT_HOST, "mock230_world_obj_add_private(srv, player,",
+    require(SCRIPT_HOST, "ToriRSServer_WorldObjAddPrivate(srv, player,",
             "hunt-player private floor-object ownership")
     require(SCRIPT_HOST, "srv, player, (int)values[1], (int)values[2]",
             "hunt-player private loot-tracker ownership")

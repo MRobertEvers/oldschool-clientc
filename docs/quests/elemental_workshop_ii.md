@@ -542,7 +542,7 @@ Escalate only after a minimal reproduction proves a missing generic primitive.
   cross-map transitions, and one production cart owner.
 - No unresolved symbols, raw cache IDs, duplicate trigger subjects, legacy
   modal shortcuts, or undisclosed `soft`/`deferred` markers remain.
-- `make -C src mock230-scripts` and the revision-239 pack check succeed.
+- `make -C src torirsserver-scripts` and the revision-239 pack check succeed.
 - Static map tests assert the initial lava/down/broken crane and every required
   surface/deep landing.
 

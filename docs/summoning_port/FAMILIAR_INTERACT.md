@@ -262,7 +262,7 @@ Two smaller notes:
   counterpart in this cache.
 * **Pagination.** The wiki records a familiar's whole speech as one bullet; this
   era's dialogue body is a single 479x67 component that wraps and then CLIPS at
-  about four lines, and `mock230_send_if_settext` builds its packet in a
+  about four lines, and `ToriRSServer_SendIfSettext` builds its packet in a
   512-byte buffer. Pack yak's longest line is 675 characters. Long lines are
   split at sentence boundaries into successive dialogue pages — which is what
   the player clicks through in the real game anyway.

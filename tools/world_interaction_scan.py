@@ -27,7 +27,7 @@ import argparse, collections, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.environ.get(
-    "MOCK230_CONTENT_DIR",
+    "TORIRSSERVER_CONTENT_DIR",
     os.path.join(os.path.dirname(HERE), "OSRS-Content", "osrs239-content"))
 CFG = os.path.join(ROOT, "configs")
 SCRIPTS = os.path.join(ROOT, "server", "scripts")
@@ -363,7 +363,7 @@ def main():
     if not (a.coverage or a.dead or a.worklist or a.audit):
         ap.error("pick --coverage, --worklist, --audit or --dead")
     if not os.path.isdir(CFG):
-        sys.exit(f"content tree not found at {ROOT} (set MOCK230_CONTENT_DIR)")
+        sys.exit(f"content tree not found at {ROOT} (set TORIRSSERVER_CONTENT_DIR)")
 
     cache = load_cache()
     cats = load_categories()

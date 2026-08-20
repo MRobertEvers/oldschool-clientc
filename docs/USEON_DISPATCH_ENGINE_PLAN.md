@@ -7,14 +7,14 @@ those rules stop being necessary — so that a lane can bind the side it owns,
 say "not mine" when it does not recognise the partner, and never have its
 pair swallowed by another lane's binding.
 
-Two changes, both in `src/net/mock/mock230_scripts.c`, one new opcode, and a
+Two changes, both in `src/torirsserver/torirs_server_scripts.c`, one new opcode, and a
 dispatch driver so any of it can be proved.
 
 ---
 
 ## 1. What the engine does today, and what is wrong with it
 
-`mock230_scripts_run_opheldu` (`mock230_scripts.c:2519-2582`) is a faithful
+`ToriRSServer_ScriptsRunOpheldu` (`torirs_server_scripts.c:2519-2582`) is a faithful
 port of `OpHeldUHandler.ts:94-113`:
 
 ```
@@ -26,8 +26,8 @@ none    "Nothing interesting happens."
 ```
 
 `run_trigger_script` (`:1791`) runs the first hit and returns
-`MOCK230_TRIGGER_RAN`; the caller (`mock230_world.c:5099`) says
-`nothing_interesting_message` only on `MOCK230_TRIGGER_NONE`.
+`TORIRSSERVER_TRIGGER_RAN`; the caller (`torirs_server_world.c:5099`) says
+`nothing_interesting_message` only on `TORIRSSERVER_TRIGGER_NONE`.
 
 Three defects, all faithful to the reference and all bad:
 
@@ -47,7 +47,7 @@ one in LostCity's, is written for the type-rung orientation
 have never been caught because D1 keeps them from running.
 
 **D3 — nothing drives dispatch.** The only OPHELDU packet ever built outside a
-real client is the four-item stanza at `mock230_world.c:30915`. Every skill
+real client is the four-item stanza at `torirs_server_world.c:30915`. Every skill
 selftest calls its `~proc` directly, which is why D1 and D2 are invisible to
 `--selftest`.
 
@@ -70,15 +70,15 @@ requirement). Semantics:
 
 Implementation:
 
-- `struct Mock230Player` gains `int trigger_declined;` and
+- `struct ToriRSServerPlayer` gains `int trigger_declined;` and
   `int trigger_dispatch_depth;` (or a single `srv->` field — dispatch is on
   the active player). The opcode handler
-  (`mock230_scripts.c`, alongside `SS_OP_LAST_SUBOP`) sets `declined = 1`
+  (`torirs_server_scripts.c`, alongside `SS_OP_LAST_SUBOP`) sets `declined = 1`
   when `dispatch_depth > 0`, and when `dispatch_depth == 0` (called from a
   queue script, a proc, a debugproc — no chain to fall down) it says
   `nothing_interesting_message` immediately, so it degrades to exactly what
   `~displaymessage(^dm_default)` does today.
-- Every chained resolver — `mock230_scripts_run_opheldu` and
+- Every chained resolver — `ToriRSServer_ScriptsRunOpheldu` and
   `run_trigger_impl` when `chain` is set (`run_trigger_impl`, `:1937-1956`, the type → category → `_`
   ladder for `[oploc*]`, `[opnpc*]`, `[opobj*]`, `[oplocu]`, `[opnpcu]`,
   `[opobju]`, `[opheld*]`) — becomes a loop over its rungs:
@@ -102,11 +102,11 @@ Implementation:
   case and walks the three rungs itself with `…GetByTriggerSpecific`, so it
   can resume after a decline. `SSVM_ProviderGetByTrigger` stays for the
   unchained callers.
-- A new result `MOCK230_TRIGGER_DECLINED`. Callers that today branch on
-  `== NONE` to say `nothing_interesting_message` (`mock230_world.c:1622,
+- A new result `TORIRSSERVER_TRIGGER_DECLINED`. Callers that today branch on
+  `== NONE` to say `nothing_interesting_message` (`torirs_server_world.c:1622,
   1660, 1685, 1716, 1726, 4536, 5102, 5458`) treat `DECLINED` the same way
   for the message, but **not** for the C fallback: a declined script is still
-  content having spoken, so `mock230_world.c`'s engine fallbacks
+  content having spoken, so `torirs_server_world.c`'s engine fallbacks
   (`fallback_stale_blockers` rows — generic doors, ladders) must not run.
   Concretely: message on `NONE || DECLINED`, fallback on `NONE` only.
 - A decline is only honoured if the script *finished*. `run_or_park` returns 1
@@ -167,10 +167,10 @@ non-inverted orientation.
 Two pieces so E1/E2 and every content slice in the companion doc are
 falsifiable:
 
-- **`::useon <obj> <useobj>`** debug cheat (`handle_cheat`, `mock230_world.c:5826`)
+- **`::useon <obj> <useobj>`** debug cheat (`handle_cheat`, `torirs_server_world.c:5826`)
   that finds the two objs in the backpack (adds them if absent, under a
   selftest/dev gate), builds the OPHELDU payload exactly as the stanza at
-  `:30925-30934` does, and calls `mock230_world_handle`. Under `srv->verbose`
+  `:30925-30934` does, and calls `ToriRSServer_WorldHandle`. Under `srv->verbose`
   it also prints the rung trace (E4).
 - **`selftest_useon.rs2` grows a `[debugproc,useonrun]`** that fires the pairs
   each skill's plan names — string×shortbow, knife×logs, chisel×uncut_ruby,
@@ -181,7 +181,7 @@ falsifiable:
 
 ### E4 — rung trace under verbose
 
-`mock230: opheldu bolts(x)/onyx tips(y): r1 miss, r2 miss, r3 [opheldu,_bolts]
+`torirsserver: opheldu bolts(x)/onyx tips(y): r1 miss, r2 miss, r3 [opheldu,_bolts]
 declined, r4 [opheldu,_bolttips] ran`. One line per dispatch, `srv->verbose`
 only. It is the difference between "nothing interesting" and knowing which
 lane's binding ate the click, and it is what S0 of the companion doc otherwise
@@ -213,25 +213,25 @@ and explained; the plan text in §1–§3 is what was designed, this is what exi
 
 | # | Slice | Where | Proof it works |
 |---|---|---|---|
-| **S0** | The driver: `::useon <a> <b>` cheat (`mock230_world.c`, `handle_cheat`) plus `selftest_useon()` / `selftest_useon_both()` and a five-pair stanza in the use-on selftest. **CHANGED**: no `[debugproc,useonrun]` — the assertions are C, alongside the existing rung probes, so `--selftest` covers them with nothing to remember to run. | `mock230_world.c` | A/B over 3+3 runs: baseline 6 failures, with the probe 8, and the delta is exactly the two real defects. Nothing else shifted. |
-| **S1** | E2 orientation: `opheldu_orient()` replaces `opheldu_swap()`; the pair is re-stated per rung from the values `handle_opheldu` latched. | `mock230_scripts.c` | Mutation first: with E2 in and the old assertions untouched, `--selftest` went red on exactly the 5 checks that pinned the inversion, each printing the new orientation. Then the assertions and `selftest_useon.rs2`'s `[opheldu,_bones]` were flipped; green. |
-| **S2** | E1 decline: `trigger_decline` (opcode 11044), `run_rung()`, rung loops in `mock230_scripts_run_opheldu` and in `run_trigger_impl`'s chained path. **CHANGED**: no `MOCK230_TRIGGER_DECLINED` enum value — see below. | `gen_opcode_meta.py`, `ss_opcode.h`, `ss_meta.gen.h`, `mock230_scripts.c`, `mock230.h` | Three new selftest checks: rung 1 declines → rung 2 answers (total 7); a rung that *answers* still ends the dispatch (4, not 7); declined with nothing below it runs the decliner and the engine fallback refuses. Poison-on-bronze-bolts went green with `[opheldu,weapon_poison]` untouched. |
-| **S3** | E4 rung trace, under `srv->verbose`, for both resolvers. **ADDED**: `mock230_world_selftest` now reads `MOCK230_VERBOSE` like the three socket entry points — it was the one caller that could not be attached to with a client, and the trace was unreachable from it. | `mock230_scripts.c`, `mock230_world.c` | It is what found the third defect below, in one run. |
+| **S0** | The driver: `::useon <a> <b>` cheat (`torirs_server_world.c`, `handle_cheat`) plus `selftest_useon()` / `selftest_useon_both()` and a five-pair stanza in the use-on selftest. **CHANGED**: no `[debugproc,useonrun]` — the assertions are C, alongside the existing rung probes, so `--selftest` covers them with nothing to remember to run. | `torirs_server_world.c` | A/B over 3+3 runs: baseline 6 failures, with the probe 8, and the delta is exactly the two real defects. Nothing else shifted. |
+| **S1** | E2 orientation: `opheldu_orient()` replaces `opheldu_swap()`; the pair is re-stated per rung from the values `handle_opheldu` latched. | `torirs_server_scripts.c` | Mutation first: with E2 in and the old assertions untouched, `--selftest` went red on exactly the 5 checks that pinned the inversion, each printing the new orientation. Then the assertions and `selftest_useon.rs2`'s `[opheldu,_bones]` were flipped; green. |
+| **S2** | E1 decline: `trigger_decline` (opcode 11044), `run_rung()`, rung loops in `ToriRSServer_ScriptsRunOpheldu` and in `run_trigger_impl`'s chained path. **CHANGED**: no `TORIRSSERVER_TRIGGER_DECLINED` enum value — see below. | `gen_opcode_meta.py`, `ss_opcode.h`, `ss_meta.gen.h`, `torirs_server_scripts.c`, `torirs_server.h` | Three new selftest checks: rung 1 declines → rung 2 answers (total 7); a rung that *answers* still ends the dispatch (4, not 7); declined with nothing below it runs the decliner and the engine fallback refuses. Poison-on-bronze-bolts went green with `[opheldu,weapon_poison]` untouched. |
+| **S3** | E4 rung trace, under `srv->verbose`, for both resolvers. **ADDED**: `ToriRSServer_WorldSelftest` now reads `TORIRSSERVER_VERBOSE` like the three socket entry points — it was the one caller that could not be attached to with a client, and the trace was unreachable from it. | `torirs_server_scripts.c`, `torirs_server_world.c` | It is what found the third defect below, in one run. |
 | **S4** | This document, `TOOL_TRIGGER_ORGANISATION.md` §1/§4, and the content edits. | docs, content | — |
 
-### CHANGED: no `MOCK230_TRIGGER_DECLINED` enum value
+### CHANGED: no `TORIRSSERVER_TRIGGER_DECLINED` enum value
 
-The plan proposed a fourth `Mock230TriggerResult` and said the ~20 sites that
-branch on `== MOCK230_TRIGGER_NONE` would treat it as NONE for the message and
+The plan proposed a fourth `ToriRSServerTriggerResult` and said the ~20 sites that
+branch on `== TORIRSSERVER_TRIGGER_NONE` would treat it as NONE for the message and
 not for the fallback. Reading those sites, the enum turned out to be the more
 dangerous of the two designs: every one of them would have had to be edited
 correctly, and a missed one fails silently in whichever direction the author of
 that line happened to write it.
 
-What is built instead: an all-declined dispatch returns `MOCK230_TRIGGER_NONE`
+What is built instead: an all-declined dispatch returns `TORIRSSERVER_TRIGGER_NONE`
 — which is *true* from the player's side, where "content looked and said no" and
 "content binds nothing" are the same event and get the same message — and sets
-`srv->dispatch_declined`. `mock230_scripts_fallback()` consumes that flag and
+`srv->dispatch_declined`. `ToriRSServer_ScriptsFallback()` consumes that flag and
 answers 0. That function's entire job is already "may C stand in for content
 here?", it is the single gate every fallback passes through, and it already
 distinguishes two other cases for the same reason. One edit, no call-site audit,

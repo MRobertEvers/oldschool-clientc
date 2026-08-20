@@ -172,8 +172,8 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "MOCK230_SAVES": str(saves),
-                "MOCK230_SCRIPTS": str(args.scripts),
+                "TORIRSSERVER_SAVES": str(saves),
+                "TORIRSSERVER_SCRIPTS": str(args.scripts),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "430",
                 "TORIRS_EXIT_BMP": str(bmp),

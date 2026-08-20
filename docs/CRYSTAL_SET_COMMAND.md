@@ -129,11 +129,11 @@ The incident is now protected at every boundary that failed:
 | all debug commands | duplicate global `[debugproc,name]` declarations fail compilation | `SSC_Declare` + `test-ssc` negative test |
 | command semantics | required stats, four worn objects, and equipment refresh remain in the canonical proc | contract checker |
 | runtime dispatch | every received command logs `ran`, `FAILED`, or `not found`; aborts notify the player | `handle_cheat` |
-| actual result | self-test asserts worn helm/body/legs/bow and Ranged/Agility 99, not merely a successful return | `mock230 --selftest` |
+| actual result | self-test asserts worn helm/body/legs/bow and Ranged/Agility 99, not merely a successful return | `ToriRSServer --selftest` |
 | documentation | this file is required by the contract checker | contract checker |
 
-The contract gate is a prerequisite of **both** `mock230-scripts` and
-`mock230-cache`. This is deliberate: one builds the server half while the other
+The contract gate is a prerequisite of **both** `torirsserver-scripts` and
+`torirsserver-cache`. This is deliberate: one builds the server half while the other
 packs the clientscript half. Either workflow must stop before publishing an
 incomplete fix.
 
@@ -142,8 +142,8 @@ Run the focused gates from the repository root:
 ```sh
 make -C src check-crystal-set-contract
 make -C src test-ssc
-make -C src mock230-scripts
-make -C src test-mock230
+make -C src torirsserver-scripts
+make -C src test-ToriRSServer
 ```
 
 The checker includes negative controls proving that a restored Cry prefix test
@@ -176,19 +176,19 @@ commands, not one command with an argument, and creates a different failure.
 
 ## Rebuild rule that is easy to miss
 
-`::~crystal_set` needs no client cache rebuild. Rebuild `mock230` and the server
+`::~crystal_set` needs no client cache rebuild. Rebuild `ToriRSServer` and the server
 script pack, then keep serving the pristine cache if desired:
 
 ```sh
-make -C src mock230 mock230-scripts
+make -C src ToriRSServer torirsserver-scripts
 ```
 
 By contrast, making the unescaped historical spelling `::crystal_set` work
-changes client content. `make -C src mock230-scripts` cannot do that; repack the
+changes client content. `make -C src torirsserver-scripts` cannot do that; repack the
 clientscript into the exact cache served by JS5:
 
 ```sh
-make -C src mock230-cache
+make -C src torirsserver-cache
 ```
 
 Both the world and JS5 must use that baked cache. A modified `.cs2` source next
@@ -202,8 +202,8 @@ The success trace is:
 ```text
 JCTL input: ::~crystal_set
 packet_out op=34 len=-1
-mock230: [debugproc,crystal_set] with 0 int and 0 string args
-mock230: cheat 'crystal_set' -> debugproc ran
+torirsserver: [debugproc,crystal_set] with 0 int and 0 string args
+torirsserver: cheat 'crystal_set' -> debugproc ran
 Crystal set equipped at Ranged 99: +30% accuracy, +15% damage.
 ```
 

@@ -587,7 +587,7 @@ Le'Harmless.”
 - Resolve every NPC, loc, obj, varbit, animation, sound, map, and dbrow symbol
   against the intended osrs239 cache.
 - Run `python3 tools/questhelper_extract.py cabinfever --check`.
-- Run `make -C src mock230-scripts` and the intended-cache pack/check-only
+- Run `make -C src torirsserver-scripts` and the intended-cache pack/check-only
   target after implementation.
 
 ### Automated transition and transaction tests

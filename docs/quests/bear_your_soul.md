@@ -350,8 +350,8 @@ Soul policy in RuneScript/config data.
   undisclosed;
 - assert dbrow, journal, cheat adapter, end state, reward icon/text, charge row,
   and completion call agree;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

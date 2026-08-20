@@ -527,7 +527,7 @@
 <text  x="51.56" y="335.5" >to..</text>
 </g>
 <g >
-<title>torirs`mock230_session_alive (4 samples, 0.03%)</title><rect x="223.2" y="309" width="0.4" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_SessionAlive (4 samples, 0.03%)</title><rect x="223.2" y="309" width="0.4" height="15.0" fill="rgb(236,146,35)" rx="2" ry="2" />
 <text  x="226.24" y="319.5" ></text>
 </g>
 <g >
@@ -591,7 +591,7 @@
 <text  x="1050.67" y="287.5" >tor..</text>
 </g>
 <g >
-<title>torirs`mock230_content_symbol (4 samples, 0.03%)</title><rect x="222.7" y="277" width="0.4" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_ContentSymbol (4 samples, 0.03%)</title><rect x="222.7" y="277" width="0.4" height="15.0" fill="rgb(235,141,33)" rx="2" ry="2" />
 <text  x="225.73" y="287.5" ></text>
 </g>
 <g >
@@ -947,7 +947,7 @@
 <text  x="146.73" y="351.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_world_sync_combat_varbits (4 samples, 0.03%)</title><rect x="222.7" y="293" width="0.4" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_WorldSyncCombatVarbits (4 samples, 0.03%)</title><rect x="222.7" y="293" width="0.4" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
 <text  x="225.73" y="303.5" ></text>
 </g>
 <g >
@@ -1419,7 +1419,7 @@
 <text  x="39.13" y="239.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_world_tick (6 samples, 0.04%)</title><rect x="222.7" y="325" width="0.5" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_WorldTick (6 samples, 0.04%)</title><rect x="222.7" y="325" width="0.5" height="15.0" fill="rgb(216,54,13)" rx="2" ry="2" />
 <text  x="225.73" y="335.5" ></text>
 </g>
 <g >
@@ -2407,7 +2407,7 @@
 <text  x="31.30" y="271.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_session_pump (43 samples, 0.31%)</title><rect x="223.6" y="309" width="3.6" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_SessionPump (43 samples, 0.31%)</title><rect x="223.6" y="309" width="3.6" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
 <text  x="226.58" y="319.5" ></text>
 </g>
 <g >
@@ -2427,7 +2427,7 @@
 <text  x="240.11" y="367.5" >torirs`App_Render</text>
 </g>
 <g >
-<title>torirs`mock230_embed_write (5 samples, 0.04%)</title><rect x="227.3" y="341" width="0.4" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_EmbedWrite (5 samples, 0.04%)</title><rect x="227.3" y="341" width="0.4" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
 <text  x="230.32" y="351.5" ></text>
 </g>
 <g >
@@ -2439,7 +2439,7 @@
 <text  x="50.11" y="287.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_embed_pump (63 samples, 0.45%)</title><rect x="221.9" y="341" width="5.3" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_EmbedPump (63 samples, 0.45%)</title><rect x="221.9" y="341" width="5.3" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
 <text  x="224.88" y="351.5" ></text>
 </g>
 <g >
@@ -2587,7 +2587,7 @@
 <text  x="235.09" y="335.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_pipe_write (3 samples, 0.02%)</title><rect x="227.5" y="325" width="0.2" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_PipeWrite (3 samples, 0.02%)</title><rect x="227.5" y="325" width="0.2" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
 <text  x="230.49" y="335.5" ></text>
 </g>
 <g >
@@ -2647,7 +2647,7 @@
 <text  x="233.73" y="335.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_pipe_read (4 samples, 0.03%)</title><rect x="224.1" y="261" width="0.3" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_PipeRead (4 samples, 0.03%)</title><rect x="224.1" y="261" width="0.3" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
 <text  x="227.09" y="271.5" ></text>
 </g>
 <g >
@@ -2815,7 +2815,7 @@
 <text  x="90.80" y="367.5" >t..</text>
 </g>
 <g >
-<title>torirs`mock230_zone_map_stats (4 samples, 0.03%)</title><rect x="227.7" y="341" width="0.4" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_ZoneMapStats (4 samples, 0.03%)</title><rect x="227.7" y="341" width="0.4" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
 <text  x="230.75" y="351.5" ></text>
 </g>
 <g >
@@ -2855,7 +2855,7 @@
 <text  x="224.19" y="287.5" ></text>
 </g>
 <g >
-<title>torirs`mock230_world_handle (16 samples, 0.12%)</title><rect x="225.7" y="277" width="1.4" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<title>torirs`ToriRSServer_WorldHandle (16 samples, 0.12%)</title><rect x="225.7" y="277" width="1.4" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
 <text  x="228.71" y="287.5" ></text>
 </g>
 <g >

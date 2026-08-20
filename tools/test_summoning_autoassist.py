@@ -100,7 +100,7 @@ def definition_from(text: str, proc: str) -> str:
 def npc_blocks() -> dict[str, str]:
     """npc name -> the body of the FIRST block declaring it, in load order.
 
-    `walk_configs` sorts, and `mock230_content_npc` returns the first match, so
+    `walk_configs` sorts, and `ToriRSServer_ContentNpc` returns the first match, so
     a second block for one npc is dead.  Reading only the first is reading what
     the server reads.
     """
@@ -300,7 +300,7 @@ def main() -> int:
         # `npc_attacknpc` is what hands it to `npc_vs_npc_tick`, and that is the
         # only thing that makes it FACE its target: the engine drops the face
         # latch every turn for any npc with no engine-side combat target
-        # (`mock230_npc_face_clear_if_idle`), and a familiar's victim otherwise
+        # (`ToriRSServer_NpcFaceClearIfIdle`), and a familiar's victim otherwise
         # lives only in an npcvar the engine cannot see. It is also what gives
         # a 2x2 familiar footprint-aware approach instead of one naive step.
         #

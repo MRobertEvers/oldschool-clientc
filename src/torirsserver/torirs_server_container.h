@@ -1,11 +1,11 @@
-#ifndef SRC_NET_MOCK_MOCK230_CONTAINER_H
-#define SRC_NET_MOCK_MOCK230_CONTAINER_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_CONTAINER_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_CONTAINER_H
 
 /*
  * The container registry.
  *
- * What it replaces: `container_for` in mock230_scripts.c, which was three
- * `if( inv_id == mock230_ids()->… )` branches over three different storage
+ * What it replaces: `container_for` in torirs_server_scripts.c, which was three
+ * `if( inv_id == ToriRSServer_Ids()->… )` branches over three different storage
  * shapes, every one of them resolved off `srv->active_player`. That shape was
  * wrong in three measurable ways and all three are gone here:
  *
@@ -33,7 +33,7 @@
  * ---------------------------------------------------------------------------
  *
  * **No size constant enters C.** A row's slot count is
- * `mock230_bank_inv_size(inv_id)`, decoded from the cache's config group 5 at
+ * `ToriRSServer_BankInvSize(inv_id)`, decoded from the cache's config group 5 at
  * boot for every inv id. An inv the cache does not size cannot be registered,
  * which is the correct answer: it is not a container, it is a typo.
  *
@@ -42,7 +42,7 @@
  * player-owned Beast-of-Burden container. It intentionally does not invent a
  * server `scope`, `restock`, `stockN`, or stack-policy field: the client cache
  * has none (`dat2_config_inv.c` reads only size (2) and params (249)).
- * `mock230_container_scope` therefore still returns MOCK230_CONTAINER_PLAYER
+ * `ToriRSServer_ContainerScope` therefore still returns TORIRSSERVER_CONTAINER_PLAYER
  * for every inv. A shared shop needs a real server-side definition/parser plus
  * player-qualified listener fan-out and durable world-state policy; the world
  * table remains empty until that separate slice lands.
@@ -50,15 +50,15 @@
 
 #include <stdint.h>
 
-struct Mock230Server;
-struct Mock230Player;
-struct Mock230Container;
-struct Mock230Item;
+struct ToriRSServer;
+struct ToriRSServerPlayer;
+struct ToriRSServerContainer;
+struct ToriRSServerItem;
 
 enum
 {
-    MOCK230_CONTAINER_PLAYER = 0,
-    MOCK230_CONTAINER_WORLD = 1,
+    TORIRSSERVER_CONTAINER_PLAYER = 0,
+    TORIRSSERVER_CONTAINER_WORLD = 1,
 };
 
 /* ------------------------------------------------------------------ */
@@ -73,7 +73,7 @@ enum
  * a constant through the private-container foundation.
  */
 int
-mock230_container_scope(int32_t inv_id);
+ToriRSServer_ContainerScope(int32_t inv_id);
 
 /**
  * The container `inv_id` names, creating it on first use.
@@ -89,49 +89,49 @@ mock230_container_scope(int32_t inv_id);
  * block owned by the row until shutdown. `p_countdialog` parks between an
  * `inv_getobj` and the write that follows it, so this is load-bearing.
  */
-struct Mock230Container*
-mock230_container_resolve(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+struct ToriRSServerContainer*
+ToriRSServer_ContainerResolve(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id);
 
 /**
  * Register a container over storage the registry does not own.
  *
  * For the three containers that predate it: the backpack and worn set are fixed
- * arrays inside `struct Mock230Player`, the bank is mock230_bank's own calloc,
+ * arrays inside `struct ToriRSServerPlayer`, the bank is ToriRSServer_Bank's own calloc,
  * and their dirty flags are read by code outside the registry (the appearance
- * mask, `mock230_bank_flush`, two selftests). Passing those in keeps one dirty
+ * mask, `ToriRSServer_BankFlush`, two selftests). Passing those in keeps one dirty
  * flag per container rather than two that can disagree.
  *
  * Exactly one of `slot_dirty_ref` / `dirty_ref` may be non-NULL, and it must
  * agree with the slot count: a per-slot mask cannot address more than 32.
  */
-struct Mock230Container*
-mock230_container_adopt(
-    struct Mock230Player* player,
+struct ToriRSServerContainer*
+ToriRSServer_ContainerAdopt(
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
-    struct Mock230Item* items,
+    struct ToriRSServerItem* items,
     int slots,
     uint32_t* slot_dirty_ref,
     int* dirty_ref,
     int appearance);
 
 /** Drop one row, without freeing storage the registry does not own. Called by
- *  mock230_bank_shutdown_player, which frees the bank's array itself. */
+ *  ToriRSServer_BankShutdownPlayer, which frees the bank's array itself. */
 void
-mock230_container_forget(
-    struct Mock230Player* player,
+ToriRSServer_ContainerForget(
+    struct ToriRSServerPlayer* player,
     int32_t inv_id);
 
 /** Release every row this player owns storage for. Must run before the player
- *  struct is memset, the same contract mock230_bank_shutdown_player has. */
+ *  struct is memset, the same contract ToriRSServer_BankShutdownPlayer has. */
 void
-mock230_container_shutdown_player(struct Mock230Player* player);
+ToriRSServer_ContainerShutdownPlayer(struct ToriRSServerPlayer* player);
 
 /** Every player's, plus the world table. For a host tearing the world down. */
 void
-mock230_container_shutdown(struct Mock230Server* srv);
+ToriRSServer_ContainerShutdown(struct ToriRSServer* srv);
 
 /* ------------------------------------------------------------------ */
 /* Mutation — the registry owns `dirty`                                */
@@ -148,25 +148,25 @@ mock230_container_shutdown(struct Mock230Server* srv);
  * `World.processCleanup()`, never by a caller.
  */
 void
-mock230_container_mark(
-    struct Mock230Container* container,
+ToriRSServer_ContainerMark(
+    struct ToriRSServerContainer* container,
     int slot);
 
 /** Mark the whole container changed. */
 void
-mock230_container_mark_all(struct Mock230Container* container);
+ToriRSServer_ContainerMarkAll(struct ToriRSServerContainer* container);
 
 /** Write one slot and mark it. `obj_id` < 0 empties the slot (and its vars). */
 void
-mock230_container_set(
-    struct Mock230Container* container,
+ToriRSServer_ContainerSet(
+    struct ToriRSServerContainer* container,
     int slot,
     int obj_id,
     int count);
 
 /**
  * Take everything out of one slot — the removal paths' "this cell is now
- * empty", and NOT a synonym for `mock230_container_set(c, slot, -1, 0)`.
+ * empty", and NOT a synonym for `ToriRSServer_ContainerSet(c, slot, -1, 0)`.
  *
  * A shop's baseline slot stays put at a count of 0 (LostCity's `stockobj`), so
  * an out-of-stock line still draws, still prices, and can still restock. Every
@@ -174,8 +174,8 @@ mock230_container_set(
  * raw `obj_id = -1` caused in a shop.
  */
 void
-mock230_container_clear_slot(
-    struct Mock230Container* container,
+ToriRSServer_ContainerClearSlot(
+    struct ToriRSServerContainer* container,
     int slot);
 
 /**
@@ -184,39 +184,39 @@ mock230_container_clear_slot(
  * The obj record's own `stackable` OR the container's policy — LostCity's
  * `InvType.stackType`, which for a shop comes out of its `.inv`
  * (`stackall=yes`) and for the bank and collection log is named in
- * mock230_ids.h. `mock230_container_add` has always applied this; the space
+ * torirs_server_ids.h. `ToriRSServer_ContainerAdd` has always applied this; the space
  * tests used to read the obj record alone and so disagreed with it about every
  * unstackable in a stacking container.
  */
 int
-mock230_container_stacks_obj(
-    const struct Mock230Container* container,
+ToriRSServer_ContainerStacksObj(
+    const struct ToriRSServerContainer* container,
     int obj_id);
 
 /** `inv_getvar` — 0 when the slot is empty or the key is unset. */
 int
-mock230_item_get_var(
-    const struct Mock230Item* item,
+ToriRSServer_ItemGetVar(
+    const struct ToriRSServerItem* item,
     int key_obj);
 
-/** `inv_setvar` — keyed by obj id; at most MOCK230_ITEM_VAR_MAX keys per slot. */
+/** `inv_setvar` — keyed by obj id; at most TORIRSSERVER_ITEM_VAR_MAX keys per slot. */
 void
-mock230_item_set_var(
-    struct Mock230Item* item,
+ToriRSServer_ItemSetVar(
+    struct ToriRSServerItem* item,
     int key_obj,
     int value);
 
 /**
  * Copy `src`'s vars onto `dst` (obj_id/count untouched). For a caller that
  * knows `src` and `dst` are the same logical item moving between slots —
- * `mock230_container_set` and `mock230_container_add` never do this on their
+ * `ToriRSServer_ContainerSet` and `ToriRSServer_ContainerAdd` never do this on their
  * own, deliberately: a different obj landing in a slot must not inherit
  * whatever was there before.
  */
 void
-mock230_item_vars_copy(
-    struct Mock230Item* dst,
-    const struct Mock230Item* src);
+ToriRSServer_ItemVarsCopy(
+    struct ToriRSServerItem* dst,
+    const struct ToriRSServerItem* src);
 
 /**
  * The slot holding `obj_id`'s bank *placeholder*, or -1.
@@ -228,12 +228,12 @@ mock230_item_vars_copy(
  *
  * Takes the raw array rather than a container row because the bank's slots are
  * reached both ways here: as an adopted container row (`inv_add(bank, …)`) and
- * as `player->bank.slots` directly (`mock230_bank_deposit`). One rule, one
+ * as `player->bank.slots` directly (`ToriRSServer_BankDeposit`). One rule, one
  * implementation, both callers.
  */
 int
-mock230_container_placeholder_slot(
-    const struct Mock230Item* items,
+ToriRSServer_ContainerPlaceholderSlot(
+    const struct ToriRSServerItem* items,
     int slots,
     int obj_id);
 
@@ -252,22 +252,22 @@ mock230_container_placeholder_slot(
  * at a time took one. See the body for what is deliberately not ported.
  */
 int
-mock230_container_add(
-    struct Mock230Container* container,
+ToriRSServer_ContainerAdd(
+    struct ToriRSServerContainer* container,
     int obj_id,
     int count,
     int assure_full);
 
 /**
- * Same as `mock230_container_add`, but `*out_slot` receives the slot a unit
+ * Same as `ToriRSServer_ContainerAdd`, but `*out_slot` receives the slot a unit
  * landed in when — and only when — the placement is unambiguous: a single
  * unstackable unit (`count == 1`) that landed in exactly one slot. Every
  * other shape (a merged stack, more than one unit, nothing added) leaves it
- * at -1. `out_slot` may be NULL. See `mock230_item_vars_copy`.
+ * at -1. `out_slot` may be NULL. See `ToriRSServer_ItemVarsCopy`.
  */
 int
-mock230_container_add_out_slot(
-    struct Mock230Container* container,
+ToriRSServer_ContainerAddOutSlot(
+    struct ToriRSServerContainer* container,
     int obj_id,
     int count,
     int assure_full,
@@ -275,15 +275,15 @@ mock230_container_add_out_slot(
 
 /** Clear the dirty state after a flush. */
 void
-mock230_container_clean(struct Mock230Container* container);
+ToriRSServer_ContainerClean(struct ToriRSServerContainer* container);
 
 /** True when anything in this container changed since the last clean. */
 int
-mock230_container_is_dirty(const struct Mock230Container* container);
+ToriRSServer_ContainerIsDirty(const struct ToriRSServerContainer* container);
 
 /** The per-slot mask, for the encoder. 0 when the row is whole-container. */
 uint32_t
-mock230_container_slot_mask(const struct Mock230Container* container);
+ToriRSServer_ContainerSlotMask(const struct ToriRSServerContainer* container);
 
 /* ------------------------------------------------------------------ */
 /* Bindings — `inv_transmit` / `inv_stoptransmit`                      */
@@ -296,12 +296,12 @@ mock230_container_slot_mask(const struct Mock230Container* container);
  * one inv may appear on more than one component (worn tab + equipment stats).
  * Re-binding the same `(inv, com)` is a no-op; binding a `com` that already
  * listens to a different inv moves it. The bank still owns its own transmit
- * for the reasons in mock230_container.c.
+ * for the reasons in torirs_server_container.c.
  */
 int
-mock230_container_bind(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_ContainerBind(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t inv_id,
     int32_t component);
 
@@ -312,10 +312,10 @@ mock230_container_bind(
  * owner-context RuneScript. For a world-scoped inv, `owner` is ignored just as
  * it is by resolve. */
 int
-mock230_container_bind_from(
-    struct Mock230Server* srv,
-    struct Mock230Player* owner,
-    struct Mock230Player* viewer,
+ToriRSServer_ContainerBindFrom(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* owner,
+    struct ToriRSServerPlayer* viewer,
     int32_t inv_id,
     int32_t component);
 
@@ -328,9 +328,9 @@ mock230_container_bind_from(
  * behind it is `player`'s own or a world row several players share. Returns
  * how many dropped (0 or 1; a player can bind one inv per component). */
 int
-mock230_container_unbind(
-    struct Mock230Server* srv,
-    struct Mock230Player* player,
+ToriRSServer_ContainerUnbind(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
     int32_t component);
 
 /**
@@ -344,19 +344,19 @@ mock230_container_unbind(
  * is not followed by a stale partial on top of the bind's own full update.
  */
 void
-mock230_container_flush(struct Mock230Player* player);
+ToriRSServer_ContainerFlush(struct ToriRSServerPlayer* player);
 
 /**
- * The world-row sibling of `mock230_container_flush`.
+ * The world-row sibling of `ToriRSServer_ContainerFlush`.
  *
  * A player's own containers are flushed from that player's own tick pass
  * (`phase_client_out`); a shared row belongs to no one player, so it needs its
  * own pass over `srv->world_containers`, once per tick, sending each dirty
  * row's listeners to the specific player each listener names (see the
- * `player` field on the listener struct in mock230.h for why that is not
+ * `player` field on the listener struct in torirs_server.h for why that is not
  * `srv->active_player`).
  */
 void
-mock230_container_flush_world(struct Mock230Server* srv);
+ToriRSServer_ContainerFlushWorld(struct ToriRSServer* srv);
 
 #endif

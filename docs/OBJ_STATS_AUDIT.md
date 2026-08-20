@@ -1,7 +1,7 @@
 # Object stats audit — tradeable, members, alch, weapon stats, attack speed
 
 > Measured 2026-08-13, against `OSRS-Content/osrs239-content/configs/all.obj`
-> (33,747+ obj records) and the mock230 engine. Every claim below is a literal
+> (33,747+ obj records) and the ToriRSServer engine. Every claim below is a literal
 > command; re-run it rather than believing the prose (same contract as
 > `WEAPON_FX.md`). This is the "audit all objects" answer for the fields that
 > turned out to need no wiki work at all — see `WEAPON_FX_PORT_QUEUE.md` slice
@@ -16,8 +16,8 @@ content**. Nothing here needed scraping; the audit is a proof, not a port.
 
 | field | status | evidence |
 |---|---|---|
-| tradeable | done — native | `struct Mock230ObjInfo.tradeable` (opcode 15), `oc_tradeable` |
-| members | done — native, consumed | `struct Mock230ObjInfo.members` (opcode 16), `oc_members` used at 10+ real call sites |
+| tradeable | done — native | `struct ToriRSServerObjInfo.tradeable` (opcode 15), `oc_tradeable` |
+| members | done — native, consumed | `struct ToriRSServerObjInfo.members` (opcode 16), `oc_members` used at 10+ real call sites |
 | weight | done — native | opcode 75, `weight=` in every record |
 | equipable | done — native (`wearpos != -1`) | opcodes for wearpos/wearpos_2/wearpos_3 |
 | weapon combat bonuses | done — native params | `strengthbonus`/`prayerbonus`/stab-slash-crush-range-magic attack+defence, params 0-11 |
@@ -29,13 +29,13 @@ content**. Nothing here needed scraping; the audit is a proof, not a port.
 
 ```sh
 grep -c "^tradeable=no" OSRS-Content/osrs239-content/configs/all.obj
-grep -n "tradeable" src/net/mock/mock230.h src/net/mock/mock230_ops_obj.c
+grep -n "tradeable" src/torirsserver/torirs_server.h src/torirsserver/torirs_server_ops_obj.c
 ```
 
-`Mock230ObjInfo.tradeable` (`mock230.h:857`) is set from cache opcode 15
+`ToriRSServerObjInfo.tradeable` (`torirs_server.h:857`) is set from cache opcode 15
 (`getradeable=`/`tradeable=` in the text export; the cache clears a bit for
 non-tradeable, default is tradeable). `[command,oc_tradeable]`
-(`mock230_ops_obj.c:319`) reads it directly. Distinct from GE listing by
+(`torirs_server_ops_obj.c:319`) reads it directly. Distinct from GE listing by
 design (an item can be tradeable player-to-player without a GE line).
 
 ## 2. Members
@@ -45,7 +45,7 @@ grep -c "^members=yes" OSRS-Content/osrs239-content/configs/all.obj
 grep -rn "oc_members(" OSRS-Content/osrs239-content/server/scripts | wc -l
 ```
 
-`Mock230ObjInfo.members` (`mock230.h:859`) is opcode 16. `oc_members` is
+`ToriRSServerObjInfo.members` (`torirs_server.h:859`) is opcode 16. `oc_members` is
 called from real content, not just declared: crafting (jewellery members
 gate), woodcutting, runecraft, cooking (dough/pizza), magic (staff/enchant),
 and `npc/scripts/dragon.rs2`'s dragonfire-weapon check — see
@@ -62,7 +62,7 @@ sed -n '40,55p;80,90p' OSRS-Content/osrs239-content/server/scripts/skill_magic/s
 There is no `highalch`/`lowalch` opcode in the OSRS cache format at all —
 confirmed by extracting every unique `key=` across the 33,747-record file and
 finding none. The value is `content`'s to compute, per
-`mock230.h:850-851`'s own comment: `"oc_cost returns this; high alch is
+`torirs_server.h:850-851`'s own comment: `"oc_cost returns this; high alch is
 content's calc(oc_cost($obj) * 60 / 100)."`
 `skill_magic/scripts/spells/alchemy.rs2` already does exactly that:
 

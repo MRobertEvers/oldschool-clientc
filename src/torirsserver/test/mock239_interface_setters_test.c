@@ -1,6 +1,6 @@
 /* Literal RSProt fixtures for every additional revision-239 interface setter. */
 
-#include "net/mock/mock239_interface_setters.h"
+#include "torirsserver/mock239_interface_setters.h"
 
 #include <rsareabuf.h>
 

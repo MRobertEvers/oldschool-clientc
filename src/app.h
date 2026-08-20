@@ -212,7 +212,7 @@ struct AppConfig
     char const* connect_user;
     char const* connect_pass;
     /** `[net:boot] scripts` — compiled script pack for the embedded mock
-     * server. MOCK230_SCRIPTS still overrides it. NULL/"" = server default. */
+     * server. TORIRSSERVER_SCRIPTS still overrides it. NULL/"" = server default. */
     char const* net_server_scripts;
     /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
      * send once right after login, e.g. "zuk" to enter the Inferno instance.
@@ -292,6 +292,9 @@ struct AppConfig
      * window it is given; resizable lays the gameframe out at the window size.
      * --windowmode overrides. */
     int window_mode;
+    /** Manifest-pinned chrome zoom; 0 follows the display density. The env
+     *  TORIRS_CHROME_SCALE outranks both. */
+    int chrome_scale;
     /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
      * 765x503 fixed frame). Only meaningful in resizable mode, where it is the
      * size the gameframe is laid out at before the user touches anything.

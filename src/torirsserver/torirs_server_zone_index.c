@@ -1,14 +1,14 @@
 /*
  * Packed zone key — byte-identical to LostCity ZoneMap.zoneIndex.
  *
- * Lifted out of mock230_zone.c so the pack validator (which loads multiway.csv
- * via mock230_content.c) can link the key packing without the full ZoneMap.
+ * Lifted out of torirs_server_zone.c so the pack validator (which loads multiway.csv
+ * via torirs_server_content.c) can link the key packing without the full ZoneMap.
  */
 
-#include "mock230_zone.h"
+#include "torirs_server_zone.h"
 
 int
-mock230_zone_index(
+ToriRSServer_ZoneIndex(
     int x,
     int z,
     int level)

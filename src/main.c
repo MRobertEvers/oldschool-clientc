@@ -1408,7 +1408,7 @@ frame_loop_step(void)
              * once the client is far enough in to have a cache, a host and a
              * runner, then leave. TORIRS_CS2_HARNESS_FRAME picks how far in;
              * the default is late enough for login to have completed against
-             * mock230, because a case that reads a varp needs the varps.
+             * ToriRSServer, because a case that reads a varp needs the varps.
              * The run ends the way every other headless run here ends, with
              * TORIRS_MAX_FRAMES — the harness does not invent a second exit
              * path. */
@@ -1810,7 +1810,22 @@ frame_loop_step(void)
          * an ordinary one changes density with no event that says so, and
          * App_SetChromeScale returns immediately when nothing moved. */
         if( !getenv("TORIRS_CHROME_SCALE") )
-            App_SetChromeScale(&app, PlatformSDL2_PixelDensity(sdl));
+        {
+            if( app.cfg.chrome_scale < 0 )
+            {
+                /* dynamic: re-derive from the canvas every frame, so a drag
+                 * to fullscreen steps the chrome up as the canvas grows. */
+                int scale = UITREE_LAYOUT_ROOT_H / 500;
+                if( scale < 1 )
+                    scale = 1;
+                if( scale > 4 )
+                    scale = 4;
+                App_SetChromeScale(&app, scale);
+            }
+            else if( app.cfg.chrome_scale == 0 )
+                App_SetChromeScale(&app, PlatformSDL2_PixelDensity(sdl));
+            /* > 0: pinned by the manifest; set once at boot, never followed. */
+        }
         PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #if defined(TORIRS_HAVE_D3D9)
         if( d3d9 )
@@ -3953,8 +3968,25 @@ main(
         {
             int density = PlatformSDL2_PixelDensity(sdl);
             char const* forced = getenv("TORIRS_CHROME_SCALE");
+            /* Precedence: the env pin (a dev working on scaled chrome from a
+             * 1x display), then the manifest's stated size, then the display
+             * itself. The manifest slot is what lets a boot say "this editor
+             * draws its chrome at 2x" without every launch exporting an env. */
             if( forced && forced[0] )
                 density = atoi(forced);
+            else if( cfg.chrome_scale > 0 )
+                density = cfg.chrome_scale;
+            else if( cfg.chrome_scale < 0 )
+            {
+                /* dynamic: proportional to the canvas, 500 rows per step --
+                 * the classic 503-row frame is 1x, a 2x-the-frame canvas gets
+                 * 2x chrome. */
+                density = UITREE_LAYOUT_ROOT_H / 500;
+                if( density < 1 )
+                    density = 1;
+                if( density > 4 )
+                    density = 4;
+            }
             App_SetChromeScale(&app, density);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 fprintf(
@@ -4113,16 +4145,16 @@ main(
 
             /* One process must not quietly use two caches. The client and its
              * JS5 reader already use the manifest-resolved `cfg.cache_dir`; pass
-             * that same directory through mock230's existing deployment knob
-             * before the embedded world starts. An explicit MOCK230_CACHE still
+             * that same directory through ToriRSServer's existing deployment knob
+             * before the embedded world starts. An explicit TORIRSSERVER_CACHE still
              * wins, which preserves the diagnostic override. This matters for
              * isolated cache overlays: their minted npc/loc ids do not exist in
              * the pristine cache. */
-            if( transport_kind == NET_TRANSPORT_EMBED && !getenv("MOCK230_CACHE") )
-                setenv("MOCK230_CACHE", cfg.cache_dir, 0);
+            if( transport_kind == NET_TRANSPORT_EMBED && !getenv("TORIRSSERVER_CACHE") )
+                setenv("TORIRSSERVER_CACHE", cfg.cache_dir, 0);
             if( transport_kind == NET_TRANSPORT_EMBED && cfg.net_server_scripts &&
-                cfg.net_server_scripts[0] && !getenv("MOCK230_SCRIPTS") )
-                setenv("MOCK230_SCRIPTS", cfg.net_server_scripts, 0);
+                cfg.net_server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
+                setenv("TORIRSSERVER_SCRIPTS", cfg.net_server_scripts, 0);
 
             sock = app.net ? NetTransport_New(transport_kind,
                                               cfg.connect_port > 0 ? cfg.connect_port : 43594,

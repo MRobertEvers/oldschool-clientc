@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_FRIENDS_H
-#define SRC_NET_MOCK_MOCK230_FRIENDS_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_FRIENDS_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_FRIENDS_H
 
 #include <stdint.h>
 
@@ -21,17 +21,17 @@
  *
  * 1. **Keyed by base-37 name, never by player slot.** `getFollowers` — "who has
  *    alice in their list" — has to answer for people who are *not logged in*,
- *    which a per-`Mock230Player` array structurally cannot do. Every entry here
+ *    which a per-`ToriRSServerPlayer` array structurally cannot do. Every entry here
  *    outlives the player slot that created it.
  *
  * 2. **Process-scoped, not world-scoped.** The store is a file-static in
- *    mock230_friends.c rather than a field on `struct Mock230Server`, because
- *    `serve()` (mock230_main.c) `memset`s the world at the top of every
+ *    torirs_server_friends.c rather than a field on `struct ToriRSServer`, because
+ *    `serve()` (torirs_server_main.c) `memset`s the world at the top of every
  *    connection. A roster on the world would be erased between two sessions of
  *    the same process, which is exactly the case this service exists to
  *    handle: alice adds bob while bob is offline. The reference gets this for
  *    free by being a different process; here it is a deliberate choice, and
- *    `mock230_friends_reset` is the only thing that clears it.
+ *    `ToriRSServer_FriendsReset` is the only thing that clears it.
  *
  * 3. **`isVisibleTo` is the whole social-visibility policy** and is ported
  *    verbatim (FriendServerRepository.ts:332-355). Staff bypass, then
@@ -43,7 +43,7 @@
  * ------------------------------------------------------------------
  *
  * A restart loses every friend list, every ignore list and every chat mode.
- * There is no `mock230_friends_save`, no `mock230_friends_load`, and no file
+ * There is no `ToriRSServer_FriendsSave`, no `ToriRSServer_FriendsLoad`, and no file
  * format — deliberately, and this paragraph is the loudness that decision was
  * required to come with (docs/FRIENDS_PRIVATE_CHAT.md §6, and
  * docs/osrs230_mockserver.md §3.15, which records what happens when intent is
@@ -52,7 +52,7 @@
  * The reasoning, in short, because a reader who does not know it will "fix"
  * this by wiring the save file and be wrong:
  *
- *   - `mock230_save_player` / `mock230_load_player` have **no callers at all**,
+ *   - `ToriRSServer_SavePlayer` / `ToriRSServer_LoadPlayer` have **no callers at all**,
  *     so a returning player is not a case anything in this server can be tested
  *     against today.
  *   - The reference does **not** put friend lists in the player save either. It
@@ -63,21 +63,21 @@
  *
  * The follow-up, when someone wants it, is the reference's shape: one
  * name-keyed file owned and written by this module, reusing the write-then-
- * rename and the name sanitisation already in mock230_save.c. That is a
+ * rename and the name sanitisation already in torirs_server_save.c. That is a
  * separate work item with its own test. What must NOT happen is a
- * `mock230_friends_save()` with no callers.
+ * `ToriRSServer_FriendsSave()` with no callers.
  */
 
-struct Mock230Player;
+struct ToriRSServerPlayer;
 
 enum
 {
     /*
      * Storage ceilings, not policy. These size C arrays, which is the one kind
-     * of number mock230_ids.h says stays in C ("content decides how much of the
+     * of number torirs_server_ids.h says stays in C ("content decides how much of the
      * array is used and the loader checks it fits"). The *caps* — how many
      * friends a player may actually have — are content's and come from
-     * `.constant`s; see mock230_friends_cap_friends below. A content cap larger
+     * `.constant`s; see ToriRSServer_FriendsCapFriends below. A content cap larger
      * than the ceiling here is reported at resolve time rather than silently
      * clamped.
      */
@@ -91,12 +91,12 @@ enum
      * It has to comfortably exceed the friend cap, not merely equal it: one
      * player with a full list occupies that many roster slots plus their own.
      */
-    MOCK230_SOCIAL_ROSTER_MAX = 512,
+    TORIRSSERVER_SOCIAL_ROSTER_MAX = 512,
     /* Per-list ceilings. The lists themselves are grown on demand, so a roster
      * of 512 names that nobody has listed costs 512 small structs and no
      * arrays. */
-    MOCK230_SOCIAL_FRIENDS_MAX = 256,
-    MOCK230_SOCIAL_IGNORES_MAX = 128,
+    TORIRSSERVER_SOCIAL_FRIENDS_MAX = 256,
+    TORIRSSERVER_SOCIAL_IGNORES_MAX = 128,
 };
 
 /*
@@ -110,11 +110,11 @@ enum
  * `public` has a fourth value (HIDE = 3) and `tradeduel` has the same three;
  * both are stored and echoed and read by nothing, here as in the reference.
  */
-enum Mock230ChatModePrivate
+enum ToriRSServerChatModePrivate
 {
-    MOCK230_CHAT_PRIVATE_ON = 0,
-    MOCK230_CHAT_PRIVATE_FRIENDS = 1,
-    MOCK230_CHAT_PRIVATE_OFF = 2,
+    TORIRSSERVER_CHAT_PRIVATE_ON = 0,
+    TORIRSSERVER_CHAT_PRIVATE_FRIENDS = 1,
+    TORIRSSERVER_CHAT_PRIVATE_OFF = 2,
 };
 
 /**
@@ -130,20 +130,20 @@ enum Mock230ChatModePrivate
  * whether anything changed and therefore whether to send an update packet, and
  * so the selftest can assert on the cap.
  */
-enum Mock230SocialResult
+enum ToriRSServerSocialResult
 {
-    MOCK230_SOCIAL_OK = 0,
+    TORIRSSERVER_SOCIAL_OK = 0,
     /** Already in the list (add), or not in it (delete). Nothing changed. */
-    MOCK230_SOCIAL_UNCHANGED,
+    TORIRSSERVER_SOCIAL_UNCHANGED,
     /** Refused by the content cap. */
-    MOCK230_SOCIAL_FULL,
+    TORIRSSERVER_SOCIAL_FULL,
     /** The name does not round-trip through base 37 — the reference's
      *  `fromBase37(name) === 'invalid_name'` check. */
-    MOCK230_SOCIAL_INVALID_NAME,
+    TORIRSSERVER_SOCIAL_INVALID_NAME,
     /** The service itself is out of roster slots. An engine ceiling being hit,
      *  which is a bug report rather than a game outcome; it is reported to
      *  stderr where it happens. */
-    MOCK230_SOCIAL_NO_ROOM,
+    TORIRSSERVER_SOCIAL_NO_ROOM,
 };
 
 /* ------------------------------------------------------------------ */
@@ -153,7 +153,7 @@ enum Mock230SocialResult
 /**
  * Drop the entire roster.
  *
- * Deliberately **not** called from `mock230_world_reset`: the world is reset
+ * Deliberately **not** called from `ToriRSServer_WorldReset`: the world is reset
  * between socket sessions and the roster is the thing that has to survive that.
  * The callers are the selftest (so one section cannot see another's names) and
  * a host that genuinely wants a clean process.
@@ -161,7 +161,7 @@ enum Mock230SocialResult
  * Also drops the cached content caps, so a content reload re-reads them.
  */
 void
-mock230_friends_reset(void);
+ToriRSServer_FriendsReset(void);
 
 /* ------------------------------------------------------------------ */
 /* Presence — the reference's PLAYER_LOGIN / PLAYER_LOGOUT            */
@@ -179,7 +179,7 @@ mock230_friends_reset(void);
  * module owns no encoder.
  */
 int
-mock230_friends_login(
+ToriRSServer_FriendsLogin(
     int64_t name37,
     int public_mode,
     int private_mode,
@@ -195,19 +195,19 @@ mock230_friends_login(
  * next login. With no database, deleting would be losing the list.)
  */
 void
-mock230_friends_logout(int64_t name37);
+ToriRSServer_FriendsLogout(int64_t name37);
 
 /** Is this name online, and on which world? 0 = offline or unknown. This is the
- *  raw answer; `mock230_friends_get` is the one that applies `isVisibleTo`. */
+ *  raw answer; `ToriRSServer_FriendsGet` is the one that applies `isVisibleTo`. */
 int
-mock230_friends_world(int64_t name37);
+ToriRSServer_FriendsWorld(int64_t name37);
 
 /** The reference's PLAYER_CHAT_SETMODE. `private_mode` is clamped as at login.
- *  Modes live here rather than on `struct Mock230Player` so there is one copy:
+ *  Modes live here rather than on `struct ToriRSServerPlayer` so there is one copy:
  *  `isVisibleTo` is the thing that reads them, and it answers for names whose
  *  player slot is long gone. */
 void
-mock230_friends_set_chat_modes(
+ToriRSServer_FriendsSetChatModes(
     int64_t name37,
     int public_mode,
     int private_mode,
@@ -216,7 +216,7 @@ mock230_friends_set_chat_modes(
 /** Read the three modes back, for the CHAT_FILTER_SETTINGS echo. Any out
  *  pointer may be NULL. Unknown name yields the reference's defaults. */
 void
-mock230_friends_chat_modes(
+ToriRSServer_FriendsChatModes(
     int64_t name37,
     int* out_public,
     int* out_private,
@@ -226,23 +226,23 @@ mock230_friends_chat_modes(
 /* Mutation — FRIENDLIST_ADD / DEL, IGNORELIST_ADD / DEL               */
 /* ------------------------------------------------------------------ */
 
-enum Mock230SocialResult
-mock230_friends_add(
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsAdd(
     int64_t name37,
     int64_t target37);
 
-enum Mock230SocialResult
-mock230_friends_del(
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsDel(
     int64_t name37,
     int64_t target37);
 
-enum Mock230SocialResult
-mock230_friends_ignore_add(
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsIgnoreAdd(
     int64_t name37,
     int64_t target37);
 
-enum Mock230SocialResult
-mock230_friends_ignore_del(
+enum ToriRSServerSocialResult
+ToriRSServer_FriendsIgnoreDel(
     int64_t name37,
     int64_t target37);
 
@@ -252,7 +252,7 @@ mock230_friends_ignore_del(
 
 /** How many names are in this player's friend list. */
 int
-mock230_friends_count(int64_t name37);
+ToriRSServer_FriendsCount(int64_t name37);
 
 /**
  * One row of the friend list, in insertion order.
@@ -266,29 +266,29 @@ mock230_friends_count(int64_t name37);
  * Returns 0 for an out-of-range index, leaving the outputs untouched.
  */
 int
-mock230_friends_get(
+ToriRSServer_FriendsGet(
     int64_t name37,
     int index,
     int64_t* out_name37,
     int* out_world);
 
 int
-mock230_friends_ignore_count(int64_t name37);
+ToriRSServer_FriendsIgnoreCount(int64_t name37);
 
 int
-mock230_friends_ignore_get(
+ToriRSServer_FriendsIgnoreGet(
     int64_t name37,
     int index,
     int64_t* out_name37);
 
 /** Is `other37` in `name37`'s friend / ignore list? */
 int
-mock230_friends_is_friend(
+ToriRSServer_FriendsIsFriend(
     int64_t name37,
     int64_t other37);
 
 int
-mock230_friends_is_ignored(
+ToriRSServer_FriendsIsIgnored(
     int64_t name37,
     int64_t other37);
 
@@ -300,7 +300,7 @@ mock230_friends_is_ignored(
  * `viewer`'s staff level that overrides.
  */
 int
-mock230_friends_visible_to(
+ToriRSServer_FriendsVisibleTo(
     int64_t viewer37,
     int64_t other37);
 
@@ -313,7 +313,7 @@ mock230_friends_visible_to(
  * `max` means the caller's buffer was too small.
  */
 int
-mock230_friends_followers(
+ToriRSServer_FriendsFollowers(
     int64_t name37,
     int64_t* out,
     int max);
@@ -335,7 +335,7 @@ mock230_friends_followers(
  * one fixed seed on purpose, so this counts deterministically instead.
  */
 int32_t
-mock230_friends_next_pm_id(void);
+ToriRSServer_FriendsNextPmId(void);
 
 /* ------------------------------------------------------------------ */
 /* Caps — content's numbers, read by name                              */
@@ -362,13 +362,13 @@ mock230_friends_next_pm_id(void);
  * cap that lied by a factor of two.
  */
 int
-mock230_friends_cap_friends(void);
+ToriRSServer_FriendsCapFriends(void);
 
 int
-mock230_friends_cap_ignores(void);
+ToriRSServer_FriendsCapIgnores(void);
 
 int
-mock230_friends_cap_pm_bytes(void);
+ToriRSServer_FriendsCapPmBytes(void);
 
 /* ------------------------------------------------------------------ */
 /* Spam protection                                                     */
@@ -388,6 +388,6 @@ mock230_friends_cap_pm_bytes(void);
  * paths from CS2 far faster than the 2004 one could from its own UI.
  */
 int
-mock230_friends_social_gate(struct Mock230Player* player);
+ToriRSServer_FriendsSocialGate(struct ToriRSServerPlayer* player);
 
 #endif

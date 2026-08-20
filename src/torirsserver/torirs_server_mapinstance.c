@@ -1,15 +1,15 @@
 /*
  * The map-instance registry. The design, the pool policy and the two rotation
- * directions are all written down in mock230_mapinstance.h — read that first.
+ * directions are all written down in torirs_server_mapinstance.h — read that first.
  *
  * What is here: a fixed table of reservations, a lazily-built bitmap of which
  * map squares the cache ships, and the coordinate arithmetic. No wire, no
  * collision, no scripts; those call in.
  */
 
-#include "mock230_mapinstance.h"
+#include "torirs_server_mapinstance.h"
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include <rscache.h>
 
@@ -57,7 +57,7 @@ enum
     MAPINSTANCE_SQUARES = 256,
 };
 
-struct Mock230MapInstance
+struct ToriRSServerMapInstance
 {
     int active;
     /** Script-visible uid of the player who allocated this reservation. */
@@ -65,20 +65,20 @@ struct Mock230MapInstance
     /** Content-owned, session-local switches shared by everyone in the map. */
     uint32_t flags;
     /** Content-owned integer registers shared by everyone in the map. */
-    int vars[MOCK230_MAPINSTANCE_VARS];
+    int vars[TORIRSSERVER_MAPINSTANCE_VARS];
     /** Absolute south-west tile. */
     int base_x, base_z;
     int zone_w, zone_h;
     /** Reserved footprint in map squares, which is what the pool hands out. */
     int square_x, square_z, square_w, square_h;
     int built;
-    /** Bumped on every build (see mock230_mapinstance_generation). */
+    /** Bumped on every build (see ToriRSServer_MapInstanceGeneration). */
     int generation;
-    struct Mock230MapInstanceZone
-        zones[MOCK230_MAPINSTANCE_LEVELS][MOCK230_MAPINSTANCE_ZONES][MOCK230_MAPINSTANCE_ZONES];
+    struct ToriRSServerMapInstanceZone
+        zones[TORIRSSERVER_MAPINSTANCE_LEVELS][TORIRSSERVER_MAPINSTANCE_ZONES][TORIRSSERVER_MAPINSTANCE_ZONES];
 };
 
-static struct Mock230MapInstance g_instances[MOCK230_MAPINSTANCE_MAX];
+static struct ToriRSServerMapInstance g_instances[TORIRSSERVER_MAPINSTANCE_MAX];
 
 /*
  * Monotonic across the whole pool, never reset while the server runs.
@@ -131,7 +131,7 @@ mapinstance_scan_pool(const char* cache_dir)
     if( !disk )
     {
         fprintf(stderr,
-                "mock230: no cache at %s — map instances unavailable\n",
+                "torirsserver: no cache at %s — map instances unavailable\n",
                 cache_dir);
         /* Every square reads as used, so alloc fails loudly rather than handing
          * out coordinates over map it cannot see. */
@@ -141,7 +141,7 @@ mapinstance_scan_pool(const char* cache_dir)
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
     RSCache_Dat2DiskSetProfile(disk, &profile);
 
     for( int x = 0; x < MAPINSTANCE_SQUARES; x++ )
@@ -156,9 +156,9 @@ mapinstance_scan_pool(const char* cache_dir)
     }
 
     RSCache_Dat2DiskFree(disk);
-    if( getenv("MOCK230_VERBOSE") )
+    if( getenv("TORIRSSERVER_VERBOSE") )
         fprintf(stderr,
-                "mock230: map-instance pool — %d squares shipped by the cache, sweep starts at "
+                "torirsserver: map-instance pool — %d squares shipped by the cache, sweep starts at "
                 "map x %d\n",
                 shipped, MAPINSTANCE_SCAN_X0);
 }
@@ -196,7 +196,7 @@ mapinstance_block_free(
 /* ------------------------------------------------------------------ */
 
 void
-mock230_mapinstance_rotate_to_src(
+ToriRSServer_MapInstanceRotateToSrc(
     int rotation,
     int dx,
     int dz,
@@ -226,7 +226,7 @@ mock230_mapinstance_rotate_to_src(
 }
 
 void
-mock230_mapinstance_rotate_to_dst(
+ToriRSServer_MapInstanceRotateToDst(
     int rotation,
     int sx,
     int sz,
@@ -277,7 +277,7 @@ mock230_mapinstance_rotate_to_dst(
 /* ------------------------------------------------------------------ */
 
 void
-mock230_mapinstance_reset(void)
+ToriRSServer_MapInstanceReset(void)
 {
     memset(g_instances, 0, sizeof(g_instances));
 }
@@ -290,10 +290,10 @@ mock230_mapinstance_reset(void)
  * the tick that allocates a house and the tick that enters it, varps start at 0,
  * and a 0-based handle would make "slot 0" and "never allocated" the same int.
  */
-static struct Mock230MapInstance*
+static struct ToriRSServerMapInstance*
 mapinstance_get(int handle)
 {
-    if( handle < 1 || handle > MOCK230_MAPINSTANCE_MAX )
+    if( handle < 1 || handle > TORIRSSERVER_MAPINSTANCE_MAX )
         return NULL;
     if( !g_instances[handle - 1].active )
         return NULL;
@@ -307,9 +307,9 @@ mapinstance_square_reserved(
     int x,
     int z)
 {
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        struct Mock230MapInstance* inst = &g_instances[i];
+        struct ToriRSServerMapInstance* inst = &g_instances[i];
 
         if( !inst->active )
             continue;
@@ -341,7 +341,7 @@ mapinstance_block_available(
 }
 
 int
-mock230_mapinstance_alloc(
+ToriRSServer_MapInstanceAlloc(
     const char* cache_dir,
     int zone_w,
     int zone_h)
@@ -351,11 +351,11 @@ mock230_mapinstance_alloc(
     int square_h;
 
     assert(cache_dir);
-    if( zone_w < 1 || zone_h < 1 || zone_w > MOCK230_MAPINSTANCE_ZONES ||
-        zone_h > MOCK230_MAPINSTANCE_ZONES )
+    if( zone_w < 1 || zone_h < 1 || zone_w > TORIRSSERVER_MAPINSTANCE_ZONES ||
+        zone_h > TORIRSSERVER_MAPINSTANCE_ZONES )
         return 0;
 
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX && slot < 0; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX && slot < 0; i++ )
     {
         if( !g_instances[i].active )
             slot = i;
@@ -365,14 +365,14 @@ mock230_mapinstance_alloc(
 
     mapinstance_scan_pool(cache_dir);
 
-    square_w = (zone_w + MOCK230_MAPINSTANCE_SQUARE_ZONES - 1) / MOCK230_MAPINSTANCE_SQUARE_ZONES;
-    square_h = (zone_h + MOCK230_MAPINSTANCE_SQUARE_ZONES - 1) / MOCK230_MAPINSTANCE_SQUARE_ZONES;
+    square_w = (zone_w + TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES - 1) / TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES;
+    square_h = (zone_h + TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES - 1) / TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES;
 
     for( int x = MAPINSTANCE_SCAN_X0; x + square_w <= MAPINSTANCE_SQUARES; x++ )
     {
         for( int z = MAPINSTANCE_SCAN_Z0; z + square_h <= MAPINSTANCE_SQUARES; z++ )
         {
-            struct Mock230MapInstance* inst;
+            struct ToriRSServerMapInstance* inst;
 
             if( !mapinstance_block_available(x, z, square_w, square_h) )
                 continue;
@@ -388,9 +388,9 @@ mock230_mapinstance_alloc(
             inst->base_z = z * 64;
             inst->zone_w = zone_w;
             inst->zone_h = zone_h;
-            if( getenv("MOCK230_VERBOSE") )
+            if( getenv("TORIRSSERVER_VERBOSE") )
                 fprintf(stderr,
-                        "mock230: map instance %d reserved %dx%d zones at %d,%d "
+                        "torirsserver: map instance %d reserved %dx%d zones at %d,%d "
                         "(map square %d,%d)\n",
                         slot + 1, zone_w, zone_h, inst->base_x, inst->base_z, x, z);
             return slot + 1;
@@ -400,11 +400,11 @@ mock230_mapinstance_alloc(
 }
 
 int
-mock230_mapinstance_set_owner(
+ToriRSServer_MapInstanceSetOwner(
     int handle,
     int player_uid)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     if( !inst || player_uid < 0 )
         return 0;
@@ -413,15 +413,15 @@ mock230_mapinstance_set_owner(
 }
 
 int
-mock230_mapinstance_owner(int handle)
+ToriRSServer_MapInstanceOwner(int handle)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     return inst ? inst->owner_uid : 0;
 }
 
 int
-mock230_mapinstance_find_owner(
+ToriRSServer_MapInstanceFindOwner(
     int player_uid,
     int required_flags)
 {
@@ -429,9 +429,9 @@ mock230_mapinstance_find_owner(
 
     if( player_uid <= 0 || required_flags < 0 )
         return 0;
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        const struct Mock230MapInstance* inst = &g_instances[i];
+        const struct ToriRSServerMapInstance* inst = &g_instances[i];
 
         if( inst->active && inst->owner_uid == player_uid &&
             (inst->flags & required) == required )
@@ -443,7 +443,7 @@ mock230_mapinstance_find_owner(
 /*
  * The first live reservation carrying every requested flag, whoever owns it.
  *
- * Sibling of `mock230_mapinstance_find_owner` above and deliberately NOT the
+ * Sibling of `ToriRSServer_MapInstanceFindOwner` above and deliberately NOT the
  * same question. That one refuses `player_uid <= 0` because "an instance I
  * own" needs an owner; this one exists for the player who wants to join an
  * instance somebody ELSE owns and has no way to name them. A zero mask is
@@ -454,15 +454,15 @@ mock230_mapinstance_find_owner(
  * Lowest handle first, so the answer is stable across calls in one tick.
  */
 int
-mock230_mapinstance_find_flagged(int required_flags)
+ToriRSServer_MapInstanceFindFlagged(int required_flags)
 {
     uint32_t required = (uint32_t)required_flags;
 
     if( required_flags <= 0 )
         return 0;
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        const struct Mock230MapInstance* inst = &g_instances[i];
+        const struct ToriRSServerMapInstance* inst = &g_instances[i];
 
         if( inst->active && (inst->flags & required) == required )
             return i + 1;
@@ -471,11 +471,11 @@ mock230_mapinstance_find_flagged(int required_flags)
 }
 
 int
-mock230_mapinstance_flag_get(
+ToriRSServer_MapInstanceFlagGet(
     int handle,
     int mask)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     if( !inst || mask <= 0 )
         return 0;
@@ -483,12 +483,12 @@ mock230_mapinstance_flag_get(
 }
 
 int
-mock230_mapinstance_flag_set(
+ToriRSServer_MapInstanceFlagSet(
     int handle,
     int mask,
     int enabled)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     if( !inst || mask <= 0 )
         return 0;
@@ -500,41 +500,41 @@ mock230_mapinstance_flag_set(
 }
 
 int
-mock230_mapinstance_var_get(
+ToriRSServer_MapInstanceVarGet(
     int handle,
     int slot)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
-    if( !inst || slot < 0 || slot >= MOCK230_MAPINSTANCE_VARS )
+    if( !inst || slot < 0 || slot >= TORIRSSERVER_MAPINSTANCE_VARS )
         return 0;
     return inst->vars[slot];
 }
 
 int
-mock230_mapinstance_var_set(
+ToriRSServer_MapInstanceVarSet(
     int handle,
     int slot,
     int value)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
-    if( !inst || slot < 0 || slot >= MOCK230_MAPINSTANCE_VARS )
+    if( !inst || slot < 0 || slot >= TORIRSSERVER_MAPINSTANCE_VARS )
         return 0;
     inst->vars[slot] = value;
     return 1;
 }
 
 int
-mock230_mapinstance_clear_owner(int player_uid)
+ToriRSServer_MapInstanceClearOwner(int player_uid)
 {
     int cleared = 0;
 
     if( player_uid <= 0 )
         return 0;
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        struct Mock230MapInstance* inst = &g_instances[i];
+        struct ToriRSServerMapInstance* inst = &g_instances[i];
 
         if( inst->active && inst->owner_uid == player_uid )
         {
@@ -546,7 +546,7 @@ mock230_mapinstance_clear_owner(int player_uid)
 }
 
 int
-mock230_mapinstance_setchunk(
+ToriRSServer_MapInstanceSetchunk(
     int handle,
     int level,
     int zone_x,
@@ -556,16 +556,16 @@ mock230_mapinstance_setchunk(
     int src_level,
     int rotation)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
-    struct Mock230MapInstanceZone* zone;
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstanceZone* zone;
 
     if( !inst )
         return 0;
-    if( level < 0 || level >= MOCK230_MAPINSTANCE_LEVELS )
+    if( level < 0 || level >= TORIRSSERVER_MAPINSTANCE_LEVELS )
         return 0;
     if( zone_x < 0 || zone_x >= inst->zone_w || zone_z < 0 || zone_z >= inst->zone_h )
         return 0;
-    if( src_level < 0 || src_level >= MOCK230_MAPINSTANCE_LEVELS )
+    if( src_level < 0 || src_level >= TORIRSSERVER_MAPINSTANCE_LEVELS )
         return 0;
     if( src_x < 0 || src_z < 0 )
         return 0;
@@ -582,9 +582,9 @@ mock230_mapinstance_setchunk(
 }
 
 int
-mock230_mapinstance_build(int handle)
+ToriRSServer_MapInstanceBuild(int handle)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     if( !inst )
         return 0;
@@ -594,20 +594,20 @@ mock230_mapinstance_build(int handle)
 }
 
 int
-mock230_mapinstance_generation(int handle)
+ToriRSServer_MapInstanceGeneration(int handle)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     return inst ? inst->generation : 0;
 }
 
 int
-mock230_mapinstance_base(
+ToriRSServer_MapInstanceBase(
     int handle,
     int* out_x,
     int* out_z)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     assert(out_x && out_z);
     if( !inst )
@@ -618,14 +618,14 @@ mock230_mapinstance_base(
 }
 
 int
-mock230_mapinstance_bounds(
+ToriRSServer_MapInstanceBounds(
     int handle,
     int* out_x,
     int* out_z,
     int* out_width,
     int* out_height)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     assert(out_x && out_z && out_width && out_height);
     if( !inst )
@@ -638,31 +638,31 @@ mock230_mapinstance_bounds(
 }
 
 int
-mock230_mapinstance_free(int handle)
+ToriRSServer_MapInstanceFree(int handle)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
 
     if( !inst )
         return 0;
     /* Logged for the same reason the alloc is: a reservation that is never
      * released is invisible from inside the game — the pool simply stops
-     * answering after MOCK230_MAPINSTANCE_MAX entries, several sessions later
+     * answering after TORIRSSERVER_MAPINSTANCE_MAX entries, several sessions later
      * and in whatever content asked next. The pair of lines is what makes a
      * leak a thing you can read off one run. */
-    if( getenv("MOCK230_VERBOSE") )
+    if( getenv("TORIRSSERVER_VERBOSE") )
         fprintf(stderr,
-                "mock230: map instance %d released (map square %d,%d)\n",
+                "torirsserver: map instance %d released (map square %d,%d)\n",
                 handle, inst->square_x, inst->square_z);
     memset(inst, 0, sizeof(*inst));
     return 1;
 }
 
 int
-mock230_mapinstance_live_count(void)
+ToriRSServer_MapInstanceLiveCount(void)
 {
     int live = 0;
 
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
         if( g_instances[i].active )
             live++;
@@ -671,13 +671,13 @@ mock230_mapinstance_live_count(void)
 }
 
 int
-mock230_mapinstance_find(
+ToriRSServer_MapInstanceFind(
     int x,
     int z)
 {
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        struct Mock230MapInstance* inst = &g_instances[i];
+        struct ToriRSServerMapInstance* inst = &g_instances[i];
 
         if( !inst->active )
             continue;
@@ -694,7 +694,7 @@ mock230_mapinstance_find(
 }
 
 int
-mock230_mapinstance_source_tile(
+ToriRSServer_MapInstanceSourceTile(
     int handle,
     int level,
     int x,
@@ -702,8 +702,8 @@ mock230_mapinstance_source_tile(
     int* out_x,
     int* out_z)
 {
-    struct Mock230MapInstance* inst = mapinstance_get(handle);
-    const struct Mock230MapInstanceZone* zone;
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+    const struct ToriRSServerMapInstanceZone* zone;
     int zone_x;
     int zone_z;
 
@@ -718,7 +718,7 @@ mock230_mapinstance_source_tile(
     zone_z = (z - inst->base_z) >> 3;
     if( zone_x < 0 || zone_x >= inst->zone_w || zone_z < 0 || zone_z >= inst->zone_h )
         return 0;
-    if( level < 0 || level >= MOCK230_MAPINSTANCE_LEVELS )
+    if( level < 0 || level >= TORIRSSERVER_MAPINSTANCE_LEVELS )
         return 0;
 
     zone = &inst->zones[level][zone_x][zone_z];
@@ -731,19 +731,19 @@ mock230_mapinstance_source_tile(
      * `_setchunk`, so this is the source zone's south-west corner and not the
      * tile the destination one maps to — which is what a caller asking "where
      * in the world is this" wants, and is rotation-independent. Anyone needing
-     * the exact tile wants `mock230_mapinstance_rotate_to_src`. */
+     * the exact tile wants `ToriRSServer_MapInstanceRotateToSrc`. */
     *out_x = zone->src_zone_x << 3;
     *out_z = zone->src_zone_z << 3;
     return 1;
 }
 
 int
-mock230_mapinstance_window(
+ToriRSServer_MapInstanceWindow(
     int zone_x,
     int zone_z,
-    struct Mock230MapInstanceWindow* out)
+    struct ToriRSServerMapInstanceWindow* out)
 {
-    /* The scene's south-west zone. Same rule as mock230_scene_origin, in zones
+    /* The scene's south-west zone. Same rule as ToriRSServer_SceneOrigin, in zones
      * rather than tiles, and it has to be the same or the collision build and
      * the encoder disagree about which descriptor is which. */
     int sw_zone_x = zone_x - 6;
@@ -752,9 +752,9 @@ mock230_mapinstance_window(
     assert(out);
     memset(out, 0, sizeof(*out));
 
-    for( int i = 0; i < MOCK230_MAPINSTANCE_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
     {
-        struct Mock230MapInstance* inst = &g_instances[i];
+        struct ToriRSServerMapInstance* inst = &g_instances[i];
         int inst_zone_x;
         int inst_zone_z;
 
@@ -763,7 +763,7 @@ mock230_mapinstance_window(
         inst_zone_x = inst->base_x >> 3;
         inst_zone_z = inst->base_z >> 3;
 
-        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+        for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
         {
             for( int zx = 0; zx < inst->zone_w; zx++ )
             {
@@ -774,8 +774,8 @@ mock230_mapinstance_window(
 
                     if( !inst->zones[level][zx][zz].set )
                         continue;
-                    if( wx < 0 || wx >= MOCK230_MAPINSTANCE_SCENE_ZONES ||
-                        wz < 0 || wz >= MOCK230_MAPINSTANCE_SCENE_ZONES )
+                    if( wx < 0 || wx >= TORIRSSERVER_MAPINSTANCE_SCENE_ZONES ||
+                        wz < 0 || wz >= TORIRSSERVER_MAPINSTANCE_SCENE_ZONES )
                         continue;
                     out->zones[level][wx][wz] = inst->zones[level][zx][zz];
                     out->set_count++;

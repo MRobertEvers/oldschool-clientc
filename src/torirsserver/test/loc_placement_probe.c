@@ -9,7 +9,7 @@
  *
  *   loc_placement_probe <cache_dir> <loc_id> <x> <z> [radius]
  *
- * Builds the server's own scene around (x,z) — the same `mock230_scene_build`
+ * Builds the server's own scene around (x,z) — the same `ToriRSServer_SceneBuild`
  * the world uses — and prints every placement of `loc_id` in it, on all four
  * levels. `radius` limits the report to tiles within that box of (x,z).
  *
@@ -17,7 +17,7 @@
  * than searching the world: give it a tile the wiki names and widen from there.
  */
 
-#include "mock230_scene.h"
+#include "torirs_server_scene.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,8 +26,8 @@
  * placement's own record is what the map wrote, so the untransformed record is
  * the right answer — the same stub, for the same reason, as walkable_probe's. */
 int
-mock230_varbit_get(
-    struct Mock230Player* player,
+ToriRSServer_VarbitGet(
+    struct ToriRSServerPlayer* player,
     int varbit_id)
 {
     (void)player;
@@ -54,7 +54,7 @@ main(int argc, char** argv)
     if( argc > 5 )
         radius = atoi(argv[5]);
 
-    if( !mock230_scene_build(cache_dir, x >> 3, z >> 3) )
+    if( !ToriRSServer_SceneBuild(cache_dir, x >> 3, z >> 3) )
     {
         fprintf(stderr, "loc_placement_probe: could not build a scene at %d,%d\n", x, z);
         return 1;
@@ -62,7 +62,7 @@ main(int argc, char** argv)
 
     for( slot = 0;; slot++ )
     {
-        struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+        struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
         if( !loc )
             break;

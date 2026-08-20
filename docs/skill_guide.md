@@ -126,7 +126,7 @@ five triggers already existed here (149..153) and already dispatched per op.
 So: `SS_TRIGGER_IF_BUTTON1..IF_BUTTON10` at **168..177**, allocated by
 `EXTRA_TRIGGERS` in `gen_opcode_meta.py` — strictly above the reference's
 highest id (167), the same rule `EXTRA_OPCODES` follows at 11000, so a future
-LostCity trigger can never land on one. `mock230_scripts_run_if_button` now
+LostCity trigger can never land on one. `ToriRSServer_ScriptsRunIfButton` now
 takes the op index and tries four lookups in order:
 
 ```
@@ -145,7 +145,7 @@ name-addressed; `chatmenu:options` fits and compiles keyed.
 The unnumbered rung stays as a *fallthrough*, not a replacement — every
 `[if_button,…]` in the tree was written when one trigger answered every op, and
 those still answer every op. That widens no engine fallback: both rungs are
-content, and the C rung below (`MOCK230_FALLBACK_IF_BUTTON`) is the same single
+content, and the C rung below (`TORIRSSERVER_FALLBACK_IF_BUTTON`) is the same single
 one it always was.
 
 The op-*less* click (`handle_if_button`, events bit 0) passes op 0, which skips
@@ -156,7 +156,7 @@ the numbered rung entirely, so its behaviour is byte-for-byte what it was.
 `SS_OP_RUNCLIENTSCRIPT_SS` (11002) is fixed at `(1 int, 2 strings)` because the
 one caller it was written for — `chatbox_multi_init` — takes exactly that. The
 wire never was: `RUNCLIENTSCRIPT` carries a per-argument type string, and
-`mock230_send_run_clientscript_mixed` has taken one since it was written.
+`ToriRSServer_SendRunClientscriptMixed` has taken one since it was written.
 
 `SS_OP_RUNCLIENTSCRIPTVARARG` (11003) is the general form, in the reference's
 own vararg convention — `queue*(queue, delay)(args…)` compiles to `QUEUEVARARG`
@@ -180,7 +180,7 @@ The host case pops the type string first and walks it **backwards**, because
 the last value pushed is the first one off — which is also the order the packet
 writes its arguments. The type string is copied before the loop: it is a
 `str_pool` pointer and the loop pops other pool pointers on top of it. A type
-string longer than `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` **aborts** rather than
+string longer than `TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX` **aborts** rather than
 truncating: a clientscript run with three of its four arguments does not fail,
 it draws the wrong panel.
 
@@ -262,7 +262,7 @@ click on the menu row:
 ```
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 \
 TORIRS_SIM_CLICK_AT="150,536,186;230,535,220,1;242,535,240" \
-TORIRS_EXIT_BMP=/tmp/guide.bmp MOCK230_VERBOSE=1 \
+TORIRS_EXIT_BMP=/tmp/guide.bmp TORIRSSERVER_VERBOSE=1 \
   ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 ```
 
@@ -273,9 +273,9 @@ It has to clear the last frame in `TORIRS_SIM_CLICK_AT` by enough for the reply
 to arrive and the panel to lay itself out — 400 against a last click at 242.
 
 ```
-mock230: <- IF_BUTTON2 320:1 sub=-1
-mock230: -> IF_OPENSUB         op=6   payload=7
-mock230: -> RUNCLIENTSCRIPT    op=84  payload=25
+torirsserver: <- IF_BUTTON2 320:1 sub=-1
+torirsserver: -> IF_OPENSUB         op=6   payload=7
+torirsserver: -> RUNCLIENTSCRIPT    op=84  payload=25
 ```
 
 25 bytes is the shape: 4 type characters + newline + 4 ints + the script id.
@@ -337,7 +337,7 @@ reuses `CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM`. 2705 remains
 ```
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=500 \
 TORIRS_SIM_CLICK_AT="150,536,186;230,535,220,1;242,535,240;300,70,52" \
-TORIRS_EXIT_BMP=/tmp/guide_ov_click.bmp MOCK230_VERBOSE=1 \
+TORIRS_EXIT_BMP=/tmp/guide_ov_click.bmp TORIRSSERVER_VERBOSE=1 \
   ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
 ```
 
@@ -412,14 +412,14 @@ Content:
   `[if_button1,skill_guide_v2:quest_journal_button_trigger]`.
 
 Verified: `make -C src test-cs2-triggerop` (2929 stack → host request);
-mock230 skill-guide selftest arms the trigger and opens Cook's Assistant
+ToriRSServer skill-guide selftest arms the trigger and opens Cook's Assistant
 journal via `IF_BUTTON1` on the trigger with `sub=1`.
 
 ---
 
 ## 6. The permanent check
 
-`mock230 --selftest`, section "skill guide" (`mock230_world.c`). It sends a real
+`ToriRSServer --selftest`, section "skill guide" (`torirs_server_world.c`). It sends a real
 `IF_BUTTON2` for each of the 24 cells and asserts, per cell:
 
 - an `IF_OPENSUB` and a `RUNCLIENTSCRIPT` came out, and **the mount is first**;
@@ -440,7 +440,7 @@ Proven to fail, by mutation:
 
 | mutation | what the selftest said |
 |---|---|
-| skip the numbered rung in `mock230_scripts_run_if_button` | `op 2 on stats:attack should mount the guide` (×24, IF_OPENSUB -1) |
+| skip the numbered rung in `ToriRSServer_ScriptsRunIfButton` | `op 2 on stats:attack should mount the guide` (×24, IF_OPENSUB -1) |
 | swap the two statements in `~skill_guide_open` | `stats:attack: the mount must precede the clientscript that lays it out (IF_OPENSUB 1, RUNCLIENTSCRIPT 0)` |
 | point `^skill_guide_magic` at Prayer's index | `stats:magic reuses skill index 7 — two cells would open the same guide` |
 
@@ -448,7 +448,7 @@ Proven to fail, by mutation:
 the cell carries. That mapping's ground truth is the fourth argument of each
 cell's onload in `interfaces/stats.if`, and the same numbers in the cache's
 `enum_681`. Nothing server-side parses an `.if`. Cache enums *are* loaded now
-(`configs/all.enum` rank-0 in `mock230_content.c` — see
+(`configs/all.enum` rank-0 in `torirs_server_content.c` — see
 `docs/account_summary_server_reqs.md` §1); the skill-guide selftest still leaves
 the index↔name check to §4's screenshots rather than asserting it here.
 
@@ -461,7 +461,7 @@ the index↔name check to §4's screenshots rather than asserting it here.
   "where a RuneScript trigger reads them"; it is corrected.
 - **`configs/all.enum` is loaded by the server (rank-0).** Authored
   `server/scripts/**/*.enum` still override on name. The claim that
-  `mock230_content.c` walked `.enum` under `server/scripts` only is retired —
+  `torirs_server_content.c` walked `.enum` under `server/scripts` only is retired —
   see `docs/account_summary_server_reqs.md` §1. `enum(int, stat, enum_681, $i)`
   is expressible; the skill guide still does not need it server-side.
 - **The server's copy of every cache dbtable is an empty shell.** The `.dbtable`

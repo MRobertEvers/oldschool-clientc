@@ -1,4 +1,4 @@
-#include "mock230_servercodec.h"
+#include "torirs_server_servercodec.h"
 
 #include "rsbuffer.h"
 
@@ -42,51 +42,51 @@
  * reproducing one means recording the decoded order and replaying it.
  */
 static const struct ServerField k_npc_fields[] = {
-    { 74,  WIRE_U2, offsetof(struct Mock230NpcDef, attack),      "attack"      },
-    { 75,  WIRE_U2, offsetof(struct Mock230NpcDef, defence),     "defence"     },
-    { 76,  WIRE_U2, offsetof(struct Mock230NpcDef, strength),    "strength"    },
-    { 77,  WIRE_U2, offsetof(struct Mock230NpcDef, hitpoints),   "hitpoints"   },
-    { 78,  WIRE_U2, offsetof(struct Mock230NpcDef, ranged),      "ranged"      },
-    { 79,  WIRE_U2, offsetof(struct Mock230NpcDef, magic),       "magic"       },
-    { 150, WIRE_U1, offsetof(struct Mock230NpcDef, attackrate),  "attackrate"  },
-    { 151, WIRE_U4, offsetof(struct Mock230NpcDef, death_drop),  "death_drop"  },
-    { 152, WIRE_U4, offsetof(struct Mock230NpcDef, attack_anim), "attack_anim" },
-    { 153, WIRE_U4, offsetof(struct Mock230NpcDef, defend_anim), "defend_anim" },
-    { 154, WIRE_U4, offsetof(struct Mock230NpcDef, death_anim),  "death_anim"  },
-    { 155, WIRE_U1, offsetof(struct Mock230NpcDef, death_delay), "death_delay" },
+    { 74,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, attack),      "attack"      },
+    { 75,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, defence),     "defence"     },
+    { 76,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, strength),    "strength"    },
+    { 77,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, hitpoints),   "hitpoints"   },
+    { 78,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, ranged),      "ranged"      },
+    { 79,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, magic),       "magic"       },
+    { 150, WIRE_U1, offsetof(struct ToriRSServerNpcDef, attackrate),  "attackrate"  },
+    { 151, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_drop),  "death_drop"  },
+    { 152, WIRE_U4, offsetof(struct ToriRSServerNpcDef, attack_anim), "attack_anim" },
+    { 153, WIRE_U4, offsetof(struct ToriRSServerNpcDef, defend_anim), "defend_anim" },
+    { 154, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_anim),  "death_anim"  },
+    { 155, WIRE_U1, offsetof(struct ToriRSServerNpcDef, death_delay), "death_delay" },
     /* 156/157 are ours alone (150..199). LostCity puts blockwalk at 208, but
      * that opcode already carries this tree's `nomove` boolean. */
-    { 156, WIRE_U1, offsetof(struct Mock230NpcDef, blockwalk),   "blockwalk"   },
-    { 157, WIRE_U1, offsetof(struct Mock230NpcDef, blocksight),  "blocksight"  },
+    { 156, WIRE_U1, offsetof(struct ToriRSServerNpcDef, blockwalk),   "blockwalk"   },
+    { 157, WIRE_U1, offsetof(struct ToriRSServerNpcDef, blocksight),  "blocksight"  },
     /* The three combat sounds. u4 for the same reason as death_drop at 151:
      * they default to -1, and only u4 round-trips a negative through a
      * zero-extending decode. */
     /* Ours (150..199). LostCity has no opcode for this because its engine does
      * not retaliate on the npc's behalf at all. */
-    { 161, WIRE_U1, offsetof(struct Mock230NpcDef, retaliate),   "retaliate"   },
+    { 161, WIRE_U1, offsetof(struct ToriRSServerNpcDef, retaliate),   "retaliate"   },
     /* Ours (150..199), and u4 for the same reason as death_drop at 151: it is
      * an id whose stated absence is negative, and only u4 round-trips a
      * negative through a zero-extending decode. */
-    { 162, WIRE_U4, offsetof(struct Mock230NpcDef, healthbar),   "healthbar"   },
+    { 162, WIRE_U4, offsetof(struct ToriRSServerNpcDef, healthbar),   "healthbar"   },
     /* Ours (150..199). The bar's twin: 162 says which bar, this says whether
      * the splat rides with it. */
-    { 163, WIRE_U1, offsetof(struct Mock230NpcDef, hitsplat),    "hitsplat"    },
-    { 158, WIRE_U4, offsetof(struct Mock230NpcDef, attack_sound), "attack_sound" },
-    { 159, WIRE_U4, offsetof(struct Mock230NpcDef, defend_sound), "defend_sound" },
-    { 160, WIRE_U4, offsetof(struct Mock230NpcDef, death_sound),  "death_sound"  },
-    { 200, WIRE_U2, offsetof(struct Mock230NpcDef, wanderrange), "wanderrange" },
-    { 201, WIRE_U2, offsetof(struct Mock230NpcDef, maxrange),    "maxrange"    },
-    { 202, WIRE_U1, offsetof(struct Mock230NpcDef, huntrange),   "huntrange"   },
+    { 163, WIRE_U1, offsetof(struct ToriRSServerNpcDef, hitsplat),    "hitsplat"    },
+    { 158, WIRE_U4, offsetof(struct ToriRSServerNpcDef, attack_sound), "attack_sound" },
+    { 159, WIRE_U4, offsetof(struct ToriRSServerNpcDef, defend_sound), "defend_sound" },
+    { 160, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_sound),  "death_sound"  },
+    { 200, WIRE_U2, offsetof(struct ToriRSServerNpcDef, wanderrange), "wanderrange" },
+    { 201, WIRE_U2, offsetof(struct ToriRSServerNpcDef, maxrange),    "maxrange"    },
+    { 202, WIRE_U1, offsetof(struct ToriRSServerNpcDef, huntrange),   "huntrange"   },
     /* LostCity's own opcode for `timer=`, the tick interval `[ai_timer]` runs
      * at, sitting where it does in its 200 band. */
-    { 203, WIRE_U2, offsetof(struct Mock230NpcDef, timer),       "timer"       },
-    { 204, WIRE_U2, offsetof(struct Mock230NpcDef, respawnrate), "respawnrate" },
+    { 203, WIRE_U2, offsetof(struct ToriRSServerNpcDef, timer),       "timer"       },
+    { 204, WIRE_U2, offsetof(struct ToriRSServerNpcDef, respawnrate), "respawnrate" },
     /* LostCity's moverestrict opcode. `nomove` at 208 stays for packs that
      * already emit the collapsed boolean. */
-    { 206, WIRE_U1, offsetof(struct Mock230NpcDef, moverestrict),"moverestrict"},
-    { 208, WIRE_U1, offsetof(struct Mock230NpcDef, nomove),      "nomove"      },
-    { 209, WIRE_U1, offsetof(struct Mock230NpcDef, huntmode),    "huntmode"    },
-    { 213, WIRE_U1, offsetof(struct Mock230NpcDef, givechase),   "givechase"   },
+    { 206, WIRE_U1, offsetof(struct ToriRSServerNpcDef, moverestrict),"moverestrict"},
+    { 208, WIRE_U1, offsetof(struct ToriRSServerNpcDef, nomove),      "nomove"      },
+    { 209, WIRE_U1, offsetof(struct ToriRSServerNpcDef, huntmode),    "huntmode"    },
+    { 213, WIRE_U1, offsetof(struct ToriRSServerNpcDef, givechase),   "givechase"   },
 };
 
 /*
@@ -104,20 +104,20 @@ static const struct ServerField k_npc_fields[] = {
  * cross-check checks.
  */
 static const struct ServerField k_loc_fields[] = {
-    { 150, WIRE_U4, offsetof(struct Mock230LocDef, next_loc_stage), "next_loc_stage" },
+    { 150, WIRE_U4, offsetof(struct ToriRSServerLocDef, next_loc_stage), "next_loc_stage" },
 };
 
 #define FIELD_COUNT(table) ((int)(sizeof(table) / sizeof((table)[0])))
 
 static const struct ServerType k_types[] = {
-    { "npc", k_npc_fields, FIELD_COUNT(k_npc_fields), sizeof(struct Mock230NpcDef) },
-    { "loc", k_loc_fields, FIELD_COUNT(k_loc_fields), sizeof(struct Mock230LocDef) },
+    { "npc", k_npc_fields, FIELD_COUNT(k_npc_fields), sizeof(struct ToriRSServerNpcDef) },
+    { "loc", k_loc_fields, FIELD_COUNT(k_loc_fields), sizeof(struct ToriRSServerLocDef) },
 };
 
 #define TYPE_COUNT ((int)(sizeof(k_types) / sizeof(k_types[0])))
 
 const struct ServerType*
-Mock230_ServerTypes(int* out_count)
+ToriRSServer_ServerTypes(int* out_count)
 {
     if( out_count )
         *out_count = TYPE_COUNT;
@@ -125,7 +125,7 @@ Mock230_ServerTypes(int* out_count)
 }
 
 const struct ServerType*
-Mock230_ServerTypeFor(const char* name)
+ToriRSServer_ServerTypeFor(const char* name)
 {
     assert(name);
     for( int i = 0; i < TYPE_COUNT; i++ )
@@ -165,7 +165,7 @@ field_set(
 }
 
 uint32_t
-Mock230_ServerEncodeBound(const struct ServerType* type)
+ToriRSServer_ServerEncodeBound(const struct ServerType* type)
 {
     /* Every field at once — an opcode byte plus its widest payload — plus the
      * terminator. Small enough that computing it per record would buy nothing. */
@@ -173,7 +173,7 @@ Mock230_ServerEncodeBound(const struct ServerType* type)
 }
 
 uint32_t
-Mock230_ServerEncode(
+ToriRSServer_ServerEncode(
     const struct ServerType* type,
     const void* record,
     const void* defaults,
@@ -185,7 +185,7 @@ Mock230_ServerEncode(
     assert(type != NULL);
     assert(record != NULL);
     assert(out != NULL);
-    assert(out_capacity >= Mock230_ServerEncodeBound(type));
+    assert(out_capacity >= ToriRSServer_ServerEncodeBound(type));
 
     RSCache_BufferInit(&buffer, out, out_capacity);
 
@@ -230,7 +230,7 @@ Mock230_ServerEncode(
 }
 
 int
-Mock230_ServerDecode(
+ToriRSServer_ServerDecode(
     const struct ServerType* type,
     void* record,
     const uint8_t* src,

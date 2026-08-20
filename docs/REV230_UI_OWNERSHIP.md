@@ -286,11 +286,11 @@ Both are needed, and the bank proves it: `bankmain.if` declares
 `gim_storage`) and on **none** that covers the panel — nor does the gameframe's
 `mainmodal` container. The flag alone would not have blocked it. What blocks it
 is that the server opened it as a *modal*
-(`mock230_bank.c`: `mock230_send_if_opensub(…, mainmodal, bankmain, 0)`).
+(`torirs_server_bank.c`: `ToriRSServer_SendIfOpensub(…, mainmodal, bankmain, 0)`).
 
 And the converse is why "block anything that is mounted" would be wrong: the
 world map floater and the XP tracker mount as **overlays** (type 1 —
-`mock230_worldmap.c` sends 1) and are click-through unless they raise
+`torirs_server_worldmap.c` sends 1) and are click-through unless they raise
 `noClickThrough` themselves — which both of them do. The XP tracker does it
 conditionally (`script999`: `if_setnoclickthrough($boolean9, $layer19)` behind a
 setting); the **world map does it in the cache record**, statically:
@@ -449,7 +449,7 @@ for Enter/Backspace, character events for insertion. Headless
 misses script 57's code branch).
 
 **Verified.** Hans `::talk hans 1`, then `k83`: one `RESUME_PAUSEBUTTON 231:5`
-per press (`MOCK230_VERBOSE=1`), interface 219 opens. Chat typing via character
+per press (`TORIRSSERVER_VERBOSE=1`), interface 219 opens. Chat typing via character
 events still inserts once.
 
 ## 6b. Chatmenu digits and clicks (script 57 + dynamic rows)
@@ -479,9 +479,9 @@ $char1)` with `$string0 = tostring(row)`).
 **Verified.** Headless embed: `TORIRS_NET_CHEAT="talk hans 1"`, `k83` into the
 choice menu, then `c49` (`'1'`): no `script 57 failed at opcode 4120`; Hans's
 branch-1 line (`I'm looking for whoever is in charge of this place.`) is set on
-the chatplayer. `mock230 --selftest` "npc chat dialogue" (IF_BUTTON1 alone
-resumes with `last_slot=3`) and `mock230_pack --check-only` at 0 errors.
-Re-checked on a fresh TCP mock (`MOCK230_VERBOSE=1`): `RESUME_PAUSEBUTTON 231:5`
+the chatplayer. `ToriRSServer --selftest` "npc chat dialogue" (IF_BUTTON1 alone
+resumes with `last_slot=3`) and `ToriRSServer_Pack --check-only` at 0 errors.
+Re-checked on a fresh TCP mock (`TORIRSSERVER_VERBOSE=1`): `RESUME_PAUSEBUTTON 231:5`
 then `IF_BUTTON1 219:1 sub=1`, no 4120 abort.
 
 **Mouse click (follow-up).** Digits worked while left-clicks still did nothing:
@@ -495,8 +495,8 @@ host for the node's IF_SETEVENTS mask (including parent-range inheritance) via
 
 **Live note.** `run-live.sh` runs the in-process server for osrs230
 (`EMBED_SERVER=1` + `TORIRS_TRANSPORT=embed`), so a client rebuild always
-includes the matching server — there is no stale TCP `mock230` left on the
-port. For a socket server under a debugger, start `src/build/mock230` by hand
+includes the matching server — there is no stale TCP `ToriRSServer` left on the
+port. For a socket server under a debugger, start `src/build/torirsserver` by hand
 against a TCP manifest.
 
 ## 6c. `chat_left` body text sits high — cache truth, not unpack loss
@@ -569,7 +569,7 @@ crop of it reads as a slightly odd font.
 
 ## 8. Not fixed here
 
-- `mock230_pack --check-only` is currently clean at 0 errors (15 warnings of
+- `ToriRSServer_Pack --check-only` is currently clean at 0 errors (15 warnings of
   the combat-block / door shape). Earlier drafts of this doc recorded 17
   category-lane errors from in-flight content work; those are gone on HEAD.
 - `make -C src test-ui-slots` and `test-db` still fail on

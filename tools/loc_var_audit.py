@@ -5,7 +5,7 @@ A *multiloc* is a loc record that carries `multivarbit=` (or `multivarp=`) and a
 `multiloc1..N` list: the client and the server both resolve it by reading that
 variable for the player and indexing the list, so the record placed on the map
 square is a base that renders as whichever child the variable selects. The rule
-is `mock230_scene.c:mock230_scene_resolve_loc` / `VarPManager_ResolveTransform`
+is `torirs_server_scene.c:ToriRSServer_SceneResolveLoc` / `VarPManager_ResolveTransform`
 — **`multiloc1` is value 0** — and an index that is out of range or names -1
 falls to the *last* entry, which is usually -1, meaning nothing is drawn.
 
@@ -140,7 +140,7 @@ def load_varp_decls(tree):
     """varp name -> {transmit, scope, protect} from server/scripts/**/*.varp.
 
     A carrier the content has not declared is invisible to the client: the
-    server's varp send (`mock230_world.c`, `if( !def || !def->transmit )`) drops
+    server's varp send (`torirs_server_world.c`, `if( !def || !def->transmit )`) drops
     it, so setting a varbit based on it changes the server's copy and nothing
     else. A multiloc reading that varbit never transforms, however correct the
     write was — which is why this is joined in rather than left to a reader.
@@ -383,7 +383,7 @@ def cmd_check_carriers(rows):
     varp is not declared `transmit=yes` in some `server/scripts/**/*.varp`, the
     value stops there and the multiloc never transforms. Nothing else in the
     build says so — sscompile only cares that the varbit resolves, and the
-    runtime drops the packet silently in `mock230_world_mark_varp`.
+    runtime drops the packet silently in `ToriRSServer_WorldMarkVarp`.
     """
     bad = [r for r in rows
            if r["kind"] == "varbit" and (r["writes"] or r["carrier_writes"])

@@ -68,7 +68,7 @@ at all — `op1=Rake` lives on the `veg_patch_weeds_N` morphs. `p_oploc` returns
 depends on was dropped: `~farming_rake_patch` armed `%action_delay`, asked for
 the next pulse, never got it, and the player saw one rake animation, no weeds,
 no state change and no message. `handle_oploc` had always resolved the transform
-before its own op check; `mock230_ops_player.c` now does the same. This was not
+before its own op check; `torirs_server_ops_player.c` now does the same. This was not
 farming-specific — it broke any skilling loop over a multiloc.
 
 **Nothing bound `[oplocu]` on a growing crop.** Every `[oplocu]` on a patch was
@@ -91,7 +91,7 @@ layout is documented in `farming.constant`). The trap it guards: a fully grown
 crop has no watered art, and the slot where one would sit holds a weeds
 placeholder.
 
-Covered by the `farming rake / compost / plant / water` section of the mock230
+Covered by the `farming rake / compost / plant / water` section of the ToriRSServer
 selftest, which runs the whole loop at Falador and re-rakes at Catherby to pin
 the shared-transmit-varbit `inzone` guard.
 
@@ -126,7 +126,7 @@ The permanent visual state is worse: `farming_patch.rs2` carries **two parallel
 50-branch `if ($patch = …)` switches** — `~farming_patch_read_varbit` and
 `~farming_patch_write_varbit` — because, in that file's own words:
 
-> Permanent state varbit is NOT a db column type (`mock230_db` has no varbit
+> Permanent state varbit is NOT a db column type (`ToriRSServer_Db` has no varbit
 > pack kind); scripts switch on the wrapper loc to read/write `%varbit_N`.
 
 And `farming_transmit.rs2` carries a *third* copy of the same mapping to push
@@ -152,7 +152,7 @@ five** (veg_1/3/5/7 all remorph off `_a`, veg_2/4/6/8 off `_b`, all four flower
 patches off `_c`). The Falador-only setters wrote `_a` unconditionally, which was
 harmless while Falador was the only wired area and wrong the moment a second one
 existed — growing a crop at Catherby redrew Falador's allotment. The herb setter
-already had the `inzone` guard; the rest have it now, and the mock230 selftest
+already had the `inzone` guard; the rest have it now, and the ToriRSServer selftest
 pins it by re-raking at Catherby and asserting varbit 708 does not move.
 
 ### 1.1 Two engine changes unlock the collapse
@@ -160,10 +160,10 @@ pins it by re-raking at Catherby and asserting varbit 708 does not move.
 Both are small and both are general — neither is farming-specific.
 
 **(a) `varbit` as a db column kind.** `db_kind_for_type()` in
-`src/net/mock/mock230_db.c` maps 16 type words to pack kinds; `varbit` is not
-among them, though `MOCK230_PACK_VARBIT` exists and
-`mock230_content_symbol(MOCK230_PACK_VARBIT, name)` already resolves varbits by
-name at runtime (`mock230_world.c:16858`). The compiler already has
+`src/torirsserver/torirs_server_db.c` maps 16 type words to pack kinds; `varbit` is not
+among them, though `TORIRSSERVER_PACK_VARBIT` exists and
+`ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, name)` already resolves varbits by
+name at runtime (`torirs_server_world.c:16858`). The compiler already has
 `SSC_SYM_VARBIT` (`ssc_symbols.c:527`). Adding one row to `k_map` lets
 `patches.dbrow` carry the varbit directly:
 
@@ -665,16 +665,16 @@ crop needs its CTS-low/CTS-high pair rather than a single base.
 
 No new content. Everything after this is cheap; nothing before it is.
 
-1. **Add `varbit` to `db_kind_for_type()`** in `src/net/mock/mock230_db.c`
-   (`MOCK230_PACK_VARBIT` and `mock230_content_symbol` already exist). One row
+1. **Add `varbit` to `db_kind_for_type()`** in `src/torirsserver/torirs_server_db.c`
+   (`TORIRSSERVER_PACK_VARBIT` and `ToriRSServer_ContentSymbol` already exist). One row
    in `k_map`. Follow the file's own rule: an unrecognised type word is a load
    error, so this must be an added *kind*, not a fallback.
 2. **Add `varbit_get` / `varbit_set` ops** taking the varbit id from the stack,
    in `src/serverscript/` (`ss_opcode.h`, `ss_meta.c`, `ssvm_provider.c`) and
-   the mock230 provider. `SSC_SYM_VARBIT` already exists compiler-side.
+   the ToriRSServer provider. `SSC_SYM_VARBIT` already exists compiler-side.
 3. **Per-patch record store** (recommended). A fixed-size per-player table in
-   mock230 — `{seed, planted_minute, stage, lives, flags}` × patch slot —
-   saved and loaded by `mock230_save_player` / `mock230_load_player`, exposed
+   ToriRSServer — `{seed, planted_minute, stage, lives, flags}` × patch slot —
+   saved and loaded by `ToriRSServer_SavePlayer` / `ToriRSServer_LoadPlayer`, exposed
    as `patchstate_get(loc, field)` / `patchstate_set(loc, field, value)`.
    Retires `farming_runtime.varp` entirely. Per CLAUDE.md: allocation failure
    is an `assert`, and an unregistered patch loc reaching these ops is a
@@ -764,7 +764,7 @@ Data, not code, once Phase 1 lands.
 ## 4. Verification
 
 Follow the pattern `farming_tools` already set — a named section in
-`mock230 --selftest`, with a mutation that makes each assertion fail:
+`ToriRSServer --selftest`, with a mutation that makes each assertion fail:
 
 | assertion | mutation that must break it |
 |---|---|
@@ -781,7 +781,7 @@ Two traps this tree has already paid for and that apply directly here:
 
 - [`pristine-baseline-skips`] — a worktree without the cache **skips** suites,
   and a skip reads as a pass. Confirm the farming section actually ran.
-- [`headless-runs-are-not-independent`] — use a scratch `MOCK230_SAVES`; farming
+- [`headless-runs-are-not-independent`] — use a scratch `TORIRSSERVER_SAVES`; farming
   is all `scope=perm` state, so a leftover save from the previous run will make
   a broken growth clock look fine.
 

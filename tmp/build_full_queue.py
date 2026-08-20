@@ -219,8 +219,8 @@ playable end-to-end. It only becomes `done` when the whole quest is.
 
 Loop prompt: read this file + PORTING_GUIDE section 4 / section 4.6 / section 7; run
 `tools/questhelper_extract.py --check` on the next pending row; port it; NEVER
-park sibling lanes; verify (`mock230_pack --check-only`,
-`make -C src mock230-scripts`); update this file; re-arm. Stop only when the
+park sibling lanes; verify (`ToriRSServer_Pack --check-only`,
+`make -C src torirsserver-scripts`); update this file; re-arm. Stop only when the
 user stops the loop.
 
 ## Methodology (non-negotiable)

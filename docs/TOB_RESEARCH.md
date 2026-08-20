@@ -955,7 +955,7 @@ can be authored at their five-man figure and scaled down; pillars are the one np
 that scales the other way, so their base must be the top of the line rather than the bottom.
 
 **The engine already supported the scaling itself.** `hitpoints=` on an authored npc block is
-a mapped server-scope field (`content_fields.c`), `mock230_content.c` parses it into
+a mapped server-scope field (`content_fields.c`), `torirs_server_content.c` parses it into
 `def->hitpoints`, and a spawned npc takes `base_hitpoints = def->hitpoints`. So no opcode or
 loader work was required for the curve — only for *proving* it.
 
@@ -966,7 +966,7 @@ server** and checked in, so a tree-invented `nc_hitpoints` would be silently dro
 time `gen_opcode_meta.py` runs. `nc_param` cannot reach it either — the support's param table
 carries no `hitpoints` row. The invariant therefore lives where this tree already puts
 config facts that scripts cannot express: a **content contract check**,
-`tools/check_tob_pillar_contract.py`, wired into `mock230-scripts` beside the charter, God
+`tools/check_tob_pillar_contract.py`, wired into `torirsserver-scripts` beside the charter, God
 Wars and quest-combat contracts. It pins three things and each was **proved to fail** by
 mutation:
 
@@ -983,7 +983,7 @@ figure, and — newly meaningful — the **current** hitpoints against the party
 second half is the one that could not fail before and can now: it is what proves the
 subtraction landed rather than being swallowed by `~tob_nylo_set_hp`'s `$base <= $hp` guard.
 
-Verified by running `dev_mock230 --selftest` three times: the four pillar failures present
+Verified by running `dev_torirsserver --selftest` three times: the four pillar failures present
 before the fix are gone and no new failure appeared. (That harness carries ~268 pre-existing
 failures in this tree, and its `::tdtest` line flips between runs on identical content — the
 shared-RNG flakiness already on record — so the comparison is failure-set diffs, not totals.)
@@ -1096,7 +1096,7 @@ The one residual bias runs the other way: a nylo killed mid-cycle loses its part
 | **hp off a support per full-life chewer** | **11.8** | **18.2** | **11.9** |
 
 Everything else about the room was already right. In the harness's no-kill solo
-(`MOCK230_NYLO_TRACE=1` on `mock230 --selftest`, whose player is in godmode and never attacks)
+(`TORIRSSERVER_NYLO_TRACE=1` on `ToriRSServer --selftest`, whose player is in godmode and never attacks)
 all four supports used to fall by tick 440 and the room wiped before Vasilias could land; it
 now keeps them, worst at 299/330 after 520 ticks, and `--selftest` went 15 → 12 failures.
 
@@ -1971,7 +1971,7 @@ Every Maiden finding above is now in the encounter. What each one changed:
 | M3 | `50 + 15·d` cycles, `+25` for the two bonus splats | one shot at one player, on `~player_projectile`'s own distance from the source tile | `~tob_maiden_flight`, distance from her **footprint** via `npc_range` | `~tob_st_maiden_flight` — the 65/80/95/110 table, and "+25 lands one tick later" at every distance |
 | M4 | Scuffed is per **spawn event**, ~3 % | the twenty tiles existed but the fight always passed `false` | one roll per set in `~tob_maiden_spawn_set`; `^tob_maiden_scuffed_chance = 3` | `~tob_st_maiden_research` — the scuffed tile is one east and one *outward*, as a rule over all ten slots |
 | M4 | Spawn on the **transmog tick** | already correct | unchanged | — |
-| M5 | Trail is **30** ticks, and re-covering **restarts** it | 29, and a second `loc_add` queued a *second* revert so the first still fired — a re-covered tile expired 30 ticks after it was *first* painted | 30, and `mock230_world_loc_revert_queue` now replaces a pending revert for the same tile+shape | `~tob_st_maiden_research` — 30 for the trail, still 11 for her own pool, as two distinct objects |
+| M5 | Trail is **30** ticks, and re-covering **restarts** it | 29, and a second `loc_add` queued a *second* revert so the first still fired — a re-covered tile expired 30 ticks after it was *first* painted | 30, and `ToriRSServer_WorldLocRevertQueue` now replaces a pending revert for the same tile+shape | `~tob_st_maiden_research` — 30 for the trail, still 11 for her own pool, as two distinct objects |
 | M19 | Entry scales **up** per player | `^tob_maiden_hp_entry = 2000` used as a base: a solo Entry Maiden had 4× her health | 500, the cache's `stat4` unit, multiplied by scale at the call site; Matomenos likewise 16 | `~tob_st_maiden_research` — `4 × unit` must equal the Wiki's 2000 / 64 |
 | M23 | Crabs **walk**, never 2 tiles/tick | — | `npc_walk` + the waypoint stepper is walk speed; nothing sets a run | — |
 

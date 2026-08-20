@@ -347,8 +347,8 @@ RuneScript/config data.
   prerequisites, reward amounts, and cheat adapter agree;
 - assert the jerboa box-trap row resolves the intended NPC, level, XP, product,
   trap locs, and owner lifecycle;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

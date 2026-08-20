@@ -3,45 +3,45 @@
  *
  * Everything that used to make this file long has moved:
  *
- *   mock230_session.c    the login handshake and inbound framing, as a state
+ *   torirs_server_session.c    the login handshake and inbound framing, as a state
  *                        machine rather than a run of blocking reads
- *   mock230_transport.c  where the bytes come from
- *   mock230_boot.c       the loader order
+ *   torirs_server_transport.c  where the bytes come from
+ *   torirs_server_boot.c       the loader order
  *
  * What is left is the part that is genuinely about being a *socket* server:
  * binding, accepting, and deciding when a tick is due. An in-process server
- * (mock230_embed.c) shares everything else and has none of this.
+ * (torirs_server_embed.c) shares everything else and has none of this.
  *
- *   make -C src mock230
- *   src/build/mock230 [port]
+ *   make -C src ToriRSServer
+ *   src/build/torirsserver [port]
  *   src/torirs --manifest manifest_osrs230.ini --user test --pass test
  *
  * Env:
- *   MOCK230_VERBOSE=1   log every packet in and out
- *   MOCK230_CACHE=dir   cache to read obj metadata from (default cache.osrs239.baked)
- *   MOCK230_CONTENT=dir content tree (default OSRS-Content/osrs239-content)
- *   MOCK230_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
- *   MOCK230_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
+ *   TORIRSSERVER_VERBOSE=1   log every packet in and out
+ *   TORIRSSERVER_CACHE=dir   cache to read obj metadata from (default cache.osrs239.baked)
+ *   TORIRSSERVER_CONTENT=dir content tree (default OSRS-Content/osrs239-content)
+ *   TORIRSSERVER_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
+ *   TORIRSSERVER_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
  *                       courtyard, beside Hans; the scene's origin zone is
  *                       derived from it)
- *   MOCK230_STAFF_LEVEL=0..3 advertise rev239 staff privilege; isolated UI
+ *   TORIRSSERVER_STAFF_LEVEL=0..3 advertise rev239 staff privilege; isolated UI
  *                       harnesses use 2 so typed ::commands take the golden
  *                       CLIENT_CHEAT path (default 0)
  */
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
 
-#include "mock230_boot.h"
-#include "mock230_container.h"
-#include "mock230_shop.h"
-#include "mock230_session.h"
-#include "mock230_transport.h"
-#include "mock230_ws.h"
+#include "torirs_server_boot.h"
+#include "torirs_server_container.h"
+#include "torirs_server_shop.h"
+#include "torirs_server_session.h"
+#include "torirs_server_transport.h"
+#include "torirs_server_ws.h"
 
 #include <signal.h>
 
 /* mingw-w64 has no POSIX socket headers at all (see src/ioserver/http_server.c
- * and src/net/mock/mock230_ws.c for the same split); Winsock2 replaces
+ * and src/torirsserver/torirs_server_ws.c for the same split); Winsock2 replaces
  * sockets, select()'s error reporting, and gettimeofday all at once, and
  * fork() has no equivalent whatsoever -- a JS5 connection becomes a detached
  * thread below instead of a forked child. */
@@ -61,10 +61,10 @@
 #include <unistd.h>
 #endif
 
-/* Overridden by the `mock230-dev` build (43597) so a second instance can run
- * beside the default one. `src/build/mock230 <port>` still wins over both. */
-#ifndef MOCK230_DEFAULT_PORT
-#define MOCK230_DEFAULT_PORT 43595
+/* Overridden by the `torirsserver-dev` build (43597) so a second instance can run
+ * beside the default one. `src/build/torirsserver <port>` still wins over both. */
+#ifndef TORIRSSERVER_DEFAULT_PORT
+#define TORIRSSERVER_DEFAULT_PORT 43595
 #endif
 
 #include <errno.h>
@@ -85,7 +85,7 @@ sock_perror(char const* msg)
 #endif
 }
 
-#define MOCK230_TICK_MS 600
+#define TORIRSSERVER_TICK_MS 600
 
 static long
 now_ms(void)
@@ -116,12 +116,12 @@ now_ms(void)
  */
 static int
 wait_readable(
-    struct Mock230Session* session,
+    struct ToriRSServerSession* session,
     long wait_ms)
 {
     fd_set readable;
     struct timeval timeout;
-    int fd = mock230_session_pollfd(session);
+    int fd = ToriRSServer_SessionPollfd(session);
     int ready;
 
     /* No descriptor means nothing to wait on — the shape an embedded session
@@ -151,19 +151,19 @@ wait_readable(
 
 static void
 serve(
-    struct Mock230Server* srv,
-    struct Mock230Conn* conn,
-    const struct Mock230BootConfig* config,
-    const struct Mock230Wire* wire)
+    struct ToriRSServer* srv,
+    struct ToriRSServerConn* conn,
+    const struct ToriRSServerBootConfig* config,
+    const struct ToriRSServerWire* wire)
 {
-    struct Mock230Session session;
-    struct Mock230Transport transport;
+    struct ToriRSServerSession session;
+    struct ToriRSServerTransport transport;
     long next_tick;
 
     memset(srv, 0, sizeof(*srv));
-    srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
-    srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
-    srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
+    srv->verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
+    srv->familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
+    srv->members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
     /*
      * After the memset, not before it.
      *
@@ -179,14 +179,14 @@ serve(
      * `srv->world_containers`, so shared shops are reseeded fresh per
      * connection — one process serves one connection at a time here (the JS5
      * thread aside), so this is boot, not a mid-session reset. */
-    mock230_shop_seed(srv);
+    ToriRSServer_ShopSeed(srv);
 
-    mock230_transport_socket(&transport, conn);
-    mock230_session_init(&session, &transport, srv->verbose);
+    ToriRSServer_TransportSocket(&transport, conn);
+    ToriRSServer_SessionInit(&session, &transport, srv->verbose);
 
-    next_tick = now_ms() + MOCK230_TICK_MS;
+    next_tick = now_ms() + TORIRSSERVER_TICK_MS;
 
-    while( mock230_session_alive(&session) )
+    while( ToriRSServer_SessionAlive(&session) )
     {
         int ready = wait_readable(&session, next_tick - now_ms());
 
@@ -195,7 +195,7 @@ serve(
 
         if( ready > 0 )
         {
-            if( !mock230_session_pump(&session, srv) )
+            if( !ToriRSServer_SessionPump(&session, srv) )
                 break;
 
             /*
@@ -203,51 +203,51 @@ serve(
              * rather than inside the session because a session carries bytes
              * and knows nothing about ticks, npcs or scripts.
              */
-            if( mock230_session_take_login(&session) )
+            if( ToriRSServer_SessionTakeLogin(&session) )
             {
-                struct Mock230Player* player;
+                struct ToriRSServerPlayer* player;
 
-                mock230_scripts_load(srv, config->script_dir);
-                mock230_world_init(srv, mock230_boot_zone(config->home_x),
-                                   mock230_boot_zone(config->home_z));
-                player = mock230_world_add_player(srv, &session);
+                ToriRSServer_ScriptsLoad(srv, config->script_dir);
+                ToriRSServer_WorldInit(srv, ToriRSServer_BootZone(config->home_x),
+                                   ToriRSServer_BootZone(config->home_z));
+                player = ToriRSServer_WorldAddPlayer(srv, &session);
                 if( !player )
                     break;
                 session.player = player;
-                mock230_world_player_init(player);
-                mock230_world_set_display_name(player, session.display_name);
-                mock230_world_login(player);
+                ToriRSServer_WorldPlayerInit(player);
+                ToriRSServer_WorldSetDisplayName(player, session.display_name);
+                ToriRSServer_WorldLogin(player);
                 /* Anything the client sent behind its login block is still in
                  * the session buffer; decode it now that there is a world. */
-                if( !mock230_session_pump(&session, srv) )
+                if( !ToriRSServer_SessionPump(&session, srv) )
                     break;
             }
         }
 
         if( now_ms() >= next_tick )
         {
-            mock230_world_tick(srv);
+            ToriRSServer_WorldTick(srv);
             /* Anchor to the schedule rather than to "now", so a slow tick does
              * not push every later tick out. */
-            next_tick += MOCK230_TICK_MS;
-            if( now_ms() - next_tick > 5 * MOCK230_TICK_MS )
-                next_tick = now_ms() + MOCK230_TICK_MS;
+            next_tick += TORIRSSERVER_TICK_MS;
+            if( now_ms() - next_tick > 5 * TORIRSSERVER_TICK_MS )
+                next_tick = now_ms() + TORIRSSERVER_TICK_MS;
         }
     }
 
     /*
      * This server still accepts one connection at a time (§6.1 wants a
      * non-blocking accept with per-connection buffering), so the world goes away
-     * with the session. `mock230_world_remove_player` releases the slot and the
+     * with the session. `ToriRSServer_WorldRemovePlayer` releases the slot and the
      * bank; the shutdown below is the rest of the pool, which is empty here and
      * would not be in a multi-connection host.
      */
-    mock230_world_remove_player(srv, session.player);
-    mock230_bank_shutdown(srv);
-    mock230_container_shutdown(srv);
-    mock230_scripts_free(srv);
-    mock230_session_free(&session);
-    mock230_world_reset(srv);
+    ToriRSServer_WorldRemovePlayer(srv, session.player);
+    ToriRSServer_BankShutdown(srv);
+    ToriRSServer_ContainerShutdown(srv);
+    ToriRSServer_ScriptsFree(srv);
+    ToriRSServer_SessionFree(&session);
+    ToriRSServer_WorldReset(srv);
 }
 
 /*
@@ -264,30 +264,30 @@ serve(
  */
 static void
 serve_js5(
-    struct Mock230Server* srv,
-    struct Mock230Conn* conn)
+    struct ToriRSServer* srv,
+    struct ToriRSServerConn* conn)
 {
-    struct Mock230Session session;
-    struct Mock230Transport transport;
+    struct ToriRSServerSession session;
+    struct ToriRSServerTransport transport;
 
     memset(srv, 0, sizeof(*srv));
-    srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
-    srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
-    srv->members_world = mock230_flag_default_on("MOCK230_MEMBERS_WORLD");
+    srv->verbose = getenv("TORIRSSERVER_VERBOSE") != NULL;
+    srv->familiar_singles_assist = ToriRSServer_FlagDefaultOn("TORIRSSERVER_FAMILIAR_SINGLES");
+    srv->members_world = ToriRSServer_FlagDefaultOn("TORIRSSERVER_MEMBERS_WORLD");
 
-    mock230_transport_socket(&transport, conn);
-    mock230_session_init(&session, &transport, srv->verbose);
+    ToriRSServer_TransportSocket(&transport, conn);
+    ToriRSServer_SessionInit(&session, &transport, srv->verbose);
 
-    while( mock230_session_alive(&session) )
+    while( ToriRSServer_SessionAlive(&session) )
     {
         /* No tick deadline to race, so this blocks until there is something to
          * do — a cache download is request/response with long idle gaps. */
         if( wait_readable(&session, 60000) < 0 )
             break;
-        if( !mock230_session_pump(&session, srv) )
+        if( !ToriRSServer_SessionPump(&session, srv) )
             break;
     }
-    mock230_session_free(&session);
+    ToriRSServer_SessionFree(&session);
 }
 
 #ifdef _WIN32
@@ -297,7 +297,7 @@ serve_js5(
  *
  * The comment on the POSIX branch below says a forked child "shares nothing
  * mutable" with the parent -- true because fork() copies the whole address
- * space, so the child's `serve_js5`, which memsets its `Mock230Server`
+ * space, so the child's `serve_js5`, which memsets its `ToriRSServer`
  * argument on entry, was always zeroing a private copy. A thread shares the
  * parent's address space for real, so handing it the same static `srv` the
  * game-connection loop is using would let a JS5 thread's memset stomp a live
@@ -305,22 +305,22 @@ serve_js5(
  * (see the `srv`/`conn` comments in main()) is too much to also put on a
  * thread's stack.
  */
-struct Mock230Js5Args
+struct ToriRSServerJs5Args
 {
-    const struct Mock230Wire* wire;
+    const struct ToriRSServerWire* wire;
     int fd;
-    struct Mock230Server srv;
-    struct Mock230Conn conn;
+    struct ToriRSServer srv;
+    struct ToriRSServerConn conn;
 };
 
 static unsigned __stdcall
 js5_thread_main(void* raw)
 {
-    struct Mock230Js5Args* args = (struct Mock230Js5Args*)raw;
+    struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)raw;
 
-    fprintf(stderr, "mock230: JS5 connection\n");
+    fprintf(stderr, "torirsserver: JS5 connection\n");
     args->srv.wire = args->wire; /* serve_js5() memsets the rest right away */
-    if( mock230_conn_open(&args->conn, args->fd) )
+    if( ToriRSServer_ConnOpen(&args->conn, args->fd) )
         serve_js5(&args->srv, &args->conn);
     close(args->fd);
     free(args);
@@ -333,32 +333,32 @@ main(
     int argc,
     char** argv)
 {
-    static struct Mock230Server srv; /* ~200 KB of player state — not on the stack */
-    static struct Mock230Conn conn;  /* 128 KB of buffers — likewise */
-    struct Mock230BootConfig config;
+    static struct ToriRSServer srv; /* ~200 KB of player state — not on the stack */
+    static struct ToriRSServerConn conn;  /* 128 KB of buffers — likewise */
+    struct ToriRSServerBootConfig config;
     /* --selftest: run the game logic with no socket and exit. Detected before
      * the port parse because atoi("--selftest") is 0. */
     int selftest = argc > 1 && strcmp(argv[1], "--selftest") == 0;
-    int port = (argc > 1 && !selftest) ? atoi(argv[1]) : MOCK230_DEFAULT_PORT;
+    int port = (argc > 1 && !selftest) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
     struct sockaddr_in addr;
     /*
-     * Which revision's bytes to write. `--rev <name>` beats MOCK230_REV beats
+     * Which revision's bytes to write. `--rev <name>` beats TORIRSSERVER_REV beats
      * the default, which is osrs230 — so every existing manifest, script and
-     * test keeps its behaviour by saying nothing. See mock230_wire.h.
+     * test keeps its behaviour by saying nothing. See torirs_server_wire.h.
      */
-    char const* rev_name = getenv("MOCK230_REV");
-    const struct Mock230Wire* wire;
+    char const* rev_name = getenv("TORIRSSERVER_REV");
+    const struct ToriRSServerWire* wire;
 
     for( int i = 1; i < argc - 1; i++ )
         if( strcmp(argv[i], "--rev") == 0 )
             rev_name = argv[i + 1];
 
-    wire = rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
+    wire = rev_name ? ToriRSServer_WireByName(rev_name) : ToriRSServer_WireDefault();
     if( !wire )
     {
-        fprintf(stderr, "mock230: unknown --rev '%s' (osrs230, osrs239)\n", rev_name);
+        fprintf(stderr, "torirsserver: unknown --rev '%s' (osrs230, osrs239)\n", rev_name);
         return 1;
     }
 
@@ -396,7 +396,7 @@ main(
     }
 #endif
 
-    mock230_boot_defaults(&config);
+    ToriRSServer_BootDefaults(&config);
 
     /*
      * Bind and listen *before* the loaders, not after. They take over a second
@@ -438,19 +438,19 @@ main(
         listen(listener, 1);
     }
 
-    mock230_boot_load(&config);
+    ToriRSServer_BootLoad(&config);
 
     if( selftest )
     {
-        int failures = mock230_world_selftest();
-        mock230_boot_free();
+        int failures = ToriRSServer_WorldSelftest();
+        ToriRSServer_BootFree();
         return failures ? 1 : 0;
     }
 
     /*
      * Compile-check and load the script pack now, not at first login.
      *
-     * `mock230_scripts_load` is idempotent (`scripts_ok`), so the login path can
+     * `ToriRSServer_ScriptsLoad` is idempotent (`scripts_ok`), so the login path can
      * still call it and this is purely a matter of *when* the cost is paid. It
      * used to be paid by the first player: the login response had already gone
      * out, so every second spent here was a second the client spent on
@@ -458,13 +458,13 @@ main(
      * Boot is the honest place — the server is not claiming to be ready yet.
      */
     srv.wire = wire;
-    mock230_scripts_load(&srv, config.script_dir);
+    ToriRSServer_ScriptsLoad(&srv, config.script_dir);
 
     /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr,
-            "mock230: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d)\n",
+            "torirsserver: listening on 127.0.0.1:%d, wire %s (home %d,%d — zone %d,%d)\n",
             port, wire->name, config.home_x, config.home_z,
-            mock230_boot_zone(config.home_x), mock230_boot_zone(config.home_z));
+            ToriRSServer_BootZone(config.home_x), ToriRSServer_BootZone(config.home_z));
 
     for( ;; )
     {
@@ -496,7 +496,7 @@ main(
         if( recv(fd, (char*)&first, 1, MSG_PEEK) == 1 && first == 15 )
         {
 #ifdef _WIN32
-            struct Mock230Js5Args* args = (struct Mock230Js5Args*)calloc(1, sizeof(*args));
+            struct ToriRSServerJs5Args* args = (struct ToriRSServerJs5Args*)calloc(1, sizeof(*args));
             HANDLE thread;
             assert(args);
             args->wire = wire;
@@ -516,9 +516,9 @@ main(
             if( child == 0 )
             {
                 close(listener);
-                fprintf(stderr, "mock230: JS5 connection\n");
+                fprintf(stderr, "torirsserver: JS5 connection\n");
                 srv.wire = wire;
-                if( mock230_conn_open(&conn, fd) )
+                if( ToriRSServer_ConnOpen(&conn, fd) )
                     serve_js5(&srv, &conn);
                 close(fd);
                 _exit(0);
@@ -530,13 +530,13 @@ main(
             continue;
         }
 
-        fprintf(stderr, "mock230: client connected\n");
-        if( mock230_conn_open(&conn, fd) )
+        fprintf(stderr, "torirsserver: client connected\n");
+        if( ToriRSServer_ConnOpen(&conn, fd) )
             serve(&srv, &conn, &config, wire);
         close(fd);
-        fprintf(stderr, "mock230: client disconnected\n");
+        fprintf(stderr, "torirsserver: client disconnected\n");
     }
 
-    mock230_boot_free();
+    ToriRSServer_BootFree();
     return 0;
 }

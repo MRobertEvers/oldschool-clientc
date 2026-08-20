@@ -85,13 +85,13 @@ Each has already cost a pass in this tree.
 From PORTING_GUIDE §4.3, plus this queue's additions:
 
 - `make -C src` builds; `sscompile` rebuilt first.
-- `mock230_pack --check-only` at **0 errors**.
+- `ToriRSServer_Pack --check-only` at **0 errors**.
 - The content is performed end-to-end in the headless client harness — not
   "it compiles". State persists across logout/login where it should.
 - No *new* silently-missing opcodes in the gap report.
 - Existing content untouched; the selftest suite has no *new* failures
   (measure with and without, back to back, on one tree — see
-  `mock230-selftest-operational-notes`).
+  `torirsserver-selftest-operational-notes`).
 - For anything that owns its own attacks: **state the combat triggers,
   including the ones it does nothing in** (PORTING_GUIDE §4.3a).
 - The slice's row in §5 is updated with what was ported, what was deferred,
@@ -312,7 +312,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | C15 | **Stronghold of Security** | 1121 | 150 | **partial** | Per-floor reward economy and the combat-level portal skip are in and tested. The security questions and the maze doors need the dialogue/door pass. |
 | C16 | **Chompy bird hunting** (the activity, not the quest) | 794 | 260 | **done** | The hat ladder — the reason anyone hunts past the quest — is in, generated from the wiki and cross-checked against the cache's eighteen objs. |
 | C17 | **Motherlode Mine — completion** | 572 | 400 | **done** | Nugget economy, sack thresholds and both upper-level unlocks, verified. |
-| C18 | **Waterbirth Island** + **Taverley** + **TzHaar** area plugins | 355 | partial | pending | `content/area/` remainder |
+| C18 | **Waterbirth Island** + **Taverley** + **TzHaar** area plugins | 355 | partial | **done** | Taverley shortcuts were already covered by the wiki-generated table (under display names, not symbols). TzHaar's Inferno **practice fee** is now in (`inferno_practice_fee.rs2`, 5-step). Waterbirth's crack is the DKS entry, already present. |
 | C19 | **Wilderness slayer** + wilderness plugins remainder | 299 | 300 | **done** | Krystilia's 37-task table, generated and verified at runtime. |
 | C20 | **Item retrieval service** (shared: ToA, ToB, Nightmare, God Wars, Barrows, Zulrah, Vorkath, RotS…) | 341 | 0 | **done** | Discovered while closing C2. |
 
@@ -357,7 +357,7 @@ to leave it out.
 | E14 | **Clans** | 977 | 150 | **partial** | Clan Wars' four victory conditions, the per-condition re-join rule and the five magic settings are in and verified. The chat-channel/clan social system itself remains. |
 | E15 | **Presets** | 825 | 70 | **partial** | ToA's five invocation presets — the game's own preset feature, cache-backed — are in and verified. NR's tournament loadouts are its own and need E2's controller. |
 | E16 | **Crystal** equipment + recipes + chargeables | 760 | +130 | **partial** | The charge model — separate armour/tool starts, the shared cap, the shard rate and the nested damage exceptions — is in and verified. Ilfeen's pricing ladder and the recolour crystals remain. |
-| E17 | **Hiscores** | 713 | — | **determined: no portable content** | A SQL schema (`user_skill_stats` and friends) plus an exporter. Its one game rule — hitpoints starting at level 10 / 1154 xp — this tree already asserts in `mock230_world.c`. See the log. |
+| E17 | **Hiscores** | 713 | — | **determined: no portable content** | A SQL schema (`user_skill_stats` and friends) plus an exporter. Its one game rule — hitpoints starting at level 10 / 1154 xp — this tree already asserts in `torirs_server_world.c`. See the log. |
 | E18 | **Rotten potato** (staff tool) | 677 | done (dispatch) | **done** | Ban/mute are infra; the per-viewer menu build, option NONE, and the delete-on-ineligible-click are ported. `staff_potato/`, 8-step selftest. |
 | E19 | **Drops** framework + rewards + larran's key | 571+465 | +90 | **partial** | Larran's three-branch key rate is in and verified against Mod Ash's published formula. The drops framework itself remains. |
 | E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | 90 | **partial** | The Well's four perks, their shared threshold and the 32-bit overflow are in and verified. The other six systems remain. |
@@ -378,7 +378,7 @@ to leave it out.
 ## 6. Progress log
 
 Append one dated entry per slice, in the CONTENT_PORT_QUEUE style: what landed,
-the final script count, `mock230_pack` error count, the suite delta measured
+the final script count, `ToriRSServer_Pack` error count, the suite delta measured
 with and without, and what was explicitly deferred with its reason.
 
 - 2026-08-19 — queue created. Audit measured 82 NR content packages
@@ -405,17 +405,17 @@ with and without, and what was explicitly deferred with its reason.
   C stanza.
 
   Engine, all required by the slice's own verification gate:
-  * `mock230_pack` did not link at all — three symbols. Fixed; it is a gate
+  * `ToriRSServer_Pack` did not link at all — three symbols. Fixed; it is a gate
     again.
   * `cachepack`'s record merge treated `param` as a list, so two files stating
     one param both survived and the *first* won, while the runtime assigns per
     line so the *last* wins. Three npcs had a server band contradicting the
     world with no way to converge. Fixed by ranking three layers (cache /
-    generated / authored) the way `mock230_content.c` already loads them.
+    generated / authored) the way `torirs_server_content.c` already loads them.
   * One content bug it surfaced: `[skeletonmage]` authored twice with different
     `attack_anim`, one of them the giant skeleton's against a base rig.
 
-  Final: 27738 scripts; `mock230_pack --check-only` **0 errors** (was 1, and
+  Final: 27738 scripts; `ToriRSServer_Pack --check-only` **0 errors** (was 1, and
   that 1 was unfixable before the merge fix); selftest 15 unique failures with
   and without, identical sets, all pre-existing.
 
@@ -461,7 +461,7 @@ with and without, and what was explicitly deferred with its reason.
   And `worn` is addressed by wear position, so `inv_add(worn, gold_ring, 1)`
   puts the ring on the player's *head*; it needs `inv_setslot`.
 
-  Final: 27776 scripts; `mock230_pack --check-only` 0 errors; selftest 15 unique
+  Final: 27776 scripts; `ToriRSServer_Pack --check-only` 0 errors; selftest 15 unique
   failures with and without, identical sets.
 
   Not in A2, by design: hidey-holes/STASH (119 emote rows carry one) are A6, and
@@ -484,7 +484,7 @@ with and without, and what was explicitly deferred with its reason.
   not from the tier, and an ambush does NOT advance the clue — the player digs
   again once the agent is dead, which is what the wiki describes.
 
-  Final: 27825 scripts; `mock230_pack --check-only` 0 errors; all seven trail
+  Final: 27825 scripts; `ToriRSServer_Pack --check-only` 0 errors; all seven trail
   selftests green; 4 unique suite failures, none in the trail stanza and none
   of them this lane's.
 
@@ -499,7 +499,7 @@ with and without, and what was explicitly deferred with its reason.
 
 - 2026-08-19 — **A3b done, and the engine seam §7.4 asked for is built.**
 
-  `mock230_scripts_run_claim()` runs a named content proc before the ordinary
+  `ToriRSServer_ScriptsRunClaim()` runs a named content proc before the ordinary
   interaction dispatch, with the clicked npc or loc bound as the active entity,
   and treats a `true` return as having consumed the interaction. Two call sites,
   both in `interaction_dispatch`: `[proc,interact_npc_claim]` and
@@ -529,7 +529,7 @@ with and without, and what was explicitly deferred with its reason.
   npc-interaction stanzas — cook's assistant, the inverted fallback, npc
   addressing, name-keyed dispatch — all still pass.
 
-  Final: 27834 scripts; `mock230_pack --check-only` 0 errors; all eight trail
+  Final: 27834 scripts; `ToriRSServer_Pack --check-only` 0 errors; all eight trail
   selftests green; 9 unique suite failures, every one of them CoX/ToB/pathing
   from the lane running alongside this one.
 
@@ -575,7 +575,7 @@ with and without, and what was explicitly deferred with its reason.
   my verification grep was too narrow to show it — the grep now covers the whole
   log, not a stanza window.
 
-  Final: 27846 scripts; `mock230_pack --check-only` 0 errors; all nine trail
+  Final: 27846 scripts; `ToriRSServer_Pack --check-only` 0 errors; all nine trail
   selftests green.
 
 - 2026-08-19 — **A3c done, and Treasure Trails is playable end to end.**
@@ -607,7 +607,7 @@ with and without, and what was explicitly deferred with its reason.
   wiki's own reward pages. 2,300 lines of RuneScript, three generators, and not
   one clue, rate or reward typed by hand.
 
-  Final: 27857 scripts; `mock230_pack --check-only` 0 errors; all eleven trail
+  Final: 27857 scripts; `ToriRSServer_Pack --check-only` 0 errors; all eleven trail
   selftests green; all three generators `--check` clean; 9 unique suite
   failures, all CoX/ToB/pathing from the neighbouring lane.
 
@@ -628,7 +628,7 @@ with and without, and what was explicitly deferred with its reason.
   inactive device does not hurt you.
 
   Suite: **0 unique failures** — the neighbouring lane's CoX/ToB reds cleared —
-  and all twelve trail selftests green. `mock230_pack` 0 errors.
+  and all twelve trail selftests green. `ToriRSServer_Pack` 0 errors.
 
 - 2026-08-19 — **A6a done.** `trail/scripts/trail_milestone.rs2`.
 
@@ -653,7 +653,7 @@ with and without, and what was explicitly deferred with its reason.
   (`runescript-expression-limits`).
 
   Treasure Trails now stands at **2,515 lines** of RuneScript over 13 selftests,
-  three generators, and a 36-page pinned wiki corpus. `mock230_pack` 0 errors,
+  three generators, and a 36-page pinned wiki corpus. `ToriRSServer_Pack` 0 errors,
   all generators `--check` clean, no trail failures in the suite.
 
 - 2026-08-19 — **A9 done.** `server/scripts/cannon/`, a pinned 10-page wiki
@@ -691,7 +691,7 @@ with and without, and what was explicitly deferred with its reason.
   checker verifies the stanza HEADERS ran as well — otherwise "absent" is
   ambiguous between passed and never-ran.
 
-  Final: 27898 scripts; `mock230_pack` 0 errors; all three generators `--check`
+  Final: 27898 scripts; `ToriRSServer_Pack` 0 errors; all three generators `--check`
   clean; `tools/trail_selftest_check.sh` green on all 17 owned assertions.
 
 - 2026-08-19 — **A10 done.** `minigames/game_tearsofguthix/`, a pinned wiki
@@ -730,7 +730,7 @@ with and without, and what was explicitly deferred with its reason.
   `tools/trail_selftest_check.sh` caught all three within one run each, which is
   what it was written for.
 
-  Final: 27936 scripts; `mock230_pack` 0 errors; all generators `--check` clean;
+  Final: 27936 scripts; `ToriRSServer_Pack` 0 errors; all generators `--check` clean;
   20 owned assertions green.
 
 - 2026-08-20 — **A11 done.** `minigames/game_shootingstars/`,
@@ -767,7 +767,7 @@ with and without, and what was explicitly deferred with its reason.
   explaining why removing rather than keeping them is safe: no build ever
   shipped a record under those ids.
 
-  Final: 27968 scripts; `mock230_pack` 0 errors; all four generators `--check`
+  Final: 27968 scripts; `ToriRSServer_Pack` 0 errors; all four generators `--check`
   clean; 23 owned assertions green.
 
 - 2026-08-20 — **A7a done.** `tools/gen_diary_tasks.py`,
@@ -800,7 +800,7 @@ with and without, and what was explicitly deferred with its reason.
   What the registry adds that this tree had no way to do: name a task. The panel
   could count them and could not say what any of them was.
 
-  Final: 27974 scripts; `mock230_pack` 0 errors; all five generators `--check`
+  Final: 27974 scripts; `ToriRSServer_Pack` 0 errors; all five generators `--check`
   clean; 24 owned assertions green.
 
 - 2026-08-20 — **A3d and A6b done.**
@@ -831,7 +831,7 @@ with and without, and what was explicitly deferred with its reason.
   finds they share contents. The faithful version needs 44 private containers
   per player, which is a save-format decision and not this slice's to make.
 
-  Final: 27995 scripts; `mock230_pack` 0 errors; six generators `--check` clean;
+  Final: 27995 scripts; `ToriRSServer_Pack` 0 errors; six generators `--check` clean;
   26 owned assertions green.
 
 - 2026-08-20 — **A12 closed, not done, and the difference matters.**
@@ -896,11 +896,11 @@ with and without, and what was explicitly deferred with its reason.
   read back 0 whether the config was right or wrong, and a test that answers 0
   for both is worse than none. So the contract moved to
   `tools/check_dks_contract.py`, which holds `dks.npc` to the pinned wiki
-  infoboxes and is wired into `mock230-scripts` beside the tree's other content
+  infoboxes and is wired into `torirsserver-scripts` beside the tree's other content
   contracts. **Every future Wave B boss whose encounter is config rather than
   script will need that shape rather than a selftest.**
 
-  Final: 27998 scripts; `mock230_pack` 0 errors; contract green; 26 owned
+  Final: 27998 scripts; `ToriRSServer_Pack` 0 errors; contract green; 26 owned
   assertions green.
 
 - 2026-08-20 — **Ten solo bosses given their combat contract in one pass**
@@ -910,7 +910,7 @@ with and without, and what was explicitly deferred with its reason.
   All ten are already cache records with their stat block, size and
   `op2=Attack`. What the cache cannot state is the attack rate and the attack
   style, and for four of them that is the entire encounter. So the slice is one
-  config file plus `tools/check_boss_contract.py`, wired into `mock230-scripts`.
+  config file plus `tools/check_boss_contract.py`, wired into `torirsserver-scripts`.
 
   Four are **complete** (Kraken, Thermy, Scorpia, Chaos Fanatic — single-style
   bosses). Six are **partial and marked so in the config itself**: Sarachnis,
@@ -927,7 +927,7 @@ with and without, and what was explicitly deferred with its reason.
   `hillgiant_boss` really is Obor and `gb_mossgiant` really is Bryophyta, and
   now something says so.
 
-  Final: 27999 scripts; `mock230_pack` 0 errors; both contracts green; 26 owned
+  Final: 27999 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 26 owned
   assertions green.
 
 - 2026-08-20 — **Second attack rungs: B20 and B21 complete, and three bosses
@@ -964,7 +964,7 @@ with and without, and what was explicitly deferred with its reason.
   infoboxes state that both attacks exist, not how often each is used. It is one
   constant rather than six so a measured rotation replaces one thing.
 
-  Final: 28010 scripts; `mock230_pack` 0 errors; both contracts green.
+  Final: 28010 scripts; `ToriRSServer_Pack` 0 errors; both contracts green.
 
 - 2026-08-20 — **B9 Cerberus done — the first deep encounter of Wave B.**
 
@@ -998,7 +998,7 @@ with and without, and what was explicitly deferred with its reason.
   all three records' `[ai_queue3]`. A second one would be a hard error, and the
   near miss is worse — one wins, the other silently never runs.
 
-  Final: 28020 scripts; `mock230_pack` 0 errors; both contracts green; 27 owned
+  Final: 28020 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 27 owned
   assertions green.
 
 - 2026-08-20 — **B6 Grotesque Guardians — the numbers and the rules, tested.**
@@ -1036,7 +1036,7 @@ with and without, and what was explicitly deferred with its reason.
   C-driven selftest has none of. The numbers they will use are in the config and
   cited.
 
-  Final: 28034 scripts; `mock230_pack` 0 errors; both contracts green; 28 owned
+  Final: 28034 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 28 owned
   assertions green.
 
 - 2026-08-20 — **B8 Abyssal Sire — the arithmetic half.**
@@ -1068,7 +1068,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the lair layout, the six tentacles, the record swapping
   and the spawns need a live scene. Their numbers are in the config and cited.
 
-  Noted in passing: `mock230_pack` went to 4 errors during this slice, all of
+  Noted in passing: `ToriRSServer_Pack` went to 4 errors during this slice, all of
   them `minigame_cox/configs/cox.varp` from the lane running alongside — a
   varbit name not in `all.varp.compack` and a malformed line. Not this lane's,
   and recorded so the next reader of that count knows whose it was.
@@ -1104,7 +1104,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the arena, the spike field and the record swapping need a
   live scene.
 
-  Final: 28107 scripts; `mock230_pack` 0 errors; both contracts green; 30 owned
+  Final: 28107 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 30 owned
   assertions green.
 
 - 2026-08-20 — **B4 Alchemical Hydra — the arithmetic half.**
@@ -1131,7 +1131,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the four vents, the arena and the record swapping need a
   live scene.
 
-  Final: 28115 scripts; `mock230_pack` 0 errors; both contracts green; 31 owned
+  Final: 28115 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 31 owned
   assertions green.
 
 - 2026-08-20 — **ENGINE: `^constant` in an npc param parsed to zero.**
@@ -1139,12 +1139,12 @@ with and without, and what was explicitly deferred with its reason.
   The find of the session, and it was live in the tree before any of this
   lane's content.
 
-  `apply_param` in `mock230_content.c` expanded a `^constant` in exactly TWO
+  `apply_param` in `torirs_server_content.c` expanded a `^constant` in exactly TWO
   branches (`undead` and the elemental weakness) and read the value with a bare
   `atoi` everywhere else. **`atoi("^slash_style")` is 0.** So
   `param=damagetype,^slash_style` and `param=attackrate,^dks_attackrate` both
   silently became zero: the config read correctly, the compiler had no opinion,
-  `mock230_pack` was happy because it checks the TEXT, and the npc simply fought
+  `ToriRSServer_Pack` was happy because it checks the TEXT, and the npc simply fought
   with damage type 0 and no attack rate.
 
   Fixed at the single point every branch reads the value — one expansion, before
@@ -1171,7 +1171,7 @@ with and without, and what was explicitly deferred with its reason.
   recorded against them is smaller than it looked: what actually needs a scene
   is arena geometry and AoE placement, not param reads.
 
-  Final: 28115 scripts; `mock230_pack` 0 errors; both contracts green; 32 owned
+  Final: 28115 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 32 owned
   assertions green.
 
 - 2026-08-20 — **B7 Zalcano — the odd one out of Wave B.**
@@ -1205,7 +1205,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the demonic symbols, the golems and the arena need a
   scene.
 
-  Final: 28126 scripts; `mock230_pack` 0 errors; both contracts green; 33 owned
+  Final: 28126 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 33 owned
   assertions green. The 21 suite failures in this run are the neighbouring
   lane's (blackarmgang, sheeprun, smithingrun, TD).
 
@@ -1244,7 +1244,7 @@ with and without, and what was explicitly deferred with its reason.
 
   Marked **partial**: the arena, the acid pools and the minion AI need a scene.
 
-  Final: 28137 scripts; `mock230_pack` 0 errors; both contracts green; 34 owned
+  Final: 28137 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 34 owned
   assertions green.
 
 - 2026-08-20 — **B2 The Forgotten Four — DT2's bosses.**
@@ -1281,7 +1281,7 @@ with and without, and what was explicitly deferred with its reason.
 
   Marked **partial**: the four arenas and the special-attack AI need a scene.
 
-  Final: 28144 scripts; `mock230_pack` 0 errors; both contracts green; 35 owned
+  Final: 28144 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 35 owned
   assertions green.
 
 - 2026-08-20 — **B1 The Nightmare — the largest boss in the wave.**
@@ -1313,7 +1313,7 @@ with and without, and what was explicitly deferred with its reason.
   need a scene.
 
   With this, **every boss in Wave B has been touched.** Final: 28158 scripts;
-  `mock230_pack` 0 errors; both contracts green; all six generators `--check`
+  `ToriRSServer_Pack` 0 errors; both contracts green; all six generators `--check`
   clean; 36 owned assertions green.
 
 - 2026-08-20 — **C14 Castle Wars — the first Wave C slice.**
@@ -1347,7 +1347,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the catapults, barricades, breakable doors and the arena
   itself need a scene.
 
-  Final: 28171 scripts; `mock230_pack` 0 errors; both contracts green; 37 owned
+  Final: 28171 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 37 owned
   assertions green.
 
 - 2026-08-20 — **C15 Stronghold of Security.**
@@ -1373,7 +1373,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the security questions (a dialogue pass) and the maze
   doors remain.
 
-  Final: 28183 scripts; `mock230_pack` 0 errors; both contracts green; 39 owned
+  Final: 28183 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 39 owned
   assertions green.
 
 - 2026-08-20 — **C5 Warriors' Guild — the economy and the defender ladder.**
@@ -1402,7 +1402,7 @@ with and without, and what was explicitly deferred with its reason.
   Marked **partial**: the catapult, shotput, keg balance and the dummy room
   remain.
 
-  Final: 28190 scripts; `mock230_pack` 0 errors; both contracts green; 40 owned
+  Final: 28190 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 40 owned
   assertions green.
 
 - 2026-08-20 — **C2 Tombs of Amascut — closed by reading, and it spawned C20.**
@@ -1455,7 +1455,7 @@ with and without, and what was explicitly deferred with its reason.
   stale claim would send a death in the open world to a boss's chest, where the
   player would never look, so the test asserts the give-back too.
 
-  Final: 28255 scripts; `mock230_pack` 0 errors; both contracts green; 42 owned
+  Final: 28255 scripts; `ToriRSServer_Pack` 0 errors; both contracts green; 42 owned
   assertions green.
 
 - 2026-08-20 — **C3 Gauntlet — swept, and it needed one thing.**
@@ -1618,7 +1618,7 @@ with and without, and what was explicitly deferred with its reason.
   **Generated, not typed.** Every recolour is its own obj named `<base>_<clan>`,
   so `tools/gen_clan_crystals.py` walks `all.obj.compack` and emits the
   (base, clan) -> obj table. 72 rows, no obj name typed into the tree, wired
-  into `mock230-scripts` as `check-clan-crystals`.
+  into `torirsserver-scripts` as `check-clan-crystals`.
 
   **The asymmetry is the feature, and it is why the generator exists.** Eight
   clans have a crown and a clan crystal — that half is symmetric. But only
@@ -1646,7 +1646,7 @@ with and without, and what was explicitly deferred with its reason.
   natural `= null` test never fired, and no caller could tell "this key has no
   entry" from "this key maps to item 0". Exactly the failure the dbrow decoder
   had with an unset namedobj column. Fixed in
-  `mock230_content.c` — `default=null` now yields -1 on every typed output, not
+  `torirs_server_content.c` — `default=null` now yields -1 on every typed output, not
   only coords. **This was silently wrong tree-wide, not just here**; every enum
   in the tree with a `default=null` and a typed output was answering 0.
 
@@ -1854,8 +1854,8 @@ with and without, and what was explicitly deferred with its reason.
   **Correction to my own first reading of this slice.** I recorded the shared
   chest as blocked on a missing engine feature — "this tree has world-shared
   variables but no world-shared item container". That was wrong, and reading
-  `mock230_container.c` rather than assuming showed why:
-  `mock230_container_scope` already answers `MOCK230_CONTAINER_WORLD` for any
+  `torirs_server_container.c` rather than assuming showed why:
+  `ToriRSServer_ContainerScope` already answers `TORIRSSERVER_CONTAINER_WORLD` for any
   inv whose `.inv` declares `scope=shared`, and `srv->world_containers` already
   exists to hold them. The path arrived with shops, but nothing on it is
   shop-specific — a shared inv with no `stock=` rows seeds with nothing and
@@ -1974,10 +1974,10 @@ with and without, and what was explicitly deferred with its reason.
   built clean at 28,426 scripts — but the runtime selftest has never run against
   it. The shared tree has been broken by another lane throughout
   (`quest_arthur/scripts/thrantax_altar.rs2:85`, an unknown type subject on an
-  `ai_queue1` trigger), and `mock230` refuses to run on a stale script pack, so
+  `ai_queue1` trigger), and `ToriRSServer` refuses to run on a stale script pack, so
   every attempt aborted before reaching the stanza. I polled for about twenty
   minutes across three waits. The assertion is wired into
-  `mock230_world.c` and `trail_selftest_check.sh` and will run the moment the
+  `torirs_server_world.c` and `trail_selftest_check.sh` and will run the moment the
   tree compiles; until it does, **this slice has not met the bar the others
   did** and should not be counted as if it had.
 
@@ -2057,7 +2057,7 @@ with and without, and what was explicitly deferred with its reason.
   masters** with amounts and weights.
 
   Then I read the dbtable's own header comment, which says: *"Rows stay in the
-  dat2 cache (`mock230_db_load_cache`); this file names the columns so
+  dat2 cache (`ToriRSServer_DbLoadCache`); this file names the columns so
   ServerScript can write `slayer_master_task:master_id` etc."* The table is
   **cache-backed**. Boot confirms it — "db tables loaded (328 tables, **21912
   rows** from cache.osrs239)". The rows have been there all along; the schema
@@ -2085,7 +2085,7 @@ with and without, and what was explicitly deferred with its reason.
   runtime checks already existed) and D8 (329 duplicate rows generated for a
   table the cache already fills). Both cost real time. So the check is now a
   tool rather than a lesson: **`tools/check_dbtable_rows.py`**, wired into
-  `mock230-scripts` as `check-dbtable-rows`.
+  `torirsserver-scripts` as `check-dbtable-rows`.
 
   A `.dbtable` in this tree is a **schema overlay** — it names columns so
   ServerScript can address them. Whether the ROWS are authored here or shipped
@@ -3622,7 +3622,7 @@ with and without, and what was explicitly deferred with its reason.
   no game behaviour in it to hold to a source: it reports state this tree
   already maintains. Its one embedded rule is the starting stats — hitpoints at
   level 10 / 1,154 xp against every other skill's 1 / 0 — and **this tree
-  already asserts exactly that** at `mock230_world.c:25663`. Marked *determined:
+  already asserts exactly that** at `torirs_server_world.c:25663`. Marked *determined:
   no portable content* rather than left looking untouched, because "there is
   nothing here" is a finding and an empty row is not.
 
@@ -3634,7 +3634,7 @@ with and without, and what was explicitly deferred with its reason.
   **E8.** The 1499 commands are administration and porting a list of them ports
   nothing. The model underneath them is not: `PlayerPrivilege` is a SET, not a
   rank. `eligibleTo` is `inheritance.contains`, and the tree's existing
-  `staff_level > 1` (mock230_friends.h, inherited from LostCity) is exactly the
+  `staff_level > 1` (torirs_server_friends.h, inherited from LostCity) is exactly the
   rank shape that gets it wrong. Three places the two disagree:
     * **HIDDEN_ADMINISTRATOR** holds every developer permission while sending
       the client login code 0 — the same code as a plain player — and reporting
@@ -3730,18 +3730,18 @@ with and without, and what was explicitly deferred with its reason.
   NR's `FloorItem.isVisibleTo` turns on three things: `invisibleTicks <= 0`
   makes a pile public unconditionally, a null `receiverName` makes it public
   subject to the ironman flag, and otherwise only the named receiver sees it.
-  This tree already implements all of that — `mock230_world_obj_add_private`
+  This tree already implements all of that — `ToriRSServer_WorldObjAddPrivate`
   with a private window whose header states the same rule ("A non-positive
   private window is the same as obj_add"), and `receiver_pid` gating
-  `mock230_world_ground_visible_to`. Owner and receiver are already separate.
+  `ToriRSServer_WorldGroundVisibleTo`. Owner and receiver are already separate.
   Nothing to port. NR's only addition is `visibleToIronmenOnly`, which is a
   temporary restriction — it is bypassed the moment the window expires — and
   has no counterpart here because this tree has no ironman-only drops.
 
-  **Engine fix taken while reading it.** `mock230_world_ground_visible_to`
+  **Engine fix taken while reading it.** `ToriRSServer_WorldGroundVisibleTo`
   opened with
 
-      if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+      if( slot < 0 || slot >= TORIRSSERVER_GROUND_MAX )
           return 0;
 
   which is the shape CLAUDE.md forbids: a bad index returns "you cannot see
@@ -3749,7 +3749,7 @@ with and without, and what was explicitly deferred with its reason.
   omit-from-the-zone-flush. A caller bug would have surfaced as a pile that
   silently never appears. Replaced with asserts on `srv` and both bounds. The
   guard was also not protecting the one path that looks riskiest —
-  `mock230_zone.c:1390` indexes `srv->ground[zone->objs[i]]` on the line above
+  `torirs_server_zone.c:1390` indexes `srv->ground[zone->objs[i]]` on the line above
   its call, so a bad index is already UB before the check runs. No assert fires
   across the full selftest: every call site passes a loop index or a validated
   lookup, which is what the guard was hiding.
@@ -3911,7 +3911,7 @@ with and without, and what was explicitly deferred with its reason.
 - 2026-08-20 — **A false pass, and how it was caught.**
   `selftest_corp_core` reported green on its first run and then survived a
   mutation that should have failed it. The row was not in the binary at all: my
-  edit to the registration table in `mock230_world.c` was clobbered between the
+  edit to the registration table in `torirs_server_world.c` was clobbered between the
   write and the build — the concurrent session is active in that file, and this
   is the `concurrent-session-commits-your-tree` hazard showing up as a *missing*
   edit rather than a conflicting one. An unregistered stanza cannot fail, so it
@@ -3934,8 +3934,8 @@ with and without, and what was explicitly deferred with its reason.
       expectation, and a stanza that never ran emits no line.
   So the check runs from outside: enumerate every `[proc,selftest_*]` in the
   tree and require each to be either named in a `k_*` table in
-  `src/net/mock/*.c` or called as a helper with `~name`. Wired into
-  `mock230-scripts`, so it gates every build rather than being a thing to
+  `src/torirsserver/*.c` or called as a helper with `~name`. Wired into
+  `torirsserver-scripts`, so it gates every build rather than being a thing to
   remember. Verified by simulating the exact failure — renaming the
   `selftest_corp_core` table entry makes it report the stanza as running
   nowhere.
@@ -4118,7 +4118,7 @@ with and without, and what was explicitly deferred with its reason.
   behind `[debugproc,tdtest]`, and `check_selftest_registration.py` could not
   see it — the tool looks for `[proc,selftest_*]`, and these are helpers called
   from a debugproc. Some debugproc harnesses ARE driven, by
-  `mock230_scripts_run_debugproc(srv, "name")` from C. C names some and not
+  `ToriRSServer_ScriptsRunDebugproc(srv, "name")` from C. C names some and not
   others.
 
   **My first count was wrong and I want it on the record.** Matching the
@@ -4140,13 +4140,13 @@ with and without, and what was explicitly deferred with its reason.
   and rewrote it to `inv_setslot`. It still failed. I had justified that edit by
   checking that `gear_selftest.rs2` uses `worn` 65 times and is driven from C,
   concluding `worn` must work in this harness. **`::gearrun` is gated behind
-  `MOCK230_GEARRUN` and is skipped by default** — so it is not evidence that
+  `TORIRSSERVER_GEARRUN` and is skipped by default** — so it is not evidence that
   `worn` works here; it is evidence of the opposite, and the gate exists for
   precisely this reason. I reverted my unverifiable edit to the test rather than
   leave a change I could not show was an improvement.
 
-  Both are now wired the way `::gearrun` is: driven behind `MOCK230_RUNECRAFTRUN`
-  and `MOCK230_MININGRUN`, skipped otherwise. That keeps the default build
+  Both are now wired the way `::gearrun` is: driven behind `TORIRSSERVER_RUNECRAFTRUN`
+  and `TORIRSSERVER_MININGRUN`, skipped otherwise. That keeps the default build
   clean — these are pre-existing failures and painting a harness limit as a
   content bug on every build helps nobody — while making them one env var away
   from running. **What is still open** is why the plain selftest player cannot
@@ -4155,6 +4155,39 @@ with and without, and what was explicitly deferred with its reason.
 
   74 further debugproc-only harnesses remain, mostly quests with 2-6 assertions
   each. The tool lists the top ten every build.
+
+- 2026-08-20 — **C18 area plugins — two of the three were already done, and I nearly missed it.**
+  **Taverley.** My first check grepped the tree for `strange_floor` and
+  `jump_rock` and found zero files, which reads as four missing agility
+  shortcuts. They are all present: `agility_shortcuts.enum` is generated from
+  the pinned wiki and keys rows by DISPLAY NAME — "Strange floor", "Obstacle
+  pipe", "Loose railing", "Climbing rocks" — not by snake_case symbol. This is
+  exactly the trap `tools/cache_find.py` was written for after making it three
+  times, and I made it a fourth. The generator carries 162 shortcuts and needed
+  nothing.
+
+  **Waterbirth.** NR's `WaterbirthDungeonCrack` is the Dagannoth Kings entry,
+  which this tree already has.
+
+  **TzHaar — one real gap.** `TzHaarKetKeh` sells an Inferno practice mode:
+  start at any wave for 1,500,000 coins, and the run cannot award the cape. We
+  already had the practice FLAG (`%inferno_practice` suppressing the win in
+  `~inferno_leave`) but no fee at all. The rule worth having is where the money
+  comes from:
+
+      (mode == ULTIMATE_IRON_MAN && player.getInventory().containsItem(fee))
+      || (mode != ULTIMATE_IRON_MAN && player.getBank().containsItem(fee))
+
+  **An ordinary account pays from the BANK; an ultimate ironman pays from the
+  INVENTORY** — they have no bank to draw on. Neither single-container reading
+  is safe: reading the bank for everyone lets a UIM with banked coins through
+  and refuses one carrying them, and reading the inventory for everyone does the
+  mirror. Both directions are asserted. Verified by mutation: collapsing to the
+  bank alone fails at 1 of 5.
+
+  That is the second NR feature this session where the ultimate ironman branch
+  is the unusual one — the magic storage unit's cheaper unlock was the first.
+  Worth expecting rather than being surprised by in the rows that remain.
 
 ## 7. Open questions to settle before Wave E
 
@@ -4173,13 +4206,13 @@ These change what gets built and are the user's call, not the port's:
    middleman) are operational tooling, not content. Confirm they are wanted.
 
 4. ~~**The clue-target dispatch seam (blocks A3b).**~~ **Built 2026-08-19** —
-   `mock230_scripts_run_claim`. Kept here because the decision it records still
+   `ToriRSServer_ScriptsRunClaim`. Kept here because the decision it records still
    applies to every future hook of this shape.
 
 5. ~~**A headless scene harness (blocks the `partial` bosses).**~~ **Never
    needed — 2026-08-20.** Five bosses were marked `partial` on the grounds that
    arena geometry needs a live scene the C-driven selftest does not have. **It
-   has one.** `mock230_world_teleport` rebuilds the scene around the player and
+   has one.** `ToriRSServer_WorldTeleport` rebuilds the scene around the player and
    `p_teleport` reaches it from script, so a selftest can MOVE to an arena and
    work there. `selftest_trail_dig` had been doing exactly that since A3a; what
    was missing was noticing it generalised.

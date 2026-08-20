@@ -1,5 +1,5 @@
-#ifndef SRC_NET_MOCK_MOCK230_MAPINSTANCE_H
-#define SRC_NET_MOCK_MOCK230_MAPINSTANCE_H
+#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_MAPINSTANCE_H
+#define SRC_TORIRSSERVER_TORIRS_SERVER_MAPINSTANCE_H
 
 /*
  * Map instances — a private copy of a piece of the map, assembled out of zones.
@@ -51,7 +51,7 @@
  * - **Rotation is a coordinate transform in two directions and they are not the
  *   same function.** The terrain copy walks *destination* tiles and asks where
  *   each came from; the loc copy walks *source* locs and asks where each goes.
- *   `mock230_mapinstance_rotate_to_src` and `_to_dst` are inverses and the
+ *   `ToriRSServer_MapInstanceRotateToSrc` and `_to_dst` are inverses and the
  *   comments on them say which is which. Getting one of them backwards is
  *   invisible at rotation 0 and 2 and mirrors the zone at 1 and 3.
  */
@@ -60,13 +60,13 @@
 
 /** Concurrent instances. One per active POH / minigame session; the reference
  *  caps by pool size too (Kronos's FREE_REGIONS deque). */
-#define MOCK230_MAPINSTANCE_MAX 8
+#define TORIRSSERVER_MAPINSTANCE_MAX 8
 
 /**
  * Zones per axis the *scene* can show (REBUILD_REGION is a 4 x 13 x 13 grid).
  * Encode / collision window / client rebuild all walk this size.
  */
-#define MOCK230_MAPINSTANCE_SCENE_ZONES 13
+#define TORIRSSERVER_MAPINSTANCE_SCENE_ZONES 13
 
 /**
  * Zones per axis one *reservation* may hold.
@@ -77,8 +77,8 @@
  * SCENE_ZONES around the player. Raised from 13 when Gauntlet needed a full
  * 7×7 of 16-tile rooms (docs/GAUNTLET.md).
  */
-#define MOCK230_MAPINSTANCE_ZONES 16
-#define MOCK230_MAPINSTANCE_LEVELS 4
+#define TORIRSSERVER_MAPINSTANCE_ZONES 16
+#define TORIRSSERVER_MAPINSTANCE_LEVELS 4
 
 /**
  * Small content-owned integer register file attached to each live instance.
@@ -100,14 +100,14 @@
  *
  * The cost is 8 instances x 64 ints = 2 KB.
  */
-#define MOCK230_MAPINSTANCE_VARS 128
+#define TORIRSSERVER_MAPINSTANCE_VARS 128
 
 /** Zones per axis in a map square — the granularity the cache's archives, and
  *  therefore the allocator's reservations, come in. */
-#define MOCK230_MAPINSTANCE_SQUARE_ZONES 8
+#define TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES 8
 
 /** One destination zone's source. `set == 0` means void. */
-struct Mock230MapInstanceZone
+struct ToriRSServerMapInstanceZone
 {
     int set;
     /** Source zone, in absolute zone units (tile >> 3), and its plane. */
@@ -121,17 +121,17 @@ struct Mock230MapInstanceZone
 /**
  * The 4 x 13 x 13 window a scene needs, indexed by destination.
  *
- * Filled by `mock230_mapinstance_window` for a scene origin, and consumed by
- * both the collision build (`mock230_scene_build_instance`) and the encoder
- * (`mock230_send_rebuild_region`) so the two cannot describe different maps.
+ * Filled by `ToriRSServer_MapInstanceWindow` for a scene origin, and consumed by
+ * both the collision build (`ToriRSServer_SceneBuildInstance`) and the encoder
+ * (`ToriRSServer_SendRebuildRegion`) so the two cannot describe different maps.
  * Index order is [level][zone_x][zone_z] with zone_x/zone_z relative to the
  * scene's south-west zone, which is `origin_zone - 6`.
  */
-struct Mock230MapInstanceWindow
+struct ToriRSServerMapInstanceWindow
 {
-    struct Mock230MapInstanceZone
-        zones[MOCK230_MAPINSTANCE_LEVELS][MOCK230_MAPINSTANCE_SCENE_ZONES]
-             [MOCK230_MAPINSTANCE_SCENE_ZONES];
+    struct ToriRSServerMapInstanceZone
+        zones[TORIRSSERVER_MAPINSTANCE_LEVELS][TORIRSSERVER_MAPINSTANCE_SCENE_ZONES]
+             [TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
     /** How many entries are set. 0 means "not an instanced scene". */
     int set_count;
 };
@@ -139,7 +139,7 @@ struct Mock230MapInstanceWindow
 /** Drop every reservation. Called from world init/reset — a handle is
  *  per-session state and must not outlive the world that issued it. */
 void
-mock230_mapinstance_reset(void);
+ToriRSServer_MapInstanceReset(void);
 
 /**
  * Reserve `zone_w` x `zone_h` zones of unused map and return a handle.
@@ -154,7 +154,7 @@ mock230_mapinstance_reset(void);
  * share a square and a square is never half free.
  */
 int
-mock230_mapinstance_alloc(
+ToriRSServer_MapInstanceAlloc(
     const char* cache_dir,
     int zone_w,
     int zone_h);
@@ -165,31 +165,31 @@ mock230_mapinstance_alloc(
  * the instance so later cross-player POH interactions can resolve the host.
  */
 int
-mock230_mapinstance_set_owner(
+ToriRSServer_MapInstanceSetOwner(
     int handle,
     int player_uid);
 
 /** The recorded player uid, or 0 for a dead/unowned reservation. */
 int
-mock230_mapinstance_owner(int handle);
+ToriRSServer_MapInstanceOwner(int handle);
 
 /**
  * Find a live reservation owned by `player_uid` and carrying every bit in
  * `required_flags`. A zero mask accepts any reservation; 0 means no match.
  */
 int
-mock230_mapinstance_find_owner(
+ToriRSServer_MapInstanceFindOwner(
     int player_uid,
     int required_flags);
 
 /**
  * The first live reservation carrying every flag in `required_flags`, whoever
- * owns it, or 0. The join side of `mock230_mapinstance_find_owner`: a player
+ * owns it, or 0. The join side of `ToriRSServer_MapInstanceFindOwner`: a player
  * entering somebody else's instance cannot name its owner. A zero or negative
  * mask matches nothing.
  */
 int
-mock230_mapinstance_find_flagged(int required_flags);
+ToriRSServer_MapInstanceFindFlagged(int required_flags);
 
 /**
  * Read or write a content-owned, session-local flag on a live instance.
@@ -200,11 +200,11 @@ mock230_mapinstance_find_flagged(int required_flags);
  * own masks. A non-positive mask or dead handle reads false and rejects writes.
  */
 int
-mock230_mapinstance_flag_get(
+ToriRSServer_MapInstanceFlagGet(
     int handle,
     int mask);
 int
-mock230_mapinstance_flag_set(
+ToriRSServer_MapInstanceFlagSet(
     int handle,
     int mask,
     int enabled);
@@ -218,18 +218,18 @@ mock230_mapinstance_flag_set(
  * RuneScript integer representation.
  */
 int
-mock230_mapinstance_var_get(
+ToriRSServer_MapInstanceVarGet(
     int handle,
     int slot);
 int
-mock230_mapinstance_var_set(
+ToriRSServer_MapInstanceVarSet(
     int handle,
     int slot,
     int value);
 
 /** Clear every live reservation owned by this uid; returns the number cleared. */
 int
-mock230_mapinstance_clear_owner(int player_uid);
+ToriRSServer_MapInstanceClearOwner(int player_uid);
 
 /**
  * Point one zone of the instance at one zone of the cache.
@@ -242,7 +242,7 @@ mock230_mapinstance_clear_owner(int player_uid);
  * Returns 0 for a dead handle or an out-of-range destination.
  */
 int
-mock230_mapinstance_setchunk(
+ToriRSServer_MapInstanceSetchunk(
     int handle,
     int level,
     int zone_x,
@@ -253,9 +253,9 @@ mock230_mapinstance_setchunk(
     int rotation);
 
 /** Mark the instance assembled. Returns 0 for a dead handle. The scene rebuild
- *  is the caller's — see `mock230_world_mapinstance_built`. */
+ *  is the caller's — see `ToriRSServer_WorldMapInstanceBuilt`. */
 int
-mock230_mapinstance_build(int handle);
+ToriRSServer_MapInstanceBuild(int handle);
 
 /**
  * Which build this instance is on: a pool-wide counter bumped by every
@@ -264,15 +264,15 @@ mock230_mapinstance_build(int handle);
  * Exists because handle and coordinates are both reused: freeing an instance
  * and allocating another hands back the same handle at the same square, so
  * they cannot tell a client's scene apart from the one built on its grave.
- * `Mock230Player::scene_instance_generation` records what a client was last
+ * `ToriRSServerPlayer::scene_instance_generation` records what a client was last
  * shown and a mismatch forces a rebuild (docs/ORANGE_WEDGE.md §18).
  */
 int
-mock230_mapinstance_generation(int handle);
+ToriRSServer_MapInstanceGeneration(int handle);
 
 /** Absolute south-west tile of the instance. Returns 0 for a dead handle. */
 int
-mock230_mapinstance_base(
+ToriRSServer_MapInstanceBase(
     int handle,
     int* out_x,
     int* out_z);
@@ -282,7 +282,7 @@ mock230_mapinstance_base(
  *  uses the reserved rectangle rather than only the assembled zones so no
  *  runtime state can survive in padding that the next tenant may assemble. */
 int
-mock230_mapinstance_bounds(
+ToriRSServer_MapInstanceBounds(
     int handle,
     int* out_x,
     int* out_z,
@@ -292,16 +292,16 @@ mock230_mapinstance_bounds(
 /** Release the reservation. Returns 0 for a dead handle. Freeing an instance a
  *  player is standing in is content's bug; the engine does not cover it. */
 int
-mock230_mapinstance_free(int handle);
+ToriRSServer_MapInstanceFree(int handle);
 
 /** How many reservations are live. For leak checks — a session that ends with
  *  a non-zero count released nothing. */
 int
-mock230_mapinstance_live_count(void);
+ToriRSServer_MapInstanceLiveCount(void);
 
 /** The handle whose reserved area contains this absolute tile, or 0. */
 int
-mock230_mapinstance_find(
+ToriRSServer_MapInstanceFind(
     int x,
     int z);
 
@@ -327,7 +327,7 @@ mock230_mapinstance_find(
  * standing in the same place.
  */
 int
-mock230_mapinstance_source_tile(
+ToriRSServer_MapInstanceSourceTile(
     int handle,
     int level,
     int x,
@@ -342,10 +342,10 @@ mock230_mapinstance_source_tile(
  * the caller should build from the cache the ordinary way.
  */
 int
-mock230_mapinstance_window(
+ToriRSServer_MapInstanceWindow(
     int zone_x,
     int zone_z,
-    struct Mock230MapInstanceWindow* out);
+    struct ToriRSServerMapInstanceWindow* out);
 
 /**
  * Where in the source zone a destination tile comes from.
@@ -358,7 +358,7 @@ mock230_mapinstance_window(
  *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
  */
 void
-mock230_mapinstance_rotate_to_src(
+ToriRSServer_MapInstanceRotateToSrc(
     int rotation,
     int dx,
     int dz,
@@ -375,7 +375,7 @@ mock230_mapinstance_rotate_to_src(
  * swapped for the loc's own odd angle); pass 1,1 for a point.
  */
 void
-mock230_mapinstance_rotate_to_dst(
+ToriRSServer_MapInstanceRotateToDst(
     int rotation,
     int sx,
     int sz,

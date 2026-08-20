@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_construction"
 SCRIPT = CONTENT / "scripts/poh_servants.rs2"
 CONSTANTS = CONTENT / "configs/construction.constant"
-ENGINE = ROOT / "src/net/mock/mock230_poh.c"
-HEADER = ROOT / "src/net/mock/mock230_poh.h"
+ENGINE = ROOT / "src/torirsserver/torirs_server_poh.c"
+HEADER = ROOT / "src/torirsserver/torirs_server_poh.h"
 
 
 def require(text: str, pattern: str, message: str) -> None:
@@ -84,9 +84,9 @@ def main() -> int:
     require(script, r"poh_servant_repeat", "last-request replay is missing")
     require(script, r"poh_servant_guest_greet", "guest greeting is missing")
     require(script, r"poh_state_commit", "employment is not durable")
-    require(header, r"MOCK230_POH_SERVANT_SERVICE_MAX\s*=\s*7",
+    require(header, r"TORIRSSERVER_POH_SERVANT_SERVICE_MAX\s*=\s*7",
             "engine service bound is missing")
-    require(header, r"MOCK230_POH_SERVANT_TASK_MAX\s*=\s*20",
+    require(header, r"TORIRSSERVER_POH_SERVANT_TASK_MAX\s*=\s*20",
             "engine remembered-material bound is missing")
     require(engine, r"value == 0 \|\| value == 1 \|\| value == 3 \|\| value == 5",
             "engine sparse servant validation is missing")

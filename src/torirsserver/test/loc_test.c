@@ -8,7 +8,7 @@
  * ── Half 1: the table (no VM) ────────────────────────────────────────
  *
  * Re-decodes the whole loc config group with the rscache decoder directly and
- * then asks `mock230_loc_name` / `mock230_loc_footprint` / `mock230_loc_known`
+ * then asks `ToriRSServer_LocName` / `ToriRSServer_LocFootprint` / `ToriRSServer_LocKnown`
  * about *every* record. Exhaustive rather than spot-checked because both new
  * tables are sparse binary searches over a subset of the id space — a name
  * table holding 30,033 of 62,194 ids and a footprint table holding 17,309 — and
@@ -42,10 +42,10 @@
  * decoded data at run time.
  */
 
-#include "mock230.h"
-#include "mock230_content.h"
-#include "mock230_paramtable.h"
-#include "mock230_scene.h"
+#include "torirs_server.h"
+#include "torirs_server_content.h"
+#include "torirs_server_paramtable.h"
+#include "torirs_server_scene.h"
 
 #include "ss_opcode.h"
 #include "ssc.h"
@@ -133,7 +133,7 @@ loc_group_open(
     group->profile = RSCache_ProfileZero();
     group->profile.game = RSCACHE_GAME_OLDSCHOOL;
     group->profile.epoch = RSCACHE_EPOCH_DAT2;
-    group->profile.revision = MOCK230_CACHE_REVISION;
+    group->profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     group->disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !group->disk )
@@ -150,7 +150,7 @@ loc_group_open(
     }
     RSCache_Dat2DiskArchiveInitMetadata(group->disk, group->archive);
     /* The loc decoder branches on the group revision, exactly as
-     * mock230_locinfo.c and mock230_scene.c do before decoding this archive. */
+     * torirs_server_locinfo.c and torirs_server_scene.c do before decoding this archive. */
     RSCache_ProfileSetGroupRevision(&group->profile, RSCACHE_TYPE_LOC,
                                     group->archive->revision);
     group->files = RSCache_FileListNewFromDecode(
@@ -211,14 +211,14 @@ audit_loc_fields(const char* cache_dir)
         if( id > max_id )
             max_id = id;
 
-        if( !mock230_loc_known(id) )
+        if( !ToriRSServer_LocKnown(id) )
         {
             if( wrong_known < 5 )
                 printf("    loc %d decodes but reports unknown\n", id);
             wrong_known++;
         }
 
-        stored = mock230_loc_name(id);
+        stored = ToriRSServer_LocName(id);
         if( loc->name )
         {
             named++;
@@ -244,7 +244,7 @@ audit_loc_fields(const char* cache_dir)
             }
         }
 
-        mock230_loc_footprint(id, &width, &length);
+        ToriRSServer_LocFootprint(id, &width, &length);
         if( loc->size_x != 1 || loc->size_z != 1 )
             sized++;
         else
@@ -267,11 +267,11 @@ audit_loc_fields(const char* cache_dir)
     CHECK_EQ(wrong_name, 0, "every named record reads back its own name");
     CHECK_EQ(wrong_name_absent, 0, "every nameless record reads back nothing");
     CHECK_EQ(wrong_size, 0, "every record reads back its own footprint");
-    CHECK_EQ(mock230_locinfo_count(), group.archive->file_count,
+    CHECK_EQ(ToriRSServer_LocInfoCount(), group.archive->file_count,
              "the loader saw every loc record");
-    CHECK_EQ(mock230_locinfo_name_count(), named,
+    CHECK_EQ(ToriRSServer_LocInfoNameCount(), named,
              "the loader retained exactly the names the decoder produced");
-    CHECK_EQ(mock230_locinfo_size_count(), sized,
+    CHECK_EQ(ToriRSServer_LocInfoSizeCount(), sized,
              "the loader retained exactly the footprint overrides");
 
     /*
@@ -282,14 +282,14 @@ audit_loc_fields(const char* cache_dir)
     CHECK(nameless > 0 && named > 0, "the cache holds both named and nameless locs");
     CHECK(square > 0 && sized > 0, "the cache holds both 1x1 and larger locs");
 
-    CHECK(!mock230_loc_known(-1), "a negative loc id is not known");
-    CHECK(!mock230_loc_known(max_id + 1), "an id past the last record is not known");
-    CHECK(mock230_loc_name(-1) == NULL, "a negative loc id has no name, and does not crash");
+    CHECK(!ToriRSServer_LocKnown(-1), "a negative loc id is not known");
+    CHECK(!ToriRSServer_LocKnown(max_id + 1), "an id past the last record is not known");
+    CHECK(ToriRSServer_LocName(-1) == NULL, "a negative loc id has no name, and does not crash");
     {
         int width = 0;
         int length = 0;
 
-        mock230_loc_footprint(max_id + 1, &width, &length);
+        ToriRSServer_LocFootprint(max_id + 1, &width, &length);
         CHECK(width == 1 && length == 1, "an unknown id reports the decoder's 1x1 default");
     }
 
@@ -368,7 +368,7 @@ find_subjects(
                     continue;
                 /* A declared-string param would route onto the string stack,
                  * which is a different assertion; keep this one an int. */
-                if( mock230_content_param_type(loc->params.keys[p]) == 's' )
+                if( ToriRSServer_ContentParamType(loc->params.keys[p]) == 's' )
                     continue;
                 out->param_loc = id;
                 out->param_key = loc->params.keys[p];
@@ -414,18 +414,18 @@ struct Fixture
 /*
  * The host under test, and nothing else.
  *
- * `mock230_ops_loc` reaches the scene and the loc table but never `struct
- * Mock230Server`, so it binds with a NULL user — no world, no socket, no pack.
- * `mock230_ops_param` is bound alongside it only because it owns
- * `mock230_push_typed_param`'s siblings; a script here that reached any other
+ * `ToriRSServer_OpsLoc` reaches the scene and the loc table but never `struct
+ * ToriRSServer`, so it binds with a NULL user — no world, no socket, no pack.
+ * `ToriRSServer_OpsParam` is bound alongside it only because it owns
+ * `ToriRSServer_PushTypedParam`'s siblings; a script here that reached any other
  * host command would find none, which is the right blast radius.
  */
 static int
 host_command(struct SSVM_State* state, int opcode, int dot)
 {
-    if( mock230_ops_param(state, opcode, dot) )
+    if( ToriRSServer_OpsParam(state, opcode, dot) )
         return 1;
-    return mock230_ops_loc(state, opcode, dot);
+    return ToriRSServer_OpsLoc(state, opcode, dot);
 }
 
 static int
@@ -642,19 +642,19 @@ test_ops(const char* cache_dir)
      * locs added to it — the active loc has to be a slot the scene will hand
      * back or the slot-not-pointer convention is not what is under test.
      */
-    if( !mock230_scene_build(cache_dir, 426, 408) )
+    if( !ToriRSServer_SceneBuild(cache_dir, 426, 408) )
     {
         CHECK(0, "the scene builds (map squares and XTEA keys are present)");
         return;
     }
-    base_x = mock230_scene_base_x();
-    base_z = mock230_scene_base_z();
+    base_x = ToriRSServer_SceneBaseX();
+    base_z = ToriRSServer_SceneBaseZ();
     /* Shape 10 is a plain centrepiece; the ops here read only `loc_id`, and a
      * tile well inside the 104x104 scene keeps the footprint in bounds. */
-    param_slot = mock230_scene_add_loc(base_x + 50, base_z + 50, 0, subjects.param_loc, 10, 0);
-    named_slot = mock230_scene_add_loc(base_x + 52, base_z + 50, 0, subjects.named_loc, 10, 0);
+    param_slot = ToriRSServer_SceneAddLoc(base_x + 50, base_z + 50, 0, subjects.param_loc, 10, 0);
+    named_slot = ToriRSServer_SceneAddLoc(base_x + 52, base_z + 50, 0, subjects.named_loc, 10, 0);
     nameless_slot =
-        mock230_scene_add_loc(base_x + 54, base_z + 50, 0, subjects.nameless_loc, 10, 0);
+        ToriRSServer_SceneAddLoc(base_x + 54, base_z + 50, 0, subjects.nameless_loc, 10, 0);
     CHECK(param_slot >= 0 && named_slot >= 0 && nameless_slot >= 0,
           "the three subject locs went into the scene");
     if( param_slot < 0 || named_slot < 0 || nameless_slot < 0 )
@@ -757,7 +757,7 @@ test_ops(const char* cache_dir)
                  "loc_param with no active loc aborts");
 
     fixture_close(&fixture);
-    mock230_scene_free();
+    ToriRSServer_SceneFree();
     free(subjects.named_text);
 }
 
@@ -771,7 +771,7 @@ main(void)
     const char* cache_dir;
     const char* content_dir;
 
-    cache_dir = resolve_dir(MOCK230_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
+    cache_dir = resolve_dir(TORIRSSERVER_CACHE_DIR_DEFAULT, cache_scratch, sizeof(cache_scratch));
     content_dir = resolve_dir("OSRS-Content/osrs239-content", content_scratch,
                               sizeof(content_scratch));
 
@@ -779,16 +779,16 @@ main(void)
 
     /* The declared param types, which decide which stack `loc_param`'s result
      * lands on. Without them every param falls back to its stored kind. */
-    mock230_content_load(content_dir);
+    ToriRSServer_ContentLoad(content_dir);
 
-    if( !mock230_locinfo_load(cache_dir) )
+    if( !ToriRSServer_LocInfoLoad(cache_dir) )
         CHECK(0, "loc configs loaded");
 
     audit_loc_fields(cache_dir);
     test_ops(cache_dir);
 
-    mock230_locinfo_free();
-    mock230_content_free();
+    ToriRSServer_LocInfoFree();
+    ToriRSServer_ContentFree();
 
     if( g_fail )
     {

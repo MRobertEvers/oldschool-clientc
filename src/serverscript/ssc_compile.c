@@ -2651,7 +2651,7 @@ parse_header(
          *
          * Neither shape is addressable by key, which is why the engine formats
          * the header's own text and asks `getByName`
-         * (`mock230_scripts_run_trigger_at`, `NetworkPlayer.updateMap`). Writing
+         * (`ToriRSServer_ScriptsRunTriggerAt`, `NetworkPlayer.updateMap`). Writing
          * a key nothing can look up was harmless only while nothing dispatched
          * these triggers; that stopped being true with triage §9 step 5c.
          *

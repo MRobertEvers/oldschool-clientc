@@ -48,11 +48,11 @@ mkdir -p "$OUT/saves"
 # is holding a stale id this is where the two collide.
 CHEATS="summoning_unlock;setlevel summoning 99;summoning_summon $FAMILIAR;rs2012qbdmanifest;summoning_call;summoning_call"
 SDL_VIDEODRIVER=dummy \
-MOCK230_SAVES="$OUT/saves" \
+TORIRSSERVER_SAVES="$OUT/saves" \
 TORIRS_ELEMENT_ALIAS_CHECK=1 \
 TORIRS_DRAW_TRACE=5000 \
 TORIRS_NPC_TRACE=25000,25001,25002,25003 \
-MOCK230_NPC_TRACE=25000,25001,25002,25003 \
+TORIRSSERVER_NPC_TRACE=25000,25001,25002,25003 \
 TORIRS_NET_CHEAT="$CHEATS" \
 TORIRS_NET_CHEAT_ROTATE=1 \
 TORIRS_NET_CHEAT_EVERY=500 \

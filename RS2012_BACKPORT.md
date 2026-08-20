@@ -50,7 +50,7 @@ gain.
 make -C src rs2012-strip-priorities
 src/build/rs2012_strip_priorities              # report only
 src/build/rs2012_strip_priorities --apply      # rewrite the .ob3 files
-make -C src mock230-cache-rs2012               # models are assets: re-pack
+make -C src torirsserver-cache-rs2012               # models are assets: re-pack
 ```
 
 On the QBD lane: 504 of 660 models carried priorities — 161 per-face
@@ -391,11 +391,11 @@ python tools/stage_rs2012_overlay.py --tree OSRS-Content/osrs239-content --out b
   --base cache.osrs239 --out cache.osrs239.rs2012 --rev osrs239 --assets --binary --gamevals
 ```
 
-or `make -C src mock230-cache-rs2012`, which additionally runs the fidelity
+or `make -C src torirsserver-cache-rs2012`, which additionally runs the fidelity
 gates. Config-only edits (loc width/length, constants) still need a re-pack;
 engine changes do not.
 
-`mock230-cache-rs2012` runs `rm -rf` on the output cache **before** packing, so
+`torirsserver-cache-rs2012` runs `rm -rf` on the output cache **before** packing, so
 a failure in a later gate leaves you with no cache at all. Keep that in mind
 before running it against a cache you cannot rebuild.
 
@@ -424,7 +424,7 @@ make -C src rs2012-strip-priorities
 src/build/rs2012_strip_priorities --apply
 
 # 3. compose the cache
-make -C src mock230-cache-rs2012 mock230-scripts mock230-servpack
+make -C src torirsserver-cache-rs2012 torirsserver-scripts torirsserver-servpack
 
 # 4. run
 ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --soft3d

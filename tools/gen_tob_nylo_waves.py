@@ -190,7 +190,7 @@ def build() -> tuple[str, str, dict]:
                 rows.append("data=slot,%d" % slot)
                 # `1`/`0`, NOT `true`/`false` and NOT `yes`/`no`.
                 #
-                # `boolean` is a LITERAL column type (mock230_db.c
+                # `boolean` is a LITERAL column type (torirs_server_db.c
                 # db_type_is_literal), so it resolves against no pack and
                 # row_value() ends at `atoi(expanded)` - and atoi("true") is 0.
                 # A file written with the words looks right, loads without a

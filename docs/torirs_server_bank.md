@@ -5,7 +5,7 @@ withdraw and deposit by right-click, toggle notes/insert/quantity, and watch the
 container come back down the wire.
 
 ```
-make -C src mock230-bank && src/build/bank_mock230 &
+make -C src torirsserver-bank && src/build/bank_torirsserver &
 src/torirs --manifest manifest_osrs230_bank.ini --user testc --pass test
 ```
 
@@ -14,13 +14,13 @@ ones are two staircases up from the spawn tile.
 
 | file | contents |
 | --- | --- |
-| `src/net/mock/mock230_bank.c` | the container, the settings, the arithmetic, the wire |
+| `src/torirsserver/torirs_server_bank.c` | the container, the settings, the arithmetic, the wire |
 | `OSRS-Content/osrs239-content/server/scripts/interface_bank/` | the ported LostCity content |
 | `OSRS-Content/osrs239-content/pack/varbit.pack` | the bank's varbit ids (new namespace) |
 | `src/ui/uitree_obj_cell.c` | the one client-side change this needed (§6) |
 
-Tests: `make -C src test-mock230` covers varbit packing, deposit/withdraw,
-notes, the op ladder and the open burst. `make -C src test-mock230-bank` is the
+Tests: `make -C src test-ToriRSServer` covers varbit packing, deposit/withdraw,
+notes, the op ladder and the open burst. `make -C src test-torirsserver-bank` is the
 same suite against this binary.
 
 ---
@@ -45,19 +45,19 @@ because its client has no CS2; this one describes only state.
 | bank interface | `12` | `tools/dump_interface cache.osrs239 --dat2 --iface 12` |
 | bank side panel | `15` | same |
 | bank container | `95` | `inv-names.tsv`, and the client's own `INV_MANAGER_CONTAINER_BANK` |
-| bank capacity | `1410` | config group 5 (inv), read at startup — **not** written down. It read 1220 until 2026-08-02: `MOCK230_BANK_SLOTS` was applied as an upper *clamp* under a comment describing a no-cache fallback, so every bank was 190 slots short of the container the client walks. See `mock230_containers.md` §5 |
+| bank capacity | `1410` | config group 5 (inv), read at startup — **not** written down. It read 1220 until 2026-08-02: `TORIRSSERVER_BANK_SLOTS` was applied as an upper *clamp* under a comment describing a no-cache fallback, so every bank was 190 slots short of the container the client walks. See `torirs_server_containers.md` §5 |
 | mount slot, main | `161:16` | toplevel_osrs_stretch `mainmodal` |
 | mount slot, side | `161:74` | toplevel_osrs_stretch `sidemodal` |
 
 Every one of those, and every component inside interface 12, is a **name** in
 the content tree: `bankmain`, `bankside`, `bankmain_items`, `gameframe_mainmodal`
-in `content/pack/`, resolved once at boot into `mock230_ids.h`. `mock230_bank.h`
+in `content/pack/`, resolved once at boot into `torirs_server_ids.h`. `torirs_server_bank.h`
 contains no ids at all — only the array ceilings and the pending-prompt states.
 
 They were read out of `dump_interface` against this cache and **not** borrowed
 from another server's table. The bank's child numbering moved between OldSchool
 revisions: a constant taken from a newer cache — xrsps's `BankMainChild.ITEMS =
-12`, for instance — names a `line` here, not the item container. `test-mock230`
+12`, for instance — names a `line` here, not the item container. `test-ToriRSServer`
 pins each resolved id to the number it was verified at, so a pack regenerated
 from a newer gameval table fails there rather than in the panel.
 
@@ -89,15 +89,15 @@ Two consequences, and both are load-bearing:
 
 - **Writing one as a whole varp destroys the others in it.** Withdraw-as-note
   and the current tab share varp 115. There is no symptom until the panel is
-  looked at, so `mock230_bank_set_varbit` does a read-modify-write of the bit
+  looked at, so `ToriRSServer_BankSetVarbit` does a read-modify-write of the bit
   range and nothing writes those varps directly.
 - **The ranges come from the cache**, config group 14, decoded at startup by
-  `mock230_bank_load`. They are not in `varbit.pack` and not in the header. A
+  `ToriRSServer_BankLoad`. They are not in `varbit.pack` and not in the header. A
   second copy of a cache fact is the failure mode this content tree exists to
   avoid, and the ranges are the client's, not the server's, so they cannot be
   allowed to drift.
 
-`MOCK230_VARP_COUNT` went from 256 to 5000 for this. None of those ids were
+`TORIRSSERVER_VARP_COUNT` went from 256 to 5000 for this. None of those ids were
 chosen here; the tab counters alone are spread over five varps up to 3750, and
 the side panel's slot locks are varp 4611.
 
@@ -133,7 +133,7 @@ field and a flag until you print a few.
 Two things about note records bit during this work, both silent:
 
 - **Every note is named `null`.** A note takes its display name from the item it
-  stands for. `mock230_objinfo` used to gate its "do I know this obj" test on
+  stands for. `ToriRSServer_ObjInfo` used to gate its "do I know this obj" test on
   the name, so all ~8,000 notes reported as unknown; the gate is now a `known`
   flag and the name is borrowed from the linked item at load.
 - **Every note records `stacking_behaviour = 0`.** The reference client tests
@@ -170,7 +170,7 @@ Content binds `[if_button1..8,bankmain:items]` and the side-panel deposit map in
 Amounts come from `%bank_quantity_type` / `%bank_requestedquantity` and
 `^bank_qty_*`. Withdraw-X uses `p_countdialog` and writes last-X into
 `%bank_requestedquantity`. The engine keeps open/close, `IF_SETEVENTS`,
-`UPDATE_INV`, and `inv_moveitem_cert`/`_uncert` → `mock230_bank_withdraw`/`deposit`.
+`UPDATE_INV`, and `inv_moveitem_cert`/`_uncert` → `ToriRSServer_BankWithdraw`/`deposit`.
 
 `UITREE_MENU_OPTION_SLOTS` is **10**. Armed component item ops emit
 `IF_BUTTON1..10` (component + sub=slot). Settings bind the **armed** comps
@@ -283,9 +283,9 @@ settings buttons, and the two deposit-everything buttons. What the engine owns:
 the item rows (§4), the space arithmetic, and the varbit push on open.
 
 Both routes exist, and that is the tree's standing contract: **with no script
-pack loaded, the bank still works**, because `mock230_bank_handle_button` is the
+pack loaded, the bank still works**, because `ToriRSServer_BankHandleButton` is the
 fallback for every trigger content might have bound. That is what keeps
-`test-mock230` green while content is mid-edit.
+`test-ToriRSServer` green while content is mid-edit.
 
 Opening the bank is verb-driven, not id-driven. The engine opens it for any loc
 whose cache menu op is `Bank`, the same way "Attack" is decided — OldSchool has
@@ -315,7 +315,7 @@ server state behind it, and the varbit that hides it is pushed on open.
 | **Per-item "Placeholder" (op 10)** | `~script669` offers it while the *global* setting is off. It is a per-slot flag — "remember this one when it goes" — and this bank has no per-slot state to keep it in. Deliberately unbound rather than guessed at. |
 | **Search** | Client-side filtering the server never sees. |
 | **Membership / reduced capacity** | LostCity's `^bank_free_slots` gate and `BANK_EXTRA_BLOCKS_PURCHASED`. Every slot is free; `bankmain:capacity` is `inv_size(bank)` (1410). |
-| **Tab collapse / strip reorder** | Assigning a stack to a tab works (`INV_BUTTOND` onto `bankmain:tabs` → `mock230_bank_move_to_tab`); Collapse-tab and dragging tabs past each other are still client chrome only. |
+| **Tab collapse / strip reorder** | Assigning a stack to a tab works (`INV_BUTTOND` onto `bankmain:tabs` → `ToriRSServer_BankMoveToTab`); Collapse-tab and dragging tabs past each other are still client chrome only. |
 
 ### The equipment view (now wired)
 
@@ -356,10 +356,10 @@ placeholder" test is the client's, character for character.
   perm + transmit), so `bank_push_settings` no longer forces it to 0 — which it
   did, silently throwing the setting away on every open.
 - A withdraw that empties a slot leaves `oc_placeholder($obj)` in it with a
-  count of **0**. That count is why `mock230_send_inv_full` had to stop treating
+  count of **0**. That count is why `ToriRSServer_SendInvFull` had to stop treating
   `count > 0` as the occupancy test: it sent placeholders as empty slots.
 - A deposit reclaims its own placeholder slot before any other placement rule
-  (`mock230_container_placeholder_slot`), because a placeholder *is* where that
+  (`ToriRSServer_ContainerPlaceholderSlot`), because a placeholder *is* where that
   item belongs — landing beside it is the one outcome the feature exists to
   prevent.
 - Op 8 is "Withdraw-All-but-1" on an item and "Release" on a placeholder; the
@@ -377,4 +377,4 @@ The faded look is the interface's — `bankmain_drawitem` sets `cc_settrans(120)
 - **Tabs** — `bank_tab_1..9` track the contiguous prefix CS2 lays out; deposit into the viewed tab, withdraw, and drag-to-tab keep them coherent. The strip is armed so View-tab clicks sync `%bank_currenttab`.
 
 The bank is also **not persisted** — the mock has no storage at all, so a fresh
-login gets the same seeded stock (`mock230_world_init`).
+login gets the same seeded stock (`ToriRSServer_WorldInit`).

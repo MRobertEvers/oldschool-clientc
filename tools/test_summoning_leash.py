@@ -9,7 +9,7 @@ Familiar.java:271-274) re-calls a familiar left too far behind, and
 `~summoning_familiar_leash` (summoning_core.rs2) is that clause, on this
 lane's ten-tile familiar distance rather than the source's twelve — the same
 ten `~summoning_familiar_assist_allowed` and the engine's
-`MOCK230_FAMILIAR_LEASH` already use.
+`TORIRSSERVER_FAMILIAR_LEASH` already use.
 
 What is proven live, through the ordinary familiar timer:
 
@@ -88,9 +88,9 @@ def main() -> int:
         f"if (distance(coord, $victim_coord) > {LEASH_RANGE}) return(false);" in combat,
         "the assist leash no longer agrees with the teleport leash",
     )
-    engine = (REPO / "src/net/mock/mock230.h").read_text(encoding="utf-8")
+    engine = (REPO / "src/torirsserver/torirs_server.h").read_text(encoding="utf-8")
     expect(
-        f"#define MOCK230_FAMILIAR_LEASH {LEASH_RANGE}" in engine,
+        f"#define TORIRSSERVER_FAMILIAR_LEASH {LEASH_RANGE}" in engine,
         "the engine's familiar leash no longer agrees with the teleport leash",
     )
     core = (SCRIPT_LANE / "scripts/summoning_core.rs2").read_text(encoding="utf-8")
@@ -137,9 +137,9 @@ def main() -> int:
             env.pop(key, None)
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "420",
                 "TORIRS_NET_DEBUG": "1",

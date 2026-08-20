@@ -14,12 +14,12 @@
  * follows. Skipping the terminator is the classic way to make a stream decode
  * as garbage entities.
  */
-#include "mock230.h"
+#include "torirs_server.h"
 
-#include "mock230_content.h"
-#include "mock230_ids.h"
-#include "mock230_mapinstance.h"
-#include "mock230_session.h"
+#include "torirs_server_content.h"
+#include "torirs_server_ids.h"
+#include "torirs_server_mapinstance.h"
+#include "torirs_server_session.h"
 #include "mock239_runclientscript.h"
 #include "mock239_appearance.h"
 #include "mock239_facing.h"
@@ -30,8 +30,8 @@
 #include "net/jbase37.h"
 #include "net/wordpack.h"
 
-/* The client's framing table, for the length check in mock230_send. */
-#include "net/mock/mock230_scene.h"
+/* The client's framing table, for the length check in ToriRSServer_Send. */
+#include "torirsserver/torirs_server_scene.h"
 #include "net/rev/osrs230/packetin.h"
 /* The appearance vocabulary and every wire spelling of it — the writers below
  * choose an encoding, never a tag. */
@@ -49,7 +49,7 @@
 
 static int v5_face_from_classic(
     struct Mock239Face* face,
-    struct Mock230Player const* recipient,
+    struct ToriRSServerPlayer const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
     uint32_t coord_mask,
@@ -64,11 +64,11 @@ static int v5_face_from_classic(
  *
  * These used to be literal rev-230 opcodes, one `enum` of 50 numbers, and that
  * was a second copy of what `src/net/rev/osrs230/packetin.h` already said. The
- * numbers now come from the wire adapter (mock230_wire.h) at send time, which
+ * numbers now come from the wire adapter (torirs_server_wire.h) at send time, which
  * is what lets one build speak either revision -- and, less obviously, what
  * removes the chance of the two copies disagreeing.
  *
- * Every call site below is unchanged. `mock230_send` takes what used to be an
+ * Every call site below is unchanged. `ToriRSServer_Send` takes what used to be an
  * opcode and is now a name, resolves it through `world->wire`, and records the
  * RESOLVED opcode in the packet capture -- so the selftest's assertions, which
  * are written against wire numbers like 120 and 108, still mean what they
@@ -169,13 +169,13 @@ open_packet(
     }
     rsab_arena_reset(&g_arena);
     if( !rsab_open_arena(buf, &g_arena, capacity) )
-        fprintf(stderr, "mock230: packet arena exhausted (%zu bytes)\n", capacity);
+        fprintf(stderr, "torirsserver: packet arena exhausted (%zu bytes)\n", capacity);
 }
 
 /*
  * The old `opcode_name` switch lived here: a second table of the same 50
  * packets, keyed on wire opcode. It went with the opcodes -- a name for a
- * canonical packet is `mock230_wire_pkt_name`, and there is one of those.
+ * canonical packet is `ToriRSServer_WirePktName`, and there is one of those.
  */
 
 /*
@@ -188,7 +188,7 @@ open_packet(
  */
 static void
 check_frame_length(
-    const struct Mock230Wire* wire,
+    const struct ToriRSServerWire* wire,
     int pkt_name,
     int opcode,
     int len,
@@ -224,20 +224,20 @@ check_frame_length(
     {
         static char const* const k_class[] = { "fixed", "var-u8", "var-u16" };
 
-        fprintf(stderr, "mock230: %s op %d (%s) sent as %s, client frames it as %s\n",
-                wire->name, opcode, mock230_wire_pkt_name(pkt_name),
+        fprintf(stderr, "torirsserver: %s op %d (%s) sent as %s, client frames it as %s\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name),
                 k_class[var < 0 || var > 2 ? 0 : var], k_class[expect]);
         return;
     }
     if( var == 0 && framed >= 0 && framed != len )
         fprintf(stderr,
-                "mock230: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
-                wire->name, opcode, mock230_wire_pkt_name(pkt_name), len, framed);
+                "torirsserver: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name), len, framed);
 }
 
 void
-mock230_send(
-    struct Mock230Player* player,
+ToriRSServer_Send(
+    struct ToriRSServerPlayer* player,
     int pkt_name,
     const uint8_t* payload,
     int len,
@@ -245,8 +245,8 @@ mock230_send(
 {
     uint8_t frame[64 * 1024];
     struct RSAreaBuf buf;
-    struct Mock230Server* srv;
-    const struct Mock230Wire* wire;
+    struct ToriRSServer* srv;
+    const struct ToriRSServerWire* wire;
     int opcode;
 
     /* A packet is addressed to a player, and every encoder above this now says
@@ -266,15 +266,15 @@ mock230_send(
      * revision's layout frames correctly, passes the length check below, and
      * arrives meaning something else.
      */
-    wire = (srv && srv->wire) ? srv->wire : mock230_wire_default();
-    opcode = mock230_wire_opcode(wire, pkt_name);
-    if( opcode < 0 || !mock230_wire_can_write(wire, pkt_name) )
+    wire = (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    opcode = ToriRSServer_WireOpcode(wire, pkt_name);
+    if( opcode < 0 || !ToriRSServer_WireCanWrite(wire, pkt_name) )
         return;
 
     check_frame_length(wire, pkt_name, opcode, len, var);
 
     /*
-     * MOCK230_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
+     * TORIRSSERVER_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
      * name for it.
      *
      * The only view of the stream that exists. The client is obfuscated: when
@@ -291,16 +291,16 @@ mock230_send(
 
         if( trace < 0 )
         {
-            char const* v = getenv("MOCK230_TRACE_OUT");
+            char const* v = getenv("TORIRSSERVER_TRACE_OUT");
             trace = (v && *v && *v != '0') ? (*v == '2' ? 2 : 1) : 0;
         }
         if( trace )
         {
             char const* prot = wire->prot_name ? wire->prot_name(opcode) : NULL;
 
-            fprintf(stderr, "mock230: -> op %3d %-28s %d byte(s)", opcode,
+            fprintf(stderr, "torirsserver: -> op %3d %-28s %d byte(s)", opcode,
                     prot ? prot : "?", len);
-            /* MOCK230_TRACE_OUT=2 adds the body. Capped because PLAYER_INFO's
+            /* TORIRSSERVER_TRACE_OUT=2 adds the body. Capped because PLAYER_INFO's
              * init block is 4608 bytes and would bury everything around it. */
             if( trace > 1 )
             {
@@ -321,11 +321,11 @@ mock230_send(
      * encoder knowing the capture exists. */
     if( srv && srv->capture )
     {
-        struct Mock230Capture* capture = srv->capture;
+        struct ToriRSServerCapture* capture = srv->capture;
 
-        if( capture->count < MOCK230_CAPTURE_MAX && len <= MOCK230_CAPTURE_BYTES )
+        if( capture->count < TORIRSSERVER_CAPTURE_MAX && len <= TORIRSSERVER_CAPTURE_BYTES )
         {
-            struct Mock230CapturedPacket* packet = &capture->packets[capture->count++];
+            struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
 
             packet->opcode = opcode;
             packet->name = pkt_name;
@@ -352,7 +352,7 @@ mock230_send(
      * that window was invisible because nothing was addressed to a
      * half-logged-in session; with a pool, every tick's PLAYER_INFO is.
      */
-    if( !player->session || !mock230_session_alive(player->session) ||
+    if( !player->session || !ToriRSServer_SessionAlive(player->session) ||
         !player->session->cipher_out )
         return;
     rsab_wrap(&buf, frame, sizeof(frame));
@@ -381,19 +381,19 @@ mock230_send(
 
     if( !rsab_ok(&buf) )
     {
-        fprintf(stderr, "mock230: frame overflow for op %d (%d bytes)\n", opcode, len);
+        fprintf(stderr, "torirsserver: frame overflow for op %d (%d bytes)\n", opcode, len);
         return;
     }
-    if( mock230_session_send(player->session, frame, (int)rsab_len(&buf)) < 0 )
-        mock230_session_kill(player->session);
+    if( ToriRSServer_SessionSend(player->session, frame, (int)rsab_len(&buf)) < 0 )
+        ToriRSServer_SessionKill(player->session);
     else
         player->session->last_output_packet_name = pkt_name;
 
     if( srv && srv->verbose )
         fprintf(
             stderr,
-            "mock230: -> %-18s op=%-3d payload=%d\n",
-            mock230_wire_pkt_name(pkt_name),
+            "torirsserver: -> %-18s op=%-3d payload=%d\n",
+            ToriRSServer_WirePktName(pkt_name),
             opcode,
             len);
 }
@@ -408,25 +408,25 @@ mock230_send(
  * because the 230 arm is the readable statement of what the mock's own client
  * expects — hiding it behind a pointer would leave that layout written nowhere.
  */
-static const struct Mock230WirePayload*
-wire_payload(struct Mock230Player* player)
+static const struct ToriRSServerWirePayload*
+wire_payload(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player ? player->world : NULL;
-    const struct Mock230Wire* wire =
-        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
     return wire->payload;
 }
 
 /** The wire adapter behind a player, or the default when the world has none. */
-static const struct Mock230Wire*
-wire_for(struct Mock230Player* player)
+static const struct ToriRSServerWire*
+wire_for(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player ? player->world : NULL;
-    return (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    return (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
 }
 
 static void
-flush(struct Mock230Player* player, struct RSAreaBuf* buf, int opcode, int var);
+flush(struct ToriRSServerPlayer* player, struct RSAreaBuf* buf, int opcode, int var);
 
 /*
  * Select revision 239's root WorldView and the plane addressed by the info
@@ -441,10 +441,10 @@ flush(struct Mock230Player* player, struct RSAreaBuf* buf, int opcode, int var);
  * chamber black even though the local tracker reports the right coordinate.
  */
 void
-mock230_send_set_active_world(struct Mock230Player* player)
+ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
-    const struct Mock230Wire* wire = wire_for(player);
+    const struct ToriRSServerWire* wire = wire_for(player);
 
     if( !wire || wire->revision < 239 )
         return;
@@ -461,16 +461,16 @@ mock230_send_set_active_world(struct Mock230Player* player)
 /* The client's index field has to be able to hold every name we can allocate.
  * 14 bits is the narrower of the two wires, so it is what this is checked
  * against — a client slot the classic stream cannot express would alias. */
-typedef char mock230_client_slots_fit_the_wire
-    [MOCK230_CLIENT_NPC_SLOTS <= (1 << MOCK230_NPC_SLOT_BITS) - 1 ? 1 : -1];
+typedef char ToriRSServer_ClientSlotsFitTheWire
+    [TORIRSSERVER_CLIENT_NPC_SLOTS <= (1 << TORIRSSERVER_NPC_SLOT_BITS) - 1 ? 1 : -1];
 
 /*
- * MOCK230_NPC_TRACE=<npc_id>[,...]: narrate this observer's private npc-slot
+ * TORIRSSERVER_NPC_TRACE=<npc_id>[,...]: narrate this observer's private npc-slot
  * bookkeeping for those npc types.
  *
  * The client keys its entity registry BY SLOT, and the slot is not the world
  * pool index -- it is a per-observer name minted here (see
- * mock230_slotmap_acquire). So the server has to hand the same creature the
+ * ToriRSServer_SlotMapAcquire). So the server has to hand the same creature the
  * same name for as long as the client is tracking it: a release followed by a
  * re-acquire is, to the client, a despawn and a brand new npc, and the re-add
  * is the one path with no retry if it fails.
@@ -479,7 +479,7 @@ typedef char mock230_client_slots_fit_the_wire
  * mapping agree tick by tick.
  */
 static int
-mock230_npc_trace_wants(int npc_id)
+ToriRSServer_NpcTraceWants(int npc_id)
 {
     static char const* spec = NULL;
     static int parsed = 0;
@@ -488,7 +488,7 @@ mock230_npc_trace_wants(int npc_id)
     if( !parsed )
     {
         parsed = 1;
-        spec = getenv("MOCK230_NPC_TRACE");
+        spec = getenv("TORIRSSERVER_NPC_TRACE");
     }
     if( !spec || !*spec || npc_id < 0 )
         return 0;
@@ -508,18 +508,18 @@ mock230_npc_trace_wants(int npc_id)
 }
 
 static void
-mock230_npc_trace(
-    struct Mock230Player* player,
+ToriRSServer_NpcTrace(
+    struct ToriRSServerPlayer* player,
     int world_slot,
     int client_slot,
     char const* what)
 {
-    struct Mock230Server* srv = player ? player->world : NULL;
-    struct Mock230Npc* npc =
-        (srv && world_slot >= 0 && world_slot < MOCK230_NPC_MAX) ? &srv->npcs[world_slot] : NULL;
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    struct ToriRSServerNpc* npc =
+        (srv && world_slot >= 0 && world_slot < TORIRSSERVER_NPC_MAX) ? &srv->npcs[world_slot] : NULL;
     int npc_id = npc ? npc->type : -1;
 
-    if( !mock230_npc_trace_wants(npc_id) )
+    if( !ToriRSServer_NpcTraceWants(npc_id) )
         return;
     fprintf(
         stderr,
@@ -529,7 +529,7 @@ mock230_npc_trace(
 }
 
 void
-mock230_slotmap_reset(struct Mock230Player* player)
+ToriRSServer_SlotMapReset(struct ToriRSServerPlayer* player)
 {
     memset(player->npc_slots.world_of, 0xff, sizeof(player->npc_slots.world_of));
     memset(player->npc_slots.client_of, 0xff, sizeof(player->npc_slots.client_of));
@@ -540,34 +540,34 @@ mock230_slotmap_reset(struct Mock230Player* player)
  * What this client calls `world_slot`, allocating a name if it has none.
  *
  * Returns -1 when every name is out, which cannot happen at
- * MOCK230_CLIENT_NPC_SLOTS 1024 against MOCK230_TRACKED_NPC_MAX 255 — and is
+ * TORIRSSERVER_CLIENT_NPC_SLOTS 1024 against TORIRSSERVER_TRACKED_NPC_MAX 255 — and is
  * still checked, because the alternative to a refused add is a silently
  * duplicated id.
  */
 int
-mock230_slotmap_acquire(
-    struct Mock230Player* player,
+ToriRSServer_SlotMapAcquire(
+    struct ToriRSServerPlayer* player,
     int world_slot)
 {
-    struct Mock230PlayerSlotMap* map = &player->npc_slots;
+    struct ToriRSServerPlayerSlotMap* map = &player->npc_slots;
 
-    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
         return -1;
     if( map->client_of[world_slot] >= 0 )
         return map->client_of[world_slot];
-    for( int i = 0; i < MOCK230_CLIENT_NPC_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_CLIENT_NPC_SLOTS; i++ )
     {
-        int candidate = (map->next + i) % MOCK230_CLIENT_NPC_SLOTS;
+        int candidate = (map->next + i) % TORIRSSERVER_CLIENT_NPC_SLOTS;
 
         if( map->world_of[candidate] >= 0 )
             continue;
         map->world_of[candidate] = (int16_t)world_slot;
         map->client_of[world_slot] = (int16_t)candidate;
-        map->next = (candidate + 1) % MOCK230_CLIENT_NPC_SLOTS;
-        mock230_npc_trace(player, world_slot, candidate, "ACQUIRE (new client slot)");
+        map->next = (candidate + 1) % TORIRSSERVER_CLIENT_NPC_SLOTS;
+        ToriRSServer_NpcTrace(player, world_slot, candidate, "ACQUIRE (new client slot)");
         return candidate;
     }
-    fprintf(stderr, "mock230: pid %d has no free npc name for world slot %d\n", player->pid,
+    fprintf(stderr, "torirsserver: pid %d has no free npc name for world slot %d\n", player->pid,
             world_slot);
     return -1;
 }
@@ -587,14 +587,14 @@ mock230_slotmap_acquire(
  * intermittent and is not.
  */
 int
-mock230_slotmap_world(
-    const struct Mock230Player* player,
+ToriRSServer_SlotMapWorld(
+    const struct ToriRSServerPlayer* player,
     int client_slot)
 {
     /* NULL-safe because the inbound handlers reach it through
      * `srv->active_player`, and "whose turn is it" is a question with a
      * `NULL` answer between sessions. */
-    if( client_slot < 0 || client_slot >= MOCK230_CLIENT_NPC_SLOTS )
+    if( client_slot < 0 || client_slot >= TORIRSSERVER_CLIENT_NPC_SLOTS )
         return -1;
     assert(player);
     return player->npc_slots.world_of[client_slot];
@@ -603,18 +603,18 @@ mock230_slotmap_world(
 /*
  * This client's name for `world_slot`, or -1 when it has none.
  *
- * The read-only half of `mock230_slotmap_acquire`, and the distinction is the
+ * The read-only half of `ToriRSServer_SlotMapAcquire`, and the distinction is the
  * point: an encoder that names an npc the client is not tracking must say "no
  * entity", not mint a name for one it has never been told about. Acquiring here
  * would hand out a slot the client cannot resolve and hold it against a real
  * npc entering view later.
  */
 int
-mock230_slotmap_client(
-    const struct Mock230Player* player,
+ToriRSServer_SlotMapClient(
+    const struct ToriRSServerPlayer* player,
     int world_slot)
 {
-    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
         return -1;
     assert(player);
     return player->npc_slots.client_of[world_slot];
@@ -625,40 +625,40 @@ mock230_slotmap_client(
  *
  * The mock keeps NPC targets as world-pool slots so one actor can be encoded
  * for several observers. NPC_INFO, however, gives each observer a private NPC
- * slot through Mock230PlayerSlotMap. Every FACE_ENTITY field on that observer's
+ * slot through ToriRSServerPlayerSlotMap. Every FACE_ENTITY field on that observer's
  * stream must use the same private slot or the client cannot resolve the actor
  * and falls back to its supplied angle (yaw 0, due south, at revision 239).
  * Player ids are already absolute in the classic id space and stay unchanged.
  */
 static int
-mock230_face_entity_for_client(
-    const struct Mock230Player* recipient,
+ToriRSServer_FaceEntityForClient(
+    const struct ToriRSServerPlayer* recipient,
     int face_entity)
 {
-    if( face_entity < 0 || face_entity >= MOCK230_FACE_PLAYER_BASE )
+    if( face_entity < 0 || face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
         return face_entity;
-    return mock230_slotmap_client(recipient, face_entity);
+    return ToriRSServer_SlotMapClient(recipient, face_entity);
 }
 
 /** Give back this client's name for `world_slot`. Idempotent. */
 void
-mock230_slotmap_release(
-    struct Mock230Player* player,
+ToriRSServer_SlotMapRelease(
+    struct ToriRSServerPlayer* player,
     int world_slot)
 {
-    mock230_slotmap_release_why(player, world_slot, "unspecified");
+    ToriRSServer_SlotMapReleaseWhy(player, world_slot, "unspecified");
 }
 
 void
-mock230_slotmap_release_why(
-    struct Mock230Player* player,
+ToriRSServer_SlotMapReleaseWhy(
+    struct ToriRSServerPlayer* player,
     int world_slot,
     char const* why)
 {
-    struct Mock230PlayerSlotMap* map = &player->npc_slots;
+    struct ToriRSServerPlayerSlotMap* map = &player->npc_slots;
     int client_slot;
 
-    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
         return;
     client_slot = map->client_of[world_slot];
     if( client_slot < 0 )
@@ -669,7 +669,7 @@ mock230_slotmap_release_why(
             msg, sizeof(msg),
             "RELEASE why=%s (client sees a despawn; a re-add later gets a DIFFERENT slot)",
             why ? why : "?");
-        mock230_npc_trace(player, world_slot, client_slot, msg);
+        ToriRSServer_NpcTrace(player, world_slot, client_slot, msg);
     }
     map->world_of[client_slot] = -1;
     map->client_of[world_slot] = -1;
@@ -677,28 +677,28 @@ mock230_slotmap_release_why(
 
 /** Does this player's world speak the v5 entity streams? */
 static int
-wire_is_v5(struct Mock230Player* player)
+wire_is_v5(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player ? player->world : NULL;
-    const struct Mock230Wire* wire =
-        (srv && srv->wire) ? srv->wire : mock230_wire_default();
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
     return wire->revision >= 239;
 }
 
 /* Send whatever the caller just built into `buf`. */
 static void
 flush(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     struct RSAreaBuf* buf,
     int opcode,
     int var)
 {
     if( !rsab_ok(buf) )
     {
-        fprintf(stderr, "mock230: dropped op %d — encode overflowed\n", opcode);
+        fprintf(stderr, "torirsserver: dropped op %d — encode overflowed\n", opcode);
         return;
     }
-    mock230_send(player, opcode, buf->data, (int)rsab_len(buf), var);
+    ToriRSServer_Send(player, opcode, buf->data, (int)rsab_len(buf), var);
 }
 
 /* ------------------------------------------------------------------ */
@@ -706,7 +706,7 @@ flush(
 /* ------------------------------------------------------------------ */
 
 int
-mock230_send_reconnect_ok(struct Mock230Player* player)
+ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
     struct RSAreaBuf out;
@@ -737,17 +737,17 @@ mock230_send_reconnect_ok(struct Mock230Player* player)
     open_packet(&buf, 8192);
     coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
                       (player->z & 0x3fff));
-    mock239_playerinfo_write_init(&buf, mock230_wire_player_index(player->pid), coord);
+    mock239_playerinfo_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid), coord);
     if( !rsab_ok(&buf) )
     {
-        fprintf(stderr, "mock230: reconnect init block overflowed\n");
+        fprintf(stderr, "torirsserver: reconnect init block overflowed\n");
         return 0;
     }
 
     /*
      * The client is now tracking itself, exactly as it would be after a login
      * rebuild — so the REBUILD_NORMAL that follows must NOT repeat the block.
-     * That is the same `player_tracked` gate mock230_send_rebuild_normal
+     * That is the same `player_tracked` gate ToriRSServer_SendRebuildNormal
      * reads, set from the other side of it.
      */
     player->player_tracked[player->pid] = 1;
@@ -759,12 +759,12 @@ mock230_send_reconnect_ok(struct Mock230Player* player)
     rsab_wrap(&out, header, sizeof(header));
     rsab_p1(&out, OSRS239_LOGINRES_RECONNECT_OK);
     rsab_p2(&out, (int)rsab_len(&buf));
-    if( mock230_session_send(player->session, header, (int)sizeof(header)) < 0 )
+    if( ToriRSServer_SessionSend(player->session, header, (int)sizeof(header)) < 0 )
         return 0;
-    if( mock230_session_send(player->session, buf.data, (int)rsab_len(&buf)) < 0 )
+    if( ToriRSServer_SessionSend(player->session, buf.data, (int)rsab_len(&buf)) < 0 )
         return 0;
     if( player->world && player->world->verbose )
-        fprintf(stderr, "mock230: RECONNECT_OK, %d byte player-info init at %d,%d\n",
+        fprintf(stderr, "torirsserver: RECONNECT_OK, %d byte player-info init at %d,%d\n",
                 (int)rsab_len(&buf), player->x, player->z);
     return 1;
 }
@@ -775,17 +775,17 @@ mock230_send_reconnect_ok(struct Mock230Player* player)
 
 static void
 send_rebuild_normal_at(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z,
     int include_login_init)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    int base_x = mock230_scene_origin(zone_x);
-    int base_z = mock230_scene_origin(zone_z);
-    int sq_x0 = base_x >> 6, sq_x1 = (base_x + MOCK230_SCENE_TILES - 1) >> 6;
-    int sq_z0 = base_z >> 6, sq_z1 = (base_z + MOCK230_SCENE_TILES - 1) >> 6;
+    int base_x = ToriRSServer_SceneOrigin(zone_x);
+    int base_z = ToriRSServer_SceneOrigin(zone_z);
+    int sq_x0 = base_x >> 6, sq_x1 = (base_x + TORIRSSERVER_SCENE_TILES - 1) >> 6;
+    int sq_z0 = base_z >> 6, sq_z1 = (base_z + TORIRSSERVER_SCENE_TILES - 1) >> 6;
     int count = (sq_x1 - sq_x0 + 1) * (sq_z1 - sq_z0 + 1);
 
     open_packet(&buf, 8192);
@@ -810,7 +810,7 @@ send_rebuild_normal_at(
     {
         int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
                                   ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
-        mock239_playerinfo_write_init(&buf, mock230_wire_player_index(player->pid),
+        mock239_playerinfo_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid),
                                       coord);
         player->player_tracked[player->pid] = 1;
         /* The init block resets the client's cycle bits, so the next
@@ -826,7 +826,7 @@ send_rebuild_normal_at(
      * then keyCount * 4 XTEA ints. Zero keys: unencrypted regions load, and
      * this cache ships its keys client-side via xteas.json. */
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->rebuild_normal )
         {
             /* V2 carries no key block at all — OldSchool stores map archives
@@ -850,7 +850,7 @@ send_rebuild_normal_at(
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: rebuild zone=%d,%d origin=%d,%d squares=%d\n",
+            "torirsserver: rebuild zone=%d,%d origin=%d,%d squares=%d\n",
             zone_x,
             zone_z,
             base_x,
@@ -859,9 +859,9 @@ send_rebuild_normal_at(
 }
 
 void
-mock230_send_rebuild_normal(struct Mock230Player* player)
+ToriRSServer_SendRebuildNormal(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
 
     send_rebuild_normal_at(player, srv->zone_x, srv->zone_z, 1);
 }
@@ -873,11 +873,11 @@ mock230_send_rebuild_normal(struct Mock230Player* player)
  * terrain for one client without moving the player, changing the world's
  * shared scene/collision origin, or re-seeding the already-live player-info
  * table. The remote-view lifetime and restoration are owned by
- * mock230_world_remote_view_*; this encoder is deliberately only the packet.
+ * ToriRSServer_WorldRemoteView_*; this encoder is deliberately only the packet.
  */
 void
-mock230_send_rebuild_normal_at(
-    struct Mock230Player* player,
+ToriRSServer_SendRebuildNormalAt(
+    struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z)
 {
@@ -912,18 +912,18 @@ mock230_send_rebuild_normal_at(
  * its XTEA keys from xteas.json beside the cache.
  */
 void
-mock230_send_rebuild_region(struct Mock230Player* player)
+ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    struct Mock230MapInstanceWindow window;
+    struct ToriRSServerMapInstanceWindow window;
     int key_count = 0;
 
-    mock230_mapinstance_window(srv->zone_x, srv->zone_z, &window);
+    ToriRSServer_MapInstanceWindow(srv->zone_x, srv->zone_z, &window);
 
     open_packet(&buf, 8192);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->rebuild_region )
         {
             /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
@@ -954,15 +954,15 @@ mock230_send_rebuild_region(struct Mock230Player* player)
      * client would need if it were taking keys off the wire. Counted from the
      * window so the two never disagree about how many follow. */
     {
-        int seen_x[MOCK230_MAPINSTANCE_LEVELS * MOCK230_MAPINSTANCE_SCENE_ZONES *
-                   MOCK230_MAPINSTANCE_SCENE_ZONES];
+        int seen_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                   TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
         int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
 
-        for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
-            for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
-                for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+        for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
                 {
-                    const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+                    const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
                     int map_x;
                     int map_z;
                     int dup = 0;
@@ -987,13 +987,13 @@ mock230_send_rebuild_region(struct Mock230Player* player)
         rsab_p2(&buf, key_count);
 
     rsab_bits(&buf);
-    for( int level = 0; level < MOCK230_MAPINSTANCE_LEVELS; level++ )
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
     {
-        for( int zx = 0; zx < MOCK230_MAPINSTANCE_SCENE_ZONES; zx++ )
+        for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
         {
-            for( int zz = 0; zz < MOCK230_MAPINSTANCE_SCENE_ZONES; zz++ )
+            for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
             {
-                const struct Mock230MapInstanceZone* zone = &window.zones[level][zx][zz];
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
 
                 if( !zone->set )
                 {
@@ -1021,7 +1021,7 @@ mock230_send_rebuild_region(struct Mock230Player* player)
     if( srv->verbose )
         fprintf(
             stderr,
-            "mock230: rebuild region zone=%d,%d source zones=%d squares=%d\n",
+            "torirsserver: rebuild region zone=%d,%d source zones=%d squares=%d\n",
             srv->zone_x,
             srv->zone_z,
             window.set_count,
@@ -1037,12 +1037,12 @@ mock230_send_rebuild_region(struct Mock230Player* player)
  * caller wants this rather than either encoder directly.
  */
 void
-mock230_send_rebuild(struct Mock230Player* player)
+ToriRSServer_SendRebuild(struct ToriRSServerPlayer* player)
 {
-    if( mock230_mapinstance_find(player->x, player->z) != 0 )
-        mock230_send_rebuild_region(player);
+    if( ToriRSServer_MapInstanceFind(player->x, player->z) != 0 )
+        ToriRSServer_SendRebuildRegion(player);
     else
-        mock230_send_rebuild_normal(player);
+        ToriRSServer_SendRebuildNormal(player);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1065,8 +1065,8 @@ mock230_send_rebuild(struct Mock230Player* player)
  * the session's live top; same-top spellings are already correct.
  */
 static int
-mock230_remap_gameframe_slot_uid(
-    struct Mock230Player* player,
+ToriRSServer_RemapGameframeSlotUid(
+    struct ToriRSServerPlayer* player,
     int uid)
 {
     const char* name;
@@ -1082,10 +1082,10 @@ mock230_remap_gameframe_slot_uid(
     assert(player);
     if( uid <= 0 )
         return uid;
-    live_iface = mock230_player_gameframe_iface(player);
-    if( live_iface > 0 && MOCK230_COM_GROUP(uid) == live_iface )
+    live_iface = ToriRSServer_PlayerGameframeIface(player);
+    if( live_iface > 0 && TORIRSSERVER_COM_GROUP(uid) == live_iface )
         return uid;
-    name = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+    name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
     if( !name )
         return uid;
     colon = strrchr(name, ':');
@@ -1093,30 +1093,30 @@ mock230_remap_gameframe_slot_uid(
         return uid;
     role = colon + 1;
     if( strcmp(role, "mainmodal") == 0 )
-        live = mock230_player_mainmodal(player);
+        live = ToriRSServer_PlayerMainmodal(player);
     else if( strcmp(role, "sidemodal") == 0 )
-        live = mock230_player_sidemodal(player);
+        live = ToriRSServer_PlayerSidemodal(player);
     else if( strcmp(role, "floater") == 0 )
-        live = mock230_player_floater(player);
+        live = ToriRSServer_PlayerFloater(player);
     else
     {
-        src_iface = MOCK230_COM_GROUP(uid);
-        src_iface_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, src_iface);
-        live_iface_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, live_iface);
+        src_iface = TORIRSSERVER_COM_GROUP(uid);
+        src_iface_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, src_iface);
+        live_iface_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, live_iface);
         if( !src_iface_name || !live_iface_name || live_iface <= 0 )
             return uid;
         snprintf(probe, sizeof(probe), "%s:mainmodal", src_iface_name);
-        if( mock230_content_symbol(MOCK230_PACK_COMPONENT, probe) <= 0 )
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe) <= 0 )
             return uid;
         snprintf(probe, sizeof(probe), "%s:%s", live_iface_name, role);
-        live = mock230_content_symbol(MOCK230_PACK_COMPONENT, probe);
+        live = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe);
     }
     return live > 0 ? live : uid;
 }
 
 void
-mock230_send_if_opentop(
-    struct Mock230Player* player,
+ToriRSServer_SendIfOpentop(
+    struct ToriRSServerPlayer* player,
     int group)
 {
     struct RSAreaBuf buf;
@@ -1124,10 +1124,10 @@ mock230_send_if_opentop(
     /* Mutate authority before the packet is observable. A resync built from a
      * send-after-the-fact cache can otherwise preserve mounts the new root has
      * already destroyed in the golden client. */
-    mock230_ifstate_open_top(&player->interfaces, group);
+    ToriRSServer_IfStateOpenTop(&player->interfaces, group);
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_opentop )
             pl->if_opentop(&buf, group);
         else
@@ -1137,18 +1137,18 @@ mock230_send_if_opentop(
 }
 
 void
-mock230_send_if_movesub(
-    struct Mock230Player* player,
+ToriRSServer_SendIfMovesub(
+    struct ToriRSServerPlayer* player,
     int source_uid,
     int dest_uid)
 {
     struct RSAreaBuf buf;
-    source_uid = mock230_remap_gameframe_slot_uid(player, source_uid);
-    dest_uid = mock230_remap_gameframe_slot_uid(player, dest_uid);
-    mock230_ifstate_move_sub(&player->interfaces, source_uid, dest_uid);
+    source_uid = ToriRSServer_RemapGameframeSlotUid(player, source_uid);
+    dest_uid = ToriRSServer_RemapGameframeSlotUid(player, dest_uid);
+    ToriRSServer_IfStateMoveSub(&player->interfaces, source_uid, dest_uid);
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_movesub )
             pl->if_movesub(&buf, source_uid, dest_uid);
         else
@@ -1162,8 +1162,8 @@ mock230_send_if_movesub(
 }
 
 static void
-mock230_gameframe_bind_slots(
-    struct Mock230Player* player,
+ToriRSServer_GameframeBindSlots(
+    struct ToriRSServerPlayer* player,
     int group,
     const char* top_name)
 {
@@ -1175,37 +1175,37 @@ mock230_gameframe_bind_slots(
     player->gameframe_iface = group;
 
     snprintf(name, sizeof(name), "%s:mainmodal", top_name);
-    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
     player->gameframe_mainmodal = uid;
 
     snprintf(name, sizeof(name), "%s:sidemodal", top_name);
-    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
     player->gameframe_sidemodal = uid;
 
     snprintf(name, sizeof(name), "%s:floater", top_name);
-    uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
     player->gameframe_floater = uid;
 }
 
 void
-mock230_gameframe_opentop(
-    struct Mock230Player* player,
+ToriRSServer_GameframeOpentop(
+    struct ToriRSServerPlayer* player,
     int group)
 {
     const char* top_name;
-    const struct Mock230EnumDef* frame;
-    const struct Mock230Ids* ids = mock230_ids();
+    const struct ToriRSServerEnumDef* frame;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     assert(player);
-    top_name = mock230_content_symbol_name(MOCK230_PACK_INTERFACE, group);
+    top_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, group);
     if( !top_name )
     {
-        fprintf(stderr, "mock230: if_opentop group=%d has no pack name\n", group);
+        fprintf(stderr, "torirsserver: if_opentop group=%d has no pack name\n", group);
         return;
     }
 
-    mock230_send_if_opentop(player, group);
-    mock230_gameframe_bind_slots(player, group, top_name);
+    ToriRSServer_SendIfOpentop(player, group);
+    ToriRSServer_GameframeBindSlots(player, group, top_name);
 
     /* Keep the static ids table's "current stretch" aliases pointed at the
      * live top so C call sites that still read ids->com_gameframe_mainmodal
@@ -1217,17 +1217,17 @@ mock230_gameframe_opentop(
         (void)ids;
     }
 
-    frame = mock230_content_enum(top_name);
+    frame = ToriRSServer_ContentEnum(top_name);
     if( !frame || frame->count == 0 )
     {
         fprintf(stderr,
-                "mock230: no `%s` gameframe enum — HUD/tabs will be empty\n",
+                "torirsserver: no `%s` gameframe enum — HUD/tabs will be empty\n",
                 top_name);
-        mock230_send_if_resync_v2(player);
+        ToriRSServer_SendIfResyncV2(player);
         return;
     }
     for( int i = 0; i < frame->count; i++ )
-        mock230_send_if_opensub(
+        ToriRSServer_SendIfOpensub(
             player,
             group,
             frame->values[i].key & 0xffff,
@@ -1236,12 +1236,12 @@ mock230_gameframe_opentop(
     /* The V2 snapshot is the authoritative commit for this root. It also
      * removes stale client-side mounts/event ranges left by an interrupted
      * layout switch. Revision 230's sender is deliberately a no-op. */
-    mock230_send_if_resync_v2(player);
+    ToriRSServer_SendIfResyncV2(player);
 }
 
 void
-mock230_send_if_opensub(
-    struct Mock230Player* player,
+ToriRSServer_SendIfOpensub(
+    struct ToriRSServerPlayer* player,
     int parent,
     int child,
     int group,
@@ -1249,17 +1249,17 @@ mock230_send_if_opensub(
 {
     /* RSProt IfOpenSubEncoder: p1 type, p2Alt2 interfaceId,
      * p4Alt3 destinationCombinedId (parent << 16 | child). */
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    int uid = mock230_remap_gameframe_slot_uid(player, (parent << 16) | (child & 0xffff));
+    int uid = ToriRSServer_RemapGameframeSlotUid(player, (parent << 16) | (child & 0xffff));
 
     parent = (uid >> 16) & 0xffff;
     child = uid & 0xffff;
 
-    if( !mock230_ifstate_open_sub(&player->interfaces, uid, group, type) )
+    if( !ToriRSServer_IfStateOpenSub(&player->interfaces, uid, group, type) )
     {
         fprintf(stderr,
-                "mock230: cannot register IF_OPENSUB %d:%d <- %d type %d\n",
+                "torirsserver: cannot register IF_OPENSUB %d:%d <- %d type %d\n",
                 parent, child, group, type);
         /* Revision 239 must never send a mutation its later IF_RESYNC_V2
          * cannot reproduce. The classic wire has no V2 registry contract. */
@@ -1269,7 +1269,7 @@ mock230_send_if_opensub(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_opensub )
             pl->if_opensub(&buf, group, uid, type);
         else
@@ -1280,12 +1280,12 @@ mock230_send_if_opensub(
         }
     }
     flush(player, &buf, OP_IF_OPENSUB, 0);
-    mock230_note_modal_mount(srv, uid, group);
+    ToriRSServer_NoteModalMount(srv, uid, group);
     /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
      * here so their IF_OPENSUB is encoded immediately after the parent's on
      * the wire. Subject is the interface id, same shape as IF_CLOSE. */
     if( group > 0 && srv && srv->scripts )
-        mock230_scripts_run_trigger(srv, SS_TRIGGER_IF_OPEN, group, -1, -1);
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_OPEN, group, -1, -1);
 }
 
 /*
@@ -1297,8 +1297,8 @@ mock230_send_if_opensub(
  * reads it back the same way.
  */
 void
-mock230_send_run_clientscript_mixed(
-    struct Mock230Player* player,
+ToriRSServer_SendRunClientscriptMixed(
+    struct ToriRSServerPlayer* player,
     int script_id,
     const char* types,
     int const* intv,
@@ -1312,7 +1312,7 @@ mock230_send_run_clientscript_mixed(
      * rows of dialogue is comfortably past a kilobyte. */
     open_packet(&buf, 4096);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->run_clientscript )
             pl->run_clientscript(&buf, script_id, types, intv, strv, argc);
         else
@@ -1334,18 +1334,18 @@ mock230_send_run_clientscript_mixed(
 }
 
 void
-mock230_send_run_clientscript(
-    struct Mock230Player* player,
+ToriRSServer_SendRunClientscript(
+    struct ToriRSServerPlayer* player,
     int script_id,
     int const* args,
     int argc)
 {
-    mock230_send_run_clientscript_mixed(player, script_id, NULL, args, NULL, argc);
+    ToriRSServer_SendRunClientscriptMixed(player, script_id, NULL, args, NULL, argc);
 }
 
 int
-mock230_send_run_clientscript_typed(
-    struct Mock230Player* player,
+ToriRSServer_SendRunClientscriptTyped(
+    struct ToriRSServerPlayer* player,
     int script_id,
     const char* types,
     const struct Mock239ClientScriptArg* args,
@@ -1363,7 +1363,7 @@ mock230_send_run_clientscript_typed(
     open_packet(&buf, 60 * 1024);
     if( !mock239_encode_runclientscript(&buf, script_id, types, args, argc) )
     {
-        fprintf(stderr, "mock230: refused invalid rev239 RUNCLIENTSCRIPT %d\n", script_id);
+        fprintf(stderr, "torirsserver: refused invalid rev239 RUNCLIENTSCRIPT %d\n", script_id);
         return 0;
     }
     flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
@@ -1371,8 +1371,8 @@ mock230_send_run_clientscript_typed(
 }
 
 void
-mock230_send_if_setevents(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetevents(
+    struct ToriRSServerPlayer* player,
     int uid,
     int from,
     int to,
@@ -1381,13 +1381,13 @@ mock230_send_if_setevents(
     uint32_t events1;
     uint32_t events2;
 
-    mock230_ifstate_split_classic_events((uint32_t)events, &events1, &events2);
-    mock230_send_if_setevents_v2(player, uid, from, to, events1, events2);
+    ToriRSServer_IfStateSplitClassicEvents((uint32_t)events, &events1, &events2);
+    ToriRSServer_SendIfSeteventsV2(player, uid, from, to, events1, events2);
 }
 
 void
-mock230_send_if_setevents_v2(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSeteventsV2(
+    struct ToriRSServerPlayer* player,
     int uid,
     int from,
     int to,
@@ -1398,11 +1398,11 @@ mock230_send_if_setevents_v2(
      * events, p2 end. */
     struct RSAreaBuf buf;
 
-    if( !mock230_ifstate_setevents_v2(
+    if( !ToriRSServer_IfStateSeteventsV2(
             &player->interfaces, uid, from, to, events1, events2) )
     {
         fprintf(stderr,
-                "mock230: cannot register IF_SETEVENTS %d:%d range %d..%d\n",
+                "torirsserver: cannot register IF_SETEVENTS %d:%d range %d..%d\n",
                 (uid >> 16) & 0xffff, uid & 0xffff, from, to);
         if( wire_is_v5(player) )
             return;
@@ -1410,7 +1410,7 @@ mock230_send_if_setevents_v2(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setevents )
             pl->if_setevents(&buf, uid, from, to, events1, events2);
         else
@@ -1427,27 +1427,27 @@ mock230_send_if_setevents_v2(
 }
 
 void
-mock230_send_if_resync_v2(struct Mock230Player* player)
+ToriRSServer_SendIfResyncV2(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
     size_t capacity;
 
     if( !wire_is_v5(player) )
         return;
-    capacity = mock230_ifstate_resync_payload_size(&player->interfaces);
-    if( capacity == 0 || capacity > MOCK230_IF_RESYNC_MAX_PAYLOAD )
+    capacity = ToriRSServer_IfStateResyncPayloadSize(&player->interfaces);
+    if( capacity == 0 || capacity > TORIRSSERVER_IF_RESYNC_MAX_PAYLOAD )
     {
-        fprintf(stderr, "mock230: invalid IF_RESYNC_V2 registry size %zu\n", capacity);
+        fprintf(stderr, "torirsserver: invalid IF_RESYNC_V2 registry size %zu\n", capacity);
         return;
     }
     open_packet(&buf, capacity);
-    mock230_ifstate_encode_resync_v2(&buf, &player->interfaces);
+    ToriRSServer_IfStateEncodeResyncV2(&buf, &player->interfaces);
     flush(player, &buf, OP_IF_RESYNC_V2, 2);
 }
 
 void
-mock230_send_if_clearinv(
-    struct Mock230Player* player,
+ToriRSServer_SendIfClearinv(
+    struct ToriRSServerPlayer* player,
     int uid)
 {
     struct RSAreaBuf buf;
@@ -1455,12 +1455,12 @@ mock230_send_if_clearinv(
     if( !wire_is_v5(player) )
         return;
     open_packet(&buf, 4);
-    mock230_ifstate_encode_clearinv(&buf, uid);
+    ToriRSServer_IfStateEncodeClearinv(&buf, uid);
     flush(player, &buf, OP_IF_CLEARINV, 0);
 }
 
 void
-mock230_send_trigger_ondialogabort(struct Mock230Player* player)
+ToriRSServer_SendTriggerOndialogabort(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
 
@@ -1485,8 +1485,8 @@ mock230_send_trigger_ondialogabort(struct Mock230Player* player)
  */
 
 void
-mock230_send_if_settext(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSettext(
+    struct ToriRSServerPlayer* player,
     int uid,
     const char* text)
 {
@@ -1494,7 +1494,7 @@ mock230_send_if_settext(
 
     open_packet(&buf, 512);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_settext )
             pl->if_settext(&buf, uid, text);
         else
@@ -1507,8 +1507,8 @@ mock230_send_if_settext(
 }
 
 void
-mock230_send_if_setnpchead(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetnpchead(
+    struct ToriRSServerPlayer* player,
     int uid,
     int npc_id)
 {
@@ -1516,7 +1516,7 @@ mock230_send_if_setnpchead(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setnpchead )
             pl->if_setnpchead(&buf, uid, npc_id);
         else
@@ -1529,15 +1529,15 @@ mock230_send_if_setnpchead(
 }
 
 void
-mock230_send_if_setplayerhead(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetplayerhead(
+    struct ToriRSServerPlayer* player,
     int uid)
 {
     struct RSAreaBuf buf;
 
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setplayerhead )
             pl->if_setplayerhead(&buf, uid);
         else
@@ -1549,8 +1549,8 @@ mock230_send_if_setplayerhead(
 }
 
 void
-mock230_send_if_setanim(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetanim(
+    struct ToriRSServerPlayer* player,
     int uid,
     int anim_id)
 {
@@ -1558,7 +1558,7 @@ mock230_send_if_setanim(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setanim )
             pl->if_setanim(&buf, uid, anim_id);
         else
@@ -1571,8 +1571,8 @@ mock230_send_if_setanim(
 }
 
 void
-mock230_send_if_setcolour(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetcolour(
+    struct ToriRSServerPlayer* player,
     int uid,
     int colour)
 {
@@ -1580,7 +1580,7 @@ mock230_send_if_setcolour(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setcolour )
             pl->if_setcolour(&buf, uid, colour);
         else
@@ -1593,8 +1593,8 @@ mock230_send_if_setcolour(
 }
 
 void
-mock230_send_if_sethide(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSethide(
+    struct ToriRSServerPlayer* player,
     int uid,
     int hide)
 {
@@ -1603,10 +1603,10 @@ mock230_send_if_sethide(
     /* A content-side gameframe role is just as relative for setters as it is
      * for IF_OPENSUB: Display may have switched the live root since the
      * script was compiled. Keep the component's visibility on that root. */
-    uid = mock230_remap_gameframe_slot_uid(player, uid);
+    uid = ToriRSServer_RemapGameframeSlotUid(player, uid);
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_sethide )
             pl->if_sethide(&buf, uid, hide);
         else
@@ -1619,8 +1619,8 @@ mock230_send_if_sethide(
 }
 
 void
-mock230_send_if_setmodel(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetmodel(
+    struct ToriRSServerPlayer* player,
     int uid,
     int model_id)
 {
@@ -1628,7 +1628,7 @@ mock230_send_if_setmodel(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setmodel )
             pl->if_setmodel(&buf, uid, model_id);
         else
@@ -1641,8 +1641,8 @@ mock230_send_if_setmodel(
 }
 
 void
-mock230_send_if_setobject(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetobject(
+    struct ToriRSServerPlayer* player,
     int uid,
     int obj_id,
     int value)
@@ -1651,7 +1651,7 @@ mock230_send_if_setobject(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setobject )
             pl->if_setobject(&buf, uid, obj_id, value);
         else
@@ -1665,8 +1665,8 @@ mock230_send_if_setobject(
 }
 
 void
-mock230_send_if_setposition(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetposition(
+    struct ToriRSServerPlayer* player,
     int uid,
     int x,
     int y)
@@ -1675,7 +1675,7 @@ mock230_send_if_setposition(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setposition )
             pl->if_setposition(&buf, uid, x, y);
         else
@@ -1689,8 +1689,8 @@ mock230_send_if_setposition(
 }
 
 void
-mock230_send_if_setscroll(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetscroll(
+    struct ToriRSServerPlayer* player,
     int uid,
     int position)
 {
@@ -1698,7 +1698,7 @@ mock230_send_if_setscroll(
 
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_setscroll )
             pl->if_setscroll(&buf, uid, position);
         else
@@ -1711,14 +1711,14 @@ mock230_send_if_setscroll(
 }
 
 void
-mock230_send_if_setrotatespeed(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetrotatespeed(
+    struct ToriRSServerPlayer* player,
     int uid,
     int x_speed,
     int y_speed)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     /* These seven packets do not exist in the hybrid revision-230 table.
      * Refuse rather than inventing a classic body and preserve that wire's
@@ -1731,15 +1731,15 @@ mock230_send_if_setrotatespeed(
 }
 
 void
-mock230_send_if_setangle(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetangle(
+    struct ToriRSServerPlayer* player,
     int uid,
     int zoom,
     int angle_x,
     int angle_y)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setangle )
         return;
@@ -1749,13 +1749,13 @@ mock230_send_if_setangle(
 }
 
 void
-mock230_send_if_setnpchead_active(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetnpcheadActive(
+    struct ToriRSServerPlayer* player,
     int uid,
     int index)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setnpchead_active )
         return;
@@ -1765,14 +1765,14 @@ mock230_send_if_setnpchead_active(
 }
 
 void
-mock230_send_if_setplayermodel_basecolour(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetplayermodelBasecolour(
+    struct ToriRSServerPlayer* player,
     int uid,
     int index,
     int colour)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setplayermodel_basecolour )
         return;
@@ -1782,13 +1782,13 @@ mock230_send_if_setplayermodel_basecolour(
 }
 
 void
-mock230_send_if_setplayermodel_bodytype(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetplayermodelBodytype(
+    struct ToriRSServerPlayer* player,
     int uid,
     int body_type)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setplayermodel_bodytype )
         return;
@@ -1798,13 +1798,13 @@ mock230_send_if_setplayermodel_bodytype(
 }
 
 void
-mock230_send_if_setplayermodel_obj(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetplayermodelObj(
+    struct ToriRSServerPlayer* player,
     int uid,
     int obj_id)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setplayermodel_obj )
         return;
@@ -1814,13 +1814,13 @@ mock230_send_if_setplayermodel_obj(
 }
 
 void
-mock230_send_if_setplayermodel_self(
-    struct Mock230Player* player,
+ToriRSServer_SendIfSetplayermodelSelf(
+    struct ToriRSServerPlayer* player,
     int uid,
     int copy_objs)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->if_setplayermodel_self )
         return;
@@ -1830,26 +1830,26 @@ mock230_send_if_setplayermodel_self(
 }
 
 void
-mock230_send_if_closesub(
-    struct Mock230Player* player,
+ToriRSServer_SendIfClosesub(
+    struct ToriRSServerPlayer* player,
     int uid)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
 
-    uid = mock230_remap_gameframe_slot_uid(player, uid);
-    mock230_ifstate_close_sub(&player->interfaces, uid);
+    uid = ToriRSServer_RemapGameframeSlotUid(player, uid);
+    ToriRSServer_IfStateCloseSub(&player->interfaces, uid);
 
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->if_closesub )
             pl->if_closesub(&buf, uid);
         else
             rsab_p4(&buf, uid);
     }
     flush(player, &buf, OP_IF_CLOSESUB, 0);
-    mock230_note_modal_mount(srv, uid, 0);
+    ToriRSServer_NoteModalMount(srv, uid, 0);
 }
 
 /*
@@ -1860,7 +1860,7 @@ mock230_send_if_closesub(
  * already existed; only the packet reaching it was missing.
  */
 void
-mock230_send_if_opencountdialog(struct Mock230Player* player)
+ToriRSServer_SendIfOpencountdialog(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
 
@@ -1871,7 +1871,7 @@ mock230_send_if_opencountdialog(struct Mock230Player* player)
         /* P_COUNTDIALOG was removed before rev239. The golden client exposes
          * the same prompt through clientscript 108 and returns the existing
          * RESUME_P_COUNTDIALOG packet (op 75). */
-        mock230_send_run_clientscript_mixed(player, 108, "s", NULL, strings, 1);
+        ToriRSServer_SendRunClientscriptMixed(player, 108, "s", NULL, strings, 1);
         return;
     }
 
@@ -1880,13 +1880,13 @@ mock230_send_if_opencountdialog(struct Mock230Player* player)
 }
 
 void
-mock230_send_varp_small(
-    struct Mock230Player* player,
+ToriRSServer_SendVarpSmall(
+    struct ToriRSServerPlayer* player,
     int id,
     int value)
 {
     struct RSAreaBuf buf;
-    int client_count = mock230_varp_client_count();
+    int client_count = ToriRSServer_VarpClientCount();
 
     /* A transmit declaration can belong to a cache-overlay lane that is not
      * active. Never encode an id the connected client's varp array cannot
@@ -1895,7 +1895,7 @@ mock230_send_varp_small(
         return;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->varp_small )
             pl->varp_small(&buf, id, value);
         else
@@ -1915,19 +1915,19 @@ mock230_send_varp_small(
  * for a full bar — which is exactly the case that made this necessary.
  */
 void
-mock230_send_varp_large(
-    struct Mock230Player* player,
+ToriRSServer_SendVarpLarge(
+    struct ToriRSServerPlayer* player,
     int id,
     int value)
 {
     struct RSAreaBuf buf;
-    int client_count = mock230_varp_client_count();
+    int client_count = ToriRSServer_VarpClientCount();
 
     if( id < 0 || (client_count > 0 && id >= client_count) )
         return;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->varp_large )
             pl->varp_large(&buf, id, value);
         else
@@ -1940,8 +1940,8 @@ mock230_send_varp_large(
 }
 
 void
-mock230_send_stat(
-    struct Mock230Player* player,
+ToriRSServer_SendStat(
+    struct ToriRSServerPlayer* player,
     int stat,
     int level,
     int xp,
@@ -1957,7 +1957,7 @@ mock230_send_stat(
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->update_stat )
             pl->update_stat(&buf, stat, level, xp, boosted);
         else
@@ -1985,8 +1985,8 @@ mock230_send_stat(
  * own entity under this pid rather than under the fallback.
  */
 void
-mock230_send_update_pid(
-    struct Mock230Player* player,
+ToriRSServer_SendUpdatePid(
+    struct ToriRSServerPlayer* player,
     int local_pid)
 {
     struct RSAreaBuf buf;
@@ -1997,15 +1997,15 @@ mock230_send_update_pid(
 }
 
 void
-mock230_send_run_energy(
-    struct Mock230Player* player,
+ToriRSServer_SendRunEnergy(
+    struct ToriRSServerPlayer* player,
     int percent)
 {
     /* Two bytes at rev 230: energy in hundredths of a percent. */
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->update_runenergy )
             pl->update_runenergy(&buf, percent * 100);
         else
@@ -2015,7 +2015,7 @@ mock230_send_run_energy(
 }
 
 void
-mock230_send_cam_reset(struct Mock230Player* player)
+ToriRSServer_SendCamReset(struct ToriRSServerPlayer* player)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 4);
@@ -2023,8 +2023,8 @@ mock230_send_cam_reset(struct Mock230Player* player)
 }
 
 void
-mock230_send_cam_moveto(
-    struct Mock230Player* player,
+ToriRSServer_SendCamMoveto(
+    struct ToriRSServerPlayer* player,
     int world_x,
     int world_z,
     int height,
@@ -2034,14 +2034,14 @@ mock230_send_cam_moveto(
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
-        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see torirs_server.h. */
         if( pl && pl->cam_moveto )
             pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - mock230_scene_base_x());
-            rsab_p1(&buf, world_z - mock230_scene_base_z());
+            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
+            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2051,8 +2051,8 @@ mock230_send_cam_moveto(
 }
 
 void
-mock230_send_cam_lookat(
-    struct Mock230Player* player,
+ToriRSServer_SendCamLookat(
+    struct ToriRSServerPlayer* player,
     int world_x,
     int world_z,
     int height,
@@ -2062,14 +2062,14 @@ mock230_send_cam_lookat(
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
-        /* Absolute at 239, scene-local at 230 -- see mock230.h. */
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see torirs_server.h. */
         if( pl && pl->cam_lookat )
             pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - mock230_scene_base_x());
-            rsab_p1(&buf, world_z - mock230_scene_base_z());
+            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
+            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2079,8 +2079,8 @@ mock230_send_cam_lookat(
 }
 
 void
-mock230_send_cam_shake(
-    struct Mock230Player* player,
+ToriRSServer_SendCamShake(
+    struct ToriRSServerPlayer* player,
     int axis,
     int jitter,
     int amplitude,
@@ -2089,7 +2089,7 @@ mock230_send_cam_shake(
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->cam_shake )
             pl->cam_shake(&buf, axis, jitter, amplitude, frequency);
         else
@@ -2110,8 +2110,8 @@ mock230_send_cam_shake(
  * carry the same shape.
  */
 void
-mock230_send_synth_sound(
-    struct Mock230Player* player,
+ToriRSServer_SendSynthSound(
+    struct ToriRSServerPlayer* player,
     int id,
     int loops,
     int delay)
@@ -2119,7 +2119,7 @@ mock230_send_synth_sound(
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->synth_sound )
             pl->synth_sound(&buf, id, loops, delay);
         else
@@ -2133,8 +2133,8 @@ mock230_send_synth_sound(
 }
 
 void
-mock230_send_midi_song_envelope(
-    struct Mock230Player* player,
+ToriRSServer_SendMidiSongEnvelope(
+    struct ToriRSServerPlayer* player,
     int id,
     int fade_out_delay,
     int fade_out_speed,
@@ -2144,7 +2144,7 @@ mock230_send_midi_song_envelope(
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->midi_song )
             pl->midi_song(
                 &buf, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
@@ -2153,24 +2153,24 @@ mock230_send_midi_song_envelope(
 }
 
 void
-mock230_send_midi_song_stop(
-    struct Mock230Player* player,
+ToriRSServer_SendMidiSongStop(
+    struct ToriRSServerPlayer* player,
     int fade_out_delay,
     int fade_out_speed)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     /*
      * Return rather than flush an empty body when the revision has no writer.
      *
-     * `mock230_send_midi_song` above flushes unconditionally, which for a
+     * `ToriRSServer_SendMidiSong` above flushes unconditionally, which for a
      * revision with no `midi_song` writer puts a zero-length MIDI_SONG on the
      * wire — harmless there only because every revision this tree runs has one.
      * MIDI_SONG_STOP is genuinely absent from osrs230's packet table, so this
      * one WILL take the missing-writer path, and a 0-byte body where the client
      * expects 4 desynchronises the stream rather than being ignored.
-     * `mock230_send` reports the unmapped name once by itself.
+     * `ToriRSServer_Send` reports the unmapped name once by itself.
      */
     if( !pl || !pl->midi_song_stop )
         return;
@@ -2180,30 +2180,30 @@ mock230_send_midi_song_stop(
 }
 
 void
-mock230_send_midi_song(
-    struct Mock230Player* player,
+ToriRSServer_SendMidiSong(
+    struct ToriRSServerPlayer* player,
     int id)
 {
     /* script9630's reference wire fallback: fade the old track over 60
      * cycles, start the next after 60, then set its gain immediately. */
-    mock230_send_midi_song_envelope(player, id, 0, 60, 60, 0);
+    ToriRSServer_SendMidiSongEnvelope(player, id, 0, 60, 60, 0);
 }
 
 /*
- * MIDI_JINGLE -- same missing-writer discipline as `mock230_send_midi_song_stop`
+ * MIDI_JINGLE -- same missing-writer discipline as `ToriRSServer_SendMidiSongStop`
  * just above, and for the same reason: osrs230's packet table has no
  * MIDI_JINGLE either, so a caller targeting that revision WILL take this path,
  * and a short body would desynchronise the stream rather than being ignored.
- * `mock230_send` reports the unmapped name once by itself.
+ * `ToriRSServer_Send` reports the unmapped name once by itself.
  */
 void
-mock230_send_midi_jingle(
-    struct Mock230Player* player,
+ToriRSServer_SendMidiJingle(
+    struct ToriRSServerPlayer* player,
     int id,
     int length_ms)
 {
     struct RSAreaBuf buf;
-    const struct Mock230WirePayload* pl = wire_payload(player);
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
     if( !pl || !pl->midi_jingle )
         return;
@@ -2222,15 +2222,15 @@ mock230_send_midi_jingle(
  * nobody notices is broken.
  */
 void
-mock230_send_ambientsound_start(
-    struct Mock230Player* player,
+ToriRSServer_SendAmbientsoundStart(
+    struct ToriRSServerPlayer* player,
     int id,
     int fade)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->ambientsound_start )
             pl->ambientsound_start(&buf, id, fade);
     }
@@ -2238,14 +2238,14 @@ mock230_send_ambientsound_start(
 }
 
 void
-mock230_send_ambientsound_stop(
-    struct Mock230Player* player,
+ToriRSServer_SendAmbientsoundStop(
+    struct ToriRSServerPlayer* player,
     int fade)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 4);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->ambientsound_stop )
             pl->ambientsound_stop(&buf, fade);
     }
@@ -2253,14 +2253,14 @@ mock230_send_ambientsound_stop(
 }
 
 void
-mock230_send_run_weight(
-    struct Mock230Player* player,
+ToriRSServer_SendRunWeight(
+    struct ToriRSServerPlayer* player,
     int kilograms)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->update_runweight )
             pl->update_runweight(&buf, kilograms);
         else
@@ -2270,19 +2270,19 @@ mock230_send_run_weight(
 }
 
 void
-mock230_send_message(
-    struct Mock230Player* player,
+ToriRSServer_SendMessage(
+    struct ToriRSServerPlayer* player,
     const char* text)
 {
     struct RSAreaBuf buf;
-    /* MOCK230_ECHO_MES=1: mirror every game message to stderr. The chat box is
+    /* TORIRSSERVER_ECHO_MES=1: mirror every game message to stderr. The chat box is
      * the only place a `mes` lands, which makes a content self-test that
      * reports through it unreadable from a headless run. */
-    if( getenv("MOCK230_ECHO_MES") )
+    if( getenv("TORIRSSERVER_ECHO_MES") )
         fprintf(stderr, "mes: %s\n", text ? text : "");
     open_packet(&buf, 512);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->message_game )
             pl->message_game(&buf, 0, text);
         else
@@ -2310,13 +2310,13 @@ mock230_send_message(
  * place here is an abort in the client rather than a subtle drawing bug.
  *
  * None of them decides anything. Which friend, at which world, and whether the
- * viewer may see it at all is mock230_friends.c's answer (`isVisibleTo`); these
+ * viewer may see it at all is torirs_server_friends.c's answer (`isVisibleTo`); these
  * only write it down.
  */
 
 void
-mock230_send_update_friendlist(
-    struct Mock230Player* player,
+ToriRSServer_SendUpdateFriendlist(
+    struct ToriRSServerPlayer* player,
     int64_t name37,
     int world)
 {
@@ -2327,7 +2327,7 @@ mock230_send_update_friendlist(
     struct RSAreaBuf buf;
     open_packet(&buf, 64);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->friend_entry )
         {
             char name[16];
@@ -2344,7 +2344,7 @@ mock230_send_update_friendlist(
 }
 
 void
-mock230_send_update_friendlist_empty(struct Mock230Player* player)
+ToriRSServer_SendUpdateFriendlistEmpty(struct ToriRSServerPlayer* player)
 {
     /* Rev 239's zero-length FRIENDLIST_LOADED packet only moves the client to
      * state 1 (loading). UPDATE_FRIENDLIST's decoder is what sets state 2, even
@@ -2357,8 +2357,8 @@ mock230_send_update_friendlist_empty(struct Mock230Player* player)
 }
 
 void
-mock230_send_update_ignorelist(
-    struct Mock230Player* player,
+ToriRSServer_SendUpdateIgnorelist(
+    struct ToriRSServerPlayer* player,
     const int64_t* names37,
     int count)
 {
@@ -2368,7 +2368,7 @@ mock230_send_update_ignorelist(
     struct RSAreaBuf buf;
     open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
         for( int i = 0; i < count; i++ )
         {
@@ -2386,8 +2386,8 @@ mock230_send_update_ignorelist(
 }
 
 void
-mock230_send_friendlist_loaded(
-    struct Mock230Player* player,
+ToriRSServer_SendFriendlistLoaded(
+    struct ToriRSServerPlayer* player,
     int status)
 {
     /* 0 loading, 1 connecting to friendserver, 2 online, anything else "please
@@ -2396,7 +2396,7 @@ mock230_send_friendlist_loaded(
     struct RSAreaBuf buf;
     open_packet(&buf, 4);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->friendlist_loaded )
             pl->friendlist_loaded(&buf, status);
         else
@@ -2408,8 +2408,8 @@ mock230_send_friendlist_loaded(
 }
 
 void
-mock230_send_message_private(
-    struct Mock230Player* player,
+ToriRSServer_SendMessagePrivate(
+    struct ToriRSServerPlayer* player,
     int64_t from37,
     int32_t message_id,
     int staff_mod,
@@ -2422,7 +2422,7 @@ mock230_send_message_private(
      *
      * `message_id` must be non-zero: the client dedupes private messages
      * against a zero-filled ring, so a 0 id is a message it silently drops.
-     * mock230_friends_next_pm_id guarantees that; this encoder does not
+     * ToriRSServer_FriendsNextPmId guarantees that; this encoder does not
      * re-check, because a caller that made one up should fail visibly.
      */
     struct RSAreaBuf buf;
@@ -2441,8 +2441,8 @@ mock230_send_message_private(
 }
 
 void
-mock230_send_chat_filter_settings(
-    struct Mock230Player* player,
+ToriRSServer_SendChatFilterSettings(
+    struct ToriRSServerPlayer* player,
     int public_mode,
     int private_mode,
     int trade_mode)
@@ -2450,7 +2450,7 @@ mock230_send_chat_filter_settings(
     struct RSAreaBuf buf;
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->chat_filter )
             pl->chat_filter(&buf, public_mode, private_mode, trade_mode);
         else
@@ -2464,7 +2464,7 @@ mock230_send_chat_filter_settings(
 }
 
 void
-mock230_send_unset_map_flag(struct Mock230Player* player)
+ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
 {
     /* SET_MAP_FLAG with the 255,255 "no flag" sentinel. */
     struct RSAreaBuf buf;
@@ -2472,7 +2472,7 @@ mock230_send_unset_map_flag(struct Mock230Player* player)
     {
         /* No 255,255 clear sentinel at V2 -- the packet carries an absolute
          * coord, and a cleared flag is coord 0. */
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->set_map_flag )
             pl->set_map_flag(&buf, 0, 0, 0);
         else
@@ -2485,16 +2485,16 @@ mock230_send_unset_map_flag(struct Mock230Player* player)
 }
 
 void
-mock230_send_set_map_flag(struct Mock230Player* player, int local_x, int local_z)
+ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int local_z)
 {
     struct RSAreaBuf buf;
     assert(player);
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->set_map_flag )
-            pl->set_map_flag(&buf, player->level, mock230_scene_origin(player->world->zone_x) + local_x,
-                             mock230_scene_origin(player->world->zone_z) + local_z);
+            pl->set_map_flag(&buf, player->level, ToriRSServer_SceneOrigin(player->world->zone_x) + local_x,
+                             ToriRSServer_SceneOrigin(player->world->zone_z) + local_z);
         else
         {
             rsab_p1(&buf, local_x & 0xff);
@@ -2505,9 +2505,9 @@ mock230_send_set_map_flag(struct Mock230Player* player, int local_x, int local_z
 }
 
 void
-mock230_send_tick_end(struct Mock230Player* player)
+ToriRSServer_SendTickEnd(struct ToriRSServerPlayer* player)
 {
-    mock230_send(player, OP_SERVER_TICK_END, NULL, 0, 0);
+    ToriRSServer_Send(player, OP_SERVER_TICK_END, NULL, 0, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2519,7 +2519,7 @@ mock230_send_tick_end(struct Mock230Player* player)
 static void
 put_inv_slot(
     struct RSAreaBuf* buf,
-    const struct Mock230Item* item)
+    const struct ToriRSServerItem* item)
 {
     if( !item || item->obj_id < 0 )
     {
@@ -2534,11 +2534,11 @@ put_inv_slot(
 }
 
 void
-mock230_send_inv_full(
-    struct Mock230Player* player,
+ToriRSServer_SendInvFull(
+    struct ToriRSServerPlayer* player,
     int component,
     int container,
-    const struct Mock230Item* slots,
+    const struct ToriRSServerItem* slots,
     int slot_count)
 {
     struct RSAreaBuf buf;
@@ -2548,7 +2548,7 @@ mock230_send_inv_full(
      * Sizing from the count keeps a full bank inside one packet. */
     open_packet(&buf, (size_t)(16 + ((slot_count > 0 ? slot_count : 0) * 7)));
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
         if( pl && pl->inv_header && pl->inv_slot )
         {
@@ -2556,7 +2556,7 @@ mock230_send_inv_full(
                            slot_count);
             for( int i = 0; i < slot_count; i++ )
             {
-                const struct Mock230Item* it = slots ? &slots[i] : NULL;
+                const struct ToriRSServerItem* it = slots ? &slots[i] : NULL;
                 /* `obj_id >= 0` is the occupancy test, not `count > 0`. A bank
                  * placeholder is a real obj with a count of zero, and filtering
                  * on the count sent it as an empty slot — so a bank with
@@ -2581,8 +2581,8 @@ mock230_send_inv_full(
 }
 
 void
-mock230_send_inv_stop_transmit(
-    struct Mock230Player* player,
+ToriRSServer_SendInvStopTransmit(
+    struct ToriRSServerPlayer* player,
     int component,
     int container)
 {
@@ -2590,7 +2590,7 @@ mock230_send_inv_stop_transmit(
 
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
         if( pl && pl->inv_stop_transmit )
             pl->inv_stop_transmit(&buf, component, container);
@@ -2604,11 +2604,11 @@ mock230_send_inv_stop_transmit(
 }
 
 void
-mock230_send_inv_partial(
-    struct Mock230Player* player,
+ToriRSServer_SendInvPartial(
+    struct ToriRSServerPlayer* player,
     int component,
     int container,
-    const struct Mock230Item* slots,
+    const struct ToriRSServerItem* slots,
     int slot_count,
     uint32_t dirty)
 {
@@ -2617,7 +2617,7 @@ mock230_send_inv_partial(
         return;
     open_packet(&buf, 8192);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         int const v5 = pl && pl->inv_header && pl->inv_slot;
 
         if( v5 )
@@ -2658,7 +2658,7 @@ mock230_send_inv_partial(
 static int
 default_kit(int wearpos)
 {
-    const struct Mock230EnumDef* kits = mock230_content_enum("default_appearance");
+    const struct ToriRSServerEnumDef* kits = ToriRSServer_ContentEnum("default_appearance");
 
     for( int i = 0; kits && i < kits->count; i++ )
         if( kits->values[i].key == wearpos )
@@ -2688,18 +2688,18 @@ default_kit(int wearpos)
  */
 static void
 appearance_slots(
-    const struct Mock230Player* player,
+    const struct ToriRSServerPlayer* player,
     int slots[APPEARANCE_SLOT_COUNT])
 {
     int covered[APPEARANCE_SLOT_COUNT] = { 0 };
 
-    for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
     {
-        const struct Mock230ObjInfo* info;
+        const struct ToriRSServerObjInfo* info;
 
         if( player->worn[i].obj_id < 0 )
             continue;
-        info = mock230_objinfo(player->worn[i].obj_id);
+        info = ToriRSServer_ObjInfo(player->worn[i].obj_id);
         if( !info )
             continue;
         if( info->wearpos_2 >= 0 && info->wearpos_2 < APPEARANCE_SLOT_COUNT )
@@ -2714,7 +2714,7 @@ appearance_slots(
 
         if( covered[i] )
             slots[i] = 0;
-        else if( i < MOCK230_WORN_SLOTS && player->worn[i].obj_id >= 0 )
+        else if( i < TORIRSSERVER_WORN_SLOTS && player->worn[i].obj_id >= 0 )
             slots[i] = Appearance_PackObj(player->worn[i].obj_id);
         else if( (kit = default_kit(i)) >= 0 )
             slots[i] = Appearance_PackKit(kit);
@@ -2775,7 +2775,7 @@ put_appearance_slots(
 static void
 put_appearance_v5(
     struct RSAreaBuf* buf,
-    const struct Mock230Player* player)
+    const struct ToriRSServerPlayer* player)
 {
     int equipment[APPEARANCE_SLOT_COUNT];
     int identkit[APPEARANCE_SLOT_COUNT];
@@ -2832,7 +2832,7 @@ put_appearance_v5(
      * under the cursor (a tall model against a wall, e.g. TzKal-Zuk). The
      * symptom is a click that does nothing at all, not even a yellow cross.
      */
-    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
+    rsab_p1(buf, (uint8_t)ToriRSServer_CombatLevel(player));
     rsab_p2(buf, 0); /* skill level, shown only in some minigames */
     rsab_p1(buf, 0); /* hidden */
     /*
@@ -2866,7 +2866,7 @@ put_appearance_v5(
 static void
 put_appearance(
     struct RSAreaBuf* buf,
-    const struct Mock230Player* player)
+    const struct ToriRSServerPlayer* player)
 {
     int slots[APPEARANCE_SLOT_COUNT];
 
@@ -2882,7 +2882,7 @@ put_appearance(
      * pack (app.c: app_overlay_build_player_headicons plots every set bit,
      * stacked upward), which is the older shape. The mask is what goes on the
      * wire because the client is the only consumer; see
-     * docs/mock230_player_systems.md §4.
+     * docs/torirs_server_player_systems.md §4.
      *
      * Eight icons is all this shape can carry, so a caller holding a bit above
      * 7 loses it here. The only content that does is the Ancient Curses lane
@@ -2892,8 +2892,8 @@ put_appearance(
      */
     {
         int headicons = player->headicons;
-        if( headicons && getenv("MOCK230_VERBOSE") )
-            fprintf(stderr, "mock230: appearance headicons=0x%x\n", headicons);
+        if( headicons && getenv("TORIRSSERVER_VERBOSE") )
+            fprintf(stderr, "torirsserver: appearance headicons=0x%x\n", headicons);
         rsab_p1(buf, headicons);
     }
     if( player->transmog_npc >= 0 )
@@ -2934,11 +2934,11 @@ put_appearance(
     rsab_p8(buf, (int64_t)strtobase37(player->display_name));
     /* The player's own combat level — see the v5 encoder above for what a
      * placeholder costs (every npc above it goes right-click-only). */
-    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
+    rsab_p1(buf, (uint8_t)ToriRSServer_CombatLevel(player));
 }
 
 int
-mock230_step_direction(
+ToriRSServer_StepDirection(
     int dx,
     int dz)
 {
@@ -2954,7 +2954,7 @@ mock230_step_direction(
 /* The same numbering read backwards, so a caller that has a direction can find
  * the tile it lands on without keeping a second copy of the table. */
 void
-mock230_step_delta(
+ToriRSServer_StepDelta(
     int dir,
     int* dx,
     int* dz)
@@ -3012,8 +3012,8 @@ exact_move_yaw(int direction)
 static void
 put_player_extended(
     struct RSAreaBuf* buf,
-    struct Mock230Player const* recipient,
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerPlayer* player,
     int force_appearance)
 {
     uint32_t mask = player->masks;
@@ -3031,16 +3031,16 @@ put_player_extended(
      */
     if( force_appearance )
     {
-        mask |= MOCK230_PMASK_APPEARANCE;
+        mask |= TORIRSSERVER_PMASK_APPEARANCE;
         /* LostCity PlayerInfoEncoder.lowdefinition: re-emit a latched
          * FACE_ENTITY on enter-view even when the per-tick mask was cleared. */
         if( player->face_entity != -1 )
-            mask |= MOCK230_PMASK_FACE_ENTITY;
+            mask |= TORIRSSERVER_PMASK_FACE_ENTITY;
     }
 
     if( mask >= 0x100 )
     {
-        mask |= MOCK230_PMASK_BIG_UPDATE;
+        mask |= TORIRSSERVER_PMASK_BIG_UPDATE;
         rsab_p1(buf, (int32_t)(mask & 0xff));
         rsab_p1(buf, (int32_t)((mask >> 8) & 0xff));
     }
@@ -3049,53 +3049,53 @@ put_player_extended(
         rsab_p1(buf, (int32_t)mask);
     }
 
-    if( mask & MOCK230_PMASK_APPEARANCE )
+    if( mask & TORIRSSERVER_PMASK_APPEARANCE )
     {
         size_t marker = rsab_psize1_begin(buf);
 
         put_appearance(buf, player);
         rsab_psize1_end(buf, marker);
     }
-    if( mask & MOCK230_PMASK_SEQUENCE )
+    if( mask & TORIRSSERVER_PMASK_SEQUENCE )
     {
         /* -1 goes on the wire as 65535, which is how the client spells "stop
          * whatever is playing". */
         rsab_p2(buf, player->anim_id < 0 ? 65535 : player->anim_id);
         rsab_p1(buf, player->anim_delay);
     }
-    if( mask & MOCK230_PMASK_FACE_ENTITY )
+    if( mask & TORIRSSERVER_PMASK_FACE_ENTITY )
     {
         int const face_entity =
-            mock230_face_entity_for_client(recipient, player->face_entity);
+            ToriRSServer_FaceEntityForClient(recipient, player->face_entity);
         rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
     }
-    if( mask & MOCK230_PMASK_SAY )
+    if( mask & TORIRSSERVER_PMASK_SAY )
         rsab_pjstr(buf, player->say, RSAB_JSTR_NEWLINE);
-    if( mask & MOCK230_PMASK_DAMAGE )
+    if( mask & TORIRSSERVER_PMASK_DAMAGE )
     {
         rsab_p1(buf, player->damage);
         rsab_p1(buf, player->damage_type);
         rsab_p1(buf, player->hitpoints);
         rsab_p1(buf, player->max_hitpoints);
     }
-    if( mask & MOCK230_PMASK_FACE_COORD )
+    if( mask & TORIRSSERVER_PMASK_FACE_COORD )
     {
         rsab_p2(buf, player->face_x);
         rsab_p2(buf, player->face_z);
     }
-    if( mask & MOCK230_PMASK_CHAT )
+    if( mask & TORIRSSERVER_PMASK_CHAT )
     {
         rsab_p2(buf, player->chat_colour_effect);
         rsab_p1(buf, player->chat_type);
         rsab_p1(buf, player->chat_len);
         rsab_pdata(buf, player->chat_data, (size_t)player->chat_len);
     }
-    if( mask & MOCK230_PMASK_SPOTANIM )
+    if( mask & TORIRSSERVER_PMASK_SPOTANIM )
     {
         rsab_p2(buf, player->spotanim_id < 0 ? 65535 : player->spotanim_id);
         rsab_p4(buf, player->spotanim_height_delay);
     }
-    if( mask & MOCK230_PMASK_EXACT_MOVE )
+    if( mask & TORIRSSERVER_PMASK_EXACT_MOVE )
     {
         /*
          * Client-TS `Client.ts:8202`: four unsigned bytes, two cycle words,
@@ -3109,9 +3109,9 @@ put_player_extended(
          * body does not drop a field — it eats the next player's block and
          * corrupts everything after it in the stream.
          */
-        struct Mock230Server* srv = player->world;
-        int origin_x = mock230_scene_origin(srv->zone_x);
-        int origin_z = mock230_scene_origin(srv->zone_z);
+        struct ToriRSServer* srv = player->world;
+        int origin_x = ToriRSServer_SceneOrigin(srv->zone_x);
+        int origin_z = ToriRSServer_SceneOrigin(srv->zone_z);
 
         rsab_p1(buf, (player->exact_start_x - origin_x) & 0xff);
         rsab_p1(buf, (player->exact_start_z - origin_z) & 0xff);
@@ -3121,7 +3121,7 @@ put_player_extended(
         rsab_p2(buf, player->exact_end_cycle);
         rsab_p1(buf, player->exact_direction & 3);
     }
-    if( mask & MOCK230_PMASK_DAMAGE2 )
+    if( mask & TORIRSSERVER_PMASK_DAMAGE2 )
     {
         /* The tick's SECOND splat. Both classic damage masks used to write the
          * same scalar pair, so this block could only ever repeat the first one
@@ -3180,13 +3180,13 @@ put_player_extended(
 
 static int
 zone_base(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     int zone_x,
     int zone_z,
     int* base_z)
 {
-    *base_z = (zone_z * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_z);
-    return (zone_x * MOCK230_ZONE_TILES) - mock230_scene_origin(srv->zone_x);
+    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_z);
+    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_x);
 }
 
 /*
@@ -3199,8 +3199,8 @@ zone_base(
  * (`rebuild_active`), so this has to be told which one it is describing.
  */
 void
-mock230_send_zone_header(
-    struct Mock230Player* player,
+ToriRSServer_SendZoneHeader(
+    struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z,
     int level,
@@ -3212,7 +3212,7 @@ mock230_send_zone_header(
 
     open_packet(&buf, 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
         int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
 
         if( pl && pl->zone_header )
@@ -3244,8 +3244,8 @@ mock230_send_zone_header(
  * plain int here and `^true`/`^false` in content.
  */
 void
-mock230_send_set_player_op(
-    struct Mock230Player* player,
+ToriRSServer_SendSetPlayerOp(
+    struct ToriRSServerPlayer* player,
     int slot,
     int primary,
     const char* text)
@@ -3263,8 +3263,8 @@ mock230_send_set_player_op(
  * One sub-packet's opcode and payload.
  *
  * Written into a caller's buffer rather than sent, because it has two consumers
- * with the same bytes: `mock230_send_zone_sub` puts it on the wire as a packet
- * of its own, and `mock230_zone.c` concatenates a zone's worth into the shared
+ * with the same bytes: `ToriRSServer_SendZoneSub` puts it on the wire as a packet
+ * of its own, and `torirs_server_zone.c` concatenates a zone's worth into the shared
  * blob PARTIAL_ENCLOSED carries. Having one encoder is the point — the blob and
  * the loose packet cannot describe the same event differently.
  *
@@ -3285,7 +3285,7 @@ mock230_send_set_player_op(
  * used to pass a literal were stating 230's. See `check_frame_length`.
  */
 static int
-wire_var_class(const struct Mock230Wire* wire, int pkt_name)
+wire_var_class(const struct ToriRSServerWire* wire, int pkt_name)
 {
     int opcode;
     int size;
@@ -3293,7 +3293,7 @@ wire_var_class(const struct Mock230Wire* wire, int pkt_name)
     assert(wire);
     if( !wire->payload_size )
         return 0;
-    opcode = mock230_wire_opcode(wire, pkt_name);
+    opcode = ToriRSServer_WireOpcode(wire, pkt_name);
     if( opcode < 0 )
         return 0;
     size = wire->payload_size(opcode);
@@ -3309,23 +3309,23 @@ zone_sub_opcode(int kind)
 {
     switch( kind )
     {
-    case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
+    case TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE:
         return OP_LOC_ADD_CHANGE;
-    case MOCK230_ZONE_EV_LOC_DEL:
+    case TORIRSSERVER_ZONE_EV_LOC_DEL:
         return OP_LOC_DEL;
-    case MOCK230_ZONE_EV_LOC_ANIM:
+    case TORIRSSERVER_ZONE_EV_LOC_ANIM:
         return OP_LOC_ANIM;
-    case MOCK230_ZONE_EV_LOC_MERGE:
+    case TORIRSSERVER_ZONE_EV_LOC_MERGE:
         return OP_LOC_MERGE;
-    case MOCK230_ZONE_EV_OBJ_ADD:
+    case TORIRSSERVER_ZONE_EV_OBJ_ADD:
         return OP_OBJ_ADD;
-    case MOCK230_ZONE_EV_OBJ_DEL:
+    case TORIRSSERVER_ZONE_EV_OBJ_DEL:
         return OP_OBJ_DEL;
-    case MOCK230_ZONE_EV_OBJ_COUNT:
+    case TORIRSSERVER_ZONE_EV_OBJ_COUNT:
         return OP_OBJ_COUNT;
-    case MOCK230_ZONE_EV_PROJANIM:
+    case TORIRSSERVER_ZONE_EV_PROJANIM:
         return OP_MAP_PROJANIM;
-    case MOCK230_ZONE_EV_MAPANIM:
+    case TORIRSSERVER_ZONE_EV_MAPANIM:
         return OP_MAP_ANIM;
     default:
         return -1;
@@ -3342,8 +3342,8 @@ clamp16(int count)
 static int
 zone_sub_payload(
     struct RSAreaBuf* buf,
-    const struct Mock230ZoneEvent* event,
-    const struct Mock230Wire* wire)
+    const struct ToriRSServerZoneEvent* event,
+    const struct ToriRSServerWire* wire)
 {
     /*
      * The revision's own writer first. Its absence is not a fallback to the
@@ -3363,21 +3363,21 @@ zone_sub_payload(
 
     switch( event->kind )
     {
-    case MOCK230_ZONE_EV_LOC_ADD_CHANGE:
+    case TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
         rsab_p2(buf, event->id);
         return 1;
-    case MOCK230_ZONE_EV_LOC_DEL:
+    case TORIRSSERVER_ZONE_EV_LOC_DEL:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
         return 1;
-    case MOCK230_ZONE_EV_LOC_ANIM:
+    case TORIRSSERVER_ZONE_EV_LOC_ANIM:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
         rsab_p2(buf, event->id);
         return 1;
-    case MOCK230_ZONE_EV_LOC_MERGE:
+    case TORIRSSERVER_ZONE_EV_LOC_MERGE:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
         rsab_p2(buf, event->id);
@@ -3389,16 +3389,16 @@ zone_sub_payload(
         rsab_p1(buf, (uint8_t)event->west);
         rsab_p1(buf, (uint8_t)event->north);
         return 1;
-    case MOCK230_ZONE_EV_OBJ_ADD:
+    case TORIRSSERVER_ZONE_EV_OBJ_ADD:
         rsab_p1(buf, event->pos);
         rsab_p2(buf, event->id);
         rsab_p2(buf, clamp16(event->count));
         return 1;
-    case MOCK230_ZONE_EV_OBJ_DEL:
+    case TORIRSSERVER_ZONE_EV_OBJ_DEL:
         rsab_p1(buf, event->pos);
         rsab_p2(buf, event->id);
         return 1;
-    case MOCK230_ZONE_EV_OBJ_COUNT:
+    case TORIRSSERVER_ZONE_EV_OBJ_COUNT:
         rsab_p1(buf, event->pos);
         rsab_p2(buf, event->id);
         rsab_p2(buf, clamp16(event->old_count));
@@ -3415,7 +3415,7 @@ zone_sub_payload(
      * back; the masks are here to say that is deliberate rather than to fix
      * anything.
      */
-    case MOCK230_ZONE_EV_PROJANIM:
+    case TORIRSSERVER_ZONE_EV_PROJANIM:
         rsab_p1(buf, event->pos);
         rsab_p1(buf, event->dx_offset & 0xff);
         rsab_p1(buf, event->dz_offset & 0xff);
@@ -3429,7 +3429,7 @@ zone_sub_payload(
         rsab_p1(buf, event->arc);
         return 1;
     /* Six bytes; client asserts exactly that (`gameproto_parse.c` MAP_ANIM). */
-    case MOCK230_ZONE_EV_MAPANIM:
+    case TORIRSSERVER_ZONE_EV_MAPANIM:
         rsab_p1(buf, event->pos);
         rsab_p2(buf, event->id);
         rsab_p1(buf, event->src_height);
@@ -3441,18 +3441,18 @@ zone_sub_payload(
 }
 
 int
-mock230_encode_zone_sub(
-    const struct Mock230Wire* wire,
+ToriRSServer_EncodeZoneSub(
+    const struct ToriRSServerWire* wire,
     uint8_t* dst,
     int max,
-    const struct Mock230ZoneEvent* event)
+    const struct ToriRSServerZoneEvent* event)
 {
     struct RSAreaBuf buf;
     int pkt_name = zone_sub_opcode(event->kind);
     int code;
 
     if( !wire )
-        wire = mock230_wire_default();
+        wire = ToriRSServer_WireDefault();
     if( pkt_name < 0 )
         return 0;
     /*
@@ -3473,24 +3473,24 @@ mock230_encode_zone_sub(
 }
 
 int
-mock230_zone_sub_standalone(
-    const struct Mock230Wire* wire,
+ToriRSServer_ZoneSubStandalone(
+    const struct ToriRSServerWire* wire,
     int kind)
 {
     int name = zone_sub_opcode(kind);
 
     if( name < 0 )
         return 0;
-    return mock230_wire_opcode(wire ? wire : mock230_wire_default(), name) >= 0;
+    return ToriRSServer_WireOpcode(wire ? wire : ToriRSServer_WireDefault(), name) >= 0;
 }
 
 void
-mock230_send_zone_sub(
-    struct Mock230Player* player,
-    const struct Mock230ZoneEvent* event)
+ToriRSServer_SendZoneSub(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerZoneEvent* event)
 {
     struct RSAreaBuf buf;
-    const struct Mock230Wire* wire = wire_for(player);
+    const struct ToriRSServerWire* wire = wire_for(player);
     int opcode = zone_sub_opcode(event->kind);
 
     if( opcode < 0 )
@@ -3511,10 +3511,10 @@ mock230_send_zone_sub(
     flush(player, &buf, opcode, wire_var_class(wire, opcode));
 }
 
-/* `level` is the zone's plane — same reason as mock230_send_zone_header. */
+/* `level` is the zone's plane — same reason as ToriRSServer_SendZoneHeader. */
 void
-mock230_send_zone_enclosed(
-    struct Mock230Player* player,
+ToriRSServer_SendZoneEnclosed(
+    struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z,
     int level,
@@ -3529,7 +3529,7 @@ mock230_send_zone_enclosed(
         return;
     open_packet(&buf, (size_t)len + 8);
     {
-        const struct Mock230WirePayload* pl = wire_payload(player);
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
         if( pl && pl->zone_header )
             pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
@@ -3555,8 +3555,8 @@ mock230_send_zone_enclosed(
  */
 static int
 player_in_view(
-    const struct Mock230Player* player,
-    const struct Mock230Player* other)
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerPlayer* other)
 {
     int dx;
     int dz;
@@ -3564,14 +3564,14 @@ player_in_view(
     if( !other->active || other == player || other->level != player->level )
         return 0;
     /* A player mid-handshake has no ciphers and no position worth reporting;
-     * `place_dirty` is set by mock230_world_player_init, so the first tick after
+     * `place_dirty` is set by ToriRSServer_WorldPlayerInit, so the first tick after
      * login is the first tick they can be seen on. */
     if( !other->world )
         return 0;
     dx = other->x - player->x;
     dz = other->z - player->z;
-    return dx >= -MOCK230_PLAYER_VIEW_TILES && dx <= MOCK230_PLAYER_VIEW_TILES &&
-           dz >= -MOCK230_PLAYER_VIEW_TILES && dz <= MOCK230_PLAYER_VIEW_TILES;
+    return dx >= -TORIRSSERVER_PLAYER_VIEW_TILES && dx <= TORIRSSERVER_PLAYER_VIEW_TILES &&
+           dz >= -TORIRSSERVER_PLAYER_VIEW_TILES && dz <= TORIRSSERVER_PLAYER_VIEW_TILES;
 }
 
 /*
@@ -3596,22 +3596,22 @@ player_in_view(
  * order section 3 and the extended blocks index against.
  */
 void
-mock230_send_player_info(struct Mock230Player* player)
+ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 {
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    int local_x = player->x - mock230_scene_origin(srv->zone_x);
-    int local_z = player->z - mock230_scene_origin(srv->zone_z);
+    int local_x = player->x - ToriRSServer_SceneOrigin(srv->zone_x);
+    int local_z = player->z - ToriRSServer_SceneOrigin(srv->zone_z);
     int extended = player->masks != 0;
     /* Who gets an extended block, in bit-section order. `player` itself is
      * spelled as its own pointer rather than as a pid, because the local player
      * is 2047 to itself and 2047 is not a pool slot. */
-    struct Mock230Player* queued[MOCK230_PLAYER_MAX + 1];
-    int queued_new[MOCK230_PLAYER_MAX + 1];
+    struct ToriRSServerPlayer* queued[TORIRSSERVER_PLAYER_MAX + 1];
+    int queued_new[TORIRSSERVER_PLAYER_MAX + 1];
     int queued_count = 0;
-    int kept[MOCK230_PLAYER_MAX];
-    uint32_t kept_generation[MOCK230_PLAYER_MAX];
-    int nearby[MOCK230_PLAYER_MAX];
+    int kept[TORIRSSERVER_PLAYER_MAX];
+    uint32_t kept_generation[TORIRSSERVER_PLAYER_MAX];
+    int nearby[TORIRSSERVER_PLAYER_MAX];
     int nearby_count;
     int kept_count = 0;
 
@@ -3643,7 +3643,7 @@ mock230_send_player_info(struct Mock230Player* player)
          * out of the skip path above and makes every tick an update.
          */
         rsab_wrap(&ap, appearance, sizeof(appearance));
-        if( !player->v5_playerinfo_sent || (player->masks & MOCK230_PMASK_APPEARANCE) )
+        if( !player->v5_playerinfo_sent || (player->masks & TORIRSSERVER_PMASK_APPEARANCE) )
             put_appearance_v5(&ap, player);
 
         /*
@@ -3700,7 +3700,7 @@ mock230_send_player_info(struct Mock230Player* player)
                      (dx != 0 || dz != 0) )
             {
                 movement = MOCK239_PLAYER_WALK;
-                movement_value = mock230_step_direction(dx, -dz);
+                movement_value = ToriRSServer_StepDirection(dx, -dz);
             }
             else if( dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
                      (dx == -2 || dx == 2 || dz == -2 || dz == 2) )
@@ -3732,14 +3732,14 @@ mock230_send_player_info(struct Mock230Player* player)
             struct Mock239PlayerExt ext;
 
             memset(&ext, 0, sizeof(ext));
-            if( player->masks & (MOCK230_PMASK_DAMAGE | MOCK230_PMASK_DAMAGE2) )
+            if( player->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
             {
                 ext.has_hit = 1;
                 ext.hit_type = player->damage_type;
                 ext.hit_value = player->damage;
                 /* Splats two and onward of the same tick. The mirrors above are
                  * hitmarks[0]; everything the player took alongside it goes in
-                 * the list rather than being dropped (struct Mock230Hitmark). */
+                 * the list rather than being dropped (struct ToriRSServerHitmark). */
                 for( int i = 1; i < player->hitmark_count && i <= 3; i++ )
                 {
                     ext.hit_extra[ext.hit_extra_count].type = player->hitmarks[i].type;
@@ -3750,7 +3750,7 @@ mock230_send_player_info(struct Mock230Player* player)
                  * symbols, not an engine-side numeric convention. Start from
                  * full and advance to the current fill so the v239 client can
                  * retain the config width independently of hitpoints. */
-                if( player->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 )
+                if( player->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
                 {
                     /* Players are size 1, so the standard bar is the whole of
                      * the size ladder for them -- but the WIDTH still comes
@@ -3758,10 +3758,10 @@ mock230_send_player_info(struct Mock230Player* player)
                      * halves of this block cannot drift apart the way the npc
                      * one did. */
                     int const width =
-                        mock230_healthbar_width(mock230_ids()->healthbar_standard);
+                        ToriRSServer_HealthbarWidth(ToriRSServer_Ids()->healthbar_standard);
 
                     ext.has_headbar = 1;
-                    ext.headbar_type = mock230_ids()->healthbar_standard;
+                    ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
                     ext.headbar_duration = 1;
                     ext.headbar_start_delay = 0;
                     ext.headbar_start_fill = width;
@@ -3769,13 +3769,13 @@ mock230_send_player_info(struct Mock230Player* player)
                         (player->hitpoints * width) / player->max_hitpoints;
                 }
             }
-            if( player->masks & MOCK230_PMASK_SEQUENCE )
+            if( player->masks & TORIRSSERVER_PMASK_SEQUENCE )
             {
                 ext.has_seq = 1;
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
-            if( player->masks & MOCK230_PMASK_CHAT )
+            if( player->masks & TORIRSSERVER_PMASK_CHAT )
             {
                 /* Straight across: the block holds the packed bytes the client
                  * sent, and the v5 writer's only difference from the classic
@@ -3786,7 +3786,7 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.chat_data = player->chat_data;
                 ext.chat_len = player->chat_len;
             }
-            if( player->masks & MOCK230_PMASK_SPOTANIM )
+            if( player->masks & TORIRSSERVER_PMASK_SPOTANIM )
             {
                 /* The classic script/runtime surface has one attached-graphic
                  * field. Revision 239 carries the same graphic in its indexed
@@ -3800,8 +3800,8 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.spotanim_height_delay = player->spotanim_height_delay;
             }
             ext.has_face = v5_face_from_classic(
-                &ext.face, player, player->masks, MOCK230_PMASK_FACE_ENTITY,
-                MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
+                &ext.face, player, player->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
+                TORIRSSERVER_PMASK_FACE_COORD, player->face_entity, player->face_x,
                 player->face_z, 0);
             if( player->running && player->move_count > 1 &&
                 movement != MOCK239_PLAYER_TELEPORT )
@@ -3833,7 +3833,7 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.has_temp_move_speed = 1;
                 ext.temp_move_speed = 2;
             }
-            if( player->masks & MOCK230_PMASK_EXACT_MOVE )
+            if( player->masks & TORIRSSERVER_PMASK_EXACT_MOVE )
             {
                 ext.has_exact_move = 1;
                 ext.exact_start_x = player->exact_start_x - player->x;
@@ -3844,11 +3844,11 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.exact_end_cycle = player->exact_end_cycle;
                 ext.exact_facing = exact_move_yaw(player->exact_direction);
             }
-            /* The player's half of MOCK230_EXT_DEBUG. The npc writer has had
+            /* The player's half of TORIRSSERVER_EXT_DEBUG. The npc writer has had
              * one since it was written; without the pair, "the animation did
              * not play" cannot be split into "the server never set the mask"
              * and "the client dropped the block". */
-            if( getenv("MOCK230_EXT_DEBUG") )
+            if( getenv("TORIRSSERVER_EXT_DEBUG") )
                 fprintf(stderr,
                         "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
                         "seq=%d/%d spotanim=%d/%d face=%d appearance=%d exactmove=%d "
@@ -3861,7 +3861,7 @@ mock230_send_player_info(struct Mock230Player* player)
                         (int)rsab_len(&ap), ext.has_exact_move, ext.exact_start_x,
                         ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
                         ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);
-            mock239_playerinfo_write(&buf, mock230_wire_player_index(player->pid), movement,
+            mock239_playerinfo_write(&buf, ToriRSServer_WirePlayerIndex(player->pid), movement,
                                      movement_value, player->v5_playerinfo_sent, appearance,
                                      (int)rsab_len(&ap), &ext);
         }
@@ -3928,7 +3928,7 @@ mock230_send_player_info(struct Mock230Player* player)
     for( int i = 0; i < player->tracked_player_count; i++ )
     {
         int pid = player->tracked_players[i];
-        struct Mock230Player* other = &srv->players[pid];
+        struct ToriRSServerPlayer* other = &srv->players[pid];
         int other_extended;
         /*
          * A short `p_teleport` is not a teleport as far as this section is
@@ -3963,10 +3963,10 @@ mock230_send_player_info(struct Mock230Player* player)
          * this section cannot lend it one.
          */
         /*
-         * The generation term catches a pid `mock230_world_add_player` handed
+         * The generation term catches a pid `ToriRSServer_WorldAddPlayer` handed
          * to a different login since this list was last written (a logout and
          * a new connection's login, both drained between the same two ticks —
-         * see `mock230_world_player_free`). Without it this branch cannot
+         * see `ToriRSServer_WorldPlayerFree`). Without it this branch cannot
          * tell "still the player I was tracking" from "someone else logged
          * into this pid" and reads the new occupant as an ordinary
          * continuation of the old one.
@@ -4026,19 +4026,19 @@ mock230_send_player_info(struct Mock230Player* player)
     /*
      * The player's OWN zones, from the ZoneMap — not a walk of `srv->players`.
      *
-     * The flat scan was affordable (MOCK230_PLAYER_MAX is 8) and asked the
+     * The flat scan was affordable (TORIRSSERVER_PLAYER_MAX is 8) and asked the
      * wrong question: `player_in_view` is a raw tile box, and near the build
      * area's edge a tile box reaches outside the region this client has a scene
      * for. `player_in_view` still decides — it also carries the level and
      * liveness tests — but it now decides over candidates that are, by
      * construction, in a zone this client holds.
      */
-    nearby_count = mock230_playerzonemap_players(player, MOCK230_PLAYER_VIEW_TILES, nearby,
-                                        MOCK230_PLAYER_MAX);
+    nearby_count = ToriRSServer_PlayerzonemapPlayers(player, TORIRSSERVER_PLAYER_VIEW_TILES, nearby,
+                                        TORIRSSERVER_PLAYER_MAX);
     for( int i = 0; i < nearby_count; i++ )
     {
         int pid = nearby[i];
-        struct Mock230Player* other = &srv->players[pid];
+        struct ToriRSServerPlayer* other = &srv->players[pid];
         int dx;
         int dz;
 
@@ -4065,7 +4065,7 @@ mock230_send_player_info(struct Mock230Player* player)
     /* The terminator is not optional. Without it the client keeps reading
      * 11-bit ids out of whatever follows, which at best invents players and at
      * worst eats the extended-info section. */
-    rsab_pbit(&buf, 11, MOCK230_PLAYER_TERMINATOR);
+    rsab_pbit(&buf, 11, TORIRSSERVER_PLAYER_TERMINATOR);
     rsab_bytes(&buf);
 
     /* --- extended info, byte aligned, in the order the bits queued it --- */
@@ -4152,7 +4152,7 @@ enum
 static int
 v5_face_from_classic(
     struct Mock239Face* face,
-    struct Mock230Player const* recipient,
+    struct ToriRSServerPlayer const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
     uint32_t coord_mask,
@@ -4183,21 +4183,21 @@ v5_face_from_classic(
         return 1;
     }
     face->kind = MOCK239_FACE_ENTITY;
-    if( face_entity >= MOCK230_FACE_PLAYER_BASE )
+    if( face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
     {
-        int const pool_pid = face_entity - MOCK230_FACE_PLAYER_BASE;
+        int const pool_pid = face_entity - TORIRSSERVER_FACE_PLAYER_BASE;
 
         face->entity_type = MOCK239_FACE_PLAYER;
         /* Rev-239 NpcFaceEncoder writes the player's GPI index. The classic
          * latch stores the mock's pool pid, so it needs the same +1 mapping as
          * login and PLAYER_INFO. Sending pool pid 0 here names the unoccupied
          * client slot 0 while the local player lives at wire slot 1. */
-        face->entity_index = mock230_wire_player_index(pool_pid);
+        face->entity_index = ToriRSServer_WirePlayerIndex(pool_pid);
     }
     else
     {
         face->entity_type = MOCK239_FACE_NPC;
-        face->entity_index = mock230_face_entity_for_client(recipient, face_entity);
+        face->entity_index = ToriRSServer_FaceEntityForClient(recipient, face_entity);
     }
     return 1;
 }
@@ -4224,9 +4224,9 @@ v5_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
 }
 
 static int
-npc_add_requires_transformation(const struct Mock230Npc* npc)
+npc_add_requires_transformation(const struct ToriRSServerNpc* npc)
 {
-    return npc->type > MOCK230_NPC_TYPE_MAX;
+    return npc->type > TORIRSSERVER_NPC_TYPE_MAX;
 }
 
 /*
@@ -4247,7 +4247,7 @@ npc_add_requires_transformation(const struct Mock230Npc* npc)
 static long g_npc_transformation_writes;
 
 long
-mock230_encode_npc_transformation_writes(void)
+ToriRSServer_EncodeNpcTransformationWrites(void)
 {
     return g_npc_transformation_writes;
 }
@@ -4258,7 +4258,7 @@ mock230_encode_npc_transformation_writes(void)
  * 16-bit config id. The initial type is only a placeholder in that case.
  */
 static int
-npc_initial_wire_type(const struct Mock230Npc* npc)
+npc_initial_wire_type(const struct ToriRSServerNpc* npc)
 {
     return npc_add_requires_transformation(npc) ? 0 : npc->type;
 }
@@ -4270,9 +4270,9 @@ npc_initial_wire_type(const struct Mock230Npc* npc)
  * what let a queue site fill `force_face` and leave `force_type` as whatever
  * the stack held; `npc_queue_push` takes every latch the record carries, so a
  * half-written entry no longer compiles. See
- * mock230_encode_npc_transformation_writes for what the omission cost.
+ * ToriRSServer_EncodeNpcTransformationWrites for what the omission cost.
  */
-struct Mock230NpcExtendedQueue
+struct ToriRSServerNpcExtendedQueue
 {
     int slot;
     /** Enter-view: re-emit the latched FACE_ENTITY the per-tick mask cleared. */
@@ -4284,13 +4284,13 @@ struct Mock230NpcExtendedQueue
 
 static void
 npc_queue_push(
-    struct Mock230NpcExtendedQueue* queue,
+    struct ToriRSServerNpcExtendedQueue* queue,
     int* count,
     int slot,
     int force_face,
     int force_type)
 {
-    if( *count >= MOCK230_TRACKED_NPC_MAX )
+    if( *count >= TORIRSSERVER_TRACKED_NPC_MAX )
         return;
     queue[*count].slot = slot;
     queue[*count].force_face = force_face;
@@ -4301,7 +4301,7 @@ npc_queue_push(
 /*
  * The healthbar config an npc's hits raise, or -1 for none.
  *
- * The record's own choice wins; `MOCK230_NPC_HEALTHBAR_UNSET` means it made
+ * The record's own choice wins; `TORIRSSERVER_NPC_HEALTHBAR_UNSET` means it made
  * none, and the bar is chosen from the npc's SIZE — that substitution is here
  * rather than in the default because the id is a symbol and the defaults are
  * seeded before the pack files are resolved.
@@ -4332,40 +4332,40 @@ healthbar_for_size(int size)
     switch( size )
     {
     case 4:
-        return mock230_ids()->healthbar_size4;
+        return ToriRSServer_Ids()->healthbar_size4;
     case 5:
-        return mock230_ids()->healthbar_size5;
+        return ToriRSServer_Ids()->healthbar_size5;
     case 6:
     case 7:
-        return mock230_ids()->healthbar_size67;
+        return ToriRSServer_Ids()->healthbar_size67;
     case 8:
     case 9:
-        return mock230_ids()->healthbar_size89;
+        return ToriRSServer_Ids()->healthbar_size89;
     default:
-        return mock230_ids()->healthbar_standard;
+        return ToriRSServer_Ids()->healthbar_standard;
     }
 }
 
 static int
-npc_headbar_id(const struct Mock230Npc* npc)
+npc_headbar_id(const struct ToriRSServerNpc* npc)
 {
-    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
-    int id = def ? def->healthbar : MOCK230_NPC_HEALTHBAR_UNSET;
+    const struct ToriRSServerNpcDef* def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    int id = def ? def->healthbar : TORIRSSERVER_NPC_HEALTHBAR_UNSET;
 
-    return id == MOCK230_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
+    return id == TORIRSSERVER_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
 }
 
 /*
  * Whether this npc's hits carry a splat, the other half of the pair above.
  *
  * `hitsplat=no` is scenery with hitpoints that must show a bar and not a
- * number — see the field's note in mock230_content.h. Both halves of the
+ * number — see the field's note in torirs_server_content.h. Both halves of the
  * choice now read off the record, so nothing here decides policy.
  */
 static int
-npc_shows_hitsplat(const struct Mock230Npc* npc)
+npc_shows_hitsplat(const struct ToriRSServerNpc* npc)
 {
-    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
+    const struct ToriRSServerNpcDef* def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
 
     return def ? def->hitsplat : 1;
 }
@@ -4373,17 +4373,17 @@ npc_shows_hitsplat(const struct Mock230Npc* npc)
 static void
 put_npc_extended_v5(
     struct RSAreaBuf* buf,
-    struct Mock230Player const* recipient,
-    struct Mock230Npc* npc,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerNpc* npc,
     int force_face_latch,
     int force_type_latch)
 {
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
-    int const hit = (classic & (MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2)) != 0;
+    int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
     int const has_face = v5_face_from_classic(
-        &face, recipient, classic, MOCK230_NMASK_FACE_ENTITY, MOCK230_NMASK_FACE_COORD,
+        &face, recipient, classic, TORIRSSERVER_NMASK_FACE_ENTITY, TORIRSSERVER_NMASK_FACE_COORD,
         npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
 
     /*
@@ -4396,7 +4396,7 @@ put_npc_extended_v5(
 
     if( splat )
         flag |= V5_NPC_HITMARKS;
-    if( getenv("MOCK230_SPLAT_DEBUG") && hit )
+    if( getenv("TORIRSSERVER_SPLAT_DEBUG") && hit )
         fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
                 npc->damage, npc->damage_type, npc->hitpoints, npc->max_hitpoints);
     /*
@@ -4412,18 +4412,18 @@ put_npc_extended_v5(
     int const headbar = npc_headbar_id(npc);
     if( hit && headbar >= 0 && npc->max_hitpoints > 0 )
         flag |= V5_NPC_HEADBARS;
-    if( classic & MOCK230_NMASK_ANIM )
+    if( classic & TORIRSSERVER_NMASK_ANIM )
         flag |= V5_NPC_SEQUENCE;
-    if( classic & MOCK230_NMASK_SAY )
+    if( classic & TORIRSSERVER_NMASK_SAY )
         flag |= V5_NPC_SAY;
-    if( classic & MOCK230_NMASK_SPOTANIM )
+    if( classic & TORIRSSERVER_NMASK_SPOTANIM )
         flag |= V5_NPC_SPOTANIM;
-    if( (classic & MOCK230_NMASK_CHANGE_TYPE) || force_type_latch )
+    if( (classic & TORIRSSERVER_NMASK_CHANGE_TYPE) || force_type_latch )
         flag |= V5_NPC_TRANSFORMATION;
     if( has_face )
         flag |= V5_NPC_FACING;
 
-    if( getenv("MOCK230_EXT_DEBUG") )
+    if( getenv("TORIRSSERVER_EXT_DEBUG") )
         fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
                 npc->damage_type, npc->damage, npc->anim_id);
     v5_put_extended_flag(buf, flag);
@@ -4444,7 +4444,7 @@ put_npc_extended_v5(
          * That 1 was justified by "one hit per tick is all the classic mask
          * could express" — true of the mask, but the mask was the only thing
          * that could not: this block is a list, and the entity now keeps the
-         * whole tick's worth (see struct Mock230Hitmark). Two attackers landing
+         * whole tick's worth (see struct ToriRSServerHitmark). Two attackers landing
          * together used to send one splat and the reporter saw hitsplats appear
          * "only sometimes".
          *
@@ -4454,8 +4454,8 @@ put_npc_extended_v5(
          */
         int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
 
-        if( hits > MOCK230_HITMARK_MAX )
-            hits = MOCK230_HITMARK_MAX;
+        if( hits > TORIRSSERVER_HITMARK_MAX )
+            hits = TORIRSSERVER_HITMARK_MAX;
         rsab_p1_alt1(buf, hits);
         for( int i = 0; i < hits; i++ )
         {
@@ -4479,15 +4479,15 @@ put_npc_extended_v5(
         /* The CHOSEN bar's width, not the standard one's: the client scales
          * the fill by the type's own opcode 14, so an 80-wide bar fed a
          * fraction of 30 would stop at 37% with the npc at full health. */
-        int width = mock230_healthbar_width(headbar);
+        int width = ToriRSServer_HealthbarWidth(headbar);
         int fill = (npc->hitpoints * width) / npc->max_hitpoints;
 
         /* Which bar an npc got, and why. The three inputs (type, footprint,
          * chosen record) and the two outputs (width, fill) on one line, because
          * "the bar is the wrong size" has five candidate causes and reading the
-         * pixels tells you which only by elimination. Shares MOCK230_SPLAT_DEBUG
+         * pixels tells you which only by elimination. Shares TORIRSSERVER_SPLAT_DEBUG
          * with the hitmark line above -- a headbar only ever rides one. */
-        if( getenv("MOCK230_SPLAT_DEBUG") )
+        if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
             fprintf(stderr,
                     "  HEADBAR npc type=%d size=%d -> healthbar=%d width=%d "
                     "fill=%d (hp %d/%d)\n",
@@ -4504,15 +4504,15 @@ put_npc_extended_v5(
         rsab_p1_alt1(buf, width);
         rsab_p1_alt2(buf, fill);
     }
-    if( classic & MOCK230_NMASK_ANIM )
+    if( classic & TORIRSSERVER_NMASK_ANIM )
     {
         /* NpcSequenceEncoder: p2 id, p1Alt2 delay. 65535 cancels. */
         rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
         rsab_p1_alt2(buf, npc->anim_delay);
     }
-    if( classic & MOCK230_NMASK_SAY )
+    if( classic & TORIRSSERVER_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
-    if( classic & MOCK230_NMASK_SPOTANIM )
+    if( classic & TORIRSSERVER_NMASK_SPOTANIM )
     {
         /*
          * NpcSpotAnimEncoder: p1Alt2 count, then per entry p1 slot, p2 id,
@@ -4539,7 +4539,7 @@ put_npc_extended_v5(
 }
 
 static int
-npc_extended_pending(const struct Mock230Npc* npc)
+npc_extended_pending(const struct ToriRSServerNpc* npc)
 {
     return npc->masks != 0;
 }
@@ -4560,18 +4560,18 @@ npc_extended_pending(const struct Mock230Npc* npc)
  */
 static int
 npc_extended_pending_v5(
-    struct Mock230Player const* recipient,
-    const struct Mock230Npc* npc,
+    struct ToriRSServerPlayer const* recipient,
+    const struct ToriRSServerNpc* npc,
     int force_face_latch)
 {
-    uint32_t const supported = MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2 |
-                               MOCK230_NMASK_ANIM | MOCK230_NMASK_SAY |
-                               MOCK230_NMASK_SPOTANIM | MOCK230_NMASK_CHANGE_TYPE;
+    uint32_t const supported = TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2 |
+                               TORIRSSERVER_NMASK_ANIM | TORIRSSERVER_NMASK_SAY |
+                               TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE;
     struct Mock239Face face;
 
     return (npc->masks & supported) != 0 ||
-           v5_face_from_classic(&face, recipient, npc->masks, MOCK230_NMASK_FACE_ENTITY,
-                                MOCK230_NMASK_FACE_COORD, npc->face_entity,
+           v5_face_from_classic(&face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
+                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity,
                                 npc->face_x, npc->face_z, force_face_latch);
 }
 
@@ -4586,8 +4586,8 @@ npc_extended_pending_v5(
 static void
 put_npc_extended(
     struct RSAreaBuf* buf,
-    struct Mock230Player const* recipient,
-    struct Mock230Npc* npc,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerNpc* npc,
     int force_face_latch,
     int force_type_latch)
 {
@@ -4605,16 +4605,16 @@ put_npc_extended(
      * comment above `npc_extended_pending_v5` warns about.
      */
     if( !npc_shows_hitsplat(npc) )
-        mask &= ~(uint32_t)(MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2);
+        mask &= ~(uint32_t)(TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2);
 
     if( force_face_latch && npc->face_entity != -1 )
-        mask |= MOCK230_NMASK_FACE_ENTITY;
+        mask |= TORIRSSERVER_NMASK_FACE_ENTITY;
     if( force_type_latch )
-        mask |= MOCK230_NMASK_CHANGE_TYPE;
+        mask |= TORIRSSERVER_NMASK_CHANGE_TYPE;
 
     rsab_p1(buf, (int32_t)mask);
 
-    if( mask & MOCK230_NMASK_DAMAGE2 )
+    if( mask & TORIRSSERVER_NMASK_DAMAGE2 )
     {
         /*
          * The tick's SECOND splat, and until now this branch was dead twice
@@ -4635,18 +4635,18 @@ put_npc_extended(
         rsab_p1(buf, npc->hitpoints);
         rsab_p1(buf, npc->max_hitpoints);
     }
-    if( mask & MOCK230_NMASK_ANIM )
+    if( mask & TORIRSSERVER_NMASK_ANIM )
     {
         rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
         rsab_p1(buf, npc->anim_delay);
     }
-    if( mask & MOCK230_NMASK_FACE_ENTITY )
+    if( mask & TORIRSSERVER_NMASK_FACE_ENTITY )
     {
         /*
          * The chokepoint, and the reason the check is here rather than at the
          * five writers.
          *
-         * A player face id is absolute — `MOCK230_FACE_PLAYER_BASE + pid` — so
+         * A player face id is absolute — `TORIRSSERVER_FACE_PLAYER_BASE + pid` — so
          * the same npc facing the same player encodes to the same bytes on every
          * stream. The old self-alias `BASE + 2047` meant "whoever is reading
          * this", which is right for one observer and wrong for every other. Its
@@ -4660,40 +4660,40 @@ put_npc_extended(
          * produced it. Checking here is what makes the invariant total rather
          * than per-writer.
          */
-        if( npc->face_entity == MOCK230_FACE_PLAYER_BASE + MOCK230_PLAYER_TERMINATOR )
+        if( npc->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + TORIRSSERVER_PLAYER_TERMINATOR )
         {
             fprintf(stderr,
-                    "mock230: npc %d face id %d is the self-alias — it must name an "
-                    "absolute pid (MOCK230_FACE_PLAYER_BASE + player->pid), or every "
+                    "torirsserver: npc %d face id %d is the self-alias — it must name an "
+                    "absolute pid (TORIRSSERVER_FACE_PLAYER_BASE + player->pid), or every "
                     "observer but one sees it facing the wrong player\n",
                     npc->type, npc->face_entity);
         }
         {
             int const face_entity =
-                mock230_face_entity_for_client(recipient, npc->face_entity);
+                ToriRSServer_FaceEntityForClient(recipient, npc->face_entity);
             rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
         }
     }
-    if( mask & MOCK230_NMASK_SAY )
+    if( mask & TORIRSSERVER_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NEWLINE);
-    if( mask & MOCK230_NMASK_DAMAGE )
+    if( mask & TORIRSSERVER_NMASK_DAMAGE )
     {
         rsab_p1(buf, npc->damage);
         rsab_p1(buf, npc->damage_type);
         rsab_p1(buf, npc->hitpoints);
         rsab_p1(buf, npc->max_hitpoints);
     }
-    if( mask & MOCK230_NMASK_CHANGE_TYPE )
+    if( mask & TORIRSSERVER_NMASK_CHANGE_TYPE )
     {
         g_npc_transformation_writes++;
         rsab_p2(buf, force_type_latch ? npc->type : npc->change_type);
     }
-    if( mask & MOCK230_NMASK_SPOTANIM )
+    if( mask & TORIRSSERVER_NMASK_SPOTANIM )
     {
         rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
         rsab_p4(buf, npc->spotanim_height_delay);
     }
-    if( mask & MOCK230_NMASK_FACE_COORD )
+    if( mask & TORIRSSERVER_NMASK_FACE_COORD )
     {
         rsab_p2(buf, npc->face_x);
         rsab_p2(buf, npc->face_z);
@@ -4709,14 +4709,14 @@ put_npc_extended(
  * disagree — which adds an npc and removes it on alternate ticks forever.
  */
 static int
-npc_view_radius(const struct Mock230Player* player)
+npc_view_radius(const struct ToriRSServerPlayer* player)
 {
     int r = player->npc_view_tiles;
 
-    if( r < MOCK230_NPC_VIEW_TILES )
-        r = MOCK230_NPC_VIEW_TILES;
-    if( r > MOCK230_NPC_VIEW_TILES_MAX )
-        r = MOCK230_NPC_VIEW_TILES_MAX;
+    if( r < TORIRSSERVER_NPC_VIEW_TILES )
+        r = TORIRSSERVER_NPC_VIEW_TILES;
+    if( r > TORIRSSERVER_NPC_VIEW_TILES_MAX )
+        r = TORIRSSERVER_NPC_VIEW_TILES_MAX;
     return r;
 }
 
@@ -4728,20 +4728,20 @@ npc_view_radius(const struct Mock230Player* player)
  */
 static void
 npc_view_radius_update(
-    struct Mock230Player* player,
+    struct ToriRSServerPlayer* player,
     int tracked_count)
 {
     int r = npc_view_radius(player);
 
-    if( tracked_count >= MOCK230_NPC_VIEW_CROWD )
-        r = MOCK230_NPC_VIEW_TILES;
-    else if( r < MOCK230_NPC_VIEW_TILES_MAX )
+    if( tracked_count >= TORIRSSERVER_NPC_VIEW_CROWD )
+        r = TORIRSSERVER_NPC_VIEW_TILES;
+    else if( r < TORIRSSERVER_NPC_VIEW_TILES_MAX )
         r++;
     player->npc_view_tiles = r;
 }
 
 void
-mock230_send_npc_info(struct Mock230Player* player)
+ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
 {
     /*
      * `tracked` is the *player's* list: which npcs this client holds, and in
@@ -4749,18 +4749,18 @@ mock230_send_npc_info(struct Mock230Player* player)
      * held one, which encoded the first player's npc set — deltas and all — for
      * whoever the packet was addressed to.
      */
-    struct Mock230Server* srv = player->world;
+    struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
      * so remember that order while writing the bits. Zeroed rather than left as
      * scratch: "no latch" is the right default for a field a queue site forgot,
-     * and one of them was forgotten — see struct Mock230NpcExtendedQueue. */
-    struct Mock230NpcExtendedQueue queued[MOCK230_TRACKED_NPC_MAX] = { { 0, 0, 0 } };
-    int nearby[MOCK230_TRACKED_NPC_MAX];
+     * and one of them was forgotten — see struct ToriRSServerNpcExtendedQueue. */
+    struct ToriRSServerNpcExtendedQueue queued[TORIRSSERVER_TRACKED_NPC_MAX] = { { 0, 0, 0 } };
+    int nearby[TORIRSSERVER_TRACKED_NPC_MAX];
     int nearby_count;
     int queued_count = 0;
-    int kept[MOCK230_TRACKED_NPC_MAX];
-    int kept_generation[MOCK230_TRACKED_NPC_MAX];
+    int kept[TORIRSSERVER_TRACKED_NPC_MAX];
+    int kept_generation[TORIRSSERVER_TRACKED_NPC_MAX];
     int kept_count = 0;
     /* The candidates for the entering-view section: whoever the ZoneMap says
      * stands within the add radius, rather than every npc in the world. */
@@ -4804,7 +4804,7 @@ mock230_send_npc_info(struct Mock230Player* player)
      *
      * The case that found this: a Nylocas Matomenos dying at the Maiden's feet
      * while the player stands on the room's designated fight tile. That tile is
-     * 17 tiles from her footprint and `MOCK230_NPC_VIEW_TILES` is 15, so the
+     * 17 tiles from her footprint and `TORIRSSERVER_NPC_VIEW_TILES` is 15, so the
      * crab walks OUT of npc view on its way in and its death animation is
      * played to nobody. From the player's side the crab simply vanishes.
      *
@@ -4812,24 +4812,24 @@ mock230_send_npc_info(struct Mock230Player* player)
      * the radius, or hold the mask until an observer has been told) and this
      * says which npcs are paying for the current one.
      */
-    if( getenv("MOCK230_ANIM_LOST") )
+    if( getenv("TORIRSSERVER_ANIM_LOST") )
     {
-        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
         {
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int view_dx;
             int view_dz;
 
-            if( !npc->active || !(npc->masks & MOCK230_NMASK_ANIM) )
+            if( !npc->active || !(npc->masks & TORIRSSERVER_NMASK_ANIM) )
                 continue;
             if( player->npc_tracked[slot] )
                 continue;
-            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
             fprintf(stderr,
                     "anim-lost: npc slot %d type %d seq %d is animating but is NOT "
                     "tracked by pid %d (footprint gap %d,%d vs view %d)\n",
                     slot, npc->type, npc->anim_id, player->pid, view_dx, view_dz,
-                    MOCK230_NPC_VIEW_TILES);
+                    TORIRSSERVER_NPC_VIEW_TILES);
         }
     }
 
@@ -4841,7 +4841,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         int const view_tiles = npc_view_radius(player);
         uint8_t extended_data[4096];
         struct RSAreaBuf extended_buf;
-        int adds[MOCK230_TRACKED_NPC_MAX];
+        int adds[TORIRSSERVER_TRACKED_NPC_MAX];
         int add_count = 0;
 
         /*
@@ -4866,8 +4866,8 @@ mock230_send_npc_info(struct Mock230Player* player)
          * moves the build area under a stationary player.
          */
         open_packet(&buf, 4);
-        rsab_p1(&buf, player->x - mock230_scene_base_x());
-        rsab_p1(&buf, player->z - mock230_scene_base_z());
+        rsab_p1(&buf, player->x - ToriRSServer_SceneBaseX());
+        rsab_p1(&buf, player->z - ToriRSServer_SceneBaseZ());
         flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
 
         open_packet(&buf, 4096);
@@ -4877,7 +4877,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         for( int i = 0; i < player->tracked_count; i++ )
         {
             int slot = player->tracked[i];
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             /* The gap to the npc's FOOTPRINT, and the same measure the adds
              * below and the ZoneMap query use: keeping and adding have to agree
              * or an npc is added and removed on alternate ticks. */
@@ -4885,7 +4885,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             int view_dz;
             int in_range;
 
-            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
             /*
              * The generation term catches a slot `npc_spawn` handed to a
              * different npc since this list was last written (same-tick
@@ -4894,7 +4894,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * "something else lives here now" and reads the new occupant as
              * an ordinary continuation of the old one.
              */
-            in_range = npc->active && mock230_world_npc_visible_to(srv, npc, player) &&
+            in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
                        npc->level == player->level &&
                        npc->generation == player->tracked_generation[i] &&
                        view_dx <= view_tiles && view_dz <= view_tiles;
@@ -4914,7 +4914,7 @@ mock230_send_npc_info(struct Mock230Player* player)
                  * well-formed packet every tick.
                  */
                 player->npc_tracked[slot] = 0;
-                mock230_slotmap_release_why(
+                ToriRSServer_SlotMapReleaseWhy(
                     player, slot,
                     !npc->active            ? "npc inactive"
                     : npc->level != player->level ? "level changed"
@@ -4933,7 +4933,7 @@ mock230_send_npc_info(struct Mock230Player* player)
                 {
                     /* Two tiles this tick — update type 2, two 3-bit
                      * directions. `playerfollow` is the only mover that fills
-                     * `run_dir`; see `Mock230Npc.run_dir`. */
+                     * `run_dir`; see `ToriRSServerNpc.run_dir`. */
                     rsab_pbit(&buf, 1, 1);
                     rsab_pbit(&buf, 2, 2); /* run */
                     rsab_pbit(&buf, 3, npc->step_dir);
@@ -4968,26 +4968,26 @@ mock230_send_npc_info(struct Mock230Player* player)
         }
 
         /* The player's OWN zones, not a tile box around them. See
-         * mock230_zone_npcs_active: a raw box reaches outside the build area
+         * ToriRSServer_ZoneNpcsActive: a raw box reaches outside the build area
          * near its edge, and an npc the client has no scene for is placed at a
          * coordinate that does not exist for it. */
-        nearby_count = mock230_playerzonemap_npcs(player, view_tiles, nearby,
-                                         MOCK230_TRACKED_NPC_MAX);
+        nearby_count = ToriRSServer_PlayerzonemapNpcs(player, view_tiles, nearby,
+                                         TORIRSSERVER_TRACKED_NPC_MAX);
         for( int i = 0; i < nearby_count; i++ )
         {
             int slot = nearby[i];
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int dx;
             int dz;
             int view_dx;
             int view_dz;
 
-            if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
+            if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
                 player->npc_tracked[slot] )
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
-            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
             /*
              * The SAME radius and the SAME measure the high-resolution loop
              * keeps at, and it has to be. The 6-bit delta could carry +-31, but
@@ -5006,7 +5006,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             /*
              * And what the record can actually say. The deltas written below are
              * from the npc's ORIGIN, so a footprint in view at 15 puts the
-             * origin as far as 15 + (MOCK230_NPC_SIZE_MAX - 1); 6 signed bits
+             * origin as far as 15 + (TORIRSSERVER_NPC_SIZE_MAX - 1); 6 signed bits
              * stop at 31. The two constants are chosen so this cannot fire —
              * it is here so that if either moves, a boss goes missing with a
              * line in the log rather than silently landing 64 tiles away.
@@ -5014,12 +5014,12 @@ mock230_send_npc_info(struct Mock230Player* player)
             if( dx < -32 || dx > 31 || dz < -32 || dz > 31 )
             {
                 fprintf(stderr,
-                        "mock230: npc %d (type %d, size %d) is in view at %d,%d but its "
+                        "torirsserver: npc %d (type %d, size %d) is in view at %d,%d but its "
                         "origin delta %d,%d does not fit the v5 add; not sent\n",
                         slot, npc->type, npc->size, npc->x, npc->z, dx, dz);
                 continue;
             }
-            if( kept_count >= MOCK230_TRACKED_NPC_MAX )
+            if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
                 break;
             adds[add_count++] = slot;
             player->npc_tracked[slot] = 1;
@@ -5030,8 +5030,8 @@ mock230_send_npc_info(struct Mock230Player* player)
         for( int i = 0; i < add_count; i++ )
         {
             int slot = adds[i];
-            int client_slot = mock230_slotmap_acquire(player, slot);
-            struct Mock230Npc* npc = &srv->npcs[slot];
+            int client_slot = ToriRSServer_SlotMapAcquire(player, slot);
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
@@ -5045,7 +5045,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * loop reads `byte var20 = 16; ... gBits(var20)` and terminates on
              * `(1 << 16) - 1`, and its readable-bits guard is `var20 + 12`.
              * The value is this client's, not the world's — see
-             * struct Mock230PlayerSlotMap.
+             * struct ToriRSServerPlayerSlotMap.
              */
             rsab_pbit(&buf, 16, client_slot);
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
@@ -5069,7 +5069,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * as `npcInfoBitCount` — but only against a client patched to read
              * 16, and the deob is the authority here.
              */
-            rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
+            rsab_pbit(&buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             if( extended )
                 npc_queue_push(queued, &queued_count, slot, 1, force_type);
         }
@@ -5126,11 +5126,11 @@ mock230_send_npc_info(struct Mock230Player* player)
          */
         rsab_pdata(&buf, extended_data, rsab_len(&extended_buf));
 
-        if( getenv("MOCK230_NPC_INFO_DEBUG") )
+        if( getenv("TORIRSSERVER_NPC_INFO_DEBUG") )
         {
             size_t const len = rsab_len(&buf);
             fprintf(stderr,
-                    "mock230: NPC_INFO v5 tracked=%d kept=%d added=%d extended=%d len=%zu hex=",
+                    "torirsserver: NPC_INFO v5 tracked=%d kept=%d added=%d extended=%d len=%zu hex=",
                     player->tracked_count, kept_count, add_count, queued_count, len);
             for( size_t i = 0; i < len; i++ )
                 fprintf(stderr, "%02x", buf.data[i]);
@@ -5154,7 +5154,7 @@ mock230_send_npc_info(struct Mock230Player* player)
     for( int i = 0; i < player->tracked_count; i++ )
     {
         int slot = player->tracked[i];
-        struct Mock230Npc* npc = &srv->npcs[slot];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
         int dx = npc->x - player->x;
         int dz = npc->z - player->z;
         /* Level is part of range, the same way it is in `player_in_view`. It
@@ -5180,7 +5180,7 @@ mock230_send_npc_info(struct Mock230Player* player)
          * ordinary continuation of the old one — including its masks, so a
          * same-tick hit on the new npc renders on the client's stale entity.
          */
-        int in_range = npc->active && mock230_world_npc_visible_to(srv, npc, player) &&
+        int in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
                        npc->level == player->level &&
                        npc->generation == player->tracked_generation[i] && dx >= -15 &&
                        dx <= 15 && dz >= -15 && dz <= 15;
@@ -5207,7 +5207,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 3);
             player->npc_tracked[slot] = 0;
-            mock230_slotmap_release_why(
+            ToriRSServer_SlotMapReleaseWhy(
                 player, slot,
                 !npc->active                  ? "npc inactive"
                 : npc->level != player->level ? "level changed"
@@ -5255,7 +5255,7 @@ mock230_send_npc_info(struct Mock230Player* player)
      * The candidate set comes from the ZoneMap: the npcs standing in the zones
      * the add radius touches, which is at most 5x5 zones. It used to be every
      * slot in the world, per player, per tick — the scan that made the npc cap
-     * and the wire's tracked-count field the same number (mock230.h).
+     * and the wire's tracked-count field the same number (torirs_server.h).
      *
      * The zone query is coarse (a zone is 8 tiles, the radius is 15) so the
      * exact range test below still decides; what changed is how many npcs it is
@@ -5266,14 +5266,14 @@ mock230_send_npc_info(struct Mock230Player* player)
      * so it can hand this loop a sized npc whose origin is further out than the
      * 5-bit delta reaches; the origin test below is what turns that down, for
      * the reason given at the high-resolution loop. */
-    nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
-                                     MOCK230_TRACKED_NPC_MAX);
+    nearby_count = ToriRSServer_PlayerzonemapNpcs(player, TORIRSSERVER_NPC_VIEW_TILES, nearby,
+                                     TORIRSSERVER_TRACKED_NPC_MAX);
     for( int i = 0; i < nearby_count; i++ )
     {
         int slot = nearby[i];
-        struct Mock230Npc* npc = &srv->npcs[slot];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
         int dx, dz;
-        if( !npc->active || !mock230_world_npc_visible_to(srv, npc, player) ||
+        if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
             player->npc_tracked[slot] )
             continue;
         dx = npc->x - player->x;
@@ -5281,17 +5281,17 @@ mock230_send_npc_info(struct Mock230Player* player)
         /* Plane at the point of use — see the v5 path above. */
         if( npc->level != player->level )
             continue;
-        if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
-            dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
+        if( dx < -TORIRSSERVER_NPC_VIEW_TILES || dx > TORIRSSERVER_NPC_VIEW_TILES ||
+            dz < -TORIRSSERVER_NPC_VIEW_TILES || dz > TORIRSSERVER_NPC_VIEW_TILES )
             continue;
         /* The tracked count is 8 bits, so 255 is the ceiling the *stream* has —
          * nothing to do with how many npcs the world holds. */
-        if( kept_count >= MOCK230_TRACKED_NPC_MAX )
+        if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
             break;
 
         /* Slot and type at the revision's own widths — 14 and 14 here; this
          * comment used to say "11-bit type" while the line below wrote
-         * MOCK230_NPC_TYPE_BITS. Then 5-bit signed deltas from the local
+         * TORIRSSERVER_NPC_TYPE_BITS. Then 5-bit signed deltas from the local
          * player and 1-bit "extended info follows". No jump bit — unlike the
          * player stream's new-entity record. */
         {
@@ -5302,8 +5302,8 @@ mock230_send_npc_info(struct Mock230Player* player)
             /* This client's name for the npc, same as the v5 path — the
              * classic client keys its npc table by this index too, it is just
              * 14 bits wide instead of 16. */
-            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, mock230_slotmap_acquire(player, slot));
-            rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
+            rsab_pbit(&buf, TORIRSSERVER_NPC_SLOT_BITS, ToriRSServer_SlotMapAcquire(player, slot));
+            rsab_pbit(&buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             rsab_pbit(&buf, 5, dx & 0x1f);
             rsab_pbit(&buf, 5, dz & 0x1f);
             rsab_pbit(&buf, 1, extended);
@@ -5315,7 +5315,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         kept[kept_count++] = slot;
     }
 
-    rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, MOCK230_NPC_TERMINATOR);
+    rsab_pbit(&buf, TORIRSSERVER_NPC_SLOT_BITS, TORIRSSERVER_NPC_TERMINATOR);
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
@@ -5337,22 +5337,22 @@ mock230_send_npc_info(struct Mock230Player* player)
 /* ------------------------------------------------------------------ */
 
 void
-mock230_capture_begin(
-    struct Mock230Server* srv,
-    struct Mock230Capture* capture)
+ToriRSServer_CaptureBegin(
+    struct ToriRSServer* srv,
+    struct ToriRSServerCapture* capture)
 {
-    mock230_capture_reset(capture);
+    ToriRSServer_CaptureReset(capture);
     srv->capture = capture;
 }
 
 void
-mock230_capture_end(struct Mock230Server* srv)
+ToriRSServer_CaptureEnd(struct ToriRSServer* srv)
 {
     srv->capture = NULL;
 }
 
 void
-mock230_capture_reset(struct Mock230Capture* capture)
+ToriRSServer_CaptureReset(struct ToriRSServerCapture* capture)
 {
     capture->count = 0;
     capture->overflow = 0;
@@ -5360,8 +5360,8 @@ mock230_capture_reset(struct Mock230Capture* capture)
 
 
 int
-mock230_capture_find(
-    const struct Mock230Capture* capture,
+ToriRSServer_CaptureFind(
+    const struct ToriRSServerCapture* capture,
     int opcode,
     int from)
 {
@@ -5377,7 +5377,7 @@ mock230_capture_find(
  * The same search by CANONICAL name, which is what a revision-independent
  * assertion wants.
  *
- * `mock230_capture_find` matches the number that went on the wire, and that
+ * `ToriRSServer_CaptureFind` matches the number that went on the wire, and that
  * number is different in every revision this server speaks. Most of the
  * selftest is written in rev-230 numbers — the wire adapter's own note says so
  * — so those stanzas assert nothing at revision 239: `IF_SETEVENTS` goes out as
@@ -5385,14 +5385,14 @@ mock230_capture_find(
  * cells x 4 assertions all missing that way, against a server that had sent
  * exactly the right packets.
  *
- * Not done by translating inside `mock230_capture_find`, which is the obvious
+ * Not done by translating inside `ToriRSServer_CaptureFind`, which is the obvious
  * shape and is wrong: a handful of stanzas (`rev239 interface writer bytes`)
  * stand up a revision-239 player on purpose and their numbers really are 239
  * numbers. Callers say which they mean.
  */
 int
-mock230_capture_find_named(
-    const struct Mock230Capture* capture,
+ToriRSServer_CaptureFindNamed(
+    const struct ToriRSServerCapture* capture,
     int pkt_name,
     int from)
 {
@@ -5405,8 +5405,8 @@ mock230_capture_find_named(
 }
 
 int
-mock230_capture_has_sequence(
-    const struct Mock230Capture* capture,
+ToriRSServer_CaptureHasSequence(
+    const struct ToriRSServerCapture* capture,
     const int* opcodes,
     int count)
 {
@@ -5417,7 +5417,7 @@ mock230_capture_has_sequence(
      * an unrelated encoder was added. */
     for( int i = 0; i < count; i++ )
     {
-        at = mock230_capture_find(capture, opcodes[i], at);
+        at = ToriRSServer_CaptureFind(capture, opcodes[i], at);
         if( at < 0 )
             return 0;
         at++;

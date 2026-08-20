@@ -21,13 +21,13 @@
  * The player has to survive a full 12-step Olm rotation — a harness that died
  * on tick 9 could only ever assert the first two steps. The obvious lever is
  * `::god`, and it is the wrong one: it zeroes `amount` in the one player damage
- * funnel (mock230_combat.c), which is the exact number this harness exists to
+ * funnel (torirs_server_combat.c), which is the exact number this harness exists to
  * read. Under `::god` a boss that hits for 30 and a boss that does not attack at
  * all are indistinguishable.
  *
  * `player->hitmark_count` is not a way round it either. The hitmark list
  * describes one tick and is cleared at the end of every one of them
- * (mock230_world.c), so sampling it after `mock230_world_tick` returns 0
+ * (torirs_server_world.c), so sampling it after `ToriRSServer_WorldTick` returns 0
  * forever. The first version of this file asserted on that column and reported
  * "Olm never landed a hitsplat" against a boss that was landing them correctly.
  *
@@ -50,12 +50,12 @@
  * would pass a boss that computes a perfect rotation and never attacks.
  *
  * USAGE
- *   MOCK230_COX_SIM=1 ./src/build_opt/mock230 --selftest
+ *   TORIRSSERVER_COX_SIM=1 ./src/build_opt/torirsserver --selftest
  *   tools/cox_sim.sh                    # builds, runs, prints the trace table
- *   MOCK230_COX_SIM_TRACE=<path>        # also write the raw trace there
+ *   TORIRSSERVER_COX_SIM_TRACE=<path>        # also write the raw trace there
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -172,7 +172,7 @@ cox_sim_fail(struct CoxSimRun* run, const char* fmt, ...)
  * An earlier version set 5000 here and read damage of 4901 on ticks where Olm
  * had done nothing at all: `player->hitpoints` is recomputed from
  * `stat_boosted[HITPOINTS]` whenever the stat system touches it
- * (mock230_world.c), and the boost is clamped back to the level, so the harness
+ * (torirs_server_world.c), and the boost is clamped back to the level, so the harness
  * was measuring its own inflation collapsing rather than an attack. Fighting
  * the stat system for a bigger number was never necessary — 99 survives any
  * single tick of CoX (the fire wall is the biggest at 50-65) and the top-up
@@ -181,10 +181,10 @@ cox_sim_fail(struct CoxSimRun* run, const char* fmt, ...)
 #define COX_SIM_HITPOINTS 99
 
 static void
-cox_sim_top_up(struct Mock230Player* player)
+cox_sim_top_up(struct ToriRSServerPlayer* player)
 {
-    player->stat_level[MOCK230_STAT_HITPOINTS] = COX_SIM_HITPOINTS;
-    player->stat_boosted[MOCK230_STAT_HITPOINTS] = COX_SIM_HITPOINTS;
+    player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = COX_SIM_HITPOINTS;
+    player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = COX_SIM_HITPOINTS;
     player->max_hitpoints = COX_SIM_HITPOINTS;
     player->hitpoints = COX_SIM_HITPOINTS;
 }
@@ -192,15 +192,15 @@ cox_sim_top_up(struct Mock230Player* player)
 /* One compact `type@x,z/hp` per live CoX npc. The id window is the raids block:
  * 7527..7620 covers every encounter record the raid spawns. */
 static void
-cox_sim_dump_npcs(struct Mock230Server* srv, FILE* out)
+cox_sim_dump_npcs(struct ToriRSServer* srv, FILE* out)
 {
     /* The player first. Half of "why is this npc not attacking" turns out to be
      * "it is not where you think, or the player is not" — and a trace with only
      * one of the two positions in it can only answer half of that. */
     fprintf(out, " p@%d,%d", srv->active_player->x, srv->active_player->z);
-    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
     {
-        struct Mock230Npc* npc = &srv->npcs[i];
+        struct ToriRSServerNpc* npc = &srv->npcs[i];
 
         if( !npc->active )
             continue;
@@ -220,7 +220,7 @@ cox_sim_dump_npcs(struct Mock230Server* srv, FILE* out)
  */
 static void
 cox_sim_record(
-    struct Mock230Server* srv,
+    struct ToriRSServer* srv,
     struct CoxSimRun* run,
     int ticks,
     const char* action_varp,
@@ -237,9 +237,9 @@ cox_sim_record(
      * a rotation bug -- it is this harness reading another room's telemetry.
      *
      * Content mirrors codes 1..11 into cox_trace_olm_* for exactly this reason. */
-    int varp_action = mock230_world_varp(action_varp);
-    int varp_serial = mock230_world_varp(serial_varp);
-    struct Mock230Player* player = srv->active_player;
+    int varp_action = ToriRSServer_WorldVarp(action_varp);
+    int varp_serial = ToriRSServer_WorldVarp(serial_varp);
+    struct ToriRSServerPlayer* player = srv->active_player;
     int last_serial;
 
     if( varp_action < 0 || varp_serial < 0 )
@@ -256,7 +256,7 @@ cox_sim_record(
         int before = player->hitpoints;
         int serial;
 
-        mock230_world_tick(srv);
+        ToriRSServer_WorldTick(srv);
 
         serial = player->varps[varp_serial];
         run->code[t] = (serial != last_serial) ? player->varps[varp_action] : COX_TRACE_NONE;
@@ -342,7 +342,7 @@ cox_sim_count(const struct CoxSimRun* run, int code)
  * this file exists.
  */
 static void
-cox_sim_check_olm(struct Mock230Server* srv, struct CoxSimRun* run)
+cox_sim_check_olm(struct ToriRSServer* srv, struct CoxSimRun* run)
 {
     int first, second, actions = 0;
     int specials;
@@ -450,7 +450,7 @@ cox_sim_check_olm(struct Mock230Server* srv, struct CoxSimRun* run)
  * close to a tick-level specification as the wiki ever gets.
  */
 static void
-cox_sim_check_tekton(struct Mock230Server* srv, struct CoxSimRun* run)
+cox_sim_check_tekton(struct ToriRSServer* srv, struct CoxSimRun* run)
 {
     int prev = -1;
     int swings = 0;
@@ -479,19 +479,19 @@ cox_sim_check_tekton(struct Mock230Server* srv, struct CoxSimRun* run)
  * Returns the number of failed assertions.
  */
 int
-mock230_cox_sim_run(struct Mock230Server* srv)
+ToriRSServer_CoxSimRun(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     struct CoxSimRun run;
-    const char* trace_path = getenv("MOCK230_COX_SIM_TRACE");
+    const char* trace_path = getenv("TORIRSSERVER_COX_SIM_TRACE");
     int saved_god = player->godmode;
     int saved_x = player->x;
     int saved_z = player->z;
     int saved_level = player->level;
     int ticks = 64;
 
-    if( getenv("MOCK230_COX_SIM_TICKS") )
-        ticks = atoi(getenv("MOCK230_COX_SIM_TICKS"));
+    if( getenv("TORIRSSERVER_COX_SIM_TICKS") )
+        ticks = atoi(getenv("TORIRSSERVER_COX_SIM_TICKS"));
     if( ticks <= 0 || ticks > COX_SIM_MAX_TICKS )
         ticks = 64;
 
@@ -503,7 +503,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
             fprintf(stderr, "  note: could not open %s for the trace\n", trace_path);
     }
 
-    fprintf(stderr, "mock230 selftest: Chambers of Xeric tick harness (%d ticks, god mode)\n",
+    fprintf(stderr, "ToriRSServer selftest: Chambers of Xeric tick harness (%d ticks, god mode)\n",
             ticks);
 
     /*
@@ -516,7 +516,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
     player->godmode = 0;
     cox_sim_top_up(player);
 
-    if( mock230_scripts_run_debugproc(srv, "cox") != MOCK230_TRIGGER_RAN )
+    if( ToriRSServer_ScriptsRunDebugproc(srv, "cox") != TORIRSSERVER_TRIGGER_RAN )
     {
         cox_sim_fail(&run, "::cox should reach content - is the script pack compiled?");
         goto done;
@@ -541,9 +541,9 @@ mock230_cox_sim_run(struct Mock230Server* srv)
         /* Rooms are dealt by seed now, so Tekton is not reliably the room the
          * player spawns in. Walk to him first: an encounter nobody stands in
          * front of never engages, which reads as a dead ai_timer. */
-        mock230_scripts_run_debugproc(srv, "coxgoto_tekton");
+        ToriRSServer_ScriptsRunDebugproc(srv, "coxgoto_tekton");
 
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
             if( srv->npcs[i].active && srv->npcs[i].type >= 7540 && srv->npcs[i].type <= 7545 )
                 tekton++;
         if( tekton == 0 )
@@ -564,7 +564,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
     }
 
     /* ---------------------------------------------------------------- Olm */
-    if( mock230_scripts_run_debugproc(srv, "coxolm") == MOCK230_TRIGGER_RAN )
+    if( ToriRSServer_ScriptsRunDebugproc(srv, "coxolm") == TORIRSSERVER_TRIGGER_RAN )
     {
         if( run.out )
             fprintf(run.out, "# encounter: olm\n");
@@ -580,7 +580,7 @@ mock230_cox_sim_run(struct Mock230Server* srv)
         cox_sim_fail(&run, "::coxolm should reach content");
     }
 
-    mock230_scripts_run_debugproc(srv, "cox_leave");
+    ToriRSServer_ScriptsRunDebugproc(srv, "cox_leave");
 
 done:
     if( run.out )

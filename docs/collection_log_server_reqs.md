@@ -4,15 +4,15 @@
 > `if_setevents`s `collection:items_contents` (`0..512`, `^if_event_op1`) so
 > script_2732's CS2 `cc_setop(1, "Check")` survives the minimenu mask. Without
 > that arm the client fell back to ObjType Wear/Use/Drop
-> (`docs/mock230_player_systems.md` §1.3). Check itself stays client-only
+> (`docs/torirs_server_player_systems.md` §1.3). Check itself stays client-only
 > (`cc_setonop` → `collection_item_click`). Permanent check: same
 > `collection_open` selftest asserts mask 2 on `items_contents`.
 >
 > **UPDATE 2026-08-03 — category tabs armed.** `~collection_arm` now
 > `if_setevents`s the five `collection:*_tab` comps (`^if_event_op1`). Handlers
 > and `~collection_draw` → 7798 were already present; baked clickmask alone does
-> not gate clicks on this client (`docs/mock230_player_systems.md` §0). Permanent
-> check: `mock230 --selftest` character-summary section asserts mask 2 on each
+> not gate clicks on this client (`docs/torirs_server_player_systems.md` §0). Permanent
+> check: `ToriRSServer --selftest` character-summary section asserts mask 2 on each
 > tab at open and `IF_BUTTON1` on `raid_tab` re-pushes clientscript 7798 with
 > tab index 1.
 >
@@ -51,7 +51,7 @@
 >
 > **UPDATE 2026-08-02 (lane-blockers): the container blocker is CLEARED.**
 > `container_for`/`container_dirty` are a registry now — see
-> [`mock230_containers.md`](mock230_containers.md). Resolve-or-create means
+> [`torirs_server_containers.md`](torirs_server_containers.md). Resolve-or-create means
 > **no `inv_collection` row, no player struct field and no case were needed**:
 > container 620 sizes itself to 500 from the cache the first time content names
 > it, transmits as a whole-container UPDATE_INV_FULL because it is past 32
@@ -121,30 +121,30 @@ agree. It rides the exact same generic
 `inv_total`/`UPDATE_INV_FULL`/`UPDATE_INV_PARTIAL` machinery the bank
 already uses — no new opcode, no new wire format.
 
-**And mock230 supports it via the container registry** (re-measured
+**And ToriRSServer supports it via the container registry** (re-measured
 2026-08-02 / content 2026-08-03): resolve-or-create sizes 620 to 500 from the
 cache, dirty/transmit work like any other large container, and persistence is
-`[container.620]`. See [`mock230_containers.md`](mock230_containers.md). The
+`[container.620]`. See [`torirs_server_containers.md`](torirs_server_containers.md). The
 historical note below is kept so the discovery trail stays readable — the
 three-case `container_for` it describes no longer exists.
 
-~~**And mock230 has zero support for it, confirmed directly**:
-`container_for()` (`src/net/mock/mock230_scripts.c:1504-1526`) has exactly
+~~**And ToriRSServer has zero support for it, confirmed directly**:
+`container_for()` (`src/torirsserver/torirs_server_scripts.c:1504-1526`) has exactly
 three cases — `inv_backpack`, `inv_worn`, `inv_bank` — and falls through to
 `*out_slots = 0; return NULL;` for anything else, including 620.
 `container_dirty()` has the identical three-way branch: a write to inv 620
 would mark nothing dirty and transmit nothing. There is no
-`struct Mock230Player` field for it.~~ **Superseded** — registry + content
+`struct ToriRSServerPlayer` field for it.~~ **Superseded** — registry + content
 plumbing landed; §3's status column is current.
 
 **Why this was the largest finding in the series**: 500 slots × (obj id +
 count) per player, and unlike the bank it's **monotonic** — write-once,
 grows forever, must persist indefinitely. Persistence callers exist now
-(`mock230_save_player`/`_load_player`); the remaining work is content density.
+(`ToriRSServer_SavePlayer`/`_load_player`); the remaining work is content density.
 
 ## 3. Server obligations
 
-| state | meaning | delivery | mock230 status |
+| state | meaning | delivery | ToriRSServer status |
 |---|---|---|---|
 | container **620** (`collection_transmit`, 500 slots) | the load-bearing per-item obtained+count state | generic container wire, same as bank | **landed** — registry resolve-or-create; persists as `[container.620]`; selftested |
 | `%collection_count`/`_max` | overview "Collections Logged: N/M" | generic varp transmit | **landed** — `interface_collection/`; max from catalog enums |
@@ -158,7 +158,7 @@ grows forever, must persist indefinitely. Persistence callers exist now
 
 The transport for every varp/varbit row is generic and already works. The
 container is no longer novel engine surface — see
-[`mock230_containers.md`](mock230_containers.md).
+[`torirs_server_containers.md`](torirs_server_containers.md).
 
 ## 4. Landed vs. gap
 

@@ -125,7 +125,7 @@ Mandatory shared/cache surfaces:
 | Killerwatt portal/maplinks | Advertised unlock | Three return portal links exist; the Draynor-to-plane loc has no outbound maplink or op script |
 | `skill_slayer/scripts/slayer_masters.rs2` | Assignment selection | Checks combat/Slayer levels and blocks only; it has no quest-requirement predicate |
 | Killerwatt combat and gear scripts | Reward-area gameplay | Ball form never transforms on attack; insulated boots incorrectly zero player damage rather than reducing incoming ranged danger |
-| `src/net/mock/mock230_scripts.c` | `npc_changetype` host opcode | Explicitly discards duration, so the supposed 100-tick Ernest form never reverts |
+| `src/torirsserver/torirs_server_scripts.c` | `npc_changetype` host opcode | Explicitly discards duration, so the supposed 100-tick Ernest form never reverts |
 
 There are no legacy IF1 quest panels, raw entity IDs, or old component-choice
 handlers in the direct root. The defects are old world-mutation, queue,

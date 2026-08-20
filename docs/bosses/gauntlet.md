@@ -1112,10 +1112,10 @@ approximation. “Feels like OSRS” is not an acceptance criterion.
 
 ### Automated gates
 
-- `make -C src mock230-scripts` — all RuneScript/config symbols compile.
-- `make -C src mock230-servpack` — server loc/NPC overlays pack cleanly.
-- `make -C src test-mock230` — no engine/session regression.
-- `make -C src mock230-cache` when CS2/interface/config assets change.
+- `make -C src torirsserver-scripts` — all RuneScript/config symbols compile.
+- `make -C src torirsserver-servpack` — server loc/NPC overlays pack cleanly.
+- `make -C src test-ToriRSServer` — no engine/session regression.
+- `make -C src torirsserver-cache` when CS2/interface/config assets change.
 - A new Gauntlet contract test validates all recipe/drop/reward rows against
   checked-in manifests, like the existing God Wars contract checks.
 

@@ -508,7 +508,7 @@ Required Gate D evidence before `verified-modern`:
 | --- | --- |
 | Static ownership audit | One owner for every NPC/loc/item operation, no unresolved names, duplicates, raw IDs, deferred/soft-skip markers, or reward text without behavior |
 | Quest Helper check | `python3 tools/questhelper_extract.py deathontheisle --check` exits 0 (baseline already observed) |
-| Compile/pack | `make -C src mock230-scripts` and `mock230_pack --check-only` pass against the intended cache |
+| Compile/pack | `make -C src torirsserver-scripts` and `ToriRSServer_Pack --check-only` pass against the intended cache |
 | State tests | Every primary state plus all 50 named native varbits, arbitrary clue orders, relog/reconnect, and reset normalization |
 | Inventory tests | Uniform pair, secure escrow, case file, evidence, handoff, reward claims, destruction/recovery, full inventory, and banked duplicates |
 | Combat tests | Both Adala outcomes and every Naiatli/Clodius phase, including interruption and invalid action |

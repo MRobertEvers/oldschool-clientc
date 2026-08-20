@@ -779,7 +779,7 @@ player_extended(
          * three candidate causes — the server never set the mask, the tail
          * decoded at the wrong offset, or the executor dropped the op — and
          * only the middle one is invisible from either end. Pairs with
-         * MOCK230_EXT_DEBUG on the server. */
+         * TORIRSSERVER_EXT_DEBUG on the server. */
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr, "osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
                     pos, len);

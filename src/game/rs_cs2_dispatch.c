@@ -335,7 +335,7 @@ RS_CS2_PumpTransmits(
      * captured at arm time. `script1004` diffs against those and re-arms itself,
      * which is why a *delayed* dispatch does not lose a drop — it merges it into
      * the next one, at the wrong moment and at the summed value. See
-     * mock230_player_systems.md §5.4.
+     * torirs_server_player_systems.md §5.4.
      *
      * `TORIRS_STAT_DEBUG=1` prints each hook this fires, which is how the
      * XP-drop panel's listener was confirmed to be reached at all.

@@ -491,8 +491,8 @@ C only for a missing reusable VM/protocol capability.
 - assert Khorvak, Librarian, brothers, ferrymen/boatmen, shared smithing,
   mining, scorpion drops, ring travel, music, and diary triggers each have one
   deterministic dispatcher with regression coverage;
-- `make -C src mock230-scripts`; and
-- `mock230_pack --check-only` against the intended cache.
+- `make -C src torirsserver-scripts`; and
+- `ToriRSServer_Pack --check-only` against the intended cache.
 
 ### Automated route matrix
 

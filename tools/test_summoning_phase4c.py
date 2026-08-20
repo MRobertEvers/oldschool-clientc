@@ -74,9 +74,9 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
                 "TORIRS_NET_CHEAT": "summoning_unlock;summoning_demo",
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "380",

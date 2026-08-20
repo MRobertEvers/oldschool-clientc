@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Two roots, not one. The C and the docs are always this repository's; the CS2
 # and the server scripts belong to whichever OSRS-Content tree is being built,
-# which is not necessarily the submodule -- MOCK230_CONTENT_DIR selects it, and
+# which is not necessarily the submodule -- TORIRSSERVER_CONTENT_DIR selects it, and
 # a checker that ignored it reported the submodule's failures against a bake of
 # a different tree entirely.
 CLIENT = Path("scripts/script_7304.cs2")
@@ -27,7 +27,7 @@ CHAT_ENTER = Path("scripts/script_73.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
 PACKET_TABLE = Path("src/net/rev/osrs239/packetout.h")
-WORLD = Path("src/net/mock/mock230_world.c")
+WORLD = Path("src/torirsserver/torirs_server_world.c")
 INCIDENT_DOC = Path("docs/CRYSTAL_SET_COMMAND.md")
 
 DEFAULT_CONTENT = Path("OSRS-Content/osrs239-content")
@@ -139,7 +139,7 @@ def check(root: Path, content: Path) -> list[str]:
     for fragment in (
         "if( text[0] == '~' )",
         'static const uint8_t command[] = "~crystal_set\\n";',
-        "mock230: cheat '%s' -> debugproc %s",
+        "torirsserver: cheat '%s' -> debugproc %s",
         "Command ::~%s failed — see the server log.",
         '"::~crystal_set equips the crystal helmet"',
         '"::~crystal_set equips a qualifying crystal bow"',
@@ -149,7 +149,7 @@ def check(root: Path, content: Path) -> list[str]:
             errors.append(f"{WORLD}: missing diagnostic/self-test guard: {fragment}")
 
     normalize = world.find("if( text[0] == '~' )")
-    dispatch = world.find("mock230_scripts_run_debugproc(srv, text)", normalize)
+    dispatch = world.find("ToriRSServer_ScriptsRunDebugproc(srv, text)", normalize)
     builtin = world.find('if( strncmp(text, "talk", 4) == 0 )', normalize)
     if normalize < 0 or dispatch < 0 or builtin < 0 or not normalize < dispatch < builtin:
         errors.append(
@@ -173,7 +173,7 @@ def main() -> int:
         "--content",
         type=Path,
         default=None,
-        help="OSRS-Content tree to check (default: $MOCK230_CONTENT_DIR, "
+        help="OSRS-Content tree to check (default: $TORIRSSERVER_CONTENT_DIR, "
         "else <repo>/OSRS-Content/osrs239-content)",
     )
     parser.add_argument("--self-test", action="store_true", help="run checker negative controls")
@@ -183,7 +183,7 @@ def main() -> int:
         run_self_test()
 
     repo = args.repo.resolve()
-    content = args.content or os.environ.get("MOCK230_CONTENT_DIR") or (repo / DEFAULT_CONTENT)
+    content = args.content or os.environ.get("TORIRSSERVER_CONTENT_DIR") or (repo / DEFAULT_CONTENT)
     content = Path(content).resolve()
     if not content.is_dir():
         print(f"crystal-set contract: ERROR: no content tree at {content}", file=sys.stderr)

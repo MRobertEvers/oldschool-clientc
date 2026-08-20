@@ -3,12 +3,12 @@
  * already reads, now also available to ServerScript.
  *
  * `configs/all.dbtable` / `all.dbrow` are the machine export of these records
- * (`columndef=` / `values=`), and the text reader in mock230_db.c only accepts
+ * (`columndef=` / `values=`), and the text reader in torirs_server_db.c only accepts
  * the authored grammar (`column=` / `data=`). So the binary is the source of
  * truth for the cache half (ids 0..258); authored tables under server/scripts
  * (ids 259+) keep priority and are never overwritten.
  *
- * Same recipe as mock230_structinfo.c: profile, CONFIGS table, KIND_DBTABLE /
+ * Same recipe as torirs_server_structinfo.c: profile, CONFIGS table, KIND_DBTABLE /
  * KIND_DBROW archives, decode each file. Column names are not in the binary —
  * they live in gameval archive 10 — so cache-only columns are nameless and
  * scripts address them by packed id. Tables that content also authors (e.g.
@@ -16,10 +16,10 @@
  * keep those names.
  */
 
-#include "mock230.h"
+#include "torirs_server.h"
 #include <assert.h>
-#include "mock230_content.h"
-#include "mock230_db.h"
+#include "torirs_server_content.h"
+#include "torirs_server_db.h"
 
 #include <rscache.h>
 
@@ -41,7 +41,7 @@ open_cache(const char* cache_dir)
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = MOCK230_CACHE_REVISION;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
@@ -62,17 +62,17 @@ import_table(
     const struct RSCache_Dat2ConfigDbTable* record)
 {
     const char* symbol;
-    struct Mock230DbTable* table;
+    struct ToriRSServerDbTable* table;
     char fallback[64];
 
-    symbol = mock230_content_symbol_name(MOCK230_PACK_DBTABLE, table_id);
+    symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_DBTABLE, table_id);
     if( !symbol )
     {
         snprintf(fallback, sizeof(fallback), "dbtable_%d", table_id);
         symbol = fallback;
     }
 
-    table = mock230_db_ensure_table(table_id, symbol, 0);
+    table = ToriRSServer_DbEnsureTable(table_id, symbol, 0);
     if( !table )
         return;
     /* Authored schema wins — only fill columns when the table is empty. */
@@ -82,21 +82,21 @@ import_table(
     for( int col = 0; col < record->column_count; col++ )
     {
         const struct RSCache_DbColumn* src = &record->columns[col];
-        int is_string[MOCK230_DB_TUPLE_MAX];
+        int is_string[TORIRSSERVER_DB_TUPLE_MAX];
 
         if( !src->present || src->type_count <= 0 )
             continue;
-        if( col >= MOCK230_DB_COLUMN_MAX )
+        if( col >= TORIRSSERVER_DB_COLUMN_MAX )
             continue;
-        if( src->type_count > MOCK230_DB_TUPLE_MAX )
+        if( src->type_count > TORIRSSERVER_DB_TUPLE_MAX )
             continue;
         for( int i = 0; i < src->type_count; i++ )
             is_string[i] = RSCache_DbTypeIsString(src->types[i]) ? 1 : 0;
-        mock230_db_column_define(table, col, NULL, src->type_count, is_string);
+        ToriRSServer_DbColumnDefine(table, col, NULL, src->type_count, is_string);
         if( src->tuple_count > 0 && src->values )
         {
             int total = src->tuple_count * src->type_count;
-            struct Mock230DbValue* defaults = calloc((size_t)total, sizeof(*defaults));
+            struct ToriRSServerDbValue* defaults = calloc((size_t)total, sizeof(*defaults));
 
             assert(defaults);
             for( int i = 0; i < total; i++ )
@@ -105,7 +105,7 @@ import_table(
                 defaults[i].text = src->values[i].is_string
                     ? src->values[i].string_value : NULL;
             }
-            mock230_db_column_defaults_set(table, col, defaults, total);
+            ToriRSServer_DbColumnDefaultsSet(table, col, defaults, total);
             free(defaults);
         }
     }
@@ -118,39 +118,39 @@ import_row(
     const struct RSCache_Dat2ConfigDbRow* record)
 {
     const char* symbol;
-    struct Mock230DbRow* row;
-    const struct Mock230DbTable* table;
+    struct ToriRSServerDbRow* row;
+    const struct ToriRSServerDbTable* table;
     char fallback[64];
 
     if( record->table_id < 0 )
         return;
 
-    symbol = mock230_content_symbol_name(MOCK230_PACK_DBROW, row_id);
+    symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_DBROW, row_id);
     if( !symbol )
     {
         snprintf(fallback, sizeof(fallback), "dbrow_%d", row_id);
         symbol = fallback;
     }
 
-    table = mock230_db_table(record->table_id);
+    table = ToriRSServer_DbTable(record->table_id);
     if( !table || table->column_count <= 0 )
         return;
 
-    row = mock230_db_ensure_row(row_id, symbol, record->table_id);
+    row = ToriRSServer_DbEnsureRow(row_id, symbol, record->table_id);
     if( !row )
         return;
 
     for( int col = 0; col < record->column_count; col++ )
     {
         const struct RSCache_DbColumn* src = &record->columns[col];
-        struct Mock230DbValue* values;
+        struct ToriRSServerDbValue* values;
         int total;
 
         if( !src->present || src->type_count <= 0 || src->tuple_count <= 0 )
             continue;
         if( col >= table->column_count || table->columns[col].type_count <= 0 )
             continue;
-        if( col >= MOCK230_DB_COLUMN_MAX )
+        if( col >= TORIRSSERVER_DB_COLUMN_MAX )
             continue;
 
         total = src->tuple_count * src->type_count;
@@ -169,7 +169,7 @@ import_row(
                 values[i].text = NULL;
             }
         }
-        mock230_db_row_column_set(row, col, values, total);
+        ToriRSServer_DbRowColumnSet(row, col, values, total);
         free(values);
     }
     g_cache_rows++;
@@ -259,11 +259,11 @@ on_row(int id, const void* record)
  * wrong.
  *
  * Rows still load *after* the tree, because that half is a merge:
- * `mock230_db_ensure_row` fills a cache id onto whatever the tree already
+ * `ToriRSServer_DbEnsureRow` fills a cache id onto whatever the tree already
  * stated, so an authored value wins over the cache's.
  */
 int
-mock230_db_load_cache_tables(const char* cache_dir)
+ToriRSServer_DbLoadCacheTables(const char* cache_dir)
 {
     struct RSCache_Dat2Disk* disk;
     int tables_seen;
@@ -273,7 +273,7 @@ mock230_db_load_cache_tables(const char* cache_dir)
     disk = open_cache(cache_dir);
     if( !disk )
     {
-        fprintf(stderr, "mock230: no db tables (cache '%s' not found)\n", cache_dir);
+        fprintf(stderr, "torirsserver: no db tables (cache '%s' not found)\n", cache_dir);
         return 1;
     }
 
@@ -282,14 +282,14 @@ mock230_db_load_cache_tables(const char* cache_dir)
                             RSCACHE_DAT2_CONFIG_KIND_DBTABLE, on_table, 1);
     RSCache_Dat2DiskFree(disk);
 
-    fprintf(stderr, "mock230: db schemas loaded (%d schema(s) installed from %s; "
+    fprintf(stderr, "torirsserver: db schemas loaded (%d schema(s) installed from %s; "
                     "%d archive table(s))\n",
             g_cache_tables, cache_dir, tables_seen);
     return 1;
 }
 
 int
-mock230_db_load_cache_rows(const char* cache_dir)
+ToriRSServer_DbLoadCacheRows(const char* cache_dir)
 {
     struct RSCache_Dat2Disk* disk;
     int rows_seen;
@@ -298,7 +298,7 @@ mock230_db_load_cache_rows(const char* cache_dir)
 
     disk = open_cache(cache_dir);
     if( !disk )
-        return 1; /* mock230_db_load_cache_tables already said so */
+        return 1; /* ToriRSServer_DbLoadCacheTables already said so */
 
     rows_seen = load_kind(disk,
                           RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS),
@@ -306,9 +306,9 @@ mock230_db_load_cache_rows(const char* cache_dir)
     RSCache_Dat2DiskFree(disk);
 
     fprintf(stderr,
-            "mock230: db tables loaded (%d tables, %d rows from %s; %d row(s) "
+            "torirsserver: db tables loaded (%d tables, %d rows from %s; %d row(s) "
             "filled; %d archive row(s))\n",
-            mock230_db_table_count(), mock230_db_total_row_count(), cache_dir,
+            ToriRSServer_DbTableCount(), ToriRSServer_DbTotalRowCount(), cache_dir,
             g_cache_rows, rows_seen);
     return 1;
 }

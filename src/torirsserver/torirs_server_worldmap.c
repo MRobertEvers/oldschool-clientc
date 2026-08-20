@@ -20,15 +20,15 @@
  * handler that moves the player).
  */
 
-#include "mock230.h"
-#include "mock230_ids.h"
+#include "torirs_server.h"
+#include "torirs_server_ids.h"
 
 #include <stdio.h>
 
 /*
  * The map itself, its floater slot and its two close buttons are named in the
  * content tree (`worldmap`, `gameframe_floater`, `worldmap_esckey`,
- * `worldmap_close`) and resolved by mock230_ids.
+ * `worldmap_close`) and resolved by ToriRSServer_Ids.
  *
  * The ORB IS NOT, and that is the interesting part.
  *
@@ -53,19 +53,19 @@
  */
 enum
 {
-    MOCK230_ORB_IFACE = 160,
-    MOCK230_ORB_WORLDMAP_CHILD = 55,
-    MOCK230_ORB_WORLDMAP_UID = (MOCK230_ORB_IFACE << 16) | MOCK230_ORB_WORLDMAP_CHILD,
+    TORIRSSERVER_ORB_IFACE = 160,
+    TORIRSSERVER_ORB_WORLDMAP_CHILD = 55,
+    TORIRSSERVER_ORB_WORLDMAP_UID = (TORIRSSERVER_ORB_IFACE << 16) | TORIRSSERVER_ORB_WORLDMAP_CHILD,
 
-    MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA = 1749,
+    TORIRSSERVER_SCRIPT_WORLDMAP_TRANSMITDATA = 1749,
 
     /* Ops 1..3 of the orb. Bit n arms op n; bit 0 is the op-less plain click,
      * which the orb never uses. The close buttons get bit 0 as well as bit 1:
      * the escape binding fires op 1, but whether the red X reaches the menu as
      * an op row or as a bare click depends on what the cache gave it, and both
      * shapes mean the same thing here. */
-    MOCK230_ORB_EVENTS = (1 << 1) | (1 << 2) | (1 << 3),
-    MOCK230_WORLDMAP_CLOSE_EVENTS = 0x1 | (1 << 1),
+    TORIRSSERVER_ORB_EVENTS = (1 << 1) | (1 << 2) | (1 << 3),
+    TORIRSSERVER_WORLDMAP_CLOSE_EVENTS = 0x1 | (1 << 1),
 };
 
 /* The 30-bit coord every world map op speaks: level, then the two tile axes. */
@@ -83,31 +83,31 @@ pack_coord(
  * open and then once per tick while the map is up, because the marker is stale
  * the moment the player walks. */
 static void
-send_worldmap_tile(struct Mock230Server* srv)
+send_worldmap_tile(struct ToriRSServer* srv)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct ToriRSServerPlayer* player = srv->active_player;
     int args[1];
 
     args[0] = pack_coord(player->level, player->x, player->z);
-    mock230_send_run_clientscript(srv->active_player, MOCK230_SCRIPT_WORLDMAP_TRANSMITDATA, args, 1);
+    ToriRSServer_SendRunClientscript(srv->active_player, TORIRSSERVER_SCRIPT_WORLDMAP_TRANSMITDATA, args, 1);
 }
 
 void
-mock230_worldmap_login(struct Mock230Server* srv)
+ToriRSServer_WorldMapLogin(struct ToriRSServer* srv)
 {
     /* from/to are -1: these are plain widgets, not grids, so there is no cell
      * range to arm. */
-    mock230_send_if_setevents(srv->active_player, MOCK230_ORB_WORLDMAP_UID, -1, -1, MOCK230_ORB_EVENTS);
-    mock230_send_if_setevents(
-        srv->active_player, mock230_ids()->com_worldmap_esckey, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
-    mock230_send_if_setevents(
-        srv->active_player, mock230_ids()->com_worldmap_close, -1, -1, MOCK230_WORLDMAP_CLOSE_EVENTS);
+    ToriRSServer_SendIfSetevents(srv->active_player, TORIRSSERVER_ORB_WORLDMAP_UID, -1, -1, TORIRSSERVER_ORB_EVENTS);
+    ToriRSServer_SendIfSetevents(
+        srv->active_player, ToriRSServer_Ids()->com_worldmap_esckey, -1, -1, TORIRSSERVER_WORLDMAP_CLOSE_EVENTS);
+    ToriRSServer_SendIfSetevents(
+        srv->active_player, ToriRSServer_Ids()->com_worldmap_close, -1, -1, TORIRSSERVER_WORLDMAP_CLOSE_EVENTS);
     srv->active_player->worldmap_open = 0;
     srv->active_player->worldmap_tile_sent = -1;
 }
 
 void
-mock230_worldmap_open(struct Mock230Server* srv)
+ToriRSServer_WorldMapOpen(struct ToriRSServer* srv)
 {
     if( srv->active_player->worldmap_open )
         return;
@@ -116,76 +116,76 @@ mock230_worldmap_open(struct Mock230Server* srv)
      * instead of on the player. The client's exec pipeline is a strict FIFO,
      * so "sent first" is "applied first". */
     send_worldmap_tile(srv);
-    mock230_send_if_opensub(
+    ToriRSServer_SendIfOpensub(
         srv->active_player,
-        mock230_ids()->iface_gameframe,
-        MOCK230_COM_CHILD(mock230_ids()->com_gameframe_floater),
-        mock230_ids()->iface_worldmap,
+        ToriRSServer_Ids()->iface_gameframe,
+        TORIRSSERVER_COM_CHILD(ToriRSServer_Ids()->com_gameframe_floater),
+        ToriRSServer_Ids()->iface_worldmap,
         1);
     srv->active_player->worldmap_open = 1;
     srv->active_player->worldmap_tile_sent = pack_coord(srv->active_player->level, srv->active_player->x, srv->active_player->z);
     if( srv->verbose )
-        fprintf(stderr, "mock230: world map opened\n");
+        fprintf(stderr, "torirsserver: world map opened\n");
 }
 
 void
-mock230_worldmap_close(struct Mock230Server* srv)
+ToriRSServer_WorldMapClose(struct ToriRSServer* srv)
 {
     if( !srv->active_player->worldmap_open )
         return;
-    mock230_send_if_closesub(srv->active_player, mock230_ids()->com_gameframe_floater);
+    ToriRSServer_SendIfClosesub(srv->active_player, ToriRSServer_Ids()->com_gameframe_floater);
     srv->active_player->worldmap_open = 0;
     if( srv->verbose )
-        fprintf(stderr, "mock230: world map closed\n");
+        fprintf(stderr, "torirsserver: world map closed\n");
 }
 
 int
-mock230_worldmap_handle_button(
-    struct Mock230Server* srv,
+ToriRSServer_WorldMapHandleButton(
+    struct ToriRSServer* srv,
     int uid,
     int op)
 {
-    if( uid == MOCK230_ORB_WORLDMAP_UID )
+    if( uid == TORIRSSERVER_ORB_WORLDMAP_UID )
     {
         /* Every open verb toggles: clicking the orb with the map already up
          * closes it, which is what the reference does and what the orb's own
          * "Close Floating panel" op expects. Ops 2 and 3 are "floating" and
          * "fullscreen"; the mock has one presentation, so both open it. */
         if( srv->active_player->worldmap_open )
-            mock230_worldmap_close(srv);
+            ToriRSServer_WorldMapClose(srv);
         else if( op == 2 || op == 3 )
-            mock230_worldmap_open(srv);
+            ToriRSServer_WorldMapOpen(srv);
         return 1;
     }
-    if( uid == mock230_ids()->com_worldmap_esckey || uid == mock230_ids()->com_worldmap_close )
+    if( uid == ToriRSServer_Ids()->com_worldmap_esckey || uid == ToriRSServer_Ids()->com_worldmap_close )
     {
         (void)op;
-        mock230_worldmap_close(srv);
+        ToriRSServer_WorldMapClose(srv);
         return 1;
     }
     return 0;
 }
 
 void
-mock230_worldmap_click(
-    struct Mock230Server* srv,
+ToriRSServer_WorldMapClick(
+    struct ToriRSServer* srv,
     int level,
     int abs_x,
     int abs_z)
 {
     if( srv->verbose )
-        fprintf(stderr, "mock230: <- CLICK_WORLD_MAP %d,%d,%d\n", level, abs_x, abs_z);
+        fprintf(stderr, "torirsserver: <- CLICK_WORLD_MAP %d,%d,%d\n", level, abs_x, abs_z);
     /* The reference gates this on an admin privilege and moves the player
      * there. The mock has one player and no privilege system, so it is
      * unconditional — the point of the packet here is that the round trip is
      * observable at all. */
-    mock230_world_teleport(srv, level, abs_x, abs_z);
+    ToriRSServer_WorldTeleport(srv, level, abs_x, abs_z);
     if( srv->active_player->worldmap_open )
         send_worldmap_tile(srv);
 }
 
 void
-mock230_worldmap_tick(struct Mock230Server* srv)
+ToriRSServer_WorldMapTick(struct ToriRSServer* srv)
 {
     int packed;
 

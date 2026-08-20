@@ -8284,7 +8284,7 @@ Task_AppBoot_Run(
      *
      * These are ordinary player varps, so a server that sends VARP_SMALL/LARGE
      * for them overwrites this — which is the right precedence. It matters only
-     * where nothing does, which is every standalone boot and mock230 today.
+     * where nothing does, which is every standalone boot and ToriRSServer today.
      *
      * Optimistic (not the server setter) so the ChangeFn runs and the host
      * snapshot stays in agreement with the varps; and before the tree is built,

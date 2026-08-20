@@ -296,7 +296,7 @@ is not complete if only the NPC definition or generic combat loop exists.
   restrictions and immunities, kill credit, item/full-inventory/reclaim paths,
   no-loot/loot behavior, failure/reset, death, relog, reconnect, and repeated
   completion. Add statistical tests for every random drop table.
-- [ ] Compile/pack through `make -C src mock230-scripts` and the cache check,
+- [ ] Compile/pack through `make -C src torirsserver-scripts` and the cache check,
   then run a real-client smoke from the canonical pre-fight state through the
   next stable quest state. Multiplayer/party encounters require attribution,
   wipe/retry, leave, reconnect, and cleanup soaks.

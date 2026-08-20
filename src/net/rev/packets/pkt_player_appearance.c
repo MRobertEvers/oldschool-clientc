@@ -221,7 +221,7 @@ read_colours_and_anims(
  * The icon byte is a BITMASK here, not an index: a real rev-230 appearance
  * carries a prayer index and a skull index, but this tree's classic pairing is
  * the older shape the client renders (app.c plots every set bit, stacked
- * upward). See docs/mock230_player_systems.md §4.
+ * upward). See docs/torirs_server_player_systems.md §4.
  */
 static int
 read_classic(

@@ -1,7 +1,7 @@
 # Queen Black Dragon — Encounter Design Guide
 
 Prescriptive design contract for the 29-May-2012 Queen Black Dragon encounter as
-implemented in mock230. Where `RS2012_QBD_TD.md` is the *evidence record* (what
+implemented in ToriRSServer. Where `RS2012_QBD_TD.md` is the *evidence record* (what
 the sources establish and how assets were ported), this document is the
 *encounter script*: what the player must experience, attack by attack, tick by
 tick, and how the implementation must realise it. Deviations between this guide
@@ -57,7 +57,7 @@ wall). Each later phase layers on mechanics — tortured souls, armour forms +
 siphon, then time stop + extreme dragonfire — while the fire wall gains extra
 waves, so the end of the fight interleaves every mechanic at once.
 
-Player-side damage numbers below are mock230 hitpoints (2012 LP ÷ 10; the
+Player-side damage numbers below are ToriRSServer hitpoints (2012 LP ÷ 10; the
 2012 client showed a 99-HP OSRS player as 990 LP).
 
 ## 2. Arena
@@ -191,7 +191,7 @@ whole family without fighting for it.
 
 Souls per phase (target population): 0 / 1 / 2 / 4 — and phase 4 opens with
 all four summoned at once. Fire-wall waves per phase: 1 / 2 / 3 / 3. Souls
-and worms are ordinary mortal NPCs on mock230's own HP scale, the same as
+and worms are ordinary mortal NPCs on ToriRSServer's own HP scale, the same as
 every other NPC in the tree; they bypass QBD's hit cap and
 intermission immunity.
 
@@ -553,7 +553,7 @@ position and wave bookkeeping live in player varps (session-scoped).
   cooldown switches, caps, masks, teardown) plus the new wall-cycle, anchor,
   and cadence assertions.
 - `tools/test_rs2012_qbd_combat_contract.py` — static contract greps.
-- Wire: a mock230 selftest capture stanza byte-decoding the wall rows off
+- Wire: a ToriRSServer selftest capture stanza byte-decoding the wall rows off
   MAP_ANIM — 1/2/3 rows on ticks 3/10/17 and 60 rows per three-wave cast.
 - Timing: server queue tracing (`TORIRS_ANIM_DEBUG`) across one phase-4
   rotation; every §5/§6 timeline lands on its tick.

@@ -45,14 +45,14 @@ def main() -> int:
     ):
         expect(path.is_file() and path.stat().st_size > 0, f"missing {label}: {path}")
 
-    wire = (REPO / "src/net/mock/mock230_wire.c").read_text(encoding="utf-8")
+    wire = (REPO / "src/torirsserver/torirs_server_wire.c").read_text(encoding="utf-8")
     expect(
         "case PKT_NAME_LOC_ADD_CHANGE:" in wire and "rsab_p2_alt3(buf, id);" in wire,
         "rev239 LOC_ADD_CHANGE no longer writes the loc config as an exact 16-bit p2Alt3",
     )
-    bridge = (REPO / "src/net/mock/mock230_encode.c").read_text(encoding="utf-8")
+    bridge = (REPO / "src/torirsserver/torirs_server_encode.c").read_text(encoding="utf-8")
     expect(
-        "player->masks & MOCK230_PMASK_SPOTANIM" in bridge
+        "player->masks & TORIRSSERVER_PMASK_SPOTANIM" in bridge
         and "ext.has_spotanim = 1" in bridge
         and "ext.spotanim_slot = 0" in bridge,
         "rev239 player-info bridge does not forward SPOTANIM_PL",
@@ -77,10 +77,10 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "MOCK230_SAVES": saves,
-                "MOCK230_SCRIPTS": str(args.scripts.resolve()),
-                "MOCK230_CACHE": str(args.cache.resolve()),
-                "MOCK230_EXT_DEBUG": "1",
+                "TORIRSSERVER_SAVES": saves,
+                "TORIRSSERVER_SCRIPTS": str(args.scripts.resolve()),
+                "TORIRSSERVER_CACHE": str(args.cache.resolve()),
+                "TORIRSSERVER_EXT_DEBUG": "1",
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "390",
                 "TORIRS_NET_CHEAT": "summoning_unlock;summoning_demo;drain summoning 1 0",
