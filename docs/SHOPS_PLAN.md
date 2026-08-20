@@ -1316,9 +1316,51 @@ two facts and only the second is the one in front of the player. Negative
 control: dropping the tick from the capture turns all three positive repaint
 checks red.
 
-### 9.5 Still open
+### 9.5 A fourth cause, and the one the player actually saw
 
-* §8.3 item 4 stands — none of this is a connected-client playtest, and the
-  sell ladder's op indices are still ours rather than the cache's.
+§9.1-9.3 were all real and none of them was the general store's problem —
+reported again as *"selling to general stores still just deletes the item"*,
+after they landed. §9.4's stanza asserted the shop's UPDATE_INV went **out**;
+it did not assert what was in it, and what was in it was the bug.
+
+`full_capacity` (`mock230_container.c`) sends a container's *used prefix*
+rather than its capacity once the container is too big to transmit per slot
+(>32 slots — the rule exists for the 1,410-slot bank, which re-sends whole on
+every change). A 40-slot general store with 15 lines stocked therefore
+transmitted as **15**.
+
+For the bank that is harmless: its own script rebuilds its grid from scratch on
+every update. A shop's grid is not rebuilt. `shop_main_init` (clientscript
+1074) creates `inv_size($shop)` cells **once**, at open, and `shop_main_update`
+(1076) repaints exactly that many. So the client drew 15 cells, the sale put
+the item in the container's slot 15, the UPDATE_INV arrived saying so — and
+there was no cell to draw it in. Specialty shops never showed it: their cache
+invs are small enough to be per-slot (Bob's is 7) and a sale merges into a line
+that already has a cell.
+
+A shop now transmits `row->slots`. Measured in the real client, not argued:
+
+    SDL_VIDEODRIVER=dummy MOCK230_SAVES=<scratch> TORIRS_INV_DEBUG=1 \
+    TORIRS_SIM_CMD="150,shop" \
+    TORIRS_SIM_CLICK_AT="200,537,230,1;206,500,261" \
+    TORIRS_MAX_FRAMES=300 TORIRS_EXIT_BMP=<scratch>/shop.bmp \
+    ./src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+
+(`::shop` opens the store, the right-click is a backpack cell in the side
+panel, the second click is the "Sell 1" row of the menu it opens.) Before:
+`inv-full: container=3 size=15`, the helm gone from the backpack, coins
+15000 → 15017, shop grid unchanged. After: `size=40` and the helm on the
+shelf. Three sales in a row land in slots 15/16/17 and all three draw.
+
+The stanza now also asserts the transmitted capacity. Negative control:
+restoring the used-prefix branch turns exactly the three general-store cases
+red and leaves the specialty ones green, which is the shape the report had.
+
+### 9.6 Still open
+
+* §8.3 item 4 is now partly done — a real client does open, sell, and repaint.
+  The sell ladder's op indices are confirmed by that run (the right-click menu
+  reads Value / Sell 1 / Sell 5 / Sell 10 / Examine and op 2 sells one), though
+  they are still ours rather than the cache's.
 * Two shop invs (2069, 2070) have a definition and neither a cache size nor a
   `size=`, so they are parsed and not seeded. Pre-existing, §8.5.

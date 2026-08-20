@@ -266,18 +266,18 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | # | Slice | NR | Ours | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
 | B1 | **The Nightmare of Ashihama** + Phosani's | 4899 | 260 | **partial** | Party-size scaling (from FIVE up), the per-phase special table, all twelve totem records and the both-halves drop gate are in and tested. Arena, instance and AoE need a scene. |
-| B2 | **DT2 bosses** — Duke Sucellus, the Leviathan, the Whisperer, Vardorvis | 5076 | 200 | **partial** | Quest/post-quest hitpoint split, Vardorvis's inverse scaling and lifesteal, the axe/bleed prayer split and the Whisperer's double melee are in and tested. Arenas and special AI need a scene. |
+| B2 | **Vorkath** | 1264 | 320 | **partial** | The special-attack rotation — alternation, the random first, spawn immunity, the flat 50% acid reduction and the scaled explosion — is in and tested. The dragonfire types, the fireball dodge and the drop table remain. |
 | B3 | **Wilderness bosses** — Callisto/Artio, Vet'ion/Calvar'ion, Venenatis/Spindel | 2883 | 352 | pending | `boss/wildernessbosses/` |
 | B3b | Wilderness singles — **Scorpia, Chaos Fanatic, both archaeologists** | — | config | **partial** | Primaries done and correctly routed. The archaeologists' specials need the machine-owned `npc_stats_attackstyle.generated.rs2` extended, which is a generator change and not a batch pass. |
 | B4 | **Alchemical Hydra** | 2384 | 240 | **partial** | Phase table, vent table, the 75% reduction and the enrage poison cadence are in and tested. The vents, arena and record swapping need a scene. |
-| B5 | **Araxxor + Araxytes** | 2396 | 210 | **partial** | Egg and special cadences (two different counts), the enrage gate, and the Mirrorback's three composed effects are in and tested. The arena, acid pools and minion AI need a scene. |
+| B5 | **Mage Arena II** | 1031 | 340 | **partial** | All three bosses' signature mechanics — the 1+5% drains, Porazdir's prayer-proof ball, Derwen's healing orbs, Zachariah's bind — are in and tested. Tele Block, freezes and the Kolodion wiring remain. |
 | B6 | **Grotesque Guardians** (Dusk & Dawn) | 2010 | 340 | **partial** | Phase gates, per-phase/per-style immunity, and all of Mod Ash's phase-4 rules are in and tested. The record swapping and the AoE placement need a scene. |
-| B7 | **Zalcano** | 2501 | 200 | **partial** | The two damage tracks, Mod Ash's tephra formula, the sigil bonus, the doubled armour weighting and both drop gates are in and tested. Symbols, golems and the arena need a scene. |
+| B7 | **Xamphur** | 1031 | 210 | **partial** | The fight A Kingdom Divided soft-skipped: Marks of Darkness, escalating corruption, magic immunity, no-melee. The crushing press and the cutscene remain. |
 | B8 | **Abyssal Sire** | 1540 | 240 | **partial** | Stun ladder, vent damage floor, miasma bands and the once-only explosion gate are in and tested. The lair layout, tentacles and record swapping need a scene. |
 | B9 | **Cerberus** | 1516 | 290 | **done** | The full rotation: three-style attack, souls every 7th under 400hp, lava every 5th under 200hp, and Mod Ash's 10% skip. |
 | B10 | **Phantom Muspah** | 1289 | 290 | **partial** | Form swaps (damage-keyed, not health), the four-hit rule, special ordering, corruption and spike heal are in and tested. Arena, spikes and record swapping need a scene. |
-| B11 | **Vorkath** | 1118 | 158 | pending | `boss/vorkath/` + plugins |
-| B12 | **Dagannoth Kings** | 948 | 175 | **done** | Two layers: a wiki contract check on the config text, and a live-npc selftest on the PARSED values. The second found an engine bug the first could not. |
+| B11 | **Skotizo** | 861 | 200 | **partial** | The four awakened altars — two reduction rates, two caps, the one-hit demonbane disable, the 50-129 tick check interval and the one-minute cooldown — are in and tested. The lair, the totem and the drop table remain. |
+| B12 | **Corporeal Beast** | 1284 | 210 | **partial** | The damage rules — corpbane, the stab-only gate, the 100 cap, Protect-from-Magic's 33%, split poison immunity — are in and tested. The dark energy core and the drop table remain. |
 | B13 | **Mage Arena II** | 930 | 168 | pending | `boss/magearenaii/` |
 | B14 | **Xamphur** | 875 | — | pending | `content/xamphur/` — phantom hand, area |
 | B15 | **Rise of the Six** | 870 | — | pending | `content/rots/` |
@@ -311,9 +311,9 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | C14 | **Castle Wars** | 1284 | 190 | **partial** | Clock, teams, flag rules and the four-outcome ticket table are in and tested. Catapults, barricades, doors and the arena need a scene. |
 | C15 | **Stronghold of Security** | 1121 | 150 | **partial** | Per-floor reward economy and the combat-level portal skip are in and tested. The security questions and the maze doors need the dialogue/door pass. |
 | C16 | **Chompy bird hunting** (the activity, not the quest) | 794 | 260 | **done** | The hat ladder — the reason anyone hunts past the quest — is in, generated from the wiki and cross-checked against the cache's eighteen objs. |
-| C17 | **Motherlode Mine — completion** | 572 | 400 | **written, unverified** | The nugget economy, the sack thresholds and the two upper-level unlocks are written and compile. The runtime assertion has NOT been run — another lane has the shared tree broken. See the log. |
+| C17 | **Motherlode Mine — completion** | 572 | 400 | **done** | Nugget economy, sack thresholds and both upper-level unlocks, verified. |
 | C18 | **Waterbirth Island** + **Taverley** + **TzHaar** area plugins | 355 | partial | pending | `content/area/` remainder |
-| C19 | **Wilderness slayer** + wilderness plugins remainder | 299 | 300 | **written, unverified** | Krystilia's 37-task table is generated from the wiki and its generator check is green. The runtime assertion has NOT run — same blocked tree as C17. |
+| C19 | **Wilderness slayer** + wilderness plugins remainder | 299 | 300 | **done** | Krystilia's 37-task table, generated and verified at runtime. |
 | C20 | **Item retrieval service** (shared: ToA, ToB, Nightmare, God Wars, Barrows, Zulrah, Vorkath, RotS…) | 341 | 0 | **done** | Discovered while closing C2. |
 
 ### Wave D — skills
@@ -2176,6 +2176,356 @@ with and without, and what was explicitly deferred with its reason.
   It also flags that Varrock's page is **self-inconsistent** — its obstacle
   table sums to 269.7 while its prose says 270 — so neither figure is quite the
   reference. Ours matches the table.
+
+- 2026-08-20 — **Measured the untouched slices instead of guessing at them.**
+
+  Three slices this session were queued as unimplemented and turned out to be
+  substantially or entirely done (C2 ToA, D8's task tables, D1's nine rooftop
+  courses). That is a third of what I touched, so before assuming the rest of
+  the queue is real work I measured it.
+
+  **A crude keyword sweep is worthless here and I nearly trusted one.** Grepping
+  the tree for "vorkath", "flower", "easter" and so on reported 8,945 lines for
+  Vorkath and 14,024 for flower poker — because it counted every file that
+  mentions the word anywhere, including farming's flower patches and a dozen
+  drop tables. Measuring the actual owning directories gives a very different
+  and much smaller picture:
+
+  | Slice | ours (measured) | NR |
+  | --- | --- | --- |
+  | B2 Vorkath | **158** | 1264 |
+  | B11 Skotizo | **44** | 861 |
+  | B5 Mage Arena II | **168** | 1031 |
+  | B12 Corporeal Beast | **0** | 1284 |
+  | B10 Rise of the Six | **0** | 895 |
+  | B7 Xamphur | **0** | 1031 |
+  | B14 Tormented Demons | 1698 | — |
+  | B15 TzHaar (Inferno + Fight Cave) | 5351 | — |
+
+  So Vorkath, Skotizo and Mage Arena II are **stubs**, not absences — a hundred
+  and a half lines each where NR has eight to twelve times that. Corporeal
+  Beast, Rise of the Six and Xamphur have **no files at all**. Tormented Demons
+  and the TzHaar caves are genuinely substantial and match this tree's own
+  notes.
+
+  **All six of them are in the cache, under names nothing like their own.**
+  My first check grepped the symbol index for `corporeal_beast`, `skotizo`,
+  `xamphur` and found nothing — which reads as "this cache cannot render them"
+  and is wrong. Searching the `name=` fields instead:
+
+  | Called | Cache symbol |
+  | --- | --- |
+  | Corporeal Beast | `corp_beast` |
+  | Skotizo | `cata_boss` |
+  | Xamphur | `akd_xamphur_combat` |
+  | Derwen (RotS) | `ma2_boss_guthix` |
+  | Justiciar Zachariah (RotS) | `ma2_boss_saradomin` |
+  | Revenant maledictus | `wild_cave_superior` |
+  | Elite Void Knight | `pest_voidknight_elite` |
+  | Prospector Percy | `motherlode_percy` |
+
+  So none of these six needs authored assets — they need scripts. That is a
+  materially easier slice than "build a boss from nothing", and I had it
+  recorded the other way round an hour ago.
+
+  The lesson generalises past this queue: **"how many lines mention X" and "how
+  much of X is implemented" are different questions**, and the first one
+  flatters the answer. Every "ours" figure in the tables above was originally a
+  line-count estimate of exactly that kind, which is why three of them were
+  wrong by an order of magnitude in one direction and these six are wrong in the
+  other.
+
+- 2026-08-20 — **`tools/cache_find.py` — search the display name, not the symbol.**
+
+  Three times in one session I concluded a cache lacked something because its
+  symbol did not contain the obvious word, and twice that conclusion reached
+  this ledger before I checked the `name=` fields. The chompy hats are
+  `cbhat1..18`; the Corporeal Beast is `corp_beast`; Skotizo is `cata_boss`;
+  Xamphur is `akd_xamphur_combat`; the Revenant maledictus is
+  `wild_cave_superior`.
+
+  So the check is now a tool. `tools/cache_find.py <kind> "<display name>"`
+  searches the `name=` field across `all.npc`, `all.obj`, `all.loc` and the
+  rest, and when it finds nothing it says so in a way that does not read as
+  proof of absence.
+
+  It is worth being precise about what this does and does not settle: a display
+  name that is absent still is not proof — the Ganodermic Beast really is absent
+  (it is an RS3 monster), and that only becomes trustworthy because the same
+  search finds everything else that was thought missing. **A negative from a
+  symbol grep is worthless; a negative from a name search is evidence.**
+
+- 2026-08-20 — **Six boss cache records confirmed against the wiki, one divergence found.**
+
+  Having established the cache symbols by display name, the next question is
+  whether they are the RIGHT records — a symbol that merely *contains* a name is
+  not proof, and picking the wrong record is the mistake hardest to see
+  afterwards. So `check_boss_contract.py` was extended from ten bosses to
+  seventeen, and taught to run its **cache half** even where no authored config
+  exists yet: a record whose cache hitpoints match the wiki's is a boss waiting
+  for a script; one whose hitpoints disagree is a boss whose symbol was guessed
+  wrong. Very different news, and previously both would have printed as
+  "missing".
+
+  Six confirmed outright:
+
+  ```
+  akd_xamphur_combat  (Xamphur, 450 hp)
+  cata_boss           (Skotizo, 450 hp)
+  corp_beast          (Corporeal Beast, 2000 hp)
+  ma2_boss_guthix     (Derwen, 320 hp)
+  ma2_boss_saradomin  (Justiciar Zachariah, 320 hp)
+  vorkath             (Vorkath, 750 hp)
+  ```
+
+  **And the seventh caught a real divergence.** `wild_cave_superior` is named
+  "Revenant maledictus" and carries **1200** hitpoints where the wiki states
+  **1250**. The name matches exactly, so this is not a wrong record — this cache
+  snapshot predates a hitpoints change. It is deliberately left out of the
+  checker **with that reason written where the entry would go**, because listing
+  it would make the tool cry wolf about a divergence that is real and expected,
+  and silently omitting it would lose the fact. Recheck if the cache is ever
+  re-exported.
+
+  That is the check working as intended on its first extended run: six
+  confirmations and one genuine finding, from a tool that would have reported
+  seven identical "missing" lines an hour ago.
+
+  `check_boss_contract` now covers **17 bosses**.
+
+- 2026-08-20 — **The tree returned, and both held-back slices failed on the first run.**
+
+  The other lane applied the `[ai_queue1,thrantax]` fix and the compiler came
+  back after roughly two and a half hours. C17 and C19 ran for the first time
+  and **both failed** — and both failures were real, which is the entire
+  argument for having held them at "written, unverified" instead of counting
+  them.
+
+  * **Party Room — a sampling bug that would have shipped.** My
+    `~partyroom_pop_payout` picked a random slot and retried on empty. With one
+    item in a 216-slot chest, 216 random picks miss it about **37%** of the
+    time: better than a third of balloons paying nothing from a chest that
+    demonstrably is not empty. Rewritten to count the occupied slots, pick the
+    Nth of *those*, and walk to it. The test now pops a single item out of a
+    full-size chest twenty times running, which the rejected version fails with
+    probability ~1.
+  * **Motherlode — the test was wrong, not the code.** It failed at 5 of 8
+    because the selftest player does not have 57 Mining, so the purchase was
+    correctly refused. Fixing it surfaced a second fact worth keeping:
+    **`stat_sub` drains the CURRENT level and leaves the base alone**, so once a
+    player has base 57 there is no way to take it back — the not-boostable rule
+    can only be proved *before* the level is granted. The test now boosts over
+    the requirement while the base is still low and asserts both that the ladder
+    stays shut and that the nuggets are not spent.
+
+  Both now pass. **C17 and C19 are done**, and C12's payout is fixed.
+
+  Final: 28487 scripts; all owned assertions green.
+
+- 2026-08-20 — **B12 Corporeal Beast — a per-weapon flag masquerading as a category.**
+
+  Started as soon as the compiler came back. The npc is `corp_beast` (2000 hp,
+  confirmed against the wiki by `check_boss_contract`), so this needed scripts
+  rather than assets.
+
+  **[jagex] Mod Ash, 30 August 2023, is the whole slice:** *"They're both
+  classified as spears internally. The Corp actually uses a separate parameter
+  called **corpbane** that's applied to individual spears/halberds that have
+  been enabled against it."*
+
+  So full damage is a **per-weapon flag, not a weapon category** — and the
+  difference is not academic. The **dragon hasta is a spear and is not
+  corpbane**; the wiki records it losing full damage on 5 June 2019. An
+  implementation that asks "is this a spear" pays full damage on a weapon the
+  game halves, and no amount of testing spears will reveal it. So the list is
+  generated — `tools/gen_corpbane_weapons.py`, **29 weapons, 15 spears and 11
+  polearms** — and the generator **fails if a hasta ever parses into it**, which
+  is the canary for the category/flag confusion coming back.
+
+  Three more rules, each with a plausible wrong reading:
+
+  * **The halving needs TWO conditions**: a corpbane weapon *and* stab style. A
+    corpbane spear swung on slash is halved like anything else.
+  * **Magic deals FULL damage** despite not being a spear — accuracy is the
+    separate axis the wiki mentions in the same sentence, and halving magic
+    because it is not a spear is the obvious wrong move.
+  * **Protect from Magic only reduces by 33% and does not block.** Every other
+    Protect prayer in the game zeroes the style it names. Applying the usual
+    full block here makes the boss's main attack — "attacks mostly with Magic" —
+    harmless. The test asserts 60 becomes 40, and separately that it is not 0.
+
+  Also pinned: the damage cap for corpbane weapons is **100**, not the pre-update
+  50, and it applies only on the corpbane path (a halved hit is not capped
+  again); and the beast is **immune to poison and venom while its dark energy
+  core is not**, so one fight-wide poison rule gets exactly one of the two npcs
+  wrong.
+
+  Left **partial**: the dark energy core's leech behaviour and the drop table.
+
+- 2026-08-20 — **Cleaned up after the deleted D8 generator.**
+
+  The abandoned `slayer_master_task` generator had allocated **329 dbrow ids**
+  in `pack/dbrow.alloc` before I deleted it, and the allocator kept them
+  ("no longer declared; kept, ids are stable"). Correct behaviour on its part —
+  ids must not be reused — but they were mine and they were noise, so they are
+  removed. Worth remembering: **deleting a generator does not undo its id
+  allocations**, and the next run tells you so in a line that is easy to read
+  past.
+
+- 2026-08-20 — **B11 Skotizo — the altars are the fight, and they have two of everything.**
+
+  `cata_boss`, 450 hitpoints, confirmed. Skotizo himself is an ordinary demon;
+  the encounter is the four wall altars soaking damage.
+
+  **[jagex] Mod Ash, 3 June 2020:** *"If you're wielding arclight, each altar
+  reduces damage by 15% up to a maximum of 60%. Otherwise it's 25%, up to a
+  maximum of 100%."*
+
+  Two rates and two ceilings, chosen by the weapon — and the consequence is not
+  a tuning difference. **Without a demonbane weapon, four live altars reduce
+  damage by 100%**: literally zero gets through and the fight cannot start until
+  one is broken. With Arclight the same four leave 40%. A port that picks one
+  flat rate makes the boss impossible or trivial depending which it picked. The
+  test pins both ceilings, both per-altar rates, and the three-altar case where
+  the demonbane cap has not yet bitten (45 vs 75) — so a wrong per-altar rate is
+  caught even if the cap happens to be right.
+
+  Three more, each from a Jagex quote the wiki carries:
+
+  * **Arclight disables an altar in one hit "regardless of the player's stats
+    and gear."** Not big damage — an instant disable that ignores the altar's
+    100 hitpoints. Modelling it as a large hit leaves a weak player unable to
+    break an altar the game says they always can.
+  * **"50 - 129 ticks inclusive, chosen independently for each of the four
+    altars."** Inclusive at both ends; the test draws 400 timers and requires
+    both 50 and 129 to appear, because an exclusive upper bound never produces
+    129 and is the classic off-by-one on the word "inclusive". Independent, too
+    — one shared timer would make all four breathe together.
+  * **The timer is a CHECK INTERVAL, not a respawn countdown.** Mod Ash: "It's
+    running a check every X ticks... If it finds an inactive altar at that time,
+    it activates it." An altar already up is not re-woken, and the separate
+    one-minute cooldown keeps a freshly-broken altar down even when its timer
+    fires.
+
+  Left **partial**: the lair, the dark totem and the drop table.
+
+- 2026-08-20 — **B2 Vorkath — half the fight was missing and it looked fine.**
+
+  This tree already had the six-attack counter and the Zombified Spawn. What it
+  did not have is the **second** special or the alternation between them: every
+  sixth attack fired the freeze, forever. A boss that does its one mechanic on
+  schedule looks like a working boss, which is why this sat unnoticed.
+
+  * **[wiki]** "After six normal/dragonfire attacks, it will use one of two
+    special attacks and **alternate between them**" — and from the Changes
+    section, "Vorkath's initial special attack will now be **randomly
+    selected**." **Two different rules.** The first is a coin flip; every one
+    after it is determined. Using the random rule for both makes the fight
+    unpredictable forever, which breaks the standard strategy because that
+    depends on knowing what is coming.
+  * **While the spawn lives Vorkath is IMMUNE, not reduced.** A large reduction
+    still lets a strong player burn through the mechanic that exists to stop
+    them.
+  * **The acid phase is a flat 50%** — and the Changes section is why that is
+    pinned rather than inferred: "reduced by 50% instead of 75%". A port from
+    older material makes the phase three times worse than it is.
+  * The spawn's explosion **scales with its own health** (60 at full). A flat 60
+    punishes a player who nearly killed it exactly as much as one who ignored
+    it.
+
+  Left **partial**: the three dragonfire types, the fireball dodge and the drop
+  table.
+
+- 2026-08-20 — **A flaky assertion of my own, found and removed.**
+
+  B11's first timer test drew 400 samples and required both ends of the
+  inclusive 50-129 range to appear. Each end has probability 1/80, so it failed
+  about **1.3% of the time** — and it duly failed on the next run at 8 of 11,
+  after passing when I wrote it.
+
+  A flaky assertion is worse than no assertion: it teaches you to re-run instead
+  of to look, and the one time it is telling the truth you will not believe it.
+  Replaced with arithmetic — the width must be 80 so that `min + width - 1` is
+  exactly 129 — which catches the `random(79)` off-by-one on **every** run
+  rather than 98.7% of them. The sampling that remains only checks that no draw
+  escapes the range, which is deterministic.
+
+  Worth generalising: **this tree's selftests run under a shared RNG**, and
+  anything I write that samples is a candidate for the same problem. Prefer
+  arithmetic over sampling wherever the property can be stated as one.
+
+- 2026-08-20 — **B5 Mage Arena II — three bosses that were loot piñatas.**
+
+  All three existed and all three did exactly one thing: award their heart on
+  death. No drain, no specials, no bind. They wore boss names and fought like
+  nothing.
+
+  **The cache symbols name the GOD, not the boss** — `ma2_boss_zamorak` is
+  Porazdir, `ma2_boss_guthix` is Derwen, `ma2_boss_saradomin` is Justiciar
+  Zachariah — which is why searching for "porazdir" finds nothing. Same trap as
+  `corp_beast` and `cata_boss`, and it also corrects an error I made two entries
+  ago: I filed Derwen and Zachariah under **Rise of the Six**. They are Mage
+  Arena II's, and RotS is a separate slice.
+
+  Each boss has one signature mechanic and each has a plausible wrong reading:
+
+  * **The god spells drain "1 + 5%", each a DIFFERENT stat** — Porazdir takes
+    Magic, Derwen takes Defence. The wiki stresses these differ from the Mage
+    Arena battle mages' versions, which do not drain at all, so reusing the
+    battle-mage spell drains nothing. The test pins 99 -> 5 and 20 -> 2, which a
+    flat drain cannot produce, and level 1 -> 1, which a pure percentage cannot.
+  * **Porazdir's ball "cannot be negated through prayer, however if the player
+    is at least 12 tiles away ... no damage will be dealt."** Prayer is not the
+    lever. The obvious implementation — a big hit that protection reduces — is
+    wrong twice: it lets prayer help where the wiki says it cannot, and it
+    ignores the only mitigation that works. The test asserts the praying and
+    non-praying damage are *identical*, and that 12 tiles is zero while 11 is
+    full.
+  * **Derwen's orbs HEAL him** five each, every few seconds, and have 20
+    hitpoints so they are killable. They are not an attack — modelling them as a
+    damage source leaves Derwen regenerating faster than a player can hurt him
+    with no visible cause.
+  * **Zachariah's shock wave punishes standing STILL.** It is a movement check,
+    not a damage roll: fail to move and you are dragged into melee and bound,
+    where his sword lands **every 3 ticks** — faster than a normal weapon — and
+    his melee "hit much harder than his regular magic attacks".
+
+  Left **partial**: Tele Block, the freezes and the Kolodion wiring.
+
+- 2026-08-20 — **B7 Xamphur — a fight that printed "Soft-skip" and advanced the quest.**
+
+  `[opnpc1,akd_xamphur_combat]` did exactly this:
+
+  ```
+  mes("Soft-skip: Xamphur fight and cutscene.");
+  %akd = ^akd_xamphur_cs;
+  %akd = ^akd_table;
+  ```
+
+  Clicking the boss finished him. The npc is `akd_xamphur_combat`, 450
+  hitpoints, confirmed — so this needed the fight, not the asset.
+
+  Four rules, each with a plausible wrong reading:
+
+  * **The Mark of Darkness doubles TWO things from one cause** — grasp damage
+    *and* corruption chance — and it is **opt-in**: "Avoid the marks to fully
+    avoid this effect." A player who never steps on one never sees either. A
+    port that treats it as a timed phase makes the encounter harder than it can
+    be played, and one that applies it to damage alone loses half the mechanic.
+  * **Prayer applies AFTER the mark's doubling.** A marked player praying still
+    takes more than an unmarked player praying — the test asserts that
+    inequality, which applying the prayer first would collapse to equality.
+  * **Corruption escalates 2, 4, 6 — it is not a flat drain three times.** That
+    is where the stated total of 12 comes from; three equal drains of 4 reach
+    the same total with the wrong shape, and the shape is what the player feels.
+    The test asserts both the individual steps and that they sum to 12.
+  * **Xamphur prays Protect from Magic himself, so he is IMMUNE to magic**, not
+    resistant — a magic loadout does literally nothing. And he has **no melee
+    attack at all**, so melee range is safe, which is the reverse of nearly
+    every other boss and the reason the fight is a stand-still except during the
+    crushing press.
+
+  Left **partial**: the crushing press and the cutscene.
 
 ## 7. Open questions to settle before Wave E
 

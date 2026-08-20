@@ -1,0 +1,96 @@
+{{Obsolete|Some details may no longer be true after the update}}
+{{Multi Infobox
+|text1 = Active
+|item1 =
+{{Infobox Monster
+|name = Awakened Altar
+|image = [[File:Awakened Altar.png|100px]]
+|release = [[16 June]] [[2016]]
+|update = Skotizo - The Archaic Demon
+|members = Yes
+|combat = N/A
+|size = 1
+|examine = A power emanates from this structure.
+|attributes = demon
+|xpbonus = 
+|max hit = 0 (Does not attack)
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints = 100
+|att = 1
+|str = 1
+|def = 1
+|mage = 1
+|range = 1
+|attbns = 
+|strbns = 
+|amagic = 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab = 
+|dslash = 
+|dcrush = 
+|dmagic = 
+|dlight = 
+|dstandard = 
+|dheavy = 
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7288,7290,7292,7294
+}}
+|text2 = Inactive
+|item2 =
+{{Switch infobox
+|text1 = Scenery
+|item1 =
+{{Infobox Scenery
+|name = Altar
+|image = [[File:Altar (Skotizo).png|100px]]
+|release = [[16 June]] [[2016]]
+|update = Skotizo - The Archaic Demon
+|members = Yes
+|quest = No
+|location = In Skotizo's lair
+|options = None
+|examine = Power no longer emanates from this structure.
+|map = {{Map|mtype=pin|mapID=-1|x:1678,y:9888|x:1694,y:9903|x:1714,y:9888|x:1696,y:9871}}
+|id = 28924
+}}
+|text2 = NPC
+|item2 =
+{{Infobox Scenery
+|name = Altar
+|image = [[File:Altar (Skotizo).png|100px]]
+|release = [[16 June]] [[2016]]
+|update = Skotizo - The Archaic Demon
+|members = Yes
+|quest = No
+|location = In Skotizo's lair
+|options = None
+|examine = Power no longer emanates from this structure.
+|map = {{Map|mtype=pin|mapID=-1|x:1678,y:9888|x:1694,y:9903|x:1714,y:9888|x:1696,y:9871}}
+|id = 7291,7293,7295
+}}
+}}
+}}
+The '''awakened altars''' can spawn on the north, east, south and west wall of Skotizo's lair during the fight against [[Skotizo]]. These altars reduce all damage inflicted on Skotizo while they are active. If [[Arclight]] or [[Emberlight]] is equipped, each altar reduces damage by 15% up to a maximum of 60%. Otherwise, with other weapons, it's 25% each up to a maximum of 100%.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1268258495322824709|date=3 June 2020|archiveurl=https://reldo.runescape.wiki/i/100828|archivedate=6 July 2020|quote=Correct. If you're wielding arclight, each altar reduces damage by 15% up to a maximum of 60%. Otherwise it's 25%, up to a maximum of 100%.}} They have 100 [[Hitpoints]] each. Hitting the awakened altars with Arclight/Emberlight will instantly disable them in one hit, regardless of the player's stats and gear.
+
+At the beginning of the fight, each of the four altars sets a timer with a random duration between 50 and 129 ticks (30 and 77.4 seconds) inclusive.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1217549945504509952|date=15 January 2020|archiveurl=https://reldo.runescape.wiki/i/103032|archivedate=25 June 2023|quote=50 - 129 ticks inclusive, chosen independently for each of the four altars. (...)}} Whenever one of these timers ticks down to zero, the corresponding altar will be reawakened if it had previously been deactivated.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1217554158447931393|date=15 January 2020|archiveurl=https://reldo.runescape.wiki/i/109196|archivedate=24 June 2023|quote=I've had a closer look. It's running a check every X ticks, where X is set as described above. If it finds an inactive altar at that time, it activates it. So it's a sort of maximum duration before one can respawn.}} When an altar is deactivated, it goes on cooldown for a minute before it can be reactivated.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = Awakened Altars now have a cooldown of 1 minute before they can reactivate once deactivated.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Catacombs of Kourend}}
+[[Category:Monster examine impossible]]

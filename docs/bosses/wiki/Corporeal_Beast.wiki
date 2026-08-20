@@ -1,0 +1,364 @@
+{{External|rs}}
+{{Instance|optional=true}}
+{{HasStrategy}}
+{{Infobox Monster
+|name = Corporeal Beast
+|image = [[File:Corporeal Beast.png|270px]]
+|release = [[16 October]] [[2014]]
+|update = Corporeal Beast
+|aka = Corp
+|members = Yes
+|combat = 785
+|size = 5
+|examine = A vision of supernatural horror.
+|xpbonus = 55
+|max hit = 33 (Melee), 65 (Magic), 51 (Stomp)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]], [[Magic]]
+|attack speed = 4
+|respawn = 50
+|hitpoints = 2000
+|att = 320
+|str = 320
+|def = 310
+|mage = 350
+|range = 150
+|attbns = 50
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 25
+|dslash = 200
+|dcrush = 100
+|dmagic = 150
+|dlight = 230
+|dstandard = 230
+|dheavy = 100
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 10
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|id = 319
+}}
+The '''Corporeal Beast''', often referred to simply as '''Corp''', is a large monster residing in its [[Corporeal Beast's Lair|lair]], accessed via the [[games necklace]] or an entrance in level 21 [[Wilderness]]. Due to its very high combat stats, it is often fought by groups of players. Unlike its ''RuneScape 3'' counterpart, it has no quest requirements to access.
+
+The Corporeal Beast is the only monster to drop the [[spirit shield]], as well as the [[holy elixir]] and [[arcane sigil|arcane]], [[elysian sigil|elysian]], and [[spectral sigil|spectral]] sigils, used to enhance the shield. In addition to its sigil drops, the Corporeal Beast has many other valuable drops. Unlike some other group bosses, only the player who dealt the most damage will receive kill credit and loot.
+
+Players can pay 200,000 coins to open a group instance for their [[chat-channel]] via the [[private portal]], excluding [[Ironman Mode|ironmen]].
+
+==Location==
+{{Map|name=Corporeal Beast's Lair|x=3203|y=3681|r=3|align=right|caption=Corporeal Beast's Lair entrance|mtype=square}}
+{{LocTableHead}}
+{{LocLine
+|name = Corporeal Beast
+|location = [[Corporeal Beast's Lair]] (east of the [[Graveyard of Shadows]] or [[games necklace]] teleport)
+|levels = 785
+|members = Yes
+|mapID = -1
+|plane = 2
+|2993,4254
+|mtype = pin
+|leagueRegion = wilderness
+}}
+{{LocLine
+|name = Corporeal Beast
+|location = [[Corporeal Beast's Lair]] ([[Ironman Mode|Ironman]] only)
+|levels = 785
+|members = Yes
+|mapID = -1
+|plane = 2
+|2993,4382
+|mtype = pin
+|leagueRegion = wilderness
+}}
+{{LocTableBottom}}
+The [[Corporeal Beast's Lair]] is located in level 21 [[Wilderness]], although players can teleport directly there using a [[games necklace]]. This will take the player to a small safe room with a large doorway to Corporeal Beast.
+
+[[Ironmen]] with a [[combat level]] of 90 or higher have a separate Corporeal Beast room. All other accounts use the normal room. This is to reduce [[griefing]] as well as prevent ironmen from using normal accounts to use stat-reducing [[special attack]]s.
+
+==Fight overview==
+{{Main|Corporeal Beast/Strategies}}
+[[File:Fighting Corporeal Beast.png|thumb|right|300px|A group of players fighting the Corporeal Beast.]]
+The Corporeal Beast has a 50% damage reduction against any weapon that is not a [[Corpbane weapons|Corpbane weapon]] on stab attack style. Although [[magic]] attacks also deal full damage, they are generally very inaccurate against the boss. [[Protect from Magic]] does not fully block its magic attacks; it only reduces the damage by 33%. The Corporeal Beast has very high accuracy and damage and attacks mostly with Magic.
+
+While fighting the Corporeal Beast, there is a chance that the [[dark energy core]] will spawn. This creature leaches [[Hitpoints]] from any players adjacent to it to heal the Corporeal Beast and jumps to players if none are adjacent, and it can be significantly weakened by [[poison]]ing it. The Corporeal Beast also rapidly regenerates health when there are no players in the room.
+
+==Money making==
+{{Mmgsection|Killing the Corporeal Beast}}
+
+==Drops==
+{{DropLogProject|kills=434422}}
+
+The average Corporeal Beast kill, including its unique drops, is estimated to be worth around {{Coins|floor{{#expr:
+1/585 *
+  ( 3/7 * {{GEP|Spectral sigil}} +
+    3/7 * {{GEP|Arcane sigil}} +
+    1/7 * {{GEP|Elysian sigil}} ) 
++
+1/512 * 584/585 *
+  ( 32 * {{GEP|Soul rune|250}} +
+    24 * {{GEP|Runite bolts|250}} +
+    22 * {{GEP|Death rune|300}} +
+    21 * {{GEP|Raw shark|70}} +
+    21 * {{GEP|Pure essence|2500}} +
+    20 * {{GEP|Onyx bolts (e)|175}} +
+    18 * {{GEP|Adamantite bar|35}} +
+    20 * {{GEP|Tuna potato|30}} +
+    18 * {{GEP|Green dragonhide|100}} +
+    18 * {{GEP|Mystic robe top|1}} +
+    17 * {{GEP|White berries|120}} +
+    17 * {{GEP|Adamant arrow|750}} +
+    17 * {{GEP|Goat horn|120}} +
+    17 * {{GEP|Cosmic rune|500}} +
+    17 * {{GEP|Law rune|250}} +
+    17 * {{GEP|Steel cannonball|2000}} +
+    18 * {{GEP|Mystic robe bottom|1}} +
+    17 * {{GEP|Adamantite ore|125}} +
+    15 * {{GEP|Watermelon seed|24}} +
+    12 * {{GEP|Magic logs|75}} +
+    12 * 35000 +
+    12 * {{GEP|Mahogany logs|150}} +
+    12 * {{GEP|Runite ore|20}} +
+    12 * {{GEP|Teak plank|100}} +
+    12 * {{GEP|Mystic water staff|1}} +
+    12 * {{GEP|Mystic earth staff|1}} +
+    12 * {{GEP|Mystic fire staff|1}} +
+    12 * {{GEP|Mystic air staff|1}} +
+    12 * {{GDTValue}} * 10 +
+    10 * {{GEP|Antidote++(4)|40}} +
+    8 * {{GEP|Spirit shield|1}} +
+    5 * {{GEP|Ranarr seed|10}} +
+    3 * {{GEP|Holy elixir|1}} )
+}}}}. Without the sigils, this value is estimated to be {{Coins|floor{{#expr:
+1/512 * 584/585 *
+  ( 32 * {{GEP|Soul rune|250}} +
+    24 * {{GEP|Runite bolts|250}} +
+    22 * {{GEP|Death rune|300}} +
+    21 * {{GEP|Raw shark|70}} +
+    21 * {{GEP|Pure essence|2500}} +
+    20 * {{GEP|Onyx bolts (e)|175}} +
+    18 * {{GEP|Adamantite bar|35}} +
+    20 * {{GEP|Tuna potato|30}} +
+    18 * {{GEP|Green dragonhide|100}} +
+    18 * {{GEP|Mystic robe top|1}} +
+    17 * {{GEP|White berries|120}} +
+    17 * {{GEP|Adamant arrow|750}} +
+    17 * {{GEP|Goat horn|120}} +
+    17 * {{GEP|Cosmic rune|500}} +
+    17 * {{GEP|Law rune|250}} +
+    17 * {{GEP|Steel cannonball|2000}} +
+    18 * {{GEP|Mystic robe bottom|1}} +
+    17 * {{GEP|Adamantite ore|125}} +
+    15 * {{GEP|Watermelon seed|24}} +
+    12 * {{GEP|Magic logs|75}} +
+    12 * 35000 +
+    12 * {{GEP|Mahogany logs|150}} +
+    12 * {{GEP|Runite ore|20}} +
+    12 * {{GEP|Teak plank|100}} +
+    12 * {{GEP|Mystic water staff|1}} +
+    12 * {{GEP|Mystic earth staff|1}} +
+    12 * {{GEP|Mystic fire staff|1}} +
+    12 * {{GEP|Mystic air staff|1}} +
+    12 * {{GDTValue}} * 10 +
+    10 * {{GEP|Antidote++(4)|40}} +
+    8 * {{GEP|Spirit shield|1}} +
+    5 * {{GEP|Ranarr seed|10}} +
+    3 * {{GEP|Holy elixir|1}} )
+}}}}.
+
+===Sigils===
+{{Uniques/Corporeal Beast}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Mystic robe top|quantity=1|rarity=18/512}}
+{{DropsLine|name=Mystic robe bottom|quantity=1|rarity=18/512}}
+{{DropsLine|name=Mystic air staff|quantity=1|rarity=12/512}}
+{{DropsLine|name=Mystic water staff|quantity=1|rarity=12/512}}
+{{DropsLine|name=Mystic earth staff|quantity=1|rarity=12/512}}
+{{DropsLine|name=Mystic fire staff|quantity=1|rarity=12/512}}
+{{DropsLine|name=Spirit shield|quantity=1|rarity=8/512|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1065640033384914944|date=22 November 2018|archiveurl=https://reldo.runescape.wiki/i/101419|archivedate=26 May 2020|quote=There's a 1/5k roll for a pet in there too. 3/512 for elixir, 8/512 spirit shield, 12/512 gems, 20/512 onyx bolts, 15/512 watermelon seeds.|name=corprateash}}}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Soul rune|quantity=250|rarity=32/512}}
+{{DropsLine|name=Runite bolts|quantity=250|rarity=24/512}}
+{{DropsLine|name=Death rune|quantity=300|rarity=22/512}}
+{{DropsLine|name=Onyx bolts (e)|quantity=175|rarity=20/512|raritynotes={{NamedRef|corprateash}}}}
+{{DropsLine|name=Steel cannonball|quantity=2000|rarity=17/512}}
+{{DropsLine|name=Adamant arrow|quantity=750|rarity=17/512}}
+{{DropsLine|name=Law rune|quantity=250|rarity=17/512}}
+{{DropsLine|name=Cosmic rune|quantity=500|rarity=17/512}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Raw shark|quantity=70 (noted)|rarity=21/512}}
+{{DropsLine|name=Pure essence|quantity=2500 (noted)|rarity=21/512}}
+{{DropsLine|name=Adamantite bar|quantity=35 (noted)|rarity=18/512}}
+{{DropsLine|name=Green dragonhide|quantity=100 (noted)|rarity=18/512}}
+{{DropsLine|name=Adamantite ore|quantity=125 (noted)|rarity=17/512}}
+{{DropsLine|name=Runite ore|quantity=20 (noted)|rarity=12/512}}
+{{DropsLine|name=Teak plank|quantity=100 (noted)|rarity=12/512}}
+{{DropsLine|name=Mahogany logs|quantity=150 (noted)|rarity=12/512}}
+{{DropsLine|name=Magic logs|quantity=75 (noted)|rarity=12/512}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Tuna potato|quantity=30|rarity=20/512}}
+{{DropsLine|name=White berries|quantity=120 (noted)|rarity=17/512}}
+{{DropsLine|name=Goat horn|quantity=120 (noted)|rarity=17/512}}
+{{DropsLine|name=Watermelon seed|quantity=24|rarity=15/512|raritynotes={{NamedRef|corprateash}}}}
+{{DropsLine|name=Coins|quantity=20000-50000|rarity=12/512}}
+{{DropsLine|name=Antidote++(4)|quantity=40 (noted)|rarity=10/512}}
+{{DropsLine|name=Ranarr seed|quantity=10|rarity=5/512}}
+{{DropsLine|name=Holy elixir|quantity=1|rarity=3/512|raritynotes={{NamedRef|corprateash}}}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|12/512|naturetalisman=yes|rolls=10|override=There is a 12/512 chance of rolling the [[gem drop table]], whereupon its contents are rolled 10 times.{{NamedRef|corprateash}}}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/200|raritynotes={{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}}}
+{{DropsLine|name=Jar of Spirits|quantity=1|rarity=1/1000}}
+{{DropsLine|name=Pet dark core|quantity=1|rarity=1/5000|raritynotes={{NamedRef|corprateash}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group="d"}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Corporeal Beast}}
+
+==Historical==
+The Corporeal Beast was originally released on 15 September 2008 in ''RuneScape 2''. However, there are several differences between the iteration of this boss in ''Old School RuneScape'' and the original in ''RuneScape''.
+* It could only be fought after completing the quest {{RSL|Summer's End}}. As the quests involving it are not present, no lore exists for the Corporeal Beast in Old School.
+* The Corporeal Beast's lair was much larger, although it only resided in the last room. The entrance to the lair was also 14 [[Wilderness]] levels deeper than the one in-game.
+* The original Corporeal Beast could drop a {{RSL|divine sigil}}, which could be used to create a {{RSL|divine spirit shield}}. Its effect was a constant 30% damage reduction per attack received, with 50% of that blocked damage instead drained from prayer points. 
+** The divine sigil's addition to ''Old School RuneScape'' has been polled twice, on [[18 September]] [[2014]] and [[15 February]] [[2019]], failing to reach the 75% threshold of passing at 66.1% and 72.8% respectively.
+* The original Corporeal Beast could drop the [[regen bracelet]].
+* The original Corporeal Beast was fought slightly differently by players. It boasted a higher maximum hit with melee of 51 instead of 33, as well as being vulnerable to [[poison]]. However, it would very quickly remove its poison unlike other monsters vulnerable to poison.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The Corporeal Beast now has a 10% elemental weakness to [[earth spells]].
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = Corporeal Beast's heavy [[Ranged]] defence has been lowered from 230 to 100.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = The Corporeal Beast's 'drain' attack will no longer hit players after they leave its lair.
+}}
+{{Subject changes
+|date = 27 April 2022
+|update = Beneath Cursed Sands
+|change = The damage cap of 50 for halberds and spears has been increased to 100.
+}}
+{{Subject changes
+|date = 7 July 2021
+|update = Small Changes & Tweaks
+|change = The previously implemented healing mechanic when no one is in the boss room was tweaked to be slightly more rapid, to prevent only using [[crystal halberd]] special attacks to kill the boss being the most efficient solo method.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = The Corporeal Beast will now heal 25 hitpoints every 7 game ticks (4.2 seconds) when no players are fighting it, and fully heals if no one has attacked it for three minutes.
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting_Stars
+|type = hotfix
+|change = The Corporeal Beast's reset timer has been reduced from 10 minutes to 3 minutes to make finding an open world easier.
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting_Stars
+|change = * The additional hitpoint regeneration when attacked by large groups scales from a lower base level
+* Iron players are no longer awarded loot if the Corporeal Beast has attacked another player
+* The Corporeal Beast resets 10 minutes after last attacking or being attacked
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting_Stars
+|poll = Old School Content Poll 74: Collection Log & Game Improvements
+|change = The Corporeal Beast can now drop the [[jar of spirits]].
+}}
+{{Subject changes
+|date = 14 January 2019
+|update = Konar Loot Table Balancing
+|type = hotfix
+|change = The [[Dragon hasta]] no longer deals full damage to the Corporeal Beast.
+{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1084834960543043585|date=14 January 2019|archiveurl=https://reldo.runescape.wiki/i/103571|archivedate=25 May 2020}}
+}}
+{{Subject changes
+|date = 29 March 2018
+|update = Easter 2018 Holiday Event
+|change = Ironmen with a combat level of 90 or higher now have their separate Corporeal Beast room to reduce griefing and using other accounts to aid in killing it.
+}}
+{{Subject changes
+|date = 16 February 2017
+|poll = Quality of Life - Ten PvM Suggestions
+|update = Party Pete's Birthday Bash
+|change = The entrance room before the boss lair was made considerably smaller to reduce the chance of a loading screen taking place when running to the boss.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|poll = Old School Content Poll 36: Skilling Pets
+|change = The combat level requirement of 90 to enter the lair was removed.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Added a 'peek' option to the entrance of this boss, allowing players to see the number of other players currently in the boss room. 
+}}
+{{Subject changes
+|date = 20 November 2014
+|poll = Old School Content Poll 27
+|update = Instanced Corp & Packs
+|change = Players can now pay 200,000 coins to open an instance for their clan.
+}}
+{{Subject changes
+|change = Upon dying in the cave your loot (including untradeables) will not appear to anyone else. Loot will appear to the player for two minutes. This was later made consistent with death mechanics elsewhere in the game. Additionally, a level 90 combat requirement was added to go through the passage to fight the Corporeal Beast.
+|date = 17 October 2014
+|update = Corporeal Beast Changes
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery>
+Corporeal Beast (Trading Card).png|The Corporeal Beast [[Steam Trading Cards|Steam Trading Card]].
+</gallery>
+
+==Trivia==
+*Though not explained in ''Old School RuneScape'', the boss's name originates from the [[rsw:Summer's End|Summer's End]] quest in ''RuneScape'': as the Spirit Beast was defeated in the Spirit Realm, a mirrored version of [[Gielinor]] where everything is opposite to the physical world and vice versa, the Corporeal Beast was incarnated in the physical world to replace the Spirit Beast in the spiritual world.
+** Also explained in ''RuneScape'' is that the markings on the ground are the graves of the residents of [[rsw:Bonde Farm|Bonde Farm]].
+* The magic area-of-effect attack the Corporeal Beast uses was originally named <code>[corp_sperm_splash]</code> in the game's code, though it was renamed to <code>[corp_magic_splash]</code> on [[28 October]] [[2020]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1449841608841736194|date=17 October 2021|archiveurl=https://reldo.runescape.wiki/i/103050|archivedate=18 October 2021}} It was also changed from white to black in-game at some point in ''RuneScape''.
+*[[Pet]]s cannot be brought into the Corporeal Beast's lair. Attempting to enter the cave while having one following the player will cause a message to appear in the chatbox, stating ''Your follower hides in fear and refuses to enter the cave.'' If the player attempts to drop their pet while inside, the chatbox will instead state ''Your follower hides in fear and won't come out.'' This is also a nod to ''RuneScape'', where the Corporeal Beast is capable of eating Summoning familiars, which are also followers.
+*Corporeal Beast had a festive override wearing a [[santa hat]] during the [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+
+{{Succession|predecessor=[[TzTok-Jad]]|title=[[Strongest monster|Strongest monster in ''Old School RuneScape'']]|successor=[[Great Olm]]}}
+
+==References==
+{{Reflist}}
+
+{{Corporeal Beast}}
+{{Bosses}}
+[[Category:Backported and extracted content]]
+[[Category:Monsters that do not become tolerant]]

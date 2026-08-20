@@ -1,0 +1,224 @@
+{{Instance}}
+{{HasStrategy}}
+{{HasTask|Greater demons|Black demons}}
+{{Infobox Monster
+|name = Skotizo
+|image = [[File:Skotizo.png|250px]]
+|release = [[16 June]] [[2016]]
+|update = Skotizo - The Archaic Demon
+|members = Yes
+|combat = 321
+|size = 5
+|examine = A darkly altared demon.
+|attributes = demon
+|xpbonus = 37.5
+|max hit = 38
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Stab]], [[Magic]]
+|attack speed = Random
+|slayxp = 618.5
+|cat = Black Demons, Greater Demons
+|assignedby = chaeldar,konar,nieve,duradel
+|hitpoints = 450
+|att = 240
+|str = 250
+|def = 200
+|mage = 280
+|range = 1
+|attbns = 160
+|strbns = 31
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 80
+|dslash = 80
+|dcrush = 80
+|dmagic = 80
+|dlight = 130
+|dstandard = 130
+|dheavy = 130
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunethrall = Not Immune
+|id = 7286
+|leagueRegion = Kourend
+}}
+'''Skotizo''' is a demonic boss located beneath the [[Catacombs of Kourend]]. Accessing his lair requires the use of a [[dark totem]] on the [[Altar (Catacombs of Kourend)|altar]] found in the centre of the Catacombs; one dark totem permits only one attempt, which makes him a [[Sporadic bosses|sporadic boss]].
+
+He is primarily known for his guaranteed [[Clue scroll (hard)|hard clue scroll]] drops, along with a very high chance of [[Clue scroll (elite)|elite clue scrolls]].
+
+Skotizo can be substituted for both [[black demon]] and [[greater demon]] kills during Slayer tasks. Skotizo's Lair is part of the Catacombs of Kourend, and '''does''' count as such for the purpose of Konar Slayer tasks. He cannot be damaged with a [[ring of recoil]].
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Skotizo
+|location = [[Catacombs of Kourend]]
+|levels = 321
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:2271,y:5661
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{LocTableBottom}}
+
+==History==
+Skotizo was a general of [[Zamorak]] during the [[God Wars]], but he was often outshined by Zamorak's more notable generals, such as [[Thammaron]] and [[K'ril Tsutsaroth]]. He is also [[Zalcano]]'s brother.
+
+After the cunning he and his soldiers showed at the Battle of [[Carrallanger]], Zamorak personally gave them their next mission, something he rarely did. The mission was to lead an expedition to recover a certain artefact in the [[Karamjan Temple]] found within the [[Kharazi Jungle]]. Skotizo was delighted by being assigned the mission and set out as soon as possible to please his god.
+
+Reaching the Temple after a few days, Skotizo and his squad had managed to reach the Temple's centre after navigating a large maze. Now in possession of the artefact, Skotizo betrayed his squad, taking the artefact's power for himself and decimating the expedition team. This resulted in a furious Zamorak placing responsibility on Zalcano, inflicting a curse that would slowly turn her into stone until she could bring him before her god to face retribution.
+
+Skotizo managed to avoid Zamorak's wrath during this time and discovered [[Great Kourend]] to the far west, while his sister believed that he had fled to the lands of [[Tirannwn]]. Using the power of the artefact, Skotizo managed to call a large amount of creatures to his side and set up in Kourend's underground, now the present-day [[Catacombs of Kourend]]. His arrival was noted by the [[Dragonkin]] [[Karuulm]], though he had opted to avoid confrontation and left Skotizo alone, who was likely unaware of his presence. Roughly 200 years after the end of a civil war in Kourend, Skotizo encountered a human adventurer in his chamber who was investigating mysterious disappearances and mortally wounded them.{{CiteText|text=Bloody diary|author=Unknown|quote=I placed the key and was teleported into a large, empty chamber. I thought myself alone, until a large, dark demon made its presence known to me. I stabbed it with my sword, but it seemed to have no effect. Did the shards weaken it after all? Or was it too powerful for the sword to harm it? Before I could gather my thoughts, the demon grabbed me and threw me across the chamber, breaking my spine. Before it could reach me, I spotted a portal in the corner of the room. I did not care where it led me, as long as it was far away from that demon. I ended up right here, by the altar where I had placed that key. I continue to write in my diary, hoping someone would come to rescue me.}}
+
+==Drops==
+{{DropLogProject|kills=18964}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Infernal ashes|quantity=1|rarity=Always}}
+{{DropsLineClue|type=hard|rarity=Always}}
+{{DropsTableBottom}}
+
+===Ancient shards===
+''Skotizo has a guaranteed drop of at least one ancient shard, for up to 5 total. The average shards per kill is 1.41.''
+{{DropsTableHead}}
+{{DropsLine|name=Ancient shard|quantity=1|rarity=75/100|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1277951091003588611|date=30 June 2020|archiveurl=https://reldo.runescape.wiki/i/97663|archivedate=24 July 2020|name=shards}}|gemw=No}}
+{{DropsLine|name=Ancient shard|quantity=2|rarity=15/100|raritynotes={{NamedRef|shards}}|gemw=No}}
+{{DropsLine|name=Ancient shard|quantity=3|rarity=5/100|raritynotes={{NamedRef|shards}}|gemw=No}}
+{{DropsLine|name=Ancient shard|quantity=4|rarity=4/100|raritynotes={{NamedRef|shards}}|gemw=No}}
+{{DropsLine|name=Ancient shard|quantity=5|rarity=1/100|raritynotes={{NamedRef|shards}}|gemw=No}}
+{{DropsTableBottom}}
+
+===Gemstones===
+''There is a 1 in 100 chance of rolling Skotizo's gemstone sub-table. Below lists the effective drop rates.''{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1345740719537926153|date=3 January 2021|archiveurl=https://reldo.runescape.wiki/i/103857|archivedate=3 January 2021|quote=The onyx and dragonstone are both on a sub-table of their own.
+The main table has a 1/100 chance of calling this sub-table.
+On the sub-table, it's a 1/10 chance of giving an onyx and a 9/10 chance of giving 10x banknoted dragonstones.}}
+{{DropsTableHead}}
+{{DropsLine|name=Uncut dragonstone|quantity=10 (noted)|rarity=9/1000}}
+{{DropsLine|name=Uncut onyx|quantity=1|rarity=1/1000}}
+{{DropsTableBottom}}
+
+===Armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune platebody|quantity=3 (noted)|rarity=7/100}}
+{{DropsLine|name=Rune platelegs|quantity=3 (noted)|rarity=7/100}}
+{{DropsLine|name=Rune plateskirt|quantity=3 (noted)|rarity=7/100}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Death rune|quantity=500|rarity=7/100}}
+{{DropsLine|name=Soul rune|quantity=450|rarity=7/100}}
+{{DropsLine|name=Blood rune|quantity=450|rarity=7/100}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Adamantite ore|quantity=75 (noted)|rarity=7/100}}
+{{DropsLine|name=Grimy snapdragon|quantity=20 (noted)|rarity=7/100}}
+{{DropsLine|name=Grimy torstol|quantity=20 (noted)|rarity=7/100}}
+{{DropsLine|name=Raw anglerfish|quantity=60 (noted)|rarity=7/100}}
+{{DropsLine|name=Runite bar|quantity=20 (noted)|rarity=7/100}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Mahogany plank|quantity=150 (noted)|rarity=7/100}}
+{{DropsLine|name=Battlestaff|quantity=25 (noted)|rarity=7/100}}
+{{DropsLine|name=Onyx bolt tips|quantity=40|rarity=7/100}}
+{{DropsLine|name=Shield left half|quantity=1|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/5}}
+{{DropsLine|name=Ensouled demon head|quantity=1|rarity=1/10}}
+{{DropsLine|name=Dark claw|quantity=1|rarity=1/25|gemw=No}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|321}}|raritynotes=<ref group=d>Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No}}
+{{DropsLine|name=Skotos|quantity=1|rarity=1/65|gemw=No}}
+{{DropsLine|name=Dark totem base|quantity=1|rarity=3/128|raritynotes={{Refn|group=d|name=piece|There is a 4/128 to roll the dark totem sub-table, then a 1/4 chance to receive a complete dark totem and a 3/4 chance to receive a totem piece that the player has the least of. In the case of a tie, they are rewarded in the order of base > middle > top.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1345739863283396609|date=3 January 2021|archiveurl=https://reldo.runescape.wiki/i/103075|archivedate=3 January 2021|quote=[Skotizo's] got a 1/128 chance of giving the full totem, and a 3/128 chance of giving a piece.}}}}|gemw=No}}
+{{DropsLine|name=Dark totem middle|quantity=1|rarity=3/128|raritynotes={{Refn|group=d|name=piece}}|gemw=No}}
+{{DropsLine|name=Dark totem top|quantity=1|rarity=3/128|raritynotes={{Refn|group=d|name=piece}}|gemw=No}}
+{{DropsLine|name=Dark totem|quantity=1|rarity=1/128|raritynotes={{Refn|group=d|name=piece}}|gemw=No}}
+{{DropsLine|name=Jar of Darkness|quantity=1|rarity=1/200}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Skotizo}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change =
+* [[Awakened Altar]]s now have a cooldown of 1 minute before they can reactivate once deactivated.
+* Skotizo's arena was made smaller.
+}}
+{{Subject changes
+|date = 9 April 2025
+|update = Farming & Autocast QoL Improvements
+|change = Skotizo's [[Magic defence]] has been reduced from +130 to +80.
+}}
+{{Subject changes
+|date = 16 November 2022
+|update = Poll 77 Changes & More
+|poll = Old School Content Poll 77: Quality of Life
+|change = Skotizo's jar of darkness drop rate increased from 1/2,500 to 1/200.
+}}
+{{Subject changes
+|change = Skotizo's drop table was updated to include the [[ensouled demon head]] drop.
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = The minimum [[HiScores]] killcount required for Skotizo has been lowered from 10 to 5.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = A Kingdom Divided
+|change = Skotizo now drops [[infernal ashes]] in place of regular ashes.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|poll = Old School Content Poll 51: Slayer & Dungeons
+|change = [[Skotos]] and [[dark claws]] have been added as possible drops from Skotizo.
+}}
+{{Subject changes
+|date = 28 July 2016
+|update = Dragon Spear Changes & Beta 3
+|poll = Old School Content Poll 45: Skilling Pets & Quality of Life
+|change = Skotizo's elite clue scroll drop rate increased from 1/50 to 1/5.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* "Skotízo" ("σκοτίζω") is Ancient Greek for darkening, referencing Skotizo's dark appearance and demonic nature.
+* Skotizo's examine text is a play on words, with the spelling of "altared" referencing the [[Awakened Altar|awakened altar]]s around its lair.
+* Skotizo is the only [[monster]] that directly drops the [[shield left half]]; all other monsters that drop it do so indirectly via the [[rare drop table]].
+* Skotizo had a festive override wearing a [[black santa hat]] during the [[2016 Christmas event/Gallery|2016]], [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], and [[2019 Christmas event/Gallery|2019]] Christmas events.
+
+==References==
+{{reflist}}
+
+{{Catacombs of Kourend}}
+{{Demons}}
+{{Bosses}}

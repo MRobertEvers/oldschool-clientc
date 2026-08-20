@@ -39884,6 +39884,42 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(said_ok, "the Helpful Spirit should offer three distinct "
                                         "supply bundles");
             }
+
+            /*
+             * And the red gate starts the fight (`::toagate`).
+             *
+             * The barrier is how a player enters every chamber in this raid,
+             * and it is `blockwalk=1` - so if the loc is missing from a built
+             * square, or its op is bound to the wrong name, there is no way in
+             * at all and every other check here would still pass, because they
+             * all start rooms another way.
+             */
+            {
+                static struct Mock230Capture gate;
+                int said_ok = 0;
+
+                mock230_capture_begin(srv, &gate);
+                mock230_scripts_run_debugproc(srv, "toagate");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&gate, 90, 0); w >= 0;
+                     w = mock230_capture_find(&gate, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &gate.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toagate") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toagate OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok,
+                               "a chamber's barrier should exist and start the room "
+                               "when it is passed");
+            }
         }
 
         /*
@@ -45365,6 +45401,8 @@ mock230_world_selftest(void)
                                    selftest_count(player, coins) - coins_before);
                 {
                     int repaints = 0;
+                    int short_capacity = 0;
+                    struct Mock230Container* row = mock230_container_resolve(srv, NULL, shop);
 
                     for( int i = 0; i < capture.count; i++ )
                     {
@@ -45381,9 +45419,29 @@ mock230_world_selftest(void)
                                   ((int32_t)capture.packets[i].data[2] << 8) |
                                   (int32_t)capture.packets[i].data[3];
                         pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
-                        if( pkt_inv == shop && pkt_com == main_grid )
-                            repaints++;
+                        if( pkt_inv != shop || pkt_com != main_grid )
+                            continue;
+                        repaints++;
+                        /*
+                         * And it has to carry the shop's REAL capacity, not the
+                         * used prefix. This is the assertion the first pass at
+                         * this stanza did not make, and the bug it did not
+                         * catch: `shop_main_init` builds `inv_size($shop)` cells
+                         * once at open and `shop_main_update` repaints exactly
+                         * that many, so a 40-slot store transmitted as "15"
+                         * drew 15 cells and had nowhere to put the 16th item.
+                         * The packet went out, the container was right, and the
+                         * shop still looked untouched.
+                         */
+                        if( capture.packets[i].opcode == inv_full &&
+                            capture.packets[i].len >= 8 && row &&
+                            ((capture.packets[i].data[6] << 8) |
+                             capture.packets[i].data[7]) != row->slots )
+                            short_capacity = 1;
                     }
+                    SELFTEST_CHECK(!short_capacity,
+                                   "%s: the shop's UPDATE_INV_FULL should carry all %d slots",
+                                   k_cases[c].label, row ? row->slots : -1);
                     SELFTEST_CHECK(!capture.overflow, "%s: the sale capture overflowed",
                                    k_cases[c].label);
                     SELFTEST_CHECK((repaints > 0) == (k_cases[c].want_sold > 0),
@@ -50471,10 +50529,23 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_xamphur]", 9,
+                  "the Mark of Darkness doubles two things and is opt-in" },
+                { "[proc,selftest_ma2_mechanics]", 9,
+                  "Porazdir's ball ignores prayer and only distance stops it" },
+                { "[proc,selftest_vorkath_specials]", 8,
+                  "Vorkath's two specials alternate and only the first is "
+                  "random" },
+                { "[proc,selftest_skotizo_altars]", 11,
+                  "four altars are 100% reduction without a demonbane weapon "
+                  "and 60% with one" },
+                { "[proc,selftest_corp_damage]", 9,
+                  "corpbane is a per-weapon flag AND a stab-only rule, and "
+                  "Protect from Magic only reduces" },
                 { "[proc,selftest_wildyevents]", 13,
                   "the hot zone's two bands overlap at 30 and only one prize "
                   "cell pays an item" },
-                { "[proc,selftest_partyroom]", 17,
+                { "[proc,selftest_partyroom]", 18,
                   "the party room's members threshold is the HIGHER one" },
                 { "[proc,selftest_barrows_reward]", 10,
                   "Barrows' 1000 cap is on the kill sum and the brothers sit "
@@ -55256,6 +55327,75 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::scorpcatcherrun\n");
+    {
+        /*
+         * Scorpion Catcher (2026-08-20 audit). The entire quest was a
+         * skeleton -- constant/varp/journal only, thormac.rs2's and
+         * seer.rs2's own header comments admitted "scorpcatcher quest gate
+         * deferred". Implemented the full quest: thormac.rs2 (offer +
+         * turn-in, gated on Prayer 31 only -- Alfred Grimhand's Barcrawl,
+         * the wiki's other requirement, is not ported anywhere in this
+         * tree), seer.rs2 (looking-glass hints), and a new
+         * scorpcatcher_scorpions.rs2 (secret-wall search, sting-on-pickup,
+         * catch/combine). `[opnpc1,thormac]`/`[opnpc1,seer]` block on
+         * dialogue, so `scorpcatcherrun` mirrors their state-transition
+         * lines (established ::doricrun/::squirerun precedent), but the
+         * catch mechanic's own combination-table logic needed no npc/loc
+         * context beyond `npc_del` -- it was split into a pure
+         * `~scorpcatcher_next_cage` the debugproc calls for real, four
+         * times, plus the real `~quest_complete_rewards` at the end. Not
+         * covered here: the `[opnpcu,questscorpion*]` trigger wiring itself
+         * (setting `last_useitem` via a real client click) -- boilerplate
+         * identical in shape to dozens of other working `[opnpcu]`
+         * triggers elsewhere in this tree, disclosed as untested rather
+         * than assumed.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture scorpcatcherrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &scorpcatcherrun_capture);
+            mock230_scripts_run_debugproc(srv, "scorpcatcherrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&scorpcatcherrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&scorpcatcherrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &scorpcatcherrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "SCORPCATCHERRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "SCORPCATCHERRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::scorpcatcherrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::scorpcatcherrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::squirerun\n");
     {
         /*
@@ -56724,17 +56864,27 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: heroquest mansion geometry probe\n");
     {
         /*
-         * TEMP, one-shot diagnostic -- not a SELFTEST_CHECK, no pass/fail.
-         * Does not depend on the compiled script pack (loc/npc/obj symbol
-         * packs load from the cache at boot, independent of sscompile), so
-         * it can run even while quest_arthur's own in-progress edit blocks
-         * a full script compile elsewhere in the tree. Answers: is
-         * pete_sidedoor's `[oploc1]` walk-through branch
+         * Answers: is pete_sidedoor's `[oploc1]` walk-through branch
          * (`coordz(coord) = coordz(loc_coord)`) reachable from the Mr
          * Olbors' garden side, i.e. can a solo Phoenix-only account (which
          * can never hold `misc_key`, a Black-Arm-exclusive item from Grip)
-         * reach Grip at all?
+         * reach Grip at all? The loc/npc/obj symbol dump above needs no
+         * script pack, but the OPLOC1 dispatch below does -- `ballrun`
+         * immediately above this block ends with its own
+         * `mock230_scripts_free(srv)`, so scripts must be (re)loaded here or
+         * every `mock230_scripts_run_trigger_on_loc` call below silently
+         * no-ops on `!srv->scripts_ok` (first line of `run_trigger_impl`) --
+         * this cost a full debugging pass the first time around: the
+         * dispatch calls produced zero captured messages and the player
+         * never moved regardless of the content fix, which read exactly
+         * like the fix not working.
          */
+        int scripts_loaded_here = mock230_scripts_load(
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !scripts_loaded_here )
+            scripts_loaded_here = mock230_scripts_load(
+                srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         int saved_x = player->x;
         int saved_z = player->z;
         int saved_level = player->level;
@@ -56779,8 +56929,137 @@ mock230_world_selftest(void)
             }
         }
 
+        /*
+         * Harness sanity check: does `mock230_scripts_run_trigger_on_loc`
+         * actually dispatch `[oploc1,<name>]` at all? Tested against
+         * herokitchendoor, whose body is unconditional either way (walks
+         * through or prints "This door seems to be locked..."), no
+         * `npc_find` dependency to complicate the read.
+         */
+        if( loc_herokitchendoor >= 0 )
+        {
+            int slot = mock230_scene_find_loc(2788, 3189, 0, loc_herokitchendoor);
+
+            fprintf(stderr, "  SANITY herokitchendoor scene slot=%d\n", slot);
+            if( slot >= 0 )
+            {
+                int category = mock230_loc_category(loc_herokitchendoor);
+                static struct Mock230Capture sanity_capture;
+
+                mock230_world_teleport(srv, 0, 2787, 3189);
+                mock230_world_tick(srv);
+                mock230_capture_begin(srv, &sanity_capture);
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                    loc_herokitchendoor, category, slot);
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&sanity_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&sanity_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &sanity_capture.packets[i];
+
+                    if( packet->len >= 2 && packet->data[packet->len - 1] == 0 )
+                        fprintf(stderr, "  SANITY msg: %s\n", (const char*)packet->data + 1);
+                }
+                fprintf(stderr, "  SANITY herokitchendoor: player now at %d,%d\n", player->x,
+                        player->z);
+            }
+        }
+
+        /*
+         * MUTATION TARGET, real (non-mirrored) assertion: `[oploc1,
+         * pete_sidedoor]`'s original `coordz(coord) = coordz(loc_coord)`
+         * check, measured via real (non-mirrored) `[oploc1]` dispatch, is
+         * TRUE approaching from the west/east/south neighbour tiles of
+         * loc_coord=(2781,3197) but FALSE from the north (2781,3196) --
+         * directional, not a reliable "you're at the door" test. From the
+         * north, `[oplocu,pete_sidedoor]` (needs `misc_key`,
+         * Black-Arm-exclusive via Grip's own dialogue) was the only route
+         * through, which is a real problem if that is the tile the garden
+         * route actually funnels a Phoenix player onto. Rather than depend
+         * on which exact approach tile is walkable, this is now gated
+         * explicitly. Proven for real from the north tile specifically
+         * (the one direction the base check does NOT already cover, so this
+         * assertion is actually exercising the new OR clause and not the
+         * pre-existing behaviour).
+         */
+        if( loc_pete_sidedoor >= 0 )
+        {
+            int slot = mock230_scene_find_loc(2781, 3197, 0, loc_pete_sidedoor);
+
+            fprintf(stderr, "  pete_sidedoor scene slot=%d\n", slot);
+            SELFTEST_CHECK(slot >= 0, "pete_sidedoor should be in the mansion scene");
+            if( slot >= 0 )
+            {
+                int category = mock230_loc_category(loc_pete_sidedoor);
+                int varp_phoenixgang = mock230_content_symbol(MOCK230_PACK_VARP, "phoenixgang");
+                int varp_heroquest2 = mock230_content_symbol(MOCK230_PACK_VARP, "heroquest");
+
+                SELFTEST_CHECK(varp_phoenixgang >= 0 && varp_heroquest2 >= 0,
+                               "pete_sidedoor check needs phoenixgang=%d heroquest=%d "
+                               "to resolve",
+                               varp_phoenixgang, varp_heroquest2);
+                if( varp_phoenixgang >= 0 && varp_heroquest2 >= 0 )
+                {
+                    /* Unqualified, from the north (2781,3196) -- the one
+                     * direction the base coordz check does not already
+                     * cover. Must stay locked; this is the control that
+                     * proves the OR clause, not the base check, is what
+                     * opens it below. */
+                    player->varps[varp_phoenixgang] = 0;
+                    player->varps[varp_heroquest2] = 0;
+                    mock230_world_teleport(srv, 0, 2781, 3196);
+                    mock230_world_tick(srv);
+                    mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                        loc_pete_sidedoor, category, slot);
+                    fprintf(stderr,
+                            "  OPLOC1 pete_sidedoor (unqualified) from north "
+                            "(2781,3196): player now at %d,%d (%s)\n",
+                            player->x, player->z,
+                            (player->x != 2781 || player->z != 3196)
+                                ? "WALKED THROUGH"
+                                : "stayed put / locked");
+                    SELFTEST_CHECK(player->x == 2781 && player->z == 3196,
+                                   "an unqualified player should NOT walk through "
+                                   "pete_sidedoor from the north, but ended at %d,%d",
+                                   player->x, player->z);
+
+                    /* MUTATION TARGET: a qualifying solo Phoenix player
+                     * (phoenixgang joined, heroquest >=
+                     * hero_phoenix_talked_charlie), from that SAME north
+                     * tile, must now walk through -- this is the fix
+                     * itself, isolated from the base check. 9 ==
+                     * ^phoenixgang_joined, 4 == ^hero_phoenix_talked_charlie
+                     * (quest_blackarmgang.constant / quest_hero.constant). */
+                    player->varps[varp_phoenixgang] = 9;
+                    player->varps[varp_heroquest2] = 4;
+                    mock230_world_teleport(srv, 0, 2781, 3196);
+                    mock230_world_tick(srv);
+                    mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                        loc_pete_sidedoor, category, slot);
+                    fprintf(stderr,
+                            "  OPLOC1 pete_sidedoor (qualified Phoenix) from north "
+                            "(2781,3196): player now at %d,%d (%s)\n",
+                            player->x, player->z,
+                            (player->x != 2781 || player->z != 3196)
+                                ? "WALKED THROUGH"
+                                : "stayed put / locked");
+                    SELFTEST_CHECK(player->x != 2781 || player->z != 3196,
+                                   "MUTATION TARGET: a qualifying Phoenix player "
+                                   "(phoenixgang=joined, heroquest>=talked_charlie) "
+                                   "should walk through pete_sidedoor from the north, "
+                                   "but stayed at %d,%d -- this is Heroes' Quest's "
+                                   "pete_sidedoor directional-access fix",
+                                   player->x, player->z);
+                    player->varps[varp_phoenixgang] = 0;
+                    player->varps[varp_heroquest2] = 0;
+                }
+            }
+        }
+
         mock230_world_teleport(srv, saved_level, saved_x, saved_z);
         mock230_world_tick(srv);
+        if( scripts_loaded_here )
+            mock230_scripts_free(srv);
     }
 
     fprintf(stderr, "mock230 selftest: ::herorun\n");

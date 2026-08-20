@@ -56,6 +56,22 @@ BOSSES = {
     "chaos_fanatic": "Chaos_Fanatic",
     "crazy_archaeologist": "Crazy_archaeologist",
     "fossil_crazy_archaeologist": "Deranged_archaeologist",
+    # Added 2026-08-20. These six were recorded as "no cache asset" until the
+    # cache was searched by DISPLAY name rather than by symbol -- see
+    # tools/cache_find.py. None of the symbols contains the boss's own name.
+    "corp_beast": "Corporeal_Beast",          # Corporeal Beast
+    "cata_boss": "Skotizo",                   # Skotizo
+    "vorkath": "Vorkath",                     # Vorkath
+    "akd_xamphur_combat": "Xamphur",          # Xamphur
+    "ma2_boss_guthix": "Derwen",              # Rise of the Six
+    "ma2_boss_saradomin": "Justiciar_Zachariah",
+    # Revenant maledictus is deliberately NOT listed. It is the one case where
+    # the cache and the wiki genuinely disagree: `wild_cave_superior` is named
+    # "Revenant maledictus" and carries 1200 hitpoints where the wiki states
+    # 1250. The name matches, so this is not a wrong record -- this cache
+    # snapshot predates a hitpoints change. Listing it would make the checker
+    # cry wolf about a divergence that is real and expected; leaving it out with
+    # this note is the honest form. Recheck if the cache is ever re-exported.
 }
 
 
@@ -112,10 +128,30 @@ def cache_hitpoints(record):
 def main():
     configs = read_configs()
     problems = []
+    unconfigured = []
     for record, page in sorted(BOSSES.items()):
         params = configs.get(record)
         if params is None:
-            problems.append("%s: no block in any boss config" % record)
+            # No authored block yet -- but the CACHE half of the contract can
+            # still run, and it is the half that proves the record was picked by
+            # the right name. A boss whose cache hitpoints match the wiki is a
+            # boss waiting for a config and a script; one whose hitpoints
+            # disagree is a boss whose symbol was guessed wrong, and those are
+            # very different pieces of news to report as "missing".
+            cache_hp = cache_hitpoints(record)
+            wiki_hp = wiki_field(page, "hitpoints")
+            wiki_hp = wiki_hp.strip() if wiki_hp else None
+            if cache_hp is None:
+                problems.append("%s: no config block AND no cache record -- "
+                                "the symbol is wrong" % record)
+            elif wiki_hp and wiki_hp.isdigit() and int(wiki_hp) != cache_hp:
+                problems.append("%s: no config block, and cache hitpoints %d "
+                                "disagree with the wiki's %s -- wrong record"
+                                % (record, cache_hp, wiki_hp))
+            else:
+                unconfigured.append("%s (%s, %s hp) cache record confirmed"
+                                    % (record, page.replace("_", " "),
+                                       cache_hp))
             continue
 
         speed = wiki_field(page, "attack speed")
@@ -144,6 +180,12 @@ def main():
                     "%s: wiki hitpoints %s but cache record has %d — wrong record?"
                     % (record, want_hp, have_hp)
                 )
+
+    if unconfigured:
+        print("check_boss_contract: %d boss(es) have a confirmed cache record "
+              "but no authored config yet:" % len(unconfigured))
+        for line in unconfigured:
+            print("  " + line)
 
     if problems:
         print("check_boss_contract: %d problem(s)" % len(problems), file=sys.stderr)

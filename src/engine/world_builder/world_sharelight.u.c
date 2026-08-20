@@ -285,6 +285,19 @@ defaultlight_build(struct WorldBuilder* builder)
 
 #define SHARELIGHT_MERGE_LOOKAHEAD 6
 
+/* Alloc order matters: CalculateVertexNormals seeds merged_normals from the
+ * base normals only if merged is already allocated. */
+static void
+sharelight_ensure_normals(struct ToriDraw_Model* dm)
+{
+    assert(dm);
+    if( dm->normals )
+        return;
+    ToriDraw_ModelAllocNormals(dm);
+    ToriDraw_ModelAllocMergedNormals(dm);
+    ToriDraw_ModelCalculateVertexNormals(dm);
+}
+
 static void
 alloc_normals_for_column(
     struct WorldBuilder* builder,
@@ -310,13 +323,7 @@ alloc_normals_for_column(
                 if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
                     !scene_element->model.u.model.model )
                     continue;
-                struct ToriDraw_Model* dm = scene_element->model.u.model.model;
-                if( !dm->normals )
-                {
-                    ToriDraw_ModelAllocNormals(dm);
-                    ToriDraw_ModelAllocMergedNormals(dm);
-                    ToriDraw_ModelCalculateVertexNormals(dm);
-                }
+                sharelight_ensure_normals(scene_element->model.u.model.model);
             }
         }
     }
@@ -420,6 +427,17 @@ merge_column(
                             !ToriDraw_ModelIsLightable(dm) )
                             continue;
 
+                        /* The batch alloc only leads by SHARELIGHT_MERGE_LOOKAHEAD
+                         * columns, but adjacency reaches the element's whole
+                         * footprint (up to SHARELIGHT_MAX_ELEMENT_TILES): a
+                         * 7-tile-wide sharelight loc (ToA's Crondis water
+                         * source, 7x5) gathers a column the alloc pass has not
+                         * visited yet, whose models still have NULL normals. */
+                        sharelight_ensure_normals(adjacent_dm);
+                        assert(dm->normals);
+                        assert(dm->merged_normals);
+                        assert(adjacent_dm->merged_normals);
+
                         bool hide_faces = sharelight_should_hide_faces_for_merge(
                             slevel, adjacent_tile_coord.level);
 
@@ -486,6 +504,11 @@ apply_and_free_column(
                     struct ToriDraw_Model* dm = scene_element->model.u.model.model;
                     if( !ToriDraw_ModelIsLightable(dm) )
                         continue;
+                    /* Every sharelight element's column is alloc'd before its
+                     * apply pass; NULL here means the alloc/merge/apply
+                     * lifecycle broke, not a legitimate unlit model. */
+                    assert(dm->normals);
+                    assert(dm->merged_normals);
                     ToriDraw_ApplyLighting(
                         dm->face_colors_a,
                         dm->face_colors_b,

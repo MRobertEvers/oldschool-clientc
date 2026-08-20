@@ -87,6 +87,11 @@ a skull helps the revenant table except where it hurts, and the amulet is not th
 Barrows' 1000 cap is on the kill sum and the brothers sit above it
 the party room's members threshold is the HIGHER one
 the hot zone's two bands overlap at 30 and only one prize cell pays an item
+corpbane is a per-weapon flag AND a stab-only rule, and Protect from Magic only reduces
+four altars are 100% reduction without a demonbane weapon and 60% with one
+Vorkath's two specials alternate and only the first is random
+Porazdir's ball ignores prayer and only distance stops it
+the Mark of Darkness doubles two things and is opt-in
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

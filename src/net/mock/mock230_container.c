@@ -847,6 +847,21 @@ mock230_container_slot_mask(const struct Mock230Container* container)
  * 7 bytes each, and it re-sends whole on every change. UPDATE_INV_FULL clears
  * everything past what it carries, so the tail is still correct; the client
  * widens on demand when a later update reaches past it.
+ *
+ * A SHOP IS NOT ALLOWED THAT PREFIX, and the reason is the grid rather than the
+ * container. `shop_main_init` (clientscript 1074) builds `inv_size($shop)` cells
+ * **once**, at open, and `shop_main_update` (1076) repaints exactly that many on
+ * every later transmit — unlike the bank, whose own script rebuilds its grid
+ * from scratch each time. So a 40-slot general store with 15 lines stocked was
+ * transmitted as 15, drew 15 cells, and could never show a 16th: selling into it
+ * moved the item onto the shelf and told the client about it, and the client had
+ * nowhere to put it. From in front of the counter that is exactly "selling to a
+ * general store just deletes the item" — the backpack cell empties, the coins
+ * arrive, and the shop looks untouched. It also cost the empty cells a real shop
+ * shows below its stock, which are what you drop an item into.
+ *
+ * Specialty shops never showed it because their cache invs are small enough to
+ * be per-slot (Bob's is 7) and a sale merges into a line that already has a cell.
  */
 static int
 full_capacity(const struct Mock230Container* row)
@@ -854,6 +869,8 @@ full_capacity(const struct Mock230Container* row)
     int used = 0;
 
     if( row->per_slot )
+        return row->slots;
+    if( mock230_shop_def(row->inv_id) )
         return row->slots;
     for( int i = 0; i < row->slots; i++ )
         if( row->items[i].obj_id >= 0 )
