@@ -1435,6 +1435,19 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
 
+# The save path through the real host: only the dirty half is written, the
+# untouched half stays byte-identical, the file reloads, no .tmp is stranded,
+# and a session without the lock cannot write at all.
+test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_host_local.c editor/test/editor_save_test.c
+	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
+	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
+	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
 # Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
 # degenerate shapes real footprints produce -- edge-on, collinear, duplicated
 # corners shared between adjacent tiles.
@@ -1461,7 +1474,7 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 	./$(OBJ_DIR)/uitree_test_dropdown
 
 test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull test-polygon-fill
+	test-convex-hull test-polygon-fill test-editor-save
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

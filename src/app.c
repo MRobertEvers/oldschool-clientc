@@ -4967,6 +4967,45 @@ app_loc_editor_rotate(struct App* app)
     app_loc_editor_refresh_labels(app);
 }
 
+
+/**
+ * OSRS key code -> the overlay's editing key, or TORIDBG_KEY_NONE.
+ *
+ * The overlay deliberately owns no keymap (see uitree_debug_overlay.h), so the
+ * translation lives here, where the client's own key codes already are.
+ * Printable characters do not come through this at all — they arrive as
+ * `key_pressed` and go straight to ToriDbgUI_KeyChar.
+ */
+
+
+static int
+app_dbgui_key_edit_from_osrs(int osrs_key)
+{
+    switch( osrs_key )
+    {
+    case TORIRS_OSRSKEY_BACKSPACE:
+        return TORIDBG_KEY_BACKSPACE;
+    case TORIRS_OSRSKEY_DELETE:
+        return TORIDBG_KEY_DELETE;
+    case TORIRS_OSRSKEY_ENTER:
+        return TORIDBG_KEY_ENTER;
+    case TORIRS_OSRSKEY_ESCAPE:
+        return TORIDBG_KEY_ESCAPE;
+    /* Arrows and home/end have no named constants; the keymap table spells
+     * them (src/input/torirs_keymap.c: 96 left, 97 right, 102 home, 103 end). */
+    case 96:
+        return TORIDBG_KEY_LEFT;
+    case 97:
+        return TORIDBG_KEY_RIGHT;
+    case 102:
+        return TORIDBG_KEY_HOME;
+    case 103:
+        return TORIDBG_KEY_END;
+    default:
+        return TORIDBG_KEY_NONE;
+    }
+}
+
 static void
 app_loc_editor_tick(
     struct App* app,
@@ -5031,7 +5070,16 @@ app_loc_editor_tick(
         app->locedit_hover_z = app->world_hover_tile_z;
     }
 
-    if( app->locedit_visible )
+    /*
+     * Overlay input, for ANY visible overlay panel.
+     *
+     * This used to be gated on the loc editor alone, which was invisible while
+     * it was the only panel with controls. It is not: the map editor's
+     * dropdowns and buttons sit in the same ToriDbgUI instance, and with the
+     * loc editor closed they received no clicks at all -- every control was
+     * inert, which reads as a broken panel rather than an unrouted one.
+     */
+    if( app->locedit_visible || app->editor_panel.visible )
     {
         /* A chat line stealing W/A/S/D/R/Space/Backspace would make the panel
          * unusable, so force it (and the modal chat variants) closed for as
@@ -5054,6 +5102,45 @@ app_loc_editor_tick(
         if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
             ToriDbgUI_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
+
+        /* The wheel, so an open dropdown scrolls. Consumed when the overlay
+         * takes it, or the camera would zoom behind the list at the same time. */
+        if( input->curr.mouse_wheel_y != 0 &&
+            ToriDbgUI_MouseWheel(
+                &app->dbg_ui,
+                input->curr.mouse_x,
+                input->curr.mouse_y,
+                input->curr.mouse_wheel_y) )
+            app->input_frame_consumed = 1;
+
+        /*
+         * Typing, so text inputs work at all.
+         *
+         * Nothing routed keys to the overlay before this: the loc editor is
+         * menu rows only, so its inputs were never exercised and the gap did
+         * not show. A height field you cannot type into is the whole of what
+         * that costs.
+         *
+         * `key_typed` carries the OSRS key code and `key_pressed` the typed
+         * character (see torirs_input.h), so editing keys and printable bytes
+         * come off different fields of the same event.
+         */
+        for( int i = 0; i < input->key_event_count; i++ )
+        {
+            struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
+            int consumed = 0;
+
+            if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
+                consumed = ToriDbgUI_KeyChar(&app->dbg_ui, ev->key_pressed);
+            else
+            {
+                int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
+                if( edit != TORIDBG_KEY_NONE )
+                    consumed = ToriDbgUI_KeyEdit(&app->dbg_ui, edit);
+            }
+            if( consumed )
+                app->input_frame_consumed = 1;
+        }
 
         /* Keyboard control, the fast path the menu rows advertise. IsKeyDown
          * (edge, not held) so one press moves one tile rather than a nudge
@@ -6356,6 +6443,80 @@ app_world_load_begin(
         app_world_load_finish_cb,
         app);
     ToriRS_TaskQueue_Add(app->runner.queue, task);
+    app->need_redraw = 1;
+}
+
+/**
+ * A click in the world applies the current tool, as one undoable edit.
+ *
+ * Gated on `input_frame_consumed` so a click that landed on the panel does not
+ * also paint the tile behind it -- the overlay sets that flag when it takes a
+ * press, and this runs after it for exactly that reason.
+ *
+ * The tile is the one under the cursor THIS frame. The pickset and hover are
+ * refreshed by the render pass, so they are at most one frame stale, which at
+ * mouse speed is the tile the user is looking at.
+ */
+static void
+app_map_editor_world_click(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(input);
+
+    if( !app->editor || !app->editor_panel.visible )
+        return;
+    if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
+        return;
+    if( app->input_frame_consumed )
+        return;
+    if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
+        return;
+    if( app->world_hover_tile_x < 0 )
+        return;
+
+    /* One click is one undo step. A drag would open the stroke on press and
+     * close it on release; this is the single-click case, which is a stroke of
+     * one and needs no bracketing. */
+    Editor_PanelApplyToolAt(
+        &app->editor_panel,
+        app,
+        app->world_hover_tile_x,
+        app->world_hover_tile_z,
+        app->world_hover_tile_level);
+}
+
+/**
+ * Push the frame's edits back into the provider and rebuild what they changed.
+ *
+ * Once per frame, not once per edit: a brush drag produces a command per tile,
+ * and remeshing a square for each of them would spend the frame rebuilding
+ * terrain nobody has seen yet. Draining here coalesces them, so a drag costs
+ * one rebuild per square per frame however fast the mouse moves.
+ */
+static void
+app_map_editor_drain(struct App* app)
+{
+    int squares[EDITOR_REBUILD_QUEUE_MAX * 2];
+    int count;
+
+    assert(app);
+
+    if( !app->editor || app->editor->rebuild_count == 0 )
+        return;
+    if( app->world_load_inflight )
+        return; /* A load is already rewriting the scene; let it land first. */
+
+    count = Editor_DrainRebuilds(
+        app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
+    if( count <= 0 )
+        return;
+
+    /* The chunklist rebuild path -- the same one an offline world load uses,
+     * given only the squares whose meshes the edit invalidated. */
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, squares, count);
     app->need_redraw = 1;
 }
 
@@ -17860,7 +18021,11 @@ App_RunOnce(
      * same order it is drawn: both read this frame's hover, and the map editor
      * acts on activations the overlay latched during the two calls above. */
     if( app->editor )
+    {
         Editor_PanelTick(&app->editor_panel, app);
+        app_map_editor_world_click(app, input);
+        app_map_editor_drain(app);
+    }
 
     /*
      * Is the link still worth talking to?

@@ -26,6 +26,11 @@ struct RSCache;
  *  and there is no reason to hold document state for squares it cannot show. */
 #define EDITOR_DOC_MAX_SQUARES 64
 
+/**
+ * NEVER a stack local: 64 squares of 16,384 tiles is about 8 MB, which
+ * overflows a default stack before the first field is written. The session owns
+ * one on the heap (struct Editor), and tests must allocate theirs the same way.
+ */
 struct Editor_Doc
 {
     struct Editor_Square squares[EDITOR_DOC_MAX_SQUARES];
